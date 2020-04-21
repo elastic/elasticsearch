@@ -705,7 +705,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     @Override
-    protected SearchRequest buildSearchRequest() {
+    protected SearchRequest buildSearchRequest(long waitTimeInNanos) {
         assert nextCheckpoint != null;
 
         SearchRequest searchRequest = new SearchRequest(getConfig().getSource().getIndex()).allowPartialSearchResults(false)

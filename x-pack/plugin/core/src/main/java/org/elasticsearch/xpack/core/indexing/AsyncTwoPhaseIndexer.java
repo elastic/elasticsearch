@@ -255,9 +255,13 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     /**
      * Called to build the next search request.
      *
+     * In case the indexer is throttled waitTimeInNanos can be used as hint for building a less resource hungry
+     * search request.
+     *
+     * @param waitTimeInNanos duration in nanoseconds the indexer has waited due to throttling.
      * @return SearchRequest to be passed to the search phase.
      */
-    protected abstract SearchRequest buildSearchRequest();
+    protected abstract SearchRequest buildSearchRequest(long waitTimeInNanos);
 
     /**
      * Called at startup after job has been triggered using {@link #maybeTriggerAsyncJob(long)} and the
@@ -500,7 +504,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             if (executionDelay.duration() > 0) {
                 logger.debug("throttling job [{}], wait for {} ({} {})", getJobId(), executionDelay, maximumRequestsPerSecond,
                         lastDocCount);
-                scheduledNextSearch = threadPool.schedule(() -> triggerNextSearch(), executionDelay, executorName);
+                scheduledNextSearch = threadPool.schedule(() -> triggerNextSearch(executionDelay.getNanos()), executionDelay, executorName);
 
                 // corner case: if for whatever reason stop() has been called meanwhile fast forward
                 if (getState().equals(IndexerState.STOPPING)) {
@@ -511,10 +515,10 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             }
         }
 
-        triggerNextSearch();
+        triggerNextSearch(0L);
     }
 
-    private void triggerNextSearch() {
+    private void triggerNextSearch(long waitTimeInNanos) {
         if (checkState(getState()) == false) {
             return;
         }
@@ -523,7 +527,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         lastSearchStartTimeNanos = getTimeNanos();
 
         // ensure that partial results are not accepted and cause a search failure
-        SearchRequest searchRequest = buildSearchRequest().allowPartialSearchResults(false);
+        SearchRequest searchRequest = buildSearchRequest(waitTimeInNanos).allowPartialSearchResults(false);
 
         doNextSearch(searchRequest, searchResponseListener);
     }
@@ -570,10 +574,11 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             if (executionDelay.duration() > 0) {
                 logger.debug("rethrottling job [{}], wait for {} ({} {})", getJobId(), executionDelay, maximumRequestsPerSecond,
                         lastDocCount);
-                scheduledNextSearch = threadPool.schedule(() -> triggerNextSearch(), executionDelay, executorName);
+                scheduledNextSearch = threadPool.schedule(() -> triggerNextSearch(executionDelay.getNanos()), executionDelay,
+                        executorName);
                 return;
             } else {
-                threadPool.executor(executorName).execute(() -> triggerNextSearch());
+                threadPool.executor(executorName).execute(() -> triggerNextSearch(0L));
             }
         }
     }

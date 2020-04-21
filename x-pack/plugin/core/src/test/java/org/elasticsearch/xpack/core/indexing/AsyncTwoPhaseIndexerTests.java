@@ -86,7 +86,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected SearchRequest buildSearchRequest() {
+        protected SearchRequest buildSearchRequest(long waitTimeInNanos) {
             assertThat(step, equalTo(1));
             ++step;
             return new SearchRequest();
@@ -195,7 +195,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected SearchRequest buildSearchRequest() {
+        protected SearchRequest buildSearchRequest(long waitTimeInNanos) {
             ++searchRequests;
             return new SearchRequest();
         }
@@ -305,7 +305,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected SearchRequest buildSearchRequest() {
+        protected SearchRequest buildSearchRequest(long waitTimeInNanos) {
             assertThat(step, equalTo(1));
             ++step;
             return new SearchRequest();

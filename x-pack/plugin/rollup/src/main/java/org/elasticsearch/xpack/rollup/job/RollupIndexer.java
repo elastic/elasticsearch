@@ -113,7 +113,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
     }
 
     @Override
-    protected SearchRequest buildSearchRequest() {
+    protected SearchRequest buildSearchRequest(long waitTimeInNanos) {
         final Map<String, Object> position = getPosition();
         SearchSourceBuilder searchSource = new SearchSourceBuilder()
                 .size(0)

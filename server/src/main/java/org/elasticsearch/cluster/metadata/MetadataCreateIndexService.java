@@ -429,7 +429,12 @@ public class MetadataCreateIndexService {
         // remove the setting it's temporary and is only relevant once we create the index
         final Settings.Builder settingsBuilder = Settings.builder().put(aggregatedIndexSettings);
         settingsBuilder.remove(IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey());
-        settingsBuilder.put(IndexMetadata.PREFER_V2_TEMPLATES_SETTING.getKey(), preferV2Templates);
+        // This setting was added in 7.8, so we can only add it if all nodes are 7.8+, otherwise
+        // the nodes can throw an error about "unknown setting [index.prefer_v2_templates]" when
+        // they go to create the index
+        if (currentState.nodes().mastersFirstStream().allMatch(dn -> dn.getVersion().onOrAfter(Version.V_7_8_0))) {
+            settingsBuilder.put(IndexMetadata.PREFER_V2_TEMPLATES_SETTING.getKey(), preferV2Templates);
+        }
         final Settings indexSettings = settingsBuilder.build();
 
         final IndexMetadata.Builder tmpImdBuilder = IndexMetadata.builder(request.index());

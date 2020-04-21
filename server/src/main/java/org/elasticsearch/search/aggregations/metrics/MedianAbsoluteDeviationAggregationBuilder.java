@@ -54,8 +54,8 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
         PARSER.declareDouble(MedianAbsoluteDeviationAggregationBuilder::compression, COMPRESSION_FIELD);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
-        MedianAbsoluteDeviationAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        MedianAbsoluteDeviationAggregatorFactory.registerAggregators(builder);
     }
 
     private double compression = 1000d;

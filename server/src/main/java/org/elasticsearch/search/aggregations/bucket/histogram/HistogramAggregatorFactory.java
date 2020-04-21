@@ -50,8 +50,8 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     private final long minDocCount;
     private final double minBound, maxBound;
 
-    static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
-        valuesSourceRegistryBuilder.register(HistogramAggregationBuilder.NAME, CoreValuesSourceType.RANGE,
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(HistogramAggregationBuilder.NAME, CoreValuesSourceType.RANGE,
             new HistogramAggregatorSupplier() {
                 @Override
                 public Aggregator build(String name, AggregatorFactories factories, double interval, double offset,
@@ -69,7 +69,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
             }
         );
 
-        valuesSourceRegistryBuilder.register(HistogramAggregationBuilder.NAME,
+        builder.register(HistogramAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             new HistogramAggregatorSupplier() {
                 @Override

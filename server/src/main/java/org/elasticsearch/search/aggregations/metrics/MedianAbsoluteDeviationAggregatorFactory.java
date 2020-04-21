@@ -52,8 +52,8 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
         this.compression = compression;
     }
 
-    static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
-        valuesSourceRegistryBuilder.register(MedianAbsoluteDeviationAggregationBuilder.NAME,
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(MedianAbsoluteDeviationAggregationBuilder.NAME,
             CoreValuesSourceType.NUMERIC,
             new MedianAbsoluteDeviationAggregatorSupplier() {
                 @Override

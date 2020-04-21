@@ -38,8 +38,8 @@ import java.util.Map;
 
 public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
 
-    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
-        valuesSourceRegistryBuilder.register(
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(
             MissingAggregationBuilder.NAME,
             List.of(
                 CoreValuesSourceType.NUMERIC,

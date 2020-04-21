@@ -322,7 +322,7 @@ public class SearchModule {
     }
 
     private ValuesSourceRegistry registerAggregations(List<SearchPlugin> plugins) {
-        ValuesSourceRegistry.ValuesSourceRegistryBuilder builder = new ValuesSourceRegistry.ValuesSourceRegistryBuilder();
+        ValuesSourceRegistry.Builder builder = new ValuesSourceRegistry.Builder();
 
         registerAggregation(new AggregationSpec(AvgAggregationBuilder.NAME, AvgAggregationBuilder::new, AvgAggregationBuilder.PARSER)
             .addResultReader(InternalAvg::new)
@@ -464,7 +464,7 @@ public class SearchModule {
         return builder.build();
     }
 
-    private void registerAggregation(AggregationSpec spec, ValuesSourceRegistry.ValuesSourceRegistryBuilder builder) {
+    private void registerAggregation(AggregationSpec spec, ValuesSourceRegistry.Builder builder) {
         namedXContents.add(new NamedXContentRegistry.Entry(BaseAggregationBuilder.class, spec.getName(), (p, c) -> {
             String name = (String) c;
             return spec.getParser().parse(p, name);
@@ -476,14 +476,14 @@ public class SearchModule {
             Writeable.Reader<? extends InternalAggregation> internalReader = t.getValue();
             namedWriteables.add(new NamedWriteableRegistry.Entry(InternalAggregation.class, writeableName, internalReader));
         }
-        Consumer<ValuesSourceRegistry.ValuesSourceRegistryBuilder> register = spec.getAggregatorRegistrar();
+        Consumer<ValuesSourceRegistry.Builder> register = spec.getAggregatorRegistrar();
         if (register != null) {
             register.accept(builder);
         }
     }
 
-    private void registerBareAggregatorRegistrar(Consumer<ValuesSourceRegistry.ValuesSourceRegistryBuilder> registrar,
-                                                 ValuesSourceRegistry.ValuesSourceRegistryBuilder builder) {
+    private void registerBareAggregatorRegistrar(Consumer<ValuesSourceRegistry.Builder> registrar,
+                                                 ValuesSourceRegistry.Builder builder) {
         if (registrar != null) {
             registrar.accept(builder);
         }

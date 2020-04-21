@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -56,8 +55,8 @@ public final class CardinalityAggregationBuilder
         PARSER.declareLong((b, v) -> {/*ignore*/}, REHASH);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
-        CardinalityAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        CardinalityAggregatorFactory.registerAggregators(builder);
     }
 
     private Long precisionThreshold = null;
@@ -66,7 +65,7 @@ public final class CardinalityAggregationBuilder
         super(name);
     }
 
-    public CardinalityAggregationBuilder(CardinalityAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+    public CardinalityAggregationBuilder(CardinalityAggregationBuilder clone, org.elasticsearch.search.aggregations.AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         super(clone, factoriesBuilder, metadata);
         this.precisionThreshold = clone.precisionThreshold;
     }
@@ -87,7 +86,7 @@ public final class CardinalityAggregationBuilder
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(org.elasticsearch.search.aggregations.AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new CardinalityAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
@@ -129,7 +128,7 @@ public final class CardinalityAggregationBuilder
 
     @Override
     protected CardinalityAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
-                                                      AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
+                                                      AggregatorFactory parent, org.elasticsearch.search.aggregations.AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new CardinalityAggregatorFactory(name, config, precisionThreshold, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 

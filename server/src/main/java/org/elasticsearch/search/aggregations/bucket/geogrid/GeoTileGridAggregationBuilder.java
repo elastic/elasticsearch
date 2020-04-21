@@ -52,8 +52,8 @@ public class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
         super(in);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
-        GeoTileGridAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        GeoTileGridAggregatorFactory.registerAggregators(builder);
     }
 
     @Override

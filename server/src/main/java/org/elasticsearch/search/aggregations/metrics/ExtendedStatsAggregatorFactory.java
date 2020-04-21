@@ -52,8 +52,8 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
         this.sigma = sigma;
     }
 
-    static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
-        valuesSourceRegistryBuilder.register(ExtendedStatsAggregationBuilder.NAME,
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(ExtendedStatsAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             (ExtendedStatsAggregatorProvider) ExtendedStatsAggregator::new);
     }

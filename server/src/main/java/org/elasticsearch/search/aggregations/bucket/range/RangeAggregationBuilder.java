@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -55,8 +54,8 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
         return Range.fromXContent(parser);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
-        AbstractRangeAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder, NAME);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        AbstractRangeAggregatorFactory.registerAggregators(builder, NAME);
     }
 
     public RangeAggregationBuilder(String name) {
@@ -70,12 +69,12 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
         super(in, InternalRange.FACTORY, Range::new);
     }
 
-    protected RangeAggregationBuilder(RangeAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected RangeAggregationBuilder(RangeAggregationBuilder clone, org.elasticsearch.search.aggregations.AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         super(clone, factoriesBuilder, metadata);
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(org.elasticsearch.search.aggregations.AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new RangeAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
@@ -147,7 +146,7 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
 
     @Override
     protected RangeAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
-                                                AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
+                                                AggregatorFactory parent, org.elasticsearch.search.aggregations.AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         // We need to call processRanges here so they are parsed before we make the decision of whether to cache the request
         Range[] ranges = processRanges(range -> {
             DocValueFormat parser = config.format();

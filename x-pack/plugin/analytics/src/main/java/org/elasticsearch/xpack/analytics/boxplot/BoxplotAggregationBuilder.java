@@ -51,8 +51,8 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
         this.compression = clone.compression;
     }
 
-    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
-        BoxplotAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        BoxplotAggregatorFactory.registerAggregators(builder);
     }
 
     @Override

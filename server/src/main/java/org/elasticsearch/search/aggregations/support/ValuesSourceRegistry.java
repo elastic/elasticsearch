@@ -41,7 +41,7 @@ import java.util.function.Predicate;
  *
  */
 public class ValuesSourceRegistry {
-    public static class ValuesSourceRegistryBuilder {
+    public static class Builder {
         private Map<String, List<Map.Entry<Predicate<ValuesSourceType>, AggregatorSupplier>>> aggregatorRegistry = new HashMap<>();
         /**
          * Register a ValuesSource to Aggregator mapping.

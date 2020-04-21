@@ -119,7 +119,7 @@ public interface SearchPlugin {
      * in Core, as long as the new aggregations target different ValuesSourceTypes
      * @return A list of the new registrar functions
      */
-    default List<Consumer<ValuesSourceRegistry.ValuesSourceRegistryBuilder>> getBareAggregatorRegistrar() {
+    default List<Consumer<ValuesSourceRegistry.Builder>> getBareAggregatorRegistrar() {
         return emptyList();
     }
     /**
@@ -261,7 +261,7 @@ public interface SearchPlugin {
      */
     class AggregationSpec extends SearchExtensionSpec<AggregationBuilder, ContextParser<String, ? extends AggregationBuilder>> {
         private final Map<String, Writeable.Reader<? extends InternalAggregation>> resultReaders = new TreeMap<>();
-        private Consumer<ValuesSourceRegistry.ValuesSourceRegistryBuilder> aggregatorRegistrar;
+        private Consumer<ValuesSourceRegistry.Builder> aggregatorRegistrar;
 
         /**
          * Specification for an {@link Aggregation}.
@@ -349,7 +349,7 @@ public interface SearchPlugin {
          * Get the function to register the {@link org.elasticsearch.search.aggregations.support.ValuesSource} to aggregator mappings for
          * this aggregation
          */
-        public Consumer<ValuesSourceRegistry.ValuesSourceRegistryBuilder> getAggregatorRegistrar() {
+        public Consumer<ValuesSourceRegistry.Builder> getAggregatorRegistrar() {
             return aggregatorRegistrar;
         }
 
@@ -357,7 +357,7 @@ public interface SearchPlugin {
          * Set the function to register the {@link org.elasticsearch.search.aggregations.support.ValuesSource} to aggregator mappings for
          * this aggregation
          */
-        public AggregationSpec setAggregatorRegistrar(Consumer<ValuesSourceRegistry.ValuesSourceRegistryBuilder> aggregatorRegistrar) {
+        public AggregationSpec setAggregatorRegistrar(Consumer<ValuesSourceRegistry.Builder> aggregatorRegistrar) {
             this.aggregatorRegistrar = aggregatorRegistrar;
             return this;
         }

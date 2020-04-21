@@ -53,8 +53,8 @@ public class GeoHashGridAggregationBuilder extends GeoGridAggregationBuilder {
         super(in);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
-        GeoHashGridAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        GeoHashGridAggregatorFactory.registerAggregators(builder);
     }
 
     @Override

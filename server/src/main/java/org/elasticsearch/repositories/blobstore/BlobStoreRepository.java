@@ -1919,7 +1919,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                                                       int snapshotShardId, Collection<SnapshotId> snapshotIds,
                                                                       BlobContainer shardContainer, Set<String> blobs,
                                                                       BlobStoreIndexShardSnapshots snapshots,
-                                                                      String indexGeneration) throws IOException {
+                                                                      String indexGeneration) {
         // Build a list of snapshots that should be preserved
         List<SnapshotFiles> newSnapshotsList = new ArrayList<>();
         final Set<String> survivingSnapshotNames = survivingSnapshots.stream().map(SnapshotId::getName).collect(Collectors.toSet());
@@ -1939,9 +1939,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     unusedBlobs(blobs, survivingSnapshotUUIDs, updatedSnapshots));
             }
         } catch (IOException e) {
-            throw new IOException(
-                "Failed to finalize snapshot deletion " + snapshotIds + " with shard index ["
-                    + indexShardSnapshotsFormat.blobName(indexGeneration) + "]", e);
+            throw new RepositoryException(metadata.name(), "Failed to finalize snapshot deletion " + snapshotIds +
+                    " with shard index [" + indexShardSnapshotsFormat.blobName(indexGeneration) + "]", e);
         }
     }
 

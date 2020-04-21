@@ -20,9 +20,8 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.StaticNode;
-import org.elasticsearch.painless.ir.VariableNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.PartialCanonicalTypeName;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.StaticType;
@@ -51,11 +50,15 @@ public class ESymbol extends AExpression {
     }
 
     @Override
-    Output analyze(SemanticScope semanticScope) {
-        Output output = new Output();
-        Class<?> staticType = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(symbol);
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitSymbol(this, input);
+    }
+
+    @Override
+    void analyze(SemanticScope semanticScope) {
         boolean read = semanticScope.getCondition(this, Read.class);
         boolean write = semanticScope.getCondition(this, Write.class);
+        Class<?> staticType = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(symbol);
 
         if (staticType != null)  {
             if (write) {
@@ -69,11 +72,6 @@ public class ESymbol extends AExpression {
             }
 
             semanticScope.putDecoration(this, new StaticType(staticType));
-
-            StaticNode staticNode = new StaticNode();
-            staticNode.setLocation(getLocation());
-            staticNode.setExpressionType(staticType);
-            output.expressionNode = staticNode;
         } else if (semanticScope.isVariableDefined(symbol)) {
             if (read == false && write == false) {
                 throw createError(new IllegalArgumentException("not a statement: variable [" + symbol + "] not used"));
@@ -87,16 +85,8 @@ public class ESymbol extends AExpression {
 
             Class<?> valueType = variable.getType();
             semanticScope.putDecoration(this, new ValueType(valueType));
-
-            VariableNode variableNode = new VariableNode();
-            variableNode.setLocation(getLocation());
-            variableNode.setExpressionType(valueType);
-            variableNode.setName(symbol);
-            output.expressionNode = variableNode;
         } else {
             semanticScope.putDecoration(this, new PartialCanonicalTypeName(symbol));
         }
-
-        return output;
     }
 }

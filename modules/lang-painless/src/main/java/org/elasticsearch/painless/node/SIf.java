@@ -23,7 +23,6 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
 import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
-import org.elasticsearch.painless.symbol.Decorations.ExpressionPainlessCast;
 import org.elasticsearch.painless.symbol.Decorations.InLoop;
 import org.elasticsearch.painless.symbol.Decorations.LastLoop;
 import org.elasticsearch.painless.symbol.Decorations.LastSource;

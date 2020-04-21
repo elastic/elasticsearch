@@ -55,7 +55,7 @@ public class SClass extends ANode {
         }
     }
 
-    void analyze(ScriptScope scriptScope) {
+    public void analyze(ScriptScope scriptScope) {
         buildClassScope(scriptScope);
 
         for (SFunction function : functionNodes) {

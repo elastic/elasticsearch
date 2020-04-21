@@ -21,8 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.ir.BooleanNode;
-import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
@@ -61,7 +60,12 @@ public class EBool extends AExpression {
     }
 
     @Override
-    Output analyze(SemanticScope semanticScope) {
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitBool(this, input);
+    }
+
+    @Override
+    void analyze(SemanticScope semanticScope) {
         if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
@@ -72,28 +76,16 @@ public class EBool extends AExpression {
                     "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
 
-        Output output = new Output();
-
         semanticScope.setCondition(leftNode, Read.class);
         semanticScope.putDecoration(leftNode, new TargetType(boolean.class));
-        Output leftOutput = analyze(leftNode, semanticScope);
-        PainlessCast leftCast = leftNode.cast(semanticScope);
+        analyze(leftNode, semanticScope);
+        leftNode.cast(semanticScope);
 
         semanticScope.setCondition(rightNode, Read.class);
         semanticScope.putDecoration(rightNode, new TargetType(boolean.class));
-        Output rightOutput = analyze(rightNode, semanticScope);
-        PainlessCast rightCast = rightNode.cast(semanticScope);
+        analyze(rightNode, semanticScope);
+        rightNode.cast(semanticScope);
 
         semanticScope.putDecoration(this, new ValueType(boolean.class));
-
-        BooleanNode booleanNode = new BooleanNode();
-        booleanNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
-        booleanNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
-        booleanNode.setLocation(getLocation());
-        booleanNode.setExpressionType(boolean.class);
-        booleanNode.setOperation(operation);
-        output.expressionNode = booleanNode;
-
-        return output;
     }
 }

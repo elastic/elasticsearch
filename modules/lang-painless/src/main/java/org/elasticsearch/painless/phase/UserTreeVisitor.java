@@ -19,6 +19,33 @@
 
 package org.elasticsearch.painless.phase;
 
+import org.elasticsearch.painless.node.EAssignment;
+import org.elasticsearch.painless.node.EBinary;
+import org.elasticsearch.painless.node.EBool;
+import org.elasticsearch.painless.node.EBoolean;
+import org.elasticsearch.painless.node.EBrace;
+import org.elasticsearch.painless.node.ECall;
+import org.elasticsearch.painless.node.ECallLocal;
+import org.elasticsearch.painless.node.EComp;
+import org.elasticsearch.painless.node.EConditional;
+import org.elasticsearch.painless.node.EDecimal;
+import org.elasticsearch.painless.node.EDot;
+import org.elasticsearch.painless.node.EElvis;
+import org.elasticsearch.painless.node.EExplicit;
+import org.elasticsearch.painless.node.EFunctionRef;
+import org.elasticsearch.painless.node.EInstanceof;
+import org.elasticsearch.painless.node.ELambda;
+import org.elasticsearch.painless.node.EListInit;
+import org.elasticsearch.painless.node.EMapInit;
+import org.elasticsearch.painless.node.ENewArray;
+import org.elasticsearch.painless.node.ENewArrayFunctionRef;
+import org.elasticsearch.painless.node.ENewObj;
+import org.elasticsearch.painless.node.ENull;
+import org.elasticsearch.painless.node.ENumeric;
+import org.elasticsearch.painless.node.ERegex;
+import org.elasticsearch.painless.node.EString;
+import org.elasticsearch.painless.node.ESymbol;
+import org.elasticsearch.painless.node.EUnary;
 import org.elasticsearch.painless.node.SBlock;
 import org.elasticsearch.painless.node.SBreak;
 import org.elasticsearch.painless.node.SCatch;
@@ -42,6 +69,7 @@ public interface UserTreeVisitor<Input, Output> {
 
     Output visitClass(SClass userClassNode, Input input);
     Output visitFunction(SFunction userFunctionNode, Input input);
+
     Output visitBlock(SBlock userBlockNode, Input input);
     Output visitIf(SIf userIfNode, Input input);
     Output visitIfElse(SIfElse userIfElseNode, Input input);
@@ -58,4 +86,32 @@ public interface UserTreeVisitor<Input, Output> {
     Output visitThrow(SThrow userThrowNode, Input input);
     Output visitContinue(SContinue userContinueNode, Input input);
     Output visitBreak(SBreak userBreakNode, Input input);
+
+    Output visitAssignment(EAssignment userAssignmentNode, Input input);
+    Output visitUnary(EUnary userUnaryNode, Input input);
+    Output visitBinary(EBinary userBinaryNode, Input input);
+    Output visitBool(EBool userBoolNode, Input input);
+    Output visitComp(EComp userCompNode, Input input);
+    Output visitExplicit(EExplicit userExplicitNode, Input input);
+    Output visitInstanceof(EInstanceof userInstanceofNode, Input input);
+    Output visitConditional(EConditional userConditionalNode, Input input);
+    Output visitElvis(EElvis userElvisNode, Input input);
+    Output visitListInit(EListInit userListInitNode, Input input);
+    Output visitMapInit(EMapInit userMapInitNode, Input input);
+    Output visitNewArray(ENewArray userNewArrayNode, Input input);
+    Output visitNewObj(ENewObj userNewObjectNode, Input input);
+    Output visitCallLocal(ECallLocal userCallLocalNode, Input input);
+    Output visitBoolean(EBoolean userBooleanNode, Input input);
+    Output visitNumeric(ENumeric userNumericNode, Input input);
+    Output visitDecimal(EDecimal userDecimalNode, Input input);
+    Output visitString(EString userStringNode, Input input);
+    Output visitNull(ENull userNullNode, Input input);
+    Output visitRegex(ERegex userRegexNode, Input input);
+    Output visitLambda(ELambda userLambdaNode, Input input);
+    Output visitFunctionRef(EFunctionRef userFunctionRefNode, Input input);
+    Output visitNewArrayFunctionRef(ENewArrayFunctionRef userNewArrayFunctionRefNode, Input input);
+    Output visitSymbol(ESymbol userSymbolNode, Input input);
+    Output visitDot(EDot userDotNode, Input input);
+    Output visitBrace(EBrace userBraceNode, Input input);
+    Output visitCall(ECall userCallNode, Input input);
 }

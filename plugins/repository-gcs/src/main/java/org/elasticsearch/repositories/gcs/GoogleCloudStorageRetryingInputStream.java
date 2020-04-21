@@ -118,9 +118,7 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
                                 get.setReturnRawInputStream(true);
 
                                 if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
-                                    StringBuilder rangeHeader = new StringBuilder();
-                                    rangeHeader.append("bytes=").append(Math.addExact(start, currentOffset)).append("-").append(end);
-                                    get.getRequestHeaders().setRange(rangeHeader.toString());
+                                    get.getRequestHeaders().setRange("bytes=" + Math.addExact(start, currentOffset) + "-" + end);
                                 }
                                 final HttpResponse resp = get.executeMedia();
                                 final Long contentLength = resp.getHeaders().getContentLength();

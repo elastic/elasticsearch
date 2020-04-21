@@ -422,7 +422,7 @@ public abstract class LocalTimeOffset {
         private final LocalTimeOffset lastOffset;
         private final int size;
 
-        public LinkedListLookup(ZoneId zone, long minUtcMillis, long maxUtcMillis, List<ZoneOffsetTransition> transitions) {
+        LinkedListLookup(ZoneId zone, long minUtcMillis, long maxUtcMillis, List<ZoneOffsetTransition> transitions) {
             super(zone, minUtcMillis, maxUtcMillis);
             int size = 1;
             LocalTimeOffset last = buildNoPrevious(transitions.get(0));
@@ -502,7 +502,7 @@ public abstract class LocalTimeOffset {
         protected final long minUtcMillis;
         protected final long maxUtcMillis;
 
-        public AbstractManyTransitionsLookup(ZoneId zone, long minUtcMillis, long maxUtcMillis) {
+        AbstractManyTransitionsLookup(ZoneId zone, long minUtcMillis, long maxUtcMillis) {
             this.zone = zone;
             this.minUtcMillis = minUtcMillis;
             this.maxUtcMillis = maxUtcMillis;

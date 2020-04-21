@@ -189,8 +189,7 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
                         final RepositoriesMetadata repoMeta =
                             event.state().metadata().custom(RepositoriesMetadata.TYPE);
                         final RepositoryMetadata metadata = repoMeta.repository("test-repo");
-                        if (metadata.generation() == metadata.pendingGeneration()
-                            && metadata.generation() > snapshotEntry.repositoryStateId()) {
+                        if (metadata.pendingGeneration() > snapshotEntry.repositoryStateId()) {
                             logger.info("--> starting disruption");
                             networkDisruption.startDisrupting();
                             clusterService.removeListener(this);
@@ -234,7 +233,8 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
             final SnapshotException sne = (SnapshotException) ExceptionsHelper.unwrap(ex, SnapshotException.class);
             assertNotNull(sne);
             assertThat(
-                sne.getMessage(), either(endsWith(" Failed to remove snapshot from cluster state")).or(endsWith(" no longer master")));
+                sne.getMessage(), either(endsWith(" Failed to update cluster state during snapshot finalization"))
+                            .or(endsWith(" no longer master")));
             assertThat(sne.getSnapshotName(), is(snapshot));
         }
 

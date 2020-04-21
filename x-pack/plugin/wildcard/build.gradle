@@ -19,6 +19,6 @@ integTest.enabled = false
 
 
 licenseHeaders {
-  additionalLicense 'RegExp', 'RegExp (BSD-like)', 'Copyright (c) 2001-2009 Anders Moeller'
+  additionalLicense 'REGEX', 'RegExp (BSD-like)', 'Copyright (c) 2001-2009 Anders Moeller'
   excludes << 'org/elasticsearch/xpack/wildcard/mapper/ApproximateRegExp.java'
 }

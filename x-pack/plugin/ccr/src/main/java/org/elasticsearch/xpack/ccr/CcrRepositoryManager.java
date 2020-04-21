@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;

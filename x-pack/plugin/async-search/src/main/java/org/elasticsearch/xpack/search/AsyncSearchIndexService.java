@@ -7,17 +7,16 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
@@ -34,7 +33,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
@@ -188,7 +186,7 @@ class AsyncSearchIndexService {
             .index(INDEX)
             .id(docId)
             .doc(source, XContentType.JSON);
-        createIndexIfNecessary(ActionListener.wrap(v -> client.update(request, listener), listener::onFailure));
+        client.update(request, listener);
     }
 
     /**
@@ -202,31 +200,16 @@ class AsyncSearchIndexService {
         UpdateRequest request = new UpdateRequest().index(INDEX)
             .id(docId)
             .doc(source, XContentType.JSON);
-        createIndexIfNecessary(ActionListener.wrap(v -> client.update(request, listener), listener::onFailure));
+        client.update(request, listener);
     }
 
     /**
      * Deletes the provided <code>searchId</code> from the index if present.
      */
     void deleteResponse(AsyncSearchId searchId,
-                        boolean failIfNotFound,
-                        ActionListener<AcknowledgedResponse> listener) {
+                        ActionListener<DeleteResponse> listener) {
         DeleteRequest request = new DeleteRequest(INDEX).id(searchId.getDocId());
-        createIndexIfNecessary(
-            ActionListener.wrap(v -> client.delete(request,
-                ActionListener.wrap(
-                    resp -> {
-                        if (resp.status() == RestStatus.NOT_FOUND && failIfNotFound) {
-                            listener.onFailure(new ResourceNotFoundException(searchId.getEncoded()));
-                        } else {
-                            listener.onResponse(new AcknowledgedResponse(true));
-                        }
-                    },
-                    exc -> {
-                        logger.error(() -> new ParameterizedMessage("failed to clean async-search [{}]", searchId.getEncoded()), exc);
-                        listener.onFailure(exc);
-                    })),
-                listener::onFailure));
+        client.delete(request, listener);
     }
 
     /**
@@ -282,14 +265,16 @@ class AsyncSearchIndexService {
                     return;
                 }
 
-                if (restoreResponseHeaders) {
+                if (restoreResponseHeaders && get.getSource().containsKey(RESPONSE_HEADERS_FIELD)) {
                     @SuppressWarnings("unchecked")
                     Map<String, List<String>> responseHeaders = (Map<String, List<String>>) get.getSource().get(RESPONSE_HEADERS_FIELD);
                     restoreResponseHeadersContext(securityContext.getThreadContext(), responseHeaders);
                 }
 
+                long expirationTime = (long) get.getSource().get(EXPIRATION_TIME_FIELD);
                 String encoded = (String) get.getSource().get(RESULT_FIELD);
-                listener.onResponse(encoded != null ? decodeResponse(encoded) : null);
+                AsyncSearchResponse response = decodeResponse(encoded, expirationTime);
+                listener.onResponse(encoded != null ? response : null);
             },
             listener::onFailure
         ));
@@ -348,11 +333,11 @@ class AsyncSearchIndexService {
     /**
      * Decode the provided base-64 bytes into a {@link AsyncSearchResponse}.
      */
-    AsyncSearchResponse decodeResponse(String value) throws IOException {
+    AsyncSearchResponse decodeResponse(String value, long expirationTime) throws IOException {
         try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getDecoder().decode(value)))) {
             try (StreamInput in = new NamedWriteableAwareStreamInput(buf, registry)) {
                 in.setVersion(Version.readVersion(in));
-                return new AsyncSearchResponse(in);
+                return new AsyncSearchResponse(in, expirationTime);
             }
         }
     }

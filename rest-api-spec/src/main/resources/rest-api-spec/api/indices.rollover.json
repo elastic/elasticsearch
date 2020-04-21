@@ -53,6 +53,10 @@
       "wait_for_active_shards":{
         "type":"string",
         "description":"Set the number of active shards to wait for on the newly created rollover index before the operation returns."
+      },
+      "prefer_v2_templates": {
+        "type": "boolean",
+        "description": "favor V2 templates instead of V1 templates during automatic index creation"
       }
     },
     "body":{

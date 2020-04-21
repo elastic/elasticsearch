@@ -181,14 +181,15 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.isIn;
-import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
@@ -658,7 +659,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 Collections.singleton(indexShard.routingEntry().allocationId().getId()),
                 new IndexShardRoutingTable.Builder(indexShard.shardId()).addShard(primaryRouting).build());
             latch.await();
-            assertThat(indexShard.getActiveOperationsCount(), isOneOf(0, IndexShard.OPERATIONS_BLOCKED));
+            assertThat(indexShard.getActiveOperationsCount(), is(oneOf(0, IndexShard.OPERATIONS_BLOCKED)));
             if (randomBoolean()) {
                 assertBusy(() -> assertEquals(0, indexShard.getActiveOperationsCount()));
             }
@@ -3742,7 +3743,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     List<String> exposedDocIds = EngineTestCase.getDocIds(getEngine(shard), rarely())
                         .stream().map(DocIdSeqNoAndSource::getId).collect(Collectors.toList());
                     assertThat("every operations before the global checkpoint must be reserved",
-                        docBelowGlobalCheckpoint, everyItem(isIn(exposedDocIds)));
+                        docBelowGlobalCheckpoint, everyItem(is(in(exposedDocIds))));
                 } catch (AlreadyClosedException ignored) {
                     hitClosedExceptions++;
                 } catch (IOException e) {
@@ -4056,7 +4057,7 @@ public class IndexShardTests extends IndexShardTestCase {
         ShardRouting readonlyShardRouting = newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), true,
             ShardRoutingState.INITIALIZING, RecoverySource.ExistingStoreRecoverySource.INSTANCE);
         final IndexShard readonlyShard = reinitShard(shard, readonlyShardRouting, shard.indexSettings.getIndexMetadata(),
-            engineConfig -> new ReadOnlyEngine(engineConfig, null, null, true, Function.identity()) {
+            engineConfig -> new ReadOnlyEngine(engineConfig, null, null, true, Function.identity(), true) {
                 @Override
                 protected void ensureMaxSeqNoEqualsToGlobalCheckpoint(SeqNoStats seqNoStats) {
                     // just like a following shard, we need to skip this check for now.

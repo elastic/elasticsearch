@@ -22,7 +22,6 @@ if (!pagerDutyServiceKey) {
   testClusters.integTest {
     testDistribution = 'DEFAULT'
     setting 'xpack.security.enabled', 'false'
-    setting 'xpack.monitoring.enabled', 'false'
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'

@@ -30,10 +30,10 @@ import java.util.Objects;
 /**
  * Represents an array length field load.
  */
-final class PSubArrayLength extends AStoreable {
+public class PSubArrayLength extends AExpression {
 
-    private final String type;
-    private final String value;
+    protected final String type;
+    protected final String value;
 
     PSubArrayLength(Location location, String type, String value) {
         super(location);
@@ -43,40 +43,27 @@ final class PSubArrayLength extends AStoreable {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
+
         if ("length".equals(value)) {
-            if (write) {
-                throw createError(new IllegalArgumentException("Cannot write to read-only field [length] for an array."));
+            if (input.write) {
+                throw createError(new IllegalArgumentException(
+                        "invalid assignment: cannot assign a value write to read-only field [length] for an array."));
             }
 
-            actual = int.class;
+            output.actual = int.class;
         } else {
             throw createError(new IllegalArgumentException("Field [" + value + "] does not exist for type [" + type + "]."));
         }
-    }
 
-    @Override
-    DotSubArrayLengthNode write(ClassNode classNode) {
         DotSubArrayLengthNode dotSubArrayLengthNode = new DotSubArrayLengthNode();
 
         dotSubArrayLengthNode.setLocation(location);
-        dotSubArrayLengthNode.setExpressionType(actual);
+        dotSubArrayLengthNode.setExpressionType(output.actual);
 
-        return dotSubArrayLengthNode;
-    }
+        output.expressionNode = dotSubArrayLengthNode;
 
-    @Override
-    boolean isDefOptimized() {
-        throw new IllegalStateException("Illegal tree structure.");
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        throw new IllegalStateException("Illegal tree structure.");
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(prefix);
+        return output;
     }
 }

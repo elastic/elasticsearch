@@ -15,6 +15,8 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
@@ -35,6 +37,12 @@ class AggProvider implements Writeable, ToXContentObject {
 
     static AggProvider fromXContent(XContentParser parser, boolean lenient) throws IOException {
         Map<String, Object> aggs = parser.mapOrdered();
+        // NOTE: Always rewrite potentially old date histogram intervals.
+        // This should occur in 8.x+ but not 7.x.
+        // 7.x is BWC with versions that do not support the new date_histogram fields
+        if (lenient) {
+            rewriteDateHistogramInterval(aggs, false);
+        }
         AggregatorFactories.Builder parsedAggs = null;
         Exception exception = null;
         try {
@@ -54,6 +62,35 @@ class AggProvider implements Writeable, ToXContentObject {
             }
         }
         return new AggProvider(aggs, parsedAggs, exception);
+    }
+
+    @SuppressWarnings("unchecked")
+    static boolean rewriteDateHistogramInterval(Map<String, Object> aggs, boolean inDateHistogram) {
+        boolean didRewrite = false;
+        if (aggs.containsKey(Histogram.INTERVAL_FIELD.getPreferredName()) && inDateHistogram) {
+            Object currentInterval = aggs.remove(Histogram.INTERVAL_FIELD.getPreferredName());
+            if (DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(currentInterval.toString()) != null) {
+                aggs.put("calendar_interval", currentInterval.toString());
+                didRewrite = true;
+            } else if (currentInterval instanceof Number) {
+                aggs.put("fixed_interval", ((Number)currentInterval).longValue() + "ms");
+                didRewrite = true;
+            } else if (currentInterval instanceof String) {
+                aggs.put("fixed_interval", currentInterval.toString());
+                didRewrite = true;
+            } else {
+                throw ExceptionsHelper.badRequestException(Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT,
+                    new IllegalArgumentException("unable to parse date_histogram interval parameter"));
+            }
+        }
+        for(Map.Entry<String, Object> entry : aggs.entrySet()) {
+            if (entry.getValue() instanceof Map<?, ?>) {
+                boolean rewrite = rewriteDateHistogramInterval((Map<String, Object>)entry.getValue(),
+                    entry.getKey().equals(DateHistogramAggregationBuilder.NAME));
+                didRewrite = didRewrite || rewrite;
+            }
+        }
+        return didRewrite;
     }
 
     static AggProvider fromParsedAggs(AggregatorFactories.Builder parsedAggs) throws IOException {

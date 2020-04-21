@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.eql.plugin;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.hasItem;
@@ -13,7 +14,7 @@ import static org.hamcrest.Matchers.not;
 
 public class EqlPluginTests extends ESTestCase {
     public void testEnabledSettingRegisteredInSnapshotBuilds() {
-        final EqlPlugin plugin = new EqlPlugin() {
+        final EqlPlugin plugin = new EqlPlugin(Settings.EMPTY) {
 
             @Override
             protected boolean isSnapshot() {
@@ -25,7 +26,7 @@ public class EqlPluginTests extends ESTestCase {
     }
 
     public void testEnabledSettingNotRegisteredInNonSnapshotBuilds() {
-        final EqlPlugin plugin = new EqlPlugin() {
+        final EqlPlugin plugin = new EqlPlugin(Settings.EMPTY) {
 
             @Override
             protected boolean isSnapshot() {

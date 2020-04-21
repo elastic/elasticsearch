@@ -151,7 +151,7 @@ within the document (`my_parent`, `my_child`, ...).
 It also creates one field per parent/child relation.
 The name of this field is the name of the `join` field followed by `#` and the
 name of the parent in the relation.
-So for instance for the `my_parent` => [`my_child`, `another_child`] relation,
+So for instance for the `my_parent` -> [`my_child`, `another_child`] relation,
 the `join` field creates an additional field named `my_join_field#my_parent`.
 
 This field contains the parent `_id` that the document links to

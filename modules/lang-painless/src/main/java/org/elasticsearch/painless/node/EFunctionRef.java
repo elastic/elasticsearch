@@ -33,11 +33,12 @@ import java.util.Objects;
 /**
  * Represents a function reference.
  */
-public final class EFunctionRef extends AExpression implements ILambda {
-    private final String type;
-    private final String call;
+public class EFunctionRef extends AExpression implements ILambda {
 
-    private FunctionRef ref;
+    protected final String type;
+    protected final String call;
+
+    // TODO: #54015
     private String defPointer;
 
     public EFunctionRef(Location location, String type, String call) {
@@ -48,27 +49,41 @@ public final class EFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        if (expected == null) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to function reference [" + type + ":"  + call + "]"));
+        }
+
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException(
+                    "not a statement: function reference [" + type + ":"  + call + "] not used"));
+        }
+
+        FunctionRef ref;
+
+        Output output = new Output();
+
+        if (input.expected == null) {
             ref = null;
-            actual = String.class;
+            output.actual = String.class;
             defPointer = "S" + type + "." + call + ",0";
         } else {
             defPointer = null;
-            ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(), location, expected, type, call, 0);
-            actual = expected;
+            ref = FunctionRef.create(
+                    scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(), location, input.expected, type, call, 0);
+            output.actual = input.expected;
         }
-    }
 
-    @Override
-    FuncRefNode write(ClassNode classNode) {
         FuncRefNode funcRefNode = new FuncRefNode();
 
         funcRefNode.setLocation(location);
-        funcRefNode.setExpressionType(actual);
+        funcRefNode.setExpressionType(output.actual);
         funcRefNode.setFuncRef(ref);
 
-        return funcRefNode;
+        output.expressionNode = funcRefNode;
+
+        return output;
     }
 
     @Override
@@ -79,10 +94,5 @@ public final class EFunctionRef extends AExpression implements ILambda {
     @Override
     public List<Class<?>> getCaptures() {
         return Collections.emptyList();
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(type, call);
     }
 }

@@ -97,6 +97,7 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler {
                     public RestResponse buildResponse(SamlAuthenticateResponse response, XContentBuilder builder) throws Exception {
                         builder.startObject()
                                 .field("username", response.getPrincipal())
+                                .field("realm", response.getRealm())
                                 .field("access_token", response.getTokenString())
                                 .field("refresh_token", response.getRefreshToken())
                                 .field("expires_in", response.getExpiresIn().seconds())

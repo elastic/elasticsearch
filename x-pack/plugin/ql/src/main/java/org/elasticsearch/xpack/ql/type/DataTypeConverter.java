@@ -21,6 +21,7 @@ import java.util.function.LongFunction;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
+import static org.elasticsearch.xpack.ql.type.DataTypes.CONSTANT_KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
@@ -59,8 +60,11 @@ public final class DataTypeConverter {
             return left;
         }
         if (isString(left) && isString(right)) {
-            if (left == TEXT) {
+            if (left == TEXT || right == TEXT) {
                 return TEXT;
+            }
+            if (left == KEYWORD) {
+                return KEYWORD;
             }
             return right;
         }
@@ -120,7 +124,7 @@ public final class DataTypeConverter {
             return DefaultConverter.TO_NULL;
         }
         // proper converters
-        if (to == KEYWORD || to == TEXT) {
+        if (to == KEYWORD || to == TEXT || to == CONSTANT_KEYWORD) {
             return conversionToString(from);
         }
         if (to == LONG) {

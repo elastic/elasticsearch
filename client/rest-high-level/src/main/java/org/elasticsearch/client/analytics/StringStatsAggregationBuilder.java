@@ -30,12 +30,10 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
@@ -52,14 +50,14 @@ import java.util.Objects;
  * {@linkplain AggregationBuilder#rewrite(QueryRewriteContext)}, or
  * {@linkplain AbstractAggregationBuilder#build(QueryShardContext, AggregatorFactory)}.
  */
-public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.Bytes, StringStatsAggregationBuilder> {
+public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilder<StringStatsAggregationBuilder> {
     public static final String NAME = "string_stats";
     private static final ParseField SHOW_DISTRIBUTION_FIELD = new ParseField("show_distribution");
 
     private boolean showDistribution = false;
 
     public StringStatsAggregationBuilder(String name) {
-        super(name, CoreValuesSourceType.BYTES, ValueType.STRING);
+        super(name);
     }
 
     /**
@@ -69,6 +67,11 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     public StringStatsAggregationBuilder showDistribution(boolean showDistribution) {
         this.showDistribution = showDistribution;
         return this;
+    }
+
+    @Override
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.BYTES;
     }
 
     @Override
@@ -87,13 +90,18 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Bytes> innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<Bytes> config,
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.NONE;
+    }
+
+    @Override
+    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
             AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         throw new UnsupportedOperationException();
     }
 

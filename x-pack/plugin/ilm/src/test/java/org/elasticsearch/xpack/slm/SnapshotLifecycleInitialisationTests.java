@@ -50,7 +50,6 @@ public class SnapshotLifecycleInitialisationTests extends ESSingleNodeTestCase {
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
-        settings.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
         settings.put(Environment.PATH_REPO_SETTING.getKey(), repositoryLocation);
 
         settings.put(XPackSettings.SNAPSHOT_LIFECYCLE_ENABLED.getKey(), true);
@@ -74,7 +73,7 @@ public class SnapshotLifecycleInitialisationTests extends ESSingleNodeTestCase {
         ).get(10, TimeUnit.SECONDS);
 
         ClusterState state = getInstanceFromNode(ClusterService.class).state();
-        SnapshotLifecycleMetadata snapMeta = state.metaData().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
         assertThat(snapMeta.getOperationMode(), is(OperationMode.RUNNING));
     }
 }

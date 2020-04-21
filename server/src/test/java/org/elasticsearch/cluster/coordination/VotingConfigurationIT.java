@@ -54,8 +54,7 @@ public class VotingConfigurationIT extends ESIntegTestCase {
         final String originalMaster = internalCluster().getMasterName();
 
         logger.info("--> excluding master node {}", originalMaster);
-        client().execute(AddVotingConfigExclusionsAction.INSTANCE,
-            new AddVotingConfigExclusionsRequest(new String[]{originalMaster})).get();
+        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(originalMaster)).get();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
         assertNotEquals(originalMaster, internalCluster().getMasterName());
     }
@@ -73,7 +72,7 @@ public class VotingConfigurationIT extends ESIntegTestCase {
 
         String excludedNodeName = null;
         final ClusterState clusterState
-            = internalCluster().client().admin().cluster().prepareState().clear().setNodes(true).setMetaData(true).get().getState();
+            = internalCluster().client().admin().cluster().prepareState().clear().setNodes(true).setMetadata(true).get().getState();
         final Set<String> votingConfiguration = clusterState.getLastCommittedConfiguration().getNodeIds();
         assertThat(votingConfiguration, hasSize(3));
         assertThat(clusterState.nodes().getSize(), equalTo(4));
@@ -107,7 +106,7 @@ public class VotingConfigurationIT extends ESIntegTestCase {
             .setWaitForNodes("3").setWaitForEvents(Priority.LANGUID).get().isTimedOut());
 
         final ClusterState newClusterState
-            = internalCluster().client().admin().cluster().prepareState().clear().setNodes(true).setMetaData(true).get().getState();
+            = internalCluster().client().admin().cluster().prepareState().clear().setNodes(true).setMetadata(true).get().getState();
         assertThat(newClusterState.nodes().getMasterNode().getName(), equalTo(excludedNodeName));
         assertThat(newClusterState.getLastCommittedConfiguration().getNodeIds(), hasItem(newClusterState.nodes().getMasterNodeId()));
     }

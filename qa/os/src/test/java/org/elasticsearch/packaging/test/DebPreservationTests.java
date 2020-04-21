@@ -79,10 +79,7 @@ public class DebPreservationTests extends PackagingTestCase {
 
         // keystore was removed
 
-        assertPathsDoNotExist(
-            installation.config("elasticsearch.keystore"),
-            installation.config(".elasticsearch.keystore.initial_md5sum")
-        );
+        assertPathsDoNotExist(installation.config("elasticsearch.keystore"), installation.config(".elasticsearch.keystore.initial_md5sum"));
 
         // doc files were removed
 
@@ -105,11 +102,7 @@ public class DebPreservationTests extends PackagingTestCase {
 
         assertRemoved(distribution());
 
-        assertPathsDoNotExist(
-            installation.config,
-            installation.envFile,
-            SYSVINIT_SCRIPT
-        );
+        assertPathsDoNotExist(installation.config, installation.envFile, SYSVINIT_SCRIPT);
 
         assertThat(packageStatus(distribution()).exitCode, is(1));
     }

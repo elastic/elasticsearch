@@ -60,7 +60,7 @@ public abstract class SessionFactory {
     protected final boolean sslUsed;
     protected final boolean ignoreReferralErrors;
 
-    protected final LdapMetaDataResolver metaDataResolver;
+    protected final LdapMetadataResolver metadataResolver;
 
     protected SessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool) {
         this.config = config;
@@ -80,7 +80,7 @@ public abstract class SessionFactory {
         this.serverSet = serverSet(config, sslService, ldapServers);
         this.sslUsed = ldapServers.ssl;
         this.ignoreReferralErrors = config.getSetting(SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING);
-        this.metaDataResolver = new LdapMetaDataResolver(config, ignoreReferralErrors);
+        this.metadataResolver = new LdapMetadataResolver(config, ignoreReferralErrors);
     }
 
     /**
@@ -157,10 +157,14 @@ public abstract class SessionFactory {
                 options.setSSLSocketVerifier(new HostNameSSLSocketVerifier(true));
             }
         } else if (hostnameVerificationExists) {
-            new DeprecationLogger(logger).deprecated("the setting [{}] has been deprecated and " +
-                            "will be removed in a future version. use [{}] instead",
-                    RealmSettings.getFullSettingKey(config, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING),
-                    RealmSettings.getFullSettingKey(config, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM));
+            final String fullSettingKey = RealmSettings.getFullSettingKey(config, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING);
+            final String deprecationKey = "deprecated_setting_" + fullSettingKey.replace('.', '_');
+            new DeprecationLogger(logger).deprecatedAndMaybeLog(
+                deprecationKey,
+                "the setting [{}] has been deprecated and " + "will be removed in a future version. use [{}] instead",
+                fullSettingKey,
+                RealmSettings.getFullSettingKey(config, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM)
+            );
             if (config.getSetting(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING)) {
                 options.setSSLSocketVerifier(new HostNameSSLSocketVerifier(true));
             }

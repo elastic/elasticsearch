@@ -32,6 +32,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import java.net.InetAddress;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -40,6 +41,58 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class UsageServiceTests extends ESTestCase {
+
+    /**
+     * Test that we can not add a null reference to a {@link org.elasticsearch.rest.RestHandler} to the {@link UsageService}.
+     */
+    public void testHandlerCanNotBeNull() {
+        final UsageService service = new UsageService();
+        expectThrows(NullPointerException.class, () -> service.addRestHandler(null));
+    }
+
+    /**
+     * Test that we can not add an instance of a {@link org.elasticsearch.rest.RestHandler} with no name to the {@link UsageService}.
+     */
+    public void testAHandlerWithNoName() {
+        final UsageService service = new UsageService();
+        final BaseRestHandler horse = new MockRestHandler(null);
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> service.addRestHandler(horse));
+        assertThat(
+            e.getMessage(),
+            equalTo("handler of type [org.elasticsearch.usage.UsageServiceTests$MockRestHandler] does not have a name"));
+    }
+
+    /**
+     * Test that we can add the same instance of a {@link org.elasticsearch.rest.RestHandler} to the {@link UsageService} multiple times.
+     */
+    public void testHandlerWithConflictingNamesButSameInstance() {
+        final UsageService service = new UsageService();
+        final String name = randomAlphaOfLength(8);
+        final BaseRestHandler first = new MockRestHandler(name);
+        service.addRestHandler(first);
+        // nothing bad ever happens to me
+        service.addRestHandler(first);
+    }
+
+    /**
+     * Test that we can not add different instances of {@link org.elasticsearch.rest.RestHandler} with the same name to the
+     * {@link UsageService}.
+     */
+    public void testHandlersWithConflictingNamesButDifferentInstances() {
+        final UsageService service = new UsageService();
+        final String name = randomAlphaOfLength(8);
+        final BaseRestHandler first = new MockRestHandler(name);
+        final BaseRestHandler second = new MockRestHandler(name);
+        service.addRestHandler(first);
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> service.addRestHandler(second));
+        final String expected = String.format(
+            Locale.ROOT,
+            "handler of type [%s] conflicts with handler of type [%1$s] as they both have the same name [%s]",
+            "org.elasticsearch.usage.UsageServiceTests$MockRestHandler",
+            name
+        );
+        assertThat(e.getMessage(), equalTo(expected));
+    }
 
     public void testRestUsage() throws Exception {
         DiscoveryNode discoveryNode = new DiscoveryNode("foo", new TransportAddress(InetAddress.getByName("localhost"), 12345),

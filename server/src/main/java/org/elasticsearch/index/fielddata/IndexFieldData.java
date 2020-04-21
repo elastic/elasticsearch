@@ -54,7 +54,7 @@ import java.io.IOException;
  * Thread-safe utility class that allows to get per-segment values via the
  * {@link #load(LeafReaderContext)} method.
  */
-public interface IndexFieldData<FD extends AtomicFieldData> extends IndexComponent {
+public interface IndexFieldData<FD extends LeafFieldData> extends IndexComponent {
 
     /**
      * The field name.
@@ -80,7 +80,7 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
      * Build a sort implementation specialized for aggregations.
      */
     BucketedSort newBucketedSort(BigArrays bigArrays, @Nullable Object missingValue, MultiValueMode sortMode,
-            Nested nested, SortOrder sortOrder, DocValueFormat format);
+            Nested nested, SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra);
 
     /**
      * Clears any resources associated with this field data.
@@ -241,7 +241,8 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
         /**
          * Create a {@linkplain BucketedSort} which is useful for sorting inside of aggregations.
          */
-        public abstract BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format);
+        public abstract BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
+                int bucketSize, BucketedSort.ExtraData extra);
     }
 
     interface Builder {
@@ -250,7 +251,7 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
                              CircuitBreakerService breakerService, MapperService mapperService);
     }
 
-    interface Global<FD extends AtomicFieldData> extends IndexFieldData<FD> {
+    interface Global<FD extends LeafFieldData> extends IndexFieldData<FD> {
 
         IndexFieldData<FD> loadGlobal(DirectoryReader indexReader);
 

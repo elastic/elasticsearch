@@ -32,7 +32,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -98,9 +98,7 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
@@ -110,11 +108,9 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
-import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.elasticsearch.index.shard.IndexShardTestCase.recoverFromStore;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -125,7 +121,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -142,7 +137,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         NodeEnvironment env = getInstanceFromNode(NodeEnvironment.class);
 
         ClusterService cs = getInstanceFromNode(ClusterService.class);
-        final Index index = cs.state().metaData().index("test").getIndex();
+        final Index index = cs.state().metadata().index("test").getIndex();
         Path[] shardPaths = env.availableShardPaths(new ShardId(index, 0));
         logger.info("--> paths: [{}]", (Object)shardPaths);
         // Should not be able to acquire the lock because it's already open
@@ -218,15 +213,15 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
     public void testUpdatePriority() {
         assertAcked(client().admin().indices().prepareCreate("test")
-            .setSettings(Settings.builder().put(IndexMetaData.SETTING_PRIORITY, 200)));
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_PRIORITY, 200)));
         IndexService indexService = getInstanceFromNode(IndicesService.class).indexService(resolveIndex("test"));
         assertEquals(200,
-            indexService.getIndexSettings().getSettings().getAsInt(IndexMetaData.SETTING_PRIORITY, 0).intValue());
+            indexService.getIndexSettings().getSettings().getAsInt(IndexMetadata.SETTING_PRIORITY, 0).intValue());
         client().admin().indices().prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put(IndexMetaData.SETTING_PRIORITY, 400)
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_PRIORITY, 400)
             .build()).get();
         assertEquals(400,
-            indexService.getIndexSettings().getSettings().getAsInt(IndexMetaData.SETTING_PRIORITY, 0).intValue());
+            indexService.getIndexSettings().getSettings().getAsInt(IndexMetadata.SETTING_PRIORITY, 0).intValue());
     }
 
     public void testIndexDirIsDeletedWhenShardRemoved() throws Exception {
@@ -234,7 +229,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         Path idxPath = env.sharedDataFile().resolve(randomAlphaOfLength(10));
         logger.info("--> idxPath: [{}]", idxPath);
         Settings idxSettings = Settings.builder()
-            .put(IndexMetaData.SETTING_DATA_PATH, idxPath)
+            .put(IndexMetadata.SETTING_DATA_PATH, idxPath)
             .build();
         createIndex("test", idxSettings);
         ensureGreen("test");
@@ -269,7 +264,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final Path indexDataPath = sharedDataPath.resolve("start-" + randomAsciiLettersOfLength(10));
 
         logger.info("--> creating index [{}] with data_path [{}]", index, indexDataPath);
-        createIndex(index, Settings.builder().put(IndexMetaData.SETTING_DATA_PATH, indexDataPath.toAbsolutePath().toString()).build());
+        createIndex(index, Settings.builder().put(IndexMetadata.SETTING_DATA_PATH, indexDataPath.toAbsolutePath().toString()).build());
         client().prepareIndex(index).setId("1").setSource("foo", "bar").setRefreshPolicy(IMMEDIATE).get();
         ensureGreen(index);
 
@@ -308,7 +303,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
         logger.info("--> updating data_path to [{}] for index [{}]", newIndexDataPath, index);
         assertAcked(client().admin().indices().prepareUpdateSettings(index)
-            .setSettings(Settings.builder().put(IndexMetaData.SETTING_DATA_PATH, newIndexDataPath.toAbsolutePath().toString()).build())
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_DATA_PATH, newIndexDataPath.toAbsolutePath().toString()).build())
             .setIndicesOptions(IndicesOptions.fromOptions(true, false, true, true)));
 
         logger.info("--> settings updated and files moved, re-opening index");
@@ -343,14 +338,18 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertTrue(shard.shouldPeriodicallyFlush());
         final Translog translog = getTranslog(shard);
         assertEquals(2, translog.stats().getUncommittedOperations());
+        assertThat(shard.flushStats().getTotal(), equalTo(0L));
         client().prepareIndex("test").setId("2").setSource("{}", XContentType.JSON)
             .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
+        assertThat(shard.getLastKnownGlobalCheckpoint(), equalTo(2L));
         assertBusy(() -> { // this is async
             assertFalse(shard.shouldPeriodicallyFlush());
-            assertThat(shard.flushStats().getPeriodic(), greaterThan(0L));
+            assertThat(shard.flushStats().getPeriodic(), equalTo(1L));
+            assertThat(shard.flushStats().getTotal(), equalTo(1L));
         });
         shard.sync();
-        assertEquals(0, translog.stats().getUncommittedOperations());
+        assertThat(shard.getLastSyncedGlobalCheckpoint(), equalTo(2L));
+        assertThat("last commit [" + shard.commitStats().getUserData() + "]", translog.stats().getUncommittedOperations(), equalTo(0));
         long size = Math.max(translog.stats().getUncommittedSizeInBytes(), Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1);
         logger.info("--> current translog size: [{}] num_ops [{}] generation [{}]",
             translog.stats().getUncommittedSizeInBytes(), translog.stats().getUncommittedOperations(), translog.getGeneration());
@@ -665,83 +664,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         return shardRouting;
     }
 
-    public void testGlobalCheckpointListeners() throws Exception {
-        createIndex("test", Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0).build());
-        ensureGreen();
-        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        final IndexService test = indicesService.indexService(resolveIndex("test"));
-        final IndexShard shard = test.getShardOrNull(0);
-        final int numberOfUpdates = randomIntBetween(1, 128);
-        for (int i = 0; i < numberOfUpdates; i++) {
-            final int index = i;
-            final AtomicLong globalCheckpoint = new AtomicLong();
-            shard.addGlobalCheckpointListener(
-                    i,
-                    (g, e) -> {
-                        assertThat(g, greaterThanOrEqualTo(NO_OPS_PERFORMED));
-                        assertNull(e);
-                        globalCheckpoint.set(g);
-                    },
-                    null);
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
-            assertBusy(() -> assertThat(globalCheckpoint.get(), equalTo((long) index)));
-            // adding a listener expecting a lower global checkpoint should fire immediately
-            final AtomicLong immediateGlobalCheckpint = new AtomicLong();
-            shard.addGlobalCheckpointListener(
-                    randomLongBetween(0, i),
-                    (g, e) -> {
-                        assertThat(g, greaterThanOrEqualTo(NO_OPS_PERFORMED));
-                        assertNull(e);
-                        immediateGlobalCheckpint.set(g);
-                    },
-                    null);
-            assertBusy(() -> assertThat(immediateGlobalCheckpint.get(), equalTo((long) index)));
-        }
-        final AtomicBoolean invoked = new AtomicBoolean();
-        shard.addGlobalCheckpointListener(
-                numberOfUpdates,
-                (g, e) -> {
-                    invoked.set(true);
-                    assertThat(g, equalTo(UNASSIGNED_SEQ_NO));
-                    assertThat(e, instanceOf(IndexShardClosedException.class));
-                    assertThat(((IndexShardClosedException)e).getShardId(), equalTo(shard.shardId()));
-                },
-                null);
-        shard.close("closed", randomBoolean());
-        assertBusy(() -> assertTrue(invoked.get()));
-    }
-
-    public void testGlobalCheckpointListenerTimeout() throws InterruptedException {
-        createIndex("test", Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0).build());
-        ensureGreen();
-        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        final IndexService test = indicesService.indexService(resolveIndex("test"));
-        final IndexShard shard = test.getShardOrNull(0);
-        final AtomicBoolean notified = new AtomicBoolean();
-        final CountDownLatch latch = new CountDownLatch(1);
-        final TimeValue timeout = TimeValue.timeValueMillis(randomIntBetween(1, 50));
-        shard.addGlobalCheckpointListener(
-                0,
-                (g, e) -> {
-                    try {
-                        notified.set(true);
-                        assertThat(g, equalTo(UNASSIGNED_SEQ_NO));
-                        assertNotNull(e);
-                        assertThat(e, instanceOf(TimeoutException.class));
-                        assertThat(e.getMessage(), equalTo(timeout.getStringRep()));
-                    } finally {
-                        latch.countDown();
-                    }
-                },
-                timeout);
-        latch.await();
-        assertTrue(notified.get());
-    }
-
     public void testInvalidateIndicesRequestCacheWhenRollbackEngine() throws Exception {
         createIndex("test", Settings.builder()
             .put("index.number_of_shards", 1)
@@ -828,9 +750,9 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final ClusterState clusterState = clusterService.state();
 
-        final IndexMetaData indexMetaData = clusterState.metaData().index(indexName);
+        final IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        final IndexService indexService = indicesService.indexServiceSafe(indexMetaData.getIndex());
+        final IndexService indexService = indicesService.indexServiceSafe(indexMetadata.getIndex());
 
         for (IndexShard indexShard : indexService) {
             assertThat(indexShard.getEngine(), instanceOf(NoOpEngine.class));

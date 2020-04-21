@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -41,11 +41,11 @@ import java.io.IOException;
  */
 public class TransportCreateIndexAction extends TransportMasterNodeAction<CreateIndexRequest, CreateIndexResponse> {
 
-    private final MetaDataCreateIndexService createIndexService;
+    private final MetadataCreateIndexService createIndexService;
 
     @Inject
     public TransportCreateIndexAction(TransportService transportService, ClusterService clusterService,
-                                      ThreadPool threadPool, MetaDataCreateIndexService createIndexService,
+                                      ThreadPool threadPool, MetadataCreateIndexService createIndexService,
                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(CreateIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, CreateIndexRequest::new,
             indexNameExpressionResolver);
@@ -82,6 +82,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .settings(request.settings()).mappings(request.mappings())
                 .aliases(request.aliases())
+                .preferV2Templates(request.preferV2Templates())
                 .waitForActiveShards(request.waitForActiveShards());
 
         createIndexService.createIndex(updateRequest, ActionListener.map(listener, response ->

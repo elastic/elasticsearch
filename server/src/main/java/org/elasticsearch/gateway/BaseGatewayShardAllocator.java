@@ -22,10 +22,10 @@ package org.elasticsearch.gateway;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -45,40 +45,37 @@ public abstract class BaseGatewayShardAllocator {
     protected final Logger logger = LogManager.getLogger(this.getClass());
 
     /**
-     * Allocate unassigned shards to nodes (if any) where valid copies of the shard already exist.
+     * Allocate an unassigned shard to nodes (if any) where valid copies of the shard already exist.
      * It is up to the individual implementations of {@link #makeAllocationDecision(ShardRouting, RoutingAllocation, Logger)}
      * to make decisions on assigning shards to nodes.
-     *
+     * @param shardRouting the shard to allocate
      * @param allocation the allocation state container object
+     * @param unassignedAllocationHandler handles the allocation of the current shard
      */
-    public void allocateUnassigned(RoutingAllocation allocation) {
-        final RoutingNodes routingNodes = allocation.routingNodes();
-        final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = routingNodes.unassigned().iterator();
-        while (unassignedIterator.hasNext()) {
-            final ShardRouting shard = unassignedIterator.next();
-            final AllocateUnassignedDecision allocateUnassignedDecision = makeAllocationDecision(shard, allocation, logger);
+    public void allocateUnassigned(ShardRouting shardRouting, RoutingAllocation allocation,
+                                   ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler) {
+        final AllocateUnassignedDecision allocateUnassignedDecision = makeAllocationDecision(shardRouting, allocation, logger);
 
-            if (allocateUnassignedDecision.isDecisionTaken() == false) {
-                // no decision was taken by this allocator
-                continue;
-            }
+        if (allocateUnassignedDecision.isDecisionTaken() == false) {
+            // no decision was taken by this allocator
+            return;
+        }
 
-            if (allocateUnassignedDecision.getAllocationDecision() == AllocationDecision.YES) {
-                unassignedIterator.initialize(allocateUnassignedDecision.getTargetNode().getId(),
-                    allocateUnassignedDecision.getAllocationId(),
-                    shard.primary() ? ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE :
-                                      allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                    allocation.changes());
-            } else {
-                unassignedIterator.removeAndIgnore(allocateUnassignedDecision.getAllocationStatus(), allocation.changes());
-            }
+        if (allocateUnassignedDecision.getAllocationDecision() == AllocationDecision.YES) {
+            unassignedAllocationHandler.initialize(allocateUnassignedDecision.getTargetNode().getId(),
+                allocateUnassignedDecision.getAllocationId(),
+                shardRouting.primary() ? ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE :
+                                         allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                allocation.changes());
+        } else {
+            unassignedAllocationHandler.removeAndIgnore(allocateUnassignedDecision.getAllocationStatus(), allocation.changes());
         }
     }
 
     /**
      * Make a decision on the allocation of an unassigned shard.  This method is used by
-     * {@link #allocateUnassigned(RoutingAllocation)} to make decisions about whether or not
-     * the shard can be allocated by this allocator and if so, to which node it will be allocated.
+     * {@link #allocateUnassigned(ShardRouting, RoutingAllocation, ExistingShardsAllocator.UnassignedAllocationHandler)} to make decisions
+     * about whether or not the shard can be allocated by this allocator and if so, to which node it will be allocated.
      *
      * @param unassignedShard  the unassigned shard to allocate
      * @param allocation       the current routing state

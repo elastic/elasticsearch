@@ -21,8 +21,9 @@ package org.elasticsearch.gateway;
 
 import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.Index;
@@ -98,7 +99,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
             // make sure that we have committed translog; otherwise, we can flush after relaying translog in store recovery
             flush(true, true);
             // make sure that background merges won't happen; otherwise, IndexWriter#hasUncommittedChanges can become true again
-            forceMerge(false);
+            forceMerge(false, 1, false, false, false, UUIDs.randomBase64UUID());
             assertNotNull(indexWriter);
             try (ReleasableLock ignored = writeLock.acquire()) {
                 assertThat(getTranslogStats().getUncommittedOperations(), equalTo(0));
@@ -155,8 +156,8 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
         assertAcked(
             client().admin().indices().prepareCreate(indexName)
                 .setSettings(Settings.builder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                     .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(), "1ms") // expire PRRLs quickly
                     .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
                     .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")
@@ -212,8 +213,8 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
         assertAcked(
             client().admin().indices().prepareCreate(indexName)
                 .setSettings(Settings.builder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
                     .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), randomIntBetween(10, 100) + "kb")
                     .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(), "1ms") // expire PRRLs quickly
                     .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")

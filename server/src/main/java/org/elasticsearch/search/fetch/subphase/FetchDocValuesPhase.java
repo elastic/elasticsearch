@@ -24,8 +24,8 @@ import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -87,7 +87,8 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                 .filter(USE_DEFAULT_FORMAT::equals)
                 .findAny()
                 .isPresent()) {
-            DEPRECATION_LOGGER.deprecated("[" + USE_DEFAULT_FORMAT + "] is a special format that was only used to " +
+            DEPRECATION_LOGGER.deprecatedAndMaybeLog("explicit_default_format",
+                    "[" + USE_DEFAULT_FORMAT + "] is a special format that was only used to " +
                     "ease the transition to 7.x. It has become the default and shouldn't be set explicitly anymore.");
         }
 
@@ -114,7 +115,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                     format = fieldType.docValueFormat(formatDesc, null);
                 }
                 LeafReaderContext subReaderContext = null;
-                AtomicFieldData data = null;
+                LeafFieldData data = null;
                 SortedBinaryDocValues binaryValues = null; // binary / string / ip fields
                 SortedNumericDocValues longValues = null; // int / date fields
                 SortedNumericDoubleValues doubleValues = null; // floating-point fields
@@ -127,14 +128,14 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                         if (indexFieldData instanceof IndexNumericFieldData) {
                             NumericType numericType = ((IndexNumericFieldData) indexFieldData).getNumericType();
                             if (numericType.isFloatingPoint()) {
-                                doubleValues = ((AtomicNumericFieldData) data).getDoubleValues();
+                                doubleValues = ((LeafNumericFieldData) data).getDoubleValues();
                             } else {
                                 // by default nanoseconds are cut to milliseconds within aggregations
                                 // however for doc value fields we need the original nanosecond longs
                                 if (isNanosecond) {
                                     longValues = ((SortedNumericDVIndexFieldData.NanoSecondFieldData) data).getLongValuesAsNanos();
                                 } else {
-                                    longValues = ((AtomicNumericFieldData) data).getLongValues();
+                                    longValues = ((LeafNumericFieldData) data).getLongValues();
                                 }
                             }
                         } else {
@@ -148,7 +149,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                     DocumentField hitField = hit.getFields().get(field);
                     if (hitField == null) {
                         hitField = new DocumentField(field, new ArrayList<>(2));
-                        hit.getFields().put(field, hitField);
+                        hit.setField(field, hitField);
                     }
                     final List<Object> values = hitField.getValues();
 

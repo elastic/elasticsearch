@@ -19,19 +19,16 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,18 +36,18 @@ import java.util.Map;
 public class InternalStatsTests extends InternalAggregationTestCase<InternalStats> {
 
     @Override
-    protected InternalStats createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    protected InternalStats createTestInstance(String name, Map<String, Object> metadata) {
         long count = frequently() ? randomIntBetween(1, Integer.MAX_VALUE) : 0;
         double min = randomDoubleBetween(-1000000, 1000000, true);
         double max = randomDoubleBetween(-1000000, 1000000, true);
         double sum = randomDoubleBetween(-1000000, 1000000, true);
         DocValueFormat format = randomNumericDocValueFormat();
-        return createInstance(name, count, sum, min, max, format, pipelineAggregators, metaData);
+        return createInstance(name, count, sum, min, max, format, metadata);
     }
 
     protected InternalStats createInstance(String name, long count, double sum, double min, double max, DocValueFormat formatter,
-                                           List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalStats(name, count, sum, min, max, formatter, pipelineAggregators, metaData);
+                                           Map<String, Object> metadata) {
+        return new InternalStats(name, count, sum, min, max, formatter, metadata);
     }
 
     @Override
@@ -111,9 +108,9 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         for (double value : values) {
             max = Math.max(max, value);
             min = Math.min(min, value);
-            aggregations.add(new InternalStats("dummy1", 1, value, value, value, null, null, null));
+            aggregations.add(new InternalStats("dummy1", 1, value, value, value, null, null));
         }
-        InternalStats internalStats = new InternalStats("dummy2", 0, 0.0, 2.0, 0.0, null, null, null);
+        InternalStats internalStats = new InternalStats("dummy2", 0, 0.0, 2.0, 0.0, null, null);
         InternalStats reduced = internalStats.reduce(aggregations, null);
         assertEquals("dummy2", reduced.getName());
         assertEquals(values.length, reduced.getCount());
@@ -148,11 +145,6 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
     }
 
     @Override
-    protected Writeable.Reader<InternalStats> instanceReader() {
-        return InternalStats::new;
-    }
-
-    @Override
     protected InternalStats mutateInstance(InternalStats instance) {
         String name = instance.getName();
         long count = instance.getCount();
@@ -160,8 +152,7 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         double min = instance.getMin();
         double max = instance.getMax();
         DocValueFormat formatter = instance.format;
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 5)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -195,17 +186,17 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
             }
             break;
         case 5:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalStats(name, count, sum, min, max, formatter, pipelineAggregators, metaData);
+        return new InternalStats(name, count, sum, min, max, formatter, metadata);
     }
 
     public void testDoXContentBody() throws IOException {
@@ -215,7 +206,7 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         double sum = randomDoubleBetween(-1000000, 1000000, true);
         int count = randomIntBetween(1, 10);
         DocValueFormat format = randomNumericDocValueFormat();
-        InternalStats internalStats = createInstance("stats", count, sum, min, max, format, Collections.emptyList(), null);
+        InternalStats internalStats = createInstance("stats", count, sum, min, max, format, null);
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
         internalStats.doXContentBody(builder, ToXContent.EMPTY_PARAMS);
@@ -243,7 +234,7 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         max = 0.0;
         sum = 0.0;
         count = 0;
-        internalStats = createInstance("stats", count, sum, min, max, format, Collections.emptyList(), null);
+        internalStats = createInstance("stats", count, sum, min, max, format, null);
         builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
         internalStats.doXContentBody(builder, ToXContent.EMPTY_PARAMS);

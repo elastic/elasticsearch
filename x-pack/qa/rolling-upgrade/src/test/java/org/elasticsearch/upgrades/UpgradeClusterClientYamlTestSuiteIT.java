@@ -23,15 +23,16 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
-
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     /**
-     * Waits for the Machine Learning templates to be created by {@link org.elasticsearch.plugins.MetaDataUpgrader}
+     * Waits for the Machine Learning templates to be created by {@link org.elasticsearch.plugins.MetadataUpgrader}
      */
     @Before
     public void waitForTemplates() throws Exception {
@@ -46,11 +47,12 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
             Response response = client().performRequest(new Request("GET", "_watcher/stats"));
             Map<String, Object> responseBody = entityAsMap(response);
             List<?> stats = (List<?>) responseBody.get("stats");
+            assertThat(stats.size(), greaterThanOrEqualTo(3));
             for (Object stat : stats) {
                 Map<?, ?> statAsMap = (Map<?, ?>) stat;
                 assertThat(statAsMap.get("watcher_state"), equalTo("started"));
             }
-        });
+        }, 1, TimeUnit.MINUTES);
     }
 
     @Override

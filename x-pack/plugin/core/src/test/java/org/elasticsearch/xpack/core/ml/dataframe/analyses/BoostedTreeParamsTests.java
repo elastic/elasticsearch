@@ -39,7 +39,7 @@ public class BoostedTreeParamsTests extends AbstractBWCSerializationTestCase<Boo
             .setLambda(randomBoolean() ? null : randomDoubleBetween(0.0, Double.MAX_VALUE, true))
             .setGamma(randomBoolean() ? null : randomDoubleBetween(0.0, Double.MAX_VALUE, true))
             .setEta(randomBoolean() ? null : randomDoubleBetween(0.001, 1.0, true))
-            .setMaximumNumberTrees(randomBoolean() ? null : randomIntBetween(1, 2000))
+            .setMaxTrees(randomBoolean() ? null : randomIntBetween(1, 2000))
             .setFeatureBagFraction(randomBoolean() ? null : randomDoubleBetween(0.0, 1.0, false))
             .setNumTopFeatureImportanceValues(randomBoolean() ? null : randomIntBetween(0, Integer.MAX_VALUE))
             .build();
@@ -88,16 +88,16 @@ public class BoostedTreeParamsTests extends AbstractBWCSerializationTestCase<Boo
 
     public void testConstructor_GivenMaximumNumberTreesIsZero() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> BoostedTreeParams.builder().setMaximumNumberTrees(0).build());
+            () -> BoostedTreeParams.builder().setMaxTrees(0).build());
 
-        assertThat(e.getMessage(), equalTo("[maximum_number_trees] must be an integer in [1, 2000]"));
+        assertThat(e.getMessage(), equalTo("[max_trees] must be an integer in [1, 2000]"));
     }
 
     public void testConstructor_GivenMaximumNumberTreesIsGreaterThan2k() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> BoostedTreeParams.builder().setMaximumNumberTrees(2001).build());
+            () -> BoostedTreeParams.builder().setMaxTrees(2001).build());
 
-        assertThat(e.getMessage(), equalTo("[maximum_number_trees] must be an integer in [1, 2000]"));
+        assertThat(e.getMessage(), equalTo("[max_trees] must be an integer in [1, 2000]"));
     }
 
     public void testConstructor_GivenFeatureBagFractionIsLessThanZero() {

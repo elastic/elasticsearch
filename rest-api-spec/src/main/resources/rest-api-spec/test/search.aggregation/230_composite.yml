@@ -8,6 +8,8 @@ setup:
                 properties:
                   date:
                     type: date
+                  date_nanos:
+                    type: date_nanos
                   keyword:
                     type: keyword
                   long:
@@ -850,3 +852,138 @@ setup:
   - length: { aggregations.test.buckets: 1 }
   - match: { aggregations.test.buckets.0.key.date: "2017-10-21T00:00:00.000-02:00" }
   - match: { aggregations.test.buckets.0.doc_count: 2 }
+
+---
+"date_histogram on date_nanos":
+  - skip:
+      version: " - 7.6.99"
+      reason: Fixed in 7.7.0
+  - do:
+      index:
+        index:   test
+        id:      7
+        body:    { "date_nanos": "2017-11-21T01:00:00" }
+        refresh: true
+  - do:
+      index:
+        index:   test
+        id:      8
+        body:    { "date_nanos": "2017-11-22T01:00:00" }
+        refresh: true
+  - do:
+      index:
+        index:   test
+        id:      9
+        body:    { "date_nanos": "2017-11-22T02:00:00" }
+        refresh: true
+  - do:
+      search:
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources:
+                  - date:
+                      date_histogram:
+                        field: date_nanos
+                        calendar_interval: 1d
+                        format: iso8601 # Format makes the comparisons a little more obvious
+              aggregations:
+                avg:
+                  avg:
+                    field: date_nanos
+
+  - match: { hits.total.value: 9 }
+  - match: { hits.total.relation: eq }
+  - length: { aggregations.test.buckets: 2 }
+  - match: { aggregations.test.buckets.0.key.date: "2017-11-21T00:00:00.000Z" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+  - match: { aggregations.test.buckets.0.avg.value_as_string: "2017-11-21T01:00:00.000Z" }
+  - match: { aggregations.test.buckets.1.key.date: "2017-11-22T00:00:00.000Z" }
+  - match: { aggregations.test.buckets.1.doc_count: 2 }
+  - match: { aggregations.test.buckets.1.avg.value_as_string: "2017-11-22T01:30:00.000Z" }
+
+---
+"Terms source from sorted":
+  - do:
+        indices.create:
+          index: sorted_test
+          body:
+              settings:
+                sort.field: keyword
+              mappings:
+                properties:
+                  keyword:
+                    type: keyword
+                  long:
+                    type: long
+
+
+  - do:
+      index:
+        index:   sorted_test
+        id:      2
+        refresh: true
+        body:  { "keyword": "foo", "long": 1 }
+
+  - do:
+      search:
+        index: sorted_test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources:
+                  - keyword:
+                      terms:
+                        field: keyword
+
+  - match: {hits.total.value: 1}
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key.keyword: "foo" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+
+---
+"Terms source from part of sorted":
+  - skip:
+      version: " - 7.6.99"
+      reason:  fixed in 7.7.0.
+
+  - do:
+        indices.create:
+          index: sorted_test
+          body:
+              settings:
+                sort.field: [keyword, long]
+              mappings:
+                properties:
+                  keyword:
+                    type: keyword
+                  long:
+                    type: long
+
+
+  - do:
+      index:
+        index:   sorted_test
+        id:      2
+        refresh: true
+        body:  { "keyword": "foo", "long": 1 }
+
+  - do:
+      search:
+        index: sorted_test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources:
+                  - keyword:
+                      terms:
+                        field: keyword
+
+  - match: {hits.total.value: 1}
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key.keyword: "foo" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }

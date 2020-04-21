@@ -32,9 +32,9 @@ import java.util.Objects;
 /**
  * Represents a field load/store or shortcut on a def type.  (Internal only.)
  */
-final class PSubDefField extends AStoreable {
+public class PSubDefField extends AExpression {
 
-    private final String value;
+    protected final String value;
 
     PSubDefField(Location location, String value) {
         super(location);
@@ -43,34 +43,21 @@ final class PSubDefField extends AStoreable {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
-        actual = expected == null || expected == ZonedDateTime.class || explicit ? def.class : expected;
-    }
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
-    @Override
-    DotSubDefNode write(ClassNode classNode) {
+        // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
+        output.actual = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
+        output.isDefOptimized = true;
+
         DotSubDefNode dotSubDefNode = new DotSubDefNode();
 
         dotSubDefNode.setLocation(location);
-        dotSubDefNode.setExpressionType(actual);
+        dotSubDefNode.setExpressionType(output.actual);
         dotSubDefNode.setValue(value);
 
-        return dotSubDefNode;
-    }
+        output.expressionNode = dotSubDefNode;
 
-    @Override
-    boolean isDefOptimized() {
-        return true;
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        this.actual = actual;
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(prefix, value);
+        return output;
     }
 }

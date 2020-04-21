@@ -42,7 +42,7 @@ import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -203,9 +203,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
             IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING,
             MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING,
             MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING,
-            MetaData.SETTING_READ_ONLY_SETTING,
-            MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING,
-            MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
+            Metadata.SETTING_READ_ONLY_SETTING,
+            Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING,
+            Metadata.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
             RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
             RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,
             RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING,
@@ -285,7 +285,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             HierarchyCircuitBreakerService.ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING,
             IndexModule.NODE_STORE_ALLOW_MMAP,
             ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
-            ClusterService.USER_DEFINED_META_DATA,
+            ClusterService.USER_DEFINED_METADATA,
             MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
             SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
             SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
@@ -294,11 +294,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
             SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER,
             RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
             RemoteClusterService.REMOTE_NODE_ATTRIBUTE,
-            RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
             RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
             RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
             RemoteConnectionStrategy.REMOTE_CONNECTION_MODE,
-            ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESSES,
+            ProxyConnectionStrategy.PROXY_ADDRESS,
             ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
             ProxyConnectionStrategy.SERVER_NAME,
             SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
@@ -359,10 +358,13 @@ public final class ClusterSettings extends AbstractScopedSettings {
             NetworkService.TCP_RECEIVE_BUFFER_SIZE,
             IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
             IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
+            ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING,
+            ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING,
+            ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING,
             ScriptService.SCRIPT_CACHE_SIZE_SETTING,
             ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
+            ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING,
             ScriptService.SCRIPT_MAX_SIZE_IN_BYTES,
-            ScriptService.SCRIPT_MAX_COMPILATIONS_RATE,
             ScriptService.TYPES_ALLOWED_SETTING,
             ScriptService.CONTEXTS_ALLOWED_SETTING,
             IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING,
@@ -399,8 +401,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             Node.NODE_DATA_SETTING,
             Node.NODE_MASTER_SETTING,
             Node.NODE_INGEST_SETTING,
+            Node.NODE_REMOTE_CLUSTER_CLIENT,
             Node.NODE_ATTRIBUTES,
-            Node.NODE_LOCAL_STORAGE_SETTING,
             AutoCreateIndex.AUTO_CREATE_INDEX_SETTING,
             BaseRestHandler.MULTI_ALLOW_EXPLICIT_INDEX,
             ClusterName.CLUSTER_NAME_SETTING,

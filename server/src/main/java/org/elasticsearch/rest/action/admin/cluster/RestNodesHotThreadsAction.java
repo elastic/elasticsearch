@@ -37,20 +37,14 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-
 public class RestNodesHotThreadsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_cluster/nodes/hotthreads"),
-            new Route(GET, "/_cluster/nodes/hot_threads"),
-            new Route(GET, "/_cluster/nodes/{nodeId}/hotthreads"),
-            new Route(GET, "/_cluster/nodes/{nodeId}/hot_threads"),
-            new Route(GET, "/_nodes/hotthreads"),
             new Route(GET, "/_nodes/hot_threads"),
-            new Route(GET, "/_nodes/{nodeId}/hotthreads"),
-            new Route(GET, "/_nodes/{nodeId}/hot_threads"));
+            new Route(GET, "/_nodes/{nodeId}/hot_threads")
+        );
     }
 
     @Override

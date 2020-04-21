@@ -1,10 +1,20 @@
 {
     "properties" : {
+        "bytes_written_string" : {
+            "type" : "keyword"
+        },
+        "bytes_written_string_list" : {
+            "type" : "keyword"
+        },
         "command_line" : {
             "type" : "keyword"
         },
-        "event_type" : {
-            "type" : "keyword"
+        "event" : {
+            "properties" : {
+                "category" : {
+                    "type" : "keyword"
+                }
+            }
         },
         "md5" : {
             "type" : "keyword"
@@ -30,7 +40,7 @@
         "subtype" : {
             "type" : "keyword"
         },
-        "timestamp" : {
+        "@timestamp" : {
             "type" : "date"
         },
         "user" : {
@@ -50,6 +60,33 @@
                     "ignore_above" : 256
                 }
             }
+        },
+        "opcode" : {
+            "type" : "long"
+        },
+        "file_name" : {
+            "type" : "text",
+            "fields" : {
+                "keyword" : {
+                    "type" : "keyword",
+                    "ignore_above" : 256
+                }
+            }
+        },
+        "serial_event_id" : {
+            "type" : "long"
+        },
+        "source_address" : {
+            "type" : "ip"
+        },
+        "exit_code" : {
+            "type" : "long"
+        },
+        "plain_text" : {
+            "type" : "text"
+        },
+        "constant_keyword" : {
+            "type" : "constant_keyword"
         }
     }
 }

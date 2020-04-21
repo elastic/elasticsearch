@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 public class TreeNode implements ToXContentObject {
@@ -61,7 +62,7 @@ public class TreeNode implements ToXContentObject {
         PARSER.declareInt(Builder::setSplitFeature, SPLIT_FEATURE);
         PARSER.declareInt(Builder::setNodeIndex, NODE_INDEX);
         PARSER.declareDouble(Builder::setSplitGain, SPLIT_GAIN);
-        PARSER.declareDouble(Builder::setLeafValue, LEAF_VALUE);
+        PARSER.declareDoubleArray(Builder::setLeafValue, LEAF_VALUE);
         PARSER.declareLong(Builder::setNumberSamples, NUMBER_SAMPLES);
     }
 
@@ -74,7 +75,7 @@ public class TreeNode implements ToXContentObject {
     private final Integer splitFeature;
     private final int nodeIndex;
     private final Double splitGain;
-    private final Double leafValue;
+    private final List<Double> leafValue;
     private final Boolean defaultLeft;
     private final Integer leftChild;
     private final Integer rightChild;
@@ -86,7 +87,7 @@ public class TreeNode implements ToXContentObject {
              Integer splitFeature,
              int nodeIndex,
              Double splitGain,
-             Double leafValue,
+             List<Double> leafValue,
              Boolean defaultLeft,
              Integer leftChild,
              Integer rightChild,
@@ -123,7 +124,7 @@ public class TreeNode implements ToXContentObject {
         return splitGain;
     }
 
-    public Double getLeafValue() {
+    public List<Double> getLeafValue() {
         return leafValue;
     }
 
@@ -212,7 +213,7 @@ public class TreeNode implements ToXContentObject {
         private Integer splitFeature;
         private int nodeIndex;
         private Double splitGain;
-        private Double leafValue;
+        private List<Double> leafValue;
         private Boolean defaultLeft;
         private Integer leftChild;
         private Integer rightChild;
@@ -250,7 +251,7 @@ public class TreeNode implements ToXContentObject {
             return this;
         }
 
-        public Builder setLeafValue(Double leafValue) {
+        public Builder setLeafValue(List<Double> leafValue) {
             this.leafValue = leafValue;
             return this;
         }

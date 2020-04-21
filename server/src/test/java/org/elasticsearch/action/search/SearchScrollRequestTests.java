@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -57,12 +59,13 @@ public class SearchScrollRequestTests extends ESTestCase {
 
     public void testInternalScrollSearchRequestSerialization() throws IOException {
         SearchScrollRequest searchScrollRequest = createSearchScrollRequest();
-        InternalScrollSearchRequest internalScrollSearchRequest = new InternalScrollSearchRequest(searchScrollRequest, randomLong());
+        InternalScrollSearchRequest internalScrollSearchRequest =
+            new InternalScrollSearchRequest(searchScrollRequest, new SearchContextId(UUIDs.randomBase64UUID(), randomLong()));
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             internalScrollSearchRequest.writeTo(output);
             try (StreamInput in = output.bytes().streamInput()) {
                 InternalScrollSearchRequest deserializedRequest = new InternalScrollSearchRequest(in);
-                assertEquals(deserializedRequest.id(), internalScrollSearchRequest.id());
+                assertEquals(deserializedRequest.contextId().getId(), internalScrollSearchRequest.contextId().getId());
                 assertEquals(deserializedRequest.scroll(), internalScrollSearchRequest.scroll());
                 assertNotSame(deserializedRequest, internalScrollSearchRequest);
             }

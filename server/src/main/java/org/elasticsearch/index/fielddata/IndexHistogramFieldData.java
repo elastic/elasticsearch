@@ -26,7 +26,7 @@ import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 /**
  * Specialization of {@link IndexFieldData} for histograms.
  */
-public abstract class IndexHistogramFieldData extends DocValuesIndexFieldData implements IndexFieldData<AtomicHistogramFieldData> {
+public abstract class IndexHistogramFieldData extends DocValuesIndexFieldData implements IndexFieldData<LeafHistogramFieldData> {
 
     public IndexHistogramFieldData(Index index, String fieldName) {
         super(index, fieldName);

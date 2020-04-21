@@ -16,7 +16,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -90,15 +90,16 @@ public class SnapshotHistoryStore {
      */
     static void ensureHistoryIndex(Client client, ClusterState state, ActionListener<Boolean> andThen) {
         final String initialHistoryIndexName = SLM_HISTORY_INDEX_PREFIX + "000001";
-        final AliasOrIndex slmHistory = state.metaData().getAliasAndIndexLookup().get(SLM_HISTORY_ALIAS);
-        final AliasOrIndex initialHistoryIndex = state.metaData().getAliasAndIndexLookup().get(initialHistoryIndexName);
+        final IndexAbstraction slmHistory = state.metadata().getIndicesLookup().get(SLM_HISTORY_ALIAS);
+        final IndexAbstraction initialHistoryIndex = state.metadata().getIndicesLookup().get(initialHistoryIndexName);
 
         if (slmHistory == null && initialHistoryIndex == null) {
             // No alias or index exists with the expected names, so create the index with appropriate alias
             client.admin().indices().prepareCreate(initialHistoryIndexName)
                 .setWaitForActiveShards(1)
                 .addAlias(new Alias(SLM_HISTORY_ALIAS)
-                    .writeIndex(true))
+                    .writeIndex(true)
+                    .isHidden(true))
                 .execute(new ActionListener<>() {
                     @Override
                     public void onResponse(CreateIndexResponse response) {
@@ -121,18 +122,18 @@ public class SnapshotHistoryStore {
             // alias does not exist but initial index does, something is broken
             andThen.onFailure(new IllegalStateException("SLM history index [" + initialHistoryIndexName +
                 "] already exists but does not have alias [" + SLM_HISTORY_ALIAS + "]"));
-        } else if (slmHistory.isAlias() && slmHistory instanceof AliasOrIndex.Alias) {
-            if (((AliasOrIndex.Alias) slmHistory).getWriteIndex() != null) {
+        } else if (slmHistory.getType() == IndexAbstraction.Type.ALIAS) {
+            if (slmHistory.getWriteIndex() != null) {
                 // The alias exists and has a write index, so we're good
                 andThen.onResponse(false);
             } else {
                 // The alias does not have a write index, so we can't index into it
                 andThen.onFailure(new IllegalStateException("SLM history alias [" + SLM_HISTORY_ALIAS + "does not have a write index"));
             }
-        } else if (slmHistory.isAlias() == false) {
+        } else if (slmHistory.getType() != IndexAbstraction.Type.ALIAS) {
             // This is not an alias, error out
             andThen.onFailure(new IllegalStateException("SLM history alias [" + SLM_HISTORY_ALIAS +
-                "] already exists as concrete index"));
+                "] already exists as " + slmHistory.getType().getDisplayName()));
         } else {
             logger.error("unexpected IndexOrAlias for [{}]: [{}]", SLM_HISTORY_ALIAS, slmHistory);
             // (slmHistory.isAlias() == true) but (slmHistory instanceof Alias == false)?

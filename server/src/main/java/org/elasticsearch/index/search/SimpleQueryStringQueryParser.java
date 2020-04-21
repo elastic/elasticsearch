@@ -26,6 +26,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -104,7 +105,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
     }
 
     @Override
-    protected Query newTermQuery(Term term) {
+    protected Query newTermQuery(Term term, float boost) {
         MappedFieldType ft = context.fieldMapper(term.field());
         if (ft == null) {
             return newUnmappedFieldQuery(term.field());
@@ -259,7 +260,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
                 if (isLastPos) {
                     posQuery = new PrefixQuery(new Term(field, plist.get(0)));
                 } else {
-                    posQuery = newTermQuery(new Term(field, plist.get(0)));
+                    posQuery = newTermQuery(new Term(field, plist.get(0)), BoostAttribute.DEFAULT_BOOST);
                 }
             } else if (isLastPos == false) {
                 // build a synonym query for terms in the same position.

@@ -3,11 +3,6 @@ package org.elasticsearch.gradle.info;
 import org.gradle.api.JavaVersion;
 
 import java.io.File;
-import java.lang.annotation.Documented;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
 import java.lang.reflect.Modifier;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
@@ -28,6 +23,7 @@ public class BuildParams {
     private static JavaVersion runtimeJavaVersion;
     private static Boolean inFipsJvm;
     private static String gitRevision;
+    private static String gitOrigin;
     private static ZonedDateTime buildDate;
     private static String testSeed;
     private static Boolean isCi;
@@ -75,12 +71,10 @@ public class BuildParams {
         return value(gradleJavaVersion);
     }
 
-    @ExecutionTime
     public static JavaVersion getCompilerJavaVersion() {
         return value(compilerJavaVersion);
     }
 
-    @ExecutionTime
     public static JavaVersion getRuntimeJavaVersion() {
         return value(runtimeJavaVersion);
     }
@@ -91,6 +85,10 @@ public class BuildParams {
 
     public static String getGitRevision() {
         return value(gitRevision);
+    }
+
+    public static String getGitOrigin() {
+        return value(gitOrigin);
     }
 
     public static ZonedDateTime getBuildDate() {
@@ -120,22 +118,13 @@ public class BuildParams {
     private static <T> T value(T object) {
         if (object == null) {
             String callingMethod = Thread.currentThread().getStackTrace()[2].getMethodName();
-            boolean executionTime;
-            try {
-                executionTime = BuildParams.class.getMethod(callingMethod).getAnnotation(ExecutionTime.class) != null;
-            } catch (NoSuchMethodException e) {
-                throw new RuntimeException(e);
-            }
 
-            String message = "Build parameter '" + propertyName(callingMethod) + "' has not been initialized. ";
-            if (executionTime) {
-                message += "This property is initialized at execution time, "
-                    + "please ensure you are not attempting to access it during project configuration.";
-            } else {
-                message += "Perhaps the plugin responsible for initializing this property has not been applied.";
-            }
-
-            throw new IllegalStateException(message);
+            throw new IllegalStateException(
+                "Build parameter '"
+                    + propertyName(callingMethod)
+                    + "' has not been initialized.\n"
+                    + "Perhaps the plugin responsible for initializing this property has not been applied."
+            );
         }
 
         return object;
@@ -211,6 +200,10 @@ public class BuildParams {
             BuildParams.gitRevision = requireNonNull(gitRevision);
         }
 
+        public void setGitOrigin(String gitOrigin) {
+            BuildParams.gitOrigin = requireNonNull(gitOrigin);
+        }
+
         public void setBuildDate(ZonedDateTime buildDate) {
             BuildParams.buildDate = requireNonNull(buildDate);
         }
@@ -235,15 +228,5 @@ public class BuildParams {
             BuildParams.isSnapshotBuild = isSnapshotBuild;
         }
 
-    }
-
-    /**
-     * Indicates that a build parameter is initialized at task execution time and is not available at project configuration time.
-     * Attempts to read an uninitialized parameter wil result in an {@link IllegalStateException}.
-     */
-    @Target({ ElementType.METHOD, ElementType.FIELD })
-    @Retention(RetentionPolicy.RUNTIME)
-    @Documented
-    public @interface ExecutionTime {
     }
 }

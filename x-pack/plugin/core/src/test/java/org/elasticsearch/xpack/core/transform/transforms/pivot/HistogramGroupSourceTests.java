@@ -15,9 +15,11 @@ import java.io.IOException;
 public class HistogramGroupSourceTests extends AbstractSerializingTestCase<HistogramGroupSource> {
 
     public static HistogramGroupSource randomHistogramGroupSource() {
-        String field = randomAlphaOfLengthBetween(1, 20);
+        String field = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
+        ScriptConfig scriptConfig = randomBoolean() ? null : ScriptConfigTests.randomScriptConfig();
+
         double interval = randomDoubleBetween(Math.nextUp(0), Double.MAX_VALUE, false);
-        return new HistogramGroupSource(field, interval);
+        return new HistogramGroupSource(field, scriptConfig, interval);
     }
 
     @Override

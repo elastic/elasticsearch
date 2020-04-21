@@ -11,6 +11,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
@@ -222,7 +223,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
     }
 
     private void givenProcessResults(List<RowResults> results) {
-        try (DataFrameRowsJoiner joiner = new DataFrameRowsJoiner(ANALYTICS_ID, dataExtractor, resultsPersisterService)) {
+        try (DataFrameRowsJoiner joiner = new DataFrameRowsJoiner(ANALYTICS_ID, new TaskId(""), dataExtractor, resultsPersisterService)) {
             results.forEach(joiner::processRowResults);
         }
     }
@@ -234,7 +235,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
     }
 
     private static SearchHit newHit(String json) {
-        SearchHit hit = new SearchHit(randomInt(), randomAlphaOfLength(10), Collections.emptyMap());
+        SearchHit hit = new SearchHit(randomInt(), randomAlphaOfLength(10), Collections.emptyMap(), Collections.emptyMap());
         hit.sourceRef(new BytesArray(json));
         return hit;
     }

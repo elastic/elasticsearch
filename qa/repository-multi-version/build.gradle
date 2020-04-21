@@ -23,11 +23,7 @@ import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
-
-tasks.register("bwcTest") {
-  description = 'Runs backwards compatibility tests.'
-  group = 'verification'
-}
+apply from : "$rootDir/gradle/bwc-test.gradle"
 
 dependencies {
   testCompile project(':client:rest-high-level')
@@ -86,24 +82,10 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
     it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${clusterName}".getName()}")
   }
 
-  if (project.bwc_tests_enabled) {
-    bwcTest.dependsOn(
-      tasks.register("${baseName}#bwcTest") {
-        dependsOn tasks.named("${baseName}#Step4NewClusterTest")
-      }
-    )
+  tasks.register(bwcTaskName(bwcVersion)) {
+    dependsOn tasks.named("${baseName}#Step4NewClusterTest")
   }
 }
-
-task bwcTestSnapshots {
-  if (project.bwc_tests_enabled) {
-    for (final def version : bwcVersions.unreleasedIndexCompatible) {
-      dependsOn "v${version}#bwcTest"
-    }
-  }
-}
-
-check.dependsOn(bwcTestSnapshots)
 
 configurations {
   testArtifacts.extendsFrom testRuntime
@@ -117,5 +99,3 @@ task testJar(type: Jar) {
 artifacts {
   testArtifacts testJar
 }
-
-test.enabled = false

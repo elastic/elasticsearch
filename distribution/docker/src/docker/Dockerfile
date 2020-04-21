@@ -11,7 +11,7 @@
 # Set gid=0 and make group perms==owner perms
 ################################################################################
 
-FROM centos:7 AS builder
+FROM ${base_image} AS builder
 
 RUN for iter in {1..10}; do yum update --setopt=tsflags=nodocs -y && \
     yum install --setopt=tsflags=nodocs -y gzip shadow-utils tar && \
@@ -42,8 +42,8 @@ RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 # gpg, but the keyservers are slow to return the key and this can fail the
 # build. Instead, we check the binary against a checksum that we have
 # computed.
-ADD https://github.com/krallin/tini/releases/download/v0.18.0/tini /tini
-COPY config/tini.sha512 /tini.sha512
+ADD https://github.com/krallin/tini/releases/download/v0.18.0/tini${tini_suffix} /tini
+COPY config/tini${tini_suffix}.sha512 /tini.sha512
 RUN sha512sum -c /tini.sha512 && chmod +x /tini
 
 ################################################################################
@@ -52,7 +52,7 @@ RUN sha512sum -c /tini.sha512 && chmod +x /tini
 # Add entrypoint
 ################################################################################
 
-FROM centos:7
+FROM ${base_image}
 
 ENV ELASTIC_CONTAINER true
 

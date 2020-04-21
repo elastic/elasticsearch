@@ -29,7 +29,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -53,7 +53,7 @@ import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -96,35 +96,35 @@ public class NoMasterNodeIT extends ESIntegTestCase {
             assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
-        assertThrows(clientToMasterlessNode.prepareGet("test", "1"),
+        assertRequestBuilderThrows(clientToMasterlessNode.prepareGet("test", "1"),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(clientToMasterlessNode.prepareGet("no_index", "1"),
+        assertRequestBuilderThrows(clientToMasterlessNode.prepareGet("no_index", "1"),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(clientToMasterlessNode.prepareMultiGet().add("test", "1"),
+        assertRequestBuilderThrows(clientToMasterlessNode.prepareMultiGet().add("test", "1"),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(clientToMasterlessNode.prepareMultiGet().add("no_index", "1"),
+        assertRequestBuilderThrows(clientToMasterlessNode.prepareMultiGet().add("no_index", "1"),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(clientToMasterlessNode.admin().indices().prepareAnalyze("test", "this is a test"),
+        assertRequestBuilderThrows(clientToMasterlessNode.admin().indices().prepareAnalyze("test", "this is a test"),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(clientToMasterlessNode.admin().indices().prepareAnalyze("no_index", "this is a test"),
+        assertRequestBuilderThrows(clientToMasterlessNode.admin().indices().prepareAnalyze("no_index", "this is a test"),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(clientToMasterlessNode.prepareSearch("test").setSize(0),
+        assertRequestBuilderThrows(clientToMasterlessNode.prepareSearch("test").setSize(0),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(clientToMasterlessNode.prepareSearch("no_index").setSize(0),
+        assertRequestBuilderThrows(clientToMasterlessNode.prepareSearch("no_index").setSize(0),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
@@ -199,9 +199,9 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         final List<String> nodes = internalCluster().startNodes(3, settings);
 
         prepareCreate("test1").setSettings(
-            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)).get();
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)).get();
         prepareCreate("test2").setSettings(
-            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)).get();
         client().admin().cluster().prepareHealth("_all").setWaitForGreenStatus().get();
         client().prepareIndex("test1").setId("1").setSource("field", "value1").get();
         client().prepareIndex("test2").setId("1").setSource("field", "value1").get();

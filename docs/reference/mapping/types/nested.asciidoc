@@ -183,18 +183,26 @@ or <<request-body-search-stored-fields, `stored_fields`>>.
 
 The following parameters are accepted by `nested` fields:
 
-[horizontal]
 <<dynamic,`dynamic`>>::
-
-    Whether or not new `properties` should be added dynamically to an existing
-    nested object.  Accepts `true` (default), `false` and `strict`.
+(Optional, string)
+Whether or not new `properties` should be added dynamically to an existing
+nested object.  Accepts `true` (default), `false` and `strict`.
 
 <<properties,`properties`>>::
+(Optional, object)
+The fields within the nested object, which can be of any
+<<mapping-types,datatype>>, including `nested`. New properties
+may be added to an existing nested object.
 
-    The fields within the nested object, which can be of any
-    <<mapping-types,datatype>>, including `nested`. New properties
-    may be added to an existing nested object.
+`include_in_parent`::
+(Optional, boolean)
+If `true`, all fields in the nested object are also added to the parent document
+as standard (flat) fields. Defaults to `false`.
 
+`include_in_root`::
+(Optional, boolean)
+If `true`, all fields in the nested object are also added to the root
+document as standard (flat) fields. Defaults to `false`.
 
 [float]
 === Limits on `nested` mappings and objects

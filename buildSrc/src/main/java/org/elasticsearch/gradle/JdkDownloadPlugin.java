@@ -47,9 +47,8 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.gradle.Util.capitalize;
-import static org.elasticsearch.gradle.tool.Boilerplate.findByName;
-import static org.elasticsearch.gradle.tool.Boilerplate.maybeCreate;
+import static org.elasticsearch.gradle.util.GradleUtils.findByName;
+import static org.elasticsearch.gradle.util.GradleUtils.maybeCreate;
 
 public class JdkDownloadPlugin implements Plugin<Project> {
 
@@ -72,21 +71,14 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                 DependencyHandler dependencies = project.getDependencies();
                 Map<String, Object> depConfig = new HashMap<>();
                 depConfig.put("path", ":"); // root project
-                depConfig.put("configuration", configName("extracted_jdk", jdk.getVendor(), jdk.getVersion(), jdk.getPlatform()));
+                depConfig.put(
+                    "configuration",
+                    configName("extracted_jdk", jdk.getVendor(), jdk.getVersion(), jdk.getPlatform(), jdk.getArchitecture())
+                );
                 project.getDependencies().add(jdk.getConfigurationName(), dependencies.project(depConfig));
 
                 // ensure a root level jdk download task exists
                 setupRootJdkDownload(project.getRootProject(), jdk);
-            }
-        });
-
-        // all other repos should ignore the special jdk artifacts
-        project.getRootProject().getRepositories().all(repo -> {
-            if (repo.getName().startsWith(REPO_NAME_PREFIX) == false) {
-                repo.content(content -> {
-                    content.excludeGroup("adoptopenjdk");
-                    content.excludeGroup("openjdk");
-                });
             }
         });
     }
@@ -97,7 +89,14 @@ public class JdkDownloadPlugin implements Plugin<Project> {
     }
 
     private static void setupRootJdkDownload(Project rootProject, Jdk jdk) {
-        String extractTaskName = "extract" + capitalize(jdk.getPlatform()) + "Jdk-" + jdk.getVendor() + "-" + jdk.getVersion();
+        String extractTaskName = String.format(
+            Locale.ROOT,
+            "extract-%s-%s-jdk-%s-%s",
+            jdk.getPlatform(),
+            jdk.getArchitecture(),
+            jdk.getVendor(),
+            jdk.getVersion()
+        );
 
         // Skip setup if we've already configured a JDK for this platform, vendor and version
         if (findByName(rootProject.getTasks(), extractTaskName) == null) {
@@ -106,21 +105,29 @@ public class JdkDownloadPlugin implements Plugin<Project> {
             /*
              * Define the appropriate repository for the given JDK vendor and version
              *
-             * For AdoptOpenJDK we use a single internally hosted Artifactory repository.
-             * For Oracle/OpenJDK we define a repository per-version.
+             * For Oracle/OpenJDK/AdoptOpenJDK we define a repository per-version.
              */
             String repoName = REPO_NAME_PREFIX + jdk.getVendor() + "_" + jdk.getVersion();
             String repoUrl;
             String artifactPattern;
 
             if (jdk.getVendor().equals("adoptopenjdk")) {
-                repoUrl = "https://artifactory.elstc.co/artifactory/oss-jdk-local/";
-                artifactPattern = String.format(
-                    Locale.ROOT,
-                    "adoptopenjdk/OpenJDK%sU-jdk_x64_[module]_hotspot_[revision]_%s.[ext]",
-                    jdk.getMajor(),
-                    jdk.getBuild()
-                );
+                repoUrl = "https://api.adoptopenjdk.net/v3/binary/version/";
+                if (jdk.getMajor().equals("8")) {
+                    // legacy pattern for JDK 8
+                    artifactPattern = "jdk"
+                        + jdk.getBaseVersion()
+                        + "-"
+                        + jdk.getBuild()
+                        + "/[module]/[classifier]/jdk/hotspot/normal/adoptopenjdk";
+                } else {
+                    // current pattern since JDK 9
+                    artifactPattern = "jdk-"
+                        + jdk.getBaseVersion()
+                        + "+"
+                        + jdk.getBuild()
+                        + "/[module]/[classifier]/jdk/hotspot/normal/adoptopenjdk";
+                }
             } else if (jdk.getVendor().equals("openjdk")) {
                 repoUrl = "https://download.oracle.com";
                 if (jdk.getHash() != null) {
@@ -131,40 +138,43 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                         + jdk.getHash()
                         + "/"
                         + jdk.getBuild()
-                        + "/GPL/openjdk-[revision]_[module]-x64_bin.[ext]";
+                        + "/GPL/openjdk-[revision]_[module]-[classifier]_bin.[ext]";
                 } else {
                     // simpler legacy pattern from JDK 9 to JDK 12 that we are advocating to Oracle to bring back
                     artifactPattern = "java/GA/jdk"
                         + jdk.getMajor()
                         + "/"
                         + jdk.getBuild()
-                        + "/GPL/openjdk-[revision]_[module]-x64_bin.[ext]";
+                        + "/GPL/openjdk-[revision]_[module]-[classifier]_bin.[ext]";
                 }
             } else {
                 throw new GradleException("Unknown JDK vendor [" + jdk.getVendor() + "]");
             }
 
             // Define the repository if we haven't already
-            if (rootProject.getRepositories().findByName(repoName) == null) {
-                repositories.ivy(ivyRepo -> {
-                    ivyRepo.setName(repoName);
-                    ivyRepo.setUrl(repoUrl);
-                    ivyRepo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
-                    ivyRepo.patternLayout(layout -> layout.artifact(artifactPattern));
-                    ivyRepo.content(content -> content.includeGroup(jdk.getVendor()));
+            if (repositories.findByName(repoName) == null) {
+                IvyArtifactRepository ivyRepo = repositories.ivy(repo -> {
+                    repo.setName(repoName);
+                    repo.setUrl(repoUrl);
+                    repo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
+                    repo.patternLayout(layout -> layout.artifact(artifactPattern));
+                });
+                repositories.exclusiveContent(exclusiveContentRepository -> {
+                    exclusiveContentRepository.filter(config -> config.includeGroup(groupName(jdk)));
+                    exclusiveContentRepository.forRepositories(ivyRepo);
                 });
             }
 
             // Declare a configuration and dependency from which to download the remote JDK
             final ConfigurationContainer configurations = rootProject.getConfigurations();
-            String downloadConfigName = configName(jdk.getVendor(), jdk.getVersion(), jdk.getPlatform());
+            String downloadConfigName = configName(jdk.getVendor(), jdk.getVersion(), jdk.getPlatform(), jdk.getArchitecture());
             Configuration downloadConfiguration = maybeCreate(configurations, downloadConfigName);
             rootProject.getDependencies().add(downloadConfigName, dependencyNotation(jdk));
 
             // Create JDK extract task
             final Provider<Directory> extractPath = rootProject.getLayout()
                 .getBuildDirectory()
-                .dir("jdks/" + jdk.getVendor() + "-" + jdk.getBaseVersion() + "_" + jdk.getPlatform());
+                .dir("jdks/" + jdk.getVendor() + "-" + jdk.getBaseVersion() + "_" + jdk.getPlatform() + "_" + jdk.getArchitecture());
 
             TaskProvider<?> extractTask = createExtractTask(
                 extractTaskName,
@@ -175,7 +185,13 @@ public class JdkDownloadPlugin implements Plugin<Project> {
             );
 
             // Declare a configuration for the extracted JDK archive
-            String artifactConfigName = configName("extracted_jdk", jdk.getVendor(), jdk.getVersion(), jdk.getPlatform());
+            String artifactConfigName = configName(
+                "extracted_jdk",
+                jdk.getVendor(),
+                jdk.getVersion(),
+                jdk.getPlatform(),
+                jdk.getArchitecture()
+            );
             maybeCreate(configurations, artifactConfigName);
             rootProject.getArtifacts().add(artifactConfigName, extractPath, artifact -> artifact.builtBy(extractTask));
         }
@@ -261,7 +277,11 @@ public class JdkDownloadPlugin implements Plugin<Project> {
             : jdk.getPlatform();
         String extension = jdk.getPlatform().equals("windows") ? "zip" : "tar.gz";
 
-        return jdk.getVendor() + ":" + platformDep + ":" + jdk.getBaseVersion() + "@" + extension;
+        return groupName(jdk) + ":" + platformDep + ":" + jdk.getBaseVersion() + ":" + jdk.getArchitecture() + "@" + extension;
+    }
+
+    private static String groupName(Jdk jdk) {
+        return jdk.getVendor() + "_" + jdk.getMajor();
     }
 
     private static String configName(String... parts) {

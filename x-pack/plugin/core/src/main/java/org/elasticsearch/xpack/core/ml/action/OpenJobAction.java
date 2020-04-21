@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -247,7 +247,7 @@ public class OpenJobAction extends ActionType<AcknowledgedResponse> {
 
         static boolean match(Task task, String expectedJobId) {
             if (task instanceof JobTaskMatcher) {
-                if (MetaData.ALL.equals(expectedJobId)) {
+                if (Metadata.ALL.equals(expectedJobId)) {
                     return true;
                 }
                 String expectedDescription = "job-" + expectedJobId;

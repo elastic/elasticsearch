@@ -94,3 +94,10 @@ breaking change was made necessary by
 https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the-story/[AWS's
 announcement] that the path-style access pattern is deprecated and will be
 unsupported on buckets created after September 30th 2020.
+
+[float]
+==== Restore requests no longer accept settings
+
+In earlier versions, you could pass both `settings` and `index_settings` in the
+body of a restore snapshot request, but the `settings` value was ignored. The
+restore snapshot API now rejects requests that include a `settings` value.

@@ -108,6 +108,8 @@ public class MockRepository extends FsRepository {
 
     /** Allows blocking on writing the index-N blob; this is a way to enforce blocking the
      *  finalization of a snapshot, while permitting other IO operations to proceed unblocked. */
+    private volatile boolean blockAndFailOnWriteIndexFile;
+
     private volatile boolean blockOnWriteIndexFile;
 
     /** Allows blocking on writing the snapshot file at the end of snapshot creation to simulate a died master node */
@@ -170,6 +172,7 @@ public class MockRepository extends FsRepository {
         blockOnDataFiles = false;
         blockOnControlFiles = false;
         blockOnWriteIndexFile = false;
+        blockAndFailOnWriteIndexFile = false;
         blockAndFailOnWriteSnapFile = false;
         this.notifyAll();
     }
@@ -186,6 +189,10 @@ public class MockRepository extends FsRepository {
         blockOnWriteIndexFile = blocked;
     }
 
+    public void setBlockAndFailOnWriteIndexFile(boolean blocked) {
+        blockAndFailOnWriteIndexFile = blocked;
+    }
+
     public boolean blocked() {
         return blocked;
     }
@@ -194,8 +201,8 @@ public class MockRepository extends FsRepository {
         logger.debug("[{}] Blocking execution", metadata.name());
         boolean wasBlocked = false;
         try {
-            while (blockOnDataFiles || blockOnControlFiles || blockOnWriteIndexFile ||
-                blockAndFailOnWriteSnapFile) {
+            while (blockOnDataFiles || blockOnControlFiles || blockAndFailOnWriteIndexFile ||
+                    blockOnWriteIndexFile || blockAndFailOnWriteSnapFile) {
                 blocked = true;
                 this.wait();
                 wasBlocked = true;
@@ -368,8 +375,12 @@ public class MockRepository extends FsRepository {
             public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize,
                                         final boolean failIfAlreadyExists) throws IOException {
                 final Random random = RandomizedContext.current().getRandom();
-                if (blobName.startsWith("index-") && blockOnWriteIndexFile) {
-                    blockExecutionAndFail(blobName);
+                if (blobName.startsWith("index-")) {
+                    if (blockAndFailOnWriteIndexFile) {
+                        blockExecutionAndFail(blobName);
+                    } else if (blockOnWriteIndexFile) {
+                        blockExecutionAndMaybeWait(blobName);
+                    }
                 }
                 if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
                     // Simulate a failure between the write and move operation in FsBlobContainer

@@ -526,7 +526,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
     public static String blockMasterFromFinalizingSnapshotOnIndexFile(final String repositoryName) {
         final String masterName = internalCluster().getMasterName();
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
-            .repository(repositoryName)).setBlockOnWriteIndexFile(true);
+            .repository(repositoryName)).setBlockAndFailOnWriteIndexFile(true);
         return masterName;
     }
 

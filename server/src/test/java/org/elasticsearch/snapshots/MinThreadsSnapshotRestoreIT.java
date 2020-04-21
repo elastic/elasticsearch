@@ -81,7 +81,8 @@ public class MinThreadsSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
         client().admin().cluster().prepareCreateSnapshot(repo, snapshot2).setWaitForCompletion(true).get();
 
         String blockedNode = internalCluster().getMasterName();
-        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, blockedNode).repository(repo)).blockOnDataFiles(true);
+        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, blockedNode).repository(repo))
+                .setBlockOnWriteIndexFile(true);
         logger.info("--> start deletion of first snapshot");
         ActionFuture<AcknowledgedResponse> future =
             client().admin().cluster().prepareDeleteSnapshot(repo, snapshot2).execute();
@@ -127,7 +128,8 @@ public class MinThreadsSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
         client().admin().cluster().prepareCreateSnapshot(repo, snapshot1).setWaitForCompletion(true).get();
 
         String blockedNode = internalCluster().getMasterName();
-        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, blockedNode).repository(repo)).blockOnDataFiles(true);
+        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, blockedNode).repository(repo))
+                .setBlockOnWriteIndexFile(true);
         logger.info("--> start deletion of snapshot");
         ActionFuture<AcknowledgedResponse> future = client().admin().cluster().prepareDeleteSnapshot(repo, snapshot1).execute();
         logger.info("--> waiting for block to kick in on node [{}]", blockedNode);

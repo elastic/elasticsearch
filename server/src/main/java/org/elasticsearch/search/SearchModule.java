@@ -228,6 +228,7 @@ import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggrega
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SumBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.SumBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.support.RoundingPreparer;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -311,6 +312,7 @@ public class SearchModule {
         registerSignificanceHeuristics(plugins);
         registerAggregations(plugins);
         registerPipelineAggregations(plugins);
+        RoundingPreparer.registerBuiltins(valuesSourceRegistry);
         registerFetchSubPhases(plugins);
         registerSearchExts(plugins);
         registerShapes();

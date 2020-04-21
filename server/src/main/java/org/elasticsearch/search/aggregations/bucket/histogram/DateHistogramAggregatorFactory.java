@@ -19,11 +19,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
@@ -34,9 +31,9 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.RoundingPreparer;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.RoundingPreparer;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
@@ -132,20 +129,9 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             throw new AggregationExecutionException("Registry miss-match - expected DateHistogramAggregationSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        Rounding.Prepared preparedRounding = prepareRounding();
+        Rounding.Prepared preparedRounding = RoundingPreparer.preparer(queryShardContext, config).apply(shardRounding);
         return ((DateHistogramAggregationSupplier) aggregatorSupplier).build(name, factories, rounding, preparedRounding, order, keyed,
             minDocCount, extendedBounds, valuesSource, config.format(), searchContext, parent, metadata);
-    }
-
-    private Rounding.Prepared prepareRounding() throws IOException {
-        if (config.script() != null) return shardRounding.prepareForUnknown();
-        if (config.missing() != null) return shardRounding.prepareForUnknown();
-        RoundingPreparer preparer = (RoundingPreparer)
-            queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(), RoundingPreparer.NAME);
-        if (preparer == null) {
-            return shardRounding.prepareForUnknown();
-        }
-        return preparer.prepare(config.fieldContext().fieldType(), queryShardContext.getIndexReader(), shardRounding);
     }
 
     @Override

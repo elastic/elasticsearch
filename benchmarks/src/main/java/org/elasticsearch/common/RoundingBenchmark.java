@@ -100,11 +100,13 @@ public class RoundingBenchmark {
     }
 
     @Benchmark
-    public void round(Blackhole bh) {
+    public long round() {
+        long sum = 0;
         Rounding.Prepared rounder = rounderBuilder.get();
         for (int i = 0; i < dates.length; i++) {
-            bh.consume(rounder.round(dates[i]));
+            sum += rounder.round(dates[i]);
         }
+        return sum;
     }
 
     @Benchmark

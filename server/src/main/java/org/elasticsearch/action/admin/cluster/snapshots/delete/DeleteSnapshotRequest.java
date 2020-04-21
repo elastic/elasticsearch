@@ -32,9 +32,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Delete snapshot request
  * <p>
- * Delete snapshot request removes the snapshot record from the repository and cleans up all
- * files that are associated with this particular snapshot. All files that are shared with
- * at least one other existing snapshot are left intact.
+ * Delete snapshot request removes snapshots from the repository and cleans up all files that are associated with the snapshots.
+ * All files that are shared with at least one other existing snapshot are left intact.
  */
 public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotRequest> {
 
@@ -131,16 +130,16 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
     }
 
     /**
-     * Returns repository name
+     * Returns snapshot names
      *
-     * @return repository name
+     * @return snapshot names
      */
     public String[] snapshots() {
         return this.snapshots;
     }
 
     /**
-     * Sets snapshot name
+     * Sets snapshot names
      *
      * @return this request
      */

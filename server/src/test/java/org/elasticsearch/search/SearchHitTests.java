@@ -188,7 +188,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         XContentType xContentType = randomFrom(XContentType.values());
         SearchHit searchHit = createTestItem(xContentType, true, true);
         BytesReference originalBytes = toXContent(searchHit, xContentType, true);
-        Predicate<String> pathsToExclude = path -> (path.endsWith("highlight") || path.endsWith("fields") || path.contains("_source")
+        Predicate<String> pathsToExclude = path -> (path.endsWith("highlight") || path.contains("fields") || path.contains("_source")
                 || path.contains("inner_hits"));
         BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, pathsToExclude, random());
 

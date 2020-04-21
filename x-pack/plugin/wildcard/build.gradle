@@ -16,3 +16,8 @@ dependencies {
 }
 
 integTest.enabled = false
+
+
+licenseHeaders {
+  excludes << 'org/elasticsearch/xpack/wildcard/mapper/ApproximateRegExp.java'
+}

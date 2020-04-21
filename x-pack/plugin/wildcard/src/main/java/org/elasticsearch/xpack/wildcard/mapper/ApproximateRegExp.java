@@ -1,12 +1,3 @@
-package org.elasticsearch.xpack.wildcard.mapper;
-
-import org.apache.lucene.util.automaton.Automata;
-import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.AutomatonProvider;
-import org.apache.lucene.util.automaton.MinimizationOperations;
-import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
-
 /*
  * dk.brics.automaton
  * 
@@ -36,7 +27,14 @@ import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+package org.elasticsearch.xpack.wildcard.mapper;
 
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.AutomatonProvider;
+import org.apache.lucene.util.automaton.MinimizationOperations;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;

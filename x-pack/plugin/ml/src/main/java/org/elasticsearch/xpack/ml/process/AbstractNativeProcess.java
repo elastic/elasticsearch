@@ -11,6 +11,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.process.logging.CppLogMessage;
 import org.elasticsearch.xpack.ml.process.logging.CppLogMessageHandler;
 import org.elasticsearch.xpack.ml.process.writer.LengthEncodedWriter;
 
@@ -61,10 +62,11 @@ public abstract class AbstractNativeProcess implements NativeProcess {
 
     protected AbstractNativeProcess(String jobId, NativeController nativeController, InputStream logStream, OutputStream processInStream,
                                     InputStream processOutStream, OutputStream processRestoreStream, int numberOfFields,
-                                    List<Path> filesToDelete, Consumer<String> onProcessCrash, Duration processConnectTimeout) {
+                                    List<Path> filesToDelete, Consumer<CppLogMessage> onCppLogMessageReceived,
+                                    Consumer<String> onProcessCrash, Duration processConnectTimeout) {
         this.jobId = jobId;
         this.nativeController = nativeController;
-        this.cppLogHandler = new CppLogMessageHandler(jobId, logStream);
+        this.cppLogHandler = new CppLogMessageHandler(jobId, logStream, onCppLogMessageReceived);
         this.processInStream = processInStream != null ? new BufferedOutputStream(processInStream) : null;
         this.processOutStream = processOutStream;
         this.processRestoreStream = processRestoreStream;

@@ -5,11 +5,10 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
@@ -82,10 +81,8 @@ public final class ClientHelper {
      * Executes an asynchronous action using the provided client. The origin is set in the context and the listener
      * is wrapped to ensure the proper context is restored
      */
-    public static <Request extends ActionRequest, Response extends ActionResponse,
-            RequestBuilder extends ActionRequestBuilder<Request, Response>> void executeAsyncWithOrigin(
-        Client client, String origin, ActionType<Response> action, Request request,
-        ActionListener<Response> listener) {
+    public static <Request extends ActionRequest, Response extends ActionResponse> void executeAsyncWithOrigin(
+            Client client, String origin, ActionType<Response> action, Request request, ActionListener<Response> listener) {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
         try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(origin)) {

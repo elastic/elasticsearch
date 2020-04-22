@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.annotations;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,6 +30,7 @@ public class Annotation implements ToXContentObject, Writeable {
     public static final ParseField MODIFIED_TIME = new ParseField("modified_time");
     public static final ParseField MODIFIED_USERNAME = new ParseField("modified_username");
     public static final ParseField TYPE = new ParseField("type");
+    public static final ParseField LABEL = new ParseField("label");
 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(TYPE.getPreferredName(), true, Builder::new);
 
@@ -46,6 +48,7 @@ public class Annotation implements ToXContentObject, Writeable {
             p -> TimeUtils.parseTimeField(p, MODIFIED_TIME.getPreferredName()), MODIFIED_TIME, ObjectParser.ValueType.VALUE);
         PARSER.declareString(Builder::setModifiedUsername, MODIFIED_USERNAME);
         PARSER.declareString(Builder::setType, TYPE);
+        PARSER.declareString(Builder::setLabel, LABEL);
     }
 
     private final String annotation;
@@ -60,9 +63,10 @@ public class Annotation implements ToXContentObject, Writeable {
     private final Date modifiedTime;
     private final String modifiedUsername;
     private final String type;
+    private final String label;
 
     private Annotation(String annotation, Date createTime, String createUsername, Date timestamp, Date endTimestamp, String jobId,
-                       Date modifiedTime, String modifiedUsername, String type) {
+                       Date modifiedTime, String modifiedUsername, String type, String label) {
         this.annotation = Objects.requireNonNull(annotation);
         this.createTime = Objects.requireNonNull(createTime);
         this.createUsername = Objects.requireNonNull(createUsername);
@@ -72,6 +76,7 @@ public class Annotation implements ToXContentObject, Writeable {
         this.modifiedTime = modifiedTime;
         this.modifiedUsername = modifiedUsername;
         this.type = Objects.requireNonNull(type);
+        this.label = label;
     }
 
     public Annotation(StreamInput in) throws IOException {
@@ -92,6 +97,11 @@ public class Annotation implements ToXContentObject, Writeable {
         }
         modifiedUsername = in.readOptionalString();
         type = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            label = in.readOptionalString();
+        } else {
+            label = null;
+        }
     }
 
     @Override
@@ -115,6 +125,9 @@ public class Annotation implements ToXContentObject, Writeable {
         }
         out.writeOptionalString(modifiedUsername);
         out.writeString(type);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalString(label);
+        }
     }
 
     public String getAnnotation() {
@@ -153,6 +166,10 @@ public class Annotation implements ToXContentObject, Writeable {
         return type;
     }
 
+    public String getLabel() {
+        return label;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -173,13 +190,17 @@ public class Annotation implements ToXContentObject, Writeable {
             builder.field(MODIFIED_USERNAME.getPreferredName(), modifiedUsername);
         }
         builder.field(TYPE.getPreferredName(), type);
+        if (label != null){
+            builder.field(LABEL.getPreferredName(), label);
+        }
         builder.endObject();
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(annotation, createTime, createUsername, timestamp, endTimestamp, jobId, modifiedTime, modifiedUsername, type);
+        return Objects.hash(
+            annotation, createTime, createUsername, timestamp, endTimestamp, jobId, modifiedTime, modifiedUsername, type, label);
     }
 
     @Override
@@ -199,7 +220,8 @@ public class Annotation implements ToXContentObject, Writeable {
             Objects.equals(jobId, other.jobId) &&
             Objects.equals(modifiedTime, other.modifiedTime) &&
             Objects.equals(modifiedUsername, other.modifiedUsername) &&
-            Objects.equals(type, other.type);
+            Objects.equals(type, other.type) &&
+            Objects.equals(label, other.label);
     }
 
     public static class Builder {
@@ -216,6 +238,7 @@ public class Annotation implements ToXContentObject, Writeable {
         private Date modifiedTime;
         private String modifiedUsername;
         private String type;
+        private String label;
 
         public Builder() {}
 
@@ -230,6 +253,7 @@ public class Annotation implements ToXContentObject, Writeable {
             this.modifiedTime = other.modifiedTime == null ? null : new Date(other.modifiedTime.getTime());
             this.modifiedUsername = other.modifiedUsername;
             this.type = other.type;
+            this.label = other.label;
         }
 
         public Builder setAnnotation(String annotation) {
@@ -277,9 +301,14 @@ public class Annotation implements ToXContentObject, Writeable {
             return this;
         }
 
+        public Builder setLabel(String label) {
+            this.label = label;
+            return this;
+        }
+
         public Annotation build() {
             return new Annotation(
-                annotation, createTime, createUsername, timestamp, endTimestamp, jobId, modifiedTime, modifiedUsername, type);
+                annotation, createTime, createUsername, timestamp, endTimestamp, jobId, modifiedTime, modifiedUsername, type, label);
         }
     }
 }

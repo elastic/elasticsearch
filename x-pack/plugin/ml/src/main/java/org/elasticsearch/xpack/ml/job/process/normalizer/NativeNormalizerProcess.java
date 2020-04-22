@@ -23,8 +23,8 @@ class NativeNormalizerProcess extends AbstractNativeProcess implements Normalize
 
     NativeNormalizerProcess(String jobId, NativeController nativeController, InputStream logStream, OutputStream processInStream,
                             InputStream processOutStream, Duration processConnectTimeout) {
-        super(jobId, nativeController, logStream, processInStream, processOutStream, null, 0, Collections.emptyList(), (ignore) -> {},
-            processConnectTimeout);
+        super(jobId, nativeController, logStream, processInStream, processOutStream, null, 0, Collections.emptyList(), ignore -> {},
+            ignore -> {}, processConnectTimeout);
     }
 
     @Override

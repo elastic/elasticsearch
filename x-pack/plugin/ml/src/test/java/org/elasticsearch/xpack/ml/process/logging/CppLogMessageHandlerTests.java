@@ -63,7 +63,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
         // Try different buffer sizes to smoke out edge case problems in the buffer management
         for (int readBufSize : new int[] { 11, 42, 101, 1024, 9999 }) {
             InputStream is = new ByteArrayInputStream(testData.getBytes(StandardCharsets.UTF_8));
-            try (CppLogMessageHandler handler = new CppLogMessageHandler(is, "_id", readBufSize, 3)) {
+            try (CppLogMessageHandler handler = new CppLogMessageHandler(is, "_id", readBufSize, 3, msg -> {})) {
                 handler.tailStream();
 
                 assertTrue(handler.hasLogStreamEnded());

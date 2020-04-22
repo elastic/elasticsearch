@@ -10,6 +10,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ml.process.logging.CppLogMessage;
 import org.junit.After;
 import org.junit.Before;
 
@@ -37,6 +38,7 @@ public class AbstractNativeProcessTests extends ESTestCase {
     private OutputStream inputStream;
     private InputStream outputStream;
     private OutputStream restoreStream;
+    private Consumer<CppLogMessage> onCppLogMessageReceived;
     private Consumer<String> onProcessCrash;
     private ExecutorService executorService;
     private CountDownLatch wait = new CountDownLatch(1);
@@ -57,6 +59,7 @@ public class AbstractNativeProcessTests extends ESTestCase {
         outputStream = mock(InputStream.class);
         when(outputStream.read(new byte[512])).thenReturn(-1);
         restoreStream =  mock(OutputStream.class);
+        onCppLogMessageReceived = mock(Consumer.class);
         onProcessCrash = mock(Consumer.class);
         executorService = EsExecutors.newFixed("test", 1, 1, EsExecutors.daemonThreadFactory("test"), new ThreadContext(Settings.EMPTY),
             false);
@@ -144,7 +147,18 @@ public class AbstractNativeProcessTests extends ESTestCase {
     private class TestNativeProcess extends AbstractNativeProcess {
 
         TestNativeProcess(OutputStream inputStream) {
-            super("foo", nativeController, logStream, inputStream, outputStream, restoreStream, 0, null, onProcessCrash, Duration.ZERO);
+            super(
+                "foo",
+                nativeController,
+                logStream,
+                inputStream,
+                outputStream,
+                restoreStream,
+                0,
+                null,
+                onCppLogMessageReceived,
+                onProcessCrash,
+                Duration.ZERO);
         }
 
         @Override

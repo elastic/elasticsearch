@@ -37,6 +37,7 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -56,6 +57,7 @@ public class CppLogMessageHandler implements Closeable {
     private final InputStream inputStream;
     private final int readBufSize;
     private final int errorStoreSize;
+    private final Consumer<CppLogMessage> onCppLogMessageReceived;
     private final Deque<String> errorStore;
     private final CountDownLatch pidLatch;
     private final CountDownLatch cppCopyrightLatch;
@@ -67,20 +69,35 @@ public class CppLogMessageHandler implements Closeable {
 
     /**
      * @param jobId May be null or empty if the logs are from a process not associated with a job.
-     * @param inputStream May not be null.
+     * @param inputStream Must not be null.
      */
     public CppLogMessageHandler(String jobId, InputStream inputStream) {
-        this(inputStream, jobId, DEFAULT_READBUF_SIZE, DEFAULT_ERROR_STORE_SIZE);
+        this(jobId, inputStream, msg -> {});
+    }
+
+    /**
+     * @param jobId May be null or empty if the logs are from a process not associated with a job.
+     * @param inputStream Must not be null.
+     * @param onCppLogMessageReceived Called every time a cpp log message is received from input stream.
+     */
+    public CppLogMessageHandler(String jobId, InputStream inputStream, Consumer<CppLogMessage> onCppLogMessageReceived) {
+        this(inputStream, jobId, DEFAULT_READBUF_SIZE, DEFAULT_ERROR_STORE_SIZE, onCppLogMessageReceived);
     }
 
     /**
      * For testing - allows meddling with the logger, read buffer size and error store size.
      */
-    CppLogMessageHandler(InputStream inputStream, String jobId, int readBufSize, int errorStoreSize) {
+    CppLogMessageHandler(InputStream inputStream,
+                         String jobId,
+                         int readBufSize,
+                         int errorStoreSize,
+                         Consumer<CppLogMessage> onCppLogMessageReceived) {
+
         this.jobId = jobId;
         this.inputStream = Objects.requireNonNull(inputStream);
         this.readBufSize = readBufSize;
         this.errorStoreSize = errorStoreSize;
+        this.onCppLogMessageReceived = Objects.requireNonNull(onCppLogMessageReceived);
         errorStore = ConcurrentCollections.newDeque();
         pidLatch = new CountDownLatch(1);
         cppCopyrightLatch = new CountDownLatch(1);
@@ -250,6 +267,7 @@ public class CppLogMessageHandler implements Closeable {
              XContentParser parser = xContent
                      .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             CppLogMessage msg = CppLogMessage.PARSER.apply(parser, null);
+            onCppLogMessageReceived.accept(msg);
             Level level = Level.getLevel(msg.getLevel());
             if (level == null) {
                 // This isn't expected to ever happen

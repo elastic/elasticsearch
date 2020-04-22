@@ -32,7 +32,7 @@ abstract class AbstractNativeAnalyticsProcess<Result> extends AbstractNativeProc
                                              List<Path> filesToDelete, Consumer<String> onProcessCrash, Duration processConnectTimeout,
                                              NamedXContentRegistry namedXContentRegistry) {
         super(jobId, nativeController, logStream, processInStream, processOutStream, processRestoreStream, numberOfFields, filesToDelete,
-            onProcessCrash, processConnectTimeout);
+            msg -> {}, onProcessCrash, processConnectTimeout);
         this.name = Objects.requireNonNull(name);
         this.resultsParser = new ProcessResultsParser<>(Objects.requireNonNull(resultParser), namedXContentRegistry);
     }

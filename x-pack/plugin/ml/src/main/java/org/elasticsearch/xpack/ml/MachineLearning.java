@@ -525,7 +525,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
         return Clock.systemUTC();
     }
 
-
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
@@ -582,13 +581,16 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
         if (MachineLearningField.AUTODETECT_PROCESS.get(settings)) {
             try {
                 NativeController nativeController = NativeController.makeNativeController(clusterService.getNodeName(), environment);
+                MlSignificantModelChangeAnnotationCreator significantModelChangeHandler =
+                    new MlSignificantModelChangeAnnotationCreator(getClock(), anomalyDetectionAnnotationPersister);
                 autodetectProcessFactory = new NativeAutodetectProcessFactory(
                     environment,
                     settings,
                     nativeController,
                     clusterService,
                     resultsPersisterService,
-                    anomalyDetectionAuditor);
+                    anomalyDetectionAuditor,
+                    significantModelChangeHandler::maybeCreateAnnotation);
                 normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController, clusterService);
                 analyticsProcessFactory = new NativeAnalyticsProcessFactory(
                     environment,

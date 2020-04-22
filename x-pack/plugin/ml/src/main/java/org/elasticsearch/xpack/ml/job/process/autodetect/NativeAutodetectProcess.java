@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.process.AbstractNativeProcess;
 import org.elasticsearch.xpack.ml.process.ProcessResultsParser;
 import org.elasticsearch.xpack.ml.process.NativeController;
+import org.elasticsearch.xpack.ml.process.logging.CppLogMessage;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,10 +46,10 @@ class NativeAutodetectProcess extends AbstractNativeProcess implements Autodetec
 
     NativeAutodetectProcess(String jobId, NativeController nativeController, InputStream logStream, OutputStream processInStream,
                             InputStream processOutStream, OutputStream processRestoreStream, int numberOfFields, List<Path> filesToDelete,
-                            ProcessResultsParser<AutodetectResult> resultsParser, Consumer<String> onProcessCrash,
-                            Duration processConnectTimeout) {
+                            ProcessResultsParser<AutodetectResult> resultsParser, Consumer<CppLogMessage> onCppLogMessageReceived,
+                            Consumer<String> onProcessCrash, Duration processConnectTimeout) {
         super(jobId, nativeController, logStream, processInStream, processOutStream, processRestoreStream, numberOfFields, filesToDelete,
-            onProcessCrash, processConnectTimeout);
+            onCppLogMessageReceived, onProcessCrash, processConnectTimeout);
         this.resultsParser = resultsParser;
     }
 

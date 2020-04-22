@@ -36,6 +36,7 @@ public class AnnotationTests extends AbstractSerializingTestCase<Annotation> {
             .setModifiedTime(randomBoolean() ? new Date(randomNonNegativeLong()) : null)
             .setModifiedUsername(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
             .setType(randomAlphaOfLengthBetween(10, 15))
+            .setLabel(randomBoolean() ? randomAlphaOfLengthBetween(10, 30) : null)
             .build();
     }
 

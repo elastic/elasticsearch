@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.ml.process.IndexingStateProcessor;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.process.ProcessResultsParser;
+import org.elasticsearch.xpack.ml.process.logging.CppLogMessage;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
@@ -34,6 +35,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class NativeAutodetectProcessFactory implements AutodetectProcessFactory {
@@ -47,6 +49,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     private final ClusterService clusterService;
     private final ResultsPersisterService resultsPersisterService;
     private final AnomalyDetectionAuditor auditor;
+    private final BiConsumer<String, CppLogMessage> onCppLogMessageReceived;
     private volatile Duration processConnectTimeout;
 
     public NativeAutodetectProcessFactory(Environment env,
@@ -54,13 +57,15 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
                                           NativeController nativeController,
                                           ClusterService clusterService,
                                           ResultsPersisterService resultsPersisterService,
-                                          AnomalyDetectionAuditor auditor) {
+                                          AnomalyDetectionAuditor auditor,
+                                          BiConsumer<String, CppLogMessage> onCppLogMessageReceived) {
         this.env = Objects.requireNonNull(env);
         this.settings = Objects.requireNonNull(settings);
         this.nativeController = Objects.requireNonNull(nativeController);
         this.clusterService = clusterService;
         this.resultsPersisterService = resultsPersisterService;
         this.auditor = auditor;
+        this.onCppLogMessageReceived = onCppLogMessageReceived;
         setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT,
             this::setProcessConnectTimeout);
@@ -91,7 +96,8 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         NativeAutodetectProcess autodetect = new NativeAutodetectProcess(
                 job.getId(), nativeController, processPipes.getLogStream().get(), processPipes.getProcessInStream().get(),
                 processPipes.getProcessOutStream().get(), processPipes.getRestoreStream().orElse(null), numberOfFields,
-                filesToDelete, resultsParser, onProcessCrash, processConnectTimeout);
+                filesToDelete, resultsParser, getCppLogMessageReceivedHandlerForJob(job), onProcessCrash,
+                processConnectTimeout);
         try {
             autodetect.start(executorService, stateProcessor, processPipes.getPersistStream().get());
             return autodetect;
@@ -134,5 +140,10 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         }
     }
 
+    Consumer<CppLogMessage> getCppLogMessageReceivedHandlerForJob(Job job) {
+        return (job.getModelPlotConfig() != null) && job.getModelPlotConfig().isEnabled()
+            ? msg -> onCppLogMessageReceived.accept(job.getId(), msg)
+            : msg -> {};
+    }
 }
 

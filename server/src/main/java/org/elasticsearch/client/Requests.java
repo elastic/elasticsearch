@@ -508,7 +508,7 @@ public class Requests {
      * @param repository repository name
      * @return delete snapshot request
      */
-    public static DeleteSnapshotRequest deleteSnapshotRequest(String repository, String[] snapshots) {
+    public static DeleteSnapshotRequest deleteSnapshotRequest(String repository, String... snapshots) {
         return new DeleteSnapshotRequest(repository, snapshots);
     }
 

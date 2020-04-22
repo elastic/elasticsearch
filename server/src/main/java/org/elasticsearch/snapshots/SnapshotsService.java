@@ -1122,7 +1122,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                                         String repositoryName) {
         final Map<String, SnapshotId> allSnapshotIds = repositoryData.getSnapshotIds().stream().collect(
                 Collectors.toMap(SnapshotId::getName, Function.identity()));
-        final List<SnapshotId> foundSnapshots = new ArrayList<>();
+        final Set<SnapshotId> foundSnapshots = new HashSet<>();
         for (String snapshotOrPattern : snapshotsOrPatterns) {
             if (Regex.isSimpleMatchPattern(snapshotOrPattern) == false) {
                 final SnapshotId foundId = allSnapshotIds.get(snapshotOrPattern);
@@ -1139,7 +1139,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
         }
-        return foundSnapshots;
+        return List.copyOf(foundSnapshots);
     }
 
     // Return in-progress snapshot entry by name and repository in the given cluster state or null if none is found

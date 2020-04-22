@@ -48,22 +48,12 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
     }
 
     /**
-     * Constructs a new delete snapshots request with repository and snapshot name
+     * Constructs a new delete snapshots request with repository and snapshot names
      *
      * @param repository repository name
-     * @param snapshot   snapshot name
+     * @param snapshots  snapshot names
      */
-    public DeleteSnapshotRequest(String repository, String snapshot) {
-        this(repository, new String[]{snapshot});
-    }
-
-        /**
-         * Constructs a new delete snapshots request with repository and snapshot name
-         *
-         * @param repository repository name
-         * @param snapshots  snapshot names
-         */
-    public DeleteSnapshotRequest(String repository, String[] snapshots) {
+    public DeleteSnapshotRequest(String repository, String... snapshots) {
         this.repository = repository;
         this.snapshots = snapshots;
     }

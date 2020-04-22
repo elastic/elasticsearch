@@ -35,6 +35,7 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -180,6 +181,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
         public Entry(List<SnapshotId> snapshots, String repoName, long startTime, long repositoryStateId) {
             this.snapshots = snapshots;
+            assert snapshots.size() == new HashSet<>(snapshots).size() : "Duplicate snapshot ids in " + snapshots;
             this.repoName = repoName;
             this.startTime = startTime;
             this.repositoryStateId = repositoryStateId;

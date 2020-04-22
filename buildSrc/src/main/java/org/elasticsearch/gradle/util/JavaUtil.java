@@ -22,13 +22,9 @@ package org.elasticsearch.gradle.util;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.info.JavaHome;
 import org.gradle.api.GradleException;
-import org.gradle.api.Project;
 import org.gradle.api.Task;
-import org.gradle.api.execution.TaskExecutionGraph;
-import org.gradle.api.plugins.ExtraPropertiesExtension;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 public class JavaUtil {

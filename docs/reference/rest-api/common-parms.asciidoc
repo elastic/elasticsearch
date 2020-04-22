@@ -399,6 +399,13 @@ tag::index[]
 used to limit the request.
 end::index[]
 
+tag::bulk-index[]
+`_index`::
+(Optional, string)
+The name of the target index.
+Required if not specified as a path parameter.
+end::bulk-index[]
+
 tag::index-metric[]
 `<index-metric>`::
 +

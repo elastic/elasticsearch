@@ -41,13 +41,11 @@ public final class HtmlStripProcessor extends AbstractStringProcessor<String> {
             return value;
         }
 
-        HTMLStripCharFilter filter = new HTMLStripCharFilter(new StringReader(value));
-
         StringBuilder builder = new StringBuilder();
-        int ch;
-        try {
+        try (HTMLStripCharFilter filter = new HTMLStripCharFilter(new StringReader(value))) {
+            int ch;
             while ((ch = filter.read()) != -1) {
-                builder.append((char)ch);
+                builder.append((char) ch);
             }
         } catch (IOException e) {
             throw new ElasticsearchException(e);

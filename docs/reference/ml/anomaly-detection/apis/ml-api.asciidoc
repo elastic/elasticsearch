@@ -151,6 +151,7 @@ include::preview-datafeed.asciidoc[]
 include::revert-snapshot.asciidoc[]
 //SET/START/STOP
 include::set-upgrade-mode.asciidoc[]
+include::set-upgrade-mode-internal.asciidoc[]
 include::start-datafeed.asciidoc[]
 include::stop-datafeed.asciidoc[]
 //UPDATE

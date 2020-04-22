@@ -1,0 +1,63 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-set-upgrade-mode-internal]]
+=== Set upgrade mode API internals
+++++
+<titleabbrev>Set upgrade mode</titleabbrev>
+++++
+
+Sets a cluster wide upgrade_mode setting that prepares {ml} indices for an
+upgrade. 
+
+==== Overview
+
+Blah blah
+
+==== How to enable/disable upgrade mode?
+
+See {stack-ref}/ml-set-upgrade-mode.html#ml-set-upgrade-mode-example[public documentation].
+
+==== How to tell if upgrade mode is enabled?
+
+===== Using Get machine learning info API
+
+When upgrade mode is enabled, the following request:
+
+`GET _ml/info`
+
+returns a response which contains `"upgrade_mode": true`:
+
+[source,console-result]
+----
+{
+  ...
+  "upgrade_mode": true
+  ...
+}
+----
+
+See details in {stack-ref}/get-ml-info.html#get-ml-info-request[public documentation].
+
+===== Using Cluster state API
+
+When upgrade mode is enabled, the following request:
+
+`GET _cluster/state/metadata`
+
+returns a response which contains `"upgrade_mode": true`:
+
+[source,console-result]
+----
+{
+  ...
+  "ml": {
+    "upgrade_mode": true
+  }
+  ...
+}
+----
+
+See details in {stack-ref}/cluster-state.html#cluster-state-api-request[public documentation].
+
+=== How to tell ML tasks state?
+

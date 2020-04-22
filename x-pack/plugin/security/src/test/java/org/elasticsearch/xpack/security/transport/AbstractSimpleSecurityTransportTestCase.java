@@ -81,11 +81,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
         // Some tests use a client profile. Put the passphrase in the secure settings for the profile (secure settings cannot be set twice)
         secureSettings.setString("transport.profiles.client.xpack.security.ssl.secure_key_passphrase", "testnode");
-        Settings.Builder builder = Settings.builder();
-        if (inFipsJvm()) {
-            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
-        }
-        Settings settings1 = builder
+        Settings settings1 = getSettingsBuilder()
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.transport.ssl.key", testnodeKey)
             .put("xpack.security.transport.ssl.certificate", testnodeCert)
@@ -144,7 +140,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
             inFipsJvm());
         // force TLSv1.2 since renegotiation is not supported by 1.3
         SSLService sslService =
-            createSSLService(Settings.builder().put("xpack.security.transport.ssl.supported_protocols", "TLSv1.2").build());
+            createSSLService(getSettingsBuilder().put("xpack.security.transport.ssl.supported_protocols", "TLSv1.2").build());
         final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         SocketFactory factory = sslService.sslSocketFactory(sslConfiguration);
         try (SSLSocket socket = (SSLSocket) factory.createSocket()) {
@@ -237,7 +233,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
 
             InetSocketAddress serverAddress = (InetSocketAddress) SocketAccess.doPrivileged(sslServerSocket::getLocalSocketAddress);
 
-            Settings settings = Settings.builder()
+            Settings settings = getSettingsBuilder()
                 .put("xpack.security.transport.ssl.verification_mode", "none")
                 .build();
             try (MockTransportService serviceC = buildService("TS_C", version0, settings)) {
@@ -284,7 +280,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
 
             InetSocketAddress serverAddress = (InetSocketAddress) SocketAccess.doPrivileged(sslServerSocket::getLocalSocketAddress);
 
-            Settings settings = Settings.builder()
+            Settings settings = getSettingsBuilder()
                 .put("xpack.security.transport.ssl.verification_mode", "none")
                 .build();
             try (MockTransportService serviceC = buildService("TS_C", version0, settings)) {
@@ -316,7 +312,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
 
         // test required client authentication
         String value = randomFrom(SSLClientAuth.REQUIRED.name(), SSLClientAuth.REQUIRED.name().toLowerCase(Locale.ROOT));
-        Settings settings = Settings.builder().put("xpack.security.transport.ssl.client_authentication", value).build();
+        Settings settings = getSettingsBuilder().put("xpack.security.transport.ssl.client_authentication", value).build();
         try (MockTransportService service = buildService("TS_REQUIRED_CLIENT_AUTH", Version.CURRENT, settings)) {
             TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
             try (Transport.Connection connection2 = serviceA.openConnection(service.getLocalNode(), TestProfiles.LIGHT_PROFILE)) {
@@ -328,7 +324,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
 
         // test no client authentication
         value = randomFrom(SSLClientAuth.NONE.name(), SSLClientAuth.NONE.name().toLowerCase(Locale.ROOT));
-        settings = Settings.builder().put("xpack.security.transport.ssl.client_authentication", value).build();
+        settings = getSettingsBuilder().put("xpack.security.transport.ssl.client_authentication", value).build();
         try (MockTransportService service = buildService("TS_NO_CLIENT_AUTH", Version.CURRENT, settings)) {
             TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
             try (Transport.Connection connection2 = serviceA.openConnection(service.getLocalNode(), TestProfiles.LIGHT_PROFILE)) {
@@ -340,7 +336,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
 
         // test optional client authentication
         value = randomFrom(SSLClientAuth.OPTIONAL.name(), SSLClientAuth.OPTIONAL.name().toLowerCase(Locale.ROOT));
-        settings = Settings.builder().put("xpack.security.transport.ssl.client_authentication", value).build();
+        settings = getSettingsBuilder().put("xpack.security.transport.ssl.client_authentication", value).build();
         try (MockTransportService service = buildService("TS_OPTIONAL_CLIENT_AUTH", Version.CURRENT, settings)) {
             TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
             try (Transport.Connection connection2 = serviceA.openConnection(service.getLocalNode(), TestProfiles.LIGHT_PROFILE)) {
@@ -352,7 +348,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
 
         // test profile required client authentication
         value = randomFrom(SSLClientAuth.REQUIRED.name(), SSLClientAuth.REQUIRED.name().toLowerCase(Locale.ROOT));
-        settings = Settings.builder()
+        settings = getSettingsBuilder()
             .put("transport.profiles.client.port", "8000-9000")
             .put("transport.profiles.client.xpack.security.ssl.enabled", true)
             .put("transport.profiles.client.xpack.security.ssl.certificate", testnodeCert)
@@ -373,7 +369,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
 
         // test profile no client authentication
         value = randomFrom(SSLClientAuth.NONE.name(), SSLClientAuth.NONE.name().toLowerCase(Locale.ROOT));
-        settings = Settings.builder()
+        settings = getSettingsBuilder()
             .put("transport.profiles.client.port", "8000-9000")
             .put("transport.profiles.client.xpack.security.ssl.enabled", true)
             .put("transport.profiles.client.xpack.security.ssl.certificate", testnodeCert)
@@ -394,7 +390,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
 
         // test profile optional client authentication
         value = randomFrom(SSLClientAuth.OPTIONAL.name(), SSLClientAuth.OPTIONAL.name().toLowerCase(Locale.ROOT));
-        settings = Settings.builder()
+        settings = getSettingsBuilder()
             .put("transport.profiles.client.port", "8000-9000")
             .put("transport.profiles.client.xpack.security.ssl.enabled", true)
             .put("transport.profiles.client.xpack.security.ssl.certificate", testnodeCert)
@@ -438,5 +434,13 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         StubbableTransport.WrappedConnection wrappedConnection = (StubbableTransport.WrappedConnection) connection;
         TcpTransport.NodeChannels nodeChannels = (TcpTransport.NodeChannels) wrappedConnection.getConnection();
         return nodeChannels.getChannels().get(0);
+    }
+
+    private Settings.Builder getSettingsBuilder() {
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
+        }
+        return builder;
     }
 }

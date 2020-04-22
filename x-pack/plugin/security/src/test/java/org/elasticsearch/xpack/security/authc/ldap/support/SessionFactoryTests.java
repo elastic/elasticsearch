@@ -67,10 +67,10 @@ public class SessionFactoryTests extends ESTestCase {
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "response_settings");
         final Path pathHome = createTempDir();
         {
-            Settings settings = Settings.builder()
-                    .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_RESPONSE_SETTING), "10s")
-                    .put("path.home", pathHome)
-                    .build();
+            Settings settings = getSettingsBuilder()
+                .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_RESPONSE_SETTING), "10s")
+                .put("path.home", pathHome)
+                .build();
 
             final Environment environment = TestEnvironment.newEnvironment(settings);
             RealmConfig realmConfig = new RealmConfig(realmId, settings, environment, new ThreadContext(settings));
@@ -78,10 +78,10 @@ public class SessionFactoryTests extends ESTestCase {
             assertThat(options.getResponseTimeoutMillis(), is(equalTo(10000L)));
         }
         {
-            Settings settings = Settings.builder()
-                    .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "7s")
-                    .put("path.home", pathHome)
-                    .build();
+            Settings settings = getSettingsBuilder()
+                .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "7s")
+                .put("path.home", pathHome)
+                .build();
 
             final Environment environment = TestEnvironment.newEnvironment(settings);
             RealmConfig realmConfig = new RealmConfig(realmId, settings, environment, new ThreadContext(settings));
@@ -91,11 +91,11 @@ public class SessionFactoryTests extends ESTestCase {
                     .getConcreteSettingForNamespace("response_settings")});
         }
         {
-            Settings settings = Settings.builder()
-                    .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_RESPONSE_SETTING), "11s")
-                    .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "6s")
-                    .put("path.home", pathHome)
-                    .build();
+            Settings settings = getSettingsBuilder()
+                .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_RESPONSE_SETTING), "11s")
+                .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "6s")
+                .put("path.home", pathHome)
+                .build();
 
             final Environment environment = TestEnvironment.newEnvironment(settings);
             RealmConfig realmConfig = new RealmConfig(realmId, settings, environment, new ThreadContext(settings));
@@ -105,10 +105,10 @@ public class SessionFactoryTests extends ESTestCase {
                     ".authc.realms.ldap.response_settings.timeout.response] may not be used at the same time"));
         }
         {
-            Settings settings = Settings.builder()
-                    .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_LDAP_SETTING), "750ms")
-                    .put("path.home", pathHome)
-                    .build();
+            Settings settings = getSettingsBuilder()
+                .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_LDAP_SETTING), "750ms")
+                .put("path.home", pathHome)
+                .build();
 
             final Environment environment = TestEnvironment.newEnvironment(settings);
             RealmConfig realmConfig = new RealmConfig(realmId, settings, environment, new ThreadContext(settings));
@@ -198,7 +198,7 @@ public class SessionFactoryTests extends ESTestCase {
     private Settings.Builder getSettingsBuilder() {
         Settings.Builder builder = Settings.builder();
         if (inFipsJvm()) {
-            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+            builder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
         }
         return builder;
     }

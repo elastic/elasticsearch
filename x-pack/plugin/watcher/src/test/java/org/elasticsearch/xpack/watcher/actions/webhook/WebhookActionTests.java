@@ -16,6 +16,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.Action.Result.Status;
@@ -213,7 +214,11 @@ public class WebhookActionTests extends ESTestCase {
     }
 
     public void testThatSelectingProxyWorks() throws Exception {
-        Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+        Settings.Builder settingsBuilder = Settings.builder();
+        if (inFipsJvm()) {
+            settingsBuilder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
+        }
+        Environment environment = TestEnvironment.newEnvironment(settingsBuilder.put("path.home", createTempDir()).build());
 
         try (HttpClient httpClient = new HttpClient(Settings.EMPTY, new SSLService(environment.settings(), environment), null,
             mockClusterService());
@@ -222,7 +227,7 @@ public class WebhookActionTests extends ESTestCase {
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("fullProxiedContent"));
 
             HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", 65535)
-                    .path("/").proxy(new HttpProxy("localhost", proxyServer.getPort()));
+                .path("/").proxy(new HttpProxy("localhost", proxyServer.getPort()));
             WebhookAction action = new WebhookAction(builder.build());
 
             ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, httpClient, templateEngine);

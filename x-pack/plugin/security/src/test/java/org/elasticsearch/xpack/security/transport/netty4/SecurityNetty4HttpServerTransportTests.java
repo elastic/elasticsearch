@@ -48,11 +48,7 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
 
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
-        Settings.Builder builder = Settings.builder();
-        if (inFipsJvm()) {
-            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
-        }
-        Settings settings = builder
+        Settings settings = getSettingsBuilder()
             .put("xpack.security.http.ssl.enabled", true)
             .put("xpack.security.http.ssl.key", testnodeKey)
             .put("xpack.security.http.ssl.certificate", testnodeCert)
@@ -64,9 +60,9 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
     }
 
     public void testDefaultClientAuth() throws Exception {
-        Settings settings = Settings.builder()
-                .put(env.settings())
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true).build();
+        Settings settings = getSettingsBuilder()
+            .put(env.settings())
+            .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true).build();
         sslService = new SSLService(settings, env);
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings,
                 new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(IPFilter.class), sslService,
@@ -80,10 +76,10 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
 
     public void testOptionalClientAuth() throws Exception {
         String value = randomFrom(SSLClientAuth.OPTIONAL.name(), SSLClientAuth.OPTIONAL.name().toLowerCase(Locale.ROOT));
-        Settings settings = Settings.builder()
-                .put(env.settings())
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
-                .put("xpack.security.http.ssl.client_authentication", value).build();
+        Settings settings = getSettingsBuilder()
+            .put(env.settings())
+            .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
+            .put("xpack.security.http.ssl.client_authentication", value).build();
         sslService = new SSLService(settings, env);
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings,
                 new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(IPFilter.class), sslService,
@@ -97,10 +93,10 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
 
     public void testRequiredClientAuth() throws Exception {
         String value = randomFrom(SSLClientAuth.REQUIRED.name(), SSLClientAuth.REQUIRED.name().toLowerCase(Locale.ROOT));
-        Settings settings = Settings.builder()
-                .put(env.settings())
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
-                .put("xpack.security.http.ssl.client_authentication", value).build();
+        Settings settings = getSettingsBuilder()
+            .put(env.settings())
+            .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
+            .put("xpack.security.http.ssl.client_authentication", value).build();
         sslService = new SSLService(settings, env);
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings,
                 new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(IPFilter.class), sslService,
@@ -114,10 +110,10 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
 
     public void testNoClientAuth() throws Exception {
         String value = randomFrom(SSLClientAuth.NONE.name(), SSLClientAuth.NONE.name().toLowerCase(Locale.ROOT));
-        Settings settings = Settings.builder()
-                .put(env.settings())
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
-                .put("xpack.security.http.ssl.client_authentication", value).build();
+        Settings settings = getSettingsBuilder()
+            .put(env.settings())
+            .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
+            .put("xpack.security.http.ssl.client_authentication", value).build();
         sslService = new SSLService(settings, env);
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings,
                 new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(IPFilter.class), sslService,
@@ -130,9 +126,9 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
     }
 
     public void testCustomSSLConfiguration() throws Exception {
-        Settings settings = Settings.builder()
-                .put(env.settings())
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true).build();
+        Settings settings = getSettingsBuilder()
+            .put(env.settings())
+            .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true).build();
         sslService = new SSLService(settings, env);
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings,
                 new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(IPFilter.class), sslService,
@@ -142,11 +138,11 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
         EmbeddedChannel ch = new EmbeddedChannel(handler);
         SSLEngine defaultEngine = ch.pipeline().get(SslHandler.class).engine();
 
-        settings = Settings.builder()
-                .put(env.settings())
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
-                .put("xpack.security.http.ssl.supported_protocols", "TLSv1.2")
-                .build();
+        settings = getSettingsBuilder()
+            .put(env.settings())
+            .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
+            .put("xpack.security.http.ssl.supported_protocols", "TLSv1.2")
+            .build();
         sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
         transport = new SecurityNetty4HttpServerTransport(settings, new NetworkService(Collections.emptyList()),
                 mock(BigArrays.class), mock(IPFilter.class), sslService, mock(ThreadPool.class), xContentRegistry(), new NullDispatcher(),
@@ -161,11 +157,7 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
     public void testNoExceptionWhenConfiguredWithoutSslKeySSLDisabled() throws Exception {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
-        Settings.Builder builder = Settings.builder();
-        if (inFipsJvm()) {
-            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
-        }
-        Settings settings = builder
+        Settings settings = getSettingsBuilder()
             .put("xpack.security.http.ssl.enabled", false)
             .put("xpack.security.http.ssl.key", testnodeKey)
             .put("xpack.security.http.ssl.certificate", testnodeCert)
@@ -175,9 +167,17 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
         env = TestEnvironment.newEnvironment(settings);
         sslService = new SSLService(settings, env);
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings,
-                new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(IPFilter.class), sslService,
-                mock(ThreadPool.class), xContentRegistry(), new NullDispatcher(),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+            new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(IPFilter.class), sslService,
+            mock(ThreadPool.class), xContentRegistry(), new NullDispatcher(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         assertNotNull(transport.configureServerChannelHandler());
+    }
+
+    private Settings.Builder getSettingsBuilder() {
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
+        }
+        return builder;
     }
 }

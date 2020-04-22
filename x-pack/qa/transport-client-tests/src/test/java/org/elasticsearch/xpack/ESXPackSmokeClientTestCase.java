@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -29,6 +30,7 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
+import static org.elasticsearch.test.ESTestCase.FIPS_SYSPROP;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -63,12 +65,16 @@ public abstract class ESXPackSmokeClientTestCase extends LuceneTestCase {
 
     private static Client startClient(Path tempDir, TransportAddress... transportAddresses) {
         Settings.Builder builder = Settings.builder()
-                .put("node.name", "qa_xpack_smoke_client_" + counter.getAndIncrement())
-                .put("client.transport.ignore_cluster_name", true)
-                .put("xpack.security.enabled", false)
-                .put(Environment.PATH_HOME_SETTING.getKey(), tempDir);
+            .put("node.name", "qa_xpack_smoke_client_" + counter.getAndIncrement())
+            .put("client.transport.ignore_cluster_name", true)
+            .put("xpack.security.enabled", false)
+            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir);
+        // Do not replace this with `inFipsJvm(), see https://github.com/elastic/elasticsearch/issues/52391
+        if (Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP))) {
+            builder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
+        }
         TransportClient client = new PreBuiltXPackTransportClient(builder.build())
-                .addTransportAddresses(transportAddresses);
+            .addTransportAddresses(transportAddresses);
 
         logger.info("--> Elasticsearch Java TransportClient started");
 
@@ -76,7 +82,7 @@ public abstract class ESXPackSmokeClientTestCase extends LuceneTestCase {
         try {
             ClusterHealthResponse health = client.admin().cluster().prepareHealth().get();
             logger.info("--> connected to [{}] cluster which is running [{}] node(s).",
-                    health.getClusterName(), health.getNumberOfNodes());
+                health.getClusterName(), health.getNumberOfNodes());
         } catch (Exception e) {
             logger.error("Error getting cluster health", e);
             clientException = e;

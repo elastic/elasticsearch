@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
@@ -58,17 +59,22 @@ public class ProfileConfigurationsTests extends ESTestCase {
     }
 
     private Settings.Builder getBaseSettings() {
-        final Path keystore = randomBoolean()
-            ? getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks")
-            : getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.p12");
+        final Path keystore = inFipsJvm()
+            ? getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.p12")
+            : getDataPath(randomFrom("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks",
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.p12"));
 
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
 
-        return Settings.builder()
+        Settings.Builder builder = Settings.builder()
             .setSecureSettings(secureSettings)
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.transport.ssl.keystore.path", keystore.toString());
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
+        }
+        return builder;
     }
 
 }

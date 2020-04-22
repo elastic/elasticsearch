@@ -73,7 +73,7 @@ public class CommandLineHttpClientTests extends ESTestCase {
     public void testGetDefaultURLFailsWithHelpfulMessage() {
         Settings.Builder builder = Settings.builder();
         if (inFipsJvm()) {
-            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+            builder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
         }
         Settings settings = builder
             .put("network.host", "_ec2:privateIpv4_")
@@ -94,7 +94,7 @@ public class CommandLineHttpClientTests extends ESTestCase {
         secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
         Settings.Builder builder = Settings.builder();
         if (inFipsJvm()) {
-            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+            builder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
         }
         return builder
             .put("xpack.security.http.ssl.enabled", true)

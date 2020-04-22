@@ -149,7 +149,7 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
     private Settings.Builder getSettingsBuilder() {
         Settings.Builder builder = Settings.builder();
         if (inFipsJvm()) {
-            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+            builder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
         }
         return builder;
     }

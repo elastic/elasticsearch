@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -84,6 +85,16 @@ public class ApiKeyServiceTests extends ESTestCase {
     private XPackLicenseState licenseState;
     private Client client;
     private SecurityIndexManager securityIndex;
+    private static Hasher[] passwordHashingAlgorighms;
+
+    @BeforeClass
+    public static void setup() {
+        if (inFipsJvm()) {
+            passwordHashingAlgorighms = new Hasher[]{Hasher.PBKDF2_1000, Hasher.PBKDF2_10000, Hasher.PBKDF2_50000};
+        } else {
+            passwordHashingAlgorighms = new Hasher[]{Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT};
+        }
+    }
 
     @Before
     public void createThreadPool() {
@@ -282,7 +293,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     public void testValidateApiKey() throws Exception {
         final String apiKey = randomAlphaOfLength(16);
-        Hasher hasher = randomFrom(Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT);
+        Hasher hasher = randomFrom(passwordHashingAlgorighms);
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
 
         Map<String, Object> sourceMap = new HashMap<>();
@@ -456,7 +467,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     public void testApiKeyCache() {
         final String apiKey = randomAlphaOfLength(16);
-        Hasher hasher = randomFrom(Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT);
+        Hasher hasher = randomFrom(passwordHashingAlgorighms);
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
 
         Map<String, Object> sourceMap = buildApiKeySourceDoc(hash);
@@ -509,7 +520,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     public void testAuthenticateWhileCacheBeingPopulated() throws Exception {
         final String apiKey = randomAlphaOfLength(16);
-        Hasher hasher = randomFrom(Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT);
+        Hasher hasher = randomFrom(passwordHashingAlgorighms);
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
 
         Map<String, Object> sourceMap = buildApiKeySourceDoc(hash);
@@ -567,7 +578,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     public void testApiKeyCacheDisabled() {
         final String apiKey = randomAlphaOfLength(16);
-        Hasher hasher = randomFrom(Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT);
+        Hasher hasher = randomFrom(passwordHashingAlgorighms);
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
         final Settings settings = Settings.builder()
             .put(ApiKeyService.CACHE_TTL_SETTING.getKey(), "0s")

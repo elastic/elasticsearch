@@ -8,7 +8,6 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -43,8 +42,7 @@ public class CreateDocsIndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
     @Override
     protected String configUsers() {
-        final String usersPasswdHashed = new String(Hasher.resolve(
-            randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9")).hash(new SecureString("passwd".toCharArray())));
+        final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(new SecureString("passwd".toCharArray())));
 
         return super.configUsers() +
             "admin:" + usersPasswdHashed + "\n" +

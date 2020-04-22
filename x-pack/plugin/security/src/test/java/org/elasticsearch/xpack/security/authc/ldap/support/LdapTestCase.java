@@ -163,17 +163,17 @@ public abstract class LdapTestCase extends ESTestCase {
                                              String groupSearchBase, LdapSearchScope scope, LdapLoadBalancing serverSetType,
                                              boolean ignoreReferralErrors) {
         Settings.Builder builder = Settings.builder()
-                .putList(getFullSettingKey(realmId, URLS_SETTING), ldapUrl)
-                .putList(getFullSettingKey(realmId.getName(), LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING), userTemplate)
-                .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_CONNECTION_SETTING), TimeValue.timeValueSeconds(1L))
-                .put(getFullSettingKey(realmId, SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING), ignoreReferralErrors)
-                .put(getFullSettingKey(realmId, SearchGroupsResolverSettings.BASE_DN), groupSearchBase)
-                .put(getFullSettingKey(realmId, SearchGroupsResolverSettings.SCOPE), scope);
+            .putList(getFullSettingKey(realmId, URLS_SETTING), ldapUrl)
+            .putList(getFullSettingKey(realmId.getName(), LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING), userTemplate)
+            .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_CONNECTION_SETTING), TimeValue.timeValueSeconds(1L))
+            .put(getFullSettingKey(realmId, SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING), ignoreReferralErrors)
+            .put(getFullSettingKey(realmId, SearchGroupsResolverSettings.BASE_DN), groupSearchBase)
+            .put(getFullSettingKey(realmId, SearchGroupsResolverSettings.SCOPE), scope);
         if (serverSetType != null) {
             builder.put(getFullSettingKey(realmId, LdapLoadBalancingSettings.LOAD_BALANCE_TYPE_SETTING), serverSetType.toString());
         }
         if (inFipsJvm()) {
-            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+            builder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
         }
         return builder.build();
     }

@@ -94,6 +94,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.test.ESTestCase.inFipsJvm;
 
 public class LocalStateCompositeXPackPlugin extends XPackPlugin implements ScriptPlugin, ActionPlugin, IngestPlugin, NetworkPlugin,
         ClusterPlugin, DiscoveryPlugin, MapperPlugin, AnalysisPlugin, PersistentTaskPlugin, EnginePlugin {
@@ -257,8 +258,12 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
         Settings.Builder builder = Settings.builder();
         builder.put(super.additionalSettings());
         filterPlugins(Plugin.class).stream().forEach(p ->
-                builder.put(p.additionalSettings())
+            builder.put(p.additionalSettings())
         );
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
+            builder.put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "PBKDF2_1000");
+        }
         return builder.build();
     }
 

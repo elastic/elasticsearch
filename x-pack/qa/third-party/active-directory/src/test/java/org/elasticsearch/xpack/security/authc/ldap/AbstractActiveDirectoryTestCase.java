@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
@@ -84,6 +85,9 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
         Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
 
         // fake realms so ssl will get loaded
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
+        }
         builder.putList("xpack.security.authc.realms.active_directory.foo.ssl.certificate_authorities", certificatePaths);
         builder.put("xpack.security.authc.realms.active_directory.foo.ssl.verification_mode", VerificationMode.FULL);
         builder.putList("xpack.security.authc.realms.active_directory.bar.ssl.certificate_authorities", certificatePaths);
@@ -147,5 +151,13 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
         final String value = System.getProperty(key);
         assertNotNull("Expected the actual value for port " + port + " to be in system property " + key, value);
         return value;
+    }
+
+    protected Settings.Builder getSettingsBuilder() {
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
+        }
+        return builder;
     }
 }

@@ -168,8 +168,9 @@ public class TransportPutUserActionTests extends ESTestCase {
         final PutUserRequest request = new PutUserRequest();
         request.username(user.principal());
         if (isCreate) {
-            request.passwordHash(Hasher.resolve(
-                randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9")).hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
+            final String hashingAlgorithm = inFipsJvm() ?
+                randomFrom("pbkdf2", "pbkdf2_1000") : randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9");
+            request.passwordHash(Hasher.resolve(hashingAlgorithm).hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         }
         final boolean created = isCreate ? randomBoolean() : false; // updates should always return false for create
         doAnswer(new Answer() {

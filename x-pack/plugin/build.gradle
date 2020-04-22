@@ -123,6 +123,10 @@ integTest.runner {
     // private key, these tests are blacklisted in non-snapshot test runs
     blacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
   }
+  if (BuildParams.inFipsJvm) {
+    // We cannot install GOLD licenses or older 1.x license types on FIPS mode, as FIPS is allowed only in platinum
+    blacklist.add('license/20_put_license/*')
+  }
   systemProperty 'tests.rest.blacklist', blacklist.join(',')
   dependsOn copyKeyCerts
 }

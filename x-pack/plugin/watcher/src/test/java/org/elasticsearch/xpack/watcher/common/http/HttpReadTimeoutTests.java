@@ -12,6 +12,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.After;
 import org.junit.Before;
@@ -38,11 +39,11 @@ public class HttpReadTimeoutTests extends ESTestCase {
     }
 
     public void testDefaultTimeout() throws Exception {
-        Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+        Environment environment = TestEnvironment.newEnvironment(getSettingsBuilder().put("path.home", createTempDir()).build());
         HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
-                .method(HttpMethod.POST)
-                .path("/")
-                .build();
+            .method(HttpMethod.POST)
+            .path("/")
+            .build();
 
         try (HttpClient httpClient = new HttpClient(Settings.EMPTY, new SSLService(environment.settings(), environment),
             null, mockClusterService())) {
@@ -59,7 +60,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
     }
 
     public void testDefaultTimeoutCustom() throws Exception {
-        Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+        Environment environment = TestEnvironment.newEnvironment(getSettingsBuilder().put("path.home", createTempDir()).build());
 
         HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
                 .method(HttpMethod.POST)
@@ -82,7 +83,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
     }
 
     public void testTimeoutCustomPerRequest() throws Exception {
-        Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+        Environment environment = TestEnvironment.newEnvironment(getSettingsBuilder().put("path.home", createTempDir()).build());
 
         HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
                 .readTimeout(TimeValue.timeValueSeconds(3))
@@ -95,7 +96,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
             null, mockClusterService())) {
 
             long start = System.nanoTime();
-            expectThrows(SocketTimeoutException.class, () ->  httpClient.execute(request));
+            expectThrows(SocketTimeoutException.class, () -> httpClient.execute(request));
             TimeValue timeout = TimeValue.timeValueNanos(System.nanoTime() - start);
             logger.info("http connection timed out after {}", timeout);
 
@@ -103,5 +104,13 @@ public class HttpReadTimeoutTests extends ESTestCase {
             assertThat(timeout.seconds(), greaterThan(1L));
             assertThat(timeout.seconds(), lessThan(5L));
         }
+    }
+
+    private Settings.Builder getSettingsBuilder() {
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
+        }
+        return builder;
     }
 }

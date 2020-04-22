@@ -219,7 +219,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         // Native users store is initiated with default hashing algorithm
         final Map<String, Object> values = new HashMap<>();
         values.put(User.Fields.USERNAME.getPreferredName(), username);
-        values.put(User.Fields.PASSWORD.getPreferredName(), String.valueOf(Hasher.BCRYPT.hash(password)));
+        values.put(User.Fields.PASSWORD.getPreferredName(), String.valueOf(Hasher.PBKDF2.hash(password)));
         values.put(User.Fields.ROLES.getPreferredName(), roles);
         values.put(User.Fields.ENABLED.getPreferredName(), Boolean.TRUE);
         values.put(User.Fields.TYPE.getPreferredName(), NativeUsersStore.USER_DOC_TYPE);

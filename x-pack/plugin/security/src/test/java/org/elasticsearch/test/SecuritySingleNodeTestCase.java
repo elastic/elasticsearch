@@ -25,6 +25,7 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -173,12 +174,13 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         builder.put("transport.type", "security4");
         builder.put("path.home", customSecuritySettingsSource.nodePath(0));
         if (inFipsJvm()) {
-            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+            builder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
+            builder.put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "PBKDF2_1000");
         }
         Settings.Builder customBuilder = Settings.builder().put(customSettings);
         if (customBuilder.getSecureSettings() != null) {
             SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
-                    secureSettings.merge((MockSecureSettings) customBuilder.getSecureSettings()));
+                secureSettings.merge((MockSecureSettings) customBuilder.getSecureSettings()));
         }
         if (builder.getSecureSettings() == null) {
             builder.setSecureSettings(new MockSecureSettings());
@@ -323,5 +325,13 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
             builder.setHttpClientConfigCallback(httpClientConfigCallback);
         }
         return builder.build();
+    }
+
+    protected static Hasher getFastStoredHashAlgoForTests() {
+        if (inFipsJvm()) {
+            return Hasher.PBKDF2_1000;
+        } else {
+            return Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+        }
     }
 }

@@ -101,7 +101,7 @@ public class LdapRealmTests extends LdapTestCase {
         resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
         Settings.Builder builder = Settings.builder();
         if (inFipsJvm()) {
-            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+            builder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
         }
         defaultGlobalSettings = builder.put("path.home", createTempDir()).build();
         sslService = new SSLService(defaultGlobalSettings, TestEnvironment.newEnvironment(defaultGlobalSettings));

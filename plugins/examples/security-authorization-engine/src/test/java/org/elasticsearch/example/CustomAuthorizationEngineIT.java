@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -52,6 +53,17 @@ import static org.hamcrest.Matchers.is;
  */
 public class CustomAuthorizationEngineIT extends ESIntegTestCase {
 
+    private static Hasher passwordHashingAlgorighm;
+
+    @BeforeClass
+    public static void setup() {
+        if (inFipsJvm()) {
+            passwordHashingAlgorighm = Hasher.PBKDF2;
+        } else {
+            passwordHashingAlgorighm = Hasher.BCRYPT;
+        }
+    }
+
     @Override
     protected Settings externalClusterClientSettings() {
         final String token = "Basic " +
@@ -69,7 +81,8 @@ public class CustomAuthorizationEngineIT extends ESIntegTestCase {
 
     public void testClusterAction() throws IOException {
         SecurityClient securityClient = new SecurityClient(client());
-        securityClient.preparePutUser("custom_user", "x-pack-test-password".toCharArray(), Hasher.BCRYPT, "custom_superuser").get();
+        securityClient.preparePutUser("custom_user", "x-pack-test-password".toCharArray(), passwordHashingAlgorighm, "custom_superuser")
+            .get();
 
         {
             RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
@@ -82,7 +95,8 @@ public class CustomAuthorizationEngineIT extends ESIntegTestCase {
         }
 
         {
-            securityClient.preparePutUser("custom_user2", "x-pack-test-password".toCharArray(), Hasher.BCRYPT, "not_superuser").get();
+            securityClient.preparePutUser("custom_user2", "x-pack-test-password".toCharArray(), passwordHashingAlgorighm, "not_superuser")
+                .get();
             RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
             options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                 basicAuthHeaderValue("custom_user2", new SecureString("x-pack-test-password".toCharArray())));
@@ -95,7 +109,8 @@ public class CustomAuthorizationEngineIT extends ESIntegTestCase {
 
     public void testIndexAction() throws IOException {
         SecurityClient securityClient = new SecurityClient(client());
-        securityClient.preparePutUser("custom_user", "x-pack-test-password".toCharArray(), Hasher.BCRYPT, "custom_superuser").get();
+        securityClient.preparePutUser("custom_user", "x-pack-test-password".toCharArray(), passwordHashingAlgorighm, "custom_superuser")
+            .get();
 
         {
             RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
@@ -121,9 +136,12 @@ public class CustomAuthorizationEngineIT extends ESIntegTestCase {
 
     public void testRunAs() throws IOException {
         SecurityClient securityClient = new SecurityClient(client());
-        securityClient.preparePutUser("custom_user", "x-pack-test-password".toCharArray(), Hasher.BCRYPT, "custom_superuser").get();
-        securityClient.preparePutUser("custom_user2", "x-pack-test-password".toCharArray(), Hasher.BCRYPT, "custom_superuser").get();
-        securityClient.preparePutUser("custom_user3", "x-pack-test-password".toCharArray(), Hasher.BCRYPT, "not_superuser").get();
+        securityClient.preparePutUser("custom_user", "x-pack-test-password".toCharArray(), passwordHashingAlgorighm, "custom_superuser")
+            .get();
+        securityClient.preparePutUser("custom_user2", "x-pack-test-password".toCharArray(), passwordHashingAlgorighm, "custom_superuser")
+            .get();
+        securityClient.preparePutUser("custom_user3", "x-pack-test-password".toCharArray(), passwordHashingAlgorighm, "not_superuser")
+            .get();
 
         {
             RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();

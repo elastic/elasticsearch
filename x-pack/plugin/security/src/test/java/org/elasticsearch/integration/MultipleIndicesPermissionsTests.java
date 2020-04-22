@@ -47,7 +47,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
     @Before
     public void waitForSecurityIndexWritable() throws Exception {
         // adds a dummy user to the native realm to force .security index creation
-        securityClient().preparePutUser("dummy_user", "password".toCharArray(), Hasher.BCRYPT, "missing_role").get();
+        securityClient().preparePutUser("dummy_user", "password".toCharArray(), Hasher.PBKDF2, "missing_role").get();
         assertSecurityIndexActive();
     }
 
@@ -221,7 +221,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
         assertThat(indicesRecoveryResponse.shardRecoveryStates().size(), is(3));
         assertThat(indicesRecoveryResponse.shardRecoveryStates().keySet(), containsInAnyOrder("foo", "foobar", "foobarfoo"));
 
-        // test _cat/indices with wildcards that cover unauthorized indices (".security" in this case)  
+        // test _cat/indices with wildcards that cover unauthorized indices (".security" in this case)
         RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
         optionsBuilder.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue("user_monitor", USERS_PASSWD));
         RequestOptions options = optionsBuilder.build();

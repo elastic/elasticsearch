@@ -55,7 +55,7 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
         final char[] password = new char[] {'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
         final String snapshotUserToken = basicAuthHeaderValue(user, new SecureString(password));
         client = client().filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken));
-        securityClient().preparePutUser(user, password, Hasher.BCRYPT, "snapshot_user").get();
+        securityClient().preparePutUser(user, password, Hasher.PBKDF2, "snapshot_user").get();
         ensureGreen(INTERNAL_SECURITY_MAIN_INDEX_7);
     }
 
@@ -127,5 +127,5 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
                     "snapshot_user");
         }
     }
-    
+
 }

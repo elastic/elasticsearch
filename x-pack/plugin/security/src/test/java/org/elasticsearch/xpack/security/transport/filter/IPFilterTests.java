@@ -273,13 +273,14 @@ public class IPFilterTests extends ESTestCase {
     public void testThatNodeStartsWithIPFilterDisabled() throws Exception {
         Settings.Builder builder = Settings.builder();
         if (inFipsJvm()) {
-            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+            builder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
+            builder.put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "PBKDF2_1000");
         }
         Settings settings = builder
-                .put("path.home", createTempDir())
-                .put("xpack.security.transport.filter.enabled", randomBoolean())
-                .put("xpack.security.http.filter.enabled", randomBoolean())
-                .build();
+            .put("path.home", createTempDir())
+            .put("xpack.security.transport.filter.enabled", randomBoolean())
+            .put("xpack.security.http.filter.enabled", randomBoolean())
+            .build();
         try (Node node = new MockNode(settings, Arrays.asList(LocalStateSecurity.class))) {
             assertNotNull(node);
         }

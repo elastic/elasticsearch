@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -76,7 +77,7 @@ public class EmailSslTests extends ESTestCase {
     }
 
     public void testFailureSendingMessageToSmtpServerWithUntrustedCertificateAuthority() throws Exception {
-        final Settings.Builder settings = Settings.builder();
+        final Settings.Builder settings = getSettingsBuilder();
         final MockSecureSettings secureSettings = new MockSecureSettings();
         final ExecutableEmailAction emailAction = buildEmailAction(settings, secureSettings);
         final WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
@@ -90,7 +91,7 @@ public class EmailSslTests extends ESTestCase {
         List<MimeMessage> messages = new ArrayList<>();
         server.addListener(messages::add);
         try {
-            final Settings.Builder settings = Settings.builder()
+            final Settings.Builder settings = getSettingsBuilder()
                 .put("xpack.notification.email.ssl.truststore.path", getDataPath("test-smtp.p12"));
             final MockSecureSettings secureSettings = new MockSecureSettings();
             secureSettings.setString("xpack.notification.email.ssl.truststore.secure_password", "test-smtp");
@@ -111,7 +112,7 @@ public class EmailSslTests extends ESTestCase {
         List<MimeMessage> messages = new ArrayList<>();
         server.addListener(messages::add);
         try {
-            final Settings.Builder settings = Settings.builder().put("xpack.notification.email.ssl.verification_mode", "none");
+            final Settings.Builder settings = getSettingsBuilder().put("xpack.notification.email.ssl.verification_mode", "none");
             final MockSecureSettings secureSettings = new MockSecureSettings();
             ExecutableEmailAction emailAction = buildEmailAction(settings, secureSettings);
 
@@ -154,6 +155,14 @@ public class EmailSslTests extends ESTestCase {
             cause = cause.getCause();
         }
         return allCauses;
+    }
+
+    private Settings.Builder getSettingsBuilder() {
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
+        }
+        return builder;
     }
 
 }

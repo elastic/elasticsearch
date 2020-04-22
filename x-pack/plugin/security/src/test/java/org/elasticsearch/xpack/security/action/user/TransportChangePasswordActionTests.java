@@ -48,7 +48,8 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 public class TransportChangePasswordActionTests extends ESTestCase {
 
     public void testAnonymousUser() {
-        final String hashingAlgorithm = randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9");
+        final String hashingAlgorithm = inFipsJvm() ?
+            randomFrom("pbkdf2", "pbkdf2_1000") : randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9");
         Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "superuser")
             .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), hashingAlgorithm).build();
         AnonymousUser anonymousUser = new AnonymousUser(settings);
@@ -83,7 +84,8 @@ public class TransportChangePasswordActionTests extends ESTestCase {
     }
 
     public void testInternalUsers() {
-        final String hashingAlgorithm = randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9");
+        final String hashingAlgorithm = inFipsJvm() ?
+            randomFrom("pbkdf2", "pbkdf2_1000") : randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9");
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         Settings passwordHashingSettings = Settings.builder().
             put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), hashingAlgorithm).build();
@@ -117,7 +119,8 @@ public class TransportChangePasswordActionTests extends ESTestCase {
     }
 
     public void testValidUser() {
-        final String hashingAlgorithm = randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9");
+        final String hashingAlgorithm = inFipsJvm() ?
+            randomFrom("pbkdf2", "pbkdf2_1000") : randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9");
         final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         final Hasher hasher = Hasher.resolve(hashingAlgorithm);
@@ -191,7 +194,8 @@ public class TransportChangePasswordActionTests extends ESTestCase {
     }
 
     public void testException() {
-        final String hashingAlgorithm = randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9");
+        final String hashingAlgorithm = inFipsJvm() ?
+            randomFrom("pbkdf2", "pbkdf2_1000") : randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9");
         final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         ChangePasswordRequest request = new ChangePasswordRequest();

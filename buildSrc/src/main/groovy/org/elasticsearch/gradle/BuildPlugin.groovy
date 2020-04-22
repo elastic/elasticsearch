@@ -175,8 +175,8 @@ class BuildPlugin implements Plugin<Project> {
                         cluster.systemProperty('javax.net.ssl.trustStorePassword', 'password')
                         cluster.systemProperty('javax.net.ssl.keyStorePassword', 'password')
                         cluster.systemProperty('javax.net.ssl.keyStoreType', 'BCFKS')
-                        // Can't use our DiagnosticTrustManager with SunJSSE in FIPS mode
-                        cluster.setting 'xpack.security.ssl.diagnose.trust', 'false'
+                        cluster.setting 'xpack.security.fips_mode.enabled', 'true'
+                        cluster.setting 'xpack.security.authc.password_hashing.algorithm', 'PBKDF2'
                     }
                 }
             }
@@ -728,6 +728,7 @@ class BuildPlugin implements Plugin<Project> {
                 nonInputProperties.systemProperty('java.io.tmpdir', test.workingDir.toPath().resolve('temp'))
 
                 nonInputProperties.systemProperty('compiler.java', "${-> BuildParams.compilerJavaVersion.majorVersion}")
+                nonInputProperties.systemProperty('runtime.java', "${-> BuildParams.runtimeJavaVersion.majorVersion}")
 
                 // TODO: remove setting logging level via system property
                 test.systemProperty 'tests.logger.level', 'WARN'

@@ -19,6 +19,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
 
 import java.util.Collection;
@@ -104,12 +105,14 @@ public class SecurityTransportClientIT extends ESIntegTestCase {
         TransportAddress publishAddress = randomFrom(nodes).getInfo(TransportInfo.class).address().publishAddress();
         String clusterName = nodeInfos.getClusterName().value();
 
-        Settings settings = Settings.builder()
-                .put(extraSettings)
-                .put("cluster.name", clusterName)
-                .build();
+        Settings.Builder builder = Settings.builder()
+            .put(extraSettings)
+            .put("cluster.name", clusterName);
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
+        }
 
-        TransportClient client = new PreBuiltXPackTransportClient(settings);
+        TransportClient client = new PreBuiltXPackTransportClient(builder.build());
         client.addTransportAddress(publishAddress);
         return client;
     }

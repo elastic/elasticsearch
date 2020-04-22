@@ -208,7 +208,8 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
     private Settings.Builder getSettingsBuilder() {
         Settings.Builder builder = Settings.builder();
         if (inFipsJvm()) {
-            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+            builder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
+            builder.put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "PBKDF2_1000");
         }
         return builder;
     }

@@ -145,7 +145,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
         Settings.Builder builder = Settings.builder();
         if (inFipsJvm()) {
-            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+            builder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
         }
         globalSettings = builder.put("path.home", createTempDir()).build();
         sslService = new SSLService(globalSettings, TestEnvironment.newEnvironment(globalSettings));

@@ -95,7 +95,7 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
             .build();
         Settings.Builder sslSettingsBuilder = Settings.builder();
         if (inFipsJvm()) {
-            sslSettingsBuilder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+            sslSettingsBuilder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
         }
         final Settings sslSettings = sslSettingsBuilder
             .put("xpack.security.authc.realms.oidc.oidc-realm.ssl.verification_mode", "certificate")

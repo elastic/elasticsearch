@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -32,18 +33,29 @@ import static org.mockito.Mockito.mock;
 
 public class PutUserRequestBuilderTests extends ESTestCase {
 
+    private static Hasher passwordHashingAlgorighm;
+
+    @BeforeClass
+    public static void setup() {
+        if (inFipsJvm()) {
+            passwordHashingAlgorighm = Hasher.PBKDF2;
+        } else {
+            passwordHashingAlgorighm = Hasher.BCRYPT;
+        }
+    }
+
     public void testNullValuesForEmailAndFullName() throws IOException {
         final String json = "{\n" +
-                "    \"roles\": [\n" +
-                "      \"kibana4\"\n" +
-                "    ],\n" +
-                "    \"full_name\": null,\n" +
-                "    \"email\": null,\n" +
-                "    \"metadata\": {}\n" +
-                "}";
+            "    \"roles\": [\n" +
+            "      \"kibana4\"\n" +
+            "    ],\n" +
+            "    \"full_name\": null,\n" +
+            "    \"email\": null,\n" +
+            "    \"metadata\": {}\n" +
+            "}";
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
-        builder.source("kibana4", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, Hasher.BCRYPT);
+        builder.source("kibana4", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, passwordHashingAlgorighm);
 
         PutUserRequest request = builder.request();
         assertThat(request.username(), is("kibana4"));
@@ -63,7 +75,7 @@ public class PutUserRequestBuilderTests extends ESTestCase {
                 "}";
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
-        builder.source("kibana4", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, Hasher.BCRYPT);
+        builder.source("kibana4", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, passwordHashingAlgorighm);
 
         PutUserRequest request = builder.request();
         assertThat(request.username(), is("kibana4"));
@@ -84,7 +96,7 @@ public class PutUserRequestBuilderTests extends ESTestCase {
                 "}";
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
-        builder.source("kibana4", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, Hasher.BCRYPT);
+        builder.source("kibana4", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, passwordHashingAlgorighm);
 
         PutUserRequest request = builder.request();
         assertThat(request.username(), is("kibana4"));
@@ -106,7 +118,8 @@ public class PutUserRequestBuilderTests extends ESTestCase {
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-            () -> builder.source("kibana4", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, Hasher.BCRYPT));
+            () -> builder
+                .source("kibana4", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, passwordHashingAlgorighm));
         assertThat(e.getMessage(), containsString("expected field [full_name] to be of type string"));
     }
 
@@ -122,7 +135,8 @@ public class PutUserRequestBuilderTests extends ESTestCase {
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-            () -> builder.source("kibana4", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, Hasher.BCRYPT));
+            () -> builder
+                .source("kibana4", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, passwordHashingAlgorighm));
         assertThat(e.getMessage(), containsString("expected field [email] to be of type string"));
     }
 
@@ -139,12 +153,14 @@ public class PutUserRequestBuilderTests extends ESTestCase {
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
         PutUserRequest request =
-            builder.source("kibana4", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, Hasher.BCRYPT).request();
+            builder
+                .source("kibana4", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, passwordHashingAlgorighm)
+                .request();
         assertFalse(request.enabled());
     }
 
     public void testWithValidPasswordHash() throws IOException {
-        final Hasher hasher = Hasher.BCRYPT4; // this is the fastest hasher we officially support
+        final Hasher hasher = Hasher.PBKDF2_1000; // this is the fastest FIPS 140 approved hasher we officially support
         final char[] hash = hasher.hash(new SecureString("secret".toCharArray()));
         final String json = "{\n" +
             "    \"password_hash\": \"" + new String(hash) + "\"," +
@@ -159,8 +175,8 @@ public class PutUserRequestBuilderTests extends ESTestCase {
     }
 
     public void testWithMismatchedPasswordHash() throws IOException {
-        final Hasher systemHasher = Hasher.BCRYPT8;
-        final Hasher userHasher = Hasher.BCRYPT4; // this is the fastest hasher we officially support
+        final Hasher systemHasher = Hasher.PBKDF2_10000;
+        final Hasher userHasher = Hasher.PBKDF2_1000; // this is the fastest FIPS 140 approved hasher we officially support
         final char[] hash = userHasher.hash(new SecureString("secret".toCharArray()));
         final String json = "{\n" +
             "    \"password_hash\": \"" + new String(hash) + "\"," +
@@ -191,9 +207,8 @@ public class PutUserRequestBuilderTests extends ESTestCase {
     }
 
     public void testWithBothPasswordAndHash() throws IOException {
-        final Hasher hasher = randomFrom(Hasher.BCRYPT4, Hasher.PBKDF2_1000);
         final String password = randomAlphaOfLength(12);
-        final char[] hash = hasher.hash(new SecureString(password.toCharArray()));
+        final char[] hash = passwordHashingAlgorighm.hash(new SecureString(password.toCharArray()));
         final LinkedHashMap<String, Object> fields = new LinkedHashMap<>();
         fields.put("password", password);
         fields.put("password_hash", new String(hash));
@@ -203,7 +218,7 @@ public class PutUserRequestBuilderTests extends ESTestCase {
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
         final IllegalArgumentException ex = expectThrows(ValidationException.class, () -> {
-            builder.source("hash_user", json, XContentType.JSON, hasher).request();
+            builder.source("hash_user", json, XContentType.JSON, passwordHashingAlgorighm).request();
         });
         assertThat(ex.getMessage(), containsString("password_hash has already been set"));
     }

@@ -288,17 +288,17 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
     private TestSessionFactory createSessionFactory(LdapLoadBalancing loadBalancing) throws Exception {
         String groupSearchBase = "cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas";
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
-        Settings settings = buildLdapSettings(ldapUrls(), new String[] { userTemplate }, groupSearchBase,
-                LdapSearchScope.SUB_TREE, loadBalancing);
+        Settings settings = buildLdapSettings(ldapUrls(), new String[]{userTemplate}, groupSearchBase,
+            LdapSearchScope.SUB_TREE, loadBalancing);
         Settings globalSettings = Settings.builder().put("path.home", createTempDir()).put(settings).build();
         RealmConfig config = new RealmConfig(REALM_IDENTIFIER, globalSettings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
         Settings.Builder builder = Settings.builder();
         if (inFipsJvm()) {
-            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+            builder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
         }
         return new TestSessionFactory(config, new SSLService(builder.build(), TestEnvironment.newEnvironment(config.settings())),
-                threadPool);
+            threadPool);
     }
 
     private class PortBlockingRunnable implements Runnable {

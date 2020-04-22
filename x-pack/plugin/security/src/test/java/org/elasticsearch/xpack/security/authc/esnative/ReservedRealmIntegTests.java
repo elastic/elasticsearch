@@ -10,6 +10,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordResponse;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
@@ -46,7 +47,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
     public Settings nodeSettings(int nodeOrdinal) {
         Settings settings = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put("xpack.security.authc.password_hashing.algorithm", hasher.name())
+            .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), hasher.name())
             .build();
         return settings;
     }

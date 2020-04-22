@@ -70,7 +70,9 @@ public class UsersToolTests extends CommandTestCase {
         IOUtils.rm(homeDir);
         confDir = homeDir.resolve("config");
         Files.createDirectories(confDir);
-        hasher = Hasher.resolve(randomFrom("bcrypt", "pbkdf2"));
+        final String hashingAlgorithm = inFipsJvm() ?
+            randomFrom("pbkdf2", "pbkdf2_1000") : randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9");
+        hasher = Hasher.resolve(hashingAlgorithm);
         String defaultPassword = SecuritySettingsSourceField.TEST_PASSWORD;
         Files.write(confDir.resolve("users"), Arrays.asList(
             "existing_user:" + new String(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)),

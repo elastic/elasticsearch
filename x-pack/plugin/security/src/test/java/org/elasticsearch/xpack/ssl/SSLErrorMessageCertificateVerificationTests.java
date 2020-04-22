@@ -187,7 +187,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
             .put(prefix + ".client_authentication", clientAuth.name())
             .put(prefix + ".verification_mode", verificationMode.name());
         if (inFipsJvm()) {
-            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+            builder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
         }
         if (caPath != null) {
             builder.putList(prefix + ".certificate_authorities", getPath(caPath));

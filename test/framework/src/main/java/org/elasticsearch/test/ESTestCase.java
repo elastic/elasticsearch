@@ -1344,11 +1344,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         return elapsed;
     }
 
+    public static boolean inFipsSunJsseJvm() {
+        return inFipsJvm() && JavaVersion.current().getVersion().get(0) == 8;
+    }
+
     /**
      * Creates an TestAnalysis with all the default analyzers configured.
      */
     public static TestAnalysis createTestAnalysis(Index index, Settings settings, AnalysisPlugin... analysisPlugins)
-            throws IOException {
+        throws IOException {
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         return createTestAnalysis(index, nodeSettings, settings, analysisPlugins);
     }

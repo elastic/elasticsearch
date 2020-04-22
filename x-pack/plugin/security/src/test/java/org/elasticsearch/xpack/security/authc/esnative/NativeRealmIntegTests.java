@@ -28,6 +28,7 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
@@ -97,7 +98,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put("xpack.security.authc.password_hashing.algorithm", hasher.name());
+            .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), hasher.name());
         if (anonymousEnabled) {
             builder.put(AnonymousUser.ROLES_SETTING.getKey(), "native_anonymous");
         }

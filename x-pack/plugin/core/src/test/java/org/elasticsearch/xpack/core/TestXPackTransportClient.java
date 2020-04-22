@@ -56,7 +56,7 @@ public class TestXPackTransportClient extends TransportClient {
     private static Settings possiblyDisableTlsDiagnostic(Settings settings) {
         Settings.Builder builder = Settings.builder().put(settings);
         if (inFipsJvm()) {
-            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+            builder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
         }
         return builder.build();
     }

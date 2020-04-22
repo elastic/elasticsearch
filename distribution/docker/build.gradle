@@ -35,7 +35,7 @@ ext.expansions = { architecture, oss, local ->
   switch (architecture) {
     case "aarch64":
     case "x64":
-      break;
+      break
     default:
       throw new IllegalArgumentException("unrecongized architecture [" + architecture + "], must be one of (aarch64|x64)")
   }
@@ -96,7 +96,7 @@ project.ext {
 
 void addCopyDockerContextTask(final String architecture, final boolean oss) {
   task(taskName("copy", architecture, oss, "DockerContext"), type: Sync) {
-    TaskProvider<Sync> buildBaseImageTask = tasks.named(taskName("build", architecture, oss, "DockerBaseImage"))
+    TaskProvider<Sync> buildBaseImageTask = tasks.named(taskName("build", architecture, false, "DockerBaseImage"))
     dependsOn(buildBaseImageTask)
 
     expansions(architecture, oss, true).findAll { it.key != 'build_date' }.each { k, v ->
@@ -213,7 +213,7 @@ void addBuildStaticCurl(final String architecture) {
   buildStaticCurlTask.onlyIf { Architecture.current().name().toLowerCase().equals(architecture) }
 }
 
-void addBuildDockerBaseImage(final String architecture, final boolean oss) {
+void addBuildDockerBaseImage(final String architecture) {
   def installer = "${projectDir}/src/docker/bin/install-baseimage.sh"
   def outputFile = baseImageFilename(architecture)
   def outputPath = "${buildDir}/${outputFile}"
@@ -221,7 +221,7 @@ void addBuildDockerBaseImage(final String architecture, final boolean oss) {
   def image = "aarch64".equals(architecture) ? 'arm64v8/centos:7' : 'centos:7'
   def curlPath = "${buildDir}/static-curl-${architecture}/curl"
 
-  final Task buildDockerBaseImageTask = task(taskName("build", architecture, oss, "DockerBaseImage"), type: LoggedExec) {
+  final Task buildDockerBaseImageTask = task(taskName("build", architecture, false, "DockerBaseImage"), type: LoggedExec) {
     TaskProvider<Sync> buildStaticCurlTask = tasks.named(taskName("build", architecture, false, "StaticCurl"))
     dependsOn(buildStaticCurlTask)
 
@@ -233,9 +233,9 @@ void addBuildDockerBaseImage(final String architecture, final boolean oss) {
     executable 'docker'
     args 'run', '--rm', '-t',
       '-v', "${buildDir}:/build",
-      '-v', "${installer}:/tmp/install-baseimage.sh",
+      '-v', "${installer}:/install-baseimage.sh",
       '-v', "${curlPath}:/curl",
-      image, '/tmp/install-baseimage.sh', platform, "/build/${outputFile}"
+      image, '/install-baseimage.sh', platform, "/build/${outputFile}"
   }
 
   buildDockerBaseImageTask.onlyIf { Architecture.current().name().toLowerCase().equals(architecture) }
@@ -268,8 +268,8 @@ void addBuildDockerImage(final String architecture, final boolean oss) {
 
 for (final String architecture : ["aarch64", "x64"]) {
   addBuildStaticCurl(architecture)
+  addBuildDockerBaseImage(architecture)
   for (final boolean oss : [false, true]) {
-    addBuildDockerBaseImage(architecture, oss)
     addCopyDockerContextTask(architecture, oss)
     addBuildDockerImage(architecture, oss)
   }

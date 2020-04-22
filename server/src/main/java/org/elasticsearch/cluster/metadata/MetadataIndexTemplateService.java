@@ -341,6 +341,7 @@ public class MetadataIndexTemplateService {
 
         Map<String, List<String>> overlaps = findConflictingV2Templates(currentState, name, template.indexPatterns(), true,
             template.priority());
+        overlaps.remove(name);
         if (overlaps.size() > 0) {
             String error = String.format(Locale.ROOT, "index template [%s] has index patterns %s matching patterns from " +
                     "existing templates [%s] with patterns (%s) that have the same priority [%d], multiple index templates may not " +

@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
-import java.io.IOException;
-import java.util.Map;
+/**
+ * Marks the constructor that should be used by {@linkplain InstantiatingObjectParser} if multiple constructors with the same
+ * number of arguments exist.
+ */
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ ElementType.CONSTRUCTOR })
+public @interface ParserConstructor {
 
-@FunctionalInterface
-public interface GeoBoundsAggregatorSupplier extends AggregatorSupplier {
-
-    MetricsAggregator build(String name, SearchContext aggregationContext, Aggregator parent,
-                        ValuesSource valuesSource, boolean wrapLongitude, Map<String, Object> metadata) throws IOException;
 }

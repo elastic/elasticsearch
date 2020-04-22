@@ -52,6 +52,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
@@ -177,6 +178,13 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
 
             MetadataCreateIndexService.validateIndexOrAliasName(request.name,
                 (s1, s2) -> new IllegalArgumentException("data_stream [" + s1 + "] " + s2));
+
+            if (request.name.toLowerCase(Locale.ROOT).equals(request.name) == false) {
+                throw new IllegalArgumentException("data_stream [" + request.name + "] must be lowercase");
+            }
+            if (request.name.startsWith(".")) {
+                throw new IllegalArgumentException("data_stream [" + request.name + "] must not start with '.'");
+            }
 
             String firstBackingIndexName = DataStream.getBackingIndexName(request.name, 1);
             CreateIndexClusterStateUpdateRequest createIndexRequest =

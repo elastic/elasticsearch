@@ -247,7 +247,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             return dataSource;
         }
 
-        ValuesSource.Numeric fieldData(FieldContext fieldContext) {
+        private ValuesSource.Numeric fieldData(FieldContext fieldContext) {
             if ((fieldContext.indexFieldData() instanceof IndexNumericFieldData) == false) {
                 throw new IllegalArgumentException("Expected numeric type on field [" + fieldContext.field() +
                     "], but got [" + fieldContext.fieldType().typeName() + "]");

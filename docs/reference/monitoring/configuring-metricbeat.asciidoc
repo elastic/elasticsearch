@@ -84,6 +84,7 @@ The `modules.d/elasticsearch-xpack.yml` file contains the following settings:
       - ml_job
       - node_stats
       - shard
+      - enrich
     period: 10s
     hosts: ["http://localhost:9200"]
     #username: "user"

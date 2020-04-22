@@ -106,10 +106,14 @@ public class CoordinationStateTestCluster {
 
         void reboot() {
             if (localNode.isMasterNode() == false && rarely()) {
-                // master-ineligible nodes can't be trusted to persist the cluster state properly
-                persistedState = new InMemoryPersistedState(0L,
-                    clusterState(0L, 0L, localNode, CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG,
-                        CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG, 0L));
+                // master-ineligible nodes can't be trusted to persist the cluster state properly, but will not lose the fact that they
+                // were bootstrapped
+                final CoordinationMetadata.VotingConfiguration votingConfiguration
+                    = persistedState.getLastAcceptedState().getLastAcceptedConfiguration().isEmpty()
+                        ? CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG
+                        : CoordinationMetadata.VotingConfiguration.MUST_JOIN_ELECTED_MASTER;
+                persistedState
+                    = new InMemoryPersistedState(0L, clusterState(0L, 0L, localNode, votingConfiguration, votingConfiguration, 0L));
             }
 
             final Set<DiscoveryNodeRole> roles = new HashSet<>(localNode.getRoles());

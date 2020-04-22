@@ -40,7 +40,8 @@ public class XPackSettings {
     /**
      * Setting for controlling whether or not enrich is enabled.
      */
-    public static final Setting<Boolean> ENRICH_ENABLED_SETTING = Setting.boolSetting("xpack.enrich.enabled", true, Property.NodeScope);
+    public static final Setting<Boolean> ENRICH_ENABLED_SETTING = Setting.boolSetting("xpack.enrich.enabled", true,
+        Property.NodeScope, Property.Deprecated);
 
     /**
      * Setting for controlling whether or not CCR is enabled.
@@ -49,14 +50,14 @@ public class XPackSettings {
 
     /** Setting for enabling or disabling data frame. Defaults to true. */
     public static final Setting<Boolean> TRANSFORM_ENABLED = Setting.boolSetting("xpack.transform.enabled", true,
-            Setting.Property.NodeScope);
+        Property.NodeScope, Property.Deprecated);
 
     /** Setting for enabling or disabling security. Defaults to true. */
     public static final Setting<Boolean> SECURITY_ENABLED = Setting.boolSetting("xpack.security.enabled", true, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling monitoring. */
     public static final Setting<Boolean> MONITORING_ENABLED = Setting.boolSetting("xpack.monitoring.enabled", true,
-            Setting.Property.NodeScope);
+        Property.NodeScope, Property.Deprecated);
 
     /** Setting for enabling or disabling watcher. Defaults to true. */
     public static final Setting<Boolean> WATCHER_ENABLED = Setting.boolSetting("xpack.watcher.enabled", true, Setting.Property.NodeScope);
@@ -70,7 +71,7 @@ public class XPackSettings {
 
     /** Setting for enabling or disabling rollup. Defaults to true. */
     public static final Setting<Boolean> ROLLUP_ENABLED = Setting.boolSetting("xpack.rollup.enabled", true,
-            Setting.Property.NodeScope);
+        Property.NodeScope, Property.Deprecated);
 
     /** Setting for enabling or disabling auditing. Defaults to false. */
     public static final Setting<Boolean> AUDIT_ENABLED = Setting.boolSetting("xpack.security.audit.enabled", false,
@@ -88,13 +89,13 @@ public class XPackSettings {
      * Setting for enabling or disabling the index lifecycle extension. Defaults to true.
      */
     public static final Setting<Boolean> INDEX_LIFECYCLE_ENABLED = Setting.boolSetting("xpack.ilm.enabled", true,
-        Setting.Property.NodeScope);
+        Property.NodeScope, Property.Deprecated);
 
     /**
      * Setting for enabling or disabling the snapshot lifecycle extension. Defaults to true.
      */
     public static final Setting<Boolean> SNAPSHOT_LIFECYCLE_ENABLED = Setting.boolSetting("xpack.slm.enabled", true,
-        Setting.Property.NodeScope);
+        Property.NodeScope, Property.Deprecated);
 
     /** Setting for enabling or disabling TLS. Defaults to false. */
     public static final Setting<Boolean> TRANSPORT_SSL_ENABLED = Setting.boolSetting("xpack.security.transport.ssl.enabled", false,
@@ -121,14 +122,16 @@ public class XPackSettings {
         Setting.boolSetting("xpack.security.fips_mode.enabled", false, Property.NodeScope);
 
     /** Setting for enabling or disabling sql. Defaults to true. */
-    public static final Setting<Boolean> SQL_ENABLED = Setting.boolSetting("xpack.sql.enabled", true, Setting.Property.NodeScope);
+    public static final Setting<Boolean> SQL_ENABLED = Setting.boolSetting("xpack.sql.enabled", true,
+        Property.NodeScope, Property.Deprecated);
 
     /** Setting for enabling or disabling flattened fields. Defaults to true. */
-    public static final Setting<Boolean> FLATTENED_ENABLED = Setting.boolSetting("xpack.flattened.enabled",
-        true, Setting.Property.NodeScope);
+    public static final Setting<Boolean> FLATTENED_ENABLED = Setting.boolSetting("xpack.flattened.enabled", true,
+        Property.NodeScope, Property.Deprecated);
 
     /** Setting for enabling or disabling vectors. Defaults to true. */
-    public static final Setting<Boolean> VECTORS_ENABLED = Setting.boolSetting("xpack.vectors.enabled", true, Setting.Property.NodeScope);
+    public static final Setting<Boolean> VECTORS_ENABLED = Setting.boolSetting("xpack.vectors.enabled", true,
+        Property.NodeScope, Property.Deprecated);
 
     /*
      * SSL settings. These are the settings that are specifically registered for SSL. Many are private as we do not explicitly use them

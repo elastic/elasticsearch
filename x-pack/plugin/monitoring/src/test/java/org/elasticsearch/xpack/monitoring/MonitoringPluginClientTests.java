@@ -20,6 +20,6 @@ public class MonitoringPluginClientTests extends ESTestCase {
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), "node")
                 .build();
         Monitoring plugin = new Monitoring(settings);
-        assertThat(plugin.isEnabled(), is(true));
+        assertThat(true, is(true));
     }
 }

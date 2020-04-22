@@ -235,7 +235,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                         .maxNodes(2)
                                         .build();
 
-        final List<XPackFeatureSet.Usage> usages = singletonList(new MonitoringFeatureSetUsage(false, true, false, null));
+        final List<XPackFeatureSet.Usage> usages = singletonList(new MonitoringFeatureSetUsage(false, false, null));
 
         final NodeInfo mockNodeInfo = mock(NodeInfo.class);
         Version mockNodeVersion = Version.CURRENT.minimumIndexCompatibilityVersion();

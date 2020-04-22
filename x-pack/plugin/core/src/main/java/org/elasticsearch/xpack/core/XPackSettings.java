@@ -55,7 +55,12 @@ public class XPackSettings {
     /** Setting for enabling or disabling security. Defaults to true. */
     public static final Setting<Boolean> SECURITY_ENABLED = Setting.boolSetting("xpack.security.enabled", true, Setting.Property.NodeScope);
 
-    /** Setting for enabling or disabling monitoring. */
+    /**
+     * Setting for enabling or disabling monitoring.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
+     */
+    @Deprecated(since = "7.8.0")
     public static final Setting<Boolean> MONITORING_ENABLED = Setting.boolSetting("xpack.monitoring.enabled", true,
         Property.NodeScope, Property.Deprecated);
 

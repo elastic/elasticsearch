@@ -1,0 +1,35 @@
+[role="xpack"]
+[[ilm-delete]]
+=== Delete
+
+Phases allowed: delete.
+
+Permanently removes the index.
+
+[[ilm-delete-action-options]]
+==== Delete
+
+`delete_searchable_snapshot`::
+(Optional, boolean)
+Deletes the searchable snapshot created in the cold phase. 
+Defaults to `true`.
+This is applicable when the <<ilm-searchable-snapshot-action>> is used in the cold phase.
+
+[[ilm-delete-action-example]]
+==== Example
+
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "delete": {
+        "actions": {
+          "delete" : { }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------

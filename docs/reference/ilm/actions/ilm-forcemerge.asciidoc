@@ -1,0 +1,53 @@
+[role="xpack"]
+[[ilm-forcemerge]]
+=== Force merge
+
+Phases allowed: hot, warm.
+
+NOTE: The index is made read-only when this action is run.
+See <<dynamic-index-settings,`index.blocks.write`>>.
+
+NOTE: If the `forcemerge` action is used in the `hot` phase, the `rollover` action *must* be preset.
+{ilm-init} validates this predicate and will refuse a policy with a forcemerge in the hot phase without a
+rollover action.
+
+The force merge action <<indices-forcemerge,force merges>> the index into a
+specified maximum number of <<indices-segments,segments>>.
+
+[[ilm-forcemerge-options]]
+==== Force merge options
+
+`max_num_segments`::
+(Required, integer) 
+The number of segments to merge to. To fully merge the index, set it to `1`
+
+`codec`::
+(Optional, string)   
+Use the `best_compression` codec. Valid values: `best_compression`.
++
+[WARNING]
+======
+Setting `"codec": "best_compression"` in the {ilm-init} forcemerge action causes {ilm-int} to
+<<indices-close,close>> and then <<indices-open-close,re-open>> the index prior to the forcemerge.
+During this time, the index is unavailable for both read and write operations.
+======
+
+[[ilm-forcemerge-action-example]]
+==== Example
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "actions": {
+          "forcemerge" : {
+            "max_num_segments": 1
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------

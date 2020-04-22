@@ -172,7 +172,7 @@ public class XPackSettings {
     public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
         new Setting.SimpleKey("xpack.security.authc.password_hashing.algorithm"),
         (s) -> {
-            if (XPackSettings.FIPS_MODE_ENABLED.exists(s) && XPackSettings.FIPS_MODE_ENABLED.get(s)) {
+            if (XPackSettings.FIPS_MODE_ENABLED.get(s)) {
                 return "PBKDF2";
             } else {
                 return "BCRYPT";

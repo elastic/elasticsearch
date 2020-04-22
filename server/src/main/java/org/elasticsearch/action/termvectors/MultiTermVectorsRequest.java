@@ -102,7 +102,8 @@ public class MultiTermVectorsRequest extends ActionRequest
     public void add(TermVectorsRequest template, @Nullable XContentParser parser) throws IOException {
         add(template, parser, k->false);
     }
-    public void add(TermVectorsRequest template, @Nullable XContentParser parser, Function<String,Boolean> typeConsumer) throws IOException {
+    public void add(TermVectorsRequest template, @Nullable XContentParser parser, Function<String,Boolean> typeConsumer)
+        throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
         if (parser != null) {

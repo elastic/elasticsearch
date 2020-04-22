@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.compat.version7;
+package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;

@@ -25,6 +25,10 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
 public class RestGetActionV7Tests extends RestActionTestCase {
     final String mimeType = "application/vnd.elasticsearch+json;compatible-with=7";
     final List<String> contentTypeHeader = Collections.singletonList(mimeType);
@@ -36,6 +40,7 @@ public class RestGetActionV7Tests extends RestActionTestCase {
 
     public void testTypeInPathWithGet() {
         FakeRestRequest deprecatedRequest = new FakeCompatRestRequestBuilder(xContentRegistry()).withPath("/some_index/some_type/some_id")
+            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
             .withMethod(RestRequest.Method.GET)
             .build();
         dispatchRequest(deprecatedRequest);

@@ -25,6 +25,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class RestIndexActionV7Tests extends RestActionTestCase {

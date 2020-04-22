@@ -536,7 +536,9 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     /**
      * populates a request object (pre-populated with defaults) based on a parser.
      */
-    public static void parseRequest(TermVectorsRequest termVectorsRequest, XContentParser parser, Function<String,Boolean> typeConsumer) throws IOException {
+    public static void parseRequest(TermVectorsRequest termVectorsRequest,
+                                    XContentParser parser,
+                                    Function<String,Boolean> typeConsumer) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
         List<String> fields = new ArrayList<>();

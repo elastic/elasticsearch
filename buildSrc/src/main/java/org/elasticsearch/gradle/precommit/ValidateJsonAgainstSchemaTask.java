@@ -124,7 +124,9 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
                 }
             });
         if (errors.isEmpty()) {
-            Files.writeString(getReport().toPath(), "Success! No validation errors found.", StandardOpenOption.CREATE);
+            try (PrintWriter printWriter = new PrintWriter(getReport())) {
+                printWriter.println("Success! No validation errors found.");
+            }
         } else {
             try (PrintWriter printWriter = new PrintWriter(getReport())) {
                 printWriter.printf("Schema: %s%n", jsonSchemaOnDisk);

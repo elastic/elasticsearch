@@ -58,7 +58,6 @@
  * {@link org.elasticsearch.painless.node.EString} - Represents a string constant.
  * {@link org.elasticsearch.painless.node.EUnary} - Represents a unary math expression.
  * {@link org.elasticsearch.painless.node.EVariable} - Represents a variable load/store.
- * {@link org.elasticsearch.painless.node.ILambda} - Represents a marker to signify this node is a lambda function.
  * {@link org.elasticsearch.painless.node.PBrace} - Represents an array load/store and defers to a child subnode.
  * {@link org.elasticsearch.painless.node.PCallInvoke} - Represents a method call and defers to a child subnode.
  * {@link org.elasticsearch.painless.node.PField} - Represents a field load/store and defers to a child subnode.

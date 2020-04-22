@@ -810,6 +810,7 @@ public class RecoverySourceHandler {
      */
     public void cancel(String reason) {
         cancellableThreads.cancel(reason);
+        recoveryTarget.cancel();
     }
 
     @Override

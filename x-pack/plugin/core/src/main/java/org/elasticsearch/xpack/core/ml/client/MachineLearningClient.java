@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
+import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
@@ -234,12 +235,12 @@ public class MachineLearningClient {
     }
 
     public void openJob(OpenJobAction.Request request,
-            ActionListener<AcknowledgedResponse> listener) {
+            ActionListener<NodeAcknowledgedResponse> listener) {
         client.execute(OpenJobAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<AcknowledgedResponse> openJob(OpenJobAction.Request request) {
-        PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
+    public ActionFuture<NodeAcknowledgedResponse> openJob(OpenJobAction.Request request) {
+        PlainActionFuture<NodeAcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(OpenJobAction.INSTANCE, request, listener);
         return listener;
     }
@@ -301,13 +302,13 @@ public class MachineLearningClient {
     }
 
     public void startDatafeed(StartDatafeedAction.Request request,
-            ActionListener<AcknowledgedResponse> listener) {
+            ActionListener<NodeAcknowledgedResponse> listener) {
         client.execute(StartDatafeedAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<AcknowledgedResponse> startDatafeed(
+    public ActionFuture<NodeAcknowledgedResponse> startDatafeed(
             StartDatafeedAction.Request request) {
-        PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<NodeAcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(StartDatafeedAction.INSTANCE, request, listener);
         return listener;
     }

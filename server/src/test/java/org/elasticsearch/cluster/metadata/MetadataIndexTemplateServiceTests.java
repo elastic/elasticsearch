@@ -356,6 +356,25 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertNotNull(state.metadata().templatesV2().get("bar"));
     }
 
+    public void testUpdateIndexTemplateV2() throws Exception {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        IndexTemplateV2 template = IndexTemplateV2Tests.randomInstance();
+        state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template);
+
+        assertNotNull(state.metadata().templatesV2().get("foo"));
+        assertTemplatesEqual(state.metadata().templatesV2().get("foo"), template);
+
+        List<String> patterns = new ArrayList<>(template.indexPatterns());
+        patterns.add("new-pattern");
+        template = new IndexTemplateV2(patterns, template.template(), template.composedOf(), template.priority(), template.version(),
+            template.metadata());
+        state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template);
+
+        assertNotNull(state.metadata().templatesV2().get("foo"));
+        assertTemplatesEqual(state.metadata().templatesV2().get("foo"), template);
+    }
+
     public void testRemoveIndexTemplateV2() throws Exception {
         IndexTemplateV2 template = IndexTemplateV2Tests.randomInstance();
         final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();

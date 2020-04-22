@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -28,7 +29,7 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField.RUN_AS_USER_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.xpack.search.AsyncSearchIndexService.INDEX;
+import static org.elasticsearch.xpack.search.AsyncSearch.INDEX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -81,7 +82,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
             // other and user cannot access the result from direct get calls
-           AsyncSearchId searchId = AsyncSearchId.decode(id);
+           AsyncExecutionId searchId = AsyncExecutionId.decode(id);
            for (String runAs : new String[] {user, other}) {
                exc = expectThrows(ResponseException.class, () -> get(INDEX, searchId.getDocId(), runAs));
                assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(403));

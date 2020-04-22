@@ -24,6 +24,15 @@ include-tagged::{doc-tests-file}[{api}-request]
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Response
+==== Start {dfanalytics-job} response
 
 The returned +{response}+ object acknowledges the {dfanalytics-job} has started.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> `getNode()` returns the node that the job was assigned to. If the
+job is allowed to open lazily and has not yet been assigned to a node
+then an empty string is returned. If `getNode()` returns `null` then
+the server is an old version that does not return node information.

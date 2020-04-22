@@ -22,6 +22,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -169,13 +170,16 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
     protected final MultiValuesSourceAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
                                                                Builder subFactoriesBuilder) throws IOException {
         Map<String, ValuesSourceConfig> configs = new HashMap<>(fields.size());
+        Map<String, QueryBuilder> filters = new HashMap<>(fields.size());
         fields.forEach((key, value) -> {
             ValuesSourceConfig config = ValuesSourceConfig.resolveUnregistered(queryShardContext, userValueTypeHint,
                 value.getFieldName(), value.getScript(), value.getMissing(), value.getTimeZone(), format, defaultValueSourceType());
             configs.put(key, config);
+            filters.put(key, value.getFilter());
         });
         DocValueFormat docValueFormat = resolveFormat(format, userValueTypeHint, defaultValueSourceType());
-        return innerBuild(queryShardContext, configs, docValueFormat, parent, subFactoriesBuilder);
+
+        return innerBuild(queryShardContext, configs, filters, docValueFormat, parent, subFactoriesBuilder);
     }
 
 
@@ -194,6 +198,7 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
 
     protected abstract MultiValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
                                                                      Map<String, ValuesSourceConfig> configs,
+                                                                     Map<String, QueryBuilder> filters,
                                                                      DocValueFormat format, AggregatorFactory parent,
                                                                      Builder subFactoriesBuilder) throws IOException;
 

@@ -28,7 +28,7 @@ public class RestGetTrainedModelsStatsAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(GET, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_stats"),
-            new Route(GET, MachineLearning.BASE_PATH + MachineLearning.BASE_PATH + "inference/_stats"));
+            new Route(GET, MachineLearning.BASE_PATH + "inference/_stats"));
     }
 
     @Override

@@ -31,7 +31,7 @@ import java.util.Objects;
 /**
  * Represents a variable load/store.
  */
-public class EVariable extends AStoreable {
+public class EVariable extends AExpression {
 
     protected final String name;
 
@@ -42,18 +42,11 @@ public class EVariable extends AStoreable {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AExpression.Input input) {
-        AStoreable.Input storeableInput = new AStoreable.Input();
-        storeableInput.read = input.read;
-        storeableInput.expected = input.expected;
-        storeableInput.explicit = input.explicit;
-        storeableInput.internal = input.internal;
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.read == false && input.write == false) {
+            throw createError(new IllegalArgumentException("not a statement: variable [" + name + "] not used"));
+        }
 
-        return analyze(classNode, scriptRoot, scope, storeableInput);
-    }
-
-    @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
         Output output = new Output();
 
         Variable variable = scope.getVariable(location, name);
@@ -73,10 +66,5 @@ public class EVariable extends AStoreable {
         output.expressionNode = variableNode;
 
         return output;
-    }
-
-    @Override
-    boolean isDefOptimized() {
-        return false;
     }
 }

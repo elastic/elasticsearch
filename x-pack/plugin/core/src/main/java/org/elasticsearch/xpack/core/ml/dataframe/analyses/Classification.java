@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -234,7 +235,7 @@ public class Classification implements DataFrameAnalysis {
         if (predictionFieldName != null) {
             params.put(PREDICTION_FIELD_NAME.getPreferredName(), predictionFieldName);
         }
-        String predictionFieldType = getPredictionFieldType(fieldInfo.getTypes(dependentVariable));
+        String predictionFieldType = getPredictionFieldTypeParamString(getPredictionFieldType(fieldInfo.getTypes(dependentVariable)));
         if (predictionFieldType != null) {
             params.put(PREDICTION_FIELD_TYPE, predictionFieldType);
         }
@@ -243,19 +244,36 @@ public class Classification implements DataFrameAnalysis {
         return params;
     }
 
-    private static String getPredictionFieldType(Set<String> dependentVariableTypes) {
+    private static String getPredictionFieldTypeParamString(PredictionFieldType predictionFieldType) {
+        if (predictionFieldType == null) {
+            return null;
+        }
+        switch(predictionFieldType)
+        {
+            case NUMBER:
+                // C++ process uses int64_t type, so it is safe for the dependent variable to use long numbers.
+                return "int";
+            case STRING:
+                return "string";
+            case BOOLEAN:
+                return "bool";
+            default:
+                return null;
+        }
+    }
+
+    public static PredictionFieldType getPredictionFieldType(Set<String> dependentVariableTypes) {
         if (dependentVariableTypes == null) {
             return null;
         }
         if (Types.categorical().containsAll(dependentVariableTypes)) {
-            return "string";
+            return PredictionFieldType.STRING;
         }
         if (Types.bool().containsAll(dependentVariableTypes)) {
-            return "bool";
+            return PredictionFieldType.BOOLEAN;
         }
         if (Types.discreteNumerical().containsAll(dependentVariableTypes)) {
-            // C++ process uses int64_t type, so it is safe for the dependent variable to use long numbers.
-            return "int";
+            return PredictionFieldType.NUMBER;
         }
         return null;
     }

@@ -22,20 +22,31 @@ package org.elasticsearch.action.support;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayDeque;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+/**
+ * A action that will be retried on failure if {@link RetryableAction#shouldRetry(Exception)} returns true.
+ * The executor the action will be executed on can be defined in the constructor. Otherwise, SAME is the
+ * default. The action will be retried with exponentially increasing delay periods until the timeout period
+ * has been reached.
+ */
 public abstract class RetryableAction<Response> {
 
     private final Logger logger;
 
+    private final AtomicBoolean isDone = new AtomicBoolean(false);
     private final ThreadPool threadPool;
     private final long initialDelayMillis;
     private final long timeoutMillis;
     private final long startMillis;
     private final ActionListener<Response> finalListener;
-    private final String retryExecutor;
+    private final String executor;
 
     public RetryableAction(Logger logger, ThreadPool threadPool, TimeValue initialDelay, TimeValue timeoutValue,
                            ActionListener<Response> listener) {
@@ -43,18 +54,46 @@ public abstract class RetryableAction<Response> {
     }
 
     public RetryableAction(Logger logger, ThreadPool threadPool, TimeValue initialDelay, TimeValue timeoutValue,
-                           ActionListener<Response> listener, String retryExecutor) {
+                           ActionListener<Response> listener, String executor) {
         this.logger = logger;
         this.threadPool = threadPool;
-        this.initialDelayMillis = Math.max(initialDelay.getMillis(), 1);
+        this.initialDelayMillis = initialDelay.getMillis();
+        if (initialDelayMillis < 1) {
+            throw new IllegalArgumentException("Initial delay was less than 1 millisecond: " + initialDelay);
+        }
         this.timeoutMillis = Math.max(timeoutValue.getMillis(), 1);
         this.startMillis = threadPool.relativeTimeInMillis();
         this.finalListener = listener;
-        this.retryExecutor = retryExecutor;
+        this.executor = executor;
     }
 
     public void run() {
-        tryAction(new RetryingListener(initialDelayMillis, null));
+        final RetryingListener retryingListener = new RetryingListener(initialDelayMillis, null);
+        final Runnable runnable = createRunnable(retryingListener);
+        threadPool.executor(executor).execute(runnable);
+    }
+
+    public void cancel(Exception e) {
+        if (isDone.compareAndSet(false, true)) {
+            finalListener.onFailure(e);
+        }
+    }
+
+    private Runnable createRunnable(RetryingListener retryingListener) {
+        return new ActionRunnable<>(retryingListener) {
+
+            @Override
+            protected void doRun() {
+                tryAction(listener);
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                // TODO: The only implementations of this class use SAME which means the execution will not be
+                //  rejected. Future implementations can adjust this functionality as needed.
+                onFailure(e);
+            }
+        };
     }
 
     public abstract void tryAction(ActionListener<Response> listener);
@@ -63,48 +102,73 @@ public abstract class RetryableAction<Response> {
 
     private class RetryingListener implements ActionListener<Response> {
 
-        private final long nextDelayMillis;
-        private final Exception existingException;
+        private static final int MAX_EXCEPTIONS = 4;
 
-        private RetryingListener(long nextDelayMillis, Exception existingException) {
-            this.nextDelayMillis = nextDelayMillis;
-            this.existingException = existingException;
+        private final long delayMillisBound;
+        private ArrayDeque<Exception> caughtExceptions;
+
+        private RetryingListener(long delayMillisBound, ArrayDeque<Exception> caughtExceptions) {
+            this.delayMillisBound = delayMillisBound;
+            this.caughtExceptions = caughtExceptions;
         }
 
         @Override
         public void onResponse(Response response) {
-            finalListener.onResponse(response);
+            if (isDone.compareAndSet(false, true)) {
+                finalListener.onResponse(response);
+            }
         }
 
         @Override
         public void onFailure(Exception e) {
             if (shouldRetry(e)) {
                 final long elapsedMillis = threadPool.relativeTimeInMillis() - startMillis;
-                if (elapsedMillis > timeoutMillis) {
+                if (elapsedMillis >= timeoutMillis) {
                     logger.debug(() -> new ParameterizedMessage("retryable action timed out after {}",
                         TimeValue.timeValueMillis(elapsedMillis)), e);
-                    addExisting(e);
-                    finalListener.onFailure(e);
+                    addException(e);
+                    if (isDone.compareAndSet(false, true)) {
+                        finalListener.onFailure(buildFinalException());
+                    }
                 } else {
-                    logger.debug(() -> new ParameterizedMessage("retrying action that failed in {}",
-                        TimeValue.timeValueMillis(nextDelayMillis)), e);
-                    addExisting(e);
-                    Runnable runnable = () -> tryAction(new RetryingListener(nextDelayMillis * 2, e));
-                    final long midpoint = (nextDelayMillis / 2);
-                    final int randomness = Randomness.get().nextInt((int) Math.min(midpoint, Integer.MAX_VALUE));
-                    final long delayMillis = midpoint + randomness;
-                    threadPool.schedule(runnable, TimeValue.timeValueMillis(delayMillis), retryExecutor);
+                    addException(e);
+
+                    final long nextDelayMillisBound = Math.min(delayMillisBound * 2, Integer.MAX_VALUE);
+                    final RetryingListener retryingListener = new RetryingListener(nextDelayMillisBound, caughtExceptions);
+                    final Runnable runnable = createRunnable(retryingListener);
+                    final long delayMillis = Randomness.get().nextInt(Math.toIntExact(delayMillisBound)) + 1;
+                    if (isDone.get() == false) {
+                        final TimeValue delay = TimeValue.timeValueMillis(delayMillis);
+                        logger.debug(() -> new ParameterizedMessage("retrying action that failed in {}", delay), e);
+                        threadPool.schedule(runnable, delay, executor);
+                    }
                 }
             } else {
-                addExisting(e);
-                finalListener.onFailure(e);
+                addException(e);
+                if (isDone.compareAndSet(false,true)) {
+                    finalListener.onFailure(buildFinalException());
+                }
             }
         }
 
-        private void addExisting(Exception e) {
-            if (existingException != null) {
-                e.addSuppressed(existingException);
+        private Exception buildFinalException() {
+            final Exception topLevel = caughtExceptions.removeFirst();
+            Exception suppressed;
+            while ((suppressed = caughtExceptions.pollFirst()) != null) {
+                topLevel.addSuppressed(suppressed);
             }
+            return topLevel;
+        }
+
+        private void addException(Exception e) {
+            if (caughtExceptions != null) {
+                if (caughtExceptions.size() == MAX_EXCEPTIONS) {
+                    caughtExceptions.removeLast();
+                }
+            } else {
+                caughtExceptions = new ArrayDeque<>(MAX_EXCEPTIONS);
+            }
+            caughtExceptions.addFirst(e);
         }
     }
 }

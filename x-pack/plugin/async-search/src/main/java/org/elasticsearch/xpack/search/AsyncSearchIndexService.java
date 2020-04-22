@@ -7,17 +7,16 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
@@ -34,7 +33,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
@@ -47,6 +45,7 @@ import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -63,6 +62,7 @@ class AsyncSearchIndexService {
     public static final String INDEX = ".async-search";
 
     public static final String HEADERS_FIELD = "headers";
+    public static final String RESPONSE_HEADERS_FIELD = "response_headers";
     public static final String EXPIRATION_TIME_FIELD = "expiration_time";
     public static final String RESULT_FIELD = "result";
 
@@ -83,6 +83,10 @@ class AsyncSearchIndexService {
                     .field("dynamic", "strict")
                     .startObject("properties")
                         .startObject(HEADERS_FIELD)
+                            .field("type", "object")
+                            .field("enabled", "false")
+                        .endObject()
+                        .startObject(RESPONSE_HEADERS_FIELD)
                             .field("type", "object")
                             .field("enabled", "false")
                         .endObject()
@@ -172,15 +176,17 @@ class AsyncSearchIndexService {
      * Stores the final response if the place-holder document is still present (update).
      */
     void storeFinalResponse(String docId,
+                            Map<String, List<String>> responseHeaders,
                             AsyncSearchResponse response,
                             ActionListener<UpdateResponse> listener) throws IOException {
         Map<String, Object> source = new HashMap<>();
+        source.put(RESPONSE_HEADERS_FIELD, responseHeaders);
         source.put(RESULT_FIELD, encodeResponse(response));
         UpdateRequest request = new UpdateRequest()
             .index(INDEX)
             .id(docId)
             .doc(source, XContentType.JSON);
-        createIndexIfNecessary(ActionListener.wrap(v -> client.update(request, listener), listener::onFailure));
+        client.update(request, listener);
     }
 
     /**
@@ -194,31 +200,16 @@ class AsyncSearchIndexService {
         UpdateRequest request = new UpdateRequest().index(INDEX)
             .id(docId)
             .doc(source, XContentType.JSON);
-        createIndexIfNecessary(ActionListener.wrap(v -> client.update(request, listener), listener::onFailure));
+        client.update(request, listener);
     }
 
     /**
      * Deletes the provided <code>searchId</code> from the index if present.
      */
     void deleteResponse(AsyncSearchId searchId,
-                        boolean failIfNotFound,
-                        ActionListener<AcknowledgedResponse> listener) {
+                        ActionListener<DeleteResponse> listener) {
         DeleteRequest request = new DeleteRequest(INDEX).id(searchId.getDocId());
-        createIndexIfNecessary(
-            ActionListener.wrap(v -> client.delete(request,
-                ActionListener.wrap(
-                    resp -> {
-                        if (resp.status() == RestStatus.NOT_FOUND && failIfNotFound) {
-                            listener.onFailure(new ResourceNotFoundException(searchId.getEncoded()));
-                        } else {
-                            listener.onResponse(new AcknowledgedResponse(true));
-                        }
-                    },
-                    exc -> {
-                        logger.error(() -> new ParameterizedMessage("failed to clean async-search [{}]", searchId.getEncoded()), exc);
-                        listener.onFailure(exc);
-                    })),
-                listener::onFailure));
+        client.delete(request, listener);
     }
 
     /**
@@ -249,8 +240,11 @@ class AsyncSearchIndexService {
     /**
      * Gets the response from the index if present, or delegate a {@link ResourceNotFoundException}
      * failure to the provided listener if not.
+     * When the provided <code>restoreResponseHeaders</code> is <code>true</code>, this method also restores the
+     * response headers of the original request in the current thread context.
      */
     void getResponse(AsyncSearchId searchId,
+                     boolean restoreResponseHeaders,
                      ActionListener<AsyncSearchResponse> listener) {
         final Authentication current = securityContext.getAuthentication();
         GetRequest internalGet = new GetRequest(INDEX)
@@ -271,8 +265,16 @@ class AsyncSearchIndexService {
                     return;
                 }
 
+                if (restoreResponseHeaders && get.getSource().containsKey(RESPONSE_HEADERS_FIELD)) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, List<String>> responseHeaders = (Map<String, List<String>>) get.getSource().get(RESPONSE_HEADERS_FIELD);
+                    restoreResponseHeadersContext(securityContext.getThreadContext(), responseHeaders);
+                }
+
+                long expirationTime = (long) get.getSource().get(EXPIRATION_TIME_FIELD);
                 String encoded = (String) get.getSource().get(RESULT_FIELD);
-                listener.onResponse(encoded != null ? decodeResponse(encoded) : null);
+                AsyncSearchResponse response = decodeResponse(encoded, expirationTime);
+                listener.onResponse(encoded != null ? response : null);
             },
             listener::onFailure
         ));
@@ -331,11 +333,22 @@ class AsyncSearchIndexService {
     /**
      * Decode the provided base-64 bytes into a {@link AsyncSearchResponse}.
      */
-    AsyncSearchResponse decodeResponse(String value) throws IOException {
+    AsyncSearchResponse decodeResponse(String value, long expirationTime) throws IOException {
         try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getDecoder().decode(value)))) {
             try (StreamInput in = new NamedWriteableAwareStreamInput(buf, registry)) {
                 in.setVersion(Version.readVersion(in));
-                return new AsyncSearchResponse(in);
+                return new AsyncSearchResponse(in, expirationTime);
+            }
+        }
+    }
+
+    /**
+     * Restores the provided <code>responseHeaders</code> to the current thread context.
+     */
+    static void restoreResponseHeadersContext(ThreadContext threadContext, Map<String, List<String>> responseHeaders) {
+        for (Map.Entry<String, List<String>> entry : responseHeaders.entrySet()) {
+            for (String value : entry.getValue()) {
+                threadContext.addResponseHeader(entry.getKey(), value);
             }
         }
     }

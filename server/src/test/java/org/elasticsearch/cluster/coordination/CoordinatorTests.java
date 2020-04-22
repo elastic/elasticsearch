@@ -32,6 +32,8 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigu
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
@@ -55,6 +57,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.DEFAULT_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.EXTREME_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
@@ -74,6 +77,7 @@ import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERV
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -692,20 +696,28 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     public void testAckListenerReceivesNacksFromFollowerInHigherTerm() {
-        // TODO: needs proper term bumping
-//        final Cluster cluster = new Cluster(3);
-//        cluster.runRandomly();
-//        cluster.stabilise();
-//        final ClusterNode leader = cluster.getAnyLeader();
-//        final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
-//        final ClusterNode follower1 = cluster.getAnyNodeExcept(leader, follower0);
-//
-//        follower0.coordinator.joinLeaderInTerm(new StartJoinRequest(follower0.localNode, follower0.coordinator.getCurrentTerm() + 1));
-//        AckCollector ackCollector = leader.submitValue(randomLong());
-//        cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
-//        assertTrue("expected ack from " + leader, ackCollector.hasAckedSuccessfully(leader));
-//        assertTrue("expected nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));
-//        assertTrue("expected ack from " + follower1, ackCollector.hasAckedSuccessfully(follower1));
+        try (Cluster cluster = new Cluster(3)) {
+            cluster.runRandomly();
+            cluster.stabilise();
+            final ClusterNode leader = cluster.getAnyLeader();
+            final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
+            final ClusterNode follower1 = cluster.getAnyNodeExcept(leader, follower0);
+
+            final long originalTerm = leader.coordinator.getCurrentTerm();
+            follower0.coordinator.onFollowerCheckRequest(new FollowersChecker.FollowerCheckRequest(
+                originalTerm + 1,
+                leader.coordinator.getLocalNode()
+            ));
+
+            AckCollector ackCollector = leader.submitValue(randomLong());
+            cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "cluster state update");
+            assertTrue("expected ack from " + leader, ackCollector.hasAckedSuccessfully(leader));
+            assertTrue("expected nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));
+            assertTrue("expected ack from " + follower1, ackCollector.hasAckedSuccessfully(follower1));
+
+            cluster.stabilise();
+            assertThat(cluster.getAnyLeader().coordinator.getCurrentTerm(), greaterThanOrEqualTo(originalTerm + 1));
+        }
     }
 
     public void testSettingInitialConfigurationTriggersElection() {
@@ -911,13 +923,23 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             }, (source, e) -> {});
             cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "committing setting update");
 
-            leader.disconnect();
-            cluster.runFor(defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING) + defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING)
+            final ClusterNode removedNode = cluster.getAnyNode();
+
+            removedNode.disconnect();
+            cluster.runFor(
+                Math.max(defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING) + defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING),
+                    defaultMillis(LEADER_CHECK_TIMEOUT_SETTING) + defaultMillis(LEADER_CHECK_INTERVAL_SETTING))
                 + DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "detecting disconnection");
 
-            assertThat(leader.getLastAppliedClusterState().blocks().global(), hasItem(expectedBlock));
+            assertThat(removedNode.getLastAppliedClusterState().blocks().global(), hasItem(expectedBlock));
 
-            // TODO reboot the leader and verify that the same block is applied when it restarts
+            removedNode.close();
+            final ClusterNode restartedNode = removedNode.restartedNode();
+            cluster.clusterNodes.replaceAll(cn -> cn == removedNode ? restartedNode : cn);
+            restartedNode.disconnect();
+
+            cluster.stabilise();
+            assertThat(restartedNode.getLastAppliedClusterState().blocks().global(), hasItem(expectedBlock));
         }
     }
 
@@ -1412,6 +1434,48 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 assertThat("term should not change", cluster.getAnyNode().coordinator.getCurrentTerm(), is(expectedTerm));
             }
         }
+    }
+
+    public void testImproveConfigurationPerformsVotingConfigExclusionStateCheck() {
+        try (Cluster cluster = new Cluster(1)) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            final Coordinator coordinator = cluster.getAnyLeader().coordinator;
+            final ClusterState currentState = coordinator.getLastAcceptedState();
+
+            Set<CoordinationMetadata.VotingConfigExclusion> newVotingConfigExclusion1 = new HashSet<>(){{
+                add(new CoordinationMetadata.VotingConfigExclusion("resolvableNodeId",
+                    CoordinationMetadata.VotingConfigExclusion.MISSING_VALUE_MARKER));
+            }};
+
+            ClusterState newState1 = buildNewClusterStateWithVotingConfigExclusion(currentState, newVotingConfigExclusion1);
+
+            assertFalse(Coordinator.validVotingConfigExclusionState(newState1));
+
+            Set<CoordinationMetadata.VotingConfigExclusion> newVotingConfigExclusion2 = new HashSet<>(){{
+                add(new CoordinationMetadata.VotingConfigExclusion(CoordinationMetadata.VotingConfigExclusion.MISSING_VALUE_MARKER,
+                                                                    "resolvableNodeName"));
+            }};
+
+            ClusterState newState2 = buildNewClusterStateWithVotingConfigExclusion(currentState, newVotingConfigExclusion2);
+
+            assertFalse(Coordinator.validVotingConfigExclusionState(newState2));
+        }
+    }
+
+    private ClusterState buildNewClusterStateWithVotingConfigExclusion(ClusterState currentState,
+                                                                Set<CoordinationMetadata.VotingConfigExclusion> newVotingConfigExclusion) {
+        DiscoveryNodes newNodes = DiscoveryNodes.builder(currentState.nodes())
+                                        .add(new DiscoveryNode("resolvableNodeName", "resolvableNodeId", buildNewFakeTransportAddress(),
+                                                                emptyMap(), Set.of(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT))
+                                        .build();
+
+        CoordinationMetadata.Builder coordMetadataBuilder = CoordinationMetadata.builder(currentState.coordinationMetadata());
+        newVotingConfigExclusion.forEach(coordMetadataBuilder::addVotingConfigExclusion);
+        Metadata newMetadata = Metadata.builder(currentState.metadata()).coordinationMetadata(coordMetadataBuilder.build()).build();
+
+        return ClusterState.builder(currentState).nodes(newNodes).metadata(newMetadata).build();
     }
 
 }

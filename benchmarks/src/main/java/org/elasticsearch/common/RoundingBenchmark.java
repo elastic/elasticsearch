@@ -62,7 +62,7 @@ public class RoundingBenchmark {
     @Param({ "MONTH_OF_YEAR", "HOUR_OF_DAY" })
     public String timeUnit;
 
-    @Param({ "1", "1000000" })
+    @Param({ "1", "10000", "1000000", "100000000" })
     public int count;
 
     private long min;

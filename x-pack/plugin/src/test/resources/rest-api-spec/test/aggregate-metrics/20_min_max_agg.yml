@@ -1,3 +1,7 @@
+###############################################################################################################
+# Test min and max aggregations on an index that contains aggregate_metric_double fields
+###############################################################################################################
+
 setup:
   - do:
       indices.create:
@@ -26,7 +30,7 @@ setup:
           - '{"index": {}}'
           - '{"metric": {"min": -100, "max": -40} }'
 ---
-"Test max agg":
+"Test min_max aggs":
   - skip:
       version: " - 7.99.99"
       reason: "Aggregate metric fields are currently only implemented in 8.0."
@@ -39,15 +43,18 @@ setup:
           aggs:
             max_agg:
               max:
+                field: metric
+            min_agg:
+              min:
                 field: metric
 
   - match: { hits.total.value: 5 }
   - match: { aggregations.max_agg.value: 1000}
-
+  - match: { aggregations.min_agg.value: -400.50}
 
 
 ---
-"Test max agg with query":
+"Test min_max aggs with query":
   - skip:
       version: " - 7.99.99"
       reason: "Aggregate metric fields are currently only implemented in 8.0."
@@ -65,49 +72,10 @@ setup:
             max_agg:
               max:
                 field: metric
+            min_agg:
+              min:
+                field: metric
 
   - match: { hits.total.value: 2 }
   - match: { aggregations.max_agg.value: 100}
-
-
----
-"Test min agg":
-  - skip:
-      version: " - 7.99.99"
-      reason: "Aggregate metric fields are currently only implemented in 8.0."
-
-  - do:
-      search:
-        index: aggregate_metric_test
-        size: 0
-        body:
-          aggs:
-            min_agg:
-              min:
-                field: metric
-
-  - match: { hits.total.value: 5 }
-  - match: { aggregations.min_agg.value: -400.50}
-
----
-"Test min agg with query":
-  - skip:
-      version: " - 7.99.99"
-      reason: "Aggregate metric fields are currently only implemented in 8.0."
-
-  - do:
-      search:
-        index: aggregate_metric_test
-        size: 0
-        body:
-          query:
-            term:
-              metric:
-                value: 100
-          aggs:
-            min_agg:
-              min:
-                field: metric
-
-  - match: { hits.total.value: 2 }
   - match: { aggregations.min_agg.value: 0}

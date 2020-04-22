@@ -1049,44 +1049,45 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void createConfiguration() {
         String nodeName = nameCustomization.apply(safeName(name));
+        Map<String, String> baseConfig = new HashMap<>(defaultConfig);
         if (nodeName != null) {
-            defaultConfig.put("node.name", nodeName);
+            baseConfig.put("node.name", nodeName);
         }
-        defaultConfig.put("path.repo", confPathRepo.toAbsolutePath().toString());
-        defaultConfig.put("path.data", confPathData.toAbsolutePath().toString());
-        defaultConfig.put("path.logs", confPathLogs.toAbsolutePath().toString());
-        defaultConfig.put("path.shared_data", workingDir.resolve("sharedData").toString());
-        defaultConfig.put("node.attr.testattr", "test");
-        defaultConfig.put("node.portsfile", "true");
-        defaultConfig.put("http.port", httpPort);
+        baseConfig.put("path.repo", confPathRepo.toAbsolutePath().toString());
+        baseConfig.put("path.data", confPathData.toAbsolutePath().toString());
+        baseConfig.put("path.logs", confPathLogs.toAbsolutePath().toString());
+        baseConfig.put("path.shared_data", workingDir.resolve("sharedData").toString());
+        baseConfig.put("node.attr.testattr", "test");
+        baseConfig.put("node.portsfile", "true");
+        baseConfig.put("http.port", httpPort);
         if (getVersion().onOrAfter(Version.fromString("6.7.0"))) {
-            defaultConfig.put("transport.port", transportPort);
+            baseConfig.put("transport.port", transportPort);
         } else {
-            defaultConfig.put("transport.tcp.port", transportPort);
+            baseConfig.put("transport.tcp.port", transportPort);
         }
         // Default the watermarks to absurdly low to prevent the tests from failing on nodes without enough disk space
-        defaultConfig.put("cluster.routing.allocation.disk.watermark.low", "1b");
-        defaultConfig.put("cluster.routing.allocation.disk.watermark.high", "1b");
+        baseConfig.put("cluster.routing.allocation.disk.watermark.low", "1b");
+        baseConfig.put("cluster.routing.allocation.disk.watermark.high", "1b");
         // increase script compilation limit since tests can rapid-fire script compilations
-        defaultConfig.put("script.max_compilations_rate", "2048/1m");
+        baseConfig.put("script.max_compilations_rate", "2048/1m");
         if (getVersion().getMajor() >= 6) {
-            defaultConfig.put("cluster.routing.allocation.disk.watermark.flood_stage", "1b");
+            baseConfig.put("cluster.routing.allocation.disk.watermark.flood_stage", "1b");
         }
         // Temporarily disable the real memory usage circuit breaker. It depends on real memory usage which we have no full control
         // over and the REST client will not retry on circuit breaking exceptions yet (see #31986 for details). Once the REST client
         // can retry on circuit breaking exceptions, we can revert again to the default configuration.
         if (getVersion().getMajor() >= 7) {
-            defaultConfig.put("indices.breaker.total.use_real_memory", "false");
+            baseConfig.put("indices.breaker.total.use_real_memory", "false");
         }
         // Don't wait for state, just start up quickly. This will also allow new and old nodes in the BWC case to become the master
-        defaultConfig.put("discovery.initial_state_timeout", "0s");
+        baseConfig.put("discovery.initial_state_timeout", "0s");
 
         if (getVersion().getMajor() >= 8) {
-            defaultConfig.put("cluster.service.slow_task_logging_threshold", "5s");
-            defaultConfig.put("cluster.service.slow_master_task_logging_threshold", "5s");
+            baseConfig.put("cluster.service.slow_task_logging_threshold", "5s");
+            baseConfig.put("cluster.service.slow_master_task_logging_threshold", "5s");
         }
 
-        HashSet<String> overriden = new HashSet<>(defaultConfig.keySet());
+        HashSet<String> overriden = new HashSet<>(baseConfig.keySet());
         overriden.retainAll(settings.keySet());
         overriden.removeAll(OVERRIDABLE_SETTINGS);
         if (overriden.isEmpty() == false) {
@@ -1095,12 +1096,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             );
         }
         // Make sure no duplicate config keys
-        settings.keySet().stream().filter(OVERRIDABLE_SETTINGS::contains).forEach(defaultConfig::remove);
+        settings.keySet().stream().filter(OVERRIDABLE_SETTINGS::contains).forEach(baseConfig::remove);
 
         try {
             Files.write(
                 configFile,
-                Stream.concat(settings.entrySet().stream(), defaultConfig.entrySet().stream())
+                Stream.concat(settings.entrySet().stream(), baseConfig.entrySet().stream())
                     .map(entry -> entry.getKey() + ": " + entry.getValue())
                     .collect(Collectors.joining("\n"))
                     .getBytes(StandardCharsets.UTF_8),

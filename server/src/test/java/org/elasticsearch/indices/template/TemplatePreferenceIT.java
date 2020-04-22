@@ -235,7 +235,7 @@ public class TemplatePreferenceIT extends ESSingleNodeTestCase {
         }
 
         assertWarnings("index [index-000002] matches multiple templates [one_shard_index_template, random-soft-deletes-template, v1], " +
-            "it won't be supported with index templates v2");
+            "and won't be supported with v2 index templates");
     }
 
     private void assertUsedV1() {

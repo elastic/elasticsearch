@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
@@ -70,7 +69,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
 
     private final LongHash bucketOrds;
 
-    DateRangeHistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, Rounding shardRounding, IndexReader reader,
+    DateRangeHistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, Rounding.Prepared preparedRounding,
                                  BucketOrder order, boolean keyed,
                                  long minDocCount, @Nullable ExtendedBounds extendedBounds, @Nullable ValuesSource valuesSource,
                                  DocValueFormat formatter, SearchContext aggregationContext,
@@ -78,6 +77,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
 
         super(name, factories, aggregationContext, parent, metadata);
         this.rounding = rounding;
+        this.preparedRounding = preparedRounding;
         this.order = order;
         order.validate(this);
         this.keyed = keyed;
@@ -89,7 +89,6 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
             throw new IllegalArgumentException("Expected date range type but found range type [" + this.valuesSource.rangeType().name
                 + "]");
         }
-        this.preparedRounding = shardRounding.prepareForUnknown();
 
         bucketOrds = new LongHash(1, aggregationContext.bigArrays());
     }

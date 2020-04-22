@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.search.DocValueFormat;
@@ -38,8 +37,7 @@ public interface DateHistogramAggregationSupplier extends AggregatorSupplier {
     Aggregator build(String name,
                      AggregatorFactories factories,
                      Rounding rounding,
-                     Rounding shardRounding,
-                     IndexReader reader,
+                     Rounding.Prepared preparedRounding,
                      BucketOrder order,
                      boolean keyed,
                      long minDocCount,

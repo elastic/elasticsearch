@@ -90,8 +90,8 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             throw new AggregationExecutionException("Registry miss-match - expected DateHistogramAggregationSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((DateHistogramAggregationSupplier) aggregatorSupplier).build(name, factories, rounding, shardRounding,
-            queryShardContext.getIndexReader(), order, keyed, minDocCount, extendedBounds, valuesSource, config.format(), searchContext,
+        Rounding.Prepared preparedRounding = valuesSource.roundingPreparer(queryShardContext.getIndexReader()).apply(shardRounding);
+        return ((DateHistogramAggregationSupplier) aggregatorSupplier).build(name, factories, rounding, preparedRounding, order, keyed, minDocCount, extendedBounds, valuesSource, config.format(), searchContext,
             parent, metadata);
     }
 
@@ -99,7 +99,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new DateHistogramAggregator(name, factories, rounding, shardRounding, null, order, keyed, minDocCount, extendedBounds,
+        return new DateHistogramAggregator(name, factories, rounding, null, order, keyed, minDocCount, extendedBounds,
             null, config.format(), searchContext, parent, metadata);
     }
 }

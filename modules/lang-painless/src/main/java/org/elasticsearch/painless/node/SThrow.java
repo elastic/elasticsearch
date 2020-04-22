@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
@@ -52,15 +53,18 @@ public class SThrow extends AStatement {
         return userTreeVisitor.visitThrow(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        semanticScope.setCondition(expressionNode, Read.class);
-        semanticScope.putDecoration(expressionNode, new TargetType(Exception.class));
-        AExpression.analyze(expressionNode, semanticScope);
-        expressionNode.cast(semanticScope);
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, SThrow userThrowNode, SemanticScope semanticScope) {
 
-        semanticScope.setCondition(this, MethodEscape.class);
-        semanticScope.setCondition(this, LoopEscape.class);
-        semanticScope.setCondition(this, AllEscape.class);
+        AExpression userExpressionNode = userThrowNode.getExpressionNode();
+
+        semanticScope.setCondition(userExpressionNode, Read.class);
+        semanticScope.putDecoration(userExpressionNode, new TargetType(Exception.class));
+        visitor.checkedVisit(userExpressionNode, semanticScope);
+        visitor.decorateWithCast(userExpressionNode, semanticScope);
+
+        semanticScope.setCondition(userThrowNode, MethodEscape.class);
+        semanticScope.setCondition(userThrowNode, LoopEscape.class);
+        semanticScope.setCondition(userThrowNode, AllEscape.class);
     }
 }

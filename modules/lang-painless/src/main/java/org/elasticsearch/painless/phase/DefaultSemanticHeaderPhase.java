@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,19 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.node;
+package org.elasticsearch.painless.phase;
 
-import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.node.SClass;
+import org.elasticsearch.painless.node.SFunction;
+import org.elasticsearch.painless.symbol.ScriptScope;
 
-/**
- * The superclass for all S* (statement) nodes.
- */
-public abstract class AStatement extends ANode {
+public class DefaultSemanticHeaderPhase extends UserTreeBaseVisitor<ScriptScope, Void> {
 
-    /**
-     * Standard constructor with location used for error tracking.
-     */
-    AStatement(int identifier, Location location) {
-        super(identifier, location);
+    @Override
+    public Void visitClass(SClass userClassNode, ScriptScope scriptScope) {
+        SClass.visitDefaultSemanticHeader(this, userClassNode, scriptScope);
+
+        return null;
+    }
+
+    @Override
+    public Void visitFunction(SFunction userFunctionNode, ScriptScope scriptScope) {
+        SFunction.visitDefaultSemanticHeader(this, userFunctionNode, scriptScope);
+
+        return null;
     }
 }

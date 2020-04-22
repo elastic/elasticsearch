@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless.phase;
 
+import org.elasticsearch.painless.ir.IRNode;
+import org.elasticsearch.painless.node.ANode;
 import org.elasticsearch.painless.node.EAssignment;
 import org.elasticsearch.painless.node.EBinary;
 import org.elasticsearch.painless.node.EBool;
@@ -66,6 +68,10 @@ import org.elasticsearch.painless.node.STry;
 import org.elasticsearch.painless.node.SWhile;
 
 public interface UserTreeVisitor<Input, Output> {
+
+    default Output visit(ANode userNode, Input input) {
+        return userNode == null ? null : userNode.visit(this, input);
+    }
 
     Output visitClass(SClass userClassNode, Input input);
     Output visitFunction(SFunction userFunctionNode, Input input);

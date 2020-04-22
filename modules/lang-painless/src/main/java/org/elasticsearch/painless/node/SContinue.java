@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
@@ -41,17 +42,18 @@ public class SContinue extends AStatement {
         return userTreeVisitor.visitContinue(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, InLoop.class) == false) {
-            throw createError(new IllegalArgumentException("Continue statement outside of a loop."));
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, SContinue userContinueNode, SemanticScope semanticScope) {
+
+        if (semanticScope.getCondition(userContinueNode, InLoop.class) == false) {
+            throw userContinueNode.createError(new IllegalArgumentException("invalid continue statement: not inside loop"));
         }
 
-        if (semanticScope.getCondition(this, LastLoop.class)) {
-            throw createError(new IllegalArgumentException("Extraneous continue statement."));
+        if (semanticScope.getCondition(userContinueNode, LastLoop.class)) {
+            throw userContinueNode.createError(new IllegalArgumentException("extraneous continue statement"));
         }
 
-        semanticScope.setCondition(this, AllEscape.class);
-        semanticScope.setCondition(this, AnyContinue.class);
+        semanticScope.setCondition(userContinueNode, AllEscape.class);
+        semanticScope.setCondition(userContinueNode, AnyContinue.class);
     }
 }

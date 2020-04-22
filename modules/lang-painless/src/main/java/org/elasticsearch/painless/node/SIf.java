@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
 import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
@@ -38,21 +39,21 @@ import java.util.Objects;
 public class SIf extends AStatement {
 
     private final AExpression conditionNode;
-    private final SBlock ifblockNode;
+    private final SBlock ifBlockNode;
 
-    public SIf(int identifier, Location location, AExpression conditionNode, SBlock ifblockNode) {
+    public SIf(int identifier, Location location, AExpression conditionNode, SBlock ifBlockNode) {
         super(identifier, location);
 
         this.conditionNode = Objects.requireNonNull(conditionNode);
-        this.ifblockNode = ifblockNode;
+        this.ifBlockNode = ifBlockNode;
     }
 
     public AExpression getConditionNode() {
         return conditionNode;
     }
 
-    public SBlock getIfblockNode() {
-        return ifblockNode;
+    public SBlock getIfBlockNode() {
+        return ifBlockNode;
     }
 
     @Override
@@ -60,26 +61,26 @@ public class SIf extends AStatement {
         return userTreeVisitor.visitIf(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        semanticScope.setCondition(conditionNode, Read.class);
-        semanticScope.putDecoration(conditionNode, new TargetType(boolean.class));
-        AExpression.analyze(conditionNode, semanticScope);
-        conditionNode.cast(semanticScope);
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, SIf userIfNode, SemanticScope semanticScope) {
 
-        if (conditionNode instanceof EBoolean) {
-            throw createError(new IllegalArgumentException("Extraneous if statement."));
+        AExpression userConditionNode = userIfNode.getConditionNode();
+        semanticScope.setCondition(userConditionNode, Read.class);
+        semanticScope.putDecoration(userConditionNode, new TargetType(boolean.class));
+        visitor.checkedVisit(userConditionNode, semanticScope);
+        visitor.decorateWithCast(userConditionNode, semanticScope);
+
+        SBlock userIfBlockNode = userIfNode.getIfBlockNode();
+
+        if (userConditionNode instanceof EBoolean || userIfBlockNode == null) {
+            throw userIfNode.createError(new IllegalArgumentException("extraneous if block"));
         }
 
-        if (ifblockNode == null) {
-            throw createError(new IllegalArgumentException("Extraneous if statement."));
-        }
-
-        semanticScope.replicateCondition(this, ifblockNode, LastSource.class);
-        semanticScope.replicateCondition(this, ifblockNode, InLoop.class);
-        semanticScope.replicateCondition(this, ifblockNode, LastLoop.class);
-        ifblockNode.analyze(semanticScope.newLocalScope());
-        semanticScope.replicateCondition(ifblockNode, this, AnyContinue.class);
-        semanticScope.replicateCondition(ifblockNode, this, AnyBreak.class);
+        semanticScope.replicateCondition(userIfNode, userIfBlockNode, LastSource.class);
+        semanticScope.replicateCondition(userIfNode, userIfBlockNode, InLoop.class);
+        semanticScope.replicateCondition(userIfNode, userIfBlockNode, LastLoop.class);
+        visitor.visit(userIfBlockNode, semanticScope.newLocalScope());
+        semanticScope.replicateCondition(userIfBlockNode, userIfNode, AnyContinue.class);
+        semanticScope.replicateCondition(userIfBlockNode, userIfNode, AnyBreak.class);
     }
 }

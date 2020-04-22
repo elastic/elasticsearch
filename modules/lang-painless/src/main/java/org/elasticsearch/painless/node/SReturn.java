@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.Internal;
@@ -35,16 +36,16 @@ import org.elasticsearch.painless.symbol.SemanticScope;
  */
 public class SReturn extends AStatement {
 
-    private final AExpression expressionNode;
+    private final AExpression valueNode;
 
-    public SReturn(int identifier, Location location, AExpression expressionNode) {
+    public SReturn(int identifier, Location location, AExpression valueNode) {
         super(identifier, location);
 
-        this.expressionNode = expressionNode;
+        this.valueNode = valueNode;
     }
 
-    public AExpression getExpressionNode() {
-        return expressionNode;
+    public AExpression getValueNode() {
+        return valueNode;
     }
 
     @Override
@@ -52,24 +53,27 @@ public class SReturn extends AStatement {
         return userTreeVisitor.visitReturn(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        if (expressionNode == null) {
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, SReturn userReturnNode, SemanticScope semanticScope) {
+
+        AExpression userValueNode = userReturnNode.getValueNode();
+
+        if (userValueNode == null) {
             if (semanticScope.getReturnType() != void.class) {
-                throw getLocation().createError(new ClassCastException("Cannot cast from " +
+                throw userReturnNode.createError(new ClassCastException("cannot cast from " +
                         "[" + semanticScope.getReturnCanonicalTypeName() + "] to " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(void.class) + "]."));
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(void.class) + "]"));
             }
         } else {
-            semanticScope.setCondition(expressionNode, Read.class);
-            semanticScope.putDecoration(expressionNode, new TargetType(semanticScope.getReturnType()));
-            semanticScope.setCondition(expressionNode, Internal.class);
-            AExpression.analyze(expressionNode, semanticScope);
-            expressionNode.cast(semanticScope);
+            semanticScope.setCondition(userValueNode, Read.class);
+            semanticScope.putDecoration(userValueNode, new TargetType(semanticScope.getReturnType()));
+            semanticScope.setCondition(userValueNode, Internal.class);
+            visitor.checkedVisit(userValueNode, semanticScope);
+            visitor.decorateWithCast(userValueNode, semanticScope);
         }
 
-        semanticScope.setCondition(this, MethodEscape.class);
-        semanticScope.setCondition(this, LoopEscape.class);
-        semanticScope.setCondition(this, AllEscape.class);
+        semanticScope.setCondition(userReturnNode, MethodEscape.class);
+        semanticScope.setCondition(userReturnNode, LoopEscape.class);
+        semanticScope.setCondition(userReturnNode, AllEscape.class);
     }
 }

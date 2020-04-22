@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.SemanticScope;
 
@@ -48,10 +49,11 @@ public class SDeclBlock extends AStatement {
         return userTreeVisitor.visitDeclBlock(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        for (SDeclaration declaration : declarationNodes) {
-            declaration.analyze(semanticScope);
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, SDeclBlock userDeclBlockNode, SemanticScope semanticScope) {
+
+        for (SDeclaration userDeclarationNode : userDeclBlockNode.getDeclarationNodes()) {
+            visitor.visit(userDeclarationNode, semanticScope);
         }
     }
 }

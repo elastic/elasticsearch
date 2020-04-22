@@ -25,6 +25,7 @@ import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
 import org.elasticsearch.painless.symbol.Decorations.BeginLoop;
@@ -82,41 +83,51 @@ public class SEach extends AStatement {
         return userTreeVisitor.visitEach(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        semanticScope.setCondition(iterableNode, Read.class);
-        AExpression.analyze(iterableNode, semanticScope);
-        Class<?> iterableValueType = semanticScope.getDecoration(iterableNode, ValueType.class).getValueType();
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, SEach userEachNode, SemanticScope semanticScope) {
 
-        Class<?> clazz = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
+        AExpression userIterableNode = userEachNode.getIterableNode();
+        semanticScope.setCondition(userIterableNode, Read.class);
+        visitor.visit(userIterableNode, semanticScope);
 
-        if (clazz == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
+        String canonicalTypeName = userEachNode.getCanonicalTypeName();
+        Class<?> type = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
+
+        if (type == null) {
+            throw userEachNode.createError(new IllegalArgumentException(
+                    "invalid foreach loop: type [" + canonicalTypeName + "] not found"));
         }
 
         semanticScope = semanticScope.newLocalScope();
-        Variable variable = semanticScope.defineVariable(getLocation(), clazz, symbol, true);
-        semanticScope.putDecoration(this, new SemanticVariable(variable));
 
-        if (blockNode == null) {
-            throw createError(new IllegalArgumentException("Extraneous for each loop."));
+        Location location = userEachNode.getLocation();
+        String symbol = userEachNode.getSymbol();
+        Variable variable = semanticScope.defineVariable(location, type, symbol, true);
+        semanticScope.putDecoration(userEachNode, new SemanticVariable(variable));
+
+        SBlock userBlockNode = userEachNode.getBlockNode();
+
+        if (userBlockNode == null) {
+            throw userEachNode.createError(new IllegalArgumentException("extraneous foreach loop"));
         }
 
-        semanticScope.setCondition(blockNode, BeginLoop.class);
-        semanticScope.setCondition(blockNode, InLoop.class);
-        blockNode.analyze(semanticScope);
+        semanticScope.setCondition(userBlockNode, BeginLoop.class);
+        semanticScope.setCondition(userBlockNode, InLoop.class);
+        visitor.visit(userBlockNode, semanticScope);
 
-        if (semanticScope.getCondition(blockNode, LoopEscape.class) &&
-                semanticScope.getCondition(blockNode, AnyContinue.class) == false) {
-            throw createError(new IllegalArgumentException("Extraneous for loop."));
+        if (semanticScope.getCondition(userBlockNode, LoopEscape.class) &&
+                semanticScope.getCondition(userBlockNode, AnyContinue.class) == false) {
+            throw userEachNode.createError(new IllegalArgumentException("extraneous foreach loop"));
         }
+
+        Class<?> iterableValueType = semanticScope.getDecoration(userIterableNode, ValueType.class).getValueType();
 
         if (iterableValueType.isArray()) {
             PainlessCast painlessCast =
-                    AnalyzerCaster.getLegalCast(getLocation(), iterableValueType.getComponentType(), variable.getType(), true, true);
+                    AnalyzerCaster.getLegalCast(location, iterableValueType.getComponentType(), variable.getType(), true, true);
 
             if (painlessCast != null) {
-                semanticScope.putDecoration(this, new ExpressionPainlessCast(painlessCast));
+                semanticScope.putDecoration(userEachNode, new ExpressionPainlessCast(painlessCast));
             }
         } else if (iterableValueType == def.class || Iterable.class.isAssignableFrom(iterableValueType)) {
             if (iterableValueType != def.class) {
@@ -124,21 +135,21 @@ public class SEach extends AStatement {
                         lookupPainlessMethod(iterableValueType, false, "iterator", 0);
 
                 if (method == null) {
-                    throw createError(new IllegalArgumentException(
+                    throw userEachNode.createError(new IllegalArgumentException("invalid foreach loop: " +
                             "method [" + typeToCanonicalTypeName(iterableValueType) + ", iterator/0] not found"));
                 }
 
-                semanticScope.putDecoration(this, new IterablePainlessMethod(method));
+                semanticScope.putDecoration(userEachNode, new IterablePainlessMethod(method));
             }
 
-            PainlessCast painlessCast = AnalyzerCaster.getLegalCast(getLocation(), def.class, variable.getType(), true, true);
+            PainlessCast painlessCast = AnalyzerCaster.getLegalCast(location, def.class, type, true, true);
 
             if (painlessCast != null) {
-                semanticScope.putDecoration(this, new ExpressionPainlessCast(painlessCast));
+                semanticScope.putDecoration(userEachNode, new ExpressionPainlessCast(painlessCast));
             }
         } else {
-            throw createError(new IllegalArgumentException("Illegal for each type " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(iterableValueType) + "]."));
+            throw userEachNode.createError(new IllegalArgumentException("invalid foreach loop: " +
+                    "cannot iterate over type [" + PainlessLookupUtility.typeToCanonicalTypeName(iterableValueType) + "]."));
         }
     }
 }

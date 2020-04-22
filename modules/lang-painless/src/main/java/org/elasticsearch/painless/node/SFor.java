@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
@@ -74,61 +75,67 @@ public class SFor extends AStatement {
         return userTreeVisitor.visitFor(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, SFor userForNode, SemanticScope semanticScope) {
+
         semanticScope = semanticScope.newLocalScope();
 
-        if (initializerNode != null) {
-            if (initializerNode instanceof SDeclBlock) {
-                ((SDeclBlock)initializerNode).analyze(semanticScope);
-            } else if (initializerNode instanceof AExpression) {
-                AExpression initializer = (AExpression)this.initializerNode;
-                AExpression.analyze(initializer, semanticScope);
+        ANode userInitializerNode = userForNode.getInitializerNode();
+
+        if (userInitializerNode != null) {
+            if (userInitializerNode instanceof SDeclBlock) {
+                visitor.visit(userInitializerNode, semanticScope);
+            } else if (userInitializerNode instanceof AExpression) {
+                visitor.checkedVisit((AExpression)userInitializerNode, semanticScope);
             } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
+                throw userForNode.createError(new IllegalStateException("illegal tree structure"));
             }
         }
 
+        AExpression userConditionNode = userForNode.getConditionNode();
+        SBlock userBlockNode = userForNode.getBlockNode();
         boolean continuous = false;
 
-        if (conditionNode != null) {
-            semanticScope.setCondition(conditionNode, Read.class);
-            semanticScope.putDecoration(conditionNode, new TargetType(boolean.class));
-            AExpression.analyze(conditionNode, semanticScope);
-            conditionNode.cast(semanticScope);
+        if (userConditionNode != null) {
+            semanticScope.setCondition(userConditionNode, Read.class);
+            semanticScope.putDecoration(userConditionNode, new TargetType(boolean.class));
+            visitor.checkedVisit(userConditionNode, semanticScope);
+            visitor.decorateWithCast(userConditionNode, semanticScope);
 
-            if (conditionNode instanceof EBoolean) {
-                continuous = ((EBoolean)conditionNode).getBool();
+            if (userConditionNode instanceof EBoolean) {
+                continuous = ((EBoolean)userConditionNode).getBool();
 
                 if (continuous == false) {
-                    throw createError(new IllegalArgumentException("Extraneous for loop."));
+                    throw userForNode.createError(new IllegalArgumentException("extraneous for loop"));
                 }
 
-                if (blockNode == null) {
-                    throw createError(new IllegalArgumentException("For loop has no escape."));
+                if (userBlockNode == null) {
+                    throw userForNode.createError(new IllegalArgumentException("no paths escape from for loop"));
                 }
             }
         } else {
             continuous = true;
         }
 
-        if (afterthoughtNode != null) {
-            AExpression.analyze(afterthoughtNode, semanticScope);
+        AExpression userAfterthoughtNode = userForNode.getAfterthoughtNode();
+
+        if (userAfterthoughtNode != null) {
+            visitor.checkedVisit(userAfterthoughtNode, semanticScope);
         }
 
-        if (blockNode != null) {
-            semanticScope.setCondition(blockNode, BeginLoop.class);
-            semanticScope.setCondition(blockNode, InLoop.class);
-            blockNode.analyze(semanticScope);
+        if (userBlockNode != null) {
+            semanticScope.setCondition(userBlockNode, BeginLoop.class);
+            semanticScope.setCondition(userBlockNode, InLoop.class);
+            visitor.visit(userBlockNode, semanticScope);
 
-            if (semanticScope.getCondition(blockNode, LoopEscape.class) &&
-                    semanticScope.getCondition(blockNode, AnyContinue.class) == false) {
-                throw createError(new IllegalArgumentException("Extraneous for loop."));
+            if (semanticScope.getCondition(userBlockNode, LoopEscape.class) &&
+                    semanticScope.getCondition(userBlockNode, AnyContinue.class) == false) {
+                throw userForNode.createError(new IllegalArgumentException("extraneous for loop"));
             }
 
-            if (continuous && semanticScope.getCondition(blockNode, AnyBreak.class) == false) {
-                semanticScope.setCondition(this, MethodEscape.class);
-                semanticScope.setCondition(this, AllEscape.class);
+            if (continuous && semanticScope.getCondition(userBlockNode, AnyBreak.class) == false) {
+                semanticScope.setCondition(userForNode, MethodEscape.class);
+                semanticScope.setCondition(userForNode, AllEscape.class);
             }
         }
     }

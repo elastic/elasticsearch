@@ -89,7 +89,6 @@ import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.node.AExpression;
-import org.elasticsearch.painless.node.ANode;
 import org.elasticsearch.painless.node.AStatement;
 import org.elasticsearch.painless.node.EAssignment;
 import org.elasticsearch.painless.node.EBinary;
@@ -188,10 +187,6 @@ import java.util.regex.Pattern;
 public class IRTreeBuilder implements UserTreeVisitor<ScriptScope, IRNode> {
 
     private ClassNode irClassNode;
-
-    protected IRNode visit(ANode userNode, ScriptScope scriptScope) {
-        return userNode == null ? null : userNode.visit(this, scriptScope);
-    }
 
     protected ExpressionNode injectCast(AExpression userExpressionNode, ScriptScope scriptScope) {
         ExpressionNode irExpressionNode = (ExpressionNode)visit(userExpressionNode, scriptScope);
@@ -317,7 +312,7 @@ public class IRTreeBuilder implements UserTreeVisitor<ScriptScope, IRNode> {
     public IRNode visitIf(SIf userIfNode, ScriptScope scriptScope) {
         IfNode irIfNode = new IfNode();
         irIfNode.setConditionNode(injectCast(userIfNode.getConditionNode(), scriptScope));
-        irIfNode.setBlockNode((BlockNode)visit(userIfNode.getIfblockNode(), scriptScope));
+        irIfNode.setBlockNode((BlockNode)visit(userIfNode.getIfBlockNode(), scriptScope));
         irIfNode.setLocation(userIfNode.getLocation());
 
         return irIfNode;
@@ -327,7 +322,7 @@ public class IRTreeBuilder implements UserTreeVisitor<ScriptScope, IRNode> {
     public IRNode visitIfElse(SIfElse userIfElseNode, ScriptScope scriptScope) {
         IfElseNode irIfElseNode = new IfElseNode();
         irIfElseNode.setConditionNode(injectCast(userIfElseNode.getConditionNode(), scriptScope));
-        irIfElseNode.setBlockNode((BlockNode)visit(userIfElseNode.getIfblockNode(), scriptScope));
+        irIfElseNode.setBlockNode((BlockNode)visit(userIfElseNode.getIfBlockNode(), scriptScope));
         irIfElseNode.setElseBlockNode((BlockNode)visit(userIfElseNode.getElseblockNode(), scriptScope));
         irIfElseNode.setLocation(userIfElseNode.getLocation());
 
@@ -449,7 +444,7 @@ public class IRTreeBuilder implements UserTreeVisitor<ScriptScope, IRNode> {
     @Override
     public IRNode visitReturn(SReturn userReturnNode, ScriptScope scriptScope) {
         ReturnNode irReturnNode = new ReturnNode();
-        irReturnNode.setExpressionNode(injectCast(userReturnNode.getExpressionNode(), scriptScope));
+        irReturnNode.setExpressionNode(injectCast(userReturnNode.getValueNode(), scriptScope));
         irReturnNode.setLocation(userReturnNode.getLocation());
 
         return irReturnNode;
@@ -458,7 +453,7 @@ public class IRTreeBuilder implements UserTreeVisitor<ScriptScope, IRNode> {
     @Override
     public IRNode visitExpression(SExpression userExpressionNode, ScriptScope scriptScope) {
         StatementNode irStatementNode;
-        ExpressionNode irExpressionNode = injectCast(userExpressionNode.getExpressionNode(), scriptScope);
+        ExpressionNode irExpressionNode = injectCast(userExpressionNode.getStatementNode(), scriptScope);
 
         if (scriptScope.getCondition(userExpressionNode, MethodEscape.class)) {
             ReturnNode returnNode = new ReturnNode();

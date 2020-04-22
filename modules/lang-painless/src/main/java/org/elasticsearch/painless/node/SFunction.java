@@ -20,13 +20,18 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
+import org.elasticsearch.painless.phase.DefaultSemanticHeaderPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.LastSource;
 import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
 import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.painless.symbol.SemanticScope.FunctionScope;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -111,34 +116,88 @@ public class SFunction extends ANode {
         return userTreeVisitor.visitFunction(this, input);
     }
 
-    void analyze(ScriptScope scriptScope) {
-        FunctionTable.LocalFunction localFunction =
-                scriptScope.getFunctionTable().getFunction(functionName, canonicalTypeNameParameters.size());
+    public static void visitDefaultSemanticHeader(DefaultSemanticHeaderPhase visitor, SFunction userFunctionNode, ScriptScope scriptScope) {
+        String functionName = userFunctionNode.getFunctionName();
+        List<String> canonicalTypeNameParameters = userFunctionNode.getCanonicalTypeNameParameters();
+        List<String> parameterNames = userFunctionNode.getParameterNames();
+        int parameterCount = canonicalTypeNameParameters.size();
+
+        if (parameterCount != parameterNames.size()) {
+            throw userFunctionNode.createError(new IllegalStateException("invalid function definition: " +
+                    "parameter types size [" + canonicalTypeNameParameters.size() + "] is not equal to " +
+                    "parameter names size [" + parameterNames.size() + "] for function [" + functionName +"]"));
+        }
+
+        FunctionTable functionTable = scriptScope.getFunctionTable();
+        String functionKey = FunctionTable.buildLocalFunctionKey(functionName, canonicalTypeNameParameters.size());
+
+        if (functionTable.getFunction(functionKey) != null) {
+            throw userFunctionNode.createError(new IllegalArgumentException("invalid function definition: " +
+                    "found duplicate function [" + functionKey + "]."));
+        }
+
+        PainlessLookup painlessLookup = scriptScope.getPainlessLookup();
+        String returnCanonicalTypeName = userFunctionNode.getReturnCanonicalTypeName();
+        Class<?> returnType = painlessLookup.canonicalTypeNameToType(returnCanonicalTypeName);
+
+        if (returnType == null) {
+            throw userFunctionNode.createError(new IllegalArgumentException("invalid function definition: " +
+                    "return type [" + returnCanonicalTypeName + "] not found for function [" + functionKey + "]"));
+        }
+
+        List<Class<?>> typeParameters = new ArrayList<>();
+
+        for (String typeParameter : canonicalTypeNameParameters) {
+            Class<?> paramType = painlessLookup.canonicalTypeNameToType(typeParameter);
+
+            if (paramType == null) {
+                throw userFunctionNode.createError(new IllegalArgumentException("invalid function definition: " +
+                        "parameter type [" + typeParameter + "] not found for function [" + functionKey + "]"));
+            }
+
+            typeParameters.add(paramType);
+        }
+
+        functionTable.addFunction(functionName, returnType, typeParameters, userFunctionNode.isInternal(), userFunctionNode.isStatic());
+    }
+
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, SFunction userFunctionNode, ScriptScope scriptScope) {
+
+        String functionName = userFunctionNode.getFunctionName();
+        LocalFunction localFunction =
+                scriptScope.getFunctionTable().getFunction(functionName, userFunctionNode.getCanonicalTypeNameParameters().size());
         Class<?> returnType = localFunction.getReturnType();
         List<Class<?>> typeParameters = localFunction.getTypeParameters();
         FunctionScope functionScope = newFunctionScope(scriptScope, localFunction.getReturnType());
 
         for (int index = 0; index < localFunction.getTypeParameters().size(); ++index) {
             Class<?> typeParameter = localFunction.getTypeParameters().get(index);
-            String parameterName = parameterNames.get(index);
-            functionScope.defineVariable(getLocation(), typeParameter, parameterName, false);
+            String parameterName = userFunctionNode.getParameterNames().get(index);
+            functionScope.defineVariable(userFunctionNode.getLocation(), typeParameter, parameterName, false);
         }
 
-        if (blockNode.getStatementNodes().isEmpty()) {
-            throw createError(new IllegalArgumentException("Cannot generate an empty function [" + functionName + "]."));
+        SBlock userBlockNode = userFunctionNode.getBlockNode();
+
+        if (userBlockNode.getStatementNodes().isEmpty()) {
+            throw userFunctionNode.createError(new IllegalArgumentException("invalid function definition: " +
+                    "found no statements for function " +
+                    "[" + functionName + "] with [" + typeParameters.size() + "] parameters"));
         }
 
-        functionScope.setCondition(blockNode, LastSource.class);
-        blockNode.analyze(functionScope.newLocalScope());
-        boolean methodEscape = functionScope.getCondition(blockNode, MethodEscape.class);
+        functionScope.setCondition(userBlockNode, LastSource.class);
+        visitor.visit(userBlockNode, functionScope.newLocalScope());
+        boolean methodEscape = functionScope.getCondition(userBlockNode, MethodEscape.class);
+        boolean isAutoReturnEnabled = userFunctionNode.isAutoReturnEnabled();
 
         if (methodEscape == false && isAutoReturnEnabled == false && returnType != void.class) {
-            throw createError(new IllegalArgumentException("not all paths provide a return value " +
-                    "for function [" + functionName + "] with [" + typeParameters.size() + "] parameters"));
+            throw userFunctionNode.createError(new IllegalArgumentException("invalid function definition:" +
+                    "not all paths provide a return value for function " +
+                    "[" + functionName + "] with [" + typeParameters.size() + "] parameters"));
         }
 
         if (methodEscape) {
-            functionScope.setCondition(this, MethodEscape.class);
+            functionScope.setCondition(userBlockNode, MethodEscape.class);
         }
 
         // TODO: do not specialize for execute

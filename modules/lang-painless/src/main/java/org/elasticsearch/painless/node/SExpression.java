@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.Internal;
@@ -38,16 +39,16 @@ import java.util.Objects;
  */
 public class SExpression extends AStatement {
 
-    private final AExpression expressionNode;
+    private final AExpression statementNode;
 
-    public SExpression(int identifier, Location location, AExpression expressionNode) {
+    public SExpression(int identifier, Location location, AExpression statementNode) {
         super(identifier, location);
 
-        this.expressionNode = Objects.requireNonNull(expressionNode);
+        this.statementNode = Objects.requireNonNull(statementNode);
     }
 
-    public AExpression getExpressionNode() {
-        return expressionNode;
+    public AExpression getStatementNode() {
+        return statementNode;
     }
 
     @Override
@@ -55,32 +56,33 @@ public class SExpression extends AStatement {
         return userTreeVisitor.visitExpression(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, SExpression userExpressionNode, SemanticScope semanticScope) {
+
         Class<?> rtnType = semanticScope.getReturnType();
         boolean isVoid = rtnType == void.class;
-        boolean lastSource = semanticScope.getCondition(this, LastSource.class);
+        boolean lastSource = semanticScope.getCondition(userExpressionNode, LastSource.class);
+        AExpression userStatementNode = userExpressionNode.getStatementNode();
         
         if (lastSource && !isVoid) {
-            semanticScope.setCondition(expressionNode, Read.class);
+            semanticScope.setCondition(userStatementNode, Read.class);
         }
         
-        AExpression.analyze(expressionNode, semanticScope);
-        Class<?> expressionValueType = semanticScope.getDecoration(expressionNode, ValueType.class).getValueType();
-
+        visitor.checkedVisit(userStatementNode, semanticScope);
+        Class<?> expressionValueType = semanticScope.getDecoration(userStatementNode, ValueType.class).getValueType();
         boolean rtn = lastSource && isVoid == false && expressionValueType != void.class;
-        semanticScope.putDecoration(expressionNode, new TargetType(rtn ? rtnType : expressionValueType));
+        semanticScope.putDecoration(userStatementNode, new TargetType(rtn ? rtnType : expressionValueType));
 
         if (rtn) {
-            semanticScope.setCondition(expressionNode, Internal.class);
+            semanticScope.setCondition(userStatementNode, Internal.class);
         }
 
-        expressionNode.cast(semanticScope);
+        visitor.decorateWithCast(userStatementNode, semanticScope);
 
         if (rtn) {
-            semanticScope.setCondition(this, MethodEscape.class);
-            semanticScope.setCondition(this, LoopEscape.class);
-            semanticScope.setCondition(this, AllEscape.class);
+            semanticScope.setCondition(userExpressionNode, MethodEscape.class);
+            semanticScope.setCondition(userExpressionNode, LoopEscape.class);
+            semanticScope.setCondition(userExpressionNode, AllEscape.class);
         }
     }
 }

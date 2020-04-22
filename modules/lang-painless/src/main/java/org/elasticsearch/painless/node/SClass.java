@@ -20,6 +20,8 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
+import org.elasticsearch.painless.phase.DefaultSemanticHeaderPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.ScriptScope;
 
@@ -49,9 +51,15 @@ public class SClass extends ANode {
         return userTreeVisitor.visitClass(this, input);
     }
 
-    public void analyze(ScriptScope scriptScope) {
-        for (SFunction function : functionNodes) {
-            function.analyze(scriptScope);
+    public static void visitDefaultSemanticHeader(DefaultSemanticHeaderPhase visitor, SClass userClassNode, ScriptScope scriptScope) {
+        for (SFunction userFunctionNode : userClassNode.getFunctionNodes()) {
+            visitor.visit(userFunctionNode, scriptScope);
+        }
+    }
+
+    public static void visitDefaultSemanticAnalysis(DefaultSemanticAnalysisPhase visitor, SClass userClassNode, ScriptScope scriptScope) {
+        for (SFunction userFunctionNode : userClassNode.getFunctionNodes()) {
+            visitor.visitFunction(userFunctionNode, scriptScope);
         }
     }
 }

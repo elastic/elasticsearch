@@ -57,16 +57,16 @@ public abstract class ANode {
     }
 
     /**
-     * Callback to visit a user tree node.
-     */
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        throw new UnsupportedOperationException("cannot visit node type [" + getClass().getCanonicalName() + "]");
-    }
-
-    /**
      * Create an error with location information pointing to this node.
      */
     public RuntimeException createError(RuntimeException exception) {
         return location.createError(exception);
+    }
+
+    /**
+     * Callback to visit a user tree node.
+     */
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        throw new UnsupportedOperationException("cannot visit node type [" + getClass().getCanonicalName() + "]");
     }
 }

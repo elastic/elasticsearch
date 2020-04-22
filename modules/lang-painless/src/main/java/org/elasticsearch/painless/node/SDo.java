@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
@@ -63,42 +64,47 @@ public class SDo extends AStatement {
         return userTreeVisitor.visitDo(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, SDo userDoNode, SemanticScope semanticScope) {
+
         semanticScope = semanticScope.newLocalScope();
 
-        if (blockNode == null) {
-            throw createError(new IllegalArgumentException("Extraneous do while loop."));
+        SBlock userBlockNode = userDoNode.getBlockNode();
+
+        if (userBlockNode == null) {
+            throw userDoNode.createError(new IllegalArgumentException("extraneous do-while loop"));
         }
 
-        semanticScope.setCondition(blockNode, BeginLoop.class);
-        semanticScope.setCondition(blockNode, InLoop.class);
-        blockNode.analyze(semanticScope);
+        semanticScope.setCondition(userBlockNode, BeginLoop.class);
+        semanticScope.setCondition(userBlockNode, InLoop.class);
+        visitor.visit(userBlockNode, semanticScope);
 
-        if (semanticScope.getCondition(blockNode, LoopEscape.class) &&
-                semanticScope.getCondition(blockNode, AnyContinue.class) == false) {
-            throw createError(new IllegalArgumentException("Extraneous do while loop."));
+        if (semanticScope.getCondition(userBlockNode, LoopEscape.class) &&
+                semanticScope.getCondition(userBlockNode, AnyContinue.class) == false) {
+            throw userDoNode.createError(new IllegalArgumentException("extraneous do-while loop"));
         }
 
-        semanticScope.setCondition(conditionNode, Read.class);
-        semanticScope.putDecoration(conditionNode, new TargetType(boolean.class));
-        AExpression.analyze(conditionNode, semanticScope);
-        conditionNode.cast(semanticScope);
+        AExpression userConditionNode = userDoNode.getConditionNode();
+
+        semanticScope.setCondition(userConditionNode, Read.class);
+        semanticScope.putDecoration(userConditionNode, new TargetType(boolean.class));
+        visitor.visit(userConditionNode, semanticScope);
+        visitor.decorateWithCast(userConditionNode, semanticScope);
 
         boolean continuous;
 
-        if (conditionNode instanceof EBoolean) {
-            continuous = ((EBoolean)conditionNode).getBool();
+        if (userConditionNode instanceof EBoolean) {
+            continuous = ((EBoolean)userConditionNode).getBool();
 
             if (continuous == false) {
-                throw createError(new IllegalArgumentException("Extraneous do while loop."));
+                throw userDoNode.createError(new IllegalArgumentException("extraneous do-while loop"));
             } else {
-                semanticScope.setCondition(this, ContinuousLoop.class);
+                semanticScope.setCondition(userDoNode, ContinuousLoop.class);
             }
 
-            if (semanticScope.getCondition(blockNode, AnyBreak.class) == false) {
-                semanticScope.setCondition(this, MethodEscape.class);
-                semanticScope.setCondition(this, AllEscape.class);
+            if (semanticScope.getCondition(userBlockNode, AnyBreak.class) == false) {
+                semanticScope.setCondition(userDoNode, MethodEscape.class);
+                semanticScope.setCondition(userDoNode, AllEscape.class);
             }
         }
     }

@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -125,7 +124,7 @@ public class MlJobIT extends ESRestTestCase {
         assertEquals(2, XContentMapValues.extractValue("ml.jobs._all.count", usage));
         assertEquals(2, XContentMapValues.extractValue("ml.jobs.closed.count", usage));
         Response openResponse = client().performRequest(new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/job-1/_open"));
-        assertEquals(Collections.singletonMap("opened", true), entityAsMap(openResponse));
+        assertThat(entityAsMap(openResponse), hasEntry("opened", true));
         usage = entityAsMap(client().performRequest(new Request("GET", "_xpack/usage")));
         assertEquals(2, XContentMapValues.extractValue("ml.jobs._all.count", usage));
         assertEquals(1, XContentMapValues.extractValue("ml.jobs.closed.count", usage));

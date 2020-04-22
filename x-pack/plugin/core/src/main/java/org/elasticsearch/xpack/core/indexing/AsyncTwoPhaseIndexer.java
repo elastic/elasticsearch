@@ -15,6 +15,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -60,7 +61,36 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     private volatile float maximumRequestsPerSecond;
     private volatile long lastSearchStartTimeNanos = 0;
     private volatile long lastDocCount = 0;
-    private volatile Scheduler.ScheduledCancellable scheduledNextSearch;
+    private volatile ScheduledRunnable scheduledNextSearch;
+
+    class ScheduledRunnable {
+        private final ThreadPool threadPool;
+        private final String executorName;
+        private final Runnable command;
+        private Scheduler.ScheduledCancellable scheduled;
+
+        public ScheduledRunnable(ThreadPool threadPool, String executorName, TimeValue delay, Runnable command) {
+            this.threadPool = threadPool;
+            this.executorName = executorName;
+
+            // with wrapping the command in RunOnce we ensure the command isn't executed twice, e.g. if the
+            // future is already running and cancel returns true
+            this.command = new RunOnce(command);
+            this.scheduled = threadPool.schedule(() -> {command.run();}, delay, executorName);
+        }
+
+        public void reschedule(TimeValue delay) {
+            // note: cancel return true if the runnable is currently executing
+            if (scheduled.cancel()) {
+                if (delay.duration() > 0) {
+                    scheduled = threadPool.schedule(() -> command.run(), delay, executorName);
+                } else {
+                    threadPool.executor(executorName).execute(() -> command.run());
+                }
+            }
+        }
+
+    }
 
     protected AsyncTwoPhaseIndexer(ThreadPool threadPool, String executorName, AtomicReference<IndexerState> initialState,
                                    JobPosition initialPosition, JobStats jobStats) {
@@ -132,7 +162,9 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         });
 
         // a throttled search might be waiting to be executed, stop it
-        stopThrottledSearch();
+        if (scheduledNextSearch != null) {
+            scheduledNextSearch.reschedule(TimeValue.ZERO);
+        }
 
         return indexerState;
     }
@@ -209,26 +241,17 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     }
 
     /**
-     * Cancels a scheduled search request and issues the search request immediately
-     */
-    private synchronized void stopThrottledSearch() {
-        if (scheduledNextSearch != null && scheduledNextSearch.cancel()) {
-            threadPool.executor(executorName).execute(() -> checkState(getState()));
-        }
-    }
-
-    /**
      * Sets a new requestsPerSecond and re-schedules the search request if necessary, either
      * immediately or according to the new requestsPerSecond setting.
      *
      * @param requestsPerSecond requests per second
      */
     protected void rethrottle(float requestsPerSecond) {
-        if (requestsPerSecond == this.maximumRequestsPerSecond) {
+        if (requestsPerSecond == maximumRequestsPerSecond) {
             return;
         }
 
-        this.maximumRequestsPerSecond = requestsPerSecond;
+        maximumRequestsPerSecond = requestsPerSecond;
         reQueueThrottledSearch();
     }
 
@@ -504,11 +527,11 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             if (executionDelay.duration() > 0) {
                 logger.debug("throttling job [{}], wait for {} ({} {})", getJobId(), executionDelay, maximumRequestsPerSecond,
                         lastDocCount);
-                scheduledNextSearch = threadPool.schedule(() -> triggerNextSearch(executionDelay.getNanos()), executionDelay, executorName);
+                scheduledNextSearch = new ScheduledRunnable(threadPool, executorName, executionDelay, () -> triggerNextSearch(executionDelay.getNanos()));
 
                 // corner case: if for whatever reason stop() has been called meanwhile fast forward
                 if (getState().equals(IndexerState.STOPPING)) {
-                    stopThrottledSearch();
+                    scheduledNextSearch.reschedule(TimeValue.ZERO);
                 }
 
                 return;
@@ -563,19 +586,13 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     }
 
     private synchronized void reQueueThrottledSearch() {
-        if (scheduledNextSearch != null && scheduledNextSearch.cancel()) {
+        if (scheduledNextSearch != null) {
             TimeValue executionDelay = calculateThrottlingDelay(maximumRequestsPerSecond, lastDocCount, lastSearchStartTimeNanos,
                     getTimeNanos());
 
-            if (executionDelay.duration() > 0) {
-                logger.debug("rethrottling job [{}], wait for {} ({} {})", getJobId(), executionDelay, maximumRequestsPerSecond,
-                        lastDocCount);
-                scheduledNextSearch = threadPool.schedule(() -> triggerNextSearch(executionDelay.getNanos()), executionDelay,
-                        executorName);
-                return;
-            } else {
-                threadPool.executor(executorName).execute(() -> triggerNextSearch(0L));
-            }
+            logger.debug("rethrottling job [{}], wait for {} ({} {})", getJobId(), executionDelay, maximumRequestsPerSecond,
+                    lastDocCount);
+            scheduledNextSearch.reschedule(executionDelay);
         }
     }
 

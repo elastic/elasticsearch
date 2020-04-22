@@ -17,9 +17,9 @@ public class ToNumberFunctionPipe extends Pipe {
 
     private final Pipe value, base;
 
-    public ToNumberFunctionPipe(Source source, Expression expression, Pipe src, Pipe base) {
-        super(source, expression, Arrays.asList(src, base));
-        this.value = src;
+    public ToNumberFunctionPipe(Source source, Expression expression, Pipe value, Pipe base) {
+        super(source, expression, Arrays.asList(value, base));
+        this.value = value;
         this.base = base;
 
     }

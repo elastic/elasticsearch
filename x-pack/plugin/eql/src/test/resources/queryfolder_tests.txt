@@ -167,14 +167,22 @@ process where cidrMatch(source_address, "10.0.0.0/8", "192.168.0.0/16", "2001:db
 
 numberFunctionSingleArgument
 process where number(process_name) == 1;
-InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
-"params":{"v0":"process_name","v1":null,
+InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)
+"params":{"v0":"process_name","v1":null,"v2":1}
 ;
+
+
+numberFunctionTwoFieldArguments
+process where number(process_name, pid) != null;
+InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0),InternalQlScriptUtils.docValue(doc,params.v1))))",
+"params":{"v0":"process_name","v1":"pid"}
+;
+
 
 
 numberFunctionTwoArguments
 process where number(process_name, 16) != null;
-InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0)))
+InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)
 "params":{"v0":"process_name","v1":16}
 ;
 

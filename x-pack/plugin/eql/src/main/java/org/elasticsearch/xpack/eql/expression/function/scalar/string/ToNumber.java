@@ -38,9 +38,9 @@ public class ToNumber extends ScalarFunction implements OptionalArgument {
 
     private final Expression value, base;
 
-    public ToNumber(Source source, Expression src, Expression base) {
-        super(source, Arrays.asList(src, base != null ? base : new Literal(source, null, DataTypes.NULL)));
-        this.value = src;
+    public ToNumber(Source source, Expression value, Expression base) {
+        super(source, Arrays.asList(value, base != null ? base : new Literal(source, null, DataTypes.NULL)));
+        this.value = value;
         this.base = arguments().get(1);
     }
 
@@ -83,9 +83,10 @@ public class ToNumber extends ScalarFunction implements OptionalArgument {
         ScriptTemplate valueScript = asScript(value);
         ScriptTemplate baseScript = asScript(base);
 
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s)"),
+        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s, %s)"),
                 "number",
-                valueScript.template()),
+                valueScript.template(),
+                baseScript.template()),
                 paramsBuilder()
                     .script(valueScript.params())
                     .script(baseScript.params())

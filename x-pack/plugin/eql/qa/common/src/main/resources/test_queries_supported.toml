@@ -17,3 +17,23 @@ file where between(file_path, "dev", ".json", true) == "\\TestLogs\\something"
 [[queries]]
 query = 'process where string(serial_event_id) = "1"'
 expected_event_ids  = [1]
+
+
+[[queries]]
+query = 'any where number(string(serial_event_id)) == 17'
+expected_event_ids = [17]
+
+
+[[queries]]
+query = 'any where number(string(serial_event_id), 10) == 17'
+expected_event_ids = [17]
+
+
+[[queries]]
+query = 'any where number(string(serial_event_id), 13) == number("31", 13)'
+expected_event_ids = [31]
+
+
+[[queries]]
+query = 'any where number(string(serial_event_id), 16) == 17'
+expected_event_ids = [11]

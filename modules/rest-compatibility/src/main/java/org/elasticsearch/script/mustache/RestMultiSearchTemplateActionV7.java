@@ -48,11 +48,6 @@ public class RestMultiSearchTemplateActionV7 extends RestMultiSearchTemplateActi
     }
 
     @Override
-    public String compatibleWithVersion() {
-        return String.valueOf(Version.V_7_0_0.major);
-    }
-
-    @Override
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/_msearch/template"),
@@ -68,7 +63,12 @@ public class RestMultiSearchTemplateActionV7 extends RestMultiSearchTemplateActi
 
     @Override
     public String getName() {
-        return "multi_search_template_action";
+        return super.getName() + "_v7";
+    }
+
+    @Override
+    public Version compatibleWithVersion() {
+        return Version.V_7_0_0;
     }
 
     @Override

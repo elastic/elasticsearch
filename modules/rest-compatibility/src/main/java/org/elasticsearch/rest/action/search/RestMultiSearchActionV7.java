@@ -44,11 +44,6 @@ public class RestMultiSearchActionV7 extends RestMultiSearchAction {
     }
 
     @Override
-    public String compatibleWithVersion() {
-        return String.valueOf(Version.V_7_0_0.major);
-    }
-
-    @Override
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/_msearch"),
@@ -59,6 +54,16 @@ public class RestMultiSearchActionV7 extends RestMultiSearchAction {
             new Route(GET, "/{index}/{type}/_msearch"),
             new Route(POST, "/{index}/{type}/_msearch")
         );
+    }
+
+    @Override
+    public String getName() {
+        return super.getName() + "_v7";
+    }
+
+    @Override
+    public Version compatibleWithVersion() {
+        return Version.V_7_0_0;
     }
 
     @Override

@@ -50,6 +50,16 @@ public class RestSearchActionV7 extends RestSearchAction {
     }
 
     @Override
+    public String getName() {
+        return super.getName() + "_v7";
+    }
+
+    @Override
+    public Version compatibleWithVersion() {
+        return Version.V_7_0_0;
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
         request.param(INCLUDE_TYPE_NAME_PARAMETER);
 
@@ -58,10 +68,5 @@ public class RestSearchActionV7 extends RestSearchAction {
         }
 
         return super.prepareRequest(request, client);
-    }
-
-    @Override
-    public String compatibleWithVersion() {
-        return String.valueOf(Version.V_7_0_0.major);
     }
 }

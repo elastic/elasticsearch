@@ -45,8 +45,13 @@ public class RestSearchTemplateActionV7 extends RestSearchTemplateAction {
     }
 
     @Override
-    public String compatibleWithVersion() {
-        return String.valueOf(Version.V_7_0_0.major);
+    public String getName() {
+        return super.getName() + "_v7";
+    }
+
+    @Override
+    public Version compatibleWithVersion() {
+        return Version.V_7_0_0;
     }
 
     @Override

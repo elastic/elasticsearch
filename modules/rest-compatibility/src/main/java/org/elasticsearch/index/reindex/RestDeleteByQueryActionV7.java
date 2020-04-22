@@ -29,14 +29,20 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestDeleteByQueryActionV7 extends RestDeleteByQueryAction {
+
     @Override
     public List<Route> routes() {
         return List.of(new Route(POST, "/{index}/{type}/_delete_by_query"));
     }
 
     @Override
-    public String compatibleWithVersion() {
-        return String.valueOf(Version.V_7_0_0.major);
+    public String getName() {
+        return super.getName() + "_v7";
+    }
+
+    @Override
+    public Version compatibleWithVersion() {
+        return Version.V_7_0_0;
     }
 
     @Override

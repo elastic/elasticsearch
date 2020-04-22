@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 public class TypeConsumer implements Function<String, Boolean> {
+
     private final RestRequest request;
     private final Set<String> fieldNames;
     private boolean foundTypeInBody = false;

@@ -47,7 +47,7 @@ public class RestIndexActionV7 {
     public static class CompatibleRestIndexAction extends RestIndexAction {
         @Override
         public String getName() {
-            return "document_index_action_v7";
+            return super.getName() + "_v7";
         }
 
         @Override

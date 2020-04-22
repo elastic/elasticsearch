@@ -45,7 +45,7 @@ public class RestCreateIndexActionV7 extends RestCreateIndexAction {
 
     @Override
     public String getName() {
-        return "create_index_action_v7";
+        return super.getName() + "_v7";
     }
 
     @Override

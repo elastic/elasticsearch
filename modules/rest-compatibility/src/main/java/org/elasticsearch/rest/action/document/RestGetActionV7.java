@@ -39,7 +39,7 @@ public class RestGetActionV7 extends RestGetAction {
 
     @Override
     public String getName() {
-        return "document_get_action_v7";
+        return super.getName() + "_v7";
     }
 
     @Override

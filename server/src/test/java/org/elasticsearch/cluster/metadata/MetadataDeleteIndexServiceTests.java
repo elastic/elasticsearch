@@ -92,6 +92,10 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         verify(allocationService).reroute(any(ClusterState.class), any(String.class));
     }
 
+    public void testDeleteBackingIndexForDataStream() {
+        fail("not implemented");
+    }
+
     private ClusterState clusterState(String index) {
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
                 .settings(Settings.builder().put("index.version.created", VersionUtils.randomVersion(random())))

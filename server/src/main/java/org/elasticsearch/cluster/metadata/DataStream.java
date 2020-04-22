@@ -85,6 +85,19 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     }
 
     /**
+     * Removes the specified backing index and returns a new {@code DataStream} instance with
+     * the remaining backing indices.
+     *
+     * @param index the backing index to remove
+     * @return new {@code DataStream} instance with the remaining backing indices
+     */
+    public DataStream removeBackingIndex(Index index) {
+        List<Index> backingIndices = new ArrayList<>(indices);
+        backingIndices.remove(index);
+        return new DataStream(name, timeStampField, backingIndices, generation);
+    }
+
+    /**
      * Generates the name of the index that conforms to the naming convention for backing indices
      * on data streams given the specified data stream name and generation.
      *

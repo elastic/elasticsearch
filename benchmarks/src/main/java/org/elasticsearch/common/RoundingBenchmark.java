@@ -36,9 +36,9 @@ import java.time.ZoneId;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
-@Fork(1)
-@Warmup(iterations = 5)
-@Measurement(iterations = 3)
+@Fork(2)
+@Warmup(iterations = 10)
+@Measurement(iterations = 5)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Benchmark)

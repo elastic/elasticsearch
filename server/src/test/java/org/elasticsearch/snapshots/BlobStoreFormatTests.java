@@ -55,7 +55,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class BlobStoreFormatIT extends ESTestCase {
+public class BlobStoreFormatTests extends ESTestCase {
 
     public static final String BLOB_CODEC = "blob";
 

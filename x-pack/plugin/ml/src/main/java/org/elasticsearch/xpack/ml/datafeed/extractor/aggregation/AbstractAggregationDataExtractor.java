@@ -109,7 +109,9 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
 
     private Aggregations search() {
         LOGGER.debug("[{}] Executing aggregated search", context.jobId);
-        SearchResponse searchResponse = executeSearchRequest(buildSearchRequest(buildBaseSearchSource()));
+        T searchRequest = buildSearchRequest(buildBaseSearchSource());
+        assert searchRequest.request().allowPartialSearchResults() == false;
+        SearchResponse searchResponse = executeSearchRequest(searchRequest);
         LOGGER.debug("[{}] Search response was obtained", context.jobId);
         timingStatsReporter.reportSearchDuration(searchResponse.getTook());
         return validateAggs(searchResponse.getAggregations());

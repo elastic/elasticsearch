@@ -85,14 +85,14 @@ public class GeoShapeWithDocValuesFieldMapperTests extends ESSingleNodeTestCase 
         assertTrue(geoShapeFieldMapper.fieldType().hasDocValues());
     }
 
-    public void testDefaultDocValueConfigurationOnPre8() throws IOException {
+    public void testDefaultDocValueConfigurationOnPre7_8() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("location")
             .field("type", "geo_shape")
             .endObject().endObject()
             .endObject().endObject());
 
-        Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        Version oldVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_8_0);
         DocumentMapper defaultMapper = createIndex("test", settings(oldVersion).build()).mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");

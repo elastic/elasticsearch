@@ -169,7 +169,6 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testGetSnapshotsWithoutIndices() {
-        logger.info("--> creating repository");
         createRepository("test-repo", "fs", randomRepoPath());
 
         logger.info("--> snapshot");

@@ -60,10 +60,13 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.ReplicaShardAllocatorIT;
 import org.elasticsearch.index.Index;
@@ -94,6 +97,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -107,7 +111,9 @@ import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
@@ -723,6 +729,143 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertThat(indexState.recoveredBytesPercent(), lessThanOrEqualTo(100.0f));
     }
 
+    public void testTransientErrorsDuringRecoveryAreRetried() throws Exception {
+        final String indexName = "test";
+        final Settings nodeSettings = Settings.builder()
+            .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), "360s")
+            .put(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(), "10s")
+            .build();
+        // start a master node
+        internalCluster().startNode(nodeSettings);
+
+        final String blueNodeName = internalCluster()
+            .startNode(Settings.builder().put("node.attr.color", "blue").put(nodeSettings).build());
+        final String redNodeName = internalCluster()
+            .startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
+
+        ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes(">=3").get();
+        assertThat(response.isTimedOut(), is(false));
+
+        client().admin().indices().prepareCreate(indexName)
+            .setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            ).get();
+
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        int numDocs = scaledRandomIntBetween(100, 8000);
+        // Index 3/4 of the documents and flush. And then index the rest. This attempts to ensure that there
+        // is a mix of file chunks and translog ops
+        int threeFourths = (int) (numDocs * 0.75);
+        for (int i = 0; i < threeFourths; i++) {
+            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+        }
+        indexRandom(true, requests);
+        flush(indexName);
+        requests.clear();
+
+        for (int i = threeFourths; i < numDocs; i++) {
+            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+        }
+        indexRandom(true, requests);
+        ensureSearchable(indexName);
+
+        ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
+        final String blueNodeId = internalCluster().getInstance(ClusterService.class, blueNodeName).localNode().getId();
+
+        assertFalse(stateResponse.getState().getRoutingNodes().node(blueNodeId).isEmpty());
+
+        SearchResponse searchResponse = client().prepareSearch(indexName).get();
+        assertHitCount(searchResponse, numDocs);
+
+        String[] recoveryActions = new String[]{
+            PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG,
+            PeerRecoveryTargetService.Actions.TRANSLOG_OPS,
+            PeerRecoveryTargetService.Actions.FILES_INFO,
+            PeerRecoveryTargetService.Actions.FILE_CHUNK,
+            PeerRecoveryTargetService.Actions.CLEAN_FILES,
+            PeerRecoveryTargetService.Actions.FINALIZE
+        };
+        final String recoveryActionToBlock = randomFrom(recoveryActions);
+        logger.info("--> will break connection between blue & red on [{}]", recoveryActionToBlock);
+
+        MockTransportService blueTransportService =
+            (MockTransportService) internalCluster().getInstance(TransportService.class, blueNodeName);
+        MockTransportService redTransportService =
+            (MockTransportService) internalCluster().getInstance(TransportService.class, redNodeName);
+
+        final SingleStartEnforcer validator = new SingleStartEnforcer();
+        blueTransportService.addSendBehavior(redTransportService, (connection, requestId, action, request, options) -> {
+            validator.accept(action);
+            connection.sendRequest(requestId, action, request, options);
+        });
+        redTransportService.addSendBehavior(blueTransportService, (connection, requestId, action, request, options) -> {
+            validator.accept(action);
+            connection.sendRequest(requestId, action, request, options);
+        });
+        blueTransportService.addRequestHandlingBehavior(recoveryActionToBlock, new TransientReceiveRejected(recoveryActionToBlock));
+        redTransportService.addRequestHandlingBehavior(recoveryActionToBlock, new TransientReceiveRejected(recoveryActionToBlock));
+
+        try {
+            logger.info("--> starting recovery from blue to red");
+            client().admin().indices().prepareUpdateSettings(indexName).setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "red,blue")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            ).get();
+
+            ensureGreen();
+            searchResponse = client(redNodeName).prepareSearch(indexName).setPreference("_local").get();
+            assertHitCount(searchResponse, numDocs);
+        } finally {
+            blueTransportService.clearAllRules();
+            redTransportService.clearAllRules();
+        }
+    }
+
+    private class TransientReceiveRejected implements StubbableTransport.RequestHandlingBehavior<TransportRequest> {
+
+        private final String actionName;
+        private final AtomicInteger blocksRemaining;
+
+        private TransientReceiveRejected(String actionName) {
+            this.actionName = actionName;
+            this.blocksRemaining = new AtomicInteger(randomIntBetween(1, 3));
+        }
+
+        @Override
+        public void messageReceived(TransportRequestHandler<TransportRequest> handler, TransportRequest request, TransportChannel channel,
+                                    Task task) throws Exception {
+            if (blocksRemaining.updateAndGet(i -> i == 0 ? 0 : i - 1) != 0) {
+                logger.info("--> preventing {} response by throwing exception", actionName);
+                if (randomBoolean()) {
+                    throw new EsRejectedExecutionException();
+                } else {
+                    throw new CircuitBreakingException("Broken", CircuitBreaker.Durability.PERMANENT);
+                }
+            }
+            handler.messageReceived(request, channel, task);
+        }
+    }
+
+    private static class SingleStartEnforcer implements Consumer<String> {
+
+        private final AtomicBoolean recoveryStarted = new AtomicBoolean(false);
+
+        @Override
+        public void accept(String action) {
+            // The cluster state applier will immediately attempt to retry the recovery on a cluster state
+            // update. We want to assert that the first and only recovery attempt succeeds
+            if (PeerRecoverySourceService.Actions.START_RECOVERY.equals(action)) {
+                if (recoveryStarted.compareAndSet(false, true) == false) {
+                    throw new IllegalStateException("Recovery cannot be started twice");
+                }
+            }
+        }
+    }
+
     public void testDisconnectsWhileRecovering() throws Exception {
         final String indexName = "test";
         final Settings nodeSettings = Settings.builder()
@@ -825,7 +968,6 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         ensureGreen();
         searchResponse = client(redNodeName).prepareSearch(indexName).setPreference("_local").get();
         assertHitCount(searchResponse, numDocs);
-
     }
 
     private class RecoveryActionBlocker implements StubbableTransport.SendRequestBehavior {

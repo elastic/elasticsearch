@@ -74,6 +74,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
 
 public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
 
@@ -221,8 +222,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                     indexShardSnapshotStatus.asCopy().getStartTime(), null, 1, Collections.emptyList(),
                     ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).getGenId(), true,
                     Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(), Collections.emptyMap(),
-                    Version.CURRENT,
-                    finFuture);
+                    Version.CURRENT, Function.identity(), finFuture);
                 finFuture.actionGet();
             });
             IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();

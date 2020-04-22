@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -23,31 +23,33 @@ import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.symbol.ScopeTable;
+import org.objectweb.asm.Opcodes;
 
-public class FuncRefNode extends ExpressionNode {
+public class TypedInterfaceReferenceNode extends ReferenceNode {
 
     /* ---- begin node data ---- */
 
-    private FunctionRef funcRef;
+    private FunctionRef reference;
 
-    public void setFuncRef(FunctionRef funcRef) {
-        this.funcRef = funcRef;
+    public void setReference(FunctionRef reference) {
+        this.reference = reference;
     }
 
-    public FunctionRef getFuncRef() {
-        return funcRef;
+    public FunctionRef getReference() {
+        return reference;
     }
 
     /* ---- end node data ---- */
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        if (funcRef != null) {
-            methodWriter.writeDebugInfo(location);
-            methodWriter.invokeLambdaCall(funcRef);
-        } else {
-            // dynamic interface: placeholder for run-time lookup
-            methodWriter.push((String)null);
+        methodWriter.writeDebugInfo(location);
+
+        for (String capture : getCaptures()) {
+            ScopeTable.Variable variable = scopeTable.getVariable(capture);
+            methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ILOAD), variable.getSlot());
         }
+
+        methodWriter.invokeLambdaCall(reference);
     }
 }

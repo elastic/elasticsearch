@@ -405,7 +405,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
          * @param targetTransportService target transport service to which requests are sent
          */
         public void removeDisruption(MockTransportService sourceTransportService, MockTransportService targetTransportService) {
-            sourceTransportService.clearRule(targetTransportService);
+            sourceTransportService.clearOutboundRules(targetTransportService);
         }
 
         /**

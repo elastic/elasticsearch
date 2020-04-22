@@ -52,6 +52,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.mockito.Mockito.mock;
 
@@ -160,7 +161,8 @@ public class RepositoriesServiceTests extends ESTestCase {
         public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations indices, long startTime, String failure,
                                      int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                                      boolean includeGlobalState, Metadata metadata, Map<String, Object> userMetadata,
-                                     Version repositoryMetaVersion, ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
+                                     Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateTransformer,
+                                     ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
             listener.onResponse(null);
         }
 

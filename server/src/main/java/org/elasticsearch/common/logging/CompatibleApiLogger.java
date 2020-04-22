@@ -24,12 +24,11 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.Set;
-import java.util.regex.Matcher;
 
 /**
  * A logger that logs deprecation notices.
  */
-public class DeprecationLogger extends AbstractThrottlingLogger{
+public class CompatibleApiLogger extends AbstractThrottlingLogger{
 
     private final Logger logger;
 
@@ -44,12 +43,12 @@ public class DeprecationLogger extends AbstractThrottlingLogger{
      * it replaces "org.elasticsearch" with "org.elasticsearch.deprecation" to maintain
      * the "org.elasticsearch" namespace.
      */
-    public DeprecationLogger(Logger parentLogger) {
+    public CompatibleApiLogger(Logger parentLogger) {
         String name = parentLogger.getName();
         if (name.startsWith("org.elasticsearch")) {
-            name = name.replace("org.elasticsearch.", "org.elasticsearch.deprecation.");
+            name = name.replace("org.elasticsearch.", "org.elasticsearch.compatible.");
         } else {
-            name = "deprecation." + name;
+            name = "compatible." + name;
         }
         this.logger = LogManager.getLogger(name);
     }

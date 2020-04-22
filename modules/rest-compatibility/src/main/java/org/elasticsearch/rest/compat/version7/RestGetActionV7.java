@@ -22,6 +22,7 @@ package org.elasticsearch.rest.compat.version7;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.CompatibleApiLogger;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.document.RestGetAction;
@@ -34,7 +35,7 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 
 public class RestGetActionV7 extends RestGetAction {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetAction.class));
+    private static final CompatibleApiLogger deprecationLogger = new CompatibleApiLogger(LogManager.getLogger(RestGetAction.class));
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in "
         + "document get requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
 

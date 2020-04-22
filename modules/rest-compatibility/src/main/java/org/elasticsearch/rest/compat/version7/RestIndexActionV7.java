@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.logging.CompatibleApiLogger;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.document.RestIndexAction;
@@ -41,7 +42,7 @@ public class RestIndexActionV7 {
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document "
         + "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, "
         + "or /{index}/_create/{id}).";
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestIndexAction.class));
+    private static final CompatibleApiLogger deprecationLogger = new CompatibleApiLogger(LogManager.getLogger(RestIndexAction.class));
 
     private static void logDeprecationMessage() {
         deprecationLogger.deprecatedAndMaybeLog("index_with_types", TYPES_DEPRECATION_MESSAGE);

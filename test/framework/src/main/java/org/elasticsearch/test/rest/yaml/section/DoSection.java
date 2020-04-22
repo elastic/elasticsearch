@@ -29,6 +29,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
@@ -56,7 +57,7 @@ import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.common.collect.Tuple.tuple;
-import static org.elasticsearch.common.logging.DeprecationLogger.WARNING_HEADER_PATTERN;
+import static org.elasticsearch.common.logging.HeaderWarning.WARNING_HEADER_PATTERN;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -341,7 +342,7 @@ public class DoSection implements ExecutableSection {
             final Matcher matcher = WARNING_HEADER_PATTERN.matcher(header);
             final boolean matches = matcher.matches();
             if (matches) {
-                final String message = DeprecationLogger.extractWarningValueFromWarningHeader(header, true);
+                final String message = HeaderWarning.extractWarningValueFromWarningHeader(header, true);
                 if (allowed.contains(message)) {
                     continue;
                 }

@@ -49,7 +49,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.common.logging.DeprecationLogger.WARNING_HEADER_PATTERN;
+import static org.elasticsearch.common.logging.HeaderWarning.WARNING_HEADER_PATTERN;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -219,14 +219,14 @@ public class DeprecationLoggerTests extends ESTestCase {
     public void testWarningValueFromWarningHeader() {
         final String s = randomAlphaOfLength(16);
         final String first = DeprecationLogger.formatWarning(s);
-        assertThat(DeprecationLogger.extractWarningValueFromWarningHeader(first, false), equalTo(s));
+        assertThat(HeaderWarning.extractWarningValueFromWarningHeader(first, false), equalTo(s));
 
         final String withPos = "[context][1:11] Blah blah blah";
         final String formatted = DeprecationLogger.formatWarning(withPos);
-        assertThat(DeprecationLogger.extractWarningValueFromWarningHeader(formatted, true), equalTo("Blah blah blah"));
+        assertThat(HeaderWarning.extractWarningValueFromWarningHeader(formatted, true), equalTo("Blah blah blah"));
 
         final String withNegativePos = "[context][-1:-1] Blah blah blah";
-        assertThat(DeprecationLogger.extractWarningValueFromWarningHeader(DeprecationLogger.formatWarning(withNegativePos), true),
+        assertThat(HeaderWarning.extractWarningValueFromWarningHeader(DeprecationLogger.formatWarning(withNegativePos), true),
             equalTo("Blah blah blah"));
     }
 

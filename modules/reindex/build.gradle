@@ -22,8 +22,6 @@ import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.info.BuildParams
 
-import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
-
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.jdk-download'
 

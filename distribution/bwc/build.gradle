@@ -27,7 +27,7 @@ import org.gradle.util.GradleVersion
 
 import java.nio.charset.StandardCharsets
 
-import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
+import static org.elasticsearch.gradle.util.JavaUtil.getJavaHome
 
 /**
  *  We want to be able to do BWC tests for unreleased versions without relying on and waiting for snapshots.

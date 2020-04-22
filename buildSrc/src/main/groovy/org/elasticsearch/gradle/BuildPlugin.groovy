@@ -182,60 +182,6 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    /** Add a check before gradle execution phase which ensures java home for the given java version is set. */
-    static void requireJavaHome(Task task, int version) {
-        // use root project for global accounting
-        Project rootProject = task.project.rootProject
-        ExtraPropertiesExtension extraProperties = rootProject.extensions.extraProperties
-
-        // hacky way (but the only way) to find if the task graph has already been populated
-        boolean taskGraphReady
-        try {
-            rootProject.gradle.taskGraph.getAllTasks()
-            taskGraphReady = true
-        } catch (IllegalStateException) {
-            taskGraphReady = false
-        }
-
-        if (taskGraphReady) {
-            // check directly if the version is present since we are already executing
-            if (BuildParams.javaVersions.find { it.version == version } == null) {
-                throw new GradleException("JAVA${version}_HOME required to run task:\n${task}")
-            }
-        } else {
-            // setup list of java versions we will check at the end of configuration time
-            if (extraProperties.has('requiredJavaVersions') == false) {
-                extraProperties.set('requiredJavaVersions', [:])
-                rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
-                    List<String> messages = []
-                    Map<Integer, List<Task>> requiredJavaVersions = (Map<Integer, List<Task>>) extraProperties.get('requiredJavaVersions')
-                    for (Map.Entry<Integer, List<Task>> entry : requiredJavaVersions) {
-                        if (BuildParams.javaVersions.any { it.version == entry.key }) {
-                            continue
-                        }
-                        List<String> tasks = entry.value.findAll { taskGraph.hasTask(it) }.collect { "  ${it.path}".toString() }
-                        if (tasks.isEmpty() == false) {
-                            messages.add("JAVA${entry.key}_HOME required to run tasks:\n${tasks.join('\n')}".toString())
-                        }
-                    }
-                    if (messages.isEmpty() == false) {
-                        throw new GradleException(messages.join('\n'))
-                    }
-                }
-            }
-            Map<Integer, List<Task>> requiredJavaVersions = (Map<Integer, List<Task>>) extraProperties.get('requiredJavaVersions')
-            requiredJavaVersions.putIfAbsent(version, [])
-            requiredJavaVersions.get(version).add(task)
-        }
-    }
-
-    /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
-    static String getJavaHome(final Task task, final int version) {
-        requireJavaHome(task, version)
-        JavaHome java = BuildParams.javaVersions.find { it.version == version }
-        return java == null ? null : java.javaHome.get().absolutePath
-    }
-
     /**
      * Makes dependencies non-transitive.
      *

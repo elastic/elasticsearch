@@ -177,14 +177,14 @@ public final class TaskResult implements Writeable, ToXContentObject {
     public static final InstantiatingObjectParser<TaskResult, Void> PARSER;
 
     static {
-        InstantiatingObjectParser.Builder<TaskResult, Void> builder = InstantiatingObjectParser.builder(
+        InstantiatingObjectParser.Builder<TaskResult, Void> parser = InstantiatingObjectParser.builder(
             "stored_task_result", true, TaskResult.class);
-        builder.declareBoolean(constructorArg(), new ParseField("completed"));
-        builder.declareObject(constructorArg(), TaskInfo.PARSER, new ParseField("task"));
+        parser.declareBoolean(constructorArg(), new ParseField("completed"));
+        parser.declareObject(constructorArg(), TaskInfo.PARSER, new ParseField("task"));
         ObjectParserHelper<TaskResult, Void> parserHelper = new ObjectParserHelper<>();
-        parserHelper.declareRawObject(builder, optionalConstructorArg(), new ParseField("error"));
-        parserHelper.declareRawObject(builder, optionalConstructorArg(), new ParseField("response"));
-        PARSER = builder.build();
+        parserHelper.declareRawObject(parser, optionalConstructorArg(), new ParseField("error"));
+        parserHelper.declareRawObject(parser, optionalConstructorArg(), new ParseField("response"));
+        PARSER = parser.build();
     }
 
     @Override

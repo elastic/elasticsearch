@@ -92,6 +92,10 @@
       "pipeline":{
         "type":"string",
         "description":"The pipeline id to preprocess incoming documents with"
+      },
+      "prefer_v2_templates": {
+        "type": "boolean",
+        "description": "favor V2 templates instead of V1 templates during automatic index creation"
       }
     },
     "body":{

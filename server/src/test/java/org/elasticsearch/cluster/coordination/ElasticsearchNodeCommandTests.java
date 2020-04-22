@@ -20,7 +20,9 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -34,10 +36,12 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -74,6 +78,7 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
         }
         assertThat(loadedMetadata.clusterUUID(), not(equalTo("_na_")));
         assertThat(loadedMetadata.clusterUUID(), equalTo(latestMetadata.clusterUUID()));
+        assertThat(loadedMetadata.dataStreams(), equalTo(latestMetadata.dataStreams()));
 
         // make sure the index tombstones are the same too
         if (hasMissingCustoms) {
@@ -100,14 +105,24 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
         for (int i = 0; i < numDelIndices; i++) {
             graveyard.addTombstone(new Index(randomAlphaOfLength(10) + "del-idx-" + i, UUIDs.randomBase64UUID()));
         }
+        if (randomBoolean()) {
+            int numDataStreams = randomIntBetween(0, 5);
+            for (int i = 0; i < numDataStreams; i++) {
+                String dataStreamName = "name" + 1;
+                IndexMetadata backingIndex = createFirstBackingIndex(dataStreamName).build();
+                mdBuilder.put(new DataStream(dataStreamName, "ts", List.of(backingIndex.getIndex())));
+            }
+        }
         mdBuilder.indexGraveyard(graveyard.build());
         return mdBuilder.build();
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(Stream.of(ClusterModule.getNamedXWriteables().stream(), IndicesModule.getNamedXContents().stream())
+        return new NamedXContentRegistry(
+            Stream.of(ClusterModule.getNamedXWriteables().stream(), IndicesModule.getNamedXContents().stream())
             .flatMap(Function.identity())
-            .collect(Collectors.toList()));
+            .collect(Collectors.toList())
+        );
     }
 }

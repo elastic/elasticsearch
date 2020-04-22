@@ -20,7 +20,9 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.fasterxml.jackson.core.JsonParseException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.PutRequest;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -28,6 +30,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -52,13 +55,16 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -130,6 +136,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(throwables.get(0), instanceOf(IllegalArgumentException.class));
         assertThat(throwables.get(0).getMessage(), containsString("[2]: cannot be greater than number of shard copies [1]"));
     }
+
     public void testIndexTemplateValidationAccumulatesValidationErrors() {
         PutRequest request = new PutRequest("test", "putTemplate shards");
         request.patterns(singletonList("_test_shards*"));
@@ -292,6 +299,41 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             () -> metadataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate4));
     }
 
+    public void testUpdateComponentTemplateWithIndexHiddenSetting() throws Exception {
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        ClusterState state = ClusterState.EMPTY_STATE;
+        Template template = new Template(Settings.builder().build(), null, ComponentTemplateTests.randomAliases());
+        ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
+        state = metadataIndexTemplateService.addComponentTemplate(state, true, "foo", componentTemplate);
+        assertNotNull(state.metadata().componentTemplates().get("foo"));
+
+        IndexTemplateV2 firstGlobalIndexTemplate =
+            new IndexTemplateV2(List.of("*"), template, List.of("foo"), 1L, null, null);
+        state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "globalIndexTemplate1", firstGlobalIndexTemplate);
+
+        IndexTemplateV2 secondGlobalIndexTemplate =
+            new IndexTemplateV2(List.of("*"), template, List.of("foo"), 2L, null, null);
+        state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "globalIndexTemplate2", secondGlobalIndexTemplate);
+
+        IndexTemplateV2 fooPatternIndexTemplate =
+            new IndexTemplateV2(List.of("foo-*"), template, List.of("foo"), 3L, null, null);
+        state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "fooPatternIndexTemplate", fooPatternIndexTemplate);
+
+        // update the component template to set the index.hidden setting
+        Template templateWithIndexHiddenSetting = new Template(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build(),
+            null, null);
+        ComponentTemplate updatedComponentTemplate = new ComponentTemplate(templateWithIndexHiddenSetting, 2L, new HashMap<>());
+        try {
+            metadataIndexTemplateService.addComponentTemplate(state, false, "foo", updatedComponentTemplate);
+            fail("expecting an exception as updating the component template would yield the global templates to include the index.hidden " +
+                "setting");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsStringIgnoringCase("globalIndexTemplate1"));
+            assertThat(e.getMessage(), containsStringIgnoringCase("globalIndexTemplate2"));
+            assertThat(e.getMessage(), not(containsStringIgnoringCase("fooPatternIndexTemplate")));
+        }
+    }
+
     public void testAddIndexTemplateV2() throws Exception {
         ClusterState state = ClusterState.EMPTY_STATE;
         final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
@@ -301,12 +343,16 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertNotNull(state.metadata().templatesV2().get("foo"));
         assertTemplatesEqual(state.metadata().templatesV2().get("foo"), template);
 
+
+        IndexTemplateV2 newTemplate = randomValueOtherThanMany(t -> Objects.equals(template.priority(), t.priority()),
+            IndexTemplateV2Tests::randomInstance);
+
         final ClusterState throwState = ClusterState.builder(state).build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> metadataIndexTemplateService.addIndexTemplateV2(throwState, true, "foo", template));
+            () -> metadataIndexTemplateService.addIndexTemplateV2(throwState, true, "foo", newTemplate));
         assertThat(e.getMessage(), containsString("index template [foo] already exists"));
 
-        state = metadataIndexTemplateService.addIndexTemplateV2(state, randomBoolean(), "bar", template);
+        state = metadataIndexTemplateService.addIndexTemplateV2(state, randomBoolean(), "bar", newTemplate);
         assertNotNull(state.metadata().templatesV2().get("bar"));
     }
 
@@ -349,6 +395,51 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         assertNotNull(state.metadata().templatesV2().get("v2-template"));
         assertThat(state.metadata().templatesV2().get("v2-template"), equalTo(v2Template));
+    }
+
+    public void testPutGlobalV2TemplateWhichResolvesIndexHiddenSetting() throws Exception {
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        Template templateWithIndexHiddenSetting = new Template(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build(),
+            null, null);
+        ComponentTemplate componentTemplate = new ComponentTemplate(templateWithIndexHiddenSetting, 1L, new HashMap<>());
+
+        CountDownLatch waitToCreateComponentTemplate = new CountDownLatch(1);
+        ActionListener<AcknowledgedResponse> createComponentTemplateListener = new ActionListener<>() {
+
+            @Override
+            public void onResponse(AcknowledgedResponse response) {
+                waitToCreateComponentTemplate.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("expecting the component template PUT to succeed but got: " + e.getMessage());
+            }
+        };
+
+        metadataIndexTemplateService.putComponentTemplate("test", true, "ct-with-index-hidden-setting", TimeValue.timeValueSeconds(30L),
+            componentTemplate, createComponentTemplateListener);
+
+        waitToCreateComponentTemplate.await(10, TimeUnit.SECONDS);
+
+        IndexTemplateV2 globalIndexTemplate = new IndexTemplateV2(List.of("*"), null, List.of("ct-with-index-hidden-setting"), null, null,
+            null);
+
+        expectThrows(InvalidIndexTemplateException.class, () ->
+            metadataIndexTemplateService.putIndexTemplateV2("testing", true, "template-referencing-ct-with-hidden-index-setting",
+                TimeValue.timeValueSeconds(30L), globalIndexTemplate, new ActionListener<>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse response) {
+                        fail("the listener should not be invoked as the validation should be executed before any cluster state updates " +
+                            "are issued");
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        fail("the listener should not be invoked as the validation should be executed before any cluster state updates " +
+                            "are issued");
+                    }
+                }));
     }
 
     /**
@@ -472,19 +563,31 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             "templates (/_index_template) instead"));
     }
 
+    public void testPuttingOverlappingV2Template() throws Exception {
+        IndexTemplateV2 template = new IndexTemplateV2(Arrays.asList("egg*", "baz"), null, null, 1L, null, null);
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", template);
+        IndexTemplateV2 newTemplate = new IndexTemplateV2(Arrays.asList("abc", "baz*"), null, null, 1L, null, null);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo2", newTemplate));
+        assertThat(e.getMessage(), equalTo("index template [foo2] has index patterns [abc, baz*] matching patterns from existing " +
+            "templates [foo] with patterns (foo => [egg*, baz]) that have the same priority [1], multiple index templates may not " +
+            "match during index creation, please use a different priority"));
+    }
+
     public void testFindV2Templates() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
-        assertNull(MetadataIndexTemplateService.findV2Template(state.metadata(), "index", randomBoolean() ? null : randomBoolean()));
+        assertNull(MetadataIndexTemplateService.findV2Template(state.metadata(), "index", randomBoolean()));
 
         ComponentTemplate ct = ComponentTemplateTests.randomInstance();
         state = service.addComponentTemplate(state, true, "ct", ct);
-        IndexTemplateV2 it = new IndexTemplateV2(List.of("i*"), null, List.of("ct"), 0L, 1L, null);
+        IndexTemplateV2 it = new IndexTemplateV2(List.of("i*"), null, List.of("ct"), null, 1L, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
         IndexTemplateV2 it2 = new IndexTemplateV2(List.of("in*"), null, List.of("ct"), 10L, 2L, null);
         state = service.addIndexTemplateV2(state, true, "my-template2", it2);
 
-        String result = MetadataIndexTemplateService.findV2Template(state.metadata(), "index", randomBoolean() ? null : randomBoolean());
+        String result = MetadataIndexTemplateService.findV2Template(state.metadata(), "index", randomBoolean());
 
         assertThat(result, equalTo("my-template2"));
     }
@@ -504,6 +607,23 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         String result = MetadataIndexTemplateService.findV2Template(state.metadata(), "index", true);
 
         assertThat(result, equalTo("my-template"));
+    }
+
+    public void testFindV2InvalidGlobalTemplate() {
+        Template templateWithHiddenSetting = new Template(builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build(), null, null);
+        try {
+            // add an invalid global template that specifies the `index.hidden` setting
+            IndexTemplateV2 invalidGlobalTemplate = new IndexTemplateV2(List.of("*"), templateWithHiddenSetting, List.of("ct"), 5L, 1L,
+                null);
+            Metadata invalidGlobalTemplateMetadata = Metadata.builder().putCustom(IndexTemplateV2Metadata.TYPE,
+                new IndexTemplateV2Metadata(Map.of("invalid_global_template", invalidGlobalTemplate))).build();
+
+            MetadataIndexTemplateService.findV2Template(invalidGlobalTemplateMetadata, "index-name", false);
+            fail("expecting an exception as the matching global template is invalid");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), is("global index template [invalid_global_template], composed of component templates [ct] " +
+                "defined the index.hidden setting, which is not allowed"));
+        }
     }
 
     public void testResolveMappings() throws Exception {
@@ -593,7 +713,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List.of("ct_low", "ct_high"), 0L, 1L, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        Settings settings = MetadataIndexTemplateService.resolveSettings(state, "my-template");
+        Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), "my-template");
         assertThat(settings.get("index.number_of_replicas"), equalTo("2"));
         assertThat(settings.get("index.blocks.write"), equalTo("false"));
         assertThat(settings.get("index.blocks.read"), equalTo("true"));
@@ -621,7 +741,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List.of("ct_low", "ct_high"), 0L, 1L, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(state, "my-template");
+        List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(state.metadata(), "my-template");
 
         // These should be order of precedence, so the index template (a3), then ct_high (a1), then ct_low (a2)
         assertThat(resolvedAliases, equalTo(List.of(a3, a1, a2)));

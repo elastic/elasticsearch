@@ -15,14 +15,15 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
@@ -37,6 +38,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.search.AsyncSearchMaintenanceService.ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING;
 
 public final class AsyncSearch extends Plugin implements ActionPlugin {
     private final Settings settings;
@@ -76,17 +79,23 @@ public final class AsyncSearch extends Plugin implements ActionPlugin {
                                                Environment environment,
                                                NodeEnvironment nodeEnvironment,
                                                NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver indexNameExpressionResolver) {
+                                               IndexNameExpressionResolver indexNameExpressionResolver,
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
         if (DiscoveryNode.isDataNode(environment.settings())) {
             // only data nodes should be eligible to run the maintenance service.
             AsyncSearchIndexService indexService =
                 new AsyncSearchIndexService(clusterService, threadPool.getThreadContext(), client, namedWriteableRegistry);
             AsyncSearchMaintenanceService maintenanceService =
-                new AsyncSearchMaintenanceService(nodeEnvironment.nodeId(), threadPool, indexService, TimeValue.timeValueHours(1));
+                new AsyncSearchMaintenanceService(nodeEnvironment.nodeId(), settings, threadPool, indexService);
             clusterService.addListener(maintenanceService);
             return Collections.singletonList(maintenanceService);
         } else {
             return Collections.emptyList();
         }
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Collections.singletonList(ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING);
     }
 }

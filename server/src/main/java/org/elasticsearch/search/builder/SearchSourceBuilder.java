@@ -1103,19 +1103,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         scriptFields.add(new ScriptField(parser));
                     }
-                } else if (INDICES_BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    deprecationLogger.deprecated(
-                        "Object format in indices_boost is deprecated, please use array format instead");
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if (token.isValue()) {
-                            indexBoosts.add(new IndexBoost(currentFieldName, parser.floatValue()));
-                        } else {
-                            throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token +
-                                " in [" + currentFieldName + "].", parser.getTokenLocation());
-                        }
-                    }
                 } else if (AGGREGATIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())
                         || AGGS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     aggregations = AggregatorFactories.parseAggregators(parser);
@@ -1642,37 +1629,33 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         private final TimeValue keepAlive;
 
         public ReaderBuilder(String id, TimeValue keepAlive) {
-            if (id == null && keepAlive == null) {
-                throw new IllegalArgumentException("id or keep_alive must be specified");
-            }
-            this.id = id;
-            this.keepAlive = keepAlive;
+            this.id = Objects.requireNonNull(id);
+            this.keepAlive = Objects.requireNonNull(keepAlive);
         }
 
         public ReaderBuilder(StreamInput in) throws IOException {
-            id = in.readOptionalString();
-            keepAlive = in.readOptionalTimeValue();
+            id = in.readString();
+            keepAlive = in.readTimeValue();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(id);
-            out.writeOptionalTimeValue(keepAlive);
+            out.writeString(id);
+            out.writeTimeValue(keepAlive);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (id != null) {
-                builder.field(ID_FIELD.getPreferredName(), id);
-            }
-            if (keepAlive != null) {
-                builder.field(KEEP_ALIVE_FIELD.getPreferredName(), keepAlive);
-            }
+            builder.field(ID_FIELD.getPreferredName(), id);
+            builder.field(KEEP_ALIVE_FIELD.getPreferredName(), keepAlive);
             return builder;
         }
 
         public static ReaderBuilder fromXContent(XContentParser parser) throws IOException {
             final XContentParams params = PARSER.parse(parser, null);
+            if (params.id == null || params.keepAlive == null) {
+                throw new IllegalArgumentException("id and keep_alive must be specified");
+            }
             return new ReaderBuilder(params.id, params.keepAlive);
         }
 

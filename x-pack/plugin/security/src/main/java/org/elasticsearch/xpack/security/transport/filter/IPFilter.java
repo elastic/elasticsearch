@@ -197,7 +197,7 @@ public class IPFilter {
     }
 
     public boolean accept(String profile, InetSocketAddress peerAddress) {
-        if (licenseState.isIpFilteringAllowed() == false) {
+        if (licenseState.isSecurityEnabled() == false || licenseState.isIpFilteringAllowed() == false) {
             return true;
         }
 

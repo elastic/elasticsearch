@@ -670,6 +670,16 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         ShardSearchRequest request = new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
             new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null);
 
+        assertAcked(
+            client().admin().indices().prepareAliases()
+                .addAlias("index", "alias", new MatchNoneQueryBuilder())
+                .get()
+        );
+
+        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
+        assertFalse(service.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
+            new AliasFilter(new MatchNoneQueryBuilder(), "alias"), 1f, -1, null, null)).canMatch());
+
         CountDownLatch latch = new CountDownLatch(1);
         SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
         service.executeQueryPhase(request, randomBoolean(), task, new ActionListener<SearchPhaseResult>() {
@@ -999,6 +1009,16 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             }
         });
         latch.await();
+    }
+
+    public void testOpenReaderContext() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        PlainActionFuture<SearchContextId> future = new PlainActionFuture<>();
+        searchService.openReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
+        future.actionGet();
+        assertThat(searchService.getActiveContexts(), equalTo(1));
+        assertTrue(searchService.freeReaderContext(future.actionGet()));
     }
 
     private ReaderContext createReaderContext(IndexShard shard) {

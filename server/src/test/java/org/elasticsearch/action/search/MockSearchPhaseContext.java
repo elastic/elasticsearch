@@ -88,8 +88,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     @Override
     public void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         String scrollId = getRequest().scroll() != null ? TransportSearchHelper.buildScrollId(queryResults, Version.CURRENT) : null;
-        String readerContextId = getRequest().source() != null && getRequest().source().reader() != null ?
-            TransportSearchHelper.buildScrollId(queryResults, Version.CURRENT) : null;
+        String readerContextId = getRequest().reader() != null ? TransportSearchHelper.buildScrollId(queryResults, Version.CURRENT) : null;
         searchResponse.set(new SearchResponse(internalSearchResponse, scrollId, numShards, numSuccess.get(), 0, 0,
             failures.toArray(ShardSearchFailure.EMPTY_ARRAY), SearchResponse.Clusters.EMPTY, readerContextId));
     }

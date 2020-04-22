@@ -132,9 +132,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -2933,7 +2933,7 @@ public class TranslogTests extends ESTestCase {
                 assertThat(snapshot.totalOperations(), equalTo(expectedSnapshotOps));
                 Translog.Operation op;
                 while ((op = snapshot.next()) != null) {
-                    assertThat(Tuple.tuple(op.seqNo(), op.primaryTerm()), isIn(seenSeqNos));
+                    assertThat(Tuple.tuple(op.seqNo(), op.primaryTerm()), is(in(seenSeqNos)));
                     readFromSnapshot++;
                 }
                 readFromSnapshot += snapshot.skippedOperations();

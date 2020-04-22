@@ -308,15 +308,15 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertNotNull(state.metadata().componentTemplates().get("foo"));
 
         IndexTemplateV2 firstGlobalIndexTemplate =
-            new IndexTemplateV2(List.of("*"), template, List.of("foo"), 1L, null, null);
+            new IndexTemplateV2(List.of("*"), template, List.of("foo"), 1L, null, null, null);
         state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "globalIndexTemplate1", firstGlobalIndexTemplate);
 
         IndexTemplateV2 secondGlobalIndexTemplate =
-            new IndexTemplateV2(List.of("*"), template, List.of("foo"), 2L, null, null);
+            new IndexTemplateV2(List.of("*"), template, List.of("foo"), 2L, null, null, null);
         state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "globalIndexTemplate2", secondGlobalIndexTemplate);
 
         IndexTemplateV2 fooPatternIndexTemplate =
-            new IndexTemplateV2(List.of("foo-*"), template, List.of("foo"), 3L, null, null);
+            new IndexTemplateV2(List.of("foo-*"), template, List.of("foo"), 3L, null, null, null);
         state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "fooPatternIndexTemplate", fooPatternIndexTemplate);
 
         // update the component template to set the index.hidden setting
@@ -423,7 +423,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         waitToCreateComponentTemplate.await(10, TimeUnit.SECONDS);
 
         IndexTemplateV2 globalIndexTemplate = new IndexTemplateV2(List.of("*"), null, List.of("ct-with-index-hidden-setting"), null, null,
-            null);
+            null, null);
 
         expectThrows(InvalidIndexTemplateException.class, () ->
             metadataIndexTemplateService.putIndexTemplateV2("testing", true, "template-referencing-ct-with-hidden-index-setting",

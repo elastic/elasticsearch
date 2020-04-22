@@ -254,6 +254,12 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             }
             if (fieldContext.fieldType().indexOptions() == IndexOptions.NONE
                     || fieldContext.fieldType() instanceof DateFieldType == false) {
+                /*
+                 * We can't implement roundingPreparer in these cases because
+                 * we can't look up the min and max date without both the
+                 * search index (the first test) and the resolution which is
+                 * on the DateFieldType.
+                 */
                 return new ValuesSource.Numeric.FieldData((IndexNumericFieldData) fieldContext.indexFieldData());
             }
             return new ValuesSource.Numeric.FieldData((IndexNumericFieldData) fieldContext.indexFieldData()) {

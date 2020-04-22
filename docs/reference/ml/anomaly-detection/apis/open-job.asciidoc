@@ -47,6 +47,17 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
   (Optional, time) Controls the time to wait until a job has opened. The default
   value is 30 minutes.
 
+[[ml-open-job-response-body]]
+==== {api-response-body-title}
+
+`node`::
+  (string) The ID of the node that the job was opened on. If the job is allowed to 
+open lazily and has not yet been assigned to a node, this value is an empty string.
+
+`opened`::
+  (boolean) For a successful response, this value is always `true`. On failure, an
+  exception is returned instead.
+
 [[ml-open-job-example]]
 ==== {api-examples-title}
 
@@ -64,6 +75,7 @@ When the job opens, you receive the following results:
 [source,console-result]
 ----
 {
-  "opened": true
+  "opened" : true,
+  "node" : "node-1"
 }
 ----

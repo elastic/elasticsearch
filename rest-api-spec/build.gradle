@@ -13,4 +13,5 @@ artifacts {
 
 validateRestSpec {
    ignore "cat.thread_pool.json"
+   ignore "indices.put_mapping.json"
 }

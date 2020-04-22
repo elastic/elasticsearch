@@ -1,12 +1,12 @@
 # Only used for testing the docker images
-version: '3'
+version: '3.4'
 services:
   elasticsearch-default-1:
     image: elasticsearch:test
-    environment:  
-       - node.name=elasticsearch-default-1 
+    environment:
+       - node.name=elasticsearch-default-1
        - cluster.initial_master_nodes=elasticsearch-default-1,elasticsearch-default-2
-       - discovery.seed_hosts=elasticsearch-default-2:9300 
+       - discovery.seed_hosts=elasticsearch-default-2:9300
        - cluster.name=elasticsearch-default
        - bootstrap.memory_lock=true
        - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
@@ -15,21 +15,20 @@ services:
        - cluster.routing.allocation.disk.watermark.low=1b
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
-       - script.max_compilations_rate=2048/1m
-       - node.store.allow_mmap=false  
+       - node.store.allow_mmap=false
        - xpack.security.enabled=true
        - xpack.security.transport.ssl.enabled=true
        - xpack.security.http.ssl.enabled=true
        - xpack.security.authc.token.enabled=true
        - xpack.security.audit.enabled=true
-       - xpack.security.authc.realms.file.file1.order=0   
+       - xpack.security.authc.realms.file.file1.order=0
        - xpack.security.authc.realms.native.native1.order=1
        - xpack.security.transport.ssl.keystore.path=/usr/share/elasticsearch/config/testnode.jks
        - xpack.security.http.ssl.keystore.path=/usr/share/elasticsearch/config/testnode.jks
-       - xpack.http.ssl.verification_mode=certificate  
-       - xpack.security.transport.ssl.verification_mode=certificate  
+       - xpack.http.ssl.verification_mode=certificate
+       - xpack.security.transport.ssl.verification_mode=certificate
        - xpack.license.self_generated.type=trial
-    volumes: 
+    volumes:
        - ./build/repo:/tmp/es-repo
        - ./build/certs/testnode.jks:/usr/share/elasticsearch/config/testnode.jks
        - ./build/logs/default-1:/usr/share/elasticsearch/logs
@@ -40,13 +39,22 @@ services:
       memlock:
         soft: -1
         hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
     entrypoint: /docker-test-entrypoint.sh
+    healthcheck:
+      start_period: 15s
+      test: ["CMD", "curl", "-f", "-u", "x_pack_rest_user:x-pack-test-password", "-k", "https://localhost:9200"]
+      interval: 10s
+      timeout: 2s
+      retries: 5
   elasticsearch-default-2:
     image: elasticsearch:test
-    environment:  
+    environment:
        - node.name=elasticsearch-default-2
        - cluster.initial_master_nodes=elasticsearch-default-1,elasticsearch-default-2
-       - discovery.seed_hosts=elasticsearch-default-1:9300 
+       - discovery.seed_hosts=elasticsearch-default-1:9300
        - cluster.name=elasticsearch-default
        - bootstrap.memory_lock=true
        - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
@@ -55,21 +63,20 @@ services:
        - cluster.routing.allocation.disk.watermark.low=1b
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
-       - script.max_compilations_rate=2048/1m
-       - node.store.allow_mmap=false  
+       - node.store.allow_mmap=false
        - xpack.security.enabled=true
        - xpack.security.transport.ssl.enabled=true
        - xpack.security.http.ssl.enabled=true
        - xpack.security.authc.token.enabled=true
        - xpack.security.audit.enabled=true
-       - xpack.security.authc.realms.file.file1.order=0   
-       - xpack.security.authc.realms.native.native1.order=1  
+       - xpack.security.authc.realms.file.file1.order=0
+       - xpack.security.authc.realms.native.native1.order=1
        - xpack.security.transport.ssl.keystore.path=/usr/share/elasticsearch/config/testnode.jks
        - xpack.security.http.ssl.keystore.path=/usr/share/elasticsearch/config/testnode.jks
-       - xpack.http.ssl.verification_mode=certificate  
-       - xpack.security.transport.ssl.verification_mode=certificate  
+       - xpack.http.ssl.verification_mode=certificate
+       - xpack.security.transport.ssl.verification_mode=certificate
        - xpack.license.self_generated.type=trial
-    volumes: 
+    volumes:
        - ./build/repo:/tmp/es-repo
        - ./build/certs/testnode.jks:/usr/share/elasticsearch/config/testnode.jks
        - ./build/logs/default-2:/usr/share/elasticsearch/logs
@@ -80,13 +87,22 @@ services:
       memlock:
         soft: -1
         hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
     entrypoint: /docker-test-entrypoint.sh
+    healthcheck:
+      start_period: 15s
+      test: ["CMD", "curl", "-f", "-u", "x_pack_rest_user:x-pack-test-password", "-k", "https://localhost:9200"]
+      interval: 10s
+      timeout: 2s
+      retries: 5
   elasticsearch-oss-1:
     image: elasticsearch:test
-    environment:  
-       - node.name=elasticsearch-oss-1 
+    environment:
+       - node.name=elasticsearch-oss-1
        - cluster.initial_master_nodes=elasticsearch-oss-1,elasticsearch-oss-2
-       - discovery.seed_hosts=elasticsearch-oss-2:9300 
+       - discovery.seed_hosts=elasticsearch-oss-2:9300
        - cluster.name=elasticsearch-oss
        - bootstrap.memory_lock=true
        - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
@@ -95,9 +111,8 @@ services:
        - cluster.routing.allocation.disk.watermark.low=1b
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
-       - script.max_compilations_rate=2048/1m
-       - node.store.allow_mmap=false  
-    volumes: 
+       - node.store.allow_mmap=false
+    volumes:
        - ./build/oss-repo:/tmp/es-repo
        - ./build/logs/oss-1:/usr/share/elasticsearch/logs
     ports:
@@ -106,12 +121,21 @@ services:
       memlock:
         soft: -1
         hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    healthcheck:
+      start_period: 15s
+      test: ["CMD", "curl", "-f", "http://localhost:9200"]
+      interval: 10s
+      timeout: 2s
+      retries: 5
   elasticsearch-oss-2:
     image: elasticsearch:test
-    environment:  
+    environment:
        - node.name=elasticsearch-oss-2
        - cluster.initial_master_nodes=elasticsearch-oss-1,elasticsearch-oss-2
-       - discovery.seed_hosts=elasticsearch-oss-1:9300 
+       - discovery.seed_hosts=elasticsearch-oss-1:9300
        - cluster.name=elasticsearch-oss
        - bootstrap.memory_lock=true
        - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
@@ -120,9 +144,8 @@ services:
        - cluster.routing.allocation.disk.watermark.low=1b
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
-       - script.max_compilations_rate=2048/1m
-       - node.store.allow_mmap=false  
-    volumes: 
+       - node.store.allow_mmap=false
+    volumes:
        - ./build/oss-repo:/tmp/es-repo
        - ./build/logs/oss-2:/usr/share/elasticsearch/logs
     ports:
@@ -131,3 +154,9 @@ services:
       memlock:
         soft: -1
         hard: -1
+    healthcheck:
+      start_period: 15s
+      test: ["CMD", "curl", "-f", "http://localhost:9200"]
+      interval: 10s
+      timeout: 2s
+      retries: 5

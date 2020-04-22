@@ -19,9 +19,12 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.search.RestSearchActionV7;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,6 +32,8 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestUpdateByQueryActionV7 extends RestUpdateByQueryAction {
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestUpdateByQueryActionV7.class));
 
     @Override
     public List<Route> routes() {
@@ -47,7 +52,10 @@ public class RestUpdateByQueryActionV7 extends RestUpdateByQueryAction {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        request.param("type");
+        if (request.hasParam("type")) {
+            deprecationLogger.deprecatedAndMaybeLog("search_with_types", RestSearchActionV7.TYPES_DEPRECATION_MESSAGE);
+            request.param("type");
+        }
         return super.prepareRequest(request, client);
     }
 }

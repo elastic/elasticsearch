@@ -36,7 +36,7 @@ public class RestUpdateByQueryActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestUpdateByQueryAction();
+        action = new RestUpdateByQueryActionV7();
         controller().registerHandler(action);
     }
 

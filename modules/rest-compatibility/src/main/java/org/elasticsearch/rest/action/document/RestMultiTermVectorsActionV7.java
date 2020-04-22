@@ -73,9 +73,9 @@ public class RestMultiTermVectorsActionV7 extends RestMultiTermVectorsAction {
         multiTermVectorsRequest.ids(Strings.commaDelimitedListToStringArray(request.param("ids")));
         request.withContentOrSourceParamParserOrNull(p -> multiTermVectorsRequest.add(template, p, typeConsumer));
 
-        if (request.hasParam("type")) {
+        if (typeConsumer.hasTypes()) {
             request.param("type");
-            deprecationLogger.deprecatedAndMaybeLog("mtermvectors_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecatedAndMaybeLog("termvectors_with_types", TYPES_DEPRECATION_MESSAGE);
         }
         return channel -> client.multiTermVectors(multiTermVectorsRequest, new RestToXContentListener<>(channel));
     }

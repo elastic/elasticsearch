@@ -21,30 +21,24 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.compat.FakeCompatRestRequestBuilder;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class RestCreateIndexActionV7Tests extends RestActionTestCase {
 
-    String mimeType = "application/vnd.elasticsearch+json;compatible-with=7";
-    List<String> contentTypeHeader = Collections.singletonList(mimeType);
-
     RestCreateIndexActionV7 restHandler = new RestCreateIndexActionV7();
 
     @Before
     public void setUpAction() {
         controller().registerHandler(restHandler);
-
     }
 
     public void testTypeInMapping() throws IOException {
@@ -62,8 +56,7 @@ public class RestCreateIndexActionV7Tests extends RestActionTestCase {
 
         Map<String, String> params = new HashMap<>();
         params.put(RestCreateIndexActionV7.INCLUDE_TYPE_NAME_PARAMETER, "true");
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
-            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
+        RestRequest request = new FakeCompatRestRequestBuilder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withPath("/some_index")
             .withParams(params)
             .withContent(new BytesArray(content), null)

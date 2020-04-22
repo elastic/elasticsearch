@@ -167,13 +167,15 @@ public class AnalyticsResultProcessor {
         }
         PhaseProgress phaseProgress = result.getPhaseProgress();
         if (phaseProgress != null) {
-            LOGGER.debug("[{}] Analyzing progress updated to [{}]", analytics.getId(), phaseProgress.getProgressPercent());
+            LOGGER.debug("[{}] progress for phase [{}] updated to [{}]", analytics.getId(), phaseProgress.getPhase(),
+                phaseProgress.getProgressPercent());
             statsHolder.getProgressTracker().analyzingPercent.set(phaseProgress.getProgressPercent());
         }
 
         // TODO remove after process is writing out phase_progress
         Integer progressPercent = result.getProgressPercent();
         if (progressPercent != null) {
+            LOGGER.debug("[{}] Analyzing progress updated to [{}]", analytics.getId(), phaseProgress.getProgressPercent());
             statsHolder.getProgressTracker().analyzingPercent.set(progressPercent);
         }
 

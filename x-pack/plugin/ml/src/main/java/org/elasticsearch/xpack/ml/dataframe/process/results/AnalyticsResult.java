@@ -62,9 +62,11 @@ public class AnalyticsResult implements ToXContentObject {
     }
 
     private final RowResults rowResults;
-    // TODO remove after process is writing out phase_progress
     private final PhaseProgress phaseProgress;
+
+    // TODO remove after process is writing out phase_progress
     private final Integer progressPercent;
+
     private final TrainedModelDefinition.Builder inferenceModelBuilder;
     private final TrainedModelDefinition inferenceModel;
     private final MemoryUsage memoryUsage;

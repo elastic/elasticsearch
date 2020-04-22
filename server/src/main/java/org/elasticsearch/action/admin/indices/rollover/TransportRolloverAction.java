@@ -89,7 +89,10 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     @Override
     protected ClusterBlockException checkBlock(RolloverRequest request, ClusterState state) {
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, true,
-            request.indicesOptions().expandWildcardsOpen(), request.indicesOptions().expandWildcardsClosed());
+            request.indicesOptions().expandWildcardsOpen(), request.indicesOptions().expandWildcardsClosed(),
+            request.indicesOptions().expandWildcardsHidden(), request.indicesOptions().allowAliasesToMultipleIndices(),
+            request.indicesOptions().forbidClosedIndices(), request.indicesOptions().ignoreAliases(),
+            request.indicesOptions().ignoreThrottled(), request.indicesOptions().includeDataStreams());
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
             indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request.indices()));
     }

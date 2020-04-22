@@ -192,12 +192,15 @@ public class ReplicationOperation<
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] sending op [{}] to replica {} for request [{}]", shard.shardId(), opType, shard, replicaRequest);
         }
+        final Object actionKey = new Object();
 
         totalShards.incrementAndGet();
         pendingActions.incrementAndGet();
+        PendingReplicationActions pendingReplicationActions = primary.getPendingReplicationActions();
         final ActionListener<ReplicaResponse> replicationListener = new ActionListener<>() {
             @Override
             public void onResponse(ReplicaResponse response) {
+                pendingReplicationActions.removeReplicationAction(shard.currentNodeId(), actionKey);
                 successfulShards.incrementAndGet();
                 try {
                     updateCheckPoints(shard, response::localCheckpoint, response::globalCheckpoint);
@@ -208,6 +211,7 @@ public class ReplicationOperation<
 
             @Override
             public void onFailure(Exception replicaException) {
+                pendingReplicationActions.removeReplicationAction(shard.currentNodeId(), actionKey);
                 logger.trace(() -> new ParameterizedMessage(
                     "[{}] failure while performing [{}] on replica {}, request [{}]",
                     shard.shardId(), opType, shard, replicaRequest), replicaException);
@@ -248,6 +252,7 @@ public class ReplicationOperation<
         };
 
         replicationAction.run();
+        pendingReplicationActions.addPendingAction(shard.currentNodeId(), actionKey, replicationAction);
     }
 
     private void updateCheckPoints(ShardRouting shard, LongSupplier localCheckpointSupplier, LongSupplier globalCheckpointSupplier) {
@@ -430,9 +435,7 @@ public class ReplicationOperation<
          *
          * @return the pending replication actions
          */
-        default OngoingReplicationActions getOngoingReplicationActions() {
-            return null;
-        }
+        PendingReplicationActions getPendingReplicationActions();
     }
 
     /**

@@ -39,6 +39,7 @@ import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.replication.PendingReplicationActions;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
@@ -675,6 +676,10 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 return getPrimaryShard().getReplicationGroup();
             }
 
+            @Override
+            public PendingReplicationActions getPendingReplicationActions() {
+                return getPrimaryShard().getPendingReplicationActions();
+            }
         }
 
         class ReplicasRef implements ReplicationOperation.Replicas<ReplicaRequest> {

@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.PendingReplicationActions;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
@@ -279,6 +280,11 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
                     @Override
                     public ShardRouting routingEntry() {
                         return primary;
+                    }
+
+                    @Override
+                    public PendingReplicationActions getPendingReplicationActions() {
+                        return new PendingReplicationActions();
                     }
 
                     @Override

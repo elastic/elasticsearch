@@ -24,7 +24,7 @@ import com.carrotsearch.hppc.ObjectLongMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.action.support.replication.OngoingReplicationActions;
+import org.elasticsearch.action.support.replication.PendingReplicationActions;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
@@ -224,7 +224,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     private final double fileBasedRecoveryThreshold;
 
-    private final OngoingReplicationActions ongoingReplication;
+    private final PendingReplicationActions pendingReplication;
 
     /**
      * Get all retention leases tracked on this shard.
@@ -904,7 +904,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
         this.fileBasedRecoveryThreshold = IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.get(indexSettings.getSettings());
         this.safeCommitInfoSupplier = safeCommitInfoSupplier;
-        this.ongoingReplication = new OngoingReplicationActions();
+        this.pendingReplication = new PendingReplicationActions();
         assert Version.V_EMPTY.equals(indexSettings.getIndexVersionCreated()) == false;
         assert invariant();
     }
@@ -920,13 +920,13 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     /**
-     * Returns the ongoing replication actions for the shard.
+     * Returns the pending replication actions for the shard.
      *
-     * @return the ongoing replication actions
+     * @return the pending replication actions
      */
-    public OngoingReplicationActions getOngoingReplicationActions() {
+    public PendingReplicationActions getPendingReplicationActions() {
         assert primaryMode;
-        return ongoingReplication;
+        return pendingReplication;
     }
 
     private void updateReplicationGroupAndNotify(boolean replicasMightHaveChanged) {
@@ -938,7 +938,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 .collect(Collectors.toSet());
             for (ShardRouting replica : newReplicationGroup.getReplicationTargets()) {
                 if (oldReplicaNodeIds.contains(replica.currentNodeId()) == false) {
-                    ongoingReplication.nodeJoinedReplicationGroup(replica.currentNodeId());
+                    pendingReplication.nodeJoinedReplicationGroup(replica.currentNodeId());
                 }
             }
         }
@@ -949,7 +949,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 .collect(Collectors.toSet());
             for (ShardRouting replica : oldReplicationGroup.getReplicationTargets()) {
                 if (newReplicaNodeIds.contains(replica.currentNodeId()) == false) {
-                    ongoingReplication.nodeLeftReplicationGroup(replica.currentNodeId());
+                    pendingReplication.nodeLeftReplicationGroup(replica.currentNodeId());
                 }
             }
         }

@@ -571,6 +571,10 @@ public class ReplicationOperationTests extends ESTestCase {
             return replicationGroupSupplier.get();
         }
 
+        @Override
+        public PendingReplicationActions getPendingReplicationActions() {
+            return new PendingReplicationActions();
+        }
     }
 
     static class ReplicaResponse implements ReplicationOperation.ReplicaResponse {

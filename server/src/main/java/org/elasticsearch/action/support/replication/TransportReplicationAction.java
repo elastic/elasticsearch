@@ -926,8 +926,8 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
-        public OngoingReplicationActions getOngoingReplicationActions() {
-            return indexShard.getOngoingReplicationActions();
+        public PendingReplicationActions getPendingReplicationActions() {
+            return indexShard.getPendingReplicationActions();
         }
     }
 

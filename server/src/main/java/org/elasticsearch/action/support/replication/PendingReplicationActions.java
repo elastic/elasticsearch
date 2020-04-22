@@ -25,11 +25,11 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.util.Map;
 
-public class OngoingReplicationActions {
+public class PendingReplicationActions {
 
     private final Map<String, Map<Object, RetryableAction<?>>> onGoingReplicationActions = ConcurrentCollections.newConcurrentMap();
 
-    public void addPendingReplicationAction(String nodeId, Object actionKey, RetryableAction<?> replicationAction) {
+    public void addPendingAction(String nodeId, Object actionKey, RetryableAction<?> replicationAction) {
         Map<Object, RetryableAction<?>> ongoingActionsOnNode = onGoingReplicationActions.get(nodeId);
         if (ongoingActionsOnNode != null) {
             ongoingActionsOnNode.put(actionKey, replicationAction);
@@ -39,7 +39,7 @@ public class OngoingReplicationActions {
         }
     }
 
-    public void removePendingReplicationAction(String nodeId, Object actionKey) {
+    public void removeReplicationAction(String nodeId, Object actionKey) {
         Map<Object, RetryableAction<?>> ongoingActionsOnNode = onGoingReplicationActions.get(nodeId);
         if (ongoingActionsOnNode != null) {
             ongoingActionsOnNode.remove(actionKey);

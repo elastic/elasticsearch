@@ -45,6 +45,11 @@ public class RestCreateIndexActionV7 extends RestCreateIndexAction {
     public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
 
     @Override
+    public String getName() {
+        return "create_index_action_v7";
+    }
+
+    @Override
     public Version compatibleWithVersion() {
         return Version.V_7_0_0;
     }

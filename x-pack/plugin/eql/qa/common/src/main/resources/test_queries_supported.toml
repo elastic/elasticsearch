@@ -25,6 +25,11 @@ expected_event_ids = [17]
 
 
 [[queries]]
+query = 'any where number(string(serial_event_id), null) == 17'
+expected_event_ids = [17]
+
+
+[[queries]]
 query = 'any where number(string(serial_event_id), 10) == 17'
 expected_event_ids = [17]
 

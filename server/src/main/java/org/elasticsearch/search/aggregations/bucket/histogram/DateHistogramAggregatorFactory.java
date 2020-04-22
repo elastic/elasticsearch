@@ -91,7 +91,8 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
                 aggregatorSupplier.getClass().toString() + "]");
         }
         Rounding.Prepared preparedRounding = valuesSource.roundingPreparer(queryShardContext.getIndexReader()).apply(shardRounding);
-        return ((DateHistogramAggregationSupplier) aggregatorSupplier).build(name, factories, rounding, preparedRounding, order, keyed, minDocCount, extendedBounds, valuesSource, config.format(), searchContext,
+        return ((DateHistogramAggregationSupplier) aggregatorSupplier).build(name, factories, rounding, preparedRounding, order, keyed,
+            minDocCount, extendedBounds, valuesSource, config.format(), searchContext,
             parent, metadata);
     }
 

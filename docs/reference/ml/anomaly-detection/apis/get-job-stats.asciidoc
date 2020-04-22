@@ -279,8 +279,8 @@ available only for open jobs.
 [%collapsible%open]
 ====
 `attributes`:::
-(object) Lists node attributes. For example,
-`{"ml.machine_memory": "17179869184", "ml.max_open_jobs" : "20"}`.
+(object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=node-attributes]
   
 `ephemeral_id`:::
 (string)
@@ -294,7 +294,8 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=node-id]
 (string) The node name.
 
 `transport_address`:::
-(string) The host and port where transport HTTP connections are accepted.
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=node-transport-address]
 ====
 //End node
 

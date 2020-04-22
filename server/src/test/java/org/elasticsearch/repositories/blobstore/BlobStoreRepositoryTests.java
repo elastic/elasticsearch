@@ -50,6 +50,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.RepositoryDataTests.generateRandomRepoData;
@@ -197,7 +198,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         RepositoryData repositoryData = generateRandomRepoData();
         final long startingGeneration = repositoryData.getGenId();
         final PlainActionFuture<RepositoryData> future1 = PlainActionFuture.newFuture();
-        repository.writeIndexGen(repositoryData, startingGeneration, true, future1);
+        repository.writeIndexGen(repositoryData, startingGeneration, true, Function.identity(),future1);
 
         // write repo data again to index generational file, errors because we already wrote to the
         // N+1 generation from which this repository data instance was created
@@ -220,7 +221,8 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
     }
 
     private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) throws Exception {
-        PlainActionFuture.<RepositoryData, Exception>get(f -> repository.writeIndexGen(repositoryData, generation, true, f));
+        PlainActionFuture.<RepositoryData, Exception>get(f -> repository.writeIndexGen(repositoryData, generation, true,
+                Function.identity(), f));
     }
 
     private BlobStoreRepository setupRepo() {

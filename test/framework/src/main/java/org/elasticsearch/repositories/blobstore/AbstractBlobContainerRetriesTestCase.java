@@ -250,7 +250,8 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         assertThat(exception, either(instanceOf(SocketTimeoutException.class)).or(instanceOf(ConnectionClosedException.class))
             .or(instanceOf(RuntimeException.class)));
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT), either(containsString("read timed out")).or(
-            containsString("premature end of chunk coded message body: closing chunk expected")).or(containsString("Read timed out")));
+            containsString("premature end of chunk coded message body: closing chunk expected")).or(containsString("Read timed out"))
+            .or(containsString("unexpected end of file from server")));
         assertThat(exception.getSuppressed().length, equalTo(maxRetries));
     }
 
@@ -278,7 +279,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null);
 
         // HTTP server sends a partial response
-        final byte[] bytes = randomBlobContent(minIncompleteContentToSend() + 1);
+        final byte[] bytes = randomBlobContent(1);
         httpServer.createContext(downloadStorageEndpoint("read_blob_incomplete"), exchange -> {
             sendIncompleteContent(exchange, bytes);
             exchange.close();
@@ -286,7 +287,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
         final Exception exception = expectThrows(Exception.class, () -> {
             try (InputStream stream = randomBoolean() ?
-                blobContainer.readBlob("read_blob_incomplete", 0, minIncompleteContentToSend() + 1):
+                blobContainer.readBlob("read_blob_incomplete", 0, 1):
                 blobContainer.readBlob("read_blob_incomplete")) {
                 Streams.readFully(stream);
             }
@@ -308,7 +309,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
     private static final Pattern RANGE_PATTERN = Pattern.compile("^bytes=([0-9]+)-([0-9]+)$");
 
-    private static Tuple<Long, Long> getRange(HttpExchange exchange) {
+    protected static Tuple<Long, Long> getRange(HttpExchange exchange) {
         final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
         if (rangeHeader == null) {
             return Tuple.tuple(0L, MAX_RANGE_VAL);
@@ -348,7 +349,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         }
         exchange.getResponseHeaders().add("Content-Type", bytesContentType());
         exchange.sendResponseHeaders(HttpStatus.SC_OK, length);
-        int minSend = Math.min(minIncompleteContentToSend(), length - 1);
+        int minSend = Math.min(0, length - 1);
         final int bytesToSend = randomIntBetween(minSend, length - 1);
         if (bytesToSend > 0) {
             exchange.getResponseBody().write(bytes, rangeStart, bytesToSend);
@@ -356,10 +357,6 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         if (randomBoolean()) {
             exchange.getResponseBody().flush();
         }
-    }
-
-    protected int minIncompleteContentToSend() {
-        return 0;
     }
 
     /**

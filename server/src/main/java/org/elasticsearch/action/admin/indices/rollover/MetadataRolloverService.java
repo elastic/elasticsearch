@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.ALIAS;
 import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.DATA_STREAM;
@@ -55,6 +56,7 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.fi
  */
 public class MetadataRolloverService {
     private static final Pattern INDEX_NAME_PATTERN = Pattern.compile("^.*-\\d+$");
+    private static final List<IndexAbstraction.Type> VALID_ROLLOVER_TARGETS = List.of(ALIAS, DATA_STREAM);
 
     private final ThreadPool threadPool;
     private final MetadataCreateIndexService createIndexService;
@@ -253,9 +255,10 @@ public class MetadataRolloverService {
         if (indexAbstraction == null) {
             throw new IllegalArgumentException("rollover target [" + aliasOrDataStream + "] does not exist");
         }
-        if (List.of(ALIAS, DATA_STREAM).contains(indexAbstraction.getType()) == false) {
-            throw new IllegalArgumentException("rollover target is a [" + indexAbstraction.getType().getDisplayName() +
-                "] but [" + ALIAS.getDisplayName() + "] or [" + DATA_STREAM.getDisplayName() + "] was expected");
+        if (VALID_ROLLOVER_TARGETS.contains(indexAbstraction.getType()) == false) {
+            throw new IllegalArgumentException("rollover target is a [" + indexAbstraction.getType().getDisplayName() + "] but one of [" +
+                Strings.collectionToCommaDelimitedString(VALID_ROLLOVER_TARGETS.stream().map(IndexAbstraction.Type::getDisplayName)
+                    .collect(Collectors.toList())) + "] was expected");
         }
         if (indexAbstraction.getWriteIndex() == null) {
             throw new IllegalArgumentException(

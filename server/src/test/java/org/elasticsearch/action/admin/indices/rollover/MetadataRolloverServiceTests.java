@@ -223,7 +223,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         exception = expectThrows(IllegalArgumentException.class, () ->
             MetadataRolloverService.validate(metadata, randomFrom(index1, index2), randomAlphaOfLength(5)));
         assertThat(exception.getMessage(),
-            equalTo("rollover target is a [concrete index] but [alias] or [data_stream] was expected"));
+            equalTo("rollover target is a [concrete index] but one of [alias,data_stream] was expected"));
         final String aliasName = randomAlphaOfLength(5);
         exception = expectThrows(IllegalArgumentException.class, () ->
             MetadataRolloverService.validate(metadata, aliasName, randomAlphaOfLength(5))

@@ -71,7 +71,6 @@ import java.time.Period;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -146,7 +145,9 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final String password = randomPassword();
         terminal.addSecretInput(password);
-        terminal.addSecretInput(password); // confirm
+        if ("".equals(password) == false) {
+            terminal.addSecretInput(password);
+        } // confirm
 
         terminal.addTextInput(outFile.toString());
 
@@ -167,7 +168,9 @@ public class HttpCertificateCommandTests extends ESTestCase {
             wasEncrypted.set(true);
             return password.toCharArray();
         });
-        assertTrue("Password should have been required to decrypted key", wasEncrypted.get());
+        if ("".equals(password) == false) {
+            assertTrue("Password should have been required to decrypted key", wasEncrypted.get());
+        }
 
         final Path esReadmePath = zipRoot.resolve("elasticsearch/README.txt");
         assertThat(esReadmePath, isRegularFile());
@@ -190,22 +193,26 @@ public class HttpCertificateCommandTests extends ESTestCase {
         assertThat(esReadme, containsString(crtName));
         assertThat(esReadme, containsString(keyPath.getFileName().toString()));
         assertThat(esReadme, containsString(ymlPath.getFileName().toString()));
-        assertThat(esReadme, not(containsString(password)));
+        if ("".equals(password) == false) {
+            assertThat(esReadme, not(containsString(password)));
+        }
 
         // Verify the yml
         assertThat(yml, not(containsString(csrPath.getFileName().toString())));
         assertThat(yml, containsString(crtName));
         assertThat(yml, containsString(keyPath.getFileName().toString()));
-        assertThat(yml, not(containsString(password)));
+        if ("".equals(password) == false) {
+            assertThat(yml, not(containsString(password)));
+        }
 
         // Should not be a CA directory in CSR mode
         assertThat(zipRoot.resolve("ca"), not(pathExists()));
 
         // No CA in CSR mode
-        verifyKibanaDirectory(zipRoot,
-            false,
+        verifyKibanaDirectory(zipRoot, false, 
             Collections.singletonList("Certificate Signing Request"),
-            Arrays.asList(password, csrPath.getFileName().toString()));
+            Stream.of(password, csrPath.getFileName().toString())
+            .filter(s -> "".equals(s) == false).collect(Collectors.toList()));
     }
 
     public void testGenerateSingleCertificateWithExistingCA() throws Exception {
@@ -264,7 +271,9 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final String password = randomPassword();
         terminal.addSecretInput(password);
-        terminal.addSecretInput(password); // confirm
+        if ("".equals(password) == false) {
+            terminal.addSecretInput(password);
+        } // confirm
 
         terminal.addTextInput(outFile.toString());
 
@@ -299,19 +308,24 @@ public class HttpCertificateCommandTests extends ESTestCase {
         // Verify the README
         assertThat(readme, containsString(p12Path.getFileName().toString()));
         assertThat(readme, containsString(ymlPath.getFileName().toString()));
-        assertThat(readme, not(containsString(password)));
+        if ("".equals(password) == false) {
+            assertThat(readme, not(containsString(password)));
+        }
         assertThat(readme, not(containsString(caPassword)));
 
         // Verify the yml
         assertThat(yml, containsString(p12Path.getFileName().toString()));
-        assertThat(yml, not(containsString(password)));
+        if ("".equals(password) == false) {
+            assertThat(yml, not(containsString(password)));
+        }
         assertThat(yml, not(containsString(caPassword)));
 
         // Should not be a CA directory when using an existing CA.
         assertThat(zipRoot.resolve("ca"), not(pathExists()));
 
         verifyKibanaDirectory(zipRoot, true, Collections.singletonList("2. elasticsearch-ca.pem"),
-            Arrays.asList(password, caPassword, caKeyPath.getFileName().toString()));
+            Stream.of(password, caPassword, caKeyPath.getFileName().toString())
+                .filter(s -> "".equals(s) == false).collect(Collectors.toList()));
     }
 
     public void testGenerateMultipleCertificateWithNewCA() throws Exception {
@@ -354,7 +368,9 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final String caPassword = randomPassword();
         terminal.addSecretInput(caPassword);
-        terminal.addSecretInput(caPassword); // confirm
+        if ("".equals(caPassword) == false) {
+            terminal.addSecretInput(caPassword);
+        } // confirm
 
         final int certYears = randomIntBetween(1, 8);
         terminal.addTextInput(certYears + "y"); // node cert validity period
@@ -385,7 +401,9 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final String password = randomPassword();
         terminal.addSecretInput(password);
-        terminal.addSecretInput(password); // confirm
+        if ("".equals(password) == false) {
+            terminal.addSecretInput(password);
+        } // confirm
 
         terminal.addTextInput(outFile.toString());
 
@@ -429,17 +447,26 @@ public class HttpCertificateCommandTests extends ESTestCase {
             // Verify the README
             assertThat(readme, containsString(p12Path.getFileName().toString()));
             assertThat(readme, containsString(ymlPath.getFileName().toString()));
-            assertThat(readme, not(containsString(password)));
-            assertThat(readme, not(containsString(caPassword)));
+            if ("".equals(password) == false) {
+                assertThat(readme, not(containsString(password)));
+            }
+            if ("".equals(caPassword) == false) {
+                assertThat(readme, not(containsString(caPassword)));
+            }
 
             // Verify the yml
             assertThat(yml, containsString(p12Path.getFileName().toString()));
-            assertThat(yml, not(containsString(password)));
-            assertThat(yml, not(containsString(caPassword)));
+            if ("".equals(password) == false) {
+                assertThat(yml, not(containsString(password)));
+            }
+            if ("".equals(caPassword) == false) {
+                assertThat(yml, not(containsString(caPassword)));
+            }
         }
 
         verifyKibanaDirectory(zipRoot, true, Collections.singletonList("2. elasticsearch-ca.pem"),
-            Arrays.asList(password, caPassword, caPath.getFileName().toString()));
+            Stream.of(password, caPassword, caPath.getFileName().toString())
+                .filter(s -> "".equals(s) == false).collect(Collectors.toList()));
     }
 
     public void testParsingValidityPeriod() throws Exception {
@@ -596,7 +623,10 @@ public class HttpCertificateCommandTests extends ESTestCase {
     private String randomPassword() {
         // We want to assert that this password doesn't end up in any output files, so we need to make sure we
         // don't randomly generate a real word.
-        return randomAlphaOfLength(4) + randomFrom('~', '*', '%', '$', '|') + randomAlphaOfLength(4);
+        return randomFrom(
+            "",
+            randomAlphaOfLength(4) + randomFrom('~', '*', '%', '$', '|') + randomAlphaOfLength(4)
+        );
     }
 
     private void verifyCertificationRequest(PKCS10CertificationRequest csr, String certificateName, List<String> hostNames,

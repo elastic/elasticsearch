@@ -29,7 +29,7 @@ public abstract class GeoShapeValuesSource extends ValuesSource {
 
     };
 
-    abstract MultiGeoShapeValues geoShapeValues(LeafReaderContext context);
+    public abstract MultiGeoShapeValues geoShapeValues(LeafReaderContext context);
 
     @Override
     public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {

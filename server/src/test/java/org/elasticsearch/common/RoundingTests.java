@@ -752,6 +752,32 @@ public class RoundingTests extends ESTestCase {
         assertThat(rounding.round(time("2006-12-31T13:21:44.308Z")), isDate(time("2006-09-30T20:00:00Z"), tz));
     }
 
+    public void testPrepareLongRangeRoundsToMidnight() {
+        ZoneId tz = ZoneId.of("America/New_York");
+        long min = time("01980-01-01T00:00:00Z");
+        long max = time("10000-01-01T00:00:00Z");
+        Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.QUARTER_OF_YEAR).timeZone(tz).build();
+        assertThat(rounding.round(time("2006-12-31T13:21:44.308Z")), isDate(time("2006-10-01T04:00:00Z"), tz));
+        assertThat(rounding.round(time("9000-12-31T13:21:44.308Z")), isDate(time("9000-10-01T04:00:00Z"), tz));
+
+        Rounding.Prepared prepared = rounding.prepare(min, max);
+        assertThat(prepared.round(time("2006-12-31T13:21:44.308Z")), isDate(time("2006-10-01T04:00:00Z"), tz));
+        assertThat(prepared.round(time("9000-12-31T13:21:44.308Z")), isDate(time("9000-10-01T04:00:00Z"), tz));
+    }
+
+    public void testPrepareLongRangeRoundsNotToMidnight() {
+        ZoneId tz = ZoneId.of("Australia/Lord_Howe");
+        long min = time("01980-01-01T00:00:00Z");
+        long max = time("10000-01-01T00:00:00Z");
+        Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).timeZone(tz).build();
+        assertThat(rounding.round(time("2018-03-31T15:25:15.148Z")), isDate(time("2018-03-31T14:00:00Z"), tz));
+        assertThat(rounding.round(time("9000-03-31T15:25:15.148Z")), isDate(time("9000-03-31T15:00:00Z"), tz));
+
+        Rounding.Prepared prepared = rounding.prepare(min, max);
+        assertThat(prepared.round(time("2018-03-31T15:25:15.148Z")), isDate(time("2018-03-31T14:00:00Z"), tz));
+        assertThat(prepared.round(time("9000-03-31T15:25:15.148Z")), isDate(time("9000-03-31T15:00:00Z"), tz));
+    }
+
     private void assertInterval(long rounded, long nextRoundingValue, Rounding rounding, int minutes,
                                 ZoneId tz) {
         assertInterval(rounded, dateBetween(rounded, nextRoundingValue), nextRoundingValue, rounding, tz);

@@ -22,6 +22,7 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
@@ -72,6 +73,9 @@ public abstract class TransportSingleItemBulkWriteAction<
         bulkRequest.setRefreshPolicy(request.getRefreshPolicy());
         bulkRequest.timeout(request.timeout());
         bulkRequest.waitForActiveShards(request.waitForActiveShards());
+        if (request instanceof IndexRequest) {
+            bulkRequest.preferV2Templates(((IndexRequest) request).preferV2Templates());
+        }
         request.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
         return bulkRequest;
     }

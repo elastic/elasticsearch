@@ -24,7 +24,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.Set;
-import java.util.regex.Matcher;
 
 /**
  * A logger that logs deprecation notices.

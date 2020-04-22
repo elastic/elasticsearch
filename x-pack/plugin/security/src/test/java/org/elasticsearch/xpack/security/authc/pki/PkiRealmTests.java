@@ -77,6 +77,7 @@ public class PkiRealmTests extends ESTestCase {
                 .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
                 .build();
         licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isAuthorizationRealmAllowed()).thenReturn(true);
     }
 

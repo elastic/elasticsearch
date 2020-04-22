@@ -129,6 +129,9 @@ public class SourceLookup implements Map<String, Object> {
         return XContentMapValues.extractRawValues(path, loadSourceIfNeeded());
     }
 
+    /**
+     * For each of the provided paths, return its value in the source. Note that
+     */
     public Map<String, Object> extractValues(Collection<String> paths) {
         Map<String, Object> source = loadSourceIfNeeded();
         Map<String, Object> result = new HashMap<>(paths.size());

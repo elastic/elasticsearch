@@ -19,8 +19,11 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -39,7 +42,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
 
     @Override
     @SuppressWarnings("unchecked")
-    public void hitExecute(SearchContext context, HitContext hitContext) {
+    public void hitsExecute(SearchContext context, SearchHit[] hits) {
         FetchFieldsContext fetchFieldsContext = context.fetchFieldsContext();
         if (fetchFieldsContext == null || fetchFieldsContext.fields().isEmpty()) {
             return;
@@ -61,17 +64,24 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         }
 
         SourceLookup sourceLookup = context.lookup().source();
-        Map<String, Object> valuesByField = sourceLookup.extractValues(fields);
 
-        for (Map.Entry<String, Object> entry : valuesByField.entrySet()) {
-            String field = entry.getKey();
-            Object value = entry.getValue();
-            List<Object> values = value instanceof List
-                ? (List<Object>) value
-                : List.of(value);
+        for (SearchHit hit : hits) {
+            int readerIndex = ReaderUtil.subIndex(hit.docId(), context.searcher().getIndexReader().leaves());
+            LeafReaderContext readerContext = context.searcher().getIndexReader().leaves().get(readerIndex);
+            sourceLookup.setSegmentAndDocument(readerContext, hit.docId());
 
-            DocumentField documentField = new DocumentField(field, values);
-            hitContext.hit().setField(field, documentField);
+            Map<String, Object> valuesByField = sourceLookup.extractValues(fields);
+
+            for (Map.Entry<String, Object> entry : valuesByField.entrySet()) {
+                String field = entry.getKey();
+                Object value = entry.getValue();
+                List<Object> values = value instanceof List
+                    ? (List<Object>) value
+                    : List.of(value);
+
+                DocumentField documentField = new DocumentField(field, values);
+                hit.setField(field, documentField);
+            }
         }
     }
 }

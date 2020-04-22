@@ -19,22 +19,18 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.TestSearchContext;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -43,10 +39,8 @@ import static org.hamcrest.Matchers.hasItems;
 
 public class FetchFieldsPhaseTests extends ESSingleNodeTestCase {
 
-    private IndexService indexService;
-
     @Before
-    public void setupIndex() throws IOException {
+    public void createIndex() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
             .startObject("properties")
                 .startObject("field").field("type", "keyword").endObject()
@@ -60,71 +54,72 @@ public class FetchFieldsPhaseTests extends ESSingleNodeTestCase {
                 .startObject("field_that_does_not_match").field("type", "keyword").endObject()
             .endObject()
         .endObject();
-        indexService = createIndex("index", Settings.EMPTY, mapping);
+
+        client().admin().indices().prepareCreate("index").setMapping(mapping).get();
     }
 
     public void testLeafValues() throws IOException {
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
-            .array("field", "first", "second")
-            .startObject("object")
-                .field("field", "third")
-            .endObject()
-        .endObject();
+        indexDocument(XContentFactory.jsonBuilder().startObject()
+                .array("field", "first", "second")
+                .startObject("object")
+                    .field("field", "third")
+                .endObject()
+            .endObject());
 
-        FetchSubPhase.HitContext hitContext = hitExecute(indexService, source, List.of("field", "object.field"));
-        assertThat(hitContext.hit().getFields().size(), equalTo(2));
+        SearchHit hit = fetchFields("field", "object.field");
+        assertThat(hit.getFields().size(), equalTo(2));
 
-        DocumentField field = hitContext.hit().getFields().get("field");
+        DocumentField field = hit.getFields().get("field");
         assertNotNull(field);
         assertThat(field.getValues().size(), equalTo(2));
         assertThat(field.getValues(), hasItems("first", "second"));
 
-        DocumentField objectField = hitContext.hit().getFields().get("object.field");
+        DocumentField objectField = hit.getFields().get("object.field");
         assertNotNull(objectField);
         assertThat(objectField.getValues().size(), equalTo(1));
         assertThat(objectField.getValues(), hasItems("third"));
     }
 
     public void testObjectValues() throws IOException {
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
-            .startObject("float_range")
-                .field("gte", 0.0)
-                .field("lte", 2.718)
-            .endObject()
-        .endObject();
+        indexDocument(XContentFactory.jsonBuilder().startObject()
+                .startObject("float_range")
+                    .field("gte", 0.0)
+                    .field("lte", 2.718)
+                .endObject()
+            .endObject());
 
-        FetchSubPhase.HitContext hitContext = hitExecute(indexService, source, "float_range");
-        assertThat(hitContext.hit().getFields().size(), equalTo(1));
+        SearchHit hit = fetchFields("float_range");
+        assertThat(hit.getFields().size(), equalTo(1));
 
-        DocumentField rangeField = hitContext.hit().getFields().get("float_range");
+        DocumentField rangeField = hit.getFields().get("float_range");
         assertNotNull(rangeField);
         assertThat(rangeField.getValues().size(), equalTo(1));
         assertThat(rangeField.getValue(), equalTo(Map.of("gte", 0.0, "lte", 2.718)));
     }
 
     public void testFieldNamesWithWildcard() throws IOException {
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
-            .array("field", "first", "second")
-            .field("integer_field", "third")
-            .startObject("object")
-                .field("field", "fourth")
-            .endObject()
-        .endObject();
+        indexDocument(XContentFactory.jsonBuilder().startObject()
+                .array("field", "first", "second")
+                .field("integer_field", 42)
+                .startObject("object")
+                    .field("field", "fourth")
+                .endObject()
+            .endObject());
 
-        FetchSubPhase.HitContext hitContext = hitExecute(indexService, source, "*field");
-        assertThat(hitContext.hit().getFields().size(), equalTo(3));
+        SearchHit hit = fetchFields("*field");
+        assertThat(hit.getFields().size(), equalTo(3));
 
-        DocumentField field = hitContext.hit().getFields().get("field");
+        DocumentField field = hit.getFields().get("field");
         assertNotNull(field);
         assertThat(field.getValues().size(), equalTo(2));
         assertThat(field.getValues(), hasItems("first", "second"));
 
-        DocumentField otherField = hitContext.hit().getFields().get("integer_field");
+        DocumentField otherField = hit.getFields().get("integer_field");
         assertNotNull(otherField);
         assertThat(otherField.getValues().size(), equalTo(1));
-        assertThat(otherField.getValues(), hasItems("third"));
+        assertThat(otherField.getValues(), hasItems(42));
 
-        DocumentField objectField = hitContext.hit().getFields().get("object.field");
+        DocumentField objectField = hit.getFields().get("object.field");
         assertNotNull(objectField);
         assertThat(objectField.getValues().size(), equalTo(1));
         assertThat(objectField.getValues(), hasItems("fourth"));
@@ -138,77 +133,43 @@ public class FetchFieldsPhaseTests extends ESSingleNodeTestCase {
             .endObject()
         .endObject();
 
-        IndexService sourceDisabledIndexService = createIndex("disabled-index", Settings.EMPTY, mapping);
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
-            .field("field", "value")
-        .endObject();
+        client().admin().indices().prepareCreate("source-disabled")
+            .setMapping(mapping)
+            .get();
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> hitExecute(sourceDisabledIndexService, source, "field"));
-        assertThat(e.getMessage(), containsString("Unable to retrieve the requested [fields] since _source is disabled in the mapping"));
-    }
-
-    public void testNonExistentFields() throws IOException {
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
-            .field("field", "value")
-            .endObject();
-
-        FetchSubPhase.HitContext hitContext = hitExecute(indexService, source, "non_existent");
-        assertFalse(hitContext.hit().getFields().containsKey("non_existent"));
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () ->
+            client().prepareSearch("source-disabled").addFetchField("field").get());
+        assertThat(e.getCause().getMessage(), containsString(
+            "Unable to retrieve the requested [fields] since _source is disabled in the mapping"));
     }
 
     public void testObjectFields() throws IOException {
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+        indexDocument(XContentFactory.jsonBuilder().startObject()
             .array("field", "first", "second")
             .startObject("object")
                 .field("field", "third")
             .endObject()
-        .endObject();
+        .endObject());
 
-        FetchSubPhase.HitContext hitContext = hitExecute(indexService, source, "object");
-        assertFalse(hitContext.hit().getFields().containsKey("object"));
+        SearchHit hit = fetchFields("object");
+        assertFalse(hit.getFields().containsKey("object"));
     }
 
-    private FetchSubPhase.HitContext hitExecute(IndexService indexService, XContentBuilder source, String field) {
-        return hitExecute(indexService, source, List.of(field));
+    private void indexDocument(XContentBuilder source) {
+        client().prepareIndex("index")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .setSource(source)
+            .get();
     }
 
-    private FetchSubPhase.HitContext hitExecute(IndexService indexService, XContentBuilder source, List<String> fields) {
-        FetchFieldsContext fetchFieldsContext = new FetchFieldsContext(fields);
-        BytesReference sourceAsBytes = source != null ? BytesReference.bytes(source) : null;
-        SearchContext searchContext = new FetchFieldsPhaseTestSearchContext(indexService, fetchFieldsContext, sourceAsBytes);
-
-        FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
-        SearchHit searchHit = new SearchHit(1, null, null, null, null);
-        hitContext.reset(searchHit, null, 1, null);
-
-        FetchFieldsPhase phase = new FetchFieldsPhase();
-        phase.hitExecute(searchContext, hitContext);
-        return hitContext;
-    }
-
-    private static class FetchFieldsPhaseTestSearchContext extends TestSearchContext {
-        private final FetchFieldsContext context;
-        private final BytesReference source;
-
-        FetchFieldsPhaseTestSearchContext(IndexService indexService,
-                                          FetchFieldsContext context,
-                                          BytesReference source) {
-            super(indexService.getBigArrays(), indexService);
-            this.context = context;
-            this.source = source;
+    private SearchHit fetchFields(String... fields) {
+        SearchRequestBuilder builder = client().prepareSearch("index");
+        for (String field : fields) {
+            builder.addFetchField(field);
         }
+        SearchResponse response = builder.get();
 
-        @Override
-        public FetchFieldsContext fetchFieldsContext() {
-            return context;
-        }
-
-        @Override
-        public SearchLookup lookup() {
-            SearchLookup lookup = new SearchLookup(this.mapperService(), this::getForField);
-            lookup.source().setSource(source);
-            return lookup;
-        }
+        assertEquals(1, response.getHits().getHits().length);
+        return response.getHits().getHits()[0];
     }
 }

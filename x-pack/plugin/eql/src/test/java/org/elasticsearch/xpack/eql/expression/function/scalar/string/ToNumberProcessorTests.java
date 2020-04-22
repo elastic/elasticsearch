@@ -64,7 +64,6 @@ public class ToNumberProcessorTests extends ESTestCase {
         assertEquals(number, process(Double.toString(number), 10));
     }
 
-
     public void toNumberWithMissingInput() {
         assertNull(process(null, null));
         assertNull(process(null, 8));

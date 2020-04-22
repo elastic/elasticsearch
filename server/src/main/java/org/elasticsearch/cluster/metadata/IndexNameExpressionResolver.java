@@ -340,7 +340,7 @@ public class IndexNameExpressionResolver {
      * @return whether the specified alias or index exists. If the alias or index contains datemath then that is resolved too.
      */
     public boolean hasIndexOrAlias(String aliasOrIndex, ClusterState state) {
-        Context context = new Context(state, IndicesOptions.lenientExpandOpen());
+        Context context = new Context(state, IndicesOptions.lenientIncludeDataStreamsExpandOpen());
         String resolvedAliasOrIndex = dateMathExpressionResolver.resolveExpression(aliasOrIndex, context);
         return state.metadata().getIndicesLookup().containsKey(resolvedAliasOrIndex);
     }

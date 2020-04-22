@@ -32,6 +32,8 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateV2;
+import org.elasticsearch.cluster.metadata.IndexTemplateV2.DataStreamTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -49,11 +51,21 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class TransportBulkActionTests extends ESTestCase {
@@ -286,5 +298,45 @@ public class TransportBulkActionTests extends ESTestCase {
             assertThat(indexRequest.getPipeline(), equalTo("request-pipeline"));
             assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
         }
+    }
+
+    public void testResolveAutoCreateDataStreams() {
+        Metadata metadata;
+        {
+            Metadata.Builder mdBuilder = new Metadata.Builder();
+            DataStreamTemplate dataStreamTemplate = new DataStreamTemplate("@timestamp");
+            mdBuilder.put("1", new IndexTemplateV2(List.of("legacy-logs-*"), null, null, 10L, null, null, null));
+            mdBuilder.put("2", new IndexTemplateV2(List.of("logs-*"), null, null, 20L, null, null, dataStreamTemplate));
+            mdBuilder.put("3", new IndexTemplateV2(List.of("logs-foobar"), null, null, 30L, null, null, dataStreamTemplate));
+            metadata = mdBuilder.build();
+        }
+
+        Map<String, DataStreamTemplate> result = TransportBulkAction.resolveAutoCreateDataStreams(metadata, Set.of());
+        assertThat(result, anEmptyMap());
+
+        Set<String> autoCreateIndices = new HashSet<>(Set.of("logs-foobar", "logs-barbaz"));
+        result = TransportBulkAction.resolveAutoCreateDataStreams(metadata, autoCreateIndices);
+        assertThat(autoCreateIndices, empty());
+        assertThat(result, aMapWithSize(2));
+        assertThat(result, hasKey("logs-foobar"));
+        assertThat(result, hasKey("logs-barbaz"));
+
+        // An index that matches with a template without a data steam definition
+        autoCreateIndices = new HashSet<>(Set.of("logs-foobar", "logs-barbaz", "legacy-logs-foobaz"));
+        result = TransportBulkAction.resolveAutoCreateDataStreams(metadata, autoCreateIndices);
+        assertThat(autoCreateIndices, hasSize(1));
+        assertThat(autoCreateIndices, hasItem("legacy-logs-foobaz"));
+        assertThat(result, aMapWithSize(2));
+        assertThat(result, hasKey("logs-foobar"));
+        assertThat(result, hasKey("logs-barbaz"));
+
+        // An index that doesn't match with an index template
+        autoCreateIndices = new HashSet<>(Set.of("logs-foobar", "logs-barbaz", "my-index"));
+        result = TransportBulkAction.resolveAutoCreateDataStreams(metadata, autoCreateIndices);
+        assertThat(autoCreateIndices, hasSize(1));
+        assertThat(autoCreateIndices, hasItem("my-index"));
+        assertThat(result, aMapWithSize(2));
+        assertThat(result, hasKey("logs-foobar"));
+        assertThat(result, hasKey("logs-barbaz"));
     }
 }

@@ -69,7 +69,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         private final Runnable command;
         private Scheduler.ScheduledCancellable scheduled;
 
-        public ScheduledRunnable(ThreadPool threadPool, String executorName, TimeValue delay, Runnable command) {
+        ScheduledRunnable(ThreadPool threadPool, String executorName, TimeValue delay, Runnable command) {
             this.threadPool = threadPool;
             this.executorName = executorName;
 
@@ -527,13 +527,13 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             if (executionDelay.duration() > 0) {
                 logger.debug("throttling job [{}], wait for {} ({} {})", getJobId(), executionDelay, maximumRequestsPerSecond,
                         lastDocCount);
-                scheduledNextSearch = new ScheduledRunnable(threadPool, executorName, executionDelay, () -> triggerNextSearch(executionDelay.getNanos()));
+                scheduledNextSearch = new ScheduledRunnable(threadPool, executorName, executionDelay,
+                        () -> triggerNextSearch(executionDelay.getNanos()));
 
                 // corner case: if for whatever reason stop() has been called meanwhile fast forward
                 if (getState().equals(IndexerState.STOPPING)) {
                     scheduledNextSearch.reschedule(TimeValue.ZERO);
                 }
-
                 return;
             }
         }

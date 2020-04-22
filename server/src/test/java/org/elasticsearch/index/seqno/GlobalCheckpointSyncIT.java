@@ -138,7 +138,7 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
                                     (MockTransportService) internalCluster().getInstance(TransportService.class, node.getName());
                             final MockTransportService receiverTransportService =
                                     (MockTransportService) internalCluster().getInstance(TransportService.class, other.getName());
-                            senderTransportService.clearRule(receiverTransportService);
+                            senderTransportService.clearOutboundRules(receiverTransportService);
                         }
                     }
                 });

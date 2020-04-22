@@ -1003,7 +1003,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         Request startRequest = new Request("POST", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_start");
         startRequest.addParameter("start", "2016-06-01T00:00:00Z");
         Response response = client().performRequest(startRequest);
-        assertThat(EntityUtils.toString(response.getEntity()), equalTo("{\"started\":true}"));
+        assertThat(EntityUtils.toString(response.getEntity()), containsString("\"started\":true"));
         assertBusy(() -> {
             try {
                 Response getJobResponse = client().performRequest(new Request("GET",
@@ -1062,7 +1062,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         startRequest.addParameter("start", "2016-06-01T00:00:00Z");
         Response response = client().performRequest(startRequest);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        assertThat(EntityUtils.toString(response.getEntity()), equalTo("{\"started\":true}"));
+        assertThat(EntityUtils.toString(response.getEntity()), containsString("\"started\":true"));
 
         ResponseException e = expectThrows(ResponseException.class,
                 () -> client().performRequest(new Request("DELETE", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId)));
@@ -1154,7 +1154,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         options.addHeader("Authorization", authHeader);
         request.setOptions(options);
         Response startDatafeedResponse = client().performRequest(request);
-        assertThat(EntityUtils.toString(startDatafeedResponse.getEntity()), equalTo("{\"started\":true}"));
+        assertThat(EntityUtils.toString(startDatafeedResponse.getEntity()), containsString("\"started\":true"));
         assertBusy(() -> {
             try {
                 Response datafeedStatsResponse = client().performRequest(new Request("GET",

@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.client.ml;
 
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -30,48 +30,37 @@ import java.util.Objects;
 /**
  * Response indicating if the Machine Learning Datafeed is now started or not
  */
-public class StartDatafeedResponse implements ToXContentObject {
+public class StartDataFrameAnalyticsResponse extends AcknowledgedResponse {
 
-    private static final ParseField STARTED = new ParseField("started");
     private static final ParseField NODE = new ParseField("node");
 
-    public static final ConstructingObjectParser<StartDatafeedResponse, Void> PARSER =
+    public static final ConstructingObjectParser<StartDataFrameAnalyticsResponse, Void> PARSER =
         new ConstructingObjectParser<>(
-            "start_datafeed_response",
+            "start_data_frame_analytics_response",
             true,
-            (a) -> new StartDatafeedResponse((Boolean) a[0], (String) a[1]));
+            (a) -> new StartDataFrameAnalyticsResponse((Boolean) a[0], (String) a[1]));
 
     static {
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), STARTED);
+        declareAcknowledgedField(PARSER);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), NODE);
     }
 
-    private final boolean started;
     private final String node;
 
-    public StartDatafeedResponse(boolean started, String node) {
-        this.started = started;
+    public StartDataFrameAnalyticsResponse(boolean acknowledged, String node) {
+        super(acknowledged);
         this.node = node;
     }
 
-    public static StartDatafeedResponse fromXContent(XContentParser parser) throws IOException {
+    public static StartDataFrameAnalyticsResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
     /**
-     * Has the Datafeed started or not
+     * The node that the job was assigned to
      *
-     * @return boolean value indicating the Datafeed started status
-     */
-    public boolean isStarted() {
-        return started;
-    }
-
-    /**
-     * The node that the datafeed was assigned to
-     *
-     * @return The ID of a node if the datafeed was assigned to a node.  If an empty string is returned
-     *         it means the datafeed was allowed to open lazily and has not yet been assigned to a node.
+     * @return The ID of a node if the job was assigned to a node.  If an empty string is returned
+     *         it means the job was allowed to open lazily and has not yet been assigned to a node.
      *         If <code>null</code> is returned it means the server version is too old to return node
      *         information.
      */
@@ -89,24 +78,20 @@ public class StartDatafeedResponse implements ToXContentObject {
             return false;
         }
 
-        StartDatafeedResponse that = (StartDatafeedResponse) other;
-        return started == started
+        StartDataFrameAnalyticsResponse that = (StartDataFrameAnalyticsResponse) other;
+        return isAcknowledged() == that.isAcknowledged()
             && Objects.equals(node, that.node);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(started, node);
+        return Objects.hash(isAcknowledged(), node);
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(STARTED.getPreferredName(), started);
+    public void addCustomFields(XContentBuilder builder, Params params) throws IOException {
         if (node != null) {
             builder.field(NODE.getPreferredName(), node);
         }
-        builder.endObject();
-        return builder;
     }
 }

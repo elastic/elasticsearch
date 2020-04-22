@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
 import java.util.Collections;
@@ -57,7 +58,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
     private static final String CONFIG_ID = "config-id";
     private static final int NUM_ROWS = 100;
     private static final int NUM_COLS = 4;
-    private static final AnalyticsResult PROCESS_RESULT = new AnalyticsResult(null, null, null, null, null, null, null);
+    private static final AnalyticsResult PROCESS_RESULT = new AnalyticsResult(null, null, null, null, null, null, null, null);
 
     private Client client;
     private DataFrameAnalyticsAuditor auditor;
@@ -139,7 +140,11 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         inOrder.verify(task).getStatsHolder();
         inOrder.verify(task).isStopping();
         inOrder.verify(task).getAllocationId();
-        inOrder.verify(task).setFailed("[config-id] Could not create process as one already exists");
+
+        ArgumentCaptor<Exception> failureCaptor = ArgumentCaptor.forClass(Exception.class);
+        inOrder.verify(task).setFailed(failureCaptor.capture());
+        assertThat(failureCaptor.getValue().getMessage(), equalTo("[config-id] Could not create process as one already exists"));
+
         verifyNoMoreInteractions(task);
     }
 

@@ -46,6 +46,7 @@ import java.time.zone.ZoneOffsetTransition;
 import java.time.zone.ZoneRules;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A strategy for rounding milliseconds since epoch.
@@ -61,40 +62,48 @@ import java.util.Objects;
 public abstract class Rounding implements Writeable {
     public enum DateTimeUnit {
         WEEK_OF_WEEKYEAR((byte) 1, IsoFields.WEEK_OF_WEEK_BASED_YEAR) {
+            private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(7);
+
             long roundFloor(long utcMillis) {
                 return DateUtils.roundWeekOfWeekYear(utcMillis);
             }
 
             @Override
             long extraLocalOffsetLookup() {
-                return 604800000L; // 7 days worth of a milliseconds 
+                return extraLocalOffsetLookup;
             }
         },
         YEAR_OF_CENTURY((byte) 2, ChronoField.YEAR_OF_ERA) {
+            private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(366);
+
             long roundFloor(long utcMillis) {
                 return DateUtils.roundYear(utcMillis);
             }
 
             long extraLocalOffsetLookup() {
-                return 31622400000L; // 366 days worth of a milliseconds 
+                return extraLocalOffsetLookup;
             }
         },
         QUARTER_OF_YEAR((byte) 3, IsoFields.QUARTER_OF_YEAR) {
+            private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(92);
+
             long roundFloor(long utcMillis) {
                 return DateUtils.roundQuarterOfYear(utcMillis);
             }
 
             long extraLocalOffsetLookup() {
-                return 7948800000L; // 92 days worth of a milliseconds 
+                return extraLocalOffsetLookup;
             }
         },
         MONTH_OF_YEAR((byte) 4, ChronoField.MONTH_OF_YEAR) {
+            private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(31);
+
             long roundFloor(long utcMillis) {
                 return DateUtils.roundMonthOfYear(utcMillis);
             }
 
             long extraLocalOffsetLookup() {
-                return 2678400000L; // 31 days worth of a milliseconds 
+                return extraLocalOffsetLookup;
             }
         },
         DAY_OF_MONTH((byte) 5, ChronoField.DAY_OF_MONTH) {

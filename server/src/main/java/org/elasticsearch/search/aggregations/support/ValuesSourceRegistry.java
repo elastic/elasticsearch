@@ -59,7 +59,7 @@ public class ValuesSourceRegistry {
          *                  applied to that type.
          * @param aggregatorSupplier An Aggregation-specific specialization of AggregatorSupplier which will construct the mapped aggregator
          */
-        public synchronized void register(String aggregationName, Predicate<ValuesSourceType> appliesTo,
+        private void register(String aggregationName, Predicate<ValuesSourceType> appliesTo,
                                           AggregatorSupplier aggregatorSupplier) {
             if (aggregatorRegistry.containsKey(aggregationName) == false) {
                 aggregatorRegistry.put(aggregationName, new ArrayList<>());

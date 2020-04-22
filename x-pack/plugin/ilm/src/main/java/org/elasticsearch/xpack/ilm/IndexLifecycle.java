@@ -142,12 +142,10 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
     private final SetOnce<SnapshotRetentionService> snapshotRetentionService = new SetOnce<>();
     private final SetOnce<SnapshotHistoryStore> snapshotHistoryStore = new SetOnce<>();
     private Settings settings;
-    private boolean ilmEnabled;
     private boolean slmEnabled;
 
     public IndexLifecycle(Settings settings) {
         this.settings = settings;
-        this.ilmEnabled = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(settings);
         this.slmEnabled = XPackSettings.SNAPSHOT_LIFECYCLE_ENABLED.get(settings);
     }
 
@@ -180,17 +178,15 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                                                IndexNameExpressionResolver expressionResolver,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
         final List<Object> components = new ArrayList<>();
-        if (ilmEnabled) {
-            // This registers a cluster state listener, so appears unused but is not.
-            @SuppressWarnings("unused")
-            ILMHistoryTemplateRegistry ilmTemplateRegistry =
-                new ILMHistoryTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
-            ilmHistoryStore.set(new ILMHistoryStore(settings, new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN),
-                clusterService, threadPool));
-            indexLifecycleInitialisationService.set(new IndexLifecycleService(settings, client, clusterService, threadPool,
-                getClock(), System::currentTimeMillis, xContentRegistry, ilmHistoryStore.get()));
-            components.add(indexLifecycleInitialisationService.get());
-        }
+        // This registers a cluster state listener, so appears unused but is not.
+        @SuppressWarnings("unused")
+        ILMHistoryTemplateRegistry ilmTemplateRegistry =
+            new ILMHistoryTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
+        ilmHistoryStore.set(new ILMHistoryStore(settings, new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN),
+            clusterService, threadPool));
+        indexLifecycleInitialisationService.set(new IndexLifecycleService(settings, client, clusterService, threadPool,
+            getClock(), System::currentTimeMillis, xContentRegistry, ilmHistoryStore.get()));
+        components.add(indexLifecycleInitialisationService.get());
         if (slmEnabled) {
             // the template registry is a cluster state listener
             @SuppressWarnings("unused")
@@ -246,20 +242,19 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
         List<RestHandler> handlers = new ArrayList<>();
-        if (ilmEnabled) {
-            handlers.addAll(Arrays.asList(
-                new RestPutLifecycleAction(),
-                new RestGetLifecycleAction(),
-                new RestDeleteLifecycleAction(),
-                new RestExplainLifecycleAction(),
-                new RestRemoveIndexLifecyclePolicyAction(),
-                new RestMoveToStepAction(),
-                new RestRetryAction(),
-                new RestStopAction(),
-                new RestStartILMAction(),
-                new RestGetStatusAction()
-            ));
-        }
+        // add ILM rest handlers
+        handlers.addAll(Arrays.asList(
+            new RestPutLifecycleAction(),
+            new RestGetLifecycleAction(),
+            new RestDeleteLifecycleAction(),
+            new RestExplainLifecycleAction(),
+            new RestRemoveIndexLifecyclePolicyAction(),
+            new RestMoveToStepAction(),
+            new RestRetryAction(),
+            new RestStopAction(),
+            new RestStartILMAction(),
+            new RestGetStatusAction()
+        ));
         if (slmEnabled) {
             handlers.addAll(Arrays.asList(
                 new RestPutSnapshotLifecycleAction(),
@@ -287,20 +282,19 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         actions.add(ilmInfoAction);
         actions.add(slmUsageAction);
         actions.add(slmInfoAction);
-        if (ilmEnabled) {
-            actions.addAll(Arrays.asList(
-                new ActionHandler<>(PutLifecycleAction.INSTANCE, TransportPutLifecycleAction.class),
-                new ActionHandler<>(GetLifecycleAction.INSTANCE, TransportGetLifecycleAction.class),
-                new ActionHandler<>(DeleteLifecycleAction.INSTANCE, TransportDeleteLifecycleAction.class),
-                new ActionHandler<>(ExplainLifecycleAction.INSTANCE, TransportExplainLifecycleAction.class),
-                new ActionHandler<>(RemoveIndexLifecyclePolicyAction.INSTANCE, TransportRemoveIndexLifecyclePolicyAction.class),
-                new ActionHandler<>(MoveToStepAction.INSTANCE, TransportMoveToStepAction.class),
-                new ActionHandler<>(RetryAction.INSTANCE, TransportRetryAction.class),
-                new ActionHandler<>(StartILMAction.INSTANCE, TransportStartILMAction.class),
-                new ActionHandler<>(StopILMAction.INSTANCE, TransportStopILMAction.class),
-                new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class)
-            ));
-        }
+        // add ILM actions
+        actions.addAll(Arrays.asList(
+            new ActionHandler<>(PutLifecycleAction.INSTANCE, TransportPutLifecycleAction.class),
+            new ActionHandler<>(GetLifecycleAction.INSTANCE, TransportGetLifecycleAction.class),
+            new ActionHandler<>(DeleteLifecycleAction.INSTANCE, TransportDeleteLifecycleAction.class),
+            new ActionHandler<>(ExplainLifecycleAction.INSTANCE, TransportExplainLifecycleAction.class),
+            new ActionHandler<>(RemoveIndexLifecyclePolicyAction.INSTANCE, TransportRemoveIndexLifecyclePolicyAction.class),
+            new ActionHandler<>(MoveToStepAction.INSTANCE, TransportMoveToStepAction.class),
+            new ActionHandler<>(RetryAction.INSTANCE, TransportRetryAction.class),
+            new ActionHandler<>(StartILMAction.INSTANCE, TransportStartILMAction.class),
+            new ActionHandler<>(StopILMAction.INSTANCE, TransportStopILMAction.class),
+            new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class)
+        ));
         if (slmEnabled) {
             actions.addAll(Arrays.asList(
                 new ActionHandler<>(PutSnapshotLifecycleAction.INSTANCE, TransportPutSnapshotLifecycleAction.class),
@@ -319,10 +313,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
-        if (ilmEnabled) {
-            assert indexLifecycleInitialisationService.get() != null;
-            indexModule.addIndexEventListener(indexLifecycleInitialisationService.get());
-        }
+        assert indexLifecycleInitialisationService.get() != null;
+        indexModule.addIndexEventListener(indexLifecycleInitialisationService.get());
     }
 
     @Override

@@ -14,12 +14,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.PolicyStats;
@@ -57,7 +55,7 @@ public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() {
         IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
+            mock(TransportService.class), mock(ActionFilters.class), licenseState);
 
         when(licenseState.isIndexLifecycleAllowed()).thenReturn(false);
         assertThat(featureSet.available(), equalTo(false));
@@ -66,22 +64,9 @@ public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
         assertThat(featureSet.available(), equalTo(true));
     }
 
-    public void testEnabled() {
-        Settings.Builder settings = Settings.builder().put("xpack.ilm.enabled", false);
-        IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
-        assertThat(featureSet.enabled(), equalTo(false));
-
-        settings = Settings.builder().put("xpack.ilm.enabled", true);
-        featureSet = new IndexLifecycleInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
-        assertThat(featureSet.enabled(), equalTo(true));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.INDEX_LIFECYCLE_ENABLED } );
-    }
-
     public void testName() {
         IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
+            mock(TransportService.class), mock(ActionFilters.class), licenseState);
         assertThat(featureSet.name(), equalTo("ilm"));
     }
 

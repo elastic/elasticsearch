@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
@@ -125,15 +124,14 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
     public MlIndexTemplateRegistry(Settings nodeSettings, ClusterService clusterService, ThreadPool threadPool, Client client,
                                    NamedXContentRegistry xContentRegistry) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
-        boolean ilmEnabled = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(settings);
         templatesToUse = Arrays.asList(
             ANOMALY_DETECTION_RESULTS_TEMPLATE,
-            ilmEnabled ? ANOMALY_DETECTION_STATE_TEMPLATE : ANOMALY_DETECTION_STATE_TEMPLATE_NO_ILM,
+            ANOMALY_DETECTION_STATE_TEMPLATE,
             CONFIG_TEMPLATE,
             INFERENCE_TEMPLATE,
             META_TEMPLATE,
             NOTIFICATIONS_TEMPLATE,
-            ilmEnabled ? STATS_TEMPLATE : STATS_TEMPLATE_NO_ILM);
+            STATS_TEMPLATE);
     }
 
     @Override

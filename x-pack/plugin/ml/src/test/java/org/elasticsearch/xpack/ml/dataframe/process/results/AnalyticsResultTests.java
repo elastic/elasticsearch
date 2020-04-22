@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStat
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
+import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.util.ArrayList;
@@ -41,6 +42,7 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
     @Override
     protected AnalyticsResult createTestInstance() {
         RowResults rowResults = null;
+        PhaseProgress phaseProgress = null;
         Integer progressPercent = null;
         TrainedModelDefinition.Builder inferenceModel = null;
         MemoryUsage memoryUsage = null;
@@ -49,6 +51,9 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
         RegressionStats regressionStats = null;
         if (randomBoolean()) {
             rowResults = RowResultsTests.createRandom();
+        }
+        if (randomBoolean()) {
+            phaseProgress = new PhaseProgress(randomAlphaOfLength(10), randomIntBetween(0, 100));
         }
         if (randomBoolean()) {
             progressPercent = randomIntBetween(0, 100);
@@ -68,8 +73,8 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
         if (randomBoolean()) {
             regressionStats = RegressionStatsTests.createRandom();
         }
-        return new AnalyticsResult(rowResults, progressPercent, inferenceModel, memoryUsage, outlierDetectionStats, classificationStats,
-            regressionStats);
+        return new AnalyticsResult(rowResults, phaseProgress, progressPercent, inferenceModel, memoryUsage, outlierDetectionStats,
+            classificationStats, regressionStats);
     }
 
     @Override

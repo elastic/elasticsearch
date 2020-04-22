@@ -933,9 +933,14 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         ReplicationGroup newReplicationGroup = calculateReplicationGroup();
         ReplicationGroup oldReplicationGroup = this.replicationGroup;
         if (replicasMightHaveChanged) {
-            Set<String> oldReplicaNodeIds = oldReplicationGroup.getReplicationTargets().stream()
-                .map(ShardRouting::currentNodeId)
-                .collect(Collectors.toSet());
+            Set<String> oldReplicaNodeIds;
+            if (oldReplicationGroup == null) {
+                oldReplicaNodeIds = Collections.emptySet();
+            } else {
+                oldReplicaNodeIds = oldReplicationGroup.getReplicationTargets().stream()
+                    .map(ShardRouting::currentNodeId)
+                    .collect(Collectors.toSet());
+            }
             for (ShardRouting replica : newReplicationGroup.getReplicationTargets()) {
                 if (oldReplicaNodeIds.contains(replica.currentNodeId()) == false) {
                     pendingReplication.nodeJoinedReplicationGroup(replica.currentNodeId());

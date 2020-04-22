@@ -43,7 +43,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.ConnectTransportException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -242,12 +242,10 @@ public class ReplicationOperation<
 
             @Override
             public boolean shouldRetry(Exception e) {
-                if (e instanceof RemoteTransportException) {
-                    final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                    return cause instanceof CircuitBreakingException ||
-                        cause instanceof EsRejectedExecutionException;
-                }
-                return false;
+                final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                return cause instanceof CircuitBreakingException ||
+                    cause instanceof EsRejectedExecutionException ||
+                    cause instanceof ConnectTransportException;
             }
         };
 

@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
@@ -36,12 +37,14 @@ import java.util.Map;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -571,7 +574,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertIsStopped(id);
 
         // Due to lazy start being allowed, this should succeed even though no node currently in the cluster is big enough
-        startAnalytics(id);
+        NodeAcknowledgedResponse response = startAnalytics(id);
+        assertThat(response.getNode(), emptyString());
 
         // Wait until state is STARTING, there is no node but there is an assignment explanation.
         assertBusy(() -> {
@@ -619,7 +623,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         putAnalytics(config);
 
         assertIsStopped(id);
-        startAnalytics(id);
+        NodeAcknowledgedResponse response = startAnalytics(id);
+        assertThat(response.getNode(), not(emptyString()));
 
         // Wait until state is one of REINDEXING or ANALYZING, or until it is STOPPED.
         assertBusy(() -> {
@@ -632,7 +637,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         // Now let's start it again
         try {
-            startAnalytics(id);
+            response = startAnalytics(id);
+            assertThat(response.getNode(), not(emptyString()));
         } catch (Exception e) {
             if (e.getMessage().equals("Cannot start because the job has already finished")) {
                 // That means the job had managed to complete

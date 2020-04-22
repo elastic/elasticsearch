@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
@@ -100,7 +101,9 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         super(name);
     }
 
-    protected HistogramAggregationBuilder(HistogramAggregationBuilder clone, org.elasticsearch.search.aggregations.AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected HistogramAggregationBuilder(HistogramAggregationBuilder clone,
+                                          AggregatorFactories.Builder factoriesBuilder,
+                                          Map<String, Object> metadata) {
         super(clone, factoriesBuilder, metadata);
         this.interval = clone.interval;
         this.offset = clone.offset;
@@ -112,7 +115,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(org.elasticsearch.search.aggregations.AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new HistogramAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
@@ -303,7 +306,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
-                                                       org.elasticsearch.search.aggregations.AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new HistogramAggregatorFactory(name, config, interval, offset, order, keyed, minDocCount, minBound, maxBound,
             queryShardContext, parent, subFactoriesBuilder, metadata);
     }

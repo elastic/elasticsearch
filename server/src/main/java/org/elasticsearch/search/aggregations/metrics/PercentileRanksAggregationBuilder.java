@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -62,13 +63,13 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
     }
 
     private PercentileRanksAggregationBuilder(PercentileRanksAggregationBuilder clone,
-                                              org.elasticsearch.search.aggregations.AggregatorFactories.Builder factoriesBuilder,
+                                              AggregatorFactories.Builder factoriesBuilder,
                                               Map<String, Object> metadata) {
         super(clone, factoriesBuilder, metadata);
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(org.elasticsearch.search.aggregations.AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new PercentileRanksAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
@@ -88,7 +89,7 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
     protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
                                                                      ValuesSourceConfig config,
                                                                      AggregatorFactory parent,
-                                                                     org.elasticsearch.search.aggregations.AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+                                                                     AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new PercentileRanksAggregatorFactory(name, config, values, configOrDefault(), keyed, queryShardContext,
                     parent, subFactoriesBuilder, metadata);
     }

@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -50,7 +51,7 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
     }
 
     protected StatsAggregationBuilder(StatsAggregationBuilder clone,
-                                      org.elasticsearch.search.aggregations.AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+                                      AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -59,7 +60,7 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(org.elasticsearch.search.aggregations.AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new StatsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
@@ -82,7 +83,8 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
 
     @Override
     protected StatsAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
-                                                AggregatorFactory parent, org.elasticsearch.search.aggregations.AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+                                                AggregatorFactory parent,
+                                                AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new StatsAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 

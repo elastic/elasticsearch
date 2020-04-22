@@ -119,7 +119,7 @@ public interface SearchPlugin {
      * in Core, as long as the new aggregations target different ValuesSourceTypes
      * @return A list of the new registrar functions
      */
-    default List<Consumer<ValuesSourceRegistry.Builder>> getBareAggregatorRegistrar() {
+    default List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
         return emptyList();
     }
     /**

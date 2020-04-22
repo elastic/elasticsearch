@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -54,7 +55,9 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
         super(name);
     }
 
-    protected MissingAggregationBuilder(MissingAggregationBuilder clone, org.elasticsearch.search.aggregations.AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected MissingAggregationBuilder(MissingAggregationBuilder clone,
+                                        AggregatorFactories.Builder factoriesBuilder,
+                                        Map<String, Object> metadata) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -64,7 +67,7 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(org.elasticsearch.search.aggregations.AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new MissingAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
@@ -93,7 +96,7 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
     protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
-                                                       org.elasticsearch.search.aggregations.AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new MissingAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 

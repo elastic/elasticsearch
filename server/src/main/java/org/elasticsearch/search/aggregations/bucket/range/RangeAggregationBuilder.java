@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -69,12 +70,14 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
         super(in, InternalRange.FACTORY, Range::new);
     }
 
-    protected RangeAggregationBuilder(RangeAggregationBuilder clone, org.elasticsearch.search.aggregations.AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected RangeAggregationBuilder(RangeAggregationBuilder clone,
+                                      AggregatorFactories.Builder factoriesBuilder,
+                                      Map<String, Object> metadata) {
         super(clone, factoriesBuilder, metadata);
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(org.elasticsearch.search.aggregations.AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new RangeAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
@@ -146,7 +149,8 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
 
     @Override
     protected RangeAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
-                                                AggregatorFactory parent, org.elasticsearch.search.aggregations.AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+                                                AggregatorFactory parent,
+                                                AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         // We need to call processRanges here so they are parsed before we make the decision of whether to cache the request
         Range[] ranges = processRanges(range -> {
             DocValueFormat parser = config.format();

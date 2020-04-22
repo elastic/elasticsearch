@@ -29,6 +29,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
@@ -108,7 +109,9 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         super(name);
     }
 
-    protected TermsAggregationBuilder(TermsAggregationBuilder clone, org.elasticsearch.search.aggregations.AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected TermsAggregationBuilder(TermsAggregationBuilder clone,
+                                      AggregatorFactories.Builder factoriesBuilder,
+                                      Map<String, Object> metadata) {
         super(clone, factoriesBuilder, metadata);
         this.order = clone.order;
         this.executionHint = clone.executionHint;
@@ -124,7 +127,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(org.elasticsearch.search.aggregations.AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new TermsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
@@ -343,7 +346,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
-                                                       org.elasticsearch.search.aggregations.AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new TermsAggregatorFactory(name, config, order, includeExclude, executionHint, collectMode,
                 bucketCountThresholds, showTermDocCountError, queryShardContext, parent, subFactoriesBuilder, metadata);
     }

@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -52,7 +53,9 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
         super(name);
     }
 
-    protected MaxAggregationBuilder(MaxAggregationBuilder clone, org.elasticsearch.search.aggregations.AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected MaxAggregationBuilder(MaxAggregationBuilder clone,
+                                    AggregatorFactories.Builder factoriesBuilder,
+                                    Map<String, Object> metadata) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -62,7 +65,7 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(org.elasticsearch.search.aggregations.AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new MaxAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
@@ -80,7 +83,8 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
 
     @Override
     protected MaxAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
-                                              AggregatorFactory parent, org.elasticsearch.search.aggregations.AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+                                              AggregatorFactory parent,
+                                              AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new MaxAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 

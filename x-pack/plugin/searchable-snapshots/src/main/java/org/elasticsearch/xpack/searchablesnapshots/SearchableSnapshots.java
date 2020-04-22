@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
@@ -67,29 +66,13 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 
 /**
  * Plugin for Searchable Snapshots feature
  */
 public class SearchableSnapshots extends Plugin implements IndexStorePlugin, EnginePlugin, ActionPlugin, ClusterPlugin {
-
-    private static final boolean SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED;
-
-    static {
-        final String property = System.getProperty("es.searchable_snapshots_feature_enabled");
-        if ("true".equals(property)) {
-            SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED = true;
-        } else if ("false".equals(property)) {
-            SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED = false;
-        } else if (property == null) {
-            SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED = Build.CURRENT.isSnapshot();
-        } else {
-            throw new IllegalArgumentException(
-                "expected es.searchable_snapshots_feature_enabled to be unset or [true|false] but was [" + property + "]"
-            );
-        }
-    }
 
     public static final Setting<String> SNAPSHOT_REPOSITORY_SETTING = Setting.simpleString(
         "index.store.snapshot.repository_name",
@@ -130,8 +113,6 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         Setting.Property.IndexScope,
         Setting.Property.NodeScope
     );
-
-    public static final String SNAPSHOT_DIRECTORY_FACTORY_KEY = "snapshot";
 
     private volatile Supplier<RepositoriesService> repositoriesServiceSupplier;
     private final SetOnce<CacheService> cacheService = new SetOnce<>();
@@ -196,7 +177,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
-        if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED && isSearchableSnapshotStore(indexModule.getSettings())) {
+        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexModule.getSettings())) {
             indexModule.addIndexEventListener(new SearchableSnapshotIndexEventListener());
         }
     }
@@ -218,10 +199,11 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-        if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED
-            && isSearchableSnapshotStore(indexSettings.getSettings())
+        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings())
             && indexSettings.getSettings().getAsBoolean("index.frozen", false) == false) {
-            return Optional.of(engineConfig -> new ReadOnlyEngine(engineConfig, null, new TranslogStats(), false, Function.identity()));
+            return Optional.of(
+                engineConfig -> new ReadOnlyEngine(engineConfig, null, new TranslogStats(), false, Function.identity(), false)
+            );
         }
         return Optional.empty();
     }
@@ -270,7 +252,4 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         }
     }
 
-    static boolean isSearchableSnapshotStore(Settings indexSettings) {
-        return SNAPSHOT_DIRECTORY_FACTORY_KEY.equals(INDEX_STORE_TYPE_SETTING.get(indexSettings));
-    }
 }

@@ -21,7 +21,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.spatial.SpatialPlugin;
+import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -37,7 +37,7 @@ public abstract class CartesianFieldMapperTests  extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class, SpatialPlugin.class, LocalStateCompositeXPackPlugin.class);
+        return pluginList(InternalSettingsPlugin.class, LocalStateSpatialPlugin.class, LocalStateCompositeXPackPlugin.class);
     }
 
     protected abstract XContentBuilder createDefaultMapping(String fieldName,

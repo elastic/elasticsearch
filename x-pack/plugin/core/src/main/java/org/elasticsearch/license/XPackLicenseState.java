@@ -598,6 +598,10 @@ public class XPackLicenseState {
         return allowForAllLicenses();
     }
 
+    public boolean isSpatialGoldAllowed() {
+        return isAllowedByLicense(OperationMode.GOLD);
+    }
+
     public boolean isAnalyticsAllowed() {
         return allowForAllLicenses();
     }

@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.geo.GeoPlugin;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -19,6 +20,7 @@ import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregatorSupplier
 import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.spatial.aggregations.metrics.GeoShapeBoundsAggregator;
@@ -31,6 +33,7 @@ import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.ingest.CircleProcessor;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -41,6 +44,11 @@ import java.util.function.Consumer;
 import static java.util.Collections.singletonList;
 
 public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlugin, SearchPlugin, IngestPlugin {
+
+    // to be overriden by tests
+    protected XPackLicenseState getLicenseState() {
+        return XPackPlugin.getSharedLicenseState();
+    }
 
     @Override
     public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -65,7 +73,12 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
 
     @Override
     public List<Consumer<ValuesSourceRegistry>> getBareAggregatorRegistrar() {
-        return List.of(SpatialPlugin::registerGeoShapeBoundsAggregator, SpatialPlugin::registerGeoShapeCentroidAggregator);
+        List<Consumer<ValuesSourceRegistry>> items = new ArrayList<>();
+        items.add(SpatialPlugin::registerGeoShapeBoundsAggregator);
+        if (getLicenseState().isSpatialGoldAllowed()) {
+            items.add(SpatialPlugin::registerGeoShapeCentroidAggregator);
+        }
+        return Collections.unmodifiableList(items);
     }
 
     @Override

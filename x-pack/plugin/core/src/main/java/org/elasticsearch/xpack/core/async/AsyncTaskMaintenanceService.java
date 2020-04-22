@@ -71,6 +71,7 @@ public abstract class AsyncTaskMaintenanceService implements Releasable, Cluster
         }
         IndexRoutingTable indexRouting = state.routingTable().index(index);
         if (indexRouting == null) {
+            stop();
             return;
         }
         String primaryNodeId = indexRouting.shard(0).primaryShard().currentNodeId();
@@ -80,7 +81,7 @@ public abstract class AsyncTaskMaintenanceService implements Releasable, Cluster
                 executeNextCleanup();
             }
         } else {
-            close();
+            stop();
         }
     }
 
@@ -119,9 +120,7 @@ public abstract class AsyncTaskMaintenanceService implements Releasable, Cluster
 
     @Override
     public void close() {
-        if (cancellable != null && cancellable.isCancelled() == false) {
-            cancellable.cancel();
-        }
+        stop();
         isClosed.compareAndSet(false, true);
     }
 }

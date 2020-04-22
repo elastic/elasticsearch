@@ -1077,6 +1077,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(response.getTotal().queryCache.getMemorySizeInBytes(), equalTo(0L));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55485")
     public void testBulkStats() throws Exception {
         final String index = "test";
         assertAcked(prepareCreate(index).setSettings(settingsBuilder().put("index.number_of_shards", 2)

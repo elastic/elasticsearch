@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -457,18 +458,21 @@ public class StreamTests extends ESTestCase {
     }
 
     public void testSetIsWriteable() throws IOException {
-        StreamOutput.checkWriteable(Set.of("a", "b"));
-        assertNotWriteable(Set.of(new Unwriteable()), Unwriteable.class);
+        StreamOutput.checkWriteable(new HashSet<>(Arrays.asList("a", "b")));
+        assertNotWriteable(Collections.singleton(new Unwriteable()), Unwriteable.class);
     }
 
     public void testListIsWriteable() throws IOException {
-        StreamOutput.checkWriteable(List.of("a", "b"));
-        assertNotWriteable(List.of(new Unwriteable()), Unwriteable.class);
+        StreamOutput.checkWriteable(Arrays.asList("a", "b"));
+        assertNotWriteable(Collections.singletonList(new Unwriteable()), Unwriteable.class);
     }
 
     public void testMapIsWriteable() throws IOException {
-        StreamOutput.checkWriteable(Map.of("a", "b", "c", "d"));
-        assertNotWriteable(Map.of("a", new Unwriteable()), Unwriteable.class);
+        Map<String, Object> goodMap = new HashMap<>();
+        goodMap.put("a", "b");
+        goodMap.put("c", "d");
+        StreamOutput.checkWriteable(goodMap);
+        assertNotWriteable(Collections.singletonMap("a", new Unwriteable()), Unwriteable.class);
     }
 
     public void testObjectArrayIsWriteable() throws IOException {

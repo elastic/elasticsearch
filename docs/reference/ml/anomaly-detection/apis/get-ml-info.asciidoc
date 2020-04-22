@@ -114,11 +114,11 @@ This is a possible response:
     "build_hash": "99a07c016d5a73"
   },
   "limits" : {
-    "current_effective_max_model_memory_limit": "28961mb"
+    "effective_max_model_memory_limit": "28961mb"
   }
 }
 ----
 // TESTRESPONSE[s/"upgrade_mode": false/"upgrade_mode": $body.upgrade_mode/]
 // TESTRESPONSE[s/"version": "7.0.0",/"version": "$body.native_code.version",/]
 // TESTRESPONSE[s/"build_hash": "99a07c016d5a73"/"build_hash": "$body.native_code.build_hash"/]
-// TESTRESPONSE[s/"current_effective_max_model_memory_limit": "28961mb"/"current_effective_max_model_memory_limit": "$body.limits.current_effective_max_model_memory_limit"/]
+// TESTRESPONSE[s/"effective_max_model_memory_limit": "28961mb"/"effective_max_model_memory_limit": "$body.limits.effective_max_model_memory_limit"/]

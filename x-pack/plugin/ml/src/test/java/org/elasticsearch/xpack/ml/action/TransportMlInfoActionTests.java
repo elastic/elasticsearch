@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class TransportMlInfoActionTests extends ESTestCase {
 
-    public void testCalculateCurrentEffectiveMaxModelMemoryLimit() {
+    public void testCalculateEffectiveMaxModelMemoryLimit() {
 
         int mlMemoryPercent = randomIntBetween(5, 90);
         long highestMlMachineMemory = -1;
@@ -49,14 +49,14 @@ public class TransportMlInfoActionTests extends ESTestCase {
         }
         DiscoveryNodes nodes = builder.build();
 
-        ByteSizeValue currentEffectiveMaxModelMemoryLimit =
-            TransportMlInfoAction.calculateCurrentEffectiveMaxModelMemoryLimit(mlMemoryPercent, nodes);
+        ByteSizeValue effectiveMaxModelMemoryLimit =
+            TransportMlInfoAction.calculateEffectiveMaxModelMemoryLimit(mlMemoryPercent, nodes);
 
         if (highestMlMachineMemory < 0) {
-            assertThat(currentEffectiveMaxModelMemoryLimit, nullValue());
+            assertThat(effectiveMaxModelMemoryLimit, nullValue());
         } else {
-            assertThat(currentEffectiveMaxModelMemoryLimit, notNullValue());
-            assertThat(currentEffectiveMaxModelMemoryLimit.getBytes()
+            assertThat(effectiveMaxModelMemoryLimit, notNullValue());
+            assertThat(effectiveMaxModelMemoryLimit.getBytes()
                     + Math.max(Job.PROCESS_MEMORY_OVERHEAD.getBytes(), DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes())
                     + MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(),
                 lessThanOrEqualTo(highestMlMachineMemory * mlMemoryPercent / 100));

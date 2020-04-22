@@ -110,7 +110,7 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
         return anomalyDetectorsDefaults;
     }
 
-    static ByteSizeValue calculateCurrentEffectiveMaxModelMemoryLimit(int maxMachineMemoryPercent, DiscoveryNodes nodes) {
+    static ByteSizeValue calculateEffectiveMaxModelMemoryLimit(int maxMachineMemoryPercent, DiscoveryNodes nodes) {
 
         long maxMlMemory = -1;
 
@@ -143,17 +143,17 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
 
     private Map<String, Object> limits() {
         Map<String, Object> limits = new HashMap<>();
-        ByteSizeValue currentEffectiveMaxModelMemoryLimit = calculateCurrentEffectiveMaxModelMemoryLimit(
+        ByteSizeValue effectiveMaxModelMemoryLimit = calculateEffectiveMaxModelMemoryLimit(
             clusterService.getClusterSettings().get(MachineLearning.MAX_MACHINE_MEMORY_PERCENT), clusterService.state().getNodes());
         ByteSizeValue maxModelMemoryLimit = clusterService.getClusterSettings().get(MachineLearningField.MAX_MODEL_MEMORY_LIMIT);
         if (maxModelMemoryLimit != null && maxModelMemoryLimit.getBytes() > 0) {
             limits.put("max_model_memory_limit", maxModelMemoryLimit.getStringRep());
-            if (currentEffectiveMaxModelMemoryLimit == null || currentEffectiveMaxModelMemoryLimit.compareTo(maxModelMemoryLimit) > 0) {
-                currentEffectiveMaxModelMemoryLimit = maxModelMemoryLimit;
+            if (effectiveMaxModelMemoryLimit == null || effectiveMaxModelMemoryLimit.compareTo(maxModelMemoryLimit) > 0) {
+                effectiveMaxModelMemoryLimit = maxModelMemoryLimit;
             }
         }
-        if (currentEffectiveMaxModelMemoryLimit != null) {
-            limits.put("current_effective_max_model_memory_limit", currentEffectiveMaxModelMemoryLimit.getStringRep());
+        if (effectiveMaxModelMemoryLimit != null) {
+            limits.put("effective_max_model_memory_limit", effectiveMaxModelMemoryLimit.getStringRep());
         }
         return limits;
     }

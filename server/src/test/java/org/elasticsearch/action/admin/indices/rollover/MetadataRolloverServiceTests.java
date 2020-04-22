@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -44,9 +45,11 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -58,6 +61,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -215,24 +219,25 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         }
         metadataBuilder.put(indexTwoBuilder);
         Metadata metadata = metadataBuilder.build();
+        CreateIndexRequest req = new CreateIndexRequest();
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
-            MetadataRolloverService.validate(metadata, aliasWithNoWriteIndex, randomAlphaOfLength(5)));
+            MetadataRolloverService.validate(metadata, aliasWithNoWriteIndex, randomAlphaOfLength(5), req));
         assertThat(exception.getMessage(),
             equalTo("rollover target [" + aliasWithNoWriteIndex + "] does not point to a write index"));
         exception = expectThrows(IllegalArgumentException.class, () ->
-            MetadataRolloverService.validate(metadata, randomFrom(index1, index2), randomAlphaOfLength(5)));
+            MetadataRolloverService.validate(metadata, randomFrom(index1, index2), randomAlphaOfLength(5), req));
         assertThat(exception.getMessage(),
             equalTo("rollover target is a [concrete index] but one of [alias,data_stream] was expected"));
         final String aliasName = randomAlphaOfLength(5);
         exception = expectThrows(IllegalArgumentException.class, () ->
-            MetadataRolloverService.validate(metadata, aliasName, randomAlphaOfLength(5))
+            MetadataRolloverService.validate(metadata, aliasName, randomAlphaOfLength(5), req)
         );
         assertThat(exception.getMessage(), equalTo("rollover target [" + aliasName + "] does not exist"));
-        MetadataRolloverService.validate(metadata, aliasWithWriteIndex, randomAlphaOfLength(5));
+        MetadataRolloverService.validate(metadata, aliasWithWriteIndex, randomAlphaOfLength(5), req);
     }
 
-    public void testDataStreamValidation() {
+    public void testDataStreamValidation() throws IOException {
         Metadata.Builder md = Metadata.builder();
         DataStream randomDataStream = DataStreamTests.randomInstance();
         for (Index index : randomDataStream.getIndices()) {
@@ -240,13 +245,33 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         }
         md.put(randomDataStream);
         Metadata metadata = md.build();
+        CreateIndexRequest req = new CreateIndexRequest();
+
+        MetadataRolloverService.validate(metadata, randomDataStream.getName(), null, req);
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
-            MetadataRolloverService.validate(metadata, randomDataStream.getName(), randomAlphaOfLength(5)));
+            MetadataRolloverService.validate(metadata, randomDataStream.getName(), randomAlphaOfLength(5), req));
         assertThat(exception.getMessage(),
             equalTo("new index name may not be specified when rolling over a data stream"));
 
-        MetadataRolloverService.validate(metadata, randomDataStream.getName(), null);
+        CreateIndexRequest aliasReq = new CreateIndexRequest().alias(new Alias("no_aliases_permitted"));
+        exception = expectThrows(IllegalArgumentException.class, () ->
+            MetadataRolloverService.validate(metadata, randomDataStream.getName(), null, aliasReq));
+        assertThat(exception.getMessage(),
+            equalTo("aliases, mappings, and index settings may not be specified when rolling over a data stream"));
+
+        String mapping = Strings.toString(JsonXContent.contentBuilder().startObject().startObject("_doc").endObject().endObject());
+        CreateIndexRequest mappingReq = new CreateIndexRequest().mapping(mapping);
+        exception = expectThrows(IllegalArgumentException.class, () ->
+            MetadataRolloverService.validate(metadata, randomDataStream.getName(), null, mappingReq));
+        assertThat(exception.getMessage(),
+            equalTo("aliases, mappings, and index settings may not be specified when rolling over a data stream"));
+
+        CreateIndexRequest settingReq = new CreateIndexRequest().settings(Settings.builder().put("foo", "bar"));
+        exception = expectThrows(IllegalArgumentException.class, () ->
+            MetadataRolloverService.validate(metadata, randomDataStream.getName(), null, settingReq));
+        assertThat(exception.getMessage(),
+            equalTo("aliases, mappings, and index settings may not be specified when rolling over a data stream"));
     }
 
     public void testGenerateRolloverIndexName() {
@@ -517,9 +542,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
             List<Condition<?>> metConditions = Collections.singletonList(condition);
-            int numberOfShards = randomIntBetween(1, 5);
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
-            createIndexRequest.settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards));
 
             long before = testThreadPool.absoluteTimeInMillis();
             MetadataRolloverService.RolloverResult rolloverResult =
@@ -534,7 +557,6 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             Metadata rolloverMetadata = rolloverResult.clusterState.metadata();
             assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.indices().size());
             IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
-            assertThat(rolloverIndexMetadata.getNumberOfShards(), equalTo(numberOfShards));
 
             IndexAbstraction ds = rolloverMetadata.getIndicesLookup().get(dataStream.getName());
             assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));

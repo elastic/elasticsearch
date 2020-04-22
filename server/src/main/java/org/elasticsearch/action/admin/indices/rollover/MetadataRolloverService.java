@@ -88,7 +88,7 @@ public class MetadataRolloverService {
     public RolloverResult rolloverClusterState(ClusterState currentState, String rolloverTarget, String newIndexName,
                                                CreateIndexRequest createIndexRequest, List<Condition<?>> metConditions,
                                                boolean silent) throws Exception {
-        validate(currentState.metadata(), rolloverTarget, newIndexName);
+        validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
         switch (indexAbstraction.getType()) {
             case ALIAS:
@@ -250,7 +250,7 @@ public class MetadataRolloverService {
         }
     }
 
-    static void validate(Metadata metadata, String rolloverTarget, String newIndexName) {
+    static void validate(Metadata metadata, String rolloverTarget, String newIndexName, CreateIndexRequest request) {
         final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(rolloverTarget);
         if (indexAbstraction == null) {
             throw new IllegalArgumentException("rollover target [" + rolloverTarget + "] does not exist");
@@ -264,8 +264,16 @@ public class MetadataRolloverService {
             throw new IllegalArgumentException(
                 "rollover target [" + indexAbstraction.getName() + "] does not point to a write index");
         }
-        if (indexAbstraction.getType() == DATA_STREAM && Strings.isNullOrEmpty(newIndexName) == false) {
-            throw new IllegalArgumentException("new index name may not be specified when rolling over a data stream");
+        if (indexAbstraction.getType() == DATA_STREAM) {
+            if (Strings.isNullOrEmpty(newIndexName) == false) {
+                throw new IllegalArgumentException("new index name may not be specified when rolling over a data stream");
+            }
+            if ((request.settings().equals(Settings.EMPTY) == false) ||
+                (request.aliases().size() > 0) ||
+                (request.mappings().equals("{}") == false)) {
+                throw new IllegalArgumentException(
+                    "aliases, mappings, and index settings may not be specified when rolling over a data stream");
+            }
         }
     }
 }

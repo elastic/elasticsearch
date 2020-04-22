@@ -157,6 +157,18 @@ public class FetchFieldsPhaseTests extends ESSingleNodeTestCase {
         assertFalse(hitContext.hit().getFields().containsKey("non_existent"));
     }
 
+    public void testObjectFields() throws IOException {
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .array("field", "first", "second")
+            .startObject("object")
+                .field("field", "third")
+            .endObject()
+        .endObject();
+
+        FetchSubPhase.HitContext hitContext = hitExecute(indexService, source, "object");
+        assertFalse(hitContext.hit().getFields().containsKey("object"));
+    }
+
     private FetchSubPhase.HitContext hitExecute(IndexService indexService, XContentBuilder source, String field) {
         return hitExecute(indexService, source, List.of(field));
     }

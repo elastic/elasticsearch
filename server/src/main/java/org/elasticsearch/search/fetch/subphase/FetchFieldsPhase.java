@@ -53,6 +53,9 @@ public final class FetchFieldsPhase implements FetchSubPhase {
 
         Set<String> fields = new HashSet<>();
         for (String fieldPattern : context.fetchFieldsContext().fields()) {
+            if (documentMapper.objectMappers().containsKey(fieldPattern)) {
+                continue;
+            }
             Collection<String> concreteFields = context.mapperService().simpleMatchToFullName(fieldPattern);
             fields.addAll(concreteFields);
         }

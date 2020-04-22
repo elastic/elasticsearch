@@ -347,7 +347,7 @@ public class MetadataCreateIndexService {
 
                 if (v1Templates.size() > 1) {
                     deprecationLogger.deprecatedAndMaybeLog("index_template_multiple_match", "index [{}] matches multiple templates " +
-                        "[{}], it won't be supported with index templates v2", request.index(),
+                        "[{}], and won't be supported with v2 index templates", request.index(),
                         v1Templates.stream().map(IndexTemplateMetadata::name).sorted().collect(Collectors.joining(", ")));
                 }
 

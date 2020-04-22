@@ -494,8 +494,13 @@ public class MetadataCreateIndexService {
                                                                                     throws Exception {
         logger.info("applying create index request using v2 template [{}]", templateName);
 
-        assert request.mappings().size() == 1 : "expected request metadata mappings to have 1 type but it had: " + request.mappings();
-        String sourceMappings = request.mappings().values().iterator().next();
+        final String sourceMappings;
+        if (request.mappings().size() > 0) {
+            assert request.mappings().size() == 1 : "expected request metadata mappings to have 1 type but it had: " + request.mappings();
+            sourceMappings = request.mappings().values().iterator().next();
+        } else {
+            sourceMappings = "{}";
+        }
         final Map<String, Map<String, Object>> mappings = resolveV2Mappings(sourceMappings,
             currentState, templateName, xContentRegistry);
 

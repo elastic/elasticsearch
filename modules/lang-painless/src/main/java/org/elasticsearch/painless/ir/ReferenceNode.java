@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,26 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.node;
+package org.elasticsearch.painless.ir;
 
+import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Interface for lambda/method reference nodes. They need special handling by LDefCall.
- * <p>
- * This is because they know nothing about the target interface, and can only push
- * all their captures onto the stack and defer everything until link-time.
- */
-interface ILambda {
+public abstract class ReferenceNode extends ExpressionNode {
 
-    /** Returns reference to resolve at link-time */
-    String getPointer();
+    /* ---- begin node data ---- */
 
-    /** Returns the types of captured parameters. Can be empty */
-    List<Class<?>> getCaptures();
+    private final List<String> captures = new ArrayList<>();
 
-    /** Returns the number of captured parameters */
-    default int getCaptureCount() {
-        return getCaptures().size();
+    public void addCapture(String capture) {
+        captures.add(capture);
     }
+
+    public List<String> getCaptures() {
+        return captures;
+    }
+
+    /* ---- end node data ---- */
+
 }

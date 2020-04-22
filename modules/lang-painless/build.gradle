@@ -16,7 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask;
+apply plugin: 'elasticsearch.validate-rest-spec'
 
 esplugin {
   description 'An easy, safe and fast scripting language for Elasticsearch'
@@ -190,4 +192,8 @@ task regen {
       patternset(includes: 'Painless*.java')
     }
   }
+}
+
+validateRestSpec {
+  ignore 'scripts_painless_context.json'
 }

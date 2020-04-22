@@ -33,12 +33,12 @@ Once these conditions are met, unfollow performs the following operations:
 * Unfollows the leader index.
 * Opens the follower index (which is at this point is a regular index).
 
-[[ilm-unfollow-action-options]]
-==== Unfollow options
+[[ilm-unfollow-options]]
+==== Options
 
 None.
 
-[[ilm-unfollow-action-example]]
+[[ilm-unfollow-ex]]
 ==== Example
 
 [source,console]

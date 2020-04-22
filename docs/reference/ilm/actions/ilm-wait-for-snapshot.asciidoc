@@ -1,19 +1,21 @@
 [role="xpack"]
 [[ilm-wait-for-snapshot]]
-=== Wait For Snapshot
+=== Wait for snapshot
 
 Phases allowed: delete.
 
-The Wait For Snapshot Action waits for defined SLM policy to be executed to ensure that snapshot of index exists before
-deletion.
+Waits for the specified {slm-init} policy to be executed before removing the index.
+This ensures that a snapshot of the deleted index is available. 
 
 [[ilm-wait-for-snapshot-options]]
-.Wait For Snapshot
-[options="header"]
-|======
-| Name                 | Required  | Default             | Description
-| `policy`             | yes       | -                   | SLM policy name that this action should wait for
-|======
+==== Options
+
+`policy`::
+(Required, string)
+Name of the {slm-init} policy that the delete action should wait for.
+
+[[ilm-wait-for-snapshot-ex]]
+==== Example
 
 [source,console]
 --------------------------------------------------

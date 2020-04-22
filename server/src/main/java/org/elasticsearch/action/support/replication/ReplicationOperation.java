@@ -43,7 +43,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.RemoteTransportException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -100,7 +100,6 @@ public class ReplicationOperation<
         this.request = request;
         this.opType = opType;
         this.primaryTerm = primaryTerm;
-
     }
 
     public void execute() throws Exception {
@@ -239,9 +238,12 @@ public class ReplicationOperation<
 
             @Override
             public boolean shouldRetry(Exception e) {
-                // Should we retry on NoNodeAvailableException?
-                return e instanceof ConnectTransportException || e instanceof CircuitBreakingException ||
-                    e instanceof EsRejectedExecutionException;
+                if (e instanceof RemoteTransportException) {
+                    final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    return cause instanceof CircuitBreakingException ||
+                        cause instanceof EsRejectedExecutionException;
+                }
+                return false;
             }
         };
 
@@ -422,6 +424,15 @@ public class ReplicationOperation<
          * @return the replication group
          */
         ReplicationGroup getReplicationGroup();
+
+        /**
+         * Returns the pending replication actions on the primary shard
+         *
+         * @return the pending replication actions
+         */
+        default OngoingReplicationActions getOngoingReplicationActions() {
+            return null;
+        }
     }
 
     /**

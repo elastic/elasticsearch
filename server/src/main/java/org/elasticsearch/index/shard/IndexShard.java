@@ -46,6 +46,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
+import org.elasticsearch.action.support.replication.OngoingReplicationActions;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.bulk.stats.ShardBulkStats;
@@ -2322,6 +2323,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertPrimaryMode();
         verifyNotClosed();
         return replicationTracker.getReplicationGroup();
+    }
+
+    /**
+     * Returns the ongoing replication actions for the shard.
+     *
+     * @return the replication group
+     */
+    public OngoingReplicationActions getOngoingReplicationActions() {
+        assert assertPrimaryMode();
+        verifyNotClosed();
+        return replicationTracker.getOngoingReplicationActions();
     }
 
     /**

@@ -924,6 +924,11 @@ public abstract class TransportReplicationAction<
         public ReplicationGroup getReplicationGroup() {
             return indexShard.getReplicationGroup();
         }
+
+        @Override
+        public OngoingReplicationActions getOngoingReplicationActions() {
+            return indexShard.getOngoingReplicationActions();
+        }
     }
 
 

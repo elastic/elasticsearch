@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.ObjectLongMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.replication.OngoingReplicationActions;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
@@ -222,6 +223,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * {@link IndexSettings#FILE_BASED_RECOVERY_THRESHOLD_SETTING}.
      */
     private final double fileBasedRecoveryThreshold;
+
+    private final OngoingReplicationActions ongoingReplication;
 
     /**
      * Get all retention leases tracked on this shard.
@@ -862,8 +865,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     /**
      * Initialize the global checkpoint service. The specified global checkpoint should be set to the last known global checkpoint, or
      * {@link SequenceNumbers#UNASSIGNED_SEQ_NO}.
-     *
-     * @param shardId               the shard ID
+     *  @param shardId               the shard ID
      * @param allocationId          the allocation ID
      * @param indexSettings         the index settings
      * @param operationPrimaryTerm  the current primary term
@@ -902,6 +904,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
         this.fileBasedRecoveryThreshold = IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.get(indexSettings.getSettings());
         this.safeCommitInfoSupplier = safeCommitInfoSupplier;
+        this.ongoingReplication = new OngoingReplicationActions();
         assert Version.V_EMPTY.equals(indexSettings.getIndexVersionCreated()) == false;
         assert invariant();
     }
@@ -914,6 +917,42 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     public ReplicationGroup getReplicationGroup() {
         assert primaryMode;
         return replicationGroup;
+    }
+
+    /**
+     * Returns the ongoing replication actions for the shard.
+     *
+     * @return the ongoing replication actions
+     */
+    public OngoingReplicationActions getOngoingReplicationActions() {
+        assert primaryMode;
+        return ongoingReplication;
+    }
+
+    private void updateReplicationGroupAndNotify(boolean replicasMightHaveChanged) {
+        ReplicationGroup newReplicationGroup = calculateReplicationGroup();
+        ReplicationGroup oldReplicationGroup = this.replicationGroup;
+        if (replicasMightHaveChanged) {
+            Set<String> oldReplicaNodeIds = oldReplicationGroup.getReplicationTargets().stream()
+                .map(ShardRouting::currentNodeId)
+                .collect(Collectors.toSet());
+            for (ShardRouting replica : newReplicationGroup.getReplicationTargets()) {
+                if (oldReplicaNodeIds.contains(replica.currentNodeId()) == false) {
+                    ongoingReplication.nodeJoinedReplicationGroup(replica.currentNodeId());
+                }
+            }
+        }
+        this.replicationGroup = newReplicationGroup;
+        if (oldReplicationGroup != null && replicasMightHaveChanged) {
+            Set<String> newReplicaNodeIds = newReplicationGroup.getReplicationTargets().stream()
+                .map(ShardRouting::currentNodeId)
+                .collect(Collectors.toSet());
+            for (ShardRouting replica : oldReplicationGroup.getReplicationTargets()) {
+                if (newReplicaNodeIds.contains(replica.currentNodeId()) == false) {
+                    ongoingReplication.nodeLeftReplicationGroup(replica.currentNodeId());
+                }
+            }
+        }
     }
 
     private ReplicationGroup calculateReplicationGroup() {
@@ -1089,7 +1128,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             }
             appliedClusterStateVersion = applyingClusterStateVersion;
             this.routingTable = routingTable;
-            replicationGroup = calculateReplicationGroup();
+            updateReplicationGroupAndNotify(true);
             if (primaryMode && removedEntries) {
                 updateGlobalCheckpointOnPrimary();
                 // notify any waiter for local checkpoint advancement to recheck that their shard is still being tracked.
@@ -1115,7 +1154,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             throw new IllegalStateException("no local checkpoint tracking information available");
         }
         cps.tracked = true;
-        replicationGroup = calculateReplicationGroup();
+        updateReplicationGroupAndNotify(true);
         assert invariant();
     }
 
@@ -1160,7 +1199,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             }
         } else {
             cps.inSync = true;
-            replicationGroup = calculateReplicationGroup();
+            updateReplicationGroupAndNotify(false);
             logger.trace("marked [{}] as in-sync", allocationId);
             updateGlobalCheckpointOnPrimary();
         }
@@ -1205,7 +1244,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             pendingInSync.remove(allocationId);
             pending = false;
             cps.inSync = true;
-            replicationGroup = calculateReplicationGroup();
+            updateReplicationGroupAndNotify(false);
             logger.trace("marked [{}] as in-sync", allocationId);
             notifyAllWaiters();
         }
@@ -1328,7 +1367,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             checkpoints.put(entry.getKey(), entry.getValue().copy());
         }
         routingTable = primaryContext.getRoutingTable();
-        replicationGroup = calculateReplicationGroup();
+        updateReplicationGroupAndNotify(true);
         updateGlobalCheckpointOnPrimary();
         // reapply missed cluster state update
         // note that if there was no cluster state update between start of the engine of this shard and the call to

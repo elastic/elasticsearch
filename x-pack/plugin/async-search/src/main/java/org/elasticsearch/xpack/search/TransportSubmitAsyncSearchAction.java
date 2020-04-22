@@ -8,14 +8,15 @@ package org.elasticsearch.xpack.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.tasks.CancellableTask;
@@ -142,7 +144,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier =
                         () -> requestToAggReduceContextBuilder.apply(request.getSearchRequest());
                 return new AsyncSearchTask(id, type, action, parentTaskId,
-                    () -> submitTask.isCancelled(), keepAlive, originHeaders, taskHeaders, searchId, store.getClient(),
+                    submitTask::isCancelled, keepAlive, originHeaders, taskHeaders, searchId, store.getClient(),
                     nodeClient.threadPool(), aggReduceContextSupplier);
             }
         };
@@ -173,37 +175,36 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                  AsyncSearchResponse response,
                                  Runnable nextAction) {
         if (submitTask.isCancelled() || searchTask.isCancelled()) {
-            // the user cancelled the submit so we ensure that there is nothing stored in the response index.
-            store.deleteResponse(searchTask.getSearchId(), false, ActionListener.wrap(() -> {
-                taskManager.unregister(searchTask);
-                nextAction.run();
-            }));
+            // the task was cancelled so we ensure that there is nothing stored in the response index.
+            store.deleteResponse(searchTask.getSearchId(), ActionListener.wrap(
+                resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
+                exc -> {
+                    logger.error(() -> new ParameterizedMessage("failed to clean async-search [{}]", searchTask.getSearchId()), exc);
+                    unregisterTaskAndMoveOn(searchTask, nextAction);
+                }));
             return;
         }
 
         try {
-            store.storeFinalResponse(searchTask.getSearchId().getDocId(), threadContext.getResponseHeaders(), response,
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(UpdateResponse updateResponse) {
-                        taskManager.unregister(searchTask);
-                        nextAction.run();
-                    }
-
-                    @Override
-                    public void onFailure(Exception exc) {
-                        if (exc.getCause() instanceof DocumentMissingException == false) {
-                            logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]",
-                                searchTask.getSearchId().getEncoded()), exc);
-                        }
-                        taskManager.unregister(searchTask);
-                        nextAction.run();
-                    }
-                });
+            store.storeFinalResponse(searchTask.getSearchId().getDocId(), threadContext.getResponseHeaders(),response,
+                ActionListener.wrap(resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
+                                    exc -> {
+                                        Throwable cause = ExceptionsHelper.unwrapCause(exc);
+                                        if (cause instanceof DocumentMissingException == false &&
+                                                cause instanceof VersionConflictEngineException == false) {
+                                            logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]",
+                                                searchTask.getSearchId().getEncoded()), exc);
+                                        }
+                                        unregisterTaskAndMoveOn(searchTask, nextAction);
+                                    }));
         } catch (Exception exc) {
             logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]", searchTask.getSearchId().getEncoded()), exc);
-            taskManager.unregister(searchTask);
-            nextAction.run();
+            unregisterTaskAndMoveOn(searchTask, nextAction);
         }
+    }
+
+    private void unregisterTaskAndMoveOn(SearchTask searchTask, Runnable nextAction) {
+        taskManager.unregister(searchTask);
+        nextAction.run();
     }
 }

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.HdrHistogram.DoubleHistogram;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.util.Arrays;
@@ -52,11 +51,6 @@ public class InternalHDRPercentilesTests extends InternalPercentilesTestCase<Int
             totalCount += ranks.state.getTotalCount();
         }
         assertEquals(totalCount, reduced.state.getTotalCount());
-    }
-
-    @Override
-    protected Writeable.Reader<InternalHDRPercentiles> instanceReader() {
-        return InternalHDRPercentiles::new;
     }
 
     @Override

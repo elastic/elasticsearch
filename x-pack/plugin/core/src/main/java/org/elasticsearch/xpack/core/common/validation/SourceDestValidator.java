@@ -222,7 +222,7 @@ public final class SourceDestValidator {
 
     // note: this is equivalent to the default for search requests
     private static final IndicesOptions DEFAULT_INDICES_OPTIONS_FOR_VALIDATION = IndicesOptions
-        .strictExpandOpenAndForbidClosedIgnoreThrottled();
+        .strictIncludeDataStreamsExpandOpenAndForbidClosedIgnoreThrottled();
 
     public static final SourceDestValidation SOURCE_MISSING_VALIDATION = new SourceMissingValidation();
     public static final SourceDestValidation REMOTE_SOURCE_VALIDATION = new RemoteSourceEnabledAndRemoteLicenseValidation();

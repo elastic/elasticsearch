@@ -1,0 +1,22 @@
+{
+  "idp.saml_validate": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/idp-saml-validate.html"
+    },
+    "stability": "stable",
+    "url": {
+      "paths": [
+        {
+          "path": "/_idp/saml/validate",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body": {
+      "description": "The SAML authentication request to validate",
+      "required": true
+    }
+  }
+}

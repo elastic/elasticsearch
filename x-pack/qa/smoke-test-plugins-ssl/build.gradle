@@ -55,7 +55,6 @@ testClusters.integTest {
   setting 'xpack.security.http.ssl.certificate_authorities', 'testnode.crt'
   keystore 'xpack.security.http.ssl.secure_key_passphrase', 'testnode'
 
-  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   // copy keystores, keys and certificates into config/
   extraConfigFile nodeKeystore.name, nodeKeystore
@@ -73,7 +72,7 @@ testClusters.integTest {
       // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)
       return
     }
-    plugin file(pluginProject.tasks.bundlePlugin.archiveFile)
+    plugin pluginProject.tasks.bundlePlugin.archiveFile
     tasks.integTest.dependsOn pluginProject.tasks.bundlePlugin
     pluginsCount += 1
   }

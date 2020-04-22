@@ -115,6 +115,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     public void testRolesWhenDlsFlsUnlicensed() throws IOException {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(false);
         RoleDescriptor flsRole = new RoleDescriptor("fls", null, new IndicesPrivileges[] {
                 IndicesPrivileges.builder()
@@ -185,6 +186,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     public void testRolesWhenDlsFlsLicensed() throws IOException {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         RoleDescriptor flsRole = new RoleDescriptor("fls", null, new IndicesPrivileges[] {
                 IndicesPrivileges.builder()

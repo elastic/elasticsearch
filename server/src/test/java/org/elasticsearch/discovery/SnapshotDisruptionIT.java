@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
@@ -149,17 +148,7 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
         ensureStableCluster(4, masterNode1);
         logger.info("--> done");
 
-        try {
-            future.get();
-        } catch (Exception ex) {
-            Throwable cause = ex.getCause();
-            if (cause.getCause() instanceof ConcurrentSnapshotExecutionException) {
-                logger.info("--> got exception from race in master operation retries");
-            } else {
-                logger.info("--> got exception from hanged master", ex);
-            }
-        }
-
+        future.get();
         assertAllSnapshotsCompleted();
     }
 
@@ -200,8 +189,7 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
                         final RepositoriesMetadata repoMeta =
                             event.state().metadata().custom(RepositoriesMetadata.TYPE);
                         final RepositoryMetadata metadata = repoMeta.repository("test-repo");
-                        if (metadata.generation() == metadata.pendingGeneration()
-                            && metadata.generation() > snapshotEntry.repositoryStateId()) {
+                        if (metadata.pendingGeneration() > snapshotEntry.repositoryStateId()) {
                             logger.info("--> starting disruption");
                             networkDisruption.startDisrupting();
                             clusterService.removeListener(this);
@@ -245,7 +233,8 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
             final SnapshotException sne = (SnapshotException) ExceptionsHelper.unwrap(ex, SnapshotException.class);
             assertNotNull(sne);
             assertThat(
-                sne.getMessage(), either(endsWith(" Failed to remove snapshot from cluster state")).or(endsWith(" no longer master")));
+                sne.getMessage(), either(endsWith(" Failed to update cluster state during snapshot finalization"))
+                            .or(endsWith(" no longer master")));
             assertThat(sne.getSnapshotName(), is(snapshot));
         }
 

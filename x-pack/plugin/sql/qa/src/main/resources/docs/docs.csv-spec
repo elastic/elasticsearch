@@ -95,11 +95,11 @@ showTables
 // tag::showTables
 SHOW TABLES;
 
-     name      |     type      |     kind      
----------------+---------------+---------------
-emp            |BASE TABLE     |INDEX          
-employees      |VIEW           |ALIAS          
-library        |BASE TABLE     |INDEX    
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX          
+employees      |VIEW      |ALIAS          
+library        |TABLE     |INDEX    
 
 // end::showTables
 ;
@@ -108,9 +108,9 @@ showTablesLikeExact
 // tag::showTablesLikeExact
 SHOW TABLES LIKE 'emp';
 
-     name      |     type      |     kind      
----------------+---------------+---------------
-emp            |BASE TABLE     |INDEX    
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX    
 
 // end::showTablesLikeExact
 ;
@@ -119,10 +119,10 @@ showTablesLikeWildcard
 // tag::showTablesLikeWildcard
 SHOW TABLES LIKE 'emp%';
 
-     name      |     type      |     kind      
----------------+---------------+---------------
-emp            |BASE TABLE     |INDEX          
-employees      |VIEW           |ALIAS             
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX          
+employees      |VIEW      |ALIAS             
 
 // end::showTablesLikeWildcard
 ;
@@ -132,9 +132,9 @@ showTablesLikeOneChar
 // tag::showTablesLikeOneChar
 SHOW TABLES LIKE 'em_';
 
-     name      |     type      |     kind      
----------------+---------------+---------------
-emp            |BASE TABLE     |INDEX     
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX     
 
 // end::showTablesLikeOneChar
 ;
@@ -143,9 +143,9 @@ showTablesLikeMixed
 // tag::showTablesLikeMixed
 SHOW TABLES LIKE '%em_';
 
-     name      |     type      |     kind      
----------------+---------------+---------------
-emp            |BASE TABLE     |INDEX        
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX        
 
 // end::showTablesLikeMixed
 ;
@@ -166,10 +166,10 @@ showTablesEsMultiIndex
 // tag::showTablesEsMultiIndex
 SHOW TABLES "*,-l*";
 
-     name      |     type      |     kind      
----------------+---------------+---------------
-emp            |BASE TABLE     |INDEX          
-employees      |VIEW           |ALIAS  
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX          
+employees      |VIEW      |ALIAS  
 
 // end::showTablesEsMultiIndex
 ;
@@ -182,12 +182,12 @@ showTablesIncludeFrozen
 // tag::showTablesIncludeFrozen
 SHOW TABLES INCLUDE FROZEN;
 
-     name      |     type      |     kind      
----------------+---------------+---------------
-archive        |BASE TABLE     |FROZEN INDEX
-emp            |BASE TABLE     |INDEX          
-employees      |VIEW           |ALIAS          
-library        |BASE TABLE     |INDEX    
+     name      | type     |     kind      
+---------------+----------+---------------
+archive        |TABLE     |FROZEN INDEX
+emp            |TABLE     |INDEX          
+employees      |VIEW      |ALIAS          
+library        |TABLE     |INDEX    
 
 // end::showTablesIncludeFrozen
 ;
@@ -240,6 +240,8 @@ CURTIME          |SCALAR
 DATEADD          |SCALAR
 DATEDIFF         |SCALAR
 DATEPART         |SCALAR
+DATETIME_FORMAT  |SCALAR
+DATETIME_PARSE   |SCALAR
 DATETRUNC        |SCALAR
 DATE_ADD         |SCALAR
 DATE_DIFF        |SCALAR
@@ -256,8 +258,8 @@ DAY_OF_WEEK      |SCALAR
 DAY_OF_YEAR      |SCALAR
 DOM              |SCALAR
 DOW              |SCALAR         
-DOY              |SCALAR         
-HOUR             |SCALAR         
+DOY              |SCALAR
+HOUR             |SCALAR
 HOUR_OF_DAY      |SCALAR         
 IDOW             |SCALAR
 ISODAYOFWEEK     |SCALAR
@@ -1131,13 +1133,25 @@ Georgi         |Facello        |10001
 ///////////////////////////////
 
 aggAvg
+schema::avg:d
 // tag::aggAvg
 SELECT AVG(salary) AS avg FROM emp;
 
-      avg:d      
+      avg
 ---------------
-48248.55          
+48248.55
 // end::aggAvg
+;
+
+aggAvgScalars
+schema::avg:d
+// tag::aggAvgScalars
+SELECT AVG(salary / 12.0) AS avg FROM emp;
+
+      avg
+---------------
+4020.7125
+// end::aggAvgScalars
 ;
 
 aggCountStar
@@ -1160,15 +1174,35 @@ SELECT COUNT(ALL last_name) AS count_all, COUNT(DISTINCT last_name) count_distin
 // end::aggCountAll
 ;
 
+aggCountAllScalars
+// tag::aggCountAllScalars
+SELECT COUNT(ALL CASE WHEN languages IS NULL THEN -1 ELSE languages END) AS count_all, COUNT(DISTINCT CASE WHEN languages IS NULL THEN -1 ELSE languages END) count_distinct FROM emp;
+
+   count_all   |  count_distinct
+---------------+---------------
+100            |6
+
+// end::aggCountAllScalars
+;
+
 aggCountDistinct
 // tag::aggCountDistinct
-
 SELECT COUNT(DISTINCT hire_date) unique_hires, COUNT(hire_date) AS hires FROM emp;
 
   unique_hires  |     hires
 ----------------+---------------
 99              |100
 // end::aggCountDistinct
+;
+
+aggCountDistinctScalars
+// tag::aggCountDistinctScalars
+SELECT COUNT(DISTINCT DATE_TRUNC('YEAR', hire_date)) unique_hires, COUNT(DATE_TRUNC('YEAR', hire_date)) AS hires FROM emp;
+
+ unique_hires  |     hires
+---------------+---------------
+14             |100
+// end::aggCountDistinctScalars
 ;
 
 firstWithOneArg
@@ -1235,6 +1269,19 @@ F             |   Sumant
 M             |   Remzi
 
 // end::firstValueWithTwoArgsAndGroupBy
+;
+
+firstValueWithTwoArgsAndGroupByScalars
+schema::gender:s|first:s
+// tag::firstValueWithTwoArgsAndGroupByScalars
+SELECT gender, FIRST_VALUE(SUBSTRING(first_name, 2, 6), birth_date) AS "first" FROM emp GROUP BY gender ORDER BY gender;
+
+    gender     |     first
+---------------+---------------
+null           |illian
+F              |umant
+M              |emzi
+// end::firstValueWithTwoArgsAndGroupByScalars
 ;
 
 lastWithOneArg
@@ -1305,6 +1352,18 @@ M          |   Hilari
 // end::lastValueWithTwoArgsAndGroupBy
 ;
 
+lastValueWithTwoArgsAndGroupByScalars
+schema::gender:s|last:s
+// tag::lastValueWithTwoArgsAndGroupByScalars
+SELECT gender, LAST_VALUE(SUBSTRING(first_name, 3, 8), birth_date) AS "last" FROM emp GROUP BY gender ORDER BY gender;
+
+    gender     |     last
+---------------+---------------
+null           |erhardt
+F              |ldiodio
+M              |lari
+// end::lastValueWithTwoArgsAndGroupByScalars
+;
 
 aggMax
 // tag::aggMax
@@ -1314,6 +1373,17 @@ SELECT MAX(salary) AS max FROM emp;
 ---------------
 74999               
 // end::aggMax
+;
+
+aggMaxScalars
+schema::max:d
+// tag::aggMaxScalars
+SELECT MAX(ABS(salary / -12.0)) AS max FROM emp;
+
+       max
+-----------------
+6249.916666666667
+// end::aggMaxScalars
 ;
 
 aggMin
@@ -1326,6 +1396,17 @@ SELECT MIN(salary) AS min FROM emp;
 // end::aggMin
 ;
 
+aggMinScalars
+schema::min:d
+// tag::aggMinScalars
+SELECT MIN(ABS(salary / 12.0)) AS min FROM emp;
+
+       min
+------------------
+2110.3333333333335
+// end::aggMinScalars
+;
+
 aggSum
 // tag::aggSum
 SELECT SUM(salary) AS sum FROM emp;
@@ -1334,6 +1415,17 @@ SELECT SUM(salary) AS sum FROM emp;
 ---------------
 4824855
 // end::aggSum
+;
+
+aggSumScalars
+schema::sum:d
+// tag::aggSumScalars
+SELECT ROUND(SUM(salary / 12.0), 1) AS sum FROM emp;
+
+      sum
+---------------
+402071.3
+// end::aggSumScalars
 ;
 
 aggKurtosis
@@ -1356,6 +1448,17 @@ SELECT MIN(salary) AS min, MAX(salary) AS max, AVG(salary) AS avg, MAD(salary) A
 // end::aggMad
 ;
 
+aggMadScalars
+schema::min:d|max:d|avg:d|mad:d
+// tag::aggMadScalars
+SELECT MIN(salary / 12.0) AS min, MAX(salary / 12.0) AS max, AVG(salary/ 12.0) AS avg, MAD(salary / 12.0) AS mad FROM emp;
+
+       min        |       max       |      avg      |       mad
+------------------+-----------------+---------------+-----------------
+2110.3333333333335|6249.916666666667|4020.7125      |841.3750000000002
+// end::aggMadScalars
+;
+
 aggPercentile
 // tag::aggPercentile
 SELECT languages, PERCENTILE(salary, 95) AS "95th" FROM emp 
@@ -1372,6 +1475,23 @@ null           |74999.0
 // end::aggPercentile
 ;
 
+aggPercentileScalars
+schema::languages:i|95th:d
+// tag::aggPercentileScalars
+SELECT languages, PERCENTILE(salary / 12.0, 95) AS "95th" FROM emp
+       GROUP BY languages;
+
+   languages   |       95th
+---------------+------------------
+null           |6249.916666666667
+1              |6065.875
+2              |5993.725
+3              |6136.520833333332
+4              |6009.633333333332
+5              |5089.3083333333325
+// end::aggPercentileScalars
+;
+
 aggPercentileRank
 // tag::aggPercentileRank
 SELECT languages, PERCENTILE_RANK(salary, 65000) AS rank FROM emp GROUP BY languages;
@@ -1385,6 +1505,22 @@ null           |73.65766569962062
 4              |85.70446389643493
 5              |100.0      
 // end::aggPercentileRank
+;
+
+aggPercentileRankScalars
+schema::languages:i|rank:d
+// tag::aggPercentileRankScalars
+SELECT languages, PERCENTILE_RANK(salary/12, 5000) AS rank FROM emp GROUP BY languages;
+
+   languages   |       rank
+---------------+------------------
+null           |66.91240875912409
+1              |66.70766707667076
+2              |84.13266895048271
+3              |61.052992625621684
+4              |76.55646443990001
+5              |94.00696864111498
+// end::aggPercentileRankScalars
 ;
 
 aggSkewness
@@ -1408,6 +1544,17 @@ SELECT MIN(salary) AS min, MAX(salary) AS max, STDDEV_POP(salary) AS stddev
 // end::aggStddevPop
 ;
 
+aggStddevPopScalars
+schema::min:d|max:d|stddev:d
+// tag::aggStddevPopScalars
+SELECT MIN(salary / 12.0) AS min, MAX(salary / 12.0) AS max, STDDEV_POP(salary / 12.0) AS stddev FROM emp;
+
+       min        |       max       |     stddev
+------------------+-----------------+-----------------
+2110.3333333333335|6249.916666666667|1147.093791898986
+// end::aggStddevPopScalars
+;
+
 
 aggSumOfSquares
 // tag::aggSumOfSquares
@@ -1420,6 +1567,16 @@ SELECT MIN(salary) AS min, MAX(salary) AS max, SUM_OF_SQUARES(salary) AS sumsq
 // end::aggSumOfSquares
 ;
 
+aggSumOfSquaresScalars
+schema::min:d|max:d|sumsq:d
+// tag::aggSumOfSquaresScalars
+SELECT MIN(salary / 24.0) AS min, MAX(salary / 24.0) AS max, SUM_OF_SQUARES(salary / 24.0) AS sumsq FROM emp;
+
+       min        |       max        |       sumsq
+------------------+------------------+-------------------
+1055.1666666666667|3124.9583333333335|4.370488293767361E8
+// end::aggSumOfSquaresScalars
+;
 
 aggVarPop
 // tag::aggVarPop
@@ -1431,6 +1588,17 @@ SELECT MIN(salary) AS min, MAX(salary) AS max, VAR_POP(salary) AS varpop FROM em
 // end::aggVarPop
 ;
 
+aggVarPopScalars
+schema::min:d|max:d|varpop:d
+// tag::aggVarPopScalars
+SELECT MIN(salary / 24.0) AS min, MAX(salary / 24.0) AS max, VAR_POP(salary / 24.0) AS varpop FROM emp;
+
+       min        |       max        |      varpop
+------------------+------------------+------------------
+1055.1666666666667|3124.9583333333335|328956.04185329855
+
+// end::aggVarPopScalars
+;
 
 ///////////////////////////////
 //
@@ -2548,6 +2716,58 @@ SELECT DATE_DIFF('minutes', '2019-09-04'::date, '2015-08-17T22:33:11.567Z'::date
 // end::dateDiffDateMinutes
 ;
 
+dateTimeFormatDate
+// tag::dateTimeFormatDate
+SELECT DATETIME_FORMAT(CAST('2020-04-05' AS DATE), 'dd/MM/YYYY') AS "date";
+
+      date
+------------------
+05/04/2020
+// end::dateTimeFormatDate
+;
+
+dateTimeFormatDateTime
+// tag::dateTimeFormatDateTime
+SELECT DATETIME_FORMAT(CAST('2020-04-05T11:22:33.987654' AS DATETIME), 'dd/MM/YYYY HH:mm:ss.SS') AS "datetime";
+
+      datetime
+------------------
+05/04/2020 11:22:33.98
+// end::dateTimeFormatDateTime
+;
+
+dateTimeFormatTime
+// tag::dateTimeFormatTime
+SELECT DATETIME_FORMAT(CAST('11:22:33.987' AS TIME), 'HH mm ss.S') AS "time";
+
+      time
+------------------
+11 22 33.9
+// end::dateTimeFormatTime
+;
+
+// Cannot assert millis: https://github.com/elastic/elasticsearch/issues/54947
+dateTimeParse1-Ignore
+schema::datetime:ts
+// tag::dateTimeParse1
+SELECT DATETIME_PARSE('07/04/2020 10:20:30.123', 'dd/MM/uuuu HH:mm:ss.SSS') AS "datetime";
+
+      datetime
+------------------------
+2020-04-07T10:20:30.123Z
+// end::dateTimeParse1
+;
+
+dateTimeParse2
+schema::datetime:ts
+// tag::dateTimeParse2
+SELECT DATETIME_PARSE('10:20:30 07/04/2020 Europe/Berlin', 'HH:mm:ss dd/MM/uuuu VV') AS "datetime";
+
+      datetime
+------------------------
+2020-04-07T08:20:30.000Z
+// end::dateTimeParse2
+;
 
 datePartDateTimeYears
 // tag::datePartDateTimeYears

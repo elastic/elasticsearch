@@ -38,7 +38,7 @@ compileJava.options.compilerArgs << '-Xlint:-cast,-rawtypes,-unchecked'
 compileTestJava.options.compilerArgs << '-Xlint:-rawtypes'
 
 // the main files are actually test files, so use the appropriate forbidden api sigs
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures', 'es-all-signatures', 'es-test-signatures'
 }
 

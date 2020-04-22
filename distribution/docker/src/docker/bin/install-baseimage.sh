@@ -74,8 +74,12 @@ yum --installroot="$target" --releasever=/ --setopt=tsflags=nodocs \
     java-latest-openjdk-headless \
     bash nc zip upzip pigz
 
-curl --retry 10 -L -o "$target"/bin/tini \
-  "https://github.com/krallin/tini/releases/download/v0.18.0/tini-static-$(basename $platform)"
+ARCH="$(basename $platform)"
+curl --retry 10 -L -o "$target"/bin/tini-static-$ARCH           "https://github.com/krallin/tini/releases/download/v0.19.0/tini-static-$ARCH"
+curl --retry 10 -L -o "$target"/bin/tini-static-$ARCH.sha256sum "https://github.com/krallin/tini/releases/download/v0.19.0/tini-static-$ARCH.sha256sum"
+(cd "$target/bin" && sha256sum -c tini-static-$ARCH.sha256sum)
+rm "$target"/bin/tini-static-$ARCH.sha256sum
+mv "$target"/bin/tini-static-$ARCH "$target"/bin/tini
 chmod +x "$target"/bin/tini
 
 # Use busybox instead of installing more RPMs, which can pull in all kinds of

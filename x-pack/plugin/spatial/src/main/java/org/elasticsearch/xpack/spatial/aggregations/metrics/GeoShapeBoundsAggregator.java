@@ -26,12 +26,12 @@ import java.util.Map;
 public final class GeoShapeBoundsAggregator extends MetricsAggregator {
     private final GeoShapeValuesSource valuesSource;
     private final boolean wrapLongitude;
-    protected DoubleArray tops;
-    protected DoubleArray bottoms;
-    protected DoubleArray posLefts;
-    protected DoubleArray posRights;
-    protected DoubleArray negLefts;
-    protected DoubleArray negRights;
+    private DoubleArray tops;
+    private DoubleArray bottoms;
+    private DoubleArray posLefts;
+    private DoubleArray posRights;
+    private DoubleArray negLefts;
+    private DoubleArray negRights;
 
     public GeoShapeBoundsAggregator(String name, SearchContext aggregationContext, Aggregator parent,
                              GeoShapeValuesSource valuesSource, boolean wrapLongitude, Map<String, Object> metadata) throws IOException {

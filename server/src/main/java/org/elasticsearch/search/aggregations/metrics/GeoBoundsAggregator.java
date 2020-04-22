@@ -36,20 +36,20 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
-public class GeoBoundsAggregator extends MetricsAggregator {
+final class GeoBoundsAggregator extends MetricsAggregator {
 
-    public static final ParseField WRAP_LONGITUDE_FIELD = new ParseField("wrap_longitude");
+    static final ParseField WRAP_LONGITUDE_FIELD = new ParseField("wrap_longitude");
 
     private final ValuesSource.GeoPoint valuesSource;
     private final boolean wrapLongitude;
-    protected DoubleArray tops;
-    protected DoubleArray bottoms;
-    protected DoubleArray posLefts;
-    protected DoubleArray posRights;
-    protected DoubleArray negLefts;
-    protected DoubleArray negRights;
+    DoubleArray tops;
+    DoubleArray bottoms;
+    DoubleArray posLefts;
+    DoubleArray posRights;
+    DoubleArray negLefts;
+    DoubleArray negRights;
 
-    public GeoBoundsAggregator(String name, SearchContext aggregationContext, Aggregator parent,
+    GeoBoundsAggregator(String name, SearchContext aggregationContext, Aggregator parent,
             ValuesSource.GeoPoint valuesSource, boolean wrapLongitude, Map<String, Object> metadata) throws IOException {
         super(name, aggregationContext, parent, metadata);
         this.valuesSource = valuesSource;

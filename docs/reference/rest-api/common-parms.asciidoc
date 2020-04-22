@@ -359,6 +359,13 @@ tag::help[]
 to `false`.
 end::help[]
 
+tag::bulk-id[]
+`_id`::
+(Optional, string)
+The document ID.
+If no ID is specified, a document ID is automatically generated.
+end::bulk-id[]
+
 tag::if_primary_term[]
 `if_primary_term`::
 (Optional, integer) Only perform the operation if the document has

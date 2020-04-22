@@ -19,14 +19,14 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
+import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class ShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geometry, Geometry> {
+public class ShapeIndexer implements AbstractShapeGeometryFieldMapper.Indexer<Geometry, Geometry> {
     private final String name;
 
     public ShapeIndexer(String name) {

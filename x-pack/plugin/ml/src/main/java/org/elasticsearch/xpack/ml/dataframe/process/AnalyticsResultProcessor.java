@@ -175,7 +175,7 @@ public class AnalyticsResultProcessor {
         // TODO remove after process is writing out phase_progress
         Integer progressPercent = result.getProgressPercent();
         if (progressPercent != null) {
-            LOGGER.debug("[{}] Analyzing progress updated to [{}]", analytics.getId(), phaseProgress.getProgressPercent());
+            LOGGER.debug("[{}] Analyzing progress updated to [{}]", analytics.getId(), progressPercent);
             statsHolder.getProgressTracker().analyzingPercent.set(progressPercent);
         }
 

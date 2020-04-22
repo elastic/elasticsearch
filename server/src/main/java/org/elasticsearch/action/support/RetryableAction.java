@@ -123,6 +123,7 @@ public abstract class RetryableAction<Response> {
 
         @Override
         public void onResponse(Response response) {
+            retryTask = null;
             if (isDone.compareAndSet(false, true)) {
                 finalListener.onResponse(response);
             }

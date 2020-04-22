@@ -96,7 +96,7 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
 
         @Override
         public boolean defaultDocValues(Version indexCreated) {
-            return Version.V_8_0_0.onOrBefore(indexCreated);
+            return Version.V_7_8_0.onOrBefore(indexCreated);
         }
 
         protected Explicit<Boolean> docValues() {

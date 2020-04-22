@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -22,6 +24,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
@@ -43,6 +46,7 @@ import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -306,7 +310,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertIsStopped(jobId);
         assertProgress(jobId, 0, 0, 0, 0);
 
-        startAnalytics(jobId);
+        NodeAcknowledgedResponse response = startAnalytics(jobId);
+        assertThat(response.getNode(), not(emptyString()));
 
         // Wait until state is one of REINDEXING or ANALYZING, or until it is STOPPED.
         assertBusy(() -> {
@@ -323,7 +328,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         // Now let's start it again
         try {
-            startAnalytics(jobId);
+            response = startAnalytics(jobId);
+            assertThat(response.getNode(), not(emptyString()));
         } catch (Exception e) {
             if (e.getMessage().equals("Cannot start because the job has already finished")) {
                 // That means the job had managed to complete
@@ -518,18 +524,33 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(analyticsTaskList(), hasSize(1));
         assertThat(analyticsAssignedTaskList(), is(empty()));
 
-        GetDataFrameAnalyticsStatsAction.Response.Stats analyticsStats = getAnalyticsStats(jobId);
-        assertThat(analyticsStats.getAssignmentExplanation(), is(equalTo(AWAITING_UPGRADE.getExplanation())));
-        assertThat(analyticsStats.getNode(), is(nullValue()));
+        assertBusy(() -> {
+            try {
+                GetDataFrameAnalyticsStatsAction.Response.Stats analyticsStats = getAnalyticsStats(jobId);
+                assertThat(analyticsStats.getAssignmentExplanation(), is(equalTo(AWAITING_UPGRADE.getExplanation())));
+                assertThat(analyticsStats.getNode(), is(nullValue()));
+            } catch (ElasticsearchException e) {
+                logger.error(new ParameterizedMessage("[{}] Encountered exception while fetching analytics stats", jobId), e);
+                fail(e.getDetailedMessage());
+            }
+        });
 
         setUpgradeModeTo(false);
         assertThat(analyticsTaskList(), hasSize(1));
         assertBusy(() -> assertThat(analyticsAssignedTaskList(), hasSize(1)));
 
-        analyticsStats = getAnalyticsStats(jobId);
-        assertThat(analyticsStats.getAssignmentExplanation(), is(not(equalTo(AWAITING_UPGRADE.getExplanation()))));
+        assertBusy(() -> {
+            try {
+                GetDataFrameAnalyticsStatsAction.Response.Stats analyticsStats = getAnalyticsStats(jobId);
+                assertThat(analyticsStats.getAssignmentExplanation(), is(not(equalTo(AWAITING_UPGRADE.getExplanation()))));
+            } catch (ElasticsearchException e) {
+                logger.error(new ParameterizedMessage("[{}] Encountered exception while fetching analytics stats", jobId), e);
+                fail(e.getDetailedMessage());
+            }
+        });
 
         waitUntilAnalyticsIsStopped(jobId);
+        assertProgress(jobId, 100, 100, 100, 100);
     }
 
     public void testSetUpgradeMode_NewTaskDoesNotStart() throws Exception {

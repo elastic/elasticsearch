@@ -27,7 +27,6 @@ testClusters.integTest {
   extraConfigFile 'http.crt', file('src/test/resources/ssl/http.crt')
   extraConfigFile 'ca.p12', caFile
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
-  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'

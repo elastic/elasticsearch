@@ -1,3 +1,6 @@
+setup:
+  - skip:
+      features: [arbitrary_key]
 ---
 "node_reload_secure_settings test wrong password":
   - skip:
@@ -10,7 +13,7 @@
         body:
           secure_settings_password: awrongpasswordhere
   - set:
-    nodes._arbitrary_key_: node_id
+      nodes._arbitrary_key_: node_id
 
   - is_true: nodes
   - is_true: cluster_name
@@ -24,7 +27,7 @@
       nodes.reload_secure_settings: {}
 
   - set:
-    nodes._arbitrary_key_: node_id
+      nodes._arbitrary_key_: node_id
 
   - is_true: nodes
   - is_true: cluster_name

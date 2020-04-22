@@ -133,7 +133,7 @@ public class SnapshotHistoryStore {
         } else if (slmHistory.getType() != IndexAbstraction.Type.ALIAS) {
             // This is not an alias, error out
             andThen.onFailure(new IllegalStateException("SLM history alias [" + SLM_HISTORY_ALIAS +
-                "] already exists as concrete index"));
+                "] already exists as " + slmHistory.getType().getDisplayName()));
         } else {
             logger.error("unexpected IndexOrAlias for [{}]: [{}]", SLM_HISTORY_ALIAS, slmHistory);
             // (slmHistory.isAlias() == true) but (slmHistory instanceof Alias == false)?

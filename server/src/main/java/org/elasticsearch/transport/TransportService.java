@@ -681,7 +681,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
         } catch (final Exception e) {
             // usually happen either because we failed to connect to the node
             // or because we failed serializing the message
-            final Transport.ResponseContext contextToNotify = responseHandlers.remove(requestId);
+            final Transport.ResponseContext<? extends TransportResponse> contextToNotify = responseHandlers.remove(requestId);
             // If holderToNotify == null then handler has already been taken care of.
             if (contextToNotify != null) {
                 if (timeoutHandler != null) {
@@ -926,7 +926,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
     }
 
     public RequestHandlerRegistry<? extends TransportRequest> getRequestHandler(String action) {
-        return transport.getRequestHandler(action);
+        return transport.getRequestHandlers().getHandler(action);
     }
 
     private void checkForTimeout(long requestId) {
@@ -1005,7 +1005,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
                 long timeoutTime = threadPool.relativeTimeInMillis();
                 timeoutInfoHandlers.put(requestId, new TimeoutInfoHolder(node, action, sentTime, timeoutTime));
                 // now that we have the information visible via timeoutInfoHandlers, we try to remove the request id
-                final Transport.ResponseContext holder = responseHandlers.remove(requestId);
+                final Transport.ResponseContext<? extends TransportResponse> holder = responseHandlers.remove(requestId);
                 if (holder != null) {
                     assert holder.action().equals(action);
                     assert holder.connection().getNode().equals(node);

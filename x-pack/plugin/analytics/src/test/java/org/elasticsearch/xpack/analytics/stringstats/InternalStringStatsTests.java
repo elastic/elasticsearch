@@ -8,13 +8,14 @@ package org.elasticsearch.xpack.analytics.stringstats;
 
 import org.elasticsearch.client.analytics.ParsedStringStats;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,6 +31,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class InternalStringStatsTests extends InternalAggregationTestCase<InternalStringStats> {
+
+    @Override
+    protected SearchPlugin registerPlugin() {
+        return new AnalyticsPlugin();
+    }
+
     @Override
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
         List<NamedXContentRegistry.Entry> result = new ArrayList<>(super.getNamedXContents());
@@ -101,11 +108,6 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
          }
         return new InternalStringStats(name, count, totalLength, minLength, maxLength, charOccurrences, showDistribution,
                 DocValueFormat.RAW, instance.getMetadata());
-    }
-
-    @Override
-    protected Reader<InternalStringStats> instanceReader() {
-        return InternalStringStats::new;
     }
 
     @Override

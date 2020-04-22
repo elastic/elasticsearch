@@ -94,7 +94,7 @@ for path in $( "$target"/bin/busybox --list-full | grep -v bin/sh ); do
 done
 set -x
 
-# Copy in our mostly-static curl build, that we bind-mounted in
+# Copy in our static curl build. This is provided via a Docker bind mount
 cp /curl "$target"/usr/bin/curl
 
 # Curl needs files under here. More importantly, we change Elasticsearch's

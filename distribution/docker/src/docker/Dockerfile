@@ -11,9 +11,6 @@
 # Set gid=0 and make group perms==owner perms
 ################################################################################
 
-# We could use `scratch` and `ADD ${base_image_tar} /` like we do for the
-# final image, but we need `curl` if the source line is fetching a remote
-# artifact, and that isn't include in the final image.
 FROM ${builder_image} AS builder
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH

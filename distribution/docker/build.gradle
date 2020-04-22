@@ -189,12 +189,16 @@ task integTest(type: Test) {
 
 check.dependsOn integTest
 
+// The `curl` RPM on CentOS pulls in all kinds of dependencies that we
+// don't want in the final image. We want to include `curl` because it is
+// commonly used for things like readiness checks, or simple diagnostics.
+// We therefore compile our own static binary, using Alpine Linux because
+// it makes the process of building a static binary  much easier. The end
+// result still runs fine in e.g. CentOS.
 void addBuildStaticCurl(final String architecture) {
   def installer = "${projectDir}/src/docker/bin/build-curl.sh"
   def workDir = "${buildDir}/static-curl-${architecture}"
   def outputPath = "${workDir}/curl"
-  // We build on Alpine as it's easier to create a static executable. The
-  // result runs just find on CentOS.
   def image = ("aarch64".equals(architecture) ? 'arm64v8/' : '') + 'alpine:latest'
 
   final Task buildStaticCurlTask = task(taskName("build", architecture, false, "StaticCurl"), type: LoggedExec) {

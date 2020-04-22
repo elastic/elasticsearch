@@ -122,6 +122,7 @@ import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
 import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.StartDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDataFrameAnalyticsRequest;
@@ -232,6 +233,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
 
 public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
@@ -461,7 +463,10 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::open-job-response
             boolean isOpened = openJobResponse.isOpened(); // <1>
+            String node = openJobResponse.getNode(); // <2>
             // end::open-job-response
+
+            assertThat(node, notNullValue());
         }
         {
             // tag::open-job-execute-listener
@@ -1011,11 +1016,14 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::start-datafeed-execute
             StartDatafeedResponse response = client.machineLearning().startDatafeed(request, RequestOptions.DEFAULT);
             // end::start-datafeed-execute
+
             // tag::start-datafeed-response
             boolean started = response.isStarted(); // <1>
+            String node = response.getNode(); // <2>
             // end::start-datafeed-response
 
             assertTrue(started);
+            assertThat(node, notNullValue());
         }
         {
             StartDatafeedRequest request = new StartDatafeedRequest(datafeedId);
@@ -3131,14 +3139,16 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::start-data-frame-analytics-request
 
             // tag::start-data-frame-analytics-execute
-            AcknowledgedResponse response = client.machineLearning().startDataFrameAnalytics(request, RequestOptions.DEFAULT);
+            StartDataFrameAnalyticsResponse response = client.machineLearning().startDataFrameAnalytics(request, RequestOptions.DEFAULT);
             // end::start-data-frame-analytics-execute
 
             // tag::start-data-frame-analytics-response
             boolean acknowledged = response.isAcknowledged();
+            String node = response.getNode(); // <1>
             // end::start-data-frame-analytics-response
 
             assertThat(acknowledged, is(true));
+            assertThat(node, notNullValue());
         }
         assertBusy(
             () -> assertThat(getAnalyticsState(DF_ANALYTICS_CONFIG.getId()), equalTo(DataFrameAnalyticsState.STOPPED)),
@@ -3147,9 +3157,9 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             StartDataFrameAnalyticsRequest request = new StartDataFrameAnalyticsRequest("my-analytics-config");
 
             // tag::start-data-frame-analytics-execute-listener
-            ActionListener<AcknowledgedResponse> listener = new ActionListener<>() {
+            ActionListener<StartDataFrameAnalyticsResponse> listener = new ActionListener<>() {
                 @Override
-                public void onResponse(AcknowledgedResponse response) {
+                public void onResponse(StartDataFrameAnalyticsResponse response) {
                     // <1>
                 }
 

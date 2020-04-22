@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Authoriza
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.mockito.Mockito;
 
 import java.util.Collections;
 
@@ -133,7 +134,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
             SearchContextMissingException expected =
                     expectThrows(SearchContextMissingException.class, () -> listener.validateSearchContext(testSearchContext, request));
             assertEquals(testSearchContext.id(), expected.contextId());
-            verify(licenseState, times(3)).isSecurityEnabled();
+            verify(licenseState, Mockito.atLeast(3)).isSecurityEnabled();
             verify(auditTrail).accessDenied(eq(null), eq(authentication), eq("action"), eq(request),
                 authzInfoRoles(authentication.getUser().roles()));
         }
@@ -150,7 +151,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
             threadContext.putTransient(ORIGINATING_ACTION_KEY, "action");
             final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
             listener.validateSearchContext(testSearchContext, request);
-            verify(licenseState, times(4)).isSecurityEnabled();
+            verify(licenseState, Mockito.atLeast(4)).isSecurityEnabled();
             verifyNoMoreInteractions(auditTrail);
         }
 
@@ -169,7 +170,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
             SearchContextMissingException expected =
                     expectThrows(SearchContextMissingException.class, () -> listener.validateSearchContext(testSearchContext, request));
             assertEquals(testSearchContext.id(), expected.contextId());
-            verify(licenseState, times(5)).isSecurityEnabled();
+            verify(licenseState, Mockito.atLeast(5)).isSecurityEnabled();
             verify(auditTrail).accessDenied(eq(null), eq(authentication), eq("action"), eq(request),
                 authzInfoRoles(authentication.getUser().roles()));
         }

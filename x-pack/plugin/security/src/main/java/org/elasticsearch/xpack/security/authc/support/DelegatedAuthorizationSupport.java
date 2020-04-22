@@ -80,7 +80,8 @@ public class DelegatedAuthorizationSupport {
      * with a meaningful diagnostic message.
      */
     public void resolve(String username, ActionListener<AuthenticationResult> resultListener) {
-        if (licenseState.isAuthorizationRealmAllowed() == false) {
+        boolean authzOk = licenseState.isSecurityEnabled() && licenseState.isAuthorizationRealmAllowed();
+        if (authzOk == false) {
             resultListener.onResponse(AuthenticationResult.unsuccessful(
                 DelegatedAuthorizationSettings.AUTHZ_REALMS_SUFFIX + " are not permitted",
                 LicenseUtils.newComplianceException(DelegatedAuthorizationSettings.AUTHZ_REALMS_SUFFIX)

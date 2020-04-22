@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters.InternalBucket;
@@ -78,11 +77,6 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
                     (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
         }
         assertEquals(expectedCounts, actualCounts);
-    }
-
-    @Override
-    protected Reader<InternalFilters> instanceReader() {
-        return InternalFilters::new;
     }
 
     @Override

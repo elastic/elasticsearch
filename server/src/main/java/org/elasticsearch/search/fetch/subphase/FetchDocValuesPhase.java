@@ -18,16 +18,14 @@
  */
 package org.elasticsearch.search.fetch.subphase;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
@@ -45,7 +43,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Objects;
 
 import static org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import static org.elasticsearch.search.DocValueFormat.withNanosecondResolution;
@@ -56,10 +53,6 @@ import static org.elasticsearch.search.DocValueFormat.withNanosecondResolution;
  * Specifying {@code "docvalue_fields": ["field1", "field2"]}
  */
 public final class FetchDocValuesPhase implements FetchSubPhase {
-
-    private static final String USE_DEFAULT_FORMAT = "use_field_mapping";
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(
-            LogManager.getLogger(FetchDocValuesPhase.class));
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
@@ -82,16 +75,6 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
         hits = hits.clone(); // don't modify the incoming hits
         Arrays.sort(hits, Comparator.comparingInt(SearchHit::docId));
 
-        if (context.docValuesContext().fields().stream()
-                .map(f -> f.format)
-                .filter(USE_DEFAULT_FORMAT::equals)
-                .findAny()
-                .isPresent()) {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("explicit_default_format",
-                    "[" + USE_DEFAULT_FORMAT + "] is a special format that was only used to " +
-                    "ease the transition to 7.x. It has become the default and shouldn't be set explicitly anymore.");
-        }
-
         for (FieldAndFormat fieldAndFormat : context.docValuesContext().fields()) {
             String field = fieldAndFormat.field;
             MappedFieldType fieldType = context.mapperService().fieldType(field);
@@ -105,10 +88,6 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                 }
                 final DocValueFormat format;
                 String formatDesc = fieldAndFormat.format;
-                if (Objects.equals(formatDesc, USE_DEFAULT_FORMAT)) {
-                    // TODO: Remove in 8.x
-                    formatDesc = null;
-                }
                 if (isNanosecond) {
                     format = withNanosecondResolution(fieldType.docValueFormat(formatDesc, null));
                 } else {

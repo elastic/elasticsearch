@@ -890,42 +890,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("ip_field").getValue(), equalTo("::1"));
 
         builder = client().prepareSearch().setQuery(matchAllQuery())
-                .addDocValueField("text_field", "use_field_mapping")
-                .addDocValueField("keyword_field", "use_field_mapping")
-                .addDocValueField("byte_field", "use_field_mapping")
-                .addDocValueField("short_field", "use_field_mapping")
-                .addDocValueField("integer_field", "use_field_mapping")
-                .addDocValueField("long_field", "use_field_mapping")
-                .addDocValueField("float_field", "use_field_mapping")
-                .addDocValueField("double_field", "use_field_mapping")
-                .addDocValueField("date_field", "use_field_mapping")
-                .addDocValueField("boolean_field", "use_field_mapping")
-                .addDocValueField("binary_field", "use_field_mapping")
-                .addDocValueField("ip_field", "use_field_mapping");
-        searchResponse = builder.get();
-
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-        fields = new HashSet<>(searchResponse.getHits().getAt(0).getFields().keySet());
-        assertThat(fields, equalTo(newHashSet("byte_field", "short_field", "integer_field", "long_field",
-                "float_field", "double_field", "date_field", "boolean_field", "text_field", "keyword_field",
-                "binary_field", "ip_field")));
-
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("byte_field").getValue().toString(), equalTo("1"));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("short_field").getValue().toString(), equalTo("2"));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("integer_field").getValue(), equalTo((Object) 3L));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("long_field").getValue(), equalTo((Object) 4L));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("float_field").getValue(), equalTo((Object) 5.0));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("double_field").getValue(), equalTo((Object) 6.0d));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("date_field").getValue(),
-                equalTo(DateFormatter.forPattern("dateOptionalTime").format(date)));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("boolean_field").getValue(), equalTo((Object) true));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("text_field").getValue(), equalTo("foo"));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("binary_field").getValue(), equalTo("KmQ"));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("ip_field").getValue(), equalTo("::1"));
-
-        builder = client().prepareSearch().setQuery(matchAllQuery())
                 .addDocValueField("byte_field", "#.0")
                 .addDocValueField("short_field", "#.0")
                 .addDocValueField("integer_field", "#.0")
@@ -1029,7 +993,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         SearchRequestBuilder builder = client().prepareSearch().setQuery(matchAllQuery())
                 .addDocValueField("text_field_alias")
-                .addDocValueField("date_field_alias", "use_field_mapping")
+                .addDocValueField("date_field_alias")
                 .addDocValueField("date_field");
         SearchResponse searchResponse = builder.get();
 
@@ -1091,7 +1055,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         refresh("test");
 
         SearchRequestBuilder builder = client().prepareSearch().setQuery(matchAllQuery())
-            .addDocValueField("*alias", "use_field_mapping")
+            .addDocValueField("*alias")
             .addDocValueField("date_field");
         SearchResponse searchResponse = builder.get();
 

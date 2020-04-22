@@ -9,10 +9,11 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
@@ -416,7 +417,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                                 @Override
                                 public SortedNumericDoubleValues getAggregateMetricValues(final Metric metric) throws IOException {
                                     try {
-                                        final NumericDocValues values = DocValues.getNumeric(
+                                        final SortedNumericDocValues values = DocValues.getSortedNumeric(
                                             context.reader(),
                                             subfieldName(fieldName, metric)
                                         );
@@ -424,7 +425,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                                         return new SortedNumericDoubleValues() {
                                             @Override
                                             public int docValueCount() {
-                                                return 1;
+                                                return values.docValueCount();
                                             }
 
                                             @Override
@@ -434,7 +435,14 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
                                             @Override
                                             public double nextValue() throws IOException {
-                                                return Double.longBitsToDouble(values.longValue());
+                                                long v = values.nextValue();
+                                                if (metric == Metric.value_count) {
+                                                    // Only value_count metrics are encoded as integers
+                                                    return v;
+                                                } else {
+                                                    // All other metrics are encoded as doubles
+                                                    return NumericUtils.sortableLongToDouble(v);
+                                                }
                                             }
                                         };
                                     } catch (IOException e) {

@@ -22,7 +22,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSource;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
 
 import java.io.IOException;
 import java.util.Map;
@@ -67,20 +67,12 @@ class AggregateMetricBackedAvgAggregator extends NumericMetricsAggregator.Single
         }
         final BigArrays bigArrays = context.bigArrays();
         // Retrieve aggregate values for metrics sum and value_count
-        final SortedNumericDoubleValues aggregateSums = valuesSource.getAggregateMetricValues(
-            ctx,
-            AggregateDoubleMetricFieldMapper.Metric.sum
-        );
-        final SortedNumericDoubleValues aggregateValueCounts = valuesSource.getAggregateMetricValues(
-            ctx,
-            AggregateDoubleMetricFieldMapper.Metric.value_count
-        );
+        final SortedNumericDoubleValues aggregateSums = valuesSource.getAggregateMetricValues(ctx, Metric.sum);
+        final SortedNumericDoubleValues aggregateValueCounts = valuesSource.getAggregateMetricValues(ctx, Metric.value_count);
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
-
         return new LeafBucketCollectorBase(sub, sums) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                counts = bigArrays.grow(counts, bucket + 1);
                 sums = bigArrays.grow(sums, bucket + 1);
                 compensations = bigArrays.grow(compensations, bucket + 1);
 
@@ -101,10 +93,12 @@ class AggregateMetricBackedAvgAggregator extends NumericMetricsAggregator.Single
                     compensations.set(bucket, kahanSummation.delta());
                 }
 
+                counts = bigArrays.grow(counts, bucket + 1);
                 // Read aggregate values for value_count
                 if (aggregateValueCounts.advanceExact(doc)) {
                     for (int i = 0; i < aggregateValueCounts.docValueCount(); i++) {
-                        long value = Double.valueOf(aggregateValueCounts.nextValue()).longValue();
+                        double d = aggregateValueCounts.nextValue();
+                        long value = Double.valueOf(d).longValue();
                         counts.increment(bucket, value);
                     }
                 }

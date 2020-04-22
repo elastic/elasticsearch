@@ -49,14 +49,14 @@ public class AggregateMetricBackedAvgAggregatorTests extends AggregatorTestCase 
             iw.addDocument(
                 List.of(
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(20)),
-                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(2))
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), 2)
                 )
             );
 
             iw.addDocument(
                 List.of(
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(50)),
-                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), 5)
                 )
             );
         }, avg -> {
@@ -90,21 +90,21 @@ public class AggregateMetricBackedAvgAggregatorTests extends AggregatorTestCase 
                 List.of(
                     new StringField("match", "yes", Field.Store.NO),
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(10)),
-                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(1))
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), 1)
                 )
             );
             iw.addDocument(
                 List.of(
                     new StringField("match", "yes", Field.Store.NO),
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(50)),
-                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), 5)
                 )
             );
             iw.addDocument(
                 List.of(
                     new StringField("match", "no", Field.Store.NO),
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(40)),
-                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), 5)
                 )
             );
         }, avg -> {

@@ -73,7 +73,7 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
                     XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("metric")
-                        .field("min", 10.1)
+                        .field("min", -10.1)
                         .field("max", 50.0)
                         .field("sum", 43)
                         .field("value_count", 14)
@@ -84,7 +84,7 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
             )
         );
 
-        assertThat(doc.rootDoc().getField("metric.min"), notNullValue());
+        assertEquals(-10.1, doc.rootDoc().getField("metric.min").numericValue());
     }
 
     /**

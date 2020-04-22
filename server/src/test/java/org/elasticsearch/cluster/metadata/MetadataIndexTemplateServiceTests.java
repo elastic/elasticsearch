@@ -696,16 +696,16 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .collect(Collectors.toList());
 
         // The order of mappings should be:
-        // - index template
-        // - ct_high
         // - ct_low
-        // Because the first elements when merging mappings have the highest precedence
+        // - ct_high
+        // - index template
+        // Because the first elements when merging mappings have the lowest precedence
         assertThat(parsedMappings.get(0),
-            equalTo(Map.of("_doc", Map.of("properties", Map.of("field", Map.of("type", "keyword"))))));
+            equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "text"))))));
         assertThat(parsedMappings.get(1),
             equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "keyword"))))));
         assertThat(parsedMappings.get(2),
-            equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "text"))))));
+            equalTo(Map.of("_doc", Map.of("properties", Map.of("field", Map.of("type", "keyword"))))));
     }
 
     public void testResolveSettings() throws Exception {

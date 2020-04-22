@@ -47,7 +47,7 @@ services:
     entrypoint: /docker-test-entrypoint.sh
     healthcheck:
       start_period: 15s
-      test: ["CMD", "grep", "-q", "Active license is now", "/usr/share/elasticsearch/logs/console.log"]
+      test: ["CMD", "curl", "-f", "-u", "x_pack_rest_user:x-pack-test-password", "-k", "https://localhost:9200"]
       interval: 10s
       timeout: 2s
       retries: 5
@@ -97,7 +97,7 @@ services:
     entrypoint: /docker-test-entrypoint.sh
     healthcheck:
       start_period: 15s
-      test: ["CMD", "grep", "-q", "Active license is now", "/usr/share/elasticsearch/logs/console.log"]
+      test: ["CMD", "curl", "-f", "-u", "x_pack_rest_user:x-pack-test-password", "-k", "https://localhost:9200"]
       interval: 10s
       timeout: 2s
       retries: 5

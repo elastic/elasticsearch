@@ -94,8 +94,12 @@ for path in $( "$target"/bin/busybox --list-full | grep -v bin/sh ); do
 done
 set -x
 
-# We change Elasticsearch's bundled JDK to use
-# /etc/pki/ca-trust/extracted/java/cacerts instead of the bundled cacerts.
+# Copy in our mostly-static curl build, that we bind-mounted in
+cp /curl "$target"/usr/bin/curl
+
+# Curl needs files under here. More importantly, we change Elasticsearch's
+# bundled JDK to use /etc/pki/ca-trust/extracted/java/cacerts instead of
+# the bundled cacerts.
 tar cf - /etc/pki | (cd "$target" && tar xf -)
 
 yum --installroot="$target" -y clean all

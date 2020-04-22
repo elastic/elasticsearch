@@ -251,15 +251,15 @@ public class MetadataRolloverService {
     static void validate(Metadata metadata, String aliasOrDataStream, String newIndexName) {
         final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(aliasOrDataStream);
         if (indexAbstraction == null) {
-            throw new IllegalArgumentException("source alias or data stream [" + aliasOrDataStream + "] does not exist");
+            throw new IllegalArgumentException("rollover target [" + aliasOrDataStream + "] does not exist");
         }
         if (List.of(ALIAS, DATA_STREAM).contains(indexAbstraction.getType()) == false) {
-            throw new IllegalArgumentException("source alias or data stream is a [" + indexAbstraction.getType().getDisplayName() +
+            throw new IllegalArgumentException("rollover target is a [" + indexAbstraction.getType().getDisplayName() +
                 "] but [" + ALIAS.getDisplayName() + "] or [" + DATA_STREAM.getDisplayName() + "] was expected");
         }
         if (indexAbstraction.getWriteIndex() == null) {
             throw new IllegalArgumentException(
-                "source alias or data stream [" + indexAbstraction.getName() + "] does not point to a write index");
+                "rollover target [" + indexAbstraction.getName() + "] does not point to a write index");
         }
         if (indexAbstraction.getType() == DATA_STREAM && Strings.isNullOrEmpty(newIndexName) == false) {
             throw new IllegalArgumentException("new index name may not be specified when rolling over a data stream");

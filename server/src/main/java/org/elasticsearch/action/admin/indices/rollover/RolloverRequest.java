@@ -112,7 +112,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = createIndexRequest.validate();
         if (rolloverTarget == null) {
-            validationException = addValidationError("index alias or data stream is missing", validationException);
+            validationException = addValidationError("rollover target is missing", validationException);
         }
         return validationException;
     }
@@ -141,7 +141,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     /**
-     * Sets the alias to rollover to another index
+     * Sets the rollover target to rollover to another index
      */
     public void setRolloverTarget(String rolloverTarget) {
         this.rolloverTarget = rolloverTarget;

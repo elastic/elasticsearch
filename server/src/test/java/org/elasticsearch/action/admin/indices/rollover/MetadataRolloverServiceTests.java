@@ -219,16 +219,16 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
             MetadataRolloverService.validate(metadata, aliasWithNoWriteIndex, randomAlphaOfLength(5)));
         assertThat(exception.getMessage(),
-            equalTo("source alias or data stream [" + aliasWithNoWriteIndex + "] does not point to a write index"));
+            equalTo("rollover target [" + aliasWithNoWriteIndex + "] does not point to a write index"));
         exception = expectThrows(IllegalArgumentException.class, () ->
             MetadataRolloverService.validate(metadata, randomFrom(index1, index2), randomAlphaOfLength(5)));
         assertThat(exception.getMessage(),
-            equalTo("source alias or data stream is a [concrete index] but [alias] or [data_stream] was expected"));
+            equalTo("rollover target is a [concrete index] but [alias] or [data_stream] was expected"));
         final String aliasName = randomAlphaOfLength(5);
         exception = expectThrows(IllegalArgumentException.class, () ->
             MetadataRolloverService.validate(metadata, aliasName, randomAlphaOfLength(5))
         );
-        assertThat(exception.getMessage(), equalTo("source alias or data stream [" + aliasName + "] does not exist"));
+        assertThat(exception.getMessage(), equalTo("rollover target [" + aliasName + "] does not exist"));
         MetadataRolloverService.validate(metadata, aliasWithWriteIndex, randomAlphaOfLength(5));
     }
 

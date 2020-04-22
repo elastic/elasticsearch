@@ -190,7 +190,7 @@ public class RolloverRequestTests extends ESTestCase {
         ActionRequestValidationException validationException = rolloverRequest.validate();
         assertNotNull(validationException);
         assertEquals(1, validationException.validationErrors().size());
-        assertEquals("index alias or data stream is missing", validationException.validationErrors().get(0));
+        assertEquals("rollover target is missing", validationException.validationErrors().get(0));
     }
 
     private static List<Consumer<RolloverRequest>> conditionsGenerator = new ArrayList<>();

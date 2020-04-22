@@ -26,15 +26,14 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.index.store.SearchableSnapshotDirectory.unwrapDirectory;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 
 public abstract class AbstractTransportSearchableSnapshotsAction<
     Request extends BroadcastRequest<Request>,
@@ -94,7 +93,7 @@ public abstract class AbstractTransportSearchableSnapshotsAction<
             IndexMetadata indexMetaData = state.metadata().index(concreteIndex);
             if (indexMetaData != null) {
                 Settings indexSettings = indexMetaData.getSettings();
-                if (INDEX_STORE_TYPE_SETTING.get(indexSettings).equals(SNAPSHOT_DIRECTORY_FACTORY_KEY)) {
+                if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings)) {
                     searchableSnapshotIndices.add(concreteIndex);
                 }
             }

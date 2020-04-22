@@ -12,11 +12,13 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 
+import java.util.Locale;
+
 import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.generateSnapshotName;
 import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.validateGeneratedSnapshotName;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsStringIgnoringCase;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -74,8 +76,8 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         assertThat("the " + GenerateSnapshotNameStep.NAME + " step must generate a snapshot name", executionState.getSnapshotName(),
             notNullValue());
         assertThat(executionState.getSnapshotRepository(), is(generateSnapshotNameStep.getSnapshotRepository()));
-        assertThat(executionState.getSnapshotName(), containsStringIgnoringCase(indexName));
-        assertThat(executionState.getSnapshotName(), containsStringIgnoringCase(policyName));
+        assertThat(executionState.getSnapshotName(), containsString(indexName.toLowerCase(Locale.ROOT)));
+        assertThat(executionState.getSnapshotName(), containsString(policyName.toLowerCase(Locale.ROOT)));
     }
 
     public void testNameGeneration() {

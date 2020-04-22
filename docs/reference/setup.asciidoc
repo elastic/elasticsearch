@@ -79,6 +79,8 @@ include::settings/sql-settings.asciidoc[]
 
 include::settings/transform-settings.asciidoc[]
 
+include::modules/transport.asciidoc[]
+
 include::settings/notification-settings.asciidoc[]
 
 include::setup/important-settings.asciidoc[]

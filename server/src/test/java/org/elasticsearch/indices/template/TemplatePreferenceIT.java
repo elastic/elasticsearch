@@ -233,6 +233,9 @@ public class TemplatePreferenceIT extends ESSingleNodeTestCase {
                 resp.getSetting(INDEX + "-000002", "index.priority"), equalTo("23"));
             client().admin().indices().prepareDelete(INDEX + "*").get();
         }
+
+        assertWarnings("index [index-000002] matches multiple templates [one_shard_index_template, random-soft-deletes-template, v1], " +
+            "it won't be supported with index templates v2");
     }
 
     private void assertUsedV1() {

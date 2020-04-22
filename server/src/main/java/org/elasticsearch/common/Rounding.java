@@ -528,7 +528,7 @@ public abstract class Rounding implements Writeable {
             }
         }
 
-        private class ToMidnightRounding implements Prepared {
+        private class ToMidnightRounding implements Prepared, LocalTimeOffset.Strategy {
             private final LocalTimeOffset.Lookup lookup;
 
             ToMidnightRounding(LocalTimeOffset.Lookup lookup) {
@@ -538,12 +538,7 @@ public abstract class Rounding implements Writeable {
             @Override
             public long round(long utcMillis) {
                 LocalTimeOffset offset = lookup.lookup(utcMillis);
-                /*
-                 * We want exactly the sort of edge case rounding that offset
-                 * calls "sensible". Lucky us! It is like we write it
-                 * that way....
-                 */
-                return offset.localToSensibleUtc(unit.roundFloor(offset.utcToLocalTime(utcMillis)));
+                return offset.localToUtc(unit.roundFloor(offset.utcToLocalTime(utcMillis)), this);
             }
 
             @Override
@@ -551,6 +546,26 @@ public abstract class Rounding implements Writeable {
                 // TODO this is actually used date range's collect so we should optimize it
                 return new JavaTimeToMidnightRounding().nextRoundingValue(utcMillis);
             }
+
+            @Override
+            public long inGap(long localMillis, Gap gap) {
+                return gap.startUtcMillis();
+            }
+
+            @Override
+            public long beforeGap(long localMillis, Gap gap) {
+                return gap.previous().localToUtc(localMillis, this);
+            };
+
+            @Override
+            public long inOverlap(long localMillis, Overlap overlap) {
+                return overlap.previous().localToUtc(localMillis, this);
+            }
+
+            @Override
+            public long beforeOverlap(long localMillis, Overlap overlap) {
+                return overlap.previous().localToUtc(localMillis, this);
+            };
         }
 
         private class NotToMidnightRounding extends AbstractNotToMidnightRounding implements LocalTimeOffset.Strategy {

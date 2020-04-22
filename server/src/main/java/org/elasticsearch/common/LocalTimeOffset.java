@@ -46,9 +46,8 @@ import java.util.Locale;
  * I do similarly terrifying things again in the spring when I skip my clocks
  * straight from 1:59am to 3am.
  * <p>
- * So there are three methods to convert from local time back to utc,
- * {@link #localToUtc(long, Strategy)}, {@link #localToSensibleUtc(long)} and
- * {@link #localToUtcInThisOffset(long)}. They are all unique and frightening.
+ * So there are two methods to convert from local time back to utc,
+ * {@link #localToUtc(long, Strategy)} and {@link #localToUtcInThisOffset(long)}.
  */
 public abstract class LocalTimeOffset {
     /**
@@ -115,7 +114,7 @@ public abstract class LocalTimeOffset {
      * <strong>Important:</strong> Callers will rarely want to <strong>force</strong>
      * using this offset and are instead instead interested in picking an appropriate
      * offset for some local time that they have rounded down. In that case use
-     * {@link #localToSensibleUtc(long)} or {@link #localToUtc(long, Strategy)}.
+     * {@link #localToUtc(long, Strategy)}.
      */
     public final long localToUtcInThisOffset(long localMillis) {
         return localMillis - millis;
@@ -163,42 +162,6 @@ public abstract class LocalTimeOffset {
          */
         long beforeOverlap(long localMillis, Overlap overlap);
     }
-
-    /**
-     * Map a local time that occurs during this offset or a previous offset
-     * to a utc time . You can use this if you've converted from utc to local,
-     * rounded down, and then want to convert back to utc but you don't really
-     * care about how to resolve "funny" edge cases. This resolves them
-     * <em>fairly</em> sanely.
-     * <p>
-     * If a local time occurred twice then returns the time in utc that the
-     * clocks first showed that time. If a local time never occurred then
-     * returns the utc time where the clock jumped over that time. If a local
-     * time occurs before a gap or overlap then uses the offset to convert it.
-     * This is all sensible but it may not be right for you.
-     */
-    public final long localToSensibleUtc(long localMillis) {
-        return localToUtc(localMillis, SENSIBLE_STRAT);
-    }
-    private static final Strategy SENSIBLE_STRAT = new Strategy() {
-        @Override
-        public long inGap(long localMillis, Gap gap) {
-            return gap.startUtcMillis();
-        }
-
-        public long beforeGap(long localMillis, Gap gap) {
-            return gap.previous().localToUtc(localMillis, SENSIBLE_STRAT);
-        };
-
-        @Override
-        public long inOverlap(long localMillis, Overlap overlap) {
-            return overlap.previous().localToUtc(localMillis, SENSIBLE_STRAT);
-        }
-
-        public long beforeOverlap(long localMillis, Overlap overlap) {
-            return overlap.previous().localToUtc(localMillis, SENSIBLE_STRAT);
-        };
-    };
 
     /**
      * Does this offset contain the provided time?

@@ -80,7 +80,6 @@ public class LocalTimeOffsetTests extends ESTestCase {
     private void assertRoundingAtOffset(LocalTimeOffset offset, long time, long offsetMillis) {
         assertThat(offset.utcToLocalTime(time), equalTo(time + offsetMillis));
         assertThat(offset.localToUtcInThisOffset(time + offsetMillis), equalTo(time));
-        assertThat(offset.localToSensibleUtc(time + offsetMillis), equalTo(time));
         assertThat(offset.localToUtc(time + offsetMillis, unusedStrategy()), equalTo(time));
     }
 
@@ -185,14 +184,6 @@ public class LocalTimeOffsetTests extends ESTestCase {
         assertThat(secondMidnightOffset.localToUtcInThisOffset(localOverlapEnds), equalTo(overlapEnds));
         assertThat(secondMidnightOffset.localToUtcInThisOffset(localOverlappingTime),
                 equalTo(firstMidnightOffset.localToUtcInThisOffset(localOverlappingTime) + overlapMillis));
-    
-        assertThat(randomFrom(firstMidnightOffset, secondMidnightOffset).localToSensibleUtc(localFirstMidnight - 1),
-                equalTo(firstMidnight - 1));
-        assertThat(randomFrom(firstMidnightOffset, secondMidnightOffset).localToSensibleUtc(localFirstMidnight),
-                equalTo(firstMidnight));
-        assertThat(secondMidnightOffset.localToSensibleUtc(localOverlapEnds), equalTo(overlapEnds));
-        assertThat(secondMidnightOffset.localToSensibleUtc(localOverlappingTime),
-                equalTo(firstMidnightOffset.localToSensibleUtc(localOverlappingTime)));
 
         long beforeOverlapValue = randomLong();
         assertThat(secondMidnightOffset.localToUtc(localFirstMidnight - 1, useValueForBeforeOverlap(beforeOverlapValue)),
@@ -218,20 +209,15 @@ public class LocalTimeOffsetTests extends ESTestCase {
         long localBeforeTransition = beforeGapOffset.utcToLocalTime(transition - 1);
         assertThat(localAtTransition - localBeforeTransition, equalTo(gapLength + 1));
 
-        long localSkippedTime = randomLongBetween(localBeforeTransition, localAtTransition);
-
         assertThat(beforeGapOffset.localToUtcInThisOffset(localBeforeTransition), equalTo(transition - 1));
         assertThat(gapOffset.localToUtcInThisOffset(localBeforeTransition), equalTo(transition - 1 - gapLength));
         assertThat(gapOffset.localToUtcInThisOffset(localAtTransition), equalTo(transition));
-
-        assertThat(randomFrom(gapOffset, beforeGapOffset).localToSensibleUtc(localBeforeTransition), equalTo(transition - 1));
-        assertThat(gapOffset.localToSensibleUtc(localAtTransition), equalTo(transition));
-        assertThat(gapOffset.localToSensibleUtc(localSkippedTime), equalTo(transition));
 
         long beforeGapValue = randomLong();
         assertThat(gapOffset.localToUtc(localBeforeTransition, useValueForBeforeGap(beforeGapValue)), equalTo(beforeGapValue));
         assertThat(gapOffset.localToUtc(localAtTransition, unusedStrategy()), equalTo(transition));
         long gapValue = randomLong();
+        long localSkippedTime = randomLongBetween(localBeforeTransition, localAtTransition);
         assertThat(gapOffset.localToUtc(localSkippedTime, useValueForGap(gapValue)), equalTo(gapValue));
     }
 

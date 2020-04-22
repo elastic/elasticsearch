@@ -20,6 +20,7 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -204,11 +205,11 @@ public class ThreadContextTests extends ESTestCase {
         }
 
         final String value = DeprecationLogger.formatWarning("qux");
-        threadContext.addResponseHeader("baz", value, s -> DeprecationLogger.extractWarningValueFromWarningHeader(s, false));
+        threadContext.addResponseHeader("baz", value, s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false));
         // pretend that another thread created the same response at a different time
         if (randomBoolean()) {
             final String duplicateValue = DeprecationLogger.formatWarning("qux");
-            threadContext.addResponseHeader("baz", duplicateValue, s -> DeprecationLogger.extractWarningValueFromWarningHeader(s, false));
+            threadContext.addResponseHeader("baz", duplicateValue, s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false));
         }
 
         threadContext.addResponseHeader("Warning", "One is the loneliest number");

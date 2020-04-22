@@ -43,12 +43,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * A logger that logs deprecation notices.
+ * A logger that logs notices.
  */
-public class AbstractThrottlingLogger {
+public abstract class AbstractThrottlingLogger {
 
-    private final Logger logger;
 
+    abstract protected Logger logger();
     /**
      * This is set once by the {@code Node} constructor, but it uses {@link CopyOnWriteArraySet} to ensure that tests can run in parallel.
      * <p>
@@ -95,29 +95,13 @@ public class AbstractThrottlingLogger {
     }
 
     /**
-     * Creates a new deprecation logger based on the parent logger. Automatically
-     * prefixes the logger name with "deprecation", if it starts with "org.elasticsearch.",
-     * it replaces "org.elasticsearch" with "org.elasticsearch.deprecation" to maintain
-     * the "org.elasticsearch" namespace.
-     */
-    public AbstractThrottlingLogger(Logger parentLogger) {
-        String name = parentLogger.getName();
-        if (name.startsWith("org.elasticsearch")) {
-            name = name.replace("org.elasticsearch.", "org.elasticsearch.deprecation.");
-        } else {
-            name = "deprecation." + name;
-        }
-        this.logger = LogManager.getLogger(name);
-    }
-
-    /**
-     * Logs a deprecation message, adding a formatted warning message as a response header on the thread context.
+     * Logs a message, adding a formatted warning message as a response header on the thread context.
      */
     public void log(String msg, Object... params) {
         log(THREAD_CONTEXT, msg, params);
     }
 
-    // LRU set of keys used to determine if a deprecation message should be emitted to the deprecation logs
+    // LRU set of keys used to determine if a message should be emitted to the logs
     private Set<String> keys = Collections.newSetFromMap(Collections.synchronizedMap(new LinkedHashMap<String, Boolean>() {
         @Override
         protected boolean removeEldestEntry(final Map.Entry<String, Boolean> eldest) {
@@ -261,7 +245,7 @@ public class AbstractThrottlingLogger {
                      */
                     String opaqueId = getXOpaqueId(threadContexts);
 
-                    logger.warn(DeprecatedMessage.of(opaqueId, message, params));
+                    logger().warn(DeprecatedMessage.of(opaqueId, message, params));
                     return null;
                 }
             });

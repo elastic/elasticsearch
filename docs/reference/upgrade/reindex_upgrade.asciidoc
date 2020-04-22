@@ -32,6 +32,13 @@ been deleted.
 
 *******************************************
 
+.Reindexing .security
+*******************************************
+
+If you need to reindex .security (for example the upgrade assistant ask you do so), make sure you have an https://www.elastic.co/guide/en/elasticsearch/reference/7.6/realms.html[alternative authentication] method in place
+
+*******************************************
+
 
 [[reindex-upgrade-inplace]]
 === Reindex in place

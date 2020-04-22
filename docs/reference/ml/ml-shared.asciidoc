@@ -1334,6 +1334,10 @@ tag::node-address[]
 The network address of the node.
 end::node-address[]
 
+tag::node-attributes[]
+Lists node attributes such as `ml.machine_memory` or `ml.max_open_jobs` settings.
+end::node-attributes[]
+
 tag::node-datafeeds[]
 For started {dfeeds} only, this information pertains to the node upon which the
 {dfeed} is started.
@@ -1351,6 +1355,10 @@ tag::node-jobs[]
 Contains properties for the node that runs the job. This information is
 available only for open jobs.
 end::node-jobs[]
+
+tag::node-transport-address[]
+The host and port where transport HTTP connections are accepted.
+end::node-transport-address[]
 
 tag::open-time[]
 For open jobs only, the elapsed time for which the job has been open.

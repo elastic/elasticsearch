@@ -19,7 +19,6 @@ public class ToNumberProcessorTests extends ESTestCase {
         return new ToNumber(EMPTY, l(value), l(base)).makePipe().asProcessor().process(null);
     }
 
-
     private static String error(Object value, Object base) {
         QlIllegalArgumentException saie = expectThrows(QlIllegalArgumentException.class,
             () -> new ToNumber(EMPTY, l(value), l(base)).makePipe().asProcessor().process(null));

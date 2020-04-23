@@ -8,12 +8,15 @@ package org.elasticsearch.xpack.core.async;
 
 import org.elasticsearch.common.io.stream.Writeable;
 
-public interface AsyncResponse extends Writeable {
+public interface AsyncResponse<T extends AsyncResponse<?>> extends Writeable {
     /**
-     * When this response will expired as a timestamp in milliseconds since epoch.
+     * When this response will expire as a timestamp in milliseconds since epoch.
      */
     long getExpirationTime();
 
-    void setExpirationTime(long expirationTimeMillis);
+    /**
+     * Returns a copy of this object with a new expiration time
+     */
+    T withExpirationTime(long expirationTimeMillis);
 
 }

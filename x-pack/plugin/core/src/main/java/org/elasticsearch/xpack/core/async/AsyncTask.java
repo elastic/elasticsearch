@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.async;
 import java.util.Map;
 
 /**
- * A task that supports asynchronous execution and safe temporary storage of results
+ * A task that supports asynchronous execution and provides information necessary for safe temporary storage of results
  */
 public interface AsyncTask {
     /**

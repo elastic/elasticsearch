@@ -19,7 +19,7 @@ import java.util.Objects;
 /**
  * A class that contains all information related to a submitted async execution.
  */
-public class AsyncExecutionId {
+public final class AsyncExecutionId {
     private final String docId;
     private final TaskId taskId;
     private final String encoded;

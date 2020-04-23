@@ -22,12 +22,13 @@ import static org.hamcrest.Matchers.equalTo;
 public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
     private AsyncTaskIndexService<TestAsyncResponse> indexService;
 
-    public static class TestAsyncResponse implements AsyncResponse {
+    public static class TestAsyncResponse implements AsyncResponse<TestAsyncResponse> {
         private final String test;
-        private long expirationTimeMillis;
+        private final long expirationTimeMillis;
 
-        public TestAsyncResponse(String test) {
+        public TestAsyncResponse(String test, long expirationTimeMillis) {
             this.test = test;
+            this.expirationTimeMillis = expirationTimeMillis;
         }
 
         public TestAsyncResponse(StreamInput input) throws IOException {
@@ -41,8 +42,8 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public void setExpirationTime(long expirationTime) {
-            this.expirationTimeMillis = expirationTime;
+        public TestAsyncResponse withExpirationTime(long expirationTime) {
+            return new TestAsyncResponse(test, expirationTime);
         }
 
         @Override
@@ -76,7 +77,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testEncodeSearchResponse() throws IOException {
         for (int i = 0; i < 10; i++) {
-            TestAsyncResponse response = new TestAsyncResponse(randomAlphaOfLength(10));
+            TestAsyncResponse response = new TestAsyncResponse(randomAlphaOfLength(10), randomLong());
             String encoded = indexService.encodeResponse(response);
             TestAsyncResponse same = indexService.decodeResponse(encoded);
             assertThat(same, equalTo(response));

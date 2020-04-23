@@ -56,7 +56,7 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AU
 /**
  * A service that exposes the CRUD operations for the async task-specific index.
  */
-public class AsyncTaskIndexService<R extends AsyncResponse> {
+public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private static final Logger logger = LogManager.getLogger(AsyncTaskIndexService.class);
 
     public static final String HEADERS_FIELD = "headers";
@@ -279,9 +279,11 @@ public class AsyncTaskIndexService<R extends AsyncResponse> {
 
                 long expirationTime = (long) get.getSource().get(EXPIRATION_TIME_FIELD);
                 String encoded = (String) get.getSource().get(RESULT_FIELD);
-                R response = decodeResponse(encoded);
-                response.setExpirationTime(expirationTime);
-                listener.onResponse(encoded != null ? response : null);
+                if (encoded != null) {
+                    listener.onResponse(decodeResponse(encoded).withExpirationTime(expirationTime));
+                } else {
+                    listener.onResponse(null);
+                }
             },
             listener::onFailure
         ));

@@ -29,6 +29,9 @@ import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.EXPIRATIO
 
 /**
  * A service that runs a periodic cleanup over the async execution index.
+ * <p>
+ * Since we will have several injected implementation of this class injected into different transports, and we bind components created
+ * by {@linkplain org.elasticsearch.plugins.Plugin#createComponents} to their classes, we need to implement one class per binding.
  */
 public abstract class AsyncTaskMaintenanceService implements Releasable, ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(AsyncTaskMaintenanceService.class);

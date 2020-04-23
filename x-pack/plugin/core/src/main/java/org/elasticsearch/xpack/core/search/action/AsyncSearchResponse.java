@@ -23,7 +23,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  * A response of an async search request.
  */
-public class AsyncSearchResponse extends ActionResponse implements StatusToXContentObject, AsyncResponse {
+public class AsyncSearchResponse extends ActionResponse implements StatusToXContentObject, AsyncResponse<AsyncSearchResponse> {
     @Nullable
     private final String id;
     @Nullable
@@ -34,7 +34,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     private final boolean isPartial;
 
     private final long startTimeMillis;
-    private long expirationTimeMillis;
+    private final long expirationTimeMillis;
 
     /**
      * Creates an {@link AsyncSearchResponse} with meta-information only (not-modified).
@@ -160,8 +160,8 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     }
 
     @Override
-    public void setExpirationTime(long expirationTimeMillis) {
-        this.expirationTimeMillis = expirationTimeMillis;
+    public AsyncSearchResponse withExpirationTime(long expirationTimeMillis) {
+        return new AsyncSearchResponse(id, searchResponse, error, isPartial, isRunning, startTimeMillis, expirationTimeMillis);
     }
 
     @Override

@@ -47,6 +47,8 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         this.timeStampField = timeStampField;
         this.indices = indices;
         this.generation = generation;
+        assert indices.size() > 0;
+        assert indices.get(indices.size() - 1).getName().equals(getBackingIndexName(name, generation));
     }
 
     public DataStream(String name, String timeStampField, List<Index> indices) {

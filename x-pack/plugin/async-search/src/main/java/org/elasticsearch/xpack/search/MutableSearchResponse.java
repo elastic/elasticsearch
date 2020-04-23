@@ -130,28 +130,35 @@ class MutableSearchResponse {
      * This method is synchronized to ensure that we don't perform final reduces concurrently.
      */
     synchronized AsyncSearchResponse toAsyncSearchResponse(AsyncSearchTask task, long expirationTime) {
-        SearchResponse response;
-        if (finalResponse == null) {
-            /*
-             * Build the response, reducing aggs if we haven't already and
-             * storing the result of the reduction so we won't have to reduce
-             * a second time if you get the response again and nothing has
-             * changed. This does cost memory because we have a reference
-             * to the reduced aggs sitting around so it can't be GCed until
-             * we get an update.
-             */
-            InternalAggregations reducedAggs = reducedAggsSource.get();
-            reducedAggsSource = () -> reducedAggs;
-            InternalSearchResponse internal = new InternalSearchResponse(
-                new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN), reducedAggs, null, null, false, false, reducePhase);
-            long tookInMillis = TimeValue.timeValueNanos(System.nanoTime() - task.getStartTimeNanos()).getMillis();
-            response = new SearchResponse(internal, null, totalShards, successfulShards, skippedShards,
-                    tookInMillis, buildShardFailures(), clusters);
-        } else {
-            response = finalResponse;
-        }
+        SearchResponse response = findOrBuildResponse(task);
         return new AsyncSearchResponse(task.getSearchId().getEncoded(), response,
                 failure, isPartial, frozen == false, task.getStartTime(), expirationTime);
+    }
+
+    private SearchResponse findOrBuildResponse(AsyncSearchTask task) {
+        if (finalResponse != null) {
+            // We have a final response, use it.
+            return finalResponse;
+        }
+        if (clusters == null) {
+            // An error occurred before we got the shard list 
+            return null;
+        }
+        /*
+         * Build the response, reducing aggs if we haven't already and
+         * storing the result of the reduction so we won't have to reduce
+         * a second time if you get the response again and nothing has
+         * changed. This does cost memory because we have a reference
+         * to the reduced aggs sitting around so it can't be GCed until
+         * we get an update.
+         */
+        InternalAggregations reducedAggs = reducedAggsSource.get();
+        reducedAggsSource = () -> reducedAggs;
+        InternalSearchResponse internal = new InternalSearchResponse(
+            new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN), reducedAggs, null, null, false, false, reducePhase);
+        long tookInMillis = TimeValue.timeValueNanos(System.nanoTime() - task.getStartTimeNanos()).getMillis();
+        return new SearchResponse(internal, null, totalShards, successfulShards, skippedShards,
+                tookInMillis, buildShardFailures(), clusters);
     }
 
     /**

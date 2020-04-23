@@ -316,7 +316,7 @@ public class QueryStringIT extends ESIntegTestCase {
                         CLUSTER_MAX_CLAUSE_COUNT + 100))
                 .addMapping("_doc", builder));
 
-        client().prepareIndex("test", "_doc", "1").setSource("field_A0", "foo bar baz").get();
+        client().prepareIndex("testindex", "_doc", "1").setSource("field_A0", "foo bar baz").get();
         refresh();
 
         // single field shouldn't trigger the limit

@@ -35,6 +35,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * A fetch sub-phase for high-level field retrieval. Given a list of fields, it
@@ -43,8 +44,15 @@ import java.util.Set;
 public final class FetchFieldsPhase implements FetchSubPhase {
 
     @Override
-    @SuppressWarnings("unchecked")
     public void hitsExecute(SearchContext context, SearchHit[] hits) {
+        hitsExecute(context, hit -> getSourceLookup(context, hit), hits);
+    }
+
+    // Visible for testing.
+    @SuppressWarnings("unchecked")
+    void hitsExecute(SearchContext context,
+                     Function<SearchHit, SourceLookup> sourceProvider,
+                     SearchHit[] hits) {
         FetchFieldsContext fetchFieldsContext = context.fetchFieldsContext();
         if (fetchFieldsContext == null || fetchFieldsContext.fields().isEmpty()) {
             return;
@@ -65,13 +73,8 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             fields.addAll(concreteFields);
         }
 
-        SourceLookup sourceLookup = context.lookup().source();
-
         for (SearchHit hit : hits) {
-            int readerIndex = ReaderUtil.subIndex(hit.docId(), context.searcher().getIndexReader().leaves());
-            LeafReaderContext readerContext = context.searcher().getIndexReader().leaves().get(readerIndex);
-            sourceLookup.setSegmentAndDocument(readerContext, hit.docId());
-
+            SourceLookup sourceLookup = sourceProvider.apply(hit);
             Map<String, Object> valuesByField = extractValues(sourceLookup, fields);
 
             for (Map.Entry<String, Object> entry : valuesByField.entrySet()) {
@@ -87,15 +90,22 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         }
     }
 
+    private SourceLookup getSourceLookup(SearchContext context, SearchHit hit) {
+        SourceLookup sourceLookup = context.lookup().source();
+        int readerIndex = ReaderUtil.subIndex(hit.docId(), context.searcher().getIndexReader().leaves());
+        LeafReaderContext readerContext = context.searcher().getIndexReader().leaves().get(readerIndex);
+        sourceLookup.setSegmentAndDocument(readerContext, hit.docId());
+        return sourceLookup;
+    }
+
     /**
      * For each of the provided paths, return its value in the source. Note that in contrast with
      * {@link SourceLookup#extractRawValues}, array and object values can be returned.
      */
-    public Map<String, Object> extractValues(Map<String, Object> source, Collection<String> paths) {
+    private Map<String, Object> extractValues(SourceLookup sourceLookup, Collection<String> paths) {
         Map<String, Object> result = new HashMap<>(paths.size());
-
         for (String path : paths) {
-            Object value = XContentMapValues.extractValue(path, source);
+            Object value = XContentMapValues.extractValue(path, sourceLookup);
             if (value != null) {
                 result.put(path, value);
             }

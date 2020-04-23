@@ -53,8 +53,8 @@ We also optimized the performance of the
 [discrete]
 === Introducing multiclass {classification}
 
-{ref}/dfa-classification.html[{classification-cap}] using multiple classes is 
-now available in {dfanalytics}. {classification-cap} is a supervised {ml} 
+{ml-docs}/dfa-classification.html[{classification-cap}] using multiple classes 
+is now available in {dfanalytics}. {classification-cap} is a supervised {ml} 
 technique which has been already available as a binary process in the previous 
 release. Multiclass {classification} works well with up to 30 distinct 
 categories.

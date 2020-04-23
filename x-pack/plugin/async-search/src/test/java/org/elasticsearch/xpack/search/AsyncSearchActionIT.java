@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.search;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -252,7 +251,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertNull(response.getSearchResponse());
         assertNotNull(response.getFailure());
         assertFalse(response.isRunning());
-        ElasticsearchException exc = response.getFailure();
+        Exception exc = response.getFailure();
         assertThat(exc.getMessage(), containsString("no such index"));
     }
 

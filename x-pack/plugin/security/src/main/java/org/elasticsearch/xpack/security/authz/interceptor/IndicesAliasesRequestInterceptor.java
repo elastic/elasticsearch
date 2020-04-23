@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
@@ -51,7 +52,7 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
             final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
             final AuditTrail auditTrail = auditTrailService.get();
             if (frozenLicenseState.isSecurityEnabled()) {
-                if (frozenLicenseState.isDocumentAndFieldLevelSecurityAllowed()) {
+                if (frozenLicenseState.isAllowed(Feature.SECURITY_DLS_FLS)) {
                     IndicesAccessControl indicesAccessControl =
                         threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
                     for (IndicesAliasesRequest.AliasActions aliasAction : request.getAliasActions()) {

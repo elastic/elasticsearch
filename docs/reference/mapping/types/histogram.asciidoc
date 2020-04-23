@@ -35,6 +35,7 @@ binary <<doc-values,doc values>> and not indexed. Its size in bytes is at most
 Because the data is not indexed, you only can use `histogram` fields for the
 following aggregations and queries:
 
+* <<search-aggregations-metrics-sum-aggregation,sum>> aggregation
 * <<search-aggregations-metrics-percentile-aggregation,percentiles>> aggregation
 * <<search-aggregations-metrics-percentile-rank-aggregation,percentile ranks>> aggregation
 * <<search-aggregations-metrics-boxplot-aggregation,boxplot>> aggregation

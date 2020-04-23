@@ -16,14 +16,14 @@ import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.spatial.aggregations.metrics.GeoShapeBoundsAggregator;
-import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeValuesSource;
-import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.ingest.CircleProcessor;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeBoundsAggregator;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -67,7 +67,7 @@ public class SpatialPlugin extends GeoPlugin implements MapperPlugin, SearchPlug
     }
 
     public static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(GeoBoundsAggregationBuilder.NAME, GeoShapeValuesSourceType.INSTANCE,
+        builder.register(GeoBoundsAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (GeoBoundsAggregatorSupplier) (name, aggregationContext, parent, valuesSource, wrapLongitude, metadata)
                 -> new GeoShapeBoundsAggregator(name, aggregationContext, parent, (GeoShapeValuesSource) valuesSource,
                 wrapLongitude, metadata));

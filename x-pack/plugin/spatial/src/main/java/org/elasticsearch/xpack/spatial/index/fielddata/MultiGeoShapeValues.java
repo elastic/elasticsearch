@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.spatial.index.mapper;
+package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.index.IndexableField;
@@ -17,6 +17,7 @@ import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -40,7 +41,8 @@ import java.util.List;
  */
 public abstract class MultiGeoShapeValues {
 
-    static MultiGeoShapeValues EMPTY = new MultiGeoShapeValues() {
+    public static MultiGeoShapeValues EMPTY = new MultiGeoShapeValues() {
+        private GeoShapeValuesSourceType DEFAULT_VALUES_SOURCE_TYPE = GeoShapeValuesSourceType.instance();
         @Override
         public boolean advanceExact(int doc) {
             return false;
@@ -53,7 +55,7 @@ public abstract class MultiGeoShapeValues {
 
         @Override
         public ValuesSourceType valuesSourceType() {
-            return GeoShapeValuesSourceType.INSTANCE;
+            return DEFAULT_VALUES_SOURCE_TYPE;
         }
 
         @Override

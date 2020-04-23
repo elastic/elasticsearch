@@ -50,12 +50,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
         Path location = randomRepoPath();
 
-        logger.info("-->  creating repository");
-        AcknowledgedResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo-1")
-                .setType("fs").setSettings(Settings.builder()
-                                .put("location", location)
-                ).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        createRepository("test-repo-1", "fs", location);
 
         logger.info("--> verify the repository");
         int numberOfFiles = FileSystemUtils.files(location).length;
@@ -74,11 +69,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         assertThat(repositoriesMetadata.repository("test-repo-1").type(), equalTo("fs"));
 
         logger.info("-->  creating another repository");
-        putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo-2")
-                .setType("fs").setSettings(Settings.builder()
-                                .put("location", randomRepoPath())
-                ).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        createRepository("test-repo-2", "fs", randomRepoPath());
 
         logger.info("--> check that both repositories are in cluster state");
         clusterStateResponse = client.admin().cluster().prepareState().clear().setMetadata(true).get();

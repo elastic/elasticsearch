@@ -6,15 +6,17 @@
 
 package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
+import org.elasticsearch.search.aggregations.metrics.MetricAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
-public class AnalyticsPercentilesAggregatorFactory {
+public class AnalyticsAggregatorFactory {
     public static void registerPercentilesAggregator(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(PercentilesAggregationBuilder.NAME,
             AnalyticsValuesSourceType.HISTOGRAM,
@@ -57,5 +59,10 @@ public class AnalyticsPercentilesAggregatorFactory {
                 throw new IllegalArgumentException("Percentiles algorithm: [" + percentilesConfig.getMethod().toString() + "] " +
                     "is not compatible with Histogram field");
             });
+    }
+
+    public static void registerHistoBackedSumAggregator(ValuesSourceRegistry valuesSourceRegistry) {
+        valuesSourceRegistry.register(SumAggregationBuilder.NAME, AnalyticsValuesSourceType.HISTOGRAM,
+            (MetricAggregatorSupplier) HistoBackedSumAggregator::new);
     }
 }

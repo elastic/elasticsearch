@@ -27,7 +27,7 @@ import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsPercentilesAggregatorFactory;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsAggregatorFactory;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
@@ -40,7 +40,7 @@ public class HDRPreAggregatedPercentileRanksAggregatorTests extends AggregatorTe
 
     @BeforeClass
     public static void registerBuilder() {
-        AnalyticsPercentilesAggregatorFactory.registerPercentileRanksAggregator(valuesSourceRegistry);
+        AnalyticsAggregatorFactory.registerPercentileRanksAggregator(valuesSourceRegistry);
     }
 
     @Override

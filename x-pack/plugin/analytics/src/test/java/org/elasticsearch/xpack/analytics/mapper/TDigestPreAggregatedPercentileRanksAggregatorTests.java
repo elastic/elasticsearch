@@ -28,7 +28,7 @@ import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsPercentilesAggregatorFactory;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsAggregatorFactory;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
@@ -43,7 +43,7 @@ public class TDigestPreAggregatedPercentileRanksAggregatorTests extends Aggregat
 
     @BeforeClass
     public static void registerBuilder() {
-        AnalyticsPercentilesAggregatorFactory.registerPercentileRanksAggregator(valuesSourceRegistry);
+        AnalyticsAggregatorFactory.registerPercentileRanksAggregator(valuesSourceRegistry);
     }
 
     @Override

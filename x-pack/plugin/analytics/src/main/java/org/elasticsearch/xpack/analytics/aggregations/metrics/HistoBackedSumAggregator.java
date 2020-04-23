@@ -1,49 +1,44 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.search.aggregations.metrics;
+package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.HistogramValue;
+import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
+import org.elasticsearch.search.aggregations.metrics.InternalSum;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSource;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class SumAggregator extends NumericMetricsAggregator.SingleValue {
+/**
+ * Sum aggregator operating over histogram datatypes {@link HistogramValuesSource}
+ */
+class HistoBackedSumAggregator extends NumericMetricsAggregator.SingleValue {
 
-    private final ValuesSource.Numeric valuesSource;
+    private final ValuesSource valuesSource;
     private final DocValueFormat format;
 
     private DoubleArray sums;
     private DoubleArray compensations;
 
-    SumAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat formatter, SearchContext context,
+    HistoBackedSumAggregator(String name, ValuesSource valuesSource, DocValueFormat formatter, SearchContext context,
             Aggregator parent, Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
         this.valuesSource = valuesSource;
@@ -66,7 +61,8 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final BigArrays bigArrays = context.bigArrays();
-        final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+        final HistogramValues values = ((HistogramValuesSource.Histogram) valuesSource).getHistogramValues(ctx);
+
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -75,16 +71,13 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
                 compensations = bigArrays.grow(compensations, bucket + 1);
 
                 if (values.advanceExact(doc)) {
-                    final int valuesCount = values.docValueCount();
-                    // Compute the sum of double values with Kahan summation algorithm which is more
-                    // accurate than naive summation.
-                    double sum = sums.get(bucket);
-                    double compensation = compensations.get(bucket);
+                    final HistogramValue sketch = values.histogram();
+                    final double sum = sums.get(bucket);
+                    final double compensation = compensations.get(bucket);
                     kahanSummation.reset(sum, compensation);
-
-                    for (int i = 0; i < valuesCount; i++) {
-                        double value = values.nextValue();
-                        kahanSummation.add(value);
+                    while (sketch.next()) {
+                        double d = sketch.value() * sketch.count();
+                        kahanSummation.add(d);
                     }
 
                     compensations.set(bucket, kahanSummation.delta());

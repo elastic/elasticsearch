@@ -36,7 +36,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -76,12 +75,7 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
         final String dataStreamName = "my-data-stream";
         final List<String> otherIndices = randomSubsetOf(List.of("foo", "bar", "baz"));
 
-        ClusterState cs = getClusterState(
-            List.of(new Tuple<>(dataStreamName, List.of(
-                String.format(Locale.ROOT, "%s-%06d", dataStreamName, 1),
-                String.format(Locale.ROOT, "%s-%06d", dataStreamName, 2)))),
-            otherIndices);
-
+        ClusterState cs = getClusterState(List.of(new Tuple<>(dataStreamName, 2)), otherIndices);
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(dataStreamName);
         ClusterState newState = DeleteDataStreamAction.TransportAction.removeDataStream(getMetadataDeleteIndexService(), cs, req);
         assertThat(newState.metadata().dataStreams().size(), equalTo(0));
@@ -122,22 +116,22 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
     /**
      * Constructs {@code ClusterState} with the specified data streams and indices.
      *
-     * @param dataStreamAndIndexNames The names of the data streams to create with their respective backing indices
-     * @param indexNames              The names of indices to create that do not back any data streams
+     * @param dataStreams The names of the data streams to create with their respective number of backing indices
+     * @param indexNames  The names of indices to create that do not back any data streams
      */
-    private static ClusterState getClusterState(List<Tuple<String, List<String>>> dataStreamAndIndexNames, List<String> indexNames) {
+    private static ClusterState getClusterState(List<Tuple<String, Integer>> dataStreams, List<String> indexNames) {
         Metadata.Builder builder = Metadata.builder();
 
         List<IndexMetadata> allIndices = new ArrayList<>();
-        for (Tuple<String, List<String>> dsTuple : dataStreamAndIndexNames) {
+        for (Tuple<String, Integer> dsTuple : dataStreams) {
             List<IndexMetadata> backingIndices = new ArrayList<>();
-            for (String indexName : dsTuple.v2()) {
-                backingIndices.add(createIndexMetadata(indexName, true));
+            for (int backingIndexNumber = 1; backingIndexNumber <= dsTuple.v2(); backingIndexNumber++) {
+                backingIndices.add(createIndexMetadata(DataStream.getBackingIndexName(dsTuple.v1(), backingIndexNumber), true));
             }
             allIndices.addAll(backingIndices);
 
             DataStream ds = new DataStream(dsTuple.v1(), "@timestamp",
-                backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()));
+                backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()), dsTuple.v2());
             builder.put(ds);
         }
 

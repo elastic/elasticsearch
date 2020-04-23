@@ -29,6 +29,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
 
 import java.io.IOException;
 import java.util.List;
@@ -122,6 +123,7 @@ public class RestIndexAction extends BaseRestHandler {
         indexRequest.versionType(VersionType.fromString(request.param("version_type"), indexRequest.versionType()));
         indexRequest.setIfSeqNo(request.paramAsLong("if_seq_no", indexRequest.ifSeqNo()));
         indexRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", indexRequest.ifPrimaryTerm()));
+        indexRequest.preferV2Templates(RestCreateIndexAction.preferV2Templates(request));
         String sOpType = request.param("op_type");
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {

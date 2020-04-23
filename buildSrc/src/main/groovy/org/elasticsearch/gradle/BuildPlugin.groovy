@@ -377,7 +377,10 @@ class BuildPlugin implements Plugin<Project> {
                 // Here we manually add any project dependencies in the "shadow" configuration to our generated POM
                 publication.pom.withXml(this.&addScmInfo)
                 publication.pom.withXml { xml ->
-                    Node dependenciesNode = (xml.asNode().get('dependencies') as NodeList).get(0) as Node
+                    Node root = xml.asNode();
+                    root.appendNode('name', project.name)
+                    root.appendNode('description', project.description)
+                    Node dependenciesNode = (root.get('dependencies') as NodeList).get(0) as Node
                     project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME).allDependencies.each { dependency ->
                         if (dependency instanceof ProjectDependency) {
                             def dependencyNode = dependenciesNode.appendNode('dependency')
@@ -692,7 +695,8 @@ class BuildPlugin implements Plugin<Project> {
                 // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
                 nonInputProperties.systemProperty('java.io.tmpdir', test.workingDir.toPath().resolve('temp'))
 
-                nonInputProperties.systemProperty('compiler.java', "${-> BuildParams.compilerJavaVersion.majorVersion}")
+                nonInputProperties.systemProperty('compiler.java', BuildParams.compilerJavaVersion.majorVersion)
+                nonInputProperties.systemProperty('runtime.java', BuildParams.runtimeJavaVersion.majorVersion)
 
                 // TODO: remove setting logging level via system property
                 test.systemProperty 'tests.logger.level', 'WARN'

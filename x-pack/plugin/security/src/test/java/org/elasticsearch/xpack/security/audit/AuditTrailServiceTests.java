@@ -50,6 +50,7 @@ public class AuditTrailServiceTests extends ESTestCase {
         licenseState = mock(XPackLicenseState.class);
         service = new AuditTrailService(auditTrails, licenseState);
         isAuditingAllowed = randomBoolean();
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isAuditingAllowed()).thenReturn(isAuditingAllowed);
         token = mock(AuthenticationToken.class);
         request = mock(TransportRequest.class);

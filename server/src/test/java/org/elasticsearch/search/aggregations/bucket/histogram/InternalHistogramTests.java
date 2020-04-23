@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -147,11 +146,6 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
                     (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
         }
         assertEquals(expectedCounts, actualCounts);
-    }
-
-    @Override
-    protected Reader<InternalHistogram> instanceReader() {
-        return InternalHistogram::new;
     }
 
     @Override

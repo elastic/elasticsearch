@@ -73,6 +73,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -98,7 +99,7 @@ import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.aggr
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.buildIndexMetadata;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.clusterStateCreateIndex;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.getIndexNumberOfRoutingShards;
-import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.parseMappings;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.parseV1Mappings;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.resolveAndValidateAliases;
 import static org.elasticsearch.cluster.shards.ClusterShardLimitIT.ShardCounts.forDataNodeCount;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
@@ -622,7 +623,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         });
         request.mappings(createMapping("mapping_from_request", "text").string());
 
-        Map<String, Object> parsedMappings = MetadataCreateIndexService.parseMappings(request.mappings(),
+        Map<String, Object> parsedMappings = MetadataCreateIndexService.parseV1Mappings(request.mappings(),
             List.of(templateMetadata.getMappings()), NamedXContentRegistry.EMPTY);
 
         assertThat(parsedMappings, hasKey("_doc"));
@@ -678,7 +679,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         request.aliases(Set.of(new Alias("alias").searchRouting("fromRequest")));
         request.settings(Settings.builder().put("key1", "requestValue").build());
 
-        Map<String, Object> parsedMappings = MetadataCreateIndexService.parseMappings(request.mappings(),
+        Map<String, Object> parsedMappings = MetadataCreateIndexService.parseV1Mappings(request.mappings(),
             List.of(templateMetadata.mappings()), xContentRegistry());
         List<AliasMetadata> resolvedAliases = resolveAndValidateAliases(request.index(), request.aliases(),
             MetadataIndexTemplateService.resolveAliases(List.of(templateMetadata)),
@@ -848,7 +849,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             }
         });
 
-        Map<String, Object> mappings = parseMappings("{\"_doc\":{}}", List.of(templateMetadata.mappings()), xContentRegistry());
+        Map<String, Object> mappings = parseV1Mappings("{\"_doc\":{}}", List.of(templateMetadata.mappings()), xContentRegistry());
         assertThat(mappings, Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
     }
 
@@ -861,7 +862,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 ExceptionsHelper.reThrowIfNotNull(e);
             }
         });
-        Map<String, Object> mappings = parseMappings("", List.of(templateMetadata.mappings()), xContentRegistry());
+        Map<String, Object> mappings = parseV1Mappings("", List.of(templateMetadata.mappings()), xContentRegistry());
         assertThat(mappings, Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
     }
 
@@ -873,7 +874,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 ExceptionsHelper.reThrowIfNotNull(e);
             }
         });
-        Map<String, Object> mappings = parseMappings("", List.of(templateMetadata.mappings()), xContentRegistry());
+        Map<String, Object> mappings = parseV1Mappings("", List.of(templateMetadata.mappings()), xContentRegistry());
         assertThat(mappings, Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
     }
 
@@ -981,6 +982,69 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
         assertWarnings("Translog retention settings [index.translog.retention.age] "
             + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMappingsMergingIsSmart() throws Exception {
+        Template ctt1 = new Template(null,
+            new CompressedXContent("{\"_doc\":{\"_source\":{\"enabled\": false},\"_meta\":{\"ct1\":{\"ver\": \"text\"}}," +
+                "\"properties\":{\"foo\":{\"type\":\"text\",\"ignore_above\":7,\"analyzer\":\"english\"}}}}"), null);
+        Template ctt2 = new Template(null,
+            new CompressedXContent("{\"_doc\":{\"_meta\":{\"ct1\":{\"ver\": \"keyword\"},\"ct2\":\"potato\"}," +
+                "\"properties\":{\"foo\":{\"type\":\"keyword\",\"ignore_above\":13}}}}"), null);
+
+        ComponentTemplate ct1 = new ComponentTemplate(ctt1, null, null);
+        ComponentTemplate ct2 = new ComponentTemplate(ctt2, null, null);
+
+        boolean shouldBeText = randomBoolean();
+        List<String> composedOf = shouldBeText ? Arrays.asList("ct2", "ct1") : Arrays.asList("ct1", "ct2");
+        logger.info("--> the {} analyzer should win ({})", shouldBeText ? "text" : "keyword", composedOf);
+        IndexTemplateV2 template = new IndexTemplateV2(Collections.singletonList("index"), null, composedOf, null, null, null);
+
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
+                .put("ct1", ct1)
+                .put("ct2", ct2)
+                .put("index-template", template)
+                .build())
+            .build();
+
+        Map<String, Object> resolved =
+            MetadataCreateIndexService.resolveV2Mappings("{\"_doc\":{\"_meta\":{\"ct2\":\"eggplant\"}," +
+                    "\"properties\":{\"bar\":{\"type\":\"text\"}}}}", state,
+                "index-template", new NamedXContentRegistry(Collections.emptyList()));
+
+        assertThat("expected exactly one type but was: " + resolved, resolved.size(), equalTo(1));
+        Map<String, Object> innerResolved = (Map<String, Object>) resolved.get(MapperService.SINGLE_MAPPING_NAME);
+        assertThat("was: " + innerResolved, innerResolved.size(), equalTo(3));
+
+        Map<String, Object> nonProperties = new HashMap<>(innerResolved);
+        nonProperties.remove("properties");
+        Map<String, Object> expectedNonProperties = new HashMap<>();
+        expectedNonProperties.put("_source", Collections.singletonMap("enabled", false));
+        Map<String, Object> meta = new HashMap<>();
+        meta.put("ct2", "eggplant");
+        if (shouldBeText) {
+            meta.put("ct1", Collections.singletonMap("ver", "text"));
+        } else {
+            meta.put("ct1", Collections.singletonMap("ver", "keyword"));
+        }
+        expectedNonProperties.put("_meta", meta);
+        assertThat(nonProperties, equalTo(expectedNonProperties));
+
+        Map<String, Object> innerInnerResolved = (Map<String, Object>) innerResolved.get("properties");
+        assertThat(innerInnerResolved.size(), equalTo(2));
+        assertThat(innerInnerResolved.get("bar"), equalTo(Collections.singletonMap("type", "text")));
+        Map<String, Object> fooMappings = new HashMap<>();
+        if (shouldBeText) {
+            fooMappings.put("type", "text");
+            fooMappings.put("ignore_above", 7);
+            fooMappings.put("analyzer", "english");
+        } else {
+            fooMappings.put("type", "keyword");
+            fooMappings.put("ignore_above", 13);
+        }
+        assertThat(innerInnerResolved.get("foo"), equalTo(fooMappings));
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {

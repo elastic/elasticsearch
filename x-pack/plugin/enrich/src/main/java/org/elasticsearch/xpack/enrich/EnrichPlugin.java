@@ -38,6 +38,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
@@ -47,6 +48,7 @@ import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction;
 import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorStatsAction;
 import org.elasticsearch.xpack.enrich.action.EnrichInfoTransportAction;
 import org.elasticsearch.xpack.enrich.action.EnrichShardMultiSearchAction;
+import org.elasticsearch.xpack.enrich.action.EnrichUsageTransportAction;
 import org.elasticsearch.xpack.enrich.action.TransportDeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.TransportEnrichStatsAction;
 import org.elasticsearch.xpack.enrich.action.TransportExecuteEnrichPolicyAction;
@@ -152,6 +154,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
 
         return List.of(
             new ActionHandler<>(XPackInfoFeatureAction.ENRICH, EnrichInfoTransportAction.class),
+            new ActionHandler<>(XPackUsageFeatureAction.ENRICH, EnrichUsageTransportAction.class),
             new ActionHandler<>(GetEnrichPolicyAction.INSTANCE, TransportGetEnrichPolicyAction.class),
             new ActionHandler<>(DeleteEnrichPolicyAction.INSTANCE, TransportDeleteEnrichPolicyAction.class),
             new ActionHandler<>(PutEnrichPolicyAction.INSTANCE, TransportPutEnrichPolicyAction.class),

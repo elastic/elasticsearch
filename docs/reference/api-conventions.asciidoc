@@ -385,7 +385,7 @@ Returns:
     "settings": {
       "index.number_of_replicas": "1",
       "index.number_of_shards": "1",
-      "index.prefer_v2_templates": "false",
+      "index.prefer_v2_templates": "true",
       "index.creation_date": "1474389951325",
       "index.uuid": "n6gzFZTgS664GUfx0Xrpjw",
       "index.version.created": ...,
@@ -423,7 +423,7 @@ Returns:
           "created": ...
         },
         "provided_name" : "twitter",
-        "prefer_v2_templates": "false"
+        "prefer_v2_templates": "true"
       }
     }
   }

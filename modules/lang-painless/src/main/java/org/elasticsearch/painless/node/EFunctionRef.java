@@ -23,23 +23,19 @@ import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.FuncRefNode;
+import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
+import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
 
 /**
  * Represents a function reference.
  */
-public class EFunctionRef extends AExpression implements ILambda {
+public class EFunctionRef extends AExpression {
 
     protected final String type;
     protected final String call;
-
-    // TODO: #54015
-    private String defPointer;
 
     public EFunctionRef(Location location, String type, String call) {
         super(location);
@@ -60,39 +56,32 @@ public class EFunctionRef extends AExpression implements ILambda {
                     "not a statement: function reference [" + type + ":"  + call + "] not used"));
         }
 
-        FunctionRef ref;
-
         Output output = new Output();
 
         if (input.expected == null) {
-            ref = null;
             output.actual = String.class;
-            defPointer = "S" + type + "." + call + ",0";
+            String defReferenceEncoding = "S" + type + "." + call + ",0";
+
+            DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode();
+
+            defInterfaceReferenceNode.setLocation(location);
+            defInterfaceReferenceNode.setExpressionType(output.actual);
+            defInterfaceReferenceNode.setDefReferenceEncoding(defReferenceEncoding);
+
+            output.expressionNode = defInterfaceReferenceNode;
         } else {
-            defPointer = null;
-            ref = FunctionRef.create(
+            FunctionRef ref = FunctionRef.create(
                     scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(), location, input.expected, type, call, 0);
             output.actual = input.expected;
+
+            TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode();
+            typedInterfaceReferenceNode.setLocation(location);
+            typedInterfaceReferenceNode.setExpressionType(output.actual);
+            typedInterfaceReferenceNode.setReference(ref);
+
+            output.expressionNode = typedInterfaceReferenceNode;
         }
 
-        FuncRefNode funcRefNode = new FuncRefNode();
-
-        funcRefNode.setLocation(location);
-        funcRefNode.setExpressionType(output.actual);
-        funcRefNode.setFuncRef(ref);
-
-        output.expressionNode = funcRefNode;
-
         return output;
-    }
-
-    @Override
-    public String getPointer() {
-        return defPointer;
-    }
-
-    @Override
-    public List<Class<?>> getCaptures() {
-        return Collections.emptyList();
     }
 }

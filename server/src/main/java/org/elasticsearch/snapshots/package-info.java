@@ -97,7 +97,7 @@
  * {@link org.elasticsearch.cluster.SnapshotDeletionsInProgress}.</li>
  *
  * <li>Once the cluster state contains the deletion entry in {@code SnapshotDeletionsInProgress} the {@code SnapshotsService} will invoke
- * {@link org.elasticsearch.repositories.Repository#deleteSnapshot} for the given snapshot, which will remove files associated with the
+ * {@link org.elasticsearch.repositories.Repository#deleteSnapshots} for the given snapshot, which will remove files associated with the
  * snapshot from the repository as well as update its meta-data to reflect the deletion of the snapshot.</li>
  *
  * <li>After the deletion of the snapshot's data from the repository finishes, the {@code SnapshotsService} will submit a cluster state

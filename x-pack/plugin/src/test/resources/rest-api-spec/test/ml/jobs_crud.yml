@@ -143,6 +143,7 @@
       ml.open_job:
         job_id: job-model-memory-limit-as-string
   - match: { opened: true }
+  - match: { node: "" }
 
   - do:
       headers:
@@ -563,6 +564,7 @@
       ml.open_job:
         job_id: delete-opened-job
   - match: { opened: true }
+  - match: { node: /\S+/ }
 
   - do:
       catch: /Cannot delete job \[delete-opened-job\] because the job is opened/
@@ -1446,6 +1448,7 @@
       ml.open_job:
         job_id: persistent-task-allocation-allowed-test
   - match: { opened: true }
+  - match: { node: /\S+/ }
 
 ---
 "Test reopen job resets the finished time":

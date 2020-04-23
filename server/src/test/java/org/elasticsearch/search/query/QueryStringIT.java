@@ -263,38 +263,6 @@ public class QueryStringIT extends ESIntegTestCase {
         assertThat(e.getCause().getMessage(), containsString("unit [D] not supported for date math [-2D]"));
     }
 
-    public void testLimitOnExpandedFields() throws Exception {
-        XContentBuilder builder = jsonBuilder();
-        builder.startObject();
-        builder.startObject("_doc");
-        builder.startObject("properties");
-        for (int i = 0; i < CLUSTER_MAX_CLAUSE_COUNT + 1; i++) {
-            builder.startObject("field" + i).field("type", "text").endObject();
-        }
-        builder.endObject(); // properties
-        builder.endObject(); // type1
-        builder.endObject();
-
-        assertAcked(prepareCreate("toomanyfields")
-                .setSettings(Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
-                        CLUSTER_MAX_CLAUSE_COUNT + 100))
-                .setMapping(builder));
-
-        client().prepareIndex("toomanyfields").setId("1").setSource("field1", "foo bar baz").get();
-        refresh();
-
-        Exception e = expectThrows(Exception.class, () -> {
-                QueryStringQueryBuilder qb = queryStringQuery("bar");
-                if (randomBoolean()) {
-                    qb.defaultField("*");
-                }
-                client().prepareSearch("toomanyfields").setQuery(qb).get();
-                });
-        assertThat(ExceptionsHelper.unwrap(e, IllegalArgumentException.class).getMessage(),
-                containsString("field expansion matches too many fields, limit: " + CLUSTER_MAX_CLAUSE_COUNT + ", got: "
-                        + (CLUSTER_MAX_CLAUSE_COUNT + 1)));
-    }
-
     // The only expectation for this test is to not throw exception
     public void testLimitOnExpandedFieldsButIgnoreUnmappedFields() throws Exception {
         XContentBuilder builder = jsonBuilder();
@@ -322,6 +290,74 @@ public class QueryStringIT extends ESIntegTestCase {
                 .field("unmappedField4");
         }
         client().prepareSearch("ignoreunmappedfields").setQuery(qb).get();
+    }
+
+    public void testLimitOnExpandedFields() throws Exception {
+        XContentBuilder builder = jsonBuilder();
+        builder.startObject();
+        {
+            builder.startObject("_doc");
+            {
+                builder.startObject("properties");
+                {
+                    for (int i = 0; i < CLUSTER_MAX_CLAUSE_COUNT; i++) {
+                        builder.startObject("field_A" + i).field("type", "text").endObject();
+                        builder.startObject("field_B" + i).field("type", "text").endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+
+        assertAcked(prepareCreate("testindex")
+                .setSettings(Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
+                        CLUSTER_MAX_CLAUSE_COUNT + 100))
+                .setMapping(builder));
+
+        client().prepareIndex("testindex").setId("1").setSource("field_A0", "foo bar baz").get();
+        refresh();
+
+        // single field shouldn't trigger the limit
+        doAssertOneHitForQueryString("field_A0:foo");
+        // expanding to the limit should work
+        doAssertOneHitForQueryString("field_A\\*:foo");
+        // expanding two blocks to the limit still works
+        doAssertOneHitForQueryString("field_A\\*:foo field_B\\*:bar");
+
+        // adding a non-existing field on top shouldn't overshoot the limit
+        doAssertOneHitForQueryString("field_A\\*:foo unmapped:something");
+
+        // the following should exceed the limit
+        doAssertLimitExceededException("foo", CLUSTER_MAX_CLAUSE_COUNT * 2, "*");
+        doAssertLimitExceededException("*:foo", CLUSTER_MAX_CLAUSE_COUNT * 2, "*");
+        doAssertLimitExceededException("field_\\*:foo", CLUSTER_MAX_CLAUSE_COUNT * 2, "field_*");
+    }
+
+    private void doAssertOneHitForQueryString(String queryString) {
+        QueryStringQueryBuilder qb = queryStringQuery(queryString);
+        if (randomBoolean()) {
+            qb.defaultField("*");
+        }
+        SearchResponse response = client().prepareSearch("testindex").setQuery(qb).get();
+        assertHitCount(response, 1);
+    }
+
+    private void doAssertLimitExceededException(String queryString, int exceedingFieldCount, String inputFieldPattern) {
+        Exception e = expectThrows(Exception.class, () -> {
+            QueryStringQueryBuilder qb = queryStringQuery(queryString);
+            if (randomBoolean()) {
+                qb.defaultField("*");
+            }
+            client().prepareSearch("testindex").setQuery(qb).get();
+        });
+        assertThat(
+            ExceptionsHelper.unwrap(e, IllegalArgumentException.class).getMessage(),
+            containsString("field expansion for [" + inputFieldPattern + "] matches too many fields, limit: " + CLUSTER_MAX_CLAUSE_COUNT
+                    + ", got: " + exceedingFieldCount
+            )
+        );
     }
 
     public void testFieldAlias() throws Exception {

@@ -151,7 +151,7 @@ public class RolloverRequestTests extends ESTestCase {
             try (StreamInput in = new NamedWriteableAwareStreamInput(bytes.streamInput(), writeableRegistry)) {
                 RolloverRequest cloneRequest = new RolloverRequest(in);
                 assertThat(cloneRequest.getNewIndexName(), equalTo(originalRequest.getNewIndexName()));
-                assertThat(cloneRequest.getAlias(), equalTo(originalRequest.getAlias()));
+                assertThat(cloneRequest.getRolloverTarget(), equalTo(originalRequest.getRolloverTarget()));
                 for (Map.Entry<String, Condition<?>> entry : cloneRequest.getConditions().entrySet()) {
                     Condition<?> condition = originalRequest.getConditions().get(entry.getKey());
                     //here we compare the string representation as there is some information loss when serializing
@@ -190,7 +190,7 @@ public class RolloverRequestTests extends ESTestCase {
         ActionRequestValidationException validationException = rolloverRequest.validate();
         assertNotNull(validationException);
         assertEquals(1, validationException.validationErrors().size());
-        assertEquals("index alias is missing", validationException.validationErrors().get(0));
+        assertEquals("rollover target is missing", validationException.validationErrors().get(0));
     }
 
     private static List<Consumer<RolloverRequest>> conditionsGenerator = new ArrayList<>();

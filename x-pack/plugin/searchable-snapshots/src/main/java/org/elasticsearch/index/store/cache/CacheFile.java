@@ -89,7 +89,7 @@ public class CacheFile {
         final ReleasableLock fileLock = readLock.acquire();
         try {
             ensureOpen();
-            // check if we have a channel
+            // check if we have a channel while holding the read lock
             if (channel == null) {
                 throw new AlreadyClosedException("Cache file channel has been released and closed");
             }

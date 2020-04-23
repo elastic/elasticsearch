@@ -202,8 +202,14 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract SearchContext docValuesContext(FetchDocValuesContext docValuesContext);
 
+    /**
+     * Contains the context related to retrieving fields.
+     */
     public abstract FetchFieldsContext fetchFieldsContext();
 
+    /**
+     * Sets the context related to retrieving fields.
+     */
     public abstract SearchContext fetchFieldsContext(FetchFieldsContext fetchFieldsContext);
 
     public abstract ContextIndexSearcher searcher();

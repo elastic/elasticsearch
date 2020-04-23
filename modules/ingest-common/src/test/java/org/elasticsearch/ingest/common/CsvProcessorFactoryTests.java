@@ -24,7 +24,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Collections;
 import java.util.HashMap;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class CsvProcessorFactoryTests extends ESTestCase {
@@ -48,6 +50,6 @@ public class CsvProcessorFactoryTests extends ESTestCase {
         assertThat(csv.emptyValue, equalTo("empty"));
         assertThat(csv.trim, equalTo(true));
         assertThat(csv.ignoreMissing, equalTo(true));
-        assertEquals(new HashMap<String, Object>(), properties);
+        assertThat(properties, is(emptyMap()));
     }
 }

@@ -345,8 +345,10 @@ final class AsyncSearchTask extends SearchTask {
         }
 
         @Override
-        protected void onFetchFailure(int shardIndex, Exception exc) {
+        protected void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
             checkCancellation();
+            searchResponse.get().addShardFailure(shardIndex,
+                new ShardSearchFailure(exc, shardTarget.getNodeId() != null ? shardTarget : null));
         }
 
         @Override

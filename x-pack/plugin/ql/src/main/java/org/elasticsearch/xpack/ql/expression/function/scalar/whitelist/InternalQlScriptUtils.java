@@ -121,19 +121,19 @@ public class InternalQlScriptUtils {
     // Math
     //
     public static Number add(Number left, Number right) {
-        return (Number)DefaultBinaryArithmeticOperation.ADD.apply(left, right);
+        return (Number) DefaultBinaryArithmeticOperation.ADD.apply(left, right);
     }
 
     public static Number div(Number left, Number right) {
-        return (Number)DefaultBinaryArithmeticOperation.DIV.apply(left, right);
+        return (Number) DefaultBinaryArithmeticOperation.DIV.apply(left, right);
     }
 
     public static Number mod(Number left, Number right) {
-        return (Number)DefaultBinaryArithmeticOperation.MOD.apply(left, right);
+        return (Number) DefaultBinaryArithmeticOperation.MOD.apply(left, right);
     }
 
     public static Number mul(Number left, Number right) {
-        return (Number)DefaultBinaryArithmeticOperation.MUL.apply(left, right);
+        return (Number) DefaultBinaryArithmeticOperation.MUL.apply(left, right);
     }
 
     public static Number neg(Number value) {
@@ -141,6 +141,6 @@ public class InternalQlScriptUtils {
     }
 
     public static Number sub(Number left, Number right) {
-        return (Number)DefaultBinaryArithmeticOperation.SUB.apply(left, right);
+        return (Number) DefaultBinaryArithmeticOperation.SUB.apply(left, right);
     }
 }

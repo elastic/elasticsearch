@@ -29,3 +29,28 @@ description = "test built-in modulo math functions"
 # This query give a different result with ES EQL implementation because it doesn't convert to float data types for division
 expected_event_ids = [82, 83]
 query = "file where serial_event_id / 2 == 41"
+
+# Additional EQL queries with arithmetic operations that were not part of the original EQL implementation
+[[queries]]
+expected_event_ids = [82]
+query = "file where 83 - serial_event_id == 1"
+
+[[queries]]
+expected_event_ids = [82]
+query = "file where 1 + serial_event_id == 83"
+
+[[queries]]
+expected_event_ids = [82]
+query = "file where -serial_event_id + 100 == 18"
+
+[[queries]]
+expected_event_ids = [82]
+query = "file where 2 * serial_event_id == 164"
+
+[[queries]]
+expected_event_ids = [66]
+query = "file where 66.0 / serial_event_id == 1"
+
+[[queries]]
+expected_event_ids = [82]
+query = "file where serial_event_id + ((1 + 3) * 2 / (3 - 1)) * 2 == 90 or 70 + serial_event_id < 100"

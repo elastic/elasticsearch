@@ -96,7 +96,7 @@ public class RestMultiGetAction extends BaseRestHandler {
 
         for (MultiGetRequest.Item item : multiGetRequest.getItems()) {
             if (item.type() != null) {
-                deprecationLogger.deprecated(TYPES_DEPRECATION_MESSAGE);
+                deprecationLogger.deprecatedAndMaybeLog("multi_get_types_removal", TYPES_DEPRECATION_MESSAGE);
                 break;
             }
         }

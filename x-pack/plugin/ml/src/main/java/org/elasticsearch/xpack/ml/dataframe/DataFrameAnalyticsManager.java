@@ -225,7 +225,7 @@ public class DataFrameAnalyticsManager {
                 startAnalytics(task, config);
             },
             error -> {
-                if (error instanceof TaskCancelledException && task.isStopping()) {
+                if (ExceptionsHelper.unwrapCause(error) instanceof TaskCancelledException && task.isStopping()) {
                     LOGGER.debug(new ParameterizedMessage("[{}] Caught task cancelled exception while task is stopping",
                         config.getId()), error);
                     task.markAsCompleted();

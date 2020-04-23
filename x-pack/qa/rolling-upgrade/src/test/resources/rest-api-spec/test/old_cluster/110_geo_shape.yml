@@ -1,0 +1,43 @@
+---
+"Test pre-7.8 geo_shape fields":
+  - skip:
+      version: "7.8.0 -"
+      reason: This is meant to run on 7.7 indices or earlier
+
+  - do:
+      indices.create:
+        index: old_locations
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_shape
+
+
+  - do:
+      indices.get_field_mapping:
+        index: old_locations
+        fields: location
+        include_defaults: true
+  - match: { old_locations.mappings.location.mapping.location.doc_values: null }
+
+  - do:
+      index:
+        index:  old_locations
+        id:     point
+        body:   { location: "POINT(34.25 -21.76)" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: old_locations
+        size: 1
+        body:
+          query:
+            match_all: {}
+  - match: {hits.total:      1    }
+  - length: {hits.hits:      1    }
+  - match: {hits.hits.0._id: "point" }

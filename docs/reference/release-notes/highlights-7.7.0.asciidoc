@@ -26,12 +26,47 @@ https://issues.apache.org/jira/browse/LUCENE-9300[corresponding issue].
 
 // tag::notable-highlights[]
 [discrete]
-=== {transforms-cap}
+=== {transforms-cap} – now in GA!
 
-We introduced {transforms} in 7.2.0 as a beta feature. It is now mature enough
-to declare the feature GA (general availability). {transforms-cap} enable you to
-pivot and summarize your data and store it in a new index. See
-{ref}/transforms.html[{transforms-cap}] and
-{ref}//transform-apis.html[{transform-cap} APIs].
+In 7.7, we move {transforms} from beta to general availability.
+
+{ref}/transforms.html[{transforms-cap}] enable you to pivot existing {es} 
+indices using group-by and aggregations into a destination feature index, which 
+provides opportunities for new insights and analytics. For example, you can use 
+{transforms} to pivot your data into entity-centric indices that summarize the 
+behavior of users or sessions or other entities in your data.
+
+{transforms-cap} now include support for cross-cluster search. Allowing you to 
+create your destination feature index on a separate cluster from the source 
+indices. 
+
+Aggregation support has been expanded within {transforms} to include support for 
+{ref}/search-aggregations-metrics-percentile-aggregation.html[multi-value (percentiles)] 
+and 
+{ref}/search-aggregations-bucket-filter-aggregation.html[filter aggregations]. 
+We also optimized the performance of the 
+{ref}/search-aggregations-bucket-datehistogram-aggregation.html[date histogram aggregations].
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[discrete]
+=== Introducing multiclass {classification}
+
+{ml-docs}/dfa-classification.html[{classification-cap}] using multiple classes 
+is now available in {dfanalytics}. {classification-cap} is a supervised {ml} 
+technique which has been already available as a binary process in the previous 
+release. Multiclass {classification} works well with up to 30 distinct 
+categories.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[discrete]
+=== {feat-imp-cap} at {infer} time
+
+{feat-imp-cap} now can be calculated at {infer} time. This value provides 
+further insight into the results of a {classification} or {regression} job and 
+therefore helps interpret these results.
 
 // end::notable-highlights[]

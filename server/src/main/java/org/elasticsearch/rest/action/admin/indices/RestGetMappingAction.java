@@ -89,7 +89,8 @@ public class RestGetMappingAction extends BaseRestHandler {
         boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
 
         if (request.method().equals(HEAD)) {
-            deprecationLogger.deprecated("Type exists requests are deprecated, as types have been deprecated.");
+            deprecationLogger.deprecatedAndMaybeLog("get_mapping_types_removal",
+                "Type exists requests are deprecated, as types have been deprecated.");
         } else if (includeTypeName == false && types.length > 0) {
             throw new IllegalArgumentException("Types cannot be provided in get mapping requests, unless" +
                 " include_type_name is set to true.");

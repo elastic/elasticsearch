@@ -118,7 +118,8 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
                         + maxAllowedNgramDiff + "] but was [" + ngramDiff + "]. This limit can be set by changing the ["
                         + IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey() + "] index level setting.");
             } else {
-                deprecationLogger.deprecated("Deprecated big difference between max_gram and min_gram in NGram Tokenizer,"
+                deprecationLogger.deprecatedAndMaybeLog("ngram_big_difference",
+                    "Deprecated big difference between max_gram and min_gram in NGram Tokenizer,"
                     + "expected difference must be less than or equal to: [" + maxAllowedNgramDiff + "]");
             }
         }

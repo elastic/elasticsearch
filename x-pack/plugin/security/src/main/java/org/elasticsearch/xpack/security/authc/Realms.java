@@ -347,7 +347,7 @@ public class Realms implements Iterable<Realm> {
 
     private void logDeprecationIfFound(Set<String> missingOrderRealmSettingKeys, Map<String, Set<String>> orderToRealmOrderSettingKeys) {
         if (missingOrderRealmSettingKeys.size() > 0) {
-            deprecationLogger.deprecated("Found realms without order config: [{}]. " +
+            deprecationLogger.deprecatedAndMaybeLog("unordered_realm_config", "Found realms without order config: [{}]. " +
                     "In next major release, node will fail to start with missing realm order.",
                 String.join("; ", missingOrderRealmSettingKeys)
             );
@@ -359,7 +359,8 @@ public class Realms implements Iterable<Realm> {
             .sorted()
             .collect(Collectors.toList());
         if (false == duplicatedRealmOrderSettingKeys.isEmpty()) {
-            deprecationLogger.deprecated("Found multiple realms configured with the same order: [{}]. " +
+            deprecationLogger.deprecatedAndMaybeLog("duplicate_realm_order",
+                    "Found multiple realms configured with the same order: [{}]. " +
                     "In next major release, node will fail to start with duplicated realm order.",
                 String.join("; ", duplicatedRealmOrderSettingKeys));
         }

@@ -39,8 +39,8 @@ import java.util.Map;
 
 class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
 
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(MaxAggregationBuilder.NAME,
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(MaxAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             new MinMaxAggregatorSupplier() {
                 @Override

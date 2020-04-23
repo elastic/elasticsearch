@@ -48,10 +48,11 @@ import java.util.Map;
  * <p>
  * "field" : "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0))
  */
-public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, Geometry> {
+public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry, Geometry> {
     public static final String CONTENT_TYPE = "geo_shape";
 
-    public static class Builder extends AbstractGeometryFieldMapper.Builder<AbstractGeometryFieldMapper.Builder, GeoShapeFieldMapper> {
+    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<AbstractShapeGeometryFieldMapper.Builder,
+            GeoShapeFieldMapper> {
         public Builder(String name) {
             super (name, new GeoShapeFieldType(), new GeoShapeFieldType());
         }
@@ -60,7 +61,7 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         public GeoShapeFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new GeoShapeFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
-                ignoreZValue(), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                ignoreZValue(), orientation(), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
 
         @Override
@@ -78,9 +79,10 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         }
     }
 
-    public static class GeoShapeFieldType extends AbstractGeometryFieldType<Geometry, Geometry> {
+    public static class GeoShapeFieldType extends AbstractShapeGeometryFieldType<Geometry, Geometry> {
         public GeoShapeFieldType() {
             super();
+            setDimensions(7, 4, Integer.BYTES);
         }
 
         protected GeoShapeFieldType(GeoShapeFieldType ref) {
@@ -98,10 +100,10 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         }
     }
 
-    public static final class TypeParser extends AbstractGeometryFieldMapper.TypeParser {
+    public static final class TypeParser extends AbstractShapeGeometryFieldMapper.TypeParser {
 
         @Override
-        protected AbstractGeometryFieldMapper.Builder newBuilder(String name, Map<String, Object> params) {
+        protected AbstractShapeGeometryFieldMapper.Builder newBuilder(String name, Map<String, Object> params) {
             if (params.containsKey(DEPRECATED_PARAMETERS_KEY)) {
                 return new LegacyGeoShapeFieldMapper.Builder(name,
                     (LegacyGeoShapeFieldMapper.DeprecatedParameters)params.get(DEPRECATED_PARAMETERS_KEY));
@@ -112,9 +114,9 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
 
     public GeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                               Explicit<Boolean> ignoreZValue, Settings indexSettings,
+                               Explicit<Boolean> ignoreZValue, Explicit<ShapeBuilder.Orientation> orientation, Settings indexSettings,
                                MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, indexSettings,
+        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, orientation, indexSettings,
             multiFields, copyTo);
     }
 

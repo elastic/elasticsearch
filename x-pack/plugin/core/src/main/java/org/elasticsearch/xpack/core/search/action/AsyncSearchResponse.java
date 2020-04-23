@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.async.AsyncResponse;
 
 import java.io.IOException;
 
@@ -22,7 +23,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  * A response of an async search request.
  */
-public class AsyncSearchResponse extends ActionResponse implements StatusToXContentObject {
+public class AsyncSearchResponse extends ActionResponse implements StatusToXContentObject, AsyncResponse<AsyncSearchResponse> {
     @Nullable
     private final String id;
     @Nullable
@@ -33,7 +34,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     private final boolean isPartial;
 
     private final long startTimeMillis;
-    private long expirationTimeMillis;
+    private final long expirationTimeMillis;
 
     /**
      * Creates an {@link AsyncSearchResponse} with meta-information only (not-modified).
@@ -74,18 +75,13 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     }
 
     public AsyncSearchResponse(StreamInput in) throws IOException {
-        this(in, null);
-    }
-    
-    public AsyncSearchResponse(StreamInput in, Long expirationTime) throws IOException {
         this.id = in.readOptionalString();
         this.error = in.readOptionalWriteable(ElasticsearchException::new);
         this.searchResponse = in.readOptionalWriteable(SearchResponse::new);
         this.isPartial = in.readBoolean();
         this.isRunning = in.readBoolean();
         this.startTimeMillis = in.readLong();
-        long origExpiration = in.readLong();
-        this.expirationTimeMillis = expirationTime == null ? origExpiration : expirationTime;
+        this.expirationTimeMillis = in.readLong();
     }
 
     @Override
@@ -158,12 +154,14 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     /**
      * When this response will expired as a timestamp in milliseconds since epoch.
      */
+    @Override
     public long getExpirationTime() {
         return expirationTimeMillis;
     }
 
-    public void setExpirationTime(long expirationTimeMillis) {
-        this.expirationTimeMillis = expirationTimeMillis;
+    @Override
+    public AsyncSearchResponse withExpirationTime(long expirationTimeMillis) {
+        return new AsyncSearchResponse(id, searchResponse, error, isPartial, isRunning, startTimeMillis, expirationTimeMillis);
     }
 
     @Override

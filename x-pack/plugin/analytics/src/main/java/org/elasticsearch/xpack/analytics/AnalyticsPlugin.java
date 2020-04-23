@@ -127,7 +127,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
     }
 
     @Override
-    public List<Consumer<ValuesSourceRegistry>> getBareAggregatorRegistrar() {
+    public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
         return List.of(AnalyticsPercentilesAggregatorFactory::registerPercentilesAggregator,
             AnalyticsPercentilesAggregatorFactory::registerPercentileRanksAggregator);
     }

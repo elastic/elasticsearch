@@ -21,34 +21,20 @@ file.
 ==== General {transforms} settings
 
 `node.transform`::
-Set to `true` to identify the node as a _transform node_. If either `node.data`
-or `xpack.transform.enabled` is `false` for the node, the default value is
-`false`. Otherwise, the default value is `true`.
+Set to `true` to identify the node as a _transform node_. If `node.data`
+is `false` for the node, the default value is `false`. Otherwise, the default
+value is `true`.
 +
-If set to `false` in `elasticsearch.yml`, the node cannot run transforms. If set to
-`true` but `xpack.transform.enabled` is set to `false`, the `node.transform` setting is
-ignored and the node cannot run transforms. If you want to run transforms, there must be at
-least one transform node in your cluster. +
+If set to `false` in `elasticsearch.yml`, the node cannot run transforms. If
+you want to run transforms, there must be at least one transform node in your
+cluster. +
 +
-IMPORTANT: It is advised to use the `node.transform` setting to constrain the execution
-of transforms to certain nodes instead of using `xpack.transform.enabled`. On dedicated
-coordinating nodes or dedicated master nodes, disable the node.transform role.
+IMPORTANT: On dedicated coordinating nodes or dedicated master nodes, disable
+the node.transform role.
 
 `xpack.transform.enabled`::
 deprecated:[7.8.0,Basic License features should always be enabled] +
-Set to `true` (default) to enable {transforms} on the node.
-+
-If set to `false` in `elasticsearch.yml`, the {transform} APIs are disabled on
-the node. Therefore the node cannot start or administrate {transforms} or
-receive transport (internal) communication requests related to {transform} APIs.
-If the node is a coordinating node, {transform} requests from clients (including
-{kib}) also fail.
-+
-IMPORTANT: If you want to use {transform} features in your cluster, it is
-recommended that you set `xpack.transform.enabled` to `true` on all nodes. This
-is the default behavior. At a minimum, it must be enabled on all master-eligible
-nodes and all data nodes. If you want to use {transforms} in clients or {kib},
-it must also be enabled on all coordinating nodes.
+This deprecated setting no longer has any effect.
 
 `xpack.transform.num_transform_failure_retries` (<<cluster-update-settings,Dynamic>>)::
 The number of times that a {transform} retries when it experiences a

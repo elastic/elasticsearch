@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -92,7 +93,8 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
                                                IndexNameExpressionResolver expressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier,
+                                               CircuitBreakerService circuitBreakerService) {
 
         return createComponents(client, clusterService.getClusterName().value(), namedWriteableRegistry);
     }

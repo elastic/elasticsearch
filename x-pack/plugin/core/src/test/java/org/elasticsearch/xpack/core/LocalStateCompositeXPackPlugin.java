@@ -143,14 +143,17 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
                                                IndexNameExpressionResolver expressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier,
+                                               CircuitBreakerService circuitBreakerService) {
         List<Object> components = new ArrayList<>();
         components.addAll(super.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService,
-                xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, expressionResolver, repositoriesServiceSupplier));
+                xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, expressionResolver, repositoriesServiceSupplier,
+            circuitBreakerService));
 
         filterPlugins(Plugin.class).stream().forEach(p ->
             components.addAll(p.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService,
-                    xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, expressionResolver, null))
+                    xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, expressionResolver,
+                null, circuitBreakerService))
         );
         return components;
     }

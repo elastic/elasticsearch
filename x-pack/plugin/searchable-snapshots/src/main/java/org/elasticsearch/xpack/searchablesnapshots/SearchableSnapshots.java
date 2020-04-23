@@ -30,6 +30,7 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -159,7 +160,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         final NodeEnvironment nodeEnvironment,
         final NamedWriteableRegistry registry,
         final IndexNameExpressionResolver resolver,
-        final Supplier<RepositoriesService> repositoriesServiceSupplier
+        final Supplier<RepositoriesService> repositoriesServiceSupplier,
+        final CircuitBreakerService circuitBreakerService
     ) {
         if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
             final CacheService cacheService = new CacheService(settings);

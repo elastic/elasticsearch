@@ -28,6 +28,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -178,7 +179,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
                                                IndexNameExpressionResolver expressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier,
+                                               CircuitBreakerService circuitBreakerService) {
         final List<Object> components = new ArrayList<>();
         if (ilmEnabled) {
             // This registers a cluster state listener, so appears unused but is not.

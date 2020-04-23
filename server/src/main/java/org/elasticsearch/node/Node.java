@@ -123,6 +123,7 @@ import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.CircuitMemoryBreakerPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -386,6 +387,11 @@ public class Node implements Closeable {
             SearchModule searchModule = new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class));
             CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
                 settingsModule.getClusterSettings());
+            pluginsService.filterPlugins(CircuitMemoryBreakerPlugin.class).forEach(circuitMemoryBreakerPlugin -> {
+                circuitMemoryBreakerPlugin.getCircuitBreakers().forEach(circuitBreakerService::registerBreaker);
+                circuitMemoryBreakerPlugin.addDynamicBreakerUpdates(settingsModule.getClusterSettings(),
+                    circuitBreakerService::registerBreaker);
+            });
             resourcesToClose.add(circuitBreakerService);
             modules.add(new GatewayModule());
 
@@ -470,7 +476,7 @@ public class Node implements Closeable {
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
                                                  scriptService, xContentRegistry, environment, nodeEnvironment,
                                                  namedWriteableRegistry, clusterModule.getIndexNameExpressionResolver(),
-                                                 repositoriesServiceReference::get).stream())
+                                                 repositoriesServiceReference::get, circuitBreakerService).stream())
                 .collect(Collectors.toList());
 
             ActionModule actionModule = new ActionModule(settings, clusterModule.getIndexNameExpressionResolver(),

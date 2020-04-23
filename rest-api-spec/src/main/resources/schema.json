@@ -142,7 +142,7 @@
                 "description"
             ],
             "title": "Documentation",
-            "description": "API documentation including a link to the public reference and a short descritpion"
+            "description": "API documentation including a link to the public reference and a short description"
         },
         "Parts": {
             "type": "object",

@@ -21,6 +21,7 @@ import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.xpack.spatial.common.ShapeUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;

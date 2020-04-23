@@ -18,6 +18,26 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
+import static org.mockito.Matchers.anyObject;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
@@ -96,6 +116,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.mock.orig.Mockito;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
@@ -113,27 +134,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.After;
-import org.junit.BeforeClass;
-
-import java.io.IOException;
-import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-
-import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import org.junit.Before;
 
 /**
  * Base class for testing {@link Aggregator} implementations.
@@ -144,7 +145,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private static final String NESTEDFIELD_PREFIX = "nested_";
     private List<Releasable> releasables = new ArrayList<>();
     private static final String TYPE_NAME = "type";
-    protected static ValuesSourceRegistry valuesSourceRegistry;
+    protected ValuesSourceRegistry valuesSourceRegistry;
 
     // A list of field types that should not be tested, or are not currently supported
     private static List<String> TYPE_TEST_BLACKLIST = List.of(
@@ -176,10 +177,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
-    @BeforeClass
-    public static void initValuesSourceRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of());
+    // Make this @Before instead of @BeforeClass so it can call the non-static getSearchPlugins method
+    @Before
+    public void initValuesSourceRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, this.getSearchPlugins());
         valuesSourceRegistry = searchModule.getValuesSourceRegistry();
+    }
+
+    /**
+     * Test cases should override this if they have plugins that need to be loaded, e.g. the plugins their aggregators are in.
+     */
+    protected List<SearchPlugin> getSearchPlugins() {
+        return List.of();
     }
 
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder,

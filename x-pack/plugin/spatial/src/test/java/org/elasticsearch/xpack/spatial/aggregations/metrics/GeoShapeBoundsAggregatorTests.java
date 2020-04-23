@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMa
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.closeTo;
@@ -47,7 +48,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return List.of(new SpatialPlugin());
+        return Collections.singletonList(new SpatialPlugin());
     }
 
     public void testEmpty() throws Exception {

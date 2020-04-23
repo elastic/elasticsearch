@@ -18,6 +18,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -37,14 +38,11 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
 
->>>>>>>85a160f46d1...Make ValuesSourceRegistry immutable after initilization(#55493)
-    <<<<<<<HEAD
-
 public class StringStatsAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return List.of(new AnalyticsPlugin());
+        return Arrays.asList(new AnalyticsPlugin(Settings.EMPTY));
     }
 
     private static final String VALUE_SCRIPT_NAME = "value_script";

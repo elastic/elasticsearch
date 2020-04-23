@@ -61,7 +61,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return List.of(new AnalyticsPlugin());
+        return Arrays.asList(new AnalyticsPlugin(Settings.EMPTY));
     }
 
     @Override

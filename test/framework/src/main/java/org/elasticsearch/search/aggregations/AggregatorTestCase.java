@@ -115,7 +115,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -130,8 +129,8 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.singletonMap;
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
@@ -194,7 +193,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * Test cases should override this if they have plugins that need to be loaded, e.g. the plugins their aggregators are in.
      */
     protected List<SearchPlugin> getSearchPlugins() {
-        return Collections.EMPTY_LIST;
+        return Collections.emptyList();
     }
 
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder,

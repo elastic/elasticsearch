@@ -18,6 +18,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -45,7 +46,7 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return List.of(new AnalyticsPlugin());
+        return Arrays.asList(new AnalyticsPlugin(Settings.EMPTY));
     }
 
     @Override

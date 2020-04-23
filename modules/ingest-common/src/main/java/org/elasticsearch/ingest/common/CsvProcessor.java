@@ -45,13 +45,14 @@ public final class CsvProcessor extends AbstractProcessor {
 
     public static final String TYPE = "csv";
 
-    private final String field;
-    private final String[] headers;
-    private final boolean trim;
-    private final char quote;
-    private final char separator;
-    private final boolean ignoreMissing;
-    private final Object emptyValue;
+    //visible for testing
+    final String field;
+    final String[] headers;
+    final boolean trim;
+    final char quote;
+    final char separator;
+    final boolean ignoreMissing;
+    final Object emptyValue;
 
     CsvProcessor(String tag, String field, String[] headers, boolean trim, char separator, char quote, boolean ignoreMissing,
                  Object emptyValue) {
@@ -101,7 +102,7 @@ public final class CsvProcessor extends AbstractProcessor {
             }
             boolean trim = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "trim", false);
             Object emptyValue = null;
-            if(config.containsKey("emptyValue")){
+            if(config.containsKey("empty_value")){
                 emptyValue = ConfigurationUtils.readObject(TYPE, processorTag, config, "empty_value");
             }
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);

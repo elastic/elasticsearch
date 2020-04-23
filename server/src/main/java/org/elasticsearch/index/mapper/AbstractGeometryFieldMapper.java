@@ -125,10 +125,10 @@ public abstract class AbstractGeometryFieldMapper extends FieldMapper {
         }
     }
 
-    public abstract static class TypeParser implements Mapper.TypeParser {
-        protected abstract Builder newBuilder(String name, Map<String, Object> params);
+    public abstract static class TypeParser<T extends Builder> implements Mapper.TypeParser {
+        protected abstract T newBuilder(String name, Map<String, Object> params);
 
-        public Builder parse(String name, Map<String, Object> node, Map<String, Object> params, ParserContext parserContext) {
+        public T parse(String name, Map<String, Object> node, Map<String, Object> params, ParserContext parserContext) {
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = entry.getKey();
@@ -144,7 +144,7 @@ public abstract class AbstractGeometryFieldMapper extends FieldMapper {
                     iterator.remove();
                 }
             }
-            Builder builder = newBuilder(name, params);
+            T builder = newBuilder(name, params);
             if (params.containsKey(GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName())) {
                 builder.ignoreZValue((Boolean)params.get(GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName()));
             }
@@ -157,7 +157,7 @@ public abstract class AbstractGeometryFieldMapper extends FieldMapper {
 
         @Override
         @SuppressWarnings("rawtypes")
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
+        public T parse(String name, Map<String, Object> node, ParserContext parserContext)
             throws MapperParsingException {
             Map<String, Object> params = new HashMap<>();
             return parse(name, node, params, parserContext);

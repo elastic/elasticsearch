@@ -135,7 +135,7 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
 
     protected static final String DEPRECATED_PARAMETERS_KEY = "deprecated_parameters";
 
-    public abstract static class TypeParser extends AbstractGeometryFieldMapper.TypeParser {
+    public abstract static class TypeParser extends AbstractGeometryFieldMapper.TypeParser<Builder> {
         protected abstract Builder newBuilder(String name, Map<String, Object> params);
 
         protected boolean parseXContentParameters(String name, Map.Entry<String, Object> entry, Map<String, Object> params)
@@ -171,7 +171,7 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
                 params.remove(DEPRECATED_PARAMETERS_KEY);
             }
 
-            Builder builder = (AbstractShapeGeometryFieldMapper.Builder)super.parse(name, node, params, parserContext);
+            Builder builder = super.parse(name, node, params, parserContext);
 
             if (params.containsKey(Names.COERCE.getPreferredName())) {
                 builder.coerce((Boolean)params.get(Names.COERCE.getPreferredName()));

@@ -81,7 +81,7 @@ public class PointFieldMapper extends AbstractGeometryFieldMapper implements Arr
         }
     }
 
-    public static class TypeParser extends AbstractGeometryFieldMapper.TypeParser {
+    public static class TypeParser extends AbstractGeometryFieldMapper.TypeParser<Builder> {
         @Override
         protected Builder newBuilder(String name, Map<String, Object> params) {
             return new PointFieldMapper.Builder(name);
@@ -90,7 +90,7 @@ public class PointFieldMapper extends AbstractGeometryFieldMapper implements Arr
         @Override
         @SuppressWarnings("rawtypes")
         public Builder parse(String name, Map<String, Object> node, Map<String, Object> params, ParserContext parserContext) {
-            Builder builder = (PointFieldMapper.Builder)super.parse(name, node, params, parserContext);
+            Builder builder = super.parse(name, node, params, parserContext);
             parseField(builder, name, node, parserContext);
             Object nullValue = null;
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {

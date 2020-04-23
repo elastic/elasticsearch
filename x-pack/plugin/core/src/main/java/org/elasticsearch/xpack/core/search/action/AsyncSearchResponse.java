@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.core.search.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Nullable;
@@ -78,11 +77,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
 
     public AsyncSearchResponse(StreamInput in) throws IOException {
         this.id = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.error = in.readBoolean() ? in.readException() : null;
-        } else {
-            this.error = in.readOptionalWriteable(ElasticsearchException::new);
-        }
+        this.error = in.readBoolean() ? in.readException() : null;
         this.searchResponse = in.readOptionalWriteable(SearchResponse::new);
         this.isPartial = in.readBoolean();
         this.isRunning = in.readBoolean();
@@ -93,15 +88,11 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(id);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            if (error != null) {
-                out.writeBoolean(true);
-                out.writeException(error);
-            } else {
-                out.writeBoolean(false);
-            }
+        if (error != null) {
+            out.writeBoolean(true);
+            out.writeException(error);
         } else {
-            out.writeOptionalWriteable(ExceptionsHelper.convertToElastic(error));
+            out.writeBoolean(false);
         }
         out.writeOptionalWriteable(searchResponse);
         out.writeBoolean(isPartial);

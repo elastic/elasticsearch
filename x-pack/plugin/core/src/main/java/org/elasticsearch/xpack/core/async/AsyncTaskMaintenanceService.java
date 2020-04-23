@@ -75,6 +75,10 @@ public abstract class AsyncTaskMaintenanceService extends AbstractLifecycleCompo
     }
 
     @Override
+    protected final void doClose() throws IOException {
+    }
+
+    @Override
     public void clusterChanged(ClusterChangedEvent event) {
         final ClusterState state = event.state();
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {

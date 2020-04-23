@@ -162,6 +162,7 @@ public final class SearchSlowLog implements SearchOperationListener {
         private static Map<String, Object> prepareMap(SearchContext context, long tookInNanos) {
             Map<String, Object> messageFields = new HashMap<>();
             messageFields.put("message", context.indexShard().shardId());
+            messageFields.put("shard_path", context.indexShard().shardPath().getRootDataPath());
             messageFields.put("took", TimeValue.timeValueNanos(tookInNanos));
             messageFields.put("took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
             if (context.queryResult().getTotalHits() != null) {

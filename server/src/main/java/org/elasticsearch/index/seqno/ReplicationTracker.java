@@ -937,8 +937,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
     private void updateReplicationGroupAndNotify() {
         ReplicationGroup newReplicationGroup = calculateReplicationGroup();
-        replicationGroup = newReplicationGroup;
         onReplicationGroup.accept(newReplicationGroup);
+        replicationGroup = newReplicationGroup;
     }
 
     private ReplicationGroup calculateReplicationGroup() {

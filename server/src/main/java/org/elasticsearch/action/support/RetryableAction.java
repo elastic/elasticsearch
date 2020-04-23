@@ -76,6 +76,7 @@ public abstract class RetryableAction<Response> {
     public void cancel(Exception e) {
         if (isDone.compareAndSet(false, true)) {
             finalListener.onFailure(e);
+            onFinished();
         }
     }
 
@@ -100,6 +101,12 @@ public abstract class RetryableAction<Response> {
 
     public abstract boolean shouldRetry(Exception e);
 
+    public void onSchedulingRetry() {
+    }
+
+    public void onFinished() {
+    }
+
     private class RetryingListener implements ActionListener<Response> {
 
         private static final int MAX_EXCEPTIONS = 4;
@@ -116,6 +123,7 @@ public abstract class RetryableAction<Response> {
         public void onResponse(Response response) {
             if (isDone.compareAndSet(false, true)) {
                 finalListener.onResponse(response);
+                onFinished();
             }
         }
 
@@ -129,6 +137,7 @@ public abstract class RetryableAction<Response> {
                     addException(e);
                     if (isDone.compareAndSet(false, true)) {
                         finalListener.onFailure(buildFinalException());
+                        onFinished();
                     }
                 } else {
                     addException(e);
@@ -140,6 +149,7 @@ public abstract class RetryableAction<Response> {
                     if (isDone.get() == false) {
                         final TimeValue delay = TimeValue.timeValueMillis(delayMillis);
                         logger.debug(() -> new ParameterizedMessage("retrying action that failed in {}", delay), e);
+                        onSchedulingRetry();
                         threadPool.schedule(runnable, delay, executor);
                     }
                 }
@@ -147,6 +157,7 @@ public abstract class RetryableAction<Response> {
                 addException(e);
                 if (isDone.compareAndSet(false,true)) {
                     finalListener.onFailure(buildFinalException());
+                    onFinished();
                 }
             }
         }

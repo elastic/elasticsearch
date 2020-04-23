@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.set.Sets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Replication group for a shard. Used by a primary shard to coordinate replication and recoveries.
@@ -36,6 +37,7 @@ public class ReplicationGroup {
     private final Set<String> trackedAllocationIds;
 
     private final Set<String> unavailableInSyncShards; // derived from the other fields
+    private final Set<String> replicaNodeIds; // derived from the other fields
     private final List<ShardRouting> replicationTargets; // derived from the other fields
     private final List<ShardRouting> skippedShards; // derived from the other fields
 
@@ -71,6 +73,9 @@ public class ReplicationGroup {
                 }
             }
         }
+        this.replicaNodeIds = this.replicationTargets.stream()
+            .map(ShardRouting::currentNodeId)
+            .collect(Collectors.toSet());
     }
 
     public IndexShardRoutingTable getRoutingTable() {
@@ -93,6 +98,13 @@ public class ReplicationGroup {
      */
     public List<ShardRouting> getReplicationTargets() {
         return replicationTargets;
+    }
+
+    /**
+     * Returns the currently assigned replica nodes.
+     */
+    public Set<String> getReplicaNodeIds() {
+        return replicaNodeIds;
     }
 
     /**

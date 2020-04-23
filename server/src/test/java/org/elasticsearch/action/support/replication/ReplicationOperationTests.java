@@ -476,17 +476,17 @@ public class ReplicationOperationTests extends ESTestCase {
         final long globalCheckpoint;
         final long maxSeqNoOfUpdatesOrDeletes;
         final Supplier<ReplicationGroup> replicationGroupSupplier;
-        private final ThreadPool threadPool;
+        final PendingReplicationActions pendingReplicationActions;
         final Map<String, Long> knownLocalCheckpoints = new HashMap<>();
         final Map<String, Long> knownGlobalCheckpoints = new HashMap<>();
 
         TestPrimary(ShardRouting routing, Supplier<ReplicationGroup> replicationGroupSupplier, ThreadPool threadPool) {
             this.routing = routing;
             this.replicationGroupSupplier = replicationGroupSupplier;
-            this.threadPool = threadPool;
             this.localCheckpoint = random().nextLong();
             this.globalCheckpoint = randomNonNegativeLong();
             this.maxSeqNoOfUpdatesOrDeletes = randomNonNegativeLong();
+            this.pendingReplicationActions = new PendingReplicationActions(routing.shardId(), threadPool);
         }
 
         @Override
@@ -575,7 +575,8 @@ public class ReplicationOperationTests extends ESTestCase {
 
         @Override
         public PendingReplicationActions getPendingReplicationActions() {
-            return new PendingReplicationActions(routing.shardId(), threadPool);
+            pendingReplicationActions.accept(getReplicationGroup());
+            return pendingReplicationActions;
         }
     }
 

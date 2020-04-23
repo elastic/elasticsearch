@@ -21,21 +21,22 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.RetryableAction;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
-public class PendingReplicationActions implements Consumer<ReplicationGroup> {
+public class PendingReplicationActions implements Consumer<ReplicationGroup>, Releasable {
 
-    private final Map<String, Map<Object, RetryableAction<?>>> onGoingReplicationActions = ConcurrentCollections.newConcurrentMap();
+    private final Map<String, Set<RetryableAction<?>>> onGoingReplicationActions = ConcurrentCollections.newConcurrentMap();
     private final ShardId shardId;
     private final ThreadPool threadPool;
 
@@ -44,35 +45,35 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup> {
         this.threadPool = threadPool;
     }
 
-    public void addPendingAction(String nodeId, Object actionKey, RetryableAction<?> replicationAction) {
-        Map<Object, RetryableAction<?>> ongoingActionsOnNode = onGoingReplicationActions.get(nodeId);
+    public void addPendingAction(String nodeId, RetryableAction<?> replicationAction) {
+        Set<RetryableAction<?>> ongoingActionsOnNode = onGoingReplicationActions.get(nodeId);
         if (ongoingActionsOnNode != null) {
-            ongoingActionsOnNode.put(actionKey, replicationAction);
+            ongoingActionsOnNode.add(replicationAction);
             if (onGoingReplicationActions.containsKey(nodeId) == false) {
-                replicationAction.cancel(new UnavailableShardsException(shardId, "Replica left ReplicationGroup"));
+                replicationAction.cancel(new UnavailableShardsException(shardId,
+                    "Replica unavailable - replica could have left ReplicationGroup or IndexShard might have closed"));
             }
         } else {
-            replicationAction.cancel(new UnavailableShardsException(shardId, "Replica left ReplicationGroup"));
+            replicationAction.cancel(new UnavailableShardsException(shardId,
+                "Replica unavailable - replica could have left ReplicationGroup or IndexShard might have closed"));
         }
     }
 
-    public void removeReplicationAction(String nodeId, Object actionKey) {
-        Map<Object, RetryableAction<?>> ongoingActionsOnNode = onGoingReplicationActions.get(nodeId);
+    public void removeReplicationAction(String nodeId, RetryableAction<?> action) {
+        Set<RetryableAction<?>> ongoingActionsOnNode = onGoingReplicationActions.get(nodeId);
         if (ongoingActionsOnNode != null) {
-            ongoingActionsOnNode.remove(actionKey);
+            ongoingActionsOnNode.remove(action);
         }
     }
 
     @Override
     public synchronized void accept(ReplicationGroup replicationGroup) {
-        Set<String> newReplicaNodeIds = replicationGroup.getReplicationTargets().stream()
-            .map(ShardRouting::currentNodeId)
-            .collect(Collectors.toSet());
+        Set<String> newReplicaNodeIds = replicationGroup.getReplicaNodeIds();
 
         for (String replicaNodeId : newReplicaNodeIds) {
-            onGoingReplicationActions.putIfAbsent(replicaNodeId, ConcurrentCollections.newConcurrentMap());
+            onGoingReplicationActions.putIfAbsent(replicaNodeId, ConcurrentCollections.newConcurrentSet());
         }
-        ArrayList<Map<Object, RetryableAction<?>>> toCancel = new ArrayList<>();
+        ArrayList<Set<RetryableAction<?>>> toCancel = new ArrayList<>();
         for (String existingReplicaNodeId : onGoingReplicationActions.keySet()) {
             if (newReplicaNodeIds.contains(existingReplicaNodeId) == false) {
                 toCancel.add(onGoingReplicationActions.remove(existingReplicaNodeId));
@@ -80,7 +81,18 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup> {
         }
 
         threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> toCancel.stream()
-            .flatMap(m -> m.values().stream())
+            .flatMap(Collection::stream)
             .forEach(action -> action.cancel(new UnavailableShardsException(shardId, "Replica left ReplicationGroup"))));
+    }
+
+
+    @Override
+    public void close() {
+        ArrayList<Set<RetryableAction<?>>> toCancel = new ArrayList<>(onGoingReplicationActions.values());
+        onGoingReplicationActions.clear();
+
+        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> toCancel.stream()
+            .flatMap(Collection::stream)
+            .forEach(action -> action.cancel(new IndexShardClosedException(shardId))));
     }
 }

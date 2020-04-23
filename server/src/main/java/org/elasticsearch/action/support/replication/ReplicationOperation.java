@@ -192,15 +192,12 @@ public class ReplicationOperation<
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] sending op [{}] to replica {} for request [{}]", shard.shardId(), opType, shard, replicaRequest);
         }
-        final Object actionKey = new Object();
-
         totalShards.incrementAndGet();
         pendingActions.incrementAndGet();
         PendingReplicationActions pendingReplicationActions = primary.getPendingReplicationActions();
         final ActionListener<ReplicaResponse> replicationListener = new ActionListener<>() {
             @Override
             public void onResponse(ReplicaResponse response) {
-                pendingReplicationActions.removeReplicationAction(shard.currentNodeId(), actionKey);
                 successfulShards.incrementAndGet();
                 try {
                     updateCheckPoints(shard, response::localCheckpoint, response::globalCheckpoint);
@@ -211,7 +208,6 @@ public class ReplicationOperation<
 
             @Override
             public void onFailure(Exception replicaException) {
-                pendingReplicationActions.removeReplicationAction(shard.currentNodeId(), actionKey);
                 logger.trace(() -> new ParameterizedMessage(
                     "[{}] failure while performing [{}] on replica {}, request [{}]",
                     shard.shardId(), opType, shard, replicaRequest), replicaException);
@@ -235,21 +231,42 @@ public class ReplicationOperation<
         final RetryableAction<ReplicaResponse> replicationAction = new RetryableAction<>(logger, threadPool, TimeValue.timeValueMillis(50),
             replicaRequest.timeout(), replicationListener) {
 
+            private boolean addedToPending = false;
+
             @Override
             public void tryAction(ActionListener<ReplicaResponse> listener) {
                 replicasProxy.performOn(shard, replicaRequest, primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, listener);
             }
 
             @Override
+            public void onSchedulingRetry() {
+                super.onSchedulingRetry();
+                if (addedToPending == false) {
+                    pendingReplicationActions.addPendingAction(shard.currentNodeId(), this);
+                    addedToPending = true;
+                }
+            }
+
+            @Override
+            public void onFinished() {
+                super.onFinished();
+                pendingReplicationActions.removeReplicationAction(shard.currentNodeId(), this);
+            }
+
+            @Override
             public boolean shouldRetry(Exception e) {
-                final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                return cause instanceof CircuitBreakingException ||
-                    cause instanceof EsRejectedExecutionException ||
-                    cause instanceof ConnectTransportException;
+                // If the node has left the replication group, do not retry
+                if (primary.getReplicationGroup().getReplicaNodeIds().contains(shard.currentNodeId()) == false) {
+                    return false;
+                } else {
+                    final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    return cause instanceof CircuitBreakingException ||
+                        cause instanceof EsRejectedExecutionException ||
+                        cause instanceof ConnectTransportException;
+                }
             }
         };
 
-        pendingReplicationActions.addPendingAction(shard.currentNodeId(), actionKey, replicationAction);
         replicationAction.run();
     }
 

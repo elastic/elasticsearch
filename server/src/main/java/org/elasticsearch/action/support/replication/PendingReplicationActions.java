@@ -70,7 +70,7 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup> {
             .collect(Collectors.toSet());
 
         for (String replicaNodeId : newReplicaNodeIds) {
-            onGoingReplicationActions.put(replicaNodeId, ConcurrentCollections.newConcurrentMap());
+            onGoingReplicationActions.putIfAbsent(replicaNodeId, ConcurrentCollections.newConcurrentMap());
         }
         ArrayList<Map<Object, RetryableAction<?>>> toCancel = new ArrayList<>();
         for (String existingReplicaNodeId : onGoingReplicationActions.keySet()) {

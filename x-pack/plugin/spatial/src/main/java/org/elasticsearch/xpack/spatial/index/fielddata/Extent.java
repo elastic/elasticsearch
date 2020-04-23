@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.spatial.index.mapper;
+package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
@@ -15,7 +15,7 @@ import java.util.Objects;
 /**
  * Object representing the extent of a geometry object within a {@link TriangleTreeWriter}.
  */
-public class Extent {
+class Extent {
 
     public int top;
     public int bottom;
@@ -31,7 +31,7 @@ public class Extent {
     private static final byte ALL_SET = 4;
 
 
-    public Extent() {
+    Extent() {
         this.top = Integer.MIN_VALUE;
         this.bottom = Integer.MAX_VALUE;
         this.negLeft = Integer.MAX_VALUE;
@@ -40,7 +40,7 @@ public class Extent {
         this.posRight = Integer.MIN_VALUE;
     }
 
-    public Extent(int top, int bottom, int negLeft, int negRight, int posLeft, int posRight) {
+    Extent(int top, int bottom, int negLeft, int negRight, int posLeft, int posRight) {
         this.top = top;
         this.bottom = bottom;
         this.negLeft = negLeft;

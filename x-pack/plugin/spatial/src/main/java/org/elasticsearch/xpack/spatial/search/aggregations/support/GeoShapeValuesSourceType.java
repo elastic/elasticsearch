@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.spatial.index.mapper;
+package org.elasticsearch.xpack.spatial.search.aggregations.support;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
@@ -19,13 +19,19 @@ import org.elasticsearch.search.aggregations.support.MissingValues;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xpack.spatial.index.fielddata.IndexGeoShapeFieldData;
+import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
 
 import java.io.IOException;
 import java.util.function.LongSupplier;
 
 public class GeoShapeValuesSourceType implements Writeable, ValuesSourceType {
 
-    public static GeoShapeValuesSourceType INSTANCE = new GeoShapeValuesSourceType();
+    static GeoShapeValuesSourceType INSTANCE = new GeoShapeValuesSourceType();
+
+    public static GeoShapeValuesSourceType instance() {
+        return INSTANCE;
+    }
 
     @Override
     public ValuesSource getEmpty() {

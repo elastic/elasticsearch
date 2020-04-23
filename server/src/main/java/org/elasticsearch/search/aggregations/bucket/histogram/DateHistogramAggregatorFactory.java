@@ -43,8 +43,8 @@ import java.util.Map;
 
 public final class DateHistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(DateHistogramAggregationBuilder.NAME,
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(DateHistogramAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
             (DateHistogramAggregationSupplier) (String name,
                                                 AggregatorFactories factories,
@@ -62,7 +62,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
                 factories, rounding, shardRounding, order, keyed, minDocCount, extendedBounds, (ValuesSource.Numeric) valuesSource,
                 formatter, aggregationContext, parent, metadata));
 
-        valuesSourceRegistry.register(DateHistogramAggregationBuilder.NAME,
+        builder.register(DateHistogramAggregationBuilder.NAME,
             CoreValuesSourceType.RANGE,
             (DateHistogramAggregationSupplier) (String name,
                                                 AggregatorFactories factories,

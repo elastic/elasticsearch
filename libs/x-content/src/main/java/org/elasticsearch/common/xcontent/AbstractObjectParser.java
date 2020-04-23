@@ -28,17 +28,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 /**
  * Superclass for {@link ObjectParser} and {@link ConstructingObjectParser}. Defines most of the "declare" methods so they can be shared.
  */
-public abstract class AbstractObjectParser<Value, Context>
-        implements BiFunction<XContentParser, Context, Value>, ContextParser<Context, Value> {
-
-    final List<String[]> requiredFieldSets = new ArrayList<>();
-    final List<String[]> exclusiveFieldSets = new ArrayList<>();
+public abstract class AbstractObjectParser<Value, Context> {
 
     /**
      * Declare some field. Usually it is easier to use {@link #declareString(BiConsumer, ParseField)} or
@@ -313,12 +308,7 @@ public abstract class AbstractObjectParser<Value, Context>
      * @param requiredSet
      *          A set of required fields, where at least one of the fields in the array _must_ be present
      */
-    public void declareRequiredFieldSet(String... requiredSet) {
-        if (requiredSet.length == 0) {
-            return;
-        }
-        this.requiredFieldSets.add(requiredSet);
-    }
+    public abstract void declareRequiredFieldSet(String... requiredSet);
 
     /**
      * Declares a set of fields of which at most one must appear for parsing to succeed
@@ -332,12 +322,7 @@ public abstract class AbstractObjectParser<Value, Context>
      *
      * @param exclusiveSet a set of field names, at most one of which must appear
      */
-    public void declareExclusiveFieldSet(String... exclusiveSet) {
-        if (exclusiveSet.length == 0) {
-            return;
-        }
-        this.exclusiveFieldSets.add(exclusiveSet);
-    }
+    public abstract void declareExclusiveFieldSet(String... exclusiveSet);
 
     private interface IOSupplier<T> {
         T get() throws IOException;

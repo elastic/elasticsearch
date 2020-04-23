@@ -1,0 +1,90 @@
+---
+"Delete backing index on data stream":
+  - skip:
+      version: " - 7.99.99"
+      reason:  "enable in 7.8+ after backporting"
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream
+        body:
+          timestamp_field: "@timestamp"
+  - is_true: acknowledged
+
+  # rollover data stream to create new backing index
+  - do:
+      indices.rollover:
+        alias: "simple-data-stream"
+
+  - match: { old_index: simple-data-stream-000001 }
+  - match: { new_index: simple-data-stream-000002 }
+  - match: { rolled_over: true }
+  - match: { dry_run: false }
+
+  # ensure new index is created
+  - do:
+      indices.exists:
+        index: simple-data-stream-000002
+
+  - is_true: ''
+
+  - do:
+      indices.delete:
+        index: simple-data-stream-000001
+
+  - do:
+      indices.exists:
+        index: simple-data-stream-000001
+
+  - is_false: ''
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream
+  - is_true: acknowledged
+
+---
+"Attempt to delete write index on data stream is rejected":
+  - skip:
+      version: " - 7.99.99"
+      reason:  "enable in 7.8+ after backporting"
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream
+        body:
+          timestamp_field: "@timestamp"
+  - is_true: acknowledged
+
+  # rollover data stream to create new backing index
+  - do:
+      indices.rollover:
+        alias: "simple-data-stream"
+
+  - match: { old_index: simple-data-stream-000001 }
+  - match: { new_index: simple-data-stream-000002 }
+  - match: { rolled_over: true }
+  - match: { dry_run: false }
+
+  # ensure new index is created
+  - do:
+      indices.exists:
+        index: simple-data-stream-000002
+
+  - is_true: ''
+
+  - do:
+      catch: bad_request
+      indices.delete:
+        index: simple-data-stream-000002
+
+  - do:
+      indices.exists:
+        index: simple-data-stream-000002
+
+  - is_true: ''
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream
+  - is_true: acknowledged

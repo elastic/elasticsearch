@@ -65,6 +65,10 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
             objectParser.declareField(ValuesSourceAggregationBuilder::script,
                     (parser, context) -> Script.parse(parser),
                     Script.SCRIPT_PARSE_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
+            String[] fields = new String[]{ParseField.CommonFields.FIELD.getPreferredName(), Script.SCRIPT_PARSE_FIELD.getPreferredName()};
+            objectParser.declareRequiredFieldSet(fields);
+        } else {
+            objectParser.declareRequiredFieldSet(ParseField.CommonFields.FIELD.getPreferredName());
         }
 
         if (timezoneAware) {

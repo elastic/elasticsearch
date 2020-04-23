@@ -36,8 +36,8 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
         this.showDistribution = showDistribution;
     }
 
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(StringStatsAggregationBuilder.NAME,
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(StringStatsAggregationBuilder.NAME,
             CoreValuesSourceType.BYTES, new StringStatsAggregatorSupplier() {
                 @Override
                 public Aggregator build(String name,

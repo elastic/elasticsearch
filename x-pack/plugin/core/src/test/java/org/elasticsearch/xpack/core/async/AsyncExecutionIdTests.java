@@ -4,35 +4,35 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.search;
+package org.elasticsearch.xpack.core.async;
 
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
-public class AsyncSearchIdTests extends ESTestCase {
+public class AsyncExecutionIdTests extends ESTestCase {
     public void testEncode() {
         for (int i = 0; i < 10; i++) {
-            AsyncSearchId instance = new AsyncSearchId(UUIDs.randomBase64UUID(),
+            AsyncExecutionId instance = new AsyncExecutionId(UUIDs.randomBase64UUID(),
                 new TaskId(randomAlphaOfLengthBetween(5, 20), randomNonNegativeLong()));
-            String encoded = AsyncSearchId.encode(instance.getDocId(), instance.getTaskId());
-            AsyncSearchId same = AsyncSearchId.decode(encoded);
+            String encoded = AsyncExecutionId.encode(instance.getDocId(), instance.getTaskId());
+            AsyncExecutionId same = AsyncExecutionId.decode(encoded);
             assertEquals(same, instance);
 
-            AsyncSearchId mutate = mutate(instance);
+            AsyncExecutionId mutate = mutate(instance);
             assertNotEquals(mutate, instance);
             assertNotEquals(mutate, same);
         }
     }
 
-    private AsyncSearchId mutate(AsyncSearchId id) {
+    private AsyncExecutionId mutate(AsyncExecutionId id) {
         int rand = randomIntBetween(0, 1);
         switch (rand) {
             case 0:
-                return new AsyncSearchId(randomAlphaOfLength(id.getDocId().length()+1), id.getTaskId());
+                return new AsyncExecutionId(randomAlphaOfLength(id.getDocId().length()+1), id.getTaskId());
 
             case 1:
-                return new AsyncSearchId(id.getDocId(),
+                return new AsyncExecutionId(id.getDocId(),
                     new TaskId(randomAlphaOfLength(id.getTaskId().getNodeId().length()), randomNonNegativeLong()));
 
             default:

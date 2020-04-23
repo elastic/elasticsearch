@@ -27,6 +27,8 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 
 import java.util.ArrayList;
@@ -42,9 +44,9 @@ import java.util.function.Supplier;
 /**
  * Task that tracks the progress of a currently running {@link SearchRequest}.
  */
-final class AsyncSearchTask extends SearchTask {
+final class AsyncSearchTask extends SearchTask implements AsyncTask {
     private final BooleanSupplier checkSubmitCancellation;
-    private final AsyncSearchId searchId;
+    private final AsyncExecutionId searchId;
     private final Client client;
     private final ThreadPool threadPool;
     private final Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier;
@@ -73,7 +75,7 @@ final class AsyncSearchTask extends SearchTask {
      * @param checkSubmitCancellation A boolean supplier that checks if the submit task has been cancelled.
      * @param originHeaders All the request context headers.
      * @param taskHeaders The filtered request headers for the task.
-     * @param searchId The {@link AsyncSearchId} of the task.
+     * @param searchId The {@link AsyncExecutionId} of the task.
      * @param threadPool The threadPool to schedule runnable.
      * @param aggReduceContextSupplier A supplier to create final reduce contexts.
      */
@@ -85,7 +87,7 @@ final class AsyncSearchTask extends SearchTask {
                     TimeValue keepAlive,
                     Map<String, String> originHeaders,
                     Map<String, String> taskHeaders,
-                    AsyncSearchId searchId,
+                    AsyncExecutionId searchId,
                     Client client,
                     ThreadPool threadPool,
                     Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier) {
@@ -104,14 +106,16 @@ final class AsyncSearchTask extends SearchTask {
     /**
      * Returns all of the request contexts headers
      */
-    Map<String, String> getOriginHeaders() {
+    @Override
+    public Map<String, String> getOriginHeaders() {
         return originHeaders;
     }
 
     /**
-     * Returns the {@link AsyncSearchId} of the task
+     * Returns the {@link AsyncExecutionId} of the task
      */
-    AsyncSearchId getSearchId() {
+    @Override
+    public AsyncExecutionId getExecutionId() {
         return searchId;
     }
 

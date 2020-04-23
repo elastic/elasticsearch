@@ -46,13 +46,6 @@ public class ValuesSourceRegistry {
         /**
          * Register a ValuesSource to Aggregator mapping.
          *
-         * Threading behavior notes: This call is both synchronized and expensive. It copies the entire existing mapping structure each
-         * time it is invoked.  We expect that register will be called a small number of times during startup only (as plugins are being
-         * registered) and we can tolerate the cost at that time.  Once all plugins are registered, we should never need to call register
-         * again.  Comparatively, we expect to do many reads from the registry data structures, and those reads may be interleaved on
-         * different worker threads.  Thus we want to optimize the read case to be thread safe and fast, which the immutable
-         * collections do well.  Using immutable collections requires a copy on write mechanic, thus the somewhat non-intuitive
-         * implementation of this method.
          * @param aggregationName The name of the family of aggregations, typically found via
          *                        {@link ValuesSourceAggregationBuilder#getType()}
          * @param appliesTo A predicate which accepts the resolved {@link ValuesSourceType} and decides if the given aggregator can be

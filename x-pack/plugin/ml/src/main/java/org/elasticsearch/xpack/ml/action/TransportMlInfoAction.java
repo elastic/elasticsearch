@@ -10,6 +10,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -21,9 +23,11 @@ import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.process.MlControllerHolder;
 
 import java.io.IOException;
@@ -106,11 +110,50 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
         return anomalyDetectorsDefaults;
     }
 
+    static ByteSizeValue calculateEffectiveMaxModelMemoryLimit(int maxMachineMemoryPercent, DiscoveryNodes nodes) {
+
+        long maxMlMemory = -1;
+
+        for (DiscoveryNode node : nodes) {
+
+            Map<String, String> nodeAttributes = node.getAttributes();
+            String machineMemoryStr = nodeAttributes.get(MachineLearning.MACHINE_MEMORY_NODE_ATTR);
+            if (machineMemoryStr == null) {
+                continue;
+            }
+            long machineMemory;
+            try {
+                machineMemory = Long.parseLong(machineMemoryStr);
+            } catch (NumberFormatException e) {
+                continue;
+            }
+            maxMlMemory = Math.max(maxMlMemory, machineMemory * maxMachineMemoryPercent / 100);
+        }
+
+        if (maxMlMemory <= 0) {
+            // This implies there are currently no ML nodes in the cluster, so we
+            // have no idea what the effective limit would be if one were added
+            return null;
+        }
+
+        maxMlMemory -= Math.max(Job.PROCESS_MEMORY_OVERHEAD.getBytes(), DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes());
+        maxMlMemory -= MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
+        return new ByteSizeValue(Math.max(0L, maxMlMemory) / 1024 / 1024, ByteSizeUnit.MB);
+    }
+
     private Map<String, Object> limits() {
         Map<String, Object> limits = new HashMap<>();
+        ByteSizeValue effectiveMaxModelMemoryLimit = calculateEffectiveMaxModelMemoryLimit(
+            clusterService.getClusterSettings().get(MachineLearning.MAX_MACHINE_MEMORY_PERCENT), clusterService.state().getNodes());
         ByteSizeValue maxModelMemoryLimit = clusterService.getClusterSettings().get(MachineLearningField.MAX_MODEL_MEMORY_LIMIT);
         if (maxModelMemoryLimit != null && maxModelMemoryLimit.getBytes() > 0) {
-            limits.put("max_model_memory_limit", maxModelMemoryLimit);
+            limits.put("max_model_memory_limit", maxModelMemoryLimit.getStringRep());
+            if (effectiveMaxModelMemoryLimit == null || effectiveMaxModelMemoryLimit.compareTo(maxModelMemoryLimit) > 0) {
+                effectiveMaxModelMemoryLimit = maxModelMemoryLimit;
+            }
+        }
+        if (effectiveMaxModelMemoryLimit != null) {
+            limits.put("effective_max_model_memory_limit", effectiveMaxModelMemoryLimit.getStringRep());
         }
         return limits;
     }

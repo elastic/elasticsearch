@@ -28,7 +28,9 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -47,7 +49,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class ReaderContext extends AbstractRefCounted implements Releasable {
     private final SearchContextId id;
     private final IndexShard indexShard;
-    protected final Engine.Reader reader;
+    protected final Engine.SearcherSupplier reader;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final boolean singleSession;
 
@@ -57,7 +59,11 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
 
     private final List<Releasable> onCloses = new CopyOnWriteArrayList<>();
 
-    public ReaderContext(long id, IndexShard indexShard, Engine.Reader reader, long keepAliveInMillis, boolean singleSession) {
+    private final long startTimeInNano = System.nanoTime();
+
+    private Map<String, Object> context;
+
+    public ReaderContext(long id, IndexShard indexShard, Engine.SearcherSupplier reader, long keepAliveInMillis, boolean singleSession) {
         super("reader_context");
         this.id = new SearchContextId(UUIDs.base64UUID(), id);
         this.indexShard = indexShard;
@@ -157,5 +163,28 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
      */
     public boolean singleSession() {
         return singleSession;
+    }
+
+    /**
+     * Returns the object or <code>null</code> if the given key does not have a
+     * value in the context
+     */
+    @SuppressWarnings("unchecked") // (T)object
+    public <T> T getFromContext(String key) {
+        return context != null ? (T) context.get(key) : null;
+    }
+
+    /**
+     * Puts the object into the context
+     */
+    public void putInContext(String key, Object value) {
+        if (context == null) {
+            context = new HashMap<>();
+        }
+        context.put(key, value);
+    }
+
+    public long getStartTimeInNano() {
+        return startTimeInNano;
     }
 }

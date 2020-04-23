@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,9 +39,7 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
 
     private final Text nodeId;
     private final ShardId shardId;
-    //original indices are only needed in the coordinating node throughout the search request execution.
-    //no need to serialize them as part of SearchShardTarget.
-    private final transient OriginalIndices originalIndices;
+    private final OriginalIndices originalIndices;
     private final String clusterAlias;
 
     public SearchShardTarget(StreamInput in) throws IOException {
@@ -50,7 +49,11 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
             nodeId = null;
         }
         shardId = new ShardId(in);
-        this.originalIndices = null;
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            originalIndices = OriginalIndices.readOriginalIndices(in);
+        } else {
+            originalIndices = null;
+        }
         clusterAlias = in.readOptionalString();
     }
 
@@ -60,6 +63,22 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
         this.originalIndices = originalIndices;
         this.clusterAlias = clusterAlias;
     }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        if (nodeId == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeText(nodeId);
+        }
+        shardId.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            OriginalIndices.writeOriginalIndices(originalIndices, out);
+        }
+        out.writeOptionalString(clusterAlias);
+    }
+
 
     @Nullable
     public String getNodeId() {
@@ -101,18 +120,6 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
             i = shardId.getId() - o.shardId.id();
         }
         return i;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        if (nodeId == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeText(nodeId);
-        }
-        shardId.writeTo(out);
-        out.writeOptionalString(clusterAlias);
     }
 
     @Override

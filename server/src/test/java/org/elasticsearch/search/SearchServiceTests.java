@@ -513,7 +513,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         final ShardScrollRequestTest request = new ShardScrollRequestTest(indexShard.shardId());
         ElasticsearchException ex = expectThrows(ElasticsearchException.class,
-            () -> service.createAndPutReaderContext(request, indexShard, indexShard.acquireReader(), randomBoolean()));
+            () -> service.createAndPutReaderContext(request, indexShard, indexShard.acquireSearcherSupplier(), randomBoolean()));
         assertEquals(
             "Trying to create too many scroll contexts. Must be less than or equal to: [" +
                 SearchService.MAX_OPEN_SCROLL_CONTEXT.get(Settings.EMPTY) + "]. " +
@@ -536,7 +536,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 try {
                     latch.await();
                     for (; ; ) {
-                        Engine.Reader reader = indexShard.acquireReader();
+                        Engine.SearcherSupplier reader = indexShard.acquireSearcherSupplier();
                         try {
                             searchService.createAndPutReaderContext(
                                 new ShardScrollRequestTest(indexShard.shardId()), indexShard, reader, true);
@@ -984,7 +984,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         OriginalIndices.NONE, new SearchRequest().allowPartialSearchResults(true),
                         indexShard.shardId(), 1, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null);
                     final ReaderContext context = searchService.createAndPutReaderContext(request, indexShard,
-                        indexShard.acquireReader(), randomBoolean());
+                        indexShard.acquireSearcherSupplier(), randomBoolean());
                     assertThat(context.id().getId(), equalTo((long) (i + 1)));
                     contextIds.add(context.id());
                 }
@@ -1022,6 +1022,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     }
 
     private ReaderContext createReaderContext(IndexShard shard) {
-        return new ReaderContext(randomNonNegativeLong(), shard, shard.acquireReader(), randomNonNegativeLong(), false);
+        return new ReaderContext(randomNonNegativeLong(), shard, shard.acquireSearcherSupplier(), randomNonNegativeLong(), false);
     }
 }

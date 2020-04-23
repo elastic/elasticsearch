@@ -9,6 +9,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchContextMissingException;
+import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContextId;
@@ -44,13 +45,21 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
         this.auditTrailService = auditTrail;
     }
 
+    @Override
+    public void onNewReaderContext(ReaderContext readerContext) {
+        if (licenseState.isSecurityEnabled()) {
+            readerContext.putInContext(AuthenticationField.AUTHENTICATION_KEY, securityContext.getAuthentication());
+        }
+    }
+
     /**
      * Adds the {@link Authentication} to the {@link ScrollContext}
+     * @param readerContext
      */
     @Override
-    public void onNewScrollContext(ScrollContext scrollContext) {
+    public void onNewScrollContext(ReaderContext readerContext) {
         if (licenseState.isSecurityEnabled()) {
-            scrollContext.putInContext(AuthenticationField.AUTHENTICATION_KEY, securityContext.getAuthentication());
+            readerContext.putInContext(AuthenticationField.AUTHENTICATION_KEY, securityContext.getAuthentication());
         }
     }
 
@@ -59,10 +68,10 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
      * object from the scroll context with the current authentication context
      */
     @Override
-    public void validateSearchContext(SearchContext searchContext, TransportRequest request) {
+    public void validateSearchContext(ReaderContext readerContext, SearchContext searchContext, TransportRequest request) {
         if (licenseState.isSecurityEnabled()) {
             if (searchContext.scrollContext() != null) {
-                final Authentication originalAuth = searchContext.scrollContext().getFromContext(AuthenticationField.AUTHENTICATION_KEY);
+                final Authentication originalAuth = readerContext.getFromContext(AuthenticationField.AUTHENTICATION_KEY);
                 final Authentication current = securityContext.getAuthentication();
                 final ThreadContext threadContext = securityContext.getThreadContext();
                 final String action = threadContext.getTransient(ORIGINATING_ACTION_KEY);

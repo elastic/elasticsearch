@@ -14,7 +14,10 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.ClearReaderAction;
 import org.elasticsearch.action.search.ClearReaderRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.OpenReaderRequest;
+import org.elasticsearch.action.search.OpenReaderResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportOpenReaderAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
@@ -725,6 +728,14 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         }
     }
 
+    static String openReaders(String userName, TimeValue keepAlive, String... indices) {
+        OpenReaderRequest request = new OpenReaderRequest(indices, OpenReaderRequest.DEFAULT_INDICES_OPTIONS, keepAlive, null, null);
+        final OpenReaderResponse response = client()
+            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue(userName, USERS_PASSWD)))
+            .execute(TransportOpenReaderAction.INSTANCE, request).actionGet();
+        return response.getReaderId();
+    }
+
     public void testReaderId() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
             .setSettings(Settings.builder().put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
@@ -739,36 +750,27 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         }
         refresh("test");
 
+        String readerId = openReaders("user1", TimeValue.timeValueMinutes(1), "test");
         SearchResponse response = null;
         try {
-            response = client()
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                .prepareSearch("test")
-                .setReader(null, TimeValue.timeValueMinutes(1L))
-                .setSize(1)
-                .setQuery(constantScoreQuery(termQuery("field1", "value1")))
-                .setFetchSource(true)
-                .get();
-            int from = 0;
-            do {
-                assertThat(response.getHits().getTotalHits().value, is((long) numDocs));
-                assertThat(response.getHits().getHits().length, is(1));
-                assertThat(response.getHits().getAt(0).getSourceAsMap().size(), is(1));
-                assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
-                ++ from;
+            for (int from = 0; from < numDocs; from++) {
                 response = client()
                     .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                     .prepareSearch()
-                    .setReader(response.getReaderId(), TimeValue.timeValueMinutes(1L))
+                    .setReader(readerId, TimeValue.timeValueMinutes(1L))
                     .setSize(1)
                     .setFrom(from)
                     .setQuery(constantScoreQuery(termQuery("field1", "value1")))
                     .setFetchSource(true)
                     .get();
-            } while (response.getHits().getHits().length > 0);
-            assertEquals(numDocs, from);
+                assertThat(response.getHits().getTotalHits().value, is((long) numDocs));
+                assertThat(response.getHits().getHits().length, is(1));
+                assertThat(response.getHits().getAt(0).getSourceAsMap().size(), is(1));
+                assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
+                ++from;
+            }
         } finally {
-            client().execute(ClearReaderAction.INSTANCE, new ClearReaderRequest(response.getReaderId())).actionGet();
+            client().execute(ClearReaderAction.INSTANCE, new ClearReaderRequest(readerId)).actionGet();
         }
     }
 

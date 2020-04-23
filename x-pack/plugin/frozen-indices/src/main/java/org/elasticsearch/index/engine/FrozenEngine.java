@@ -30,7 +30,7 @@ import java.util.function.Function;
 
 /**
  * This is a stand-alone read-only engine that maintains an index reader that is opened lazily on calls to
- * {@link Engine.Reader#acquireSearcher(String)}. The index reader opened is maintained until there are no reference to it anymore
+ * {@link SearcherSupplier#acquireSearcher(String)}. The index reader opened is maintained until there are no reference to it anymore
  * and then releases itself from the engine.
  * This is necessary to for instance release all SegmentReaders after a search phase finishes and reopen them before the next search
  * phase starts.
@@ -175,10 +175,10 @@ public final class FrozenEngine extends ReadOnlyEngine {
     }
 
     @Override
-    public Reader acquireReader(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
+    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
         final Store store = this.store;
         store.incRef();
-        return new Reader(wrapper) {
+        return new SearcherSupplier(wrapper) {
             @Override
             @SuppressForbidden(reason = "we manage references explicitly here")
             public Searcher acquireSearcherInternal(String source) {

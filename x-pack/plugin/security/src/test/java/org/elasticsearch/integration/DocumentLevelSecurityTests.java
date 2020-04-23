@@ -65,6 +65,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.integration.FieldLevelSecurityTests.openReaders;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -779,31 +780,23 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         }
         refresh();
 
+        String readerId = openReaders("user1", TimeValue.timeValueMinutes(1), "test");
         SearchResponse response = null;
         try {
-            response = client()
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                .prepareSearch("test")
-                .setSize(1)
-                .setReader(null, TimeValue.timeValueMinutes(1))
-                .setQuery(termQuery("field1", "value1"))
-                .get();
-            int from = 0;
-            do {
-                assertNoFailures(response);
-                assertThat(response.getHits().getTotalHits().value, is((long) numVisible));
-                assertThat(response.getHits().getAt(0).getSourceAsMap().size(), is(1));
-                assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
-                ++ from;
+            for (int from = 0; from < numVisible; from++) {
                 response = client()
                     .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                     .prepareSearch()
                     .setSize(1)
                     .setFrom(from)
-                    .setReader(response.getReaderId(), TimeValue.timeValueMinutes(1))
+                    .setReader(readerId, TimeValue.timeValueMinutes(1))
                     .setQuery(termQuery("field1", "value1"))
                     .get();
-            } while (response.getHits().getHits().length > 0);
+                assertNoFailures(response);
+                assertThat(response.getHits().getTotalHits().value, is((long) numVisible));
+                assertThat(response.getHits().getAt(0).getSourceAsMap().size(), is(1));
+                assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
+            }
         } finally {
             client().execute(ClearReaderAction.INSTANCE, new ClearReaderRequest(response.getReaderId())).actionGet();
         }

@@ -119,7 +119,7 @@ public class DefaultSearchContextTests extends ESTestCase {
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
 
-            final Engine.Reader engineReader = new Engine.Reader(Function.identity()) {
+            final Engine.SearcherSupplier engineReader = new Engine.SearcherSupplier(Function.identity()) {
                 @Override
                 public void close() {}
 

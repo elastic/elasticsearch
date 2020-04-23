@@ -37,7 +37,7 @@ public class LegacyReaderContext extends ReaderContext {
     private Engine.Searcher searcher;
     private Releasable onClose;
 
-    public LegacyReaderContext(long id, IndexShard indexShard, Engine.Reader reader,
+    public LegacyReaderContext(long id, IndexShard indexShard, Engine.SearcherSupplier reader,
                                ShardSearchRequest shardSearchRequest, long keepAliveInMillis) {
         super(id, indexShard, reader, keepAliveInMillis, false);
         assert shardSearchRequest.readerId() == null;

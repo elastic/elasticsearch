@@ -592,14 +592,14 @@ public abstract class Engine implements Closeable {
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
-    public final Reader acquireReader(Function<Searcher, Searcher> wrapper) throws EngineException {
-        return acquireReader(wrapper, SearcherScope.EXTERNAL);
+    public final SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper) throws EngineException {
+        return acquireSearcherSupplier(wrapper, SearcherScope.EXTERNAL);
     }
 
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
-    public Reader acquireReader(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
+    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
         /* Acquire order here is store -> manager since we need
          * to make sure that the store is not closed before
          * the searcher is acquired. */
@@ -611,7 +611,7 @@ public abstract class Engine implements Closeable {
             ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
             ElasticsearchDirectoryReader acquire = referenceManager.acquire();
             AtomicBoolean released = new AtomicBoolean(false);
-            Reader reader = new Reader(wrapper) {
+            SearcherSupplier reader = new SearcherSupplier(wrapper) {
                 @Override
                 public Searcher acquireSearcherInternal(String source) {
                     assert assertSearcherIsWarmedUp(source, scope);
@@ -659,9 +659,9 @@ public abstract class Engine implements Closeable {
     }
 
     public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
-        Reader releasable = null;
+        SearcherSupplier releasable = null;
         try {
-            Reader reader = releasable = acquireReader(Function.identity(), scope);
+            SearcherSupplier reader = releasable = acquireSearcherSupplier(Function.identity(), scope);
             Searcher searcher = reader.acquireSearcher(source);
             releasable = null;
             return new Searcher(source, searcher.getDirectoryReader(), searcher.getSimilarity(),
@@ -1174,10 +1174,10 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public abstract static class Reader implements Releasable {
+    public abstract static class SearcherSupplier implements Releasable {
         private final Function<Searcher, Searcher> wrapper;
 
-        public Reader(Function<Searcher, Searcher> wrapper) {
+        public SearcherSupplier(Function<Searcher, Searcher> wrapper) {
             this.wrapper = wrapper;
         }
 

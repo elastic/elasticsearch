@@ -879,6 +879,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     /**
      * Initialize the global checkpoint service. The specified global checkpoint should be set to the last known global checkpoint, or
      * {@link SequenceNumbers#UNASSIGNED_SEQ_NO}.
+     *
      * @param shardId               the shard ID
      * @param allocationId          the allocation ID
      * @param indexSettings         the index settings

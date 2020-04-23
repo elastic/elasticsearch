@@ -78,10 +78,7 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
 
         final String snapshot1 = "snap-1";
         final String repo = "test-repo";
-        logger.info("--> creating repository");
-        assertThat(client().admin().cluster().preparePutRepository(repo)
-                .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).execute().actionGet().isAcknowledged(),
-            is(true));
+        createRepository(repo, "fs", randomRepoPath());
 
         logger.info("--> creating snapshot 1");
         client().admin().cluster().prepareCreateSnapshot(repo, snapshot1).setIndices(indexName).setWaitForCompletion(true).get();
@@ -155,10 +152,7 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
 
         final String snapshot1 = "snap-1";
         final String repo = "test-repo";
-        logger.info("--> creating repository");
-        assertThat(client().admin().cluster().preparePutRepository(repo)
-                .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).execute().actionGet().isAcknowledged(),
-            is(true));
+        createRepository(repo, "fs", randomRepoPath());
 
         logger.info("--> creating snapshot 1");
         client().admin().cluster().prepareCreateSnapshot(repo, snapshot1).setIndices(indexName).setWaitForCompletion(true).get();

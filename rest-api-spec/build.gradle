@@ -1,6 +1,7 @@
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.validate-rest-spec'
 
 test.enabled = false
 jarHell.enabled = false
@@ -8,4 +9,8 @@ jarHell.enabled = false
 artifacts {
   restSpecs(new File(projectDir, "src/main/resources/rest-api-spec/api"))
   restTests(new File(projectDir, "src/main/resources/rest-api-spec/test"))
+}
+
+validateRestSpec {
+   ignore "cat.thread_pool.json"
 }

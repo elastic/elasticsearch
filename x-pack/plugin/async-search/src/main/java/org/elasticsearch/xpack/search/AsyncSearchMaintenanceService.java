@@ -13,6 +13,8 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -25,6 +27,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.search.AsyncSearchIndexService.EXPIRATION_TIME_FIELD;
@@ -33,7 +36,7 @@ import static org.elasticsearch.xpack.search.AsyncSearchIndexService.INDEX;
 /**
  * A service that runs a periodic cleanup over the async-search index.
  */
-class AsyncSearchMaintenanceService implements Releasable, ClusterStateListener {
+class AsyncSearchMaintenanceService extends AbstractLifecycleComponent implements Releasable, ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(AsyncSearchMaintenanceService.class);
 
     /**
@@ -45,6 +48,7 @@ class AsyncSearchMaintenanceService implements Releasable, ClusterStateListener 
     public static final Setting<TimeValue> ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING =
         Setting.timeSetting("async_search.index_cleanup_interval", TimeValue.timeValueHours(1), Setting.Property.NodeScope);
 
+    private final ClusterService clusterService;
     private final String localNodeId;
     private final ThreadPool threadPool;
     private final AsyncSearchIndexService indexService;
@@ -54,14 +58,32 @@ class AsyncSearchMaintenanceService implements Releasable, ClusterStateListener 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private volatile Scheduler.Cancellable cancellable;
 
-    AsyncSearchMaintenanceService(String localNodeId,
+    AsyncSearchMaintenanceService(ClusterService clusterService,
+                                  String localNodeId,
                                   Settings nodeSettings,
                                   ThreadPool threadPool,
                                   AsyncSearchIndexService indexService) {
+        this.clusterService = clusterService;
         this.localNodeId = localNodeId;
         this.threadPool = threadPool;
         this.indexService = indexService;
         this.delay = ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING.get(nodeSettings);
+    }
+
+    @Override
+    protected void doStart() {
+        clusterService.addListener(this);
+    }
+
+    @Override
+    protected void doStop() {
+        stopInternal();
+    }
+
+    @Override
+    protected void doClose() throws IOException {
+        stopInternal();
+        isClosed.compareAndSet(false, true);
     }
 
     @Override
@@ -118,18 +140,12 @@ class AsyncSearchMaintenanceService implements Releasable, ClusterStateListener 
         }
     }
 
-    synchronized void stop() {
+    synchronized void stopInternal() {
         if (isCleanupRunning) {
             if (cancellable != null && cancellable.isCancelled() == false) {
                 cancellable.cancel();
             }
             isCleanupRunning = false;
         }
-    }
-
-    @Override
-    public void close() {
-        stop();
-        isClosed.compareAndSet(false, true);
     }
 }

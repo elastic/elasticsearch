@@ -4,8 +4,11 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.spatial.index.mapper;
+package org.elasticsearch.xpack.spatial.index.fielddata;
 
+import org.apache.lucene.document.ShapeField;
+import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Circle;
@@ -23,6 +26,7 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,8 +35,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.assertRelation;
-import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.triangleTreeReader;
 import static org.elasticsearch.geo.GeometryTestUtils.randomLine;
 import static org.elasticsearch.geo.GeometryTestUtils.randomMultiLine;
 import static org.elasticsearch.geo.GeometryTestUtils.randomMultiPoint;
@@ -415,5 +417,20 @@ public class TriangleTreeTests extends ESTestCase {
                 return operation.apply(rectangle, state);
             }
         });
+    }
+
+    static void assertRelation(GeoRelation expectedRelation, TriangleTreeReader reader, Extent extent) throws IOException {
+        GeoRelation actualRelation = reader.relateTile(extent.minX(), extent.minY(), extent.maxX(), extent.maxY());
+        assertThat(actualRelation, equalTo(expectedRelation));
+    }
+
+    static TriangleTreeReader triangleTreeReader(Geometry geometry, CoordinateEncoder encoder) throws IOException {
+        ShapeField.DecodedTriangle[] triangles = GeoTestUtils.toDecodedTriangles(geometry);
+        TriangleTreeWriter writer = new TriangleTreeWriter(Arrays.asList(triangles), encoder, new CentroidCalculator(geometry));
+        ByteBuffersDataOutput output = new ByteBuffersDataOutput();
+        writer.writeTo(output);
+        TriangleTreeReader reader = new TriangleTreeReader(encoder);
+        reader.reset(new BytesRef(output.toArrayCopy(), 0, Math.toIntExact(output.size())));
+        return reader;
     }
 }

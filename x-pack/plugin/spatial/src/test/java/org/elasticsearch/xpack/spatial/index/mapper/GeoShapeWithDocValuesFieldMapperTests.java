@@ -85,6 +85,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends ESSingleNodeTestCase 
         assertTrue(geoShapeFieldMapper.fieldType().hasDocValues());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55644")
     public void testDefaultDocValueConfigurationOnPre7_8() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("location")

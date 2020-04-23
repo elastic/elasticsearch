@@ -36,6 +36,9 @@ import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xpack.spatial.index.fielddata.AbstractLatLonShapeDVIndexFieldData;
+import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -173,7 +176,7 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
 
         @Override
         public ValuesSourceType getValuesSourceType() {
-            return GeoShapeValuesSourceType.INSTANCE;
+            return GeoShapeValuesSourceType.instance();
         }
 
         @Override

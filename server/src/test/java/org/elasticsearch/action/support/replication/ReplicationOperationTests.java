@@ -133,7 +133,7 @@ public class ReplicationOperationTests extends ESTestCase {
         PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
         final TestReplicaProxy replicasProxy = new TestReplicaProxy(simulatedFailures);
 
-        final TestPrimary primary = new TestPrimary(primaryShard, () -> replicationGroup);
+        final TestPrimary primary = new TestPrimary(primaryShard, () -> replicationGroup, threadPool);
         final TestReplicationOperation op = new TestReplicationOperation(request, primary, listener, replicasProxy, primaryTerm);
         op.execute();
         assertThat("request was not processed on primary", request.processedOnPrimary.get(), equalTo(true));
@@ -250,7 +250,7 @@ public class ReplicationOperationTests extends ESTestCase {
             }
         };
         AtomicBoolean primaryFailed = new AtomicBoolean();
-        final TestPrimary primary = new TestPrimary(primaryShard, () -> replicationGroup) {
+        final TestPrimary primary = new TestPrimary(primaryShard, () -> replicationGroup, threadPool) {
             @Override
             public void failShard(String message, Exception exception) {
                 assertThat(exception, instanceOf(ShardStateAction.NoLongerPrimaryShardException.class));
@@ -300,7 +300,7 @@ public class ReplicationOperationTests extends ESTestCase {
         logger.debug("--> using initial replicationGroup:\n{}", replicationGroup.get());
         final long primaryTerm = initialState.getMetadata().index(shardId.getIndexName()).primaryTerm(shardId.id());
         final ShardRouting primaryShard = updatedReplicationGroup.getRoutingTable().primaryShard();
-        final TestPrimary primary = new TestPrimary(primaryShard, replicationGroup::get) {
+        final TestPrimary primary = new TestPrimary(primaryShard, replicationGroup::get, threadPool) {
             @Override
             public void perform(Request request, ActionListener<Result> listener) {
                 super.perform(request, ActionListener.map(listener, result -> {
@@ -357,7 +357,7 @@ public class ReplicationOperationTests extends ESTestCase {
         PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
         final ShardRouting primaryShard = shardRoutingTable.primaryShard();
         final TestReplicationOperation op = new TestReplicationOperation(request,
-            new TestPrimary(primaryShard, () -> initialReplicationGroup),
+            new TestPrimary(primaryShard, () -> initialReplicationGroup, threadPool),
                 listener, new TestReplicaProxy(), logger, threadPool, "test", primaryTerm);
 
         if (passesActiveShardCheck) {
@@ -393,7 +393,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final boolean fatal = randomBoolean();
         final AtomicBoolean primaryFailed = new AtomicBoolean();
         final ReplicationOperation.Primary<Request, Request, TestPrimary.Result> primary =
-            new TestPrimary(primaryRouting, () -> initialReplicationGroup) {
+            new TestPrimary(primaryRouting, () -> initialReplicationGroup, threadPool) {
 
             @Override
             public void failShard(String message, Exception exception) {
@@ -476,12 +476,14 @@ public class ReplicationOperationTests extends ESTestCase {
         final long globalCheckpoint;
         final long maxSeqNoOfUpdatesOrDeletes;
         final Supplier<ReplicationGroup> replicationGroupSupplier;
+        private final ThreadPool threadPool;
         final Map<String, Long> knownLocalCheckpoints = new HashMap<>();
         final Map<String, Long> knownGlobalCheckpoints = new HashMap<>();
 
-        TestPrimary(ShardRouting routing, Supplier<ReplicationGroup> replicationGroupSupplier) {
+        TestPrimary(ShardRouting routing, Supplier<ReplicationGroup> replicationGroupSupplier, ThreadPool threadPool) {
             this.routing = routing;
             this.replicationGroupSupplier = replicationGroupSupplier;
+            this.threadPool = threadPool;
             this.localCheckpoint = random().nextLong();
             this.globalCheckpoint = randomNonNegativeLong();
             this.maxSeqNoOfUpdatesOrDeletes = randomNonNegativeLong();
@@ -573,7 +575,7 @@ public class ReplicationOperationTests extends ESTestCase {
 
         @Override
         public PendingReplicationActions getPendingReplicationActions() {
-            return new PendingReplicationActions();
+            return new PendingReplicationActions(routing.shardId(), threadPool);
         }
     }
 

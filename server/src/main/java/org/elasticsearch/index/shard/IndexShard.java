@@ -214,6 +214,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final ShardBulkStats bulkOperationListener;
     private final GlobalCheckpointListeners globalCheckpointListeners;
+    private final PendingReplicationActions pendingReplicationActions;
     private final ReplicationTracker replicationTracker;
 
     protected volatile ShardRouting shardRouting;
@@ -349,6 +350,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 threadPool::absoluteTimeInMillis,
                 (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, aId, getPendingPrimaryTerm(), retentionLeases, listener),
                 this::getSafeCommitInfo);
+        this.pendingReplicationActions = new PendingReplicationActions(shardId, threadPool);
 
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
@@ -2333,7 +2335,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public PendingReplicationActions getPendingReplicationActions() {
         assert assertPrimaryMode();
         verifyNotClosed();
-        return replicationTracker.getPendingReplicationActions();
+        return pendingReplicationActions;
     }
 
     /**

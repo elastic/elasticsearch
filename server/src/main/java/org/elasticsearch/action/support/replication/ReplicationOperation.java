@@ -249,8 +249,8 @@ public class ReplicationOperation<
             }
         };
 
-        replicationAction.run();
         pendingReplicationActions.addPendingAction(shard.currentNodeId(), actionKey, replicationAction);
+        replicationAction.run();
     }
 
     private void updateCheckPoints(ShardRouting shard, LongSupplier localCheckpointSupplier, LongSupplier globalCheckpointSupplier) {

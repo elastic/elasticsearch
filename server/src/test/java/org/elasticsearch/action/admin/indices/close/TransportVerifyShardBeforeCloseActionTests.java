@@ -284,7 +284,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
 
                     @Override
                     public PendingReplicationActions getPendingReplicationActions() {
-                        return new PendingReplicationActions();
+                        return new PendingReplicationActions(primary.shardId(), threadPool);
                     }
 
                     @Override

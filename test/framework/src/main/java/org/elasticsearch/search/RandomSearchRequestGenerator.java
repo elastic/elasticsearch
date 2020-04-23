@@ -348,7 +348,7 @@ public class RandomSearchRequestGenerator {
             }
         }
         if (randomBoolean()) {
-            builder.aggregation(AggregationBuilders.avg(randomAlphaOfLengthBetween(5, 20)));
+            builder.aggregation(AggregationBuilders.avg(randomAlphaOfLengthBetween(5, 20)).field("foo"));
         }
         if (randomBoolean()) {
             builder.ext(randomExtBuilders.get());

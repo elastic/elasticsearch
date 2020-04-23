@@ -50,6 +50,7 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -253,14 +254,14 @@ class S3Repository extends BlobStoreRepository {
     }
 
     @Override
-    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version repositoryMetaVersion,
-                               Function<ClusterState, ClusterState> stateTransformer, ActionListener<Void> listener) {
+    public void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
+                                Function<ClusterState, ClusterState> stateTransformer, ActionListener<Void> listener) {
         if (SnapshotsService.useShardGenerations(repositoryMetaVersion) == false) {
             listener = delayedListener(listener, stateTransformer);
             // We're delaying the state update on purpose so we added it to the listener and will just pass a dummy to the repository
             stateTransformer = Function.identity();
         }
-        super.deleteSnapshot(snapshotId, repositoryStateId, repositoryMetaVersion, stateTransformer, listener);
+        super.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, stateTransformer, listener);
     }
 
     /**

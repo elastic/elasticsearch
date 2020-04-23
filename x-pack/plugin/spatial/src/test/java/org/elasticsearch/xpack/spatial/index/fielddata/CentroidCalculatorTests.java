@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.spatial.index.mapper;
+package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -25,9 +25,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.xpack.spatial.index.mapper.DimensionalShapeType.LINE;
-import static org.elasticsearch.xpack.spatial.index.mapper.DimensionalShapeType.POINT;
-import static org.elasticsearch.xpack.spatial.index.mapper.DimensionalShapeType.POLYGON;
+import static org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType.LINE;
+import static org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType.POINT;
+import static org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType.POLYGON;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;

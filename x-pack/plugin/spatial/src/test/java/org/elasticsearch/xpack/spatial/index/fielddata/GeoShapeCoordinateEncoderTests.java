@@ -4,12 +4,13 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.spatial.index.mapper;
+package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeCoordinateEncoder;
 
-import static org.elasticsearch.xpack.spatial.index.mapper.GeoShapeCoordinateEncoder.INSTANCE;
+import static org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeCoordinateEncoder.INSTANCE;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;

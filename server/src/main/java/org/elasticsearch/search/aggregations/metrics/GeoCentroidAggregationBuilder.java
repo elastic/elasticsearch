@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -47,15 +47,17 @@ public class GeoCentroidAggregationBuilder
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, false, false);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        GeoCentroidAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        GeoCentroidAggregatorFactory.registerAggregators(builder);
     }
 
     public GeoCentroidAggregationBuilder(String name) {
         super(name);
     }
 
-    protected GeoCentroidAggregationBuilder(GeoCentroidAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected GeoCentroidAggregationBuilder(GeoCentroidAggregationBuilder clone,
+                                            AggregatorFactories.Builder factoriesBuilder,
+                                            Map<String, Object> metadata) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -65,7 +67,7 @@ public class GeoCentroidAggregationBuilder
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new GeoCentroidAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
@@ -83,7 +85,8 @@ public class GeoCentroidAggregationBuilder
 
     @Override
     protected GeoCentroidAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
-                                                      AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
+                                                      AggregatorFactory parent,
+                                                      AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new GeoCentroidAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 

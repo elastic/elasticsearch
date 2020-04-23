@@ -22,6 +22,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.InternalSum;
@@ -30,9 +31,9 @@ import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -149,9 +150,9 @@ public class HistoBackedSumAggregatorTests extends AggregatorTestCase {
         return new BinaryDocValuesField(fieldName, streamOutput.bytes().toBytesRef());
     }
 
-    @BeforeClass
-    public static void registerBuilder() {
-        AnalyticsAggregatorFactory.registerHistoBackedSumAggregator(valuesSourceRegistry);
+    @Override
+    protected List<SearchPlugin> getSearchPlugins() {
+        return List.of(new AnalyticsPlugin());
     }
 
     @Override

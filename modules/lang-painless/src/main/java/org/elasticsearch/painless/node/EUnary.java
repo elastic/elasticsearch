@@ -102,7 +102,7 @@ public class EUnary extends AExpression {
             if (operation == Operation.NOT) {
                 semanticScope.setCondition(userChildNode, Read.class);
                 semanticScope.putDecoration(userChildNode, new TargetType(boolean.class));
-                visitor.visit(userChildNode, semanticScope);
+                visitor.checkedVisit(userChildNode, semanticScope);
                 visitor.decorateWithCast(userChildNode, semanticScope);
 
                 valueType = boolean.class;

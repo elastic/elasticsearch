@@ -88,7 +88,7 @@ public class SEach extends AStatement {
 
         AExpression userIterableNode = userEachNode.getIterableNode();
         semanticScope.setCondition(userIterableNode, Read.class);
-        visitor.visit(userIterableNode, semanticScope);
+        visitor.checkedVisit(userIterableNode, semanticScope);
 
         String canonicalTypeName = userEachNode.getCanonicalTypeName();
         Class<?> type = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);

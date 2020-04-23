@@ -104,7 +104,7 @@ public class EBinary extends AExpression {
 
         if (operation == Operation.FIND || operation == Operation.MATCH) {
             semanticScope.putDecoration(userLeftNode, new TargetType(String.class));
-            semanticScope.putDecoration(userLeftNode, new TargetType(Pattern.class));
+            semanticScope.putDecoration(userRightNode, new TargetType(Pattern.class));
             visitor.decorateWithCast(userLeftNode, semanticScope);
             visitor.decorateWithCast(userRightNode, semanticScope);
             binaryType = boolean.class;

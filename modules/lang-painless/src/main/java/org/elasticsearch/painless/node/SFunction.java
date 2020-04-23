@@ -191,13 +191,13 @@ public class SFunction extends ANode {
         boolean isAutoReturnEnabled = userFunctionNode.isAutoReturnEnabled();
 
         if (methodEscape == false && isAutoReturnEnabled == false && returnType != void.class) {
-            throw userFunctionNode.createError(new IllegalArgumentException("invalid function definition:" +
+            throw userFunctionNode.createError(new IllegalArgumentException("invalid function definition: " +
                     "not all paths provide a return value for function " +
                     "[" + functionName + "] with [" + typeParameters.size() + "] parameters"));
         }
 
         if (methodEscape) {
-            functionScope.setCondition(userBlockNode, MethodEscape.class);
+            functionScope.setCondition(userFunctionNode, MethodEscape.class);
         }
 
         // TODO: do not specialize for execute

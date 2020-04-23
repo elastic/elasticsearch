@@ -121,12 +121,13 @@ public class ERegex extends AExpression {
 
         try {
             Pattern.compile(pattern, constant);
-        } catch (PatternSyntaxException e) {
-            throw new Location(location.getSourceName(), location.getOffset() + 1 + e.getIndex()).createError(
-                    new IllegalArgumentException("Error compiling regex: " + e.getDescription()));
+        } catch (PatternSyntaxException pse) {
+            throw new Location(location.getSourceName(), location.getOffset() + 1 + pse.getIndex()).createError(
+                    new IllegalArgumentException("invalid regular expression: " +
+                            "could not compile regex constant [" + pattern + "] with flags [" + flags + "]", pse));
         }
 
         semanticScope.putDecoration(userRegexNode, new ValueType(Pattern.class));
-        semanticScope.putDecoration(userRegexNode, new StandardConstant(flags));
+        semanticScope.putDecoration(userRegexNode, new StandardConstant(constant));
     }
 }

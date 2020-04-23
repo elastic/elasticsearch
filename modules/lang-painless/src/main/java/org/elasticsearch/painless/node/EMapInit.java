@@ -120,7 +120,7 @@ public class EMapInit extends AExpression {
             semanticScope.setCondition(userValueNode, Read.class);
             semanticScope.putDecoration(userValueNode, new TargetType(def.class));
             semanticScope.setCondition(userValueNode, Internal.class);
-            visitor.visit(userValueNode, semanticScope);
+            visitor.checkedVisit(userValueNode, semanticScope);
             visitor.decorateWithCast(userValueNode, semanticScope);
         }
 

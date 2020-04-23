@@ -186,7 +186,7 @@ public class EAssignment extends AExpression {
             }
         // if the lhs node is a def optimized node we update the actual type to remove the need for a cast
         } else if (semanticScope.getCondition(userLeftNode, DefOptimized.class)) {
-            visitor.visit(userRightNode, semanticScope);
+            visitor.checkedVisit(userRightNode, semanticScope);
             Class<?> rightValueType = semanticScope.getDecoration(userRightNode, ValueType.class).getValueType();
 
             if (rightValueType == void.class) {
@@ -199,7 +199,7 @@ public class EAssignment extends AExpression {
         // Otherwise, we must adapt the rhs type to the lhs type with a cast.
         } else {
             semanticScope.putDecoration(userRightNode, new TargetType(leftValueType));
-            visitor.visit(userRightNode, semanticScope);
+            visitor.checkedVisit(userRightNode, semanticScope);
             visitor.decorateWithCast(userRightNode, semanticScope);
         }
 

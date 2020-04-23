@@ -88,7 +88,7 @@ public class SDo extends AStatement {
 
         semanticScope.setCondition(userConditionNode, Read.class);
         semanticScope.putDecoration(userConditionNode, new TargetType(boolean.class));
-        visitor.visit(userConditionNode, semanticScope);
+        visitor.checkedVisit(userConditionNode, semanticScope);
         visitor.decorateWithCast(userConditionNode, semanticScope);
 
         boolean continuous;

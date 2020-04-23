@@ -89,7 +89,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         }
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
             this.preferV2Templates = in.readOptionalBoolean();
         }
     }
@@ -371,7 +371,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         }
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
             out.writeOptionalBoolean(preferV2Templates);
         }
     }

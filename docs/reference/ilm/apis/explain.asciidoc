@@ -39,11 +39,11 @@ about any failures.
 
 `only_managed`::
   (Optional, boolean) Filters the returned indices to only indices that are managed by
-  ILM.
+  {ilm-init}.
 
 `only_errors`::
   (Optional, boolean) Filters the returned indices to only indices that are managed by
-  ILM and are in an error state, either due to an encountering an error while
+  {ilm-init} and are in an error state, either due to an encountering an error while
   executing the policy, or attempting to use a policy that does not exist.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
@@ -99,7 +99,7 @@ GET my_index/_ilm/explain
 --------------------------------------------------
 // TEST[continued]
 
-When management of the index is first taken over by ILM, `explain` shows
+When management of the index is first taken over by {ilm-init}, `explain` shows
 that the index is managed and in the `new` phase:
 
 [source,console-result]
@@ -124,9 +124,9 @@ that the index is managed and in the `new` phase:
 --------------------------------------------------
 // TESTRESPONSE[skip:no way to know if we will get this response immediately]
 
-<1> Shows if the index is being managed by ILM. If the index is not managed by
-ILM the other fields will not be shown
-<2> The name of the policy which ILM is using for this index
+<1> Shows if the index is being managed by {ilm-init}. If the index is not managed by
+{ilm-init} the other fields will not be shown
+<2> The name of the policy which {ilm-init} is using for this index
 <3> The timestamp used for the `min_age`
 <4> The age of the index (used for calculating when to enter the next phase)
 <5> When the index entered the current phase
@@ -302,7 +302,7 @@ the case.
 
 <1> The step that caused the error
 <2> Indicates if retrying the failed step can overcome the error. If this
-is true, ILM will retry the failed step automatically.
+is true, {ilm-init} will retry the failed step automatically.
 <3> Shows the number of attempted automatic retries to execute the failed
 step.
 <4> What went wrong

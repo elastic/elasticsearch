@@ -64,7 +64,7 @@ public class GeoShapeValuesSourceType implements Writeable, ValuesSourceType {
         final MultiGeoShapeValues.GeoShapeValue missing = MultiGeoShapeValues.GeoShapeValue.missing(rawMissing.toString());
         return new GeoShapeValuesSource() {
             @Override
-            MultiGeoShapeValues geoShapeValues(LeafReaderContext context) {
+            public MultiGeoShapeValues geoShapeValues(LeafReaderContext context) {
                 MultiGeoShapeValues values = geoShapeValuesSource.geoShapeValues(context);
                 return new MultiGeoShapeValues() {
 

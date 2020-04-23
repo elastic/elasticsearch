@@ -22,6 +22,7 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -29,6 +30,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -70,7 +72,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             LeafReaderContext readerContext = context.searcher().getIndexReader().leaves().get(readerIndex);
             sourceLookup.setSegmentAndDocument(readerContext, hit.docId());
 
-            Map<String, Object> valuesByField = sourceLookup.extractValues(fields);
+            Map<String, Object> valuesByField = extractValues(sourceLookup, fields);
 
             for (Map.Entry<String, Object> entry : valuesByField.entrySet()) {
                 String field = entry.getKey();
@@ -83,5 +85,21 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                 hit.setField(field, documentField);
             }
         }
+    }
+
+    /**
+     * For each of the provided paths, return its value in the source. Note that in contrast with
+     * {@link SourceLookup#extractRawValues}, array and object values can be returned.
+     */
+    public Map<String, Object> extractValues(Map<String, Object> source, Collection<String> paths) {
+        Map<String, Object> result = new HashMap<>(paths.size());
+
+        for (String path : paths) {
+            Object value = XContentMapValues.extractValue(path, source);
+            if (value != null) {
+                result.put(path, value);
+            }
+        }
+        return result;
     }
 }

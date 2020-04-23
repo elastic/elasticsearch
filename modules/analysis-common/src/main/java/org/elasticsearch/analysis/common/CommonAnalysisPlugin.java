@@ -445,7 +445,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                     "[delimited_payload_filter] is not supported for new indices, use [delimited_payload] instead");
             }
             if (version.onOrAfter(Version.V_6_2_0)) {
-                deprecationLogger.deprecated("Deprecated [delimited_payload_filter] used, replaced by [delimited_payload]");
+                deprecationLogger.deprecatedAndMaybeLog("analysis_delimited_payload_filter",
+                    "Deprecated [delimited_payload_filter] used, replaced by [delimited_payload]");
             }
             return new DelimitedPayloadTokenFilter(input,
                 DelimitedPayloadTokenFilterFactory.DEFAULT_DELIMITER,

@@ -368,7 +368,7 @@ public class MetadataIndexTemplateService {
                     .collect(Collectors.joining(",")),
                 name);
             logger.warn(warning);
-            deprecationLogger.deprecated(warning);
+            deprecationLogger.deprecatedAndMaybeLog("index_template_pattern_overlap", warning);
         }
 
         IndexTemplateV2 finalIndexTemplate = template;
@@ -593,7 +593,7 @@ public class MetadataIndexTemplateService {
                         .collect(Collectors.joining(",")),
                     request.name);
                 logger.warn(warning);
-                deprecationLogger.deprecated(warning);
+                deprecationLogger.deprecatedAndMaybeLog("index_template_pattern_overlap", warning);
             } else {
                 // Otherwise, this is a hard error, the user should use V2 index templates instead
                 String error = String.format(Locale.ROOT, "template [%s] has index patterns %s matching patterns" +

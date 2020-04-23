@@ -542,7 +542,7 @@ public class SSLService {
             // Client Authentication _should_ be required, but if someone turns it off, then this check is no longer relevant
             final SSLConfigurationSettings configurationSettings = SSLConfigurationSettings.withPrefix(prefix + ".");
             if (isConfigurationValidForServerUsage(configuration) == false) {
-                deprecationLogger.deprecated("invalid SSL configuration for " + prefix +
+                deprecationLogger.deprecatedAndMaybeLog("invalid_ssl_configuration", "invalid SSL configuration for " + prefix +
                     " - server ssl configuration requires a key and certificate, but these have not been configured; you must set either " +
                     "[" + configurationSettings.x509KeyPair.keystorePath.getKey() + "], or both [" +
                     configurationSettings.x509KeyPair.keyPath.getKey() + "] and [" +
@@ -554,7 +554,8 @@ public class SSLService {
                 .sorted()
                 .collect(Collectors.toList());
             if (sslSettingNames.isEmpty() == false) {
-                deprecationLogger.deprecated("invalid configuration for " + prefix + " - [" + enabledSetting +
+                deprecationLogger.deprecatedAndMaybeLog("invalid_ssl_configuration",
+                    "invalid configuration for " + prefix + " - [" + enabledSetting +
                     "] is not set, but the following settings have been configured in elasticsearch.yml : [" +
                     Strings.collectionToCommaDelimitedString(sslSettingNames) + "]");
             }

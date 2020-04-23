@@ -129,7 +129,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         }
     }
 
-    protected final boolean assertCurrentThreadMayAccessBlobStore() {
+    protected boolean assertCurrentThreadMayAccessBlobStore() {
         final String threadName = Thread.currentThread().getName();
         assert threadName.contains('[' + ThreadPool.Names.SNAPSHOT + ']')
             || threadName.contains('[' + ThreadPool.Names.GENERIC + ']')

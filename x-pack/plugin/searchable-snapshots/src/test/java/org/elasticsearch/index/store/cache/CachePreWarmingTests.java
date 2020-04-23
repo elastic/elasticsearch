@@ -64,11 +64,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_LOAD_EAGERLY_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -111,7 +114,7 @@ public class CachePreWarmingTests extends ESTestCase {
                 writer.commit();
             }
 
-            final ThreadPool threadPool = new TestThreadPool(getTestName());
+            final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilder());
             releasables.add(() -> terminate(threadPool));
 
             final Store store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
@@ -224,6 +227,10 @@ public class CachePreWarmingTests extends ESTestCase {
 
                     final boolean loaded = snapshotDirectory.loadSnapshot();
                     assertThat("Failed to load snapshot", loaded, is(true));
+
+                    final ExecutorService executor = threadPool.executor(SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME);
+                    executor.shutdown();
+                    executor.awaitTermination(30L, TimeUnit.SECONDS);
 
                     assertThat(
                         filterBlobContainer.totalFilesRead(),

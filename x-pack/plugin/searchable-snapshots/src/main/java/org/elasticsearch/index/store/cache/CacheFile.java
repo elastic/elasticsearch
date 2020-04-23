@@ -270,17 +270,14 @@ public class CacheFile {
             );
 
             if (gaps.size() > 0) {
-                final SparseFileTracker.Gap gap = gaps.get(0);
-                assert gaps.size() == 1 : "expected 1 range to fetch but got " + gaps.size();
-                assert gap.start == range.v1() : "range/gap start mismatch (" + gap.start + ',' + range.v1() + ')';
-                assert gap.end == range.v2() : "range/gap end mismatch (" + gap.end + ',' + range.v2() + ')';
-
-                try {
-                    ensureOpen();
-                    onRangeMissing.accept(range.v1(), range.v2());
-                    gap.onResponse(null);
-                } catch (Exception e) {
-                    gap.onFailure(e);
+                for (SparseFileTracker.Gap gap : gaps) {
+                    try {
+                        ensureOpen();
+                        onRangeMissing.accept(gap.start, gap.end);
+                        gap.onResponse(null);
+                    } catch (Exception e) {
+                        gap.onFailure(e);
+                    }
                 }
             }
         } catch (Exception e) {

@@ -32,6 +32,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME;
+
 public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexInput {
 
     /**
@@ -208,7 +210,6 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         final long length = end - start;
         final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, length))];
         logger.trace(() -> new ParameterizedMessage("writing range [{}-{}] to cache file [{}]", start, end, cacheFileReference));
-        assert assertRangeOfBytesAlignment(start, end);
 
         int bytesCopied = 0;
         final long startTimeNanos = stats.currentTimeNanos();
@@ -238,26 +239,10 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         }
     }
 
-    /**
-     * Asserts that the range of bytes to write in cache is either aligned with the directory's {@link #defaultRangeSize} or with the
-     * {@link #fileInfo}'s part size depending of the {@link #context} the current IndexInput has been opened with.
-     */
-    private boolean assertRangeOfBytesAlignment(long start, long end) {
-        final long sizeOfWrites = (context != CACHE_WARMING_CONTEXT) ? defaultRangeSize : fileInfo.partSize().getBytes();
-        assert start % sizeOfWrites == 0L : "start of range ["
-            + start
-            + "] is not aligned with expected size of writes ["
-            + sizeOfWrites
-            + "] for context "
-            + context;
-        assert end % sizeOfWrites == 0L || end == fileInfo.length() : "end of range ["
-            + end
-            + "] is not aligned with expected size of writes ["
-            + sizeOfWrites
-            + "] for context "
-            + context;
-        final long length = end - start;
-        assert length == sizeOfWrites || (end == fileInfo.length() && length == end % sizeOfWrites);
+    @Override
+    protected boolean assertCurrentThreadMayAccessBlobStore() {
+        assert Thread.currentThread().getName().contains('[' + SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME + ']')
+            || super.assertCurrentThreadMayAccessBlobStore();
         return true;
     }
 

@@ -112,10 +112,12 @@ public class SetupPasswordToolTests extends CommandTestCase {
         // elastic user is updated last
         usersInSetOrder = new ArrayList<>(SetupPasswordTool.USERS);
         usersInSetOrder.sort((user1, user2) -> {
-            if (SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.containsKey(user1) && SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.containsValue(user2)) {
+            if (SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.containsKey(user1)
+                && SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.containsValue(user2)) {
                 return -1;
             }
-            if (SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.containsKey(user2) && SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.containsValue(user1)) {
+            if (SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.containsKey(user2)
+                && SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.containsValue(user1)) {
                 return 1;
             }
             return 0;

@@ -252,7 +252,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertNull(response.getSearchResponse());
         assertNotNull(response.getFailure());
         assertFalse(response.isRunning());
-        ElasticsearchException exc = response.getFailure();
+        Exception exc = response.getFailure();
         assertThat(exc.getMessage(), containsString("no such index"));
     }
 

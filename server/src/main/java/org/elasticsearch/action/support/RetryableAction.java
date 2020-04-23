@@ -78,8 +78,9 @@ public abstract class RetryableAction<Response> {
 
     public void cancel(Exception e) {
         if (isDone.compareAndSet(false, true)) {
-            if (retryTask != null) {
-                retryTask.cancel();
+            Scheduler.ScheduledCancellable localRetryTask = this.retryTask;
+            if (localRetryTask != null) {
+                localRetryTask.cancel();
             }
             finalListener.onFailure(e);
         }
@@ -90,6 +91,7 @@ public abstract class RetryableAction<Response> {
 
             @Override
             protected void doRun() {
+                retryTask = null;
                 // It is possible that the task was cancelled in between the retry being dispatched and now
                 if (isDone.get() == false) {
                     tryAction(listener);
@@ -98,6 +100,7 @@ public abstract class RetryableAction<Response> {
 
             @Override
             public void onRejection(Exception e) {
+                retryTask = null;
                 // TODO: The only implementations of this class use SAME which means the execution will not be
                 //  rejected. Future implementations can adjust this functionality as needed.
                 onFailure(e);
@@ -123,7 +126,6 @@ public abstract class RetryableAction<Response> {
 
         @Override
         public void onResponse(Response response) {
-            retryTask = null;
             if (isDone.compareAndSet(false, true)) {
                 finalListener.onResponse(response);
             }

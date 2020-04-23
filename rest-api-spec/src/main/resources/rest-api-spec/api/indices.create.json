@@ -33,6 +33,10 @@
       "master_timeout":{
         "type":"time",
         "description":"Specify timeout for connection to master"
+      },
+      "prefer_v2_templates": {
+        "type": "boolean",
+        "description": "favor V2 templates instead of V1 templates during index creation"
       }
     },
     "body":{

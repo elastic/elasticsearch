@@ -249,9 +249,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         trackTotalHitsUpTo = in.readOptionalInt();
 
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            if (in.readBoolean()) {
-                fetchFields = in.readStringList();
-            }
+            fetchFields = in.readOptionalStringList();
         }
     }
 
@@ -309,10 +307,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalInt(trackTotalHitsUpTo);
 
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeBoolean(fetchFields != null);
-            if (fetchFields != null) {
-                out.writeStringCollection(fetchFields);
-            }
+            out.writeOptionalStringCollection(fetchFields);
         }
     }
 

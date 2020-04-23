@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.spatial.index.mapper;
+package org.elasticsearch.xpack.spatial.common;
 
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Line;
@@ -11,11 +11,13 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 
-
 /**
  * Utility class that transforms Elasticsearch geometry objects to the Lucene representation
  */
 public class ShapeUtils {
+    // no instance:
+    private ShapeUtils() {
+    }
 
     public static org.apache.lucene.geo.XYPolygon toLuceneXYPolygon(Polygon polygon) {
         org.apache.lucene.geo.XYPolygon[] holes = new org.apache.lucene.geo.XYPolygon[polygon.getNumberOfHoles()];
@@ -52,9 +54,6 @@ public class ShapeUtils {
 
     public static org.apache.lucene.geo.XYCircle toLuceneXYCircle(Circle circle) {
         return new org.apache.lucene.geo.XYCircle((float) circle.getX(), (float) circle.getY(), (float) circle.getRadiusMeters());
-    }
-
-    private ShapeUtils() {
     }
 
     private static float[] doubleArrayToFloatArray(double[] array) {

@@ -40,14 +40,14 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.index.mapper.AbstractSearchableGeometryFieldType;
+import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.AbstractGeometryFieldType.QueryProcessor;
 
 
 import java.util.ArrayList;
 import java.util.List;
 
 
-public class VectorGeoShapeQueryProcessor implements AbstractSearchableGeometryFieldType.QueryProcessor {
+public class VectorGeoShapeQueryProcessor implements QueryProcessor {
 
     @Override
     public Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {

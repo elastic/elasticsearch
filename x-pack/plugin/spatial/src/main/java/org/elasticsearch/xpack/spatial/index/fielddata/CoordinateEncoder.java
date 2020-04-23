@@ -4,13 +4,13 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.spatial.index.mapper;
+package org.elasticsearch.xpack.spatial.index.fielddata;
 
 /**
  * Interface for classes that help encode double-valued spatial coordinates x/y to
  * their integer-encoded serialized form and decode them back
  */
-public interface CoordinateEncoder {
+interface CoordinateEncoder {
     int encodeX(double x);
     int encodeY(double y);
     double decodeX(int x);

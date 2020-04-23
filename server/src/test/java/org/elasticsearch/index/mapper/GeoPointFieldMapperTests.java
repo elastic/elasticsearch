@@ -387,7 +387,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("location")
             .field("type", "geo_point")
-            .field(NULL_VALUE, "1,2")
+            .field(NULL_VALUE.getPreferredName(), "1,2")
             .endObject().endObject()
             .endObject().endObject());
 
@@ -439,8 +439,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("location")
                     .field("type", "geo_point")
                     .field(IGNORE_Z_VALUE.getPreferredName(), false)
-                    .field(IGNORE_MALFORMED, true)
-                    .field(NULL_VALUE, "91,181")
+                    .field(IGNORE_MALFORMED.getPreferredName(), true)
+                    .field(NULL_VALUE.getPreferredName(), "91,181")
                 .endObject().endObject()
             .endObject().endObject());
 

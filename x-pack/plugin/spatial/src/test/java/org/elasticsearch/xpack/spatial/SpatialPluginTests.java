@@ -15,7 +15,7 @@ import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregatorSuppli
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeValuesSourceType;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -27,21 +27,22 @@ public class SpatialPluginTests extends ESTestCase {
     public void testGeoAggregationsByLicense() {
         for (License.OperationMode operationMode : License.OperationMode.values()) {
             SpatialPlugin plugin = getPluginWithOperationMode(operationMode);
-            ValuesSourceRegistry registry = new ValuesSourceRegistry();
-            List<Consumer<ValuesSourceRegistry>> registrar = plugin.getBareAggregatorRegistrar();
-            registrar.forEach(c -> c.accept(registry));
+            ValuesSourceRegistry.Builder registryBuilder = new ValuesSourceRegistry.Builder();
+            List<Consumer<ValuesSourceRegistry.Builder>> registrar = plugin.getAggregationExtentions();
+            registrar.forEach(c -> c.accept(registryBuilder));
+            ValuesSourceRegistry registry = registryBuilder.build();
             switch (operationMode) {
                 case STANDARD:
                 case BASIC:
                 case MISSING:
-                    assertThat(registry.getAggregator(GeoShapeValuesSourceType.INSTANCE, GeoBoundsAggregationBuilder.NAME),
+                    assertThat(registry.getAggregator(GeoShapeValuesSourceType.instance(), GeoBoundsAggregationBuilder.NAME),
                         instanceOf(GeoBoundsAggregatorSupplier.class));
                     break;
                 case ENTERPRISE:
                 case PLATINUM:
                 case GOLD:
                 case TRIAL:
-                    assertThat(registry.getAggregator(GeoShapeValuesSourceType.INSTANCE, GeoCentroidAggregationBuilder.NAME),
+                    assertThat(registry.getAggregator(GeoShapeValuesSourceType.instance(), GeoCentroidAggregationBuilder.NAME),
                         instanceOf(GeoCentroidAggregatorSupplier.class));
                     break;
                 default:

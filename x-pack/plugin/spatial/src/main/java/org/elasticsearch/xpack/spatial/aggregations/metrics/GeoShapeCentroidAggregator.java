@@ -22,9 +22,9 @@ import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.xpack.spatial.index.mapper.DimensionalShapeType;
-import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeValuesSource;
-import org.elasticsearch.xpack.spatial.index.mapper.MultiGeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType;
+import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 
 import java.io.IOException;
 import java.util.Map;

@@ -282,8 +282,8 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         QueryShardContext context = createShardContext();
         QueryShardException e = expectThrows(QueryShardException.class,
                 () -> query.toQuery(context));
-        assertEquals("Geo fields do not support exact searching, use dedicated geo queries instead: [mapped_geo_point]",
-                e.getMessage());
+        assertEquals("Geometry fields do not support exact searching, use dedicated geometry queries instead: "
+                + "[mapped_geo_point]", e.getMessage());
     }
 
     public void testSerializationFailsUnlessFetched() throws IOException {
@@ -322,22 +322,22 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         builder.doToQuery(createShardContext());
         assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
     }
-    
+
     public void testRewriteIndexQueryToMatchNone() throws IOException {
         TermsQueryBuilder query = new TermsQueryBuilder("_index", "does_not_exist", "also_does_not_exist");
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
-    }      
-    
+    }
+
     public void testRewriteIndexQueryToNotMatchNone() throws IOException {
         // At least one name is good
         TermsQueryBuilder query = new TermsQueryBuilder("_index", "does_not_exist", getIndex().getName());
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
-    }      
-    
+    }
+
     @Override
     protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
         QueryBuilder query = super.parseQuery(parser);

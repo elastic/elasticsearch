@@ -23,15 +23,15 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
-import org.elasticsearch.xpack.spatial.aggregations.metrics.GeoShapeBoundsAggregator;
 import org.elasticsearch.xpack.spatial.aggregations.metrics.GeoShapeCentroidAggregator;
-import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeValuesSource;
-import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.ingest.CircleProcessor;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeBoundsAggregator;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -72,8 +72,8 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
     }
 
     @Override
-    public List<Consumer<ValuesSourceRegistry>> getBareAggregatorRegistrar() {
-        List<Consumer<ValuesSourceRegistry>> items = new ArrayList<>();
+    public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
+        List<Consumer<ValuesSourceRegistry.Builder>> items = new ArrayList<>();
         items.add(SpatialPlugin::registerGeoShapeBoundsAggregator);
         if (getLicenseState().isSpatialGoldAllowed()) {
             items.add(SpatialPlugin::registerGeoShapeCentroidAggregator);
@@ -86,15 +86,15 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
         return Map.of(CircleProcessor.TYPE, new CircleProcessor.Factory());
     }
 
-    public static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(GeoBoundsAggregationBuilder.NAME, GeoShapeValuesSourceType.INSTANCE,
+    public static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(GeoBoundsAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (GeoBoundsAggregatorSupplier) (name, aggregationContext, parent, valuesSource, wrapLongitude, metadata)
                 -> new GeoShapeBoundsAggregator(name, aggregationContext, parent, (GeoShapeValuesSource) valuesSource,
                 wrapLongitude, metadata));
     }
 
-    public static void registerGeoShapeCentroidAggregator(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(GeoCentroidAggregationBuilder.NAME, GeoShapeValuesSourceType.INSTANCE,
+    public static void registerGeoShapeCentroidAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(GeoCentroidAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (GeoCentroidAggregatorSupplier) (name, aggregationContext, parent, valuesSource, metadata)
                 -> new GeoShapeCentroidAggregator(name, aggregationContext, parent, (GeoShapeValuesSource) valuesSource, metadata));
     }

@@ -19,22 +19,23 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.spatial.SpatialPlugin;
+import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
+import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
+import org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType;
 import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
-import org.elasticsearch.xpack.spatial.index.mapper.CentroidCalculator;
-import org.elasticsearch.xpack.spatial.index.mapper.DimensionalShapeType;
-import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
-import org.junit.BeforeClass;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
 
 import java.io.IOException;
@@ -42,16 +43,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.spatial.index.mapper.DimensionalShapeType.POINT;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
 
     private static final double GEOHASH_TOLERANCE = 1E-6D;
 
-    @BeforeClass()
-    public static void registerAggregator() {
-        SpatialPlugin.registerGeoShapeCentroidAggregator(valuesSourceRegistry);
+    @Override
+    protected List<SearchPlugin> getSearchPlugins() {
+        return List.of(new LocalStateSpatialPlugin());
     }
 
     public void testEmpty() throws Exception {
@@ -130,7 +130,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
     public void testSingleValuedField() throws Exception {
         int numDocs = scaledRandomIntBetween(64, 256);
         List<Geometry> geometries = new ArrayList<>();
-        DimensionalShapeType targetShapeType = POINT;
+        DimensionalShapeType targetShapeType = DimensionalShapeType.POINT;
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         for (int i = 0; i < numDocs; i++) {
             Function<Boolean, Geometry> geometryGenerator = ESTestCase.randomFrom(
@@ -201,6 +201,6 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return List.of(GeoShapeValuesSourceType.INSTANCE);
+        return List.of(CoreValuesSourceType.GEOPOINT, GeoShapeValuesSourceType.instance());
     }
 }

@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.spatial.index.mapper;
+package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.Circle;
@@ -23,7 +23,7 @@ import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
 /**
  * This class keeps a running Kahan-sum of coordinates
- * that are to be averaged in {@link TriangleTreeWriter} for use
+ * that are to be averaged in {@code TriangleTreeWriter} for use
  * as the centroid of a shape.
  */
 public class CentroidCalculator {

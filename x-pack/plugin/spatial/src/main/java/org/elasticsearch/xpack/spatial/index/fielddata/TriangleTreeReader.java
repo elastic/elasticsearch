@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.spatial.index.mapper;
+package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.BytesRef;
@@ -38,7 +38,7 @@ import static org.apache.lucene.geo.GeoUtils.orient;
  * -----------------------------------------
  * -----------------------------------------
  */
-public class TriangleTreeReader {
+class TriangleTreeReader {
     private final ByteArrayDataInput input;
     private final CoordinateEncoder coordinateEncoder;
     private final Tile2D tile2D;
@@ -46,7 +46,7 @@ public class TriangleTreeReader {
     private int treeOffset;
     private int docValueOffset;
 
-    public TriangleTreeReader(CoordinateEncoder coordinateEncoder) {
+    TriangleTreeReader(CoordinateEncoder coordinateEncoder) {
         this.coordinateEncoder = coordinateEncoder;
         this.tile2D = new Tile2D();
         this.extent = new Extent();

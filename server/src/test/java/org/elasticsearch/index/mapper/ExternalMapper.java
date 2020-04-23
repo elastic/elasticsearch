@@ -86,7 +86,7 @@ public class ExternalMapper extends FieldMapper {
             BinaryFieldMapper binMapper = binBuilder.build(context);
             BooleanFieldMapper boolMapper = boolBuilder.build(context);
             GeoPointFieldMapper pointMapper = latLonPointBuilder.build(context);
-            AbstractGeometryFieldMapper shapeMapper = shapeBuilder.build(context);
+            AbstractShapeGeometryFieldMapper shapeMapper = shapeBuilder.build(context);
             FieldMapper stringMapper = (FieldMapper)stringBuilder.build(context);
             context.path().remove();
 
@@ -150,13 +150,13 @@ public class ExternalMapper extends FieldMapper {
     private BinaryFieldMapper binMapper;
     private BooleanFieldMapper boolMapper;
     private GeoPointFieldMapper pointMapper;
-    private AbstractGeometryFieldMapper shapeMapper;
+    private AbstractShapeGeometryFieldMapper shapeMapper;
     private FieldMapper stringMapper;
 
     public ExternalMapper(String simpleName, MappedFieldType fieldType,
                           String generatedValue, String mapperName,
                           BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
-                          AbstractGeometryFieldMapper shapeMapper, FieldMapper stringMapper, Settings indexSettings,
+                          AbstractShapeGeometryFieldMapper shapeMapper, FieldMapper stringMapper, Settings indexSettings,
                           MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, new ExternalFieldType(), indexSettings, multiFields, copyTo);
         this.generatedValue = generatedValue;
@@ -214,7 +214,8 @@ public class ExternalMapper extends FieldMapper {
         BinaryFieldMapper binMapperUpdate = (BinaryFieldMapper) binMapper.updateFieldType(fullNameToFieldType);
         BooleanFieldMapper boolMapperUpdate = (BooleanFieldMapper) boolMapper.updateFieldType(fullNameToFieldType);
         GeoPointFieldMapper pointMapperUpdate = (GeoPointFieldMapper) pointMapper.updateFieldType(fullNameToFieldType);
-        AbstractGeometryFieldMapper shapeMapperUpdate = (AbstractGeometryFieldMapper) shapeMapper.updateFieldType(fullNameToFieldType);
+        AbstractShapeGeometryFieldMapper shapeMapperUpdate =
+            (AbstractShapeGeometryFieldMapper) shapeMapper.updateFieldType(fullNameToFieldType);
         TextFieldMapper stringMapperUpdate = (TextFieldMapper) stringMapper.updateFieldType(fullNameToFieldType);
         if (update == this
                 && multiFieldsUpdate == multiFields

@@ -40,12 +40,12 @@ import java.util.Map;
 
 public final class DateHistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(DateHistogramAggregationBuilder.NAME,
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(DateHistogramAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
             (DateHistogramAggregationSupplier) DateHistogramAggregator::new);
 
-        valuesSourceRegistry.register(DateHistogramAggregationBuilder.NAME,
+        builder.register(DateHistogramAggregationBuilder.NAME,
             CoreValuesSourceType.RANGE,
             (DateHistogramAggregationSupplier) DateRangeHistogramAggregator::new);
     }

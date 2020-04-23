@@ -487,7 +487,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         SnapshotDeletionsInProgress deletionsInProgress = clusterState.custom(SnapshotDeletionsInProgress.TYPE);
         if (deletionsInProgress != null) {
             for (SnapshotDeletionsInProgress.Entry entry : deletionsInProgress.getEntries()) {
-                if (entry.getSnapshot().getRepository().equals(repository)) {
+                if (entry.repository().equals(repository)) {
                     return true;
                 }
             }

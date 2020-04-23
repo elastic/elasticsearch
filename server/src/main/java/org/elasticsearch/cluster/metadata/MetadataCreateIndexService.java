@@ -502,7 +502,7 @@ public class MetadataCreateIndexService {
             Collections.singletonList(templateName), metadataTransformer);
     }
 
-    static Map<String, Object> resolveV2Mappings(final String requestMappings,
+    public static Map<String, Object> resolveV2Mappings(final String requestMappings,
                                                  final ClusterState currentState,
                                                  final String templateName,
                                                  final NamedXContentRegistry xContentRegistry) throws Exception {

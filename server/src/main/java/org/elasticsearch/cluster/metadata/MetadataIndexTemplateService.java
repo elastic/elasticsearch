@@ -332,8 +332,7 @@ public class MetadataIndexTemplateService {
         }
     }
 
-    // Package visible for testing
-    ClusterState addIndexTemplateV2(final ClusterState currentState, final boolean create,
+    public ClusterState addIndexTemplateV2(final ClusterState currentState, final boolean create,
                                     final String name, final IndexTemplateV2 template) throws Exception {
         if (create && currentState.metadata().templatesV2().containsKey(name)) {
             throw new IllegalArgumentException("index template [" + name + "] already exists");
@@ -413,8 +412,8 @@ public class MetadataIndexTemplateService {
      * Return a map of v1 template names to their index patterns for v1 templates that would overlap
      * with the given v2 template's index patterns.
      */
-    static Map<String, List<String>> findConflictingV1Templates(final ClusterState state, final String candidateName,
-                                                                final List<String> indexPatterns) {
+    public static Map<String, List<String>> findConflictingV1Templates(final ClusterState state, final String candidateName,
+                                                                       final List<String> indexPatterns) {
         Automaton v2automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
         Map<String, List<String>> overlappingTemplates = new HashMap<>();
         for (ObjectObjectCursor<String, IndexTemplateMetadata> cursor : state.metadata().templates()) {

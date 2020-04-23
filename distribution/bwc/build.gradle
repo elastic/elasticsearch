@@ -166,7 +166,7 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
           List<String> lines = file("${checkoutDir}/.ci/java-versions.properties").readLines()
           environment(
             'JAVA_HOME',
-            getJavaHome(it, Integer.parseInt(
+            getJavaHome(Integer.parseInt(
               lines
                 .findAll({ it.startsWith("ES_BUILD_JAVA=") })
                 .collect({ it.replace("ES_BUILD_JAVA=java", "").trim() })
@@ -176,7 +176,7 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
           )
           environment(
             'RUNTIME_JAVA_HOME',
-            getJavaHome(it, Integer.parseInt(
+            getJavaHome(Integer.parseInt(
               lines
                 .findAll({ it.startsWith("ES_RUNTIME_JAVA=java") })
                 .collect({ it.replace("ES_RUNTIME_JAVA=java", "").trim() })

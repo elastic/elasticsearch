@@ -22,7 +22,6 @@ package org.elasticsearch.gradle.util;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.info.JavaHome;
 import org.gradle.api.GradleException;
-import org.gradle.api.Task;
 
 import java.util.List;
 import java.util.Optional;
@@ -30,13 +29,9 @@ import java.util.Optional;
 public class JavaUtil {
 
     /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
-    static String getJavaHome(final Task task, final int version) {
+    static String getJavaHome(final int version) {
         List<JavaHome> javaHomes = BuildParams.getJavaVersions();
         Optional<JavaHome> java = javaHomes.stream().filter(j -> j.getVersion() == version).findFirst();
-        // check directly if the version is present since we are already executing
-        if (java.isEmpty()) {
-            throw new GradleException("JAVA" + version + "_HOME required to run task " + task.getPath());
-        }
-        return java.get().getJavaHome().get().getAbsolutePath();
+        return java.orElseThrow(() -> new GradleException("JAVA" + version + "_HOME required")).getJavaHome().get().getAbsolutePath();
     }
 }

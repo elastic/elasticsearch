@@ -64,22 +64,19 @@ public class SExpression extends AStatement {
         boolean lastSource = semanticScope.getCondition(userExpressionNode, LastSource.class);
         AExpression userStatementNode = userExpressionNode.getStatementNode();
         
-        if (lastSource && !isVoid) {
+        if (lastSource && isVoid == false) {
             semanticScope.setCondition(userStatementNode, Read.class);
         }
         
         visitor.checkedVisit(userStatementNode, semanticScope);
         Class<?> expressionValueType = semanticScope.getDecoration(userStatementNode, ValueType.class).getValueType();
         boolean rtn = lastSource && isVoid == false && expressionValueType != void.class;
-        semanticScope.putDecoration(userStatementNode, new TargetType(rtn ? rtnType : expressionValueType));
 
         if (rtn) {
+            semanticScope.putDecoration(userStatementNode, new TargetType(rtnType));
             semanticScope.setCondition(userStatementNode, Internal.class);
-        }
+            visitor.decorateWithCast(userStatementNode, semanticScope);
 
-        visitor.decorateWithCast(userStatementNode, semanticScope);
-
-        if (rtn) {
             semanticScope.setCondition(userExpressionNode, MethodEscape.class);
             semanticScope.setCondition(userExpressionNode, LoopEscape.class);
             semanticScope.setCondition(userExpressionNode, AllEscape.class);

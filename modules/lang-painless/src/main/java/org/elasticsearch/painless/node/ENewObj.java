@@ -76,7 +76,8 @@ public class ENewObj extends AExpression {
         int userArgumentsSize = userArgumentNodes.size();
 
         if (semanticScope.getCondition(userNewObjNode, Write.class)) {
-            throw userNewObjNode.createError(new IllegalArgumentException("invalid assignment cannot assign a value to new object with constructor " +
+            throw userNewObjNode.createError(new IllegalArgumentException(
+                    "invalid assignment cannot assign a value to new object with constructor " +
                     "[" + canonicalTypeName + "/" + userArgumentsSize + "]"));
         }
 

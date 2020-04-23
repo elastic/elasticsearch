@@ -354,7 +354,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
     @Override
     public Void visitString(EString userStringNode, SemanticScope semanticScope) {
         EString.visitDefaultSemanticAnalysis(this, userStringNode, semanticScope);
-        
+
         return null;
     }
 

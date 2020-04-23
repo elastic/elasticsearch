@@ -22,6 +22,7 @@ package org.elasticsearch.painless;
 import static org.hamcrest.Matchers.containsString;
 
 public class FunctionTests extends ScriptTestCase {
+
     public void testBasic() {
         assertEquals(5, exec("int get() {5;} get()"));
     }

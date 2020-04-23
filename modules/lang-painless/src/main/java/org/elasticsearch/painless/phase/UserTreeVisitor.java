@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.phase;
 
-import org.elasticsearch.painless.ir.IRNode;
 import org.elasticsearch.painless.node.ANode;
 import org.elasticsearch.painless.node.EAssignment;
 import org.elasticsearch.painless.node.EBinary;

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.phase;
 
-import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ir.AssignmentNode;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BlockNode;
@@ -966,7 +965,7 @@ public class IRTreeBuilder implements UserTreeVisitor<ScriptScope, IRNode> {
             irReferenceNode = defInterfaceReferenceNode;
         } else if (capturesDecoration != null && capturesDecoration.getCaptures().get(0).getType() == def.class) {
             TypedCaptureReferenceNode typedCaptureReferenceNode = new TypedCaptureReferenceNode();
-            typedCaptureReferenceNode.setMethodName(userFunctionRefNode.getCall());
+            typedCaptureReferenceNode.setMethodName(userFunctionRefNode.getMethodName());
             irReferenceNode = typedCaptureReferenceNode;
         } else {
             TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode();

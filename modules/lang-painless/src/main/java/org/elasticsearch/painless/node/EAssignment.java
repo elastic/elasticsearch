@@ -89,9 +89,9 @@ public class EAssignment extends AExpression {
             DefaultSemanticAnalysisPhase visitor, EAssignment userAssignmentNode, SemanticScope semanticScope) {
 
         AExpression userLeftNode = userAssignmentNode.getLeftNode();
-        semanticScope.replicateCondition(userAssignmentNode, userAssignmentNode, Read.class);
-        semanticScope.setCondition(userAssignmentNode, Write.class);
-        visitor.checkedVisit(userAssignmentNode, semanticScope);
+        semanticScope.replicateCondition(userAssignmentNode, userLeftNode, Read.class);
+        semanticScope.setCondition(userLeftNode, Write.class);
+        visitor.checkedVisit(userLeftNode, semanticScope);
         Class<?> leftValueType = semanticScope.getDecoration(userLeftNode, Decorations.ValueType.class).getValueType();
 
         AExpression userRightNode = userAssignmentNode.getRightNode();

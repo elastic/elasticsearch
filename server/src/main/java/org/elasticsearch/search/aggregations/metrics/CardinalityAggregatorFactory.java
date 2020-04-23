@@ -48,8 +48,8 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
         this.precisionThreshold = precisionThreshold;
     }
 
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.registerAny(CardinalityAggregationBuilder.NAME, cardinalityAggregatorSupplier());
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.registerAny(CardinalityAggregationBuilder.NAME, cardinalityAggregatorSupplier());
     }
 
     private static CardinalityAggregatorSupplier cardinalityAggregatorSupplier(){

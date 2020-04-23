@@ -85,14 +85,13 @@ public class RestCreateIndexActionV7 extends RestCreateIndexAction {
         Map<String, Object> mappings = (Map<String, Object>) source.get("mappings");
 
         if (includeTypeName && mappings.size() == 1) {
-            // no matter what the type was, replace it with _doc
             Map<String, Object> newSource = new HashMap<>();
 
             String typeName = mappings.keySet().iterator().next();
             @SuppressWarnings("unchecked")
             Map<String, Object> typedMappings = (Map<String, Object>) mappings.get(typeName);
 
-            // the internal representation still uses single type `_doc`.
+            // no matter what the type was, replace it with _doc, because the internal representation still uses single type `_doc`.
             newSource.put("mappings", Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, typedMappings));
             return newSource;
         } else {

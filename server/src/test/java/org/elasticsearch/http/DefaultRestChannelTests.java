@@ -220,7 +220,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         httpRequest.getHeaders().put(HttpHeaders.ACCEPT, List.of("application/vnd.elasticsearch+json;compatible-with=" + majorVersion));
         final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel);
 
-        assertEquals(Version.fromString(majorVersion+"0.0"), request.getCompatibleApiVersion());
+        assertEquals(Version.fromString(majorVersion+".0.0"), request.getCompatibleApiVersion());
     }
 
     public void testCookiesSet() {

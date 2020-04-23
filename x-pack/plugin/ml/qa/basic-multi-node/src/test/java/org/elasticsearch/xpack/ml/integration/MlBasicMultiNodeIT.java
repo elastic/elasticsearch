@@ -24,6 +24,7 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 
 public class MlBasicMultiNodeIT extends ESRestTestCase {
@@ -55,7 +56,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
 
         Response openResponse = client().performRequest(
                 new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open"));
-        assertEquals(Collections.singletonMap("opened", true), entityAsMap(openResponse));
+        assertThat(entityAsMap(openResponse), hasEntry("opened", true));
 
         Request addData = new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_data");
         addData.setEntity(new NStringEntity(
@@ -136,12 +137,12 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
 
         Response openResponse = client().performRequest(
                 new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open"));
-        assertEquals(Collections.singletonMap("opened", true), entityAsMap(openResponse));
+        assertThat(entityAsMap(openResponse), hasEntry("opened", true));
 
         Request startRequest = new Request("POST", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_start");
         startRequest.addParameter("start", "0");
         Response startResponse = client().performRequest(startRequest);
-        assertEquals(Collections.singletonMap("started", true), entityAsMap(startResponse));
+        assertThat(entityAsMap(startResponse), hasEntry("started", true));
 
         assertBusy(() -> {
             try {
@@ -175,7 +176,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
 
         Response openResponse = client().performRequest(
                 new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open"));
-        assertEquals(Collections.singletonMap("opened", true), entityAsMap(openResponse));
+        assertThat(entityAsMap(openResponse), hasEntry("opened", true));
 
         Request addDataRequest = new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_data");
         addDataRequest.setEntity(new NStringEntity(
@@ -214,7 +215,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         Request openRequest = new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open");
         openRequest.addParameter("timeout", "20s");
         Response openResponse2 = client().performRequest(openRequest);
-        assertEquals(Collections.singletonMap("opened", true), entityAsMap(openResponse2));
+        assertThat(entityAsMap(openResponse2), hasEntry("opened", true));
 
         // feed some more data points
         Request addDataRequest2 = new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_data");

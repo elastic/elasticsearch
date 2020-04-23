@@ -48,6 +48,12 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
         this.sigma = sigma;
     }
 
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(ExtendedStatsAggregationBuilder.NAME,
+            Arrays.asList(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            (ExtendedStatsAggregatorProvider) ExtendedStatsAggregator::new);
+    }
+
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,

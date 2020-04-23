@@ -57,7 +57,7 @@ public class SpatialPlugin extends GeoPlugin implements MapperPlugin, SearchPlug
     }
 
     @Override
-    public List<Consumer<ValuesSourceRegistry>> getBareAggregatorRegistrar() {
+    public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
         return org.elasticsearch.common.collect.List.of(SpatialPlugin::registerGeoShapeBoundsAggregator);
     }
 
@@ -66,8 +66,8 @@ public class SpatialPlugin extends GeoPlugin implements MapperPlugin, SearchPlug
         return Collections.singletonMap(CircleProcessor.TYPE, new CircleProcessor.Factory());
     }
 
-    public static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(GeoBoundsAggregationBuilder.NAME, GeoShapeValuesSourceType.INSTANCE,
+    public static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(GeoBoundsAggregationBuilder.NAME, GeoShapeValuesSourceType.INSTANCE,
             (GeoBoundsAggregatorSupplier) (name, aggregationContext, parent, valuesSource, wrapLongitude, metadata)
                 -> new GeoShapeBoundsAggregator(name, aggregationContext, parent, (GeoShapeValuesSource) valuesSource,
                 wrapLongitude, metadata));

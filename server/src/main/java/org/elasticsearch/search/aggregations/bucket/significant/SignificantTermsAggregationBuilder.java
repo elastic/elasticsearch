@@ -29,7 +29,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
@@ -92,8 +92,8 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         return PARSER.parse(parser, new SignificantTermsAggregationBuilder(aggregationName), null);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        SignificantTermsAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        SignificantTermsAggregatorFactory.registerAggregators(builder);
     }
 
     private IncludeExclude includeExclude = null;
@@ -119,7 +119,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     }
 
     protected SignificantTermsAggregationBuilder(SignificantTermsAggregationBuilder clone,
-                                                 Builder factoriesBuilder, Map<String, Object> metadata) {
+                                                 AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         super(clone, factoriesBuilder, metadata);
         this.bucketCountThresholds = new BucketCountThresholds(clone.bucketCountThresholds);
         this.executionHint = clone.executionHint;
@@ -134,7 +134,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
-    protected SignificantTermsAggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected SignificantTermsAggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new SignificantTermsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
@@ -296,7 +296,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
-                                                       Builder subFactoriesBuilder) throws IOException {
+                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         SignificanceHeuristic executionHeuristic = this.significanceHeuristic.rewrite(queryShardContext);
         return new SignificantTermsAggregatorFactory(name, config, includeExclude, executionHint, filterBuilder,
                 bucketCountThresholds, executionHeuristic, queryShardContext, parent, subFactoriesBuilder, metadata);

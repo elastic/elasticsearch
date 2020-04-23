@@ -21,13 +21,14 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.junit.BeforeClass;
+import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -36,12 +37,16 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
 
+>>>>>>>85a160f46d1...Make ValuesSourceRegistry immutable after initilization(#55493)
+    <<<<<<<HEAD
+
 public class StringStatsAggregatorTests extends AggregatorTestCase {
 
-    @BeforeClass()
-    public static void registerBuilder() {
-        StringStatsAggregationBuilder.registerAggregators(valuesSourceRegistry);
+    @Override
+    protected List<SearchPlugin> getSearchPlugins() {
+        return List.of(new AnalyticsPlugin());
     }
+
     private static final String VALUE_SCRIPT_NAME = "value_script";
     private static final String FIELD_SCRIPT_NAME = "field_script";
 

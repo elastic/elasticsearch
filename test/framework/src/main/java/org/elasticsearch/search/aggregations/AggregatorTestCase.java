@@ -96,6 +96,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.mock.orig.Mockito;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
@@ -113,6 +114,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -146,7 +148,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private static final String NESTEDFIELD_PREFIX = "nested_";
     private List<Releasable> releasables = new ArrayList<>();
     private static final String TYPE_NAME = "type";
-    protected static ValuesSourceRegistry valuesSourceRegistry;
+    protected ValuesSourceRegistry valuesSourceRegistry;
 
     // A list of field types that should not be tested, or are not currently supported
     private static List<String> TYPE_TEST_BLACKLIST;
@@ -181,10 +183,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
-    @BeforeClass
-    public static void initValuesSourceRegistry() {
+    // Make this @Before instead of @BeforeClass so it can call the non-static getSearchPlugins method
+    @Before
+    public void initValuesSourceRegistry() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
         valuesSourceRegistry = searchModule.getValuesSourceRegistry();
+    }
+
+    /**
+     * Test cases should override this if they have plugins that need to be loaded, e.g. the plugins their aggregators are in.
+     */
+    protected List<SearchPlugin> getSearchPlugins() {
+        return Collections.EMPTY_LIST;
     }
 
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder,

@@ -28,8 +28,8 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final double compression;
 
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(BoxplotAggregationBuilder.NAME,
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(BoxplotAggregationBuilder.NAME,
             Arrays.asList(CoreValuesSourceType.NUMERIC, AnalyticsValuesSourceType.HISTOGRAM),
             (BoxplotAggregatorSupplier) BoxplotAggregator::new);
     }

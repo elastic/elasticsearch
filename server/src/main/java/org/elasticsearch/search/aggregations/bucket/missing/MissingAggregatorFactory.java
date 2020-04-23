@@ -33,6 +33,22 @@ import java.util.Map;
 
 public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            MissingAggregationBuilder.NAME,
+            Arrays.asList(
+                CoreValuesSourceType.NUMERIC,
+                CoreValuesSourceType.BYTES,
+                CoreValuesSourceType.GEOPOINT,
+                CoreValuesSourceType.RANGE,
+                CoreValuesSourceType.IP,
+                CoreValuesSourceType.BOOLEAN,
+                CoreValuesSourceType.DATE
+            ),
+            (MissingAggregatorSupplier) MissingAggregator::new
+        );
+    }
+
     public MissingAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
                                     AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
                                     Map<String, Object> metadata) throws IOException {

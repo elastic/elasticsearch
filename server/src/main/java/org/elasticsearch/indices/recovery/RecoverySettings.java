@@ -63,6 +63,11 @@ public class RecoverySettings {
         Setting.positiveTimeSetting("indices.recovery.internal_action_timeout", TimeValue.timeValueMinutes(15),
             Property.Dynamic, Property.NodeScope);
 
+    /** timeout value to use for the retrying of requests made as part of the recovery process */
+    public static final Setting<TimeValue> INDICES_RECOVERY_INTERNAL_ACTION_RETRY_TIMEOUT_SETTING =
+        Setting.positiveTimeSetting("indices.recovery.internal_action_retry_timeout", TimeValue.timeValueMinutes(1),
+            Property.Dynamic, Property.NodeScope);
+
     /**
      * timeout value to use for requests made as part of the recovery process that are expected to take long time.
      * defaults to twice `indices.recovery.internal_action_timeout`.
@@ -91,6 +96,7 @@ public class RecoverySettings {
     private volatile TimeValue retryDelayNetwork;
     private volatile TimeValue activityTimeout;
     private volatile TimeValue internalActionTimeout;
+    private volatile TimeValue internalActionRetryTimeout;
     private volatile TimeValue internalActionLongTimeout;
 
     private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
@@ -103,6 +109,7 @@ public class RecoverySettings {
         this.retryDelayNetwork = INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.get(settings);
 
         this.internalActionTimeout = INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.get(settings);
+        this.internalActionRetryTimeout = INDICES_RECOVERY_INTERNAL_ACTION_RETRY_TIMEOUT_SETTING.get(settings);
         this.internalActionLongTimeout = INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING.get(settings);
 
         this.activityTimeout = INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.get(settings);
@@ -144,6 +151,10 @@ public class RecoverySettings {
 
     public TimeValue internalActionTimeout() {
         return internalActionTimeout;
+    }
+
+    public TimeValue internalActionRetryTimeout() {
+        return internalActionRetryTimeout;
     }
 
     public TimeValue internalActionLongTimeout() {

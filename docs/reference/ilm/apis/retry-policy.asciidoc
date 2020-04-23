@@ -24,7 +24,7 @@ see <<security-privileges>>.
 ==== {api-description-title}
 
 Sets the policy back to the step where the error occurred and executes the step.
-Use the <<ilm-explain-lifecycle, ILM Explain API>> to determine if an index is in the ERROR
+Use the <<ilm-explain-lifecycle, {ilm-init} Explain API>> to determine if an index is in the ERROR
 step.
 
 [[ilm-retry-policy-path-params]]

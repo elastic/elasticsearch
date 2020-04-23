@@ -15,18 +15,23 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
@@ -48,6 +53,8 @@ import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +67,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -118,7 +126,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         return client().execute(DeleteDataFrameAnalyticsAction.INSTANCE, request).actionGet();
     }
 
-    protected AcknowledgedResponse startAnalytics(String id) {
+    protected NodeAcknowledgedResponse startAnalytics(String id) {
         StartDataFrameAnalyticsAction.Request request = new StartDataFrameAnalyticsAction.Request(id);
         return client().execute(StartDataFrameAnalyticsAction.INSTANCE, request).actionGet();
     }
@@ -152,7 +160,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         GetDataFrameAnalyticsStatsAction.Response response = client().execute(GetDataFrameAnalyticsStatsAction.INSTANCE, request)
             .actionGet();
         List<GetDataFrameAnalyticsStatsAction.Response.Stats> stats = response.getResponse().results();
-        assertThat("Got: " + stats.toString(), stats.size(), equalTo(1));
+        assertThat("Got: " + stats.toString(), stats, hasSize(1));
         return stats.get(0);
     }
 
@@ -196,7 +204,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(id);
         assertThat(stats.getId(), equalTo(id));
         List<PhaseProgress> progress = stats.getProgress();
-        assertThat(progress.size(), equalTo(4));
+        assertThat(progress, hasSize(4));
         assertThat(progress.get(0).getPhase(), equalTo("reindexing"));
         assertThat(progress.get(1).getPhase(), equalTo("loading_data"));
         assertThat(progress.get(2).getPhase(), equalTo("analyzing"));
@@ -219,6 +227,18 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
             .setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(TrainedModelConfig.TAGS.getPreferredName(), jobId)))
             .get();
         assertThat("Hits were: " + Strings.toString(searchResponse.getHits()), searchResponse.getHits().getHits(), arrayWithSize(1));
+    }
+
+    protected Collection<PersistentTasksCustomMetadata.PersistentTask<?>> analyticsTaskList() {
+        ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
+        PersistentTasksCustomMetadata persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        return persistentTasks != null
+            ? persistentTasks.findTasks(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, task -> true)
+            : Collections.emptyList();
+    }
+
+    protected List<TaskInfo> analyticsAssignedTaskList() {
+        return client().admin().cluster().prepareListTasks().setActions(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME + "[c]").get().getTasks();
     }
 
     /**
@@ -284,7 +304,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
             .setQuery(QueryBuilders.idsQuery().addIds(stateDocId))
             .get();
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        assertThat("Hits were: " + Strings.toString(searchResponse.getHits()), searchResponse.getHits().getHits(), is(arrayWithSize(1)));
     }
 
     protected static void assertMlResultsFieldMappings(String index, String predictedClassField, String expectedType) {

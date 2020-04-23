@@ -546,7 +546,7 @@ sequence by unique_pid
     [network where true]
 ;
 
-sequence by pid with maxspan=200 
+sequence by pid with maxspan=200s
     [process where process_name == "*" ] 
     [file where file_path == "*"]
 ;
@@ -556,12 +556,12 @@ sequence by pid with maxspan=2s
     [file where file_path == "*"]
 ;
 
-sequence by pid with maxspan=2sec 
+sequence by pid with maxspan=500ms 
     [process where process_name == "*" ] 
     [file where file_path == "*"]
 ;
 
-sequence by pid with maxspan=2seconds
+sequence by pid with maxspan=2h
     [process where process_name == "*" ] 
     [file where file_path == "*"]
 ;

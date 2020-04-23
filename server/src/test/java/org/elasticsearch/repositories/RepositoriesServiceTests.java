@@ -49,9 +49,11 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.mockito.Mockito.mock;
 
@@ -160,13 +162,14 @@ public class RepositoriesServiceTests extends ESTestCase {
         public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations indices, long startTime, String failure,
                                      int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                                      boolean includeGlobalState, Metadata metadata, Map<String, Object> userMetadata,
-                                     Version repositoryMetaVersion, ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
+                                     Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateTransformer,
+                                     ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
             listener.onResponse(null);
         }
 
         @Override
-        public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version repositoryMetaVersion,
-                                   ActionListener<Void> listener) {
+        public void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
+                                    ActionListener<Void> listener) {
             listener.onResponse(null);
         }
 

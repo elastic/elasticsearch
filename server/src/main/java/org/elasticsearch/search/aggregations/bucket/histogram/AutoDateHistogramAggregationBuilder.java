@@ -73,8 +73,8 @@ public class AutoDateHistogramAggregationBuilder
         entry(Rounding.DateTimeUnit.SECOND_OF_MINUTE, "second")
     );
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        AutoDateHistogramAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        AutoDateHistogramAggregatorFactory.registerAggregators(builder);
     }
 
     /**

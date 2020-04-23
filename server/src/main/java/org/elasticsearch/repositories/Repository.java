@@ -40,6 +40,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -140,15 +141,15 @@ public interface Repository extends LifecycleComponent {
                           ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener);
 
     /**
-     * Deletes snapshot
+     * Deletes snapshots
      *
-     * @param snapshotId            snapshot id
+     * @param snapshotIds           snapshot ids
      * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot deletion began
      * @param repositoryMetaVersion version of the updated repository metadata to write
      * @param listener              completion listener
      */
-    void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version repositoryMetaVersion, ActionListener<Void> listener);
-
+    void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
+                         ActionListener<Void> listener);
     /**
      * Returns snapshot throttle time in nanoseconds
      */

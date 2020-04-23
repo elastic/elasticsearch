@@ -92,7 +92,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends ESSingleNodeTestCase 
             .endObject().endObject()
             .endObject().endObject());
 
-        Version oldVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_8_0);
+        Version oldVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_7_0);
         DocumentMapper defaultMapper = createIndex("test", settings(oldVersion).build()).mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");

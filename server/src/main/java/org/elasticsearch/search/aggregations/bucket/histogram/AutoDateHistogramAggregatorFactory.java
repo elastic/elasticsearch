@@ -40,8 +40,8 @@ import java.util.Map;
 
 public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(AutoDateHistogramAggregationBuilder.NAME,
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(AutoDateHistogramAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
             (AutoDateHistogramAggregatorSupplier) AutoDateHistogramAggregator::new);
     }

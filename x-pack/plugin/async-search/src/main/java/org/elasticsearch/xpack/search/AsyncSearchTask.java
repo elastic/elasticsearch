@@ -345,6 +345,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             // best effort to cancel expired tasks
             checkCancellation();
             searchResponse.get().addShardFailure(shardIndex,
+                // the nodeId is null if all replicas of this shard failed
                 new ShardSearchFailure(exc, shardTarget.getNodeId() != null ? shardTarget : null));
         }
 
@@ -352,6 +353,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         protected void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
             checkCancellation();
             searchResponse.get().addShardFailure(shardIndex,
+                // the nodeId is null if all replicas of this shard failed
                 new ShardSearchFailure(exc, shardTarget.getNodeId() != null ? shardTarget : null));
         }
 

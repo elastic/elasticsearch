@@ -96,7 +96,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
     }
 
     static AsyncSearchResponse randomAsyncSearchResponse(String searchId, SearchResponse searchResponse) {
-        int rand = randomIntBetween(2, 2);
+        int rand = randomIntBetween(0, 2);
         switch (rand) {
             case 0:
                 return new AsyncSearchResponse(searchId, randomBoolean(),

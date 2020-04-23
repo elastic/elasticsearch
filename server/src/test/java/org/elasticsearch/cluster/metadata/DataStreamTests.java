@@ -27,6 +27,10 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+
+import static org.elasticsearch.cluster.metadata.DataStream.getBackingIndexName;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
@@ -34,16 +38,16 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         int numIndices = randomIntBetween(0, 128);
         List<Index> indices = new ArrayList<>(numIndices);
         for (int i = 0; i < numIndices; i++) {
-            indices.add(new Index(randomAlphaOfLength(10), UUIDs.randomBase64UUID(random())));
+            indices.add(new Index(randomAlphaOfLength(10).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random())));
         }
         return indices;
     }
 
     public static DataStream randomInstance() {
         List<Index> indices = randomIndexInstances();
-        long generation = randomLongBetween(1, 128);
-        String dataStreamName = randomAlphaOfLength(10);
-        indices.add(new Index(DataStream.getBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(random())));
+        long generation = indices.size() + randomLongBetween(1, 128);
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        indices.add(new Index(getBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(random())));
         return new DataStream(dataStreamName, randomAlphaOfLength(10), indices, generation);
     }
 
@@ -62,4 +66,16 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         return randomInstance();
     }
 
+    public void testRollover() {
+        DataStream ds = randomInstance();
+        Index newWriteIndex = new Index(getBackingIndexName(ds.getName(), ds.getGeneration() + 1), UUIDs.randomBase64UUID(random()));
+        DataStream rolledDs = ds.rollover(newWriteIndex);
+
+        assertThat(rolledDs.getName(), equalTo(ds.getName()));
+        assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
+        assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
+        assertTrue(rolledDs.getIndices().contains(newWriteIndex));
+    }
 }

@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.core.search.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Nullable;
@@ -29,7 +31,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     @Nullable
     private final SearchResponse searchResponse;
     @Nullable
-    private final ElasticsearchException error;
+    private final Exception error;
     private final boolean isRunning;
     private final boolean isPartial;
 
@@ -60,7 +62,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
      */
     public AsyncSearchResponse(String id,
                                SearchResponse searchResponse,
-                               ElasticsearchException error,
+                               Exception error,
                                boolean isPartial,
                                boolean isRunning,
                                long startTimeMillis,
@@ -76,7 +78,11 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
 
     public AsyncSearchResponse(StreamInput in) throws IOException {
         this.id = in.readOptionalString();
-        this.error = in.readOptionalWriteable(ElasticsearchException::new);
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.error = in.readBoolean() ? in.readException() : null;
+        } else {
+            this.error = in.readOptionalWriteable(ElasticsearchException::new);
+        }
         this.searchResponse = in.readOptionalWriteable(SearchResponse::new);
         this.isPartial = in.readBoolean();
         this.isRunning = in.readBoolean();
@@ -87,7 +93,16 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(id);
-        out.writeOptionalWriteable(error);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (error != null) {
+                out.writeBoolean(true);
+                out.writeException(error);
+            } else {
+                out.writeBoolean(false);
+            }
+        } else {
+            out.writeOptionalWriteable(ExceptionsHelper.convertToElastic(error));
+        }
         out.writeOptionalWriteable(searchResponse);
         out.writeBoolean(isPartial);
         out.writeBoolean(isRunning);
@@ -120,7 +135,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     /**
      * Returns the failure reason or null if the query is running or has completed normally.
      */
-    public ElasticsearchException getFailure() {
+    public Exception getFailure() {
         return error;
     }
 
@@ -170,7 +185,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
             // shard failures are not considered fatal for partial results so
             // we return OK until we get the final response even if we don't have
             // a single successful shard.
-            return error != null ? error.status() : OK;
+            return error != null ? ExceptionsHelper.status(error) : OK;
         } else {
             return searchResponse.status();
         }
@@ -193,7 +208,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         }
         if (error != null) {
             builder.startObject("error");
-            error.toXContent(builder, params);
+            ElasticsearchException.generateThrowableXContent(builder, params, error);
             builder.endObject();
         }
         builder.endObject();

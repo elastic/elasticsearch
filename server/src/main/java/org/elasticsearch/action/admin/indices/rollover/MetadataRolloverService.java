@@ -58,7 +58,7 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.fi
  */
 public class MetadataRolloverService {
     private static final Pattern INDEX_NAME_PATTERN = Pattern.compile("^.*-\\d+$");
-    private static final List<IndexAbstraction.Type> VALID_ROLLOVER_TARGETS = List.of(ALIAS, DATA_STREAM);
+    private static final List<IndexAbstraction.Type> VALID_ROLLOVER_TARGETS = org.elasticsearch.common.collect.List.of(ALIAS, DATA_STREAM);
 
     private final ThreadPool threadPool;
     private final MetadataCreateIndexService createIndexService;
@@ -272,7 +272,7 @@ public class MetadataRolloverService {
             }
             if ((request.settings().equals(Settings.EMPTY) == false) ||
                 (request.aliases().size() > 0) ||
-                (request.mappings().equals("{}") == false)) {
+                (request.mappings().size() > 0)) {
                 throw new IllegalArgumentException(
                     "aliases, mappings, and index settings may not be specified when rolling over a data stream");
             }

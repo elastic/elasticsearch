@@ -73,5 +73,4 @@ public class MlAutoUpdateService implements ClusterStateListener {
         }
     }
 
-
 }

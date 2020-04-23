@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -50,7 +51,12 @@ public class AggProviderWireSerializationTests extends AbstractBWCWireSerializat
             AggregatorFactories.Builder aggs =
                 XContentObjectTransformer.aggregatorTransformer(new NamedXContentRegistry(searchModule.getNamedXContents()))
                     .fromMap(agg);
-            return new AggProvider(agg, aggs, null, false);
+            Exception parsingException = null;
+            if (randomBoolean()) {
+                aggs = null;
+                parsingException = new ElasticsearchException("bad configs");
+            }
+            return new AggProvider(agg, aggs, parsingException, randomBoolean());
         } catch (IOException ex) {
             fail(ex.getMessage());
         }

@@ -168,18 +168,38 @@ class AggProvider implements Writeable, ToXContentObject {
 
         return Objects.equals(this.aggs, that.aggs)
             && Objects.equals(this.parsedAggs, that.parsedAggs)
-            && Objects.equals(this.parsingException, that.parsingException)
+            && equalExceptionMessages(this.parsingException, that.parsingException)
             && Objects.equals(this.rewroteAggs, that.rewroteAggs);
+    }
+
+    private static boolean equalExceptionMessages(Exception lft, Exception rgt) {
+        if (lft == rgt) {
+            return true;
+        }
+        if (lft == null || rgt == null) {
+            return false;
+        }
+        return Objects.equals(lft.getMessage(), rgt.getMessage());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(aggs, parsedAggs, parsingException, rewroteAggs);
+        return Objects.hash(aggs, parsedAggs, parsingException == null ? null : parsingException.getMessage(), rewroteAggs);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.map(aggs);
         return builder;
+    }
+
+    @Override
+    public String toString() {
+        return "AggProvider{" +
+            "parsingException=" + parsingException +
+            ", parsedAggs=" + parsedAggs +
+            ", aggs=" + aggs +
+            ", rewroteAggs=" + rewroteAggs +
+            '}';
     }
 }

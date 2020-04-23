@@ -268,6 +268,7 @@ public class DatafeedConfigProvider {
                     updatedConfigListener.onFailure(ExceptionsHelper.missingDatafeedException(datafeedId));
                     return;
                 }
+                final long version = getResponse.getVersion();
                 final long seqNo = getResponse.getSeqNo();
                 final long primaryTerm = getResponse.getPrimaryTerm();
                 BytesReference source = getResponse.getSourceAsBytesRef();

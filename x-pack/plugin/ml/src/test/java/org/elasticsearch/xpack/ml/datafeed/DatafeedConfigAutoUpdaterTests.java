@@ -30,7 +30,6 @@ import static org.mockito.Mockito.when;
 
 public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
 
-
     private DatafeedConfigProvider provider;
     private List<DatafeedConfig.Builder> datafeeds = new ArrayList<>();
 

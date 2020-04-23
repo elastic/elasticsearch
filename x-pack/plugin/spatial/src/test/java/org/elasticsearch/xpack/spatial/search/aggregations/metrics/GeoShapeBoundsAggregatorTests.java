@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.spatial.aggregations.metrics;
+package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LatLonDocValuesField;
@@ -27,10 +27,10 @@ import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
+import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
 import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
-import org.elasticsearch.xpack.spatial.index.mapper.CentroidCalculator;
-import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 import org.junit.BeforeClass;
 
@@ -226,6 +226,6 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return List.of(GeoShapeValuesSourceType.INSTANCE);
+        return List.of(GeoShapeValuesSourceType.instance());
     }
 }

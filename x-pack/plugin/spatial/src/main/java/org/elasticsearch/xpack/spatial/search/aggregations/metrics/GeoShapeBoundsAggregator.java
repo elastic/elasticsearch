@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.spatial.aggregations.metrics;
+package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.lease.Releasables;
@@ -17,8 +17,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeValuesSource;
-import org.elasticsearch.xpack.spatial.index.mapper.MultiGeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 
 import java.io.IOException;
 import java.util.Map;

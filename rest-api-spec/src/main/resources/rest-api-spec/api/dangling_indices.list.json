@@ -1,6 +1,7 @@
 {
   "dangling_indices.list": {
     "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-gateway-dangling-indices.html",
       "description": "Returns all dangling indices."
     },
     "stability": "stable",

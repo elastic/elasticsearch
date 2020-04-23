@@ -1,6 +1,7 @@
 {
   "dangling_indices.import": {
     "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-gateway-dangling-indices.html",
       "description": "Imports the specified dangling index"
     },
     "stability": "stable",

@@ -276,7 +276,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                     byte[] min = PointValues.getMinPackedValue(reader, fieldContext.field());
                     if (min == null) {
                         // There aren't any indexes values so we don't need to optimize.
-                        return rounding -> rounding.prepareForUnknown();
+                        return Rounding::prepareForUnknown;
                     }
                     byte[] max = PointValues.getMaxPackedValue(reader, fieldContext.field());
                     long minUtcMillis = dft.resolution().parsePointAsMillis(min);

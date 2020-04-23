@@ -29,6 +29,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.Rounding.Prepared;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
@@ -83,9 +84,7 @@ public abstract class ValuesSource {
      * This returns a {@linkplain Function} because auto date histogram will
      * need to call it many times over the course of running the aggregation.
      */
-    public Function<Rounding, Rounding.Prepared> roundingPreparer(IndexReader reader) throws IOException {
-        return Rounding::prepareForUnknown;
-    }
+    public abstract Function<Rounding, Rounding.Prepared> roundingPreparer(IndexReader reader) throws IOException;
 
     public static class Range extends ValuesSource {
         private final RangeType rangeType;
@@ -105,6 +104,12 @@ public abstract class ValuesSource {
         public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
             final SortedBinaryDocValues bytes = bytesValues(context);
             return org.elasticsearch.index.fielddata.FieldData.docsWithValue(bytes);
+        }
+
+        @Override
+        public Function<Rounding, Prepared> roundingPreparer(IndexReader reader) throws IOException {
+            // TODO lookup the min and max rounding when appropriate
+            return Rounding::prepareForUnknown;
         }
 
         public RangeType rangeType() { return rangeType; }
@@ -375,6 +380,11 @@ public abstract class ValuesSource {
                 final SortedNumericDocValues values = longValues(context);
                 return org.elasticsearch.index.fielddata.FieldData.docsWithValue(values);
             }
+        }
+
+        @Override
+        public Function<Rounding, Prepared> roundingPreparer(IndexReader reader) throws IOException {
+            return Rounding::prepareForUnknown;
         }
 
         /**

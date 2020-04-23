@@ -49,6 +49,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -167,8 +168,8 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version repositoryMetaVersion,
-                                   ActionListener<Void> listener) {
+        public void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
+                                    ActionListener<Void> listener) {
             listener.onResponse(null);
         }
 

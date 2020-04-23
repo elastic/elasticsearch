@@ -23,6 +23,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
 import org.elasticsearch.painless.symbol.Decorations.Internal;
@@ -72,11 +73,16 @@ public class ECallLocal extends AExpression {
         return userTreeVisitor.visitCallLocal(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to function call [" + methodName + "/" + argumentNodes.size() + "]"));
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, ECallLocal userCallLocalNode, SemanticScope semanticScope) {
+
+        String methodName = userCallLocalNode.getMethodName();
+        List<AExpression> userArgumentNodes = userCallLocalNode.getArgumentNodes();
+        int userArgumentsSize = userArgumentNodes.size();
+
+        if (semanticScope.getCondition(userCallLocalNode, Write.class)) {
+            throw userCallLocalNode.createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to function call [" + methodName + "/" + userArgumentsSize + "]"));
         }
 
         ScriptScope scriptScope = semanticScope.getScriptScope();
@@ -89,7 +95,7 @@ public class ECallLocal extends AExpression {
 
         Class<?> valueType;
 
-        localFunction = scriptScope.getFunctionTable().getFunction(methodName, argumentNodes.size());
+        localFunction = scriptScope.getFunctionTable().getFunction(methodName, userArgumentsSize);
 
         // user cannot call internal functions, reset to null if an internal function is found
         if (localFunction != null && localFunction.isInternal()) {
@@ -97,10 +103,10 @@ public class ECallLocal extends AExpression {
         }
 
         if (localFunction == null) {
-            importedMethod = scriptScope.getPainlessLookup().lookupImportedPainlessMethod(methodName, argumentNodes.size());
+            importedMethod = scriptScope.getPainlessLookup().lookupImportedPainlessMethod(methodName, userArgumentsSize);
 
             if (importedMethod == null) {
-                classBinding = scriptScope.getPainlessLookup().lookupPainlessClassBinding(methodName, argumentNodes.size());
+                classBinding = scriptScope.getPainlessLookup().lookupPainlessClassBinding(methodName, userArgumentsSize);
 
                 // check to see if this class binding requires an implicit this reference
                 if (classBinding != null && classBinding.typeParameters.isEmpty() == false &&
@@ -115,7 +121,7 @@ public class ECallLocal extends AExpression {
                     // will likely involve adding a class instance binding where any instance can have a class binding
                     // as part of its API.  However, the situation at run-time is difficult and will modifications that
                     // are a substantial change if even possible to do.
-                    classBinding = scriptScope.getPainlessLookup().lookupPainlessClassBinding(methodName, argumentNodes.size() + 1);
+                    classBinding = scriptScope.getPainlessLookup().lookupPainlessClassBinding(methodName, userArgumentsSize + 1);
 
                     if (classBinding != null) {
                         if (classBinding.typeParameters.isEmpty() == false &&
@@ -127,11 +133,11 @@ public class ECallLocal extends AExpression {
                     }
 
                     if (classBinding == null) {
-                        instanceBinding = scriptScope.getPainlessLookup().lookupPainlessInstanceBinding(methodName, argumentNodes.size());
+                        instanceBinding = scriptScope.getPainlessLookup().lookupPainlessInstanceBinding(methodName, userArgumentsSize);
 
                         if (instanceBinding == null) {
-                            throw createError(new IllegalArgumentException(
-                                    "Unknown call [" + methodName + "] with [" + argumentNodes.size() + "] arguments."));
+                            throw userCallLocalNode.createError(new IllegalArgumentException(
+                                    "Unknown call [" + methodName + "] with [" + userArgumentNodes + "] arguments."));
                         }
                     }
                 }
@@ -141,25 +147,25 @@ public class ECallLocal extends AExpression {
         List<Class<?>> typeParameters;
 
         if (localFunction != null) {
-            semanticScope.putDecoration(this, new StandardLocalFunction(localFunction));
+            semanticScope.putDecoration(userCallLocalNode, new StandardLocalFunction(localFunction));
 
             typeParameters = new ArrayList<>(localFunction.getTypeParameters());
             valueType = localFunction.getReturnType();
         } else if (importedMethod != null) {
-            semanticScope.putDecoration(this, new StandardPainlessMethod(importedMethod));
+            semanticScope.putDecoration(userCallLocalNode, new StandardPainlessMethod(importedMethod));
 
             scriptScope.markNonDeterministic(importedMethod.annotations.containsKey(NonDeterministicAnnotation.class));
             typeParameters = new ArrayList<>(importedMethod.typeParameters);
             valueType = importedMethod.returnType;
         } else if (classBinding != null) {
-            semanticScope.putDecoration(this, new StandardPainlessClassBinding(classBinding));
-            semanticScope.putDecoration(this, new StandardConstant(classBindingOffset));
+            semanticScope.putDecoration(userCallLocalNode, new StandardPainlessClassBinding(classBinding));
+            semanticScope.putDecoration(userCallLocalNode, new StandardConstant(classBindingOffset));
 
             scriptScope.markNonDeterministic(classBinding.annotations.containsKey(NonDeterministicAnnotation.class));
             typeParameters = new ArrayList<>(classBinding.typeParameters);
             valueType = classBinding.returnType;
         } else if (instanceBinding != null) {
-            semanticScope.putDecoration(this, new StandardPainlessInstanceBinding(instanceBinding));
+            semanticScope.putDecoration(userCallLocalNode, new StandardPainlessInstanceBinding(instanceBinding));
 
             typeParameters = new ArrayList<>(instanceBinding.typeParameters);
             valueType = instanceBinding.returnType;
@@ -169,16 +175,16 @@ public class ECallLocal extends AExpression {
         // if the class binding is using an implicit this reference then the arguments counted must
         // be incremented by 1 as the this reference will not be part of the arguments passed into
         // the class binding call
-        for (int argument = 0; argument < argumentNodes.size(); ++argument) {
-            AExpression expression = argumentNodes.get(argument);
+        for (int argument = 0; argument < userArgumentsSize; ++argument) {
+            AExpression userArgumentNode = userArgumentNodes.get(argument);
 
-            semanticScope.setCondition(expression, Read.class);
-            semanticScope.putDecoration(expression, new TargetType(typeParameters.get(argument + classBindingOffset)));
-            semanticScope.setCondition(expression, Internal.class);
-            analyze(expression, semanticScope);
-            expression.cast(semanticScope);
+            semanticScope.setCondition(userArgumentNode, Read.class);
+            semanticScope.putDecoration(userArgumentNode, new TargetType(typeParameters.get(argument + classBindingOffset)));
+            semanticScope.setCondition(userArgumentNode, Internal.class);
+            visitor.checkedVisit(userArgumentNode, semanticScope);
+            visitor.decorateWithCast(userArgumentNode, semanticScope);
         }
 
-        semanticScope.putDecoration(this, new ValueType(valueType));
+        semanticScope.putDecoration(userCallLocalNode, new ValueType(valueType));
     }
 }

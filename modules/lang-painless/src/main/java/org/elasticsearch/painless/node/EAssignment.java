@@ -26,6 +26,7 @@ import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations;
 import org.elasticsearch.painless.symbol.Decorations.CompoundType;
@@ -84,118 +85,125 @@ public class EAssignment extends AExpression {
         return userTreeVisitor.visitAssignment(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        semanticScope.replicateCondition(this, leftNode, Read.class);
-        semanticScope.setCondition(leftNode, Write.class);
-        analyze(leftNode, semanticScope);
-        Class<?> leftValueType = semanticScope.getDecoration(leftNode, Decorations.ValueType.class).getValueType();
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, EAssignment userAssignmentNode, SemanticScope semanticScope) {
 
-        semanticScope.setCondition(rightNode, Read.class);
+        AExpression userLeftNode = userAssignmentNode.getLeftNode();
+        semanticScope.replicateCondition(userAssignmentNode, userAssignmentNode, Read.class);
+        semanticScope.setCondition(userAssignmentNode, Write.class);
+        visitor.checkedVisit(userAssignmentNode, semanticScope);
+        Class<?> leftValueType = semanticScope.getDecoration(userLeftNode, Decorations.ValueType.class).getValueType();
+
+        AExpression userRightNode = userAssignmentNode.getRightNode();
+        semanticScope.setCondition(userRightNode, Read.class);
+
+        Operation operation = userAssignmentNode.getOperation();
 
         if (operation != null) {
-            analyze(rightNode, semanticScope);
-            Class<?> rightValueType = semanticScope.getDecoration(rightNode, ValueType.class).getValueType();
+            visitor.checkedVisit(userRightNode, semanticScope);
+            Class<?> rightValueType = semanticScope.getDecoration(userRightNode, ValueType.class).getValueType();
 
-            Class<?> promote;
-            Class<?> shiftDistance = null;
-            boolean shift = false;
+            Class<?> compoundType;
+            Class<?> shiftType = null;
+            boolean isShift = false;
 
             if (operation == Operation.MUL) {
-                promote = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
+                compoundType = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
             } else if (operation == Operation.DIV) {
-                promote = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
+                compoundType = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
             } else if (operation == Operation.REM) {
-                promote = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
+                compoundType = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
             } else if (operation == Operation.ADD) {
-                promote = AnalyzerCaster.promoteAdd(leftValueType, rightValueType);
+                compoundType = AnalyzerCaster.promoteAdd(leftValueType, rightValueType);
             } else if (operation == Operation.SUB) {
-                promote = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
+                compoundType = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
             } else if (operation == Operation.LSH) {
-                promote = AnalyzerCaster.promoteNumeric(leftValueType, false);
-                shiftDistance = AnalyzerCaster.promoteNumeric(rightValueType, false);
-                shift = true;
+                compoundType = AnalyzerCaster.promoteNumeric(leftValueType, false);
+                shiftType = AnalyzerCaster.promoteNumeric(rightValueType, false);
+                isShift = true;
             } else if (operation == Operation.RSH) {
-                promote = AnalyzerCaster.promoteNumeric(leftValueType, false);
-                shiftDistance = AnalyzerCaster.promoteNumeric(rightValueType, false);
-                shift = true;
+                compoundType = AnalyzerCaster.promoteNumeric(leftValueType, false);
+                shiftType = AnalyzerCaster.promoteNumeric(rightValueType, false);
+                isShift = true;
             } else if (operation == Operation.USH) {
-                promote = AnalyzerCaster.promoteNumeric(leftValueType, false);
-                shiftDistance = AnalyzerCaster.promoteNumeric(rightValueType, false);
-                shift = true;
+                compoundType = AnalyzerCaster.promoteNumeric(leftValueType, false);
+                shiftType = AnalyzerCaster.promoteNumeric(rightValueType, false);
+                isShift = true;
             } else if (operation == Operation.BWAND) {
-                promote = AnalyzerCaster.promoteXor(leftValueType, rightValueType);
+                compoundType = AnalyzerCaster.promoteXor(leftValueType, rightValueType);
             } else if (operation == Operation.XOR) {
-                promote = AnalyzerCaster.promoteXor(leftValueType, rightValueType);
+                compoundType = AnalyzerCaster.promoteXor(leftValueType, rightValueType);
             } else if (operation == Operation.BWOR) {
-                promote = AnalyzerCaster.promoteXor(leftValueType, rightValueType);
+                compoundType = AnalyzerCaster.promoteXor(leftValueType, rightValueType);
             } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
+                throw userAssignmentNode.createError(new IllegalStateException("illegal tree structure"));
             }
 
-            if (promote == null || (shift && shiftDistance == null)) {
-                throw createError(new ClassCastException("Cannot apply compound assignment " +
-                        "[" + operation.symbol + "=] to types [" + leftValueType + "] and [" + rightValueType + "]."));
+            if (compoundType == null || (isShift && shiftType == null)) {
+                throw userAssignmentNode.createError(new ClassCastException("invalid compound assignment: " +
+                        "cannot apply [" + operation.symbol + "=] to types [" + leftValueType + "] and [" + rightValueType + "]"));
             }
 
-            boolean cat = operation == Operation.ADD && promote == String.class;
+            boolean cat = operation == Operation.ADD && compoundType == String.class;
 
-            if (cat && rightNode instanceof EBinary &&
-                    ((EBinary)rightNode).getOperation() == Operation.ADD && rightValueType == String.class) {
-                semanticScope.setCondition(rightNode, Concatenate.class);
+            if (cat && userRightNode instanceof EBinary &&
+                    ((EBinary)userRightNode).getOperation() == Operation.ADD && rightValueType == String.class) {
+                semanticScope.setCondition(userRightNode, Concatenate.class);
             }
 
-            if (shift) {
-                if (promote == def.class) {
+            if (isShift) {
+                if (compoundType == def.class) {
                     // shifts are promoted independently, but for the def type, we need object.
-                    semanticScope.putDecoration(rightNode, new TargetType(def.class));
-                } else if (shiftDistance == long.class) {
-                    semanticScope.putDecoration(rightNode, new TargetType(int.class));
-                    semanticScope.setCondition(rightNode, Explicit.class);
+                    semanticScope.putDecoration(userRightNode, new TargetType(def.class));
+                } else if (shiftType == long.class) {
+                    semanticScope.putDecoration(userRightNode, new TargetType(int.class));
+                    semanticScope.setCondition(userRightNode, Explicit.class);
                 } else {
-                    semanticScope.putDecoration(rightNode, new TargetType(shiftDistance));
+                    semanticScope.putDecoration(userRightNode, new TargetType(shiftType));
                 }
             } else {
-                semanticScope.putDecoration(rightNode, new TargetType(promote));
+                semanticScope.putDecoration(userRightNode, new TargetType(compoundType));
             }
 
-            rightNode.cast(semanticScope);
+            visitor.decorateWithCast(userRightNode, semanticScope);
 
-            PainlessCast upcast = AnalyzerCaster.getLegalCast(getLocation(), leftValueType, promote, false, false);
-            PainlessCast downcast = AnalyzerCaster.getLegalCast(getLocation(), promote, leftValueType, true, false);
+            Location location = userAssignmentNode.getLocation();
+            PainlessCast upcast = AnalyzerCaster.getLegalCast(location, leftValueType, compoundType, false, false);
+            PainlessCast downcast = AnalyzerCaster.getLegalCast(location, compoundType, leftValueType, true, false);
 
-            semanticScope.putDecoration(this, new CompoundType(promote));
+            semanticScope.putDecoration(userAssignmentNode, new CompoundType(compoundType));
 
             if (cat) {
-                semanticScope.setCondition(this, Concatenate.class);
+                semanticScope.setCondition(userAssignmentNode, Concatenate.class);
             }
 
             if (upcast != null) {
-                semanticScope.putDecoration(this, new UpcastPainlessCast(upcast));
+                semanticScope.putDecoration(userAssignmentNode, new UpcastPainlessCast(upcast));
             }
 
             if (downcast != null) {
-                semanticScope.putDecoration(this, new DowncastPainlessCast(downcast));
+                semanticScope.putDecoration(userAssignmentNode, new DowncastPainlessCast(downcast));
             }
-        // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
-        } else if (semanticScope.getCondition(leftNode, DefOptimized.class)) {
-            analyze(rightNode, semanticScope);
-            Class<?> rightValueType = semanticScope.getDecoration(rightNode, ValueType.class).getValueType();
+        // if the lhs node is a def optimized node we update the actual type to remove the need for a cast
+        } else if (semanticScope.getCondition(userLeftNode, DefOptimized.class)) {
+            visitor.visit(userRightNode, semanticScope);
+            Class<?> rightValueType = semanticScope.getDecoration(userRightNode, ValueType.class).getValueType();
 
             if (rightValueType == void.class) {
-                throw createError(new IllegalArgumentException(
+                throw userAssignmentNode.createError(new IllegalArgumentException(
                         "invalid assignment: cannot assign type [" + PainlessLookupUtility.typeToCanonicalTypeName(void.class) + "]"));
             }
 
-            semanticScope.putDecoration(leftNode, new ValueType(rightValueType));
+            semanticScope.putDecoration(userLeftNode, new ValueType(rightValueType));
             leftValueType = rightValueType;
         // Otherwise, we must adapt the rhs type to the lhs type with a cast.
         } else {
-            semanticScope.putDecoration(rightNode, new TargetType(leftValueType));
-            analyze(rightNode, semanticScope);
-            rightNode.cast(semanticScope);
+            semanticScope.putDecoration(userRightNode, new TargetType(leftValueType));
+            visitor.visit(userRightNode, semanticScope);
+            visitor.decorateWithCast(userRightNode, semanticScope);
         }
 
-        semanticScope.putDecoration(this, new ValueType(semanticScope.getCondition(this, Read.class) ? leftValueType : void.class));
+        semanticScope.putDecoration(userAssignmentNode,
+                new ValueType(semanticScope.getCondition(userAssignmentNode, Read.class) ? leftValueType : void.class));
     }
 }

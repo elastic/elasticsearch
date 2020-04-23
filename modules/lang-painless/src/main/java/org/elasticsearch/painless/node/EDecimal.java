@@ -20,7 +20,9 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.Negate;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.StandardConstant;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
@@ -50,32 +52,33 @@ public class EDecimal extends AExpression {
         return userTreeVisitor.visitDecimal(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        analyze(semanticScope, false);
-    }
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, EDecimal userDecimalNode, SemanticScope semanticScope) {
 
-    void analyze(SemanticScope semanticScope, boolean negate) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException(
+        String decimal = userDecimalNode.getDecimal();
+
+        if (semanticScope.getCondition(userDecimalNode, Negate.class)) {
+            decimal = "-" + decimal;
+        }
+
+        if (semanticScope.getCondition(userDecimalNode, Write.class)) {
+            throw userDecimalNode.createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to decimal constant [" + decimal + "]"));
         }
 
-        if (semanticScope.getCondition(this, Read.class) == false) {
-            throw createError(new IllegalArgumentException("not a statement: decimal constant [" + decimal + "] not used"));
+        if (semanticScope.getCondition(userDecimalNode, Read.class) == false) {
+            throw userDecimalNode.createError(new IllegalArgumentException("not a statement: decimal constant [" + decimal + "] not used"));
         }
 
         Class<?> valueType;
         Object constant;
-
-        String decimal = negate ? "-" + this.decimal : this.decimal;
 
         if (decimal.endsWith("f") || decimal.endsWith("F")) {
             try {
                 constant = Float.parseFloat(decimal.substring(0, decimal.length() - 1));
                 valueType = float.class;
             } catch (NumberFormatException exception) {
-                throw createError(new IllegalArgumentException("Invalid float constant [" + decimal + "]."));
+                throw userDecimalNode.createError(new IllegalArgumentException("Invalid float constant [" + decimal + "]."));
             }
         } else {
             String toParse = decimal;
@@ -86,11 +89,11 @@ public class EDecimal extends AExpression {
                 constant = Double.parseDouble(toParse);
                 valueType = double.class;
             } catch (NumberFormatException exception) {
-                throw createError(new IllegalArgumentException("Invalid double constant [" + decimal + "]."));
+                throw userDecimalNode.createError(new IllegalArgumentException("Invalid double constant [" + decimal + "]."));
             }
         }
 
-        semanticScope.putDecoration(this, new ValueType(valueType));
-        semanticScope.putDecoration(this, new StandardConstant(constant));
+        semanticScope.putDecoration(userDecimalNode, new ValueType(valueType));
+        semanticScope.putDecoration(userDecimalNode, new StandardConstant(constant));
     }
 }

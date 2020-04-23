@@ -23,6 +23,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.Internal;
 import org.elasticsearch.painless.symbol.Decorations.Read;
@@ -62,14 +63,16 @@ public class EListInit extends AExpression {
         return userTreeVisitor.visitListInit(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to list initializer"));
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, EListInit userListInitNode, SemanticScope semanticScope) {
+
+        if (semanticScope.getCondition(userListInitNode, Write.class)) {
+            throw userListInitNode.createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to list initializer"));
         }
 
-        if (semanticScope.getCondition(this, Read.class) == false) {
-            throw createError(new IllegalArgumentException("not a statement: result not used from list initializer"));
+        if (semanticScope.getCondition(userListInitNode, Read.class) == false) {
+            throw userListInitNode.createError(new IllegalArgumentException("not a statement: result not used from list initializer"));
         }
 
         Class<?> valueType = ArrayList.class;
@@ -77,28 +80,29 @@ public class EListInit extends AExpression {
         PainlessConstructor constructor = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessConstructor(valueType, 0);
 
         if (constructor == null) {
-            throw createError(new IllegalArgumentException(
+            throw userListInitNode.createError(new IllegalArgumentException(
                     "constructor [" + typeToCanonicalTypeName(valueType) + ", <init>/0] not found"));
         }
 
-        semanticScope.putDecoration(this, new StandardPainlessConstructor(constructor));
+        semanticScope.putDecoration(userListInitNode, new StandardPainlessConstructor(constructor));
 
         PainlessMethod method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(valueType, false, "add", 1);
 
         if (method == null) {
-            throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(valueType) + ", add/1] not found"));
+            throw userListInitNode.createError(new IllegalArgumentException(
+                    "method [" + typeToCanonicalTypeName(valueType) + ", add/1] not found"));
         }
 
-        semanticScope.putDecoration(this, new StandardPainlessMethod(method));
+        semanticScope.putDecoration(userListInitNode, new StandardPainlessMethod(method));
 
-        for (AExpression expression : valueNodes) {
-            semanticScope.setCondition(expression, Read.class);
-            semanticScope.putDecoration(expression, new TargetType(def.class));
-            semanticScope.setCondition(expression, Internal.class);
-            analyze(expression, semanticScope);
-            expression.cast(semanticScope);
+        for (AExpression userValueNode : userListInitNode.getValueNodes()) {
+            semanticScope.setCondition(userValueNode, Read.class);
+            semanticScope.putDecoration(userValueNode, new TargetType(def.class));
+            semanticScope.setCondition(userValueNode, Internal.class);
+            visitor.checkedVisit(userValueNode, semanticScope);
+            visitor.decorateWithCast(userValueNode, semanticScope);
         }
 
-        semanticScope.putDecoration(this, new ValueType(valueType));
+        semanticScope.putDecoration(userListInitNode, new ValueType(valueType));
     }
 }

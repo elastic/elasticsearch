@@ -23,6 +23,7 @@ import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.CapturesDecoration;
 import org.elasticsearch.painless.symbol.Decorations.EncodingDecoration;
@@ -103,27 +104,25 @@ public class ELambda extends AExpression {
         return userTreeVisitor.visitLambda(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to a lambda"));
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, ELambda userLambdaNode, SemanticScope semanticScope) {
+
+        if (semanticScope.getCondition(userLambdaNode, Write.class)) {
+            throw userLambdaNode.createError(new IllegalArgumentException("invalid assignment: cannot assign a value to a lambda"));
         }
 
-        if (semanticScope.getCondition(this, Read.class) == false) {
-            throw createError(new IllegalArgumentException("not a statement: lambda not used"));
+        if (semanticScope.getCondition(userLambdaNode, Read.class) == false) {
+            throw userLambdaNode.createError(new IllegalArgumentException("not a statement: lambda not used"));
         }
 
         ScriptScope scriptScope = semanticScope.getScriptScope();
-        TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
+        TargetType targetType = semanticScope.getDecoration(userLambdaNode, TargetType.class);
+        List<String> canonicalTypeNameParameters = userLambdaNode.getCanonicalTypeNameParameters();
 
-        String name;
         Class<?> returnType;
-        List<Class<?>> typeParametersWithCaptures;
-        List<String> parameterNames;
-        Class<?> valueType;
-
         List<Class<?>> typeParameters;
         PainlessMethod interfaceMethod;
+
         // inspect the target first, set interface method if we know it.
         if (targetType == null) {
             // we don't know anything: treat as def
@@ -137,7 +136,7 @@ public class ELambda extends AExpression {
                     Class<?> typeParameter = scriptScope.getPainlessLookup().canonicalTypeNameToType(type);
 
                     if (typeParameter == null) {
-                        throw createError(new IllegalArgumentException("cannot resolve type [" + type + "]"));
+                        throw userLambdaNode.createError(new IllegalArgumentException("cannot resolve type [" + type + "]"));
                     }
 
                     typeParameters.add(typeParameter);
@@ -147,7 +146,7 @@ public class ELambda extends AExpression {
             // we know the method statically, infer return type and any unknown/def types
             interfaceMethod = scriptScope.getPainlessLookup().lookupFunctionalInterfacePainlessMethod(targetType.getTargetType());
             if (interfaceMethod == null) {
-                throw createError(new IllegalArgumentException("Cannot pass lambda to " +
+                throw userLambdaNode.createError(new IllegalArgumentException("Cannot pass lambda to " +
                         "[" + targetType.getTargetCanonicalTypeName() + "], not a functional interface"));
             }
             // check arity before we manipulate parameters
@@ -170,7 +169,7 @@ public class ELambda extends AExpression {
                     Class<?> typeParameter = scriptScope.getPainlessLookup().canonicalTypeNameToType(paramType);
 
                     if (typeParameter == null) {
-                        throw createError(new IllegalArgumentException("cannot resolve type [" + paramType + "]"));
+                        throw userLambdaNode.createError(new IllegalArgumentException("cannot resolve type [" + paramType + "]"));
                     }
 
                     typeParameters.add(typeParameter);
@@ -178,57 +177,64 @@ public class ELambda extends AExpression {
             }
         }
 
+        Location location = userLambdaNode.getLocation();
+        List<String> parameterNames = userLambdaNode.getParameterNames();
         LambdaScope lambdaScope = semanticScope.newLambdaScope(returnType);
 
         for (int index = 0; index < typeParameters.size(); ++index) {
             Class<?> type = typeParameters.get(index);
-            String paramName = this.parameterNames.get(index);
-            lambdaScope.defineVariable(getLocation(), type, paramName, true);
+            String parameterName = parameterNames.get(index);
+            lambdaScope.defineVariable(location, type, parameterName, true);
         }
 
-        if (blockNode.getStatementNodes().isEmpty()) {
-            throw createError(new IllegalArgumentException("cannot generate empty lambda"));
+        SBlock userBlockNode = userLambdaNode.getBlockNode();
+
+        if (userBlockNode.getStatementNodes().isEmpty()) {
+            throw userLambdaNode.createError(new IllegalArgumentException("cannot generate empty lambda"));
         }
 
-        semanticScope.setCondition(blockNode, LastSource.class);
-        blockNode.analyze(lambdaScope);
+        semanticScope.setCondition(userBlockNode, LastSource.class);
+        visitor.visit(userBlockNode, lambdaScope);
 
-        if (semanticScope.getCondition(blockNode, MethodEscape.class) == false) {
-            throw createError(new IllegalArgumentException("not all paths return a value for lambda"));
+        if (semanticScope.getCondition(userBlockNode, MethodEscape.class) == false) {
+            throw userLambdaNode.createError(new IllegalArgumentException("not all paths return a value for lambda"));
         }
 
         // prepend capture list to lambda's arguments
-        List<Variable> captures = new ArrayList<>(lambdaScope.getCaptures());
-        typeParametersWithCaptures = new ArrayList<>(captures.size() + typeParameters.size());
-        parameterNames = new ArrayList<>(captures.size() + this.parameterNames.size());
-        for (Variable var : captures) {
-            typeParametersWithCaptures.add(var.getType());
-            parameterNames.add(var.getName());
+        List<Variable> capturedVariables = new ArrayList<>(lambdaScope.getCaptures());
+        List<Class<?>> typeParametersWithCaptures = new ArrayList<>(capturedVariables.size() + typeParameters.size());
+        List<String> parameterNamesWithCaptures = new ArrayList<>(capturedVariables.size() + parameterNames.size());
+
+        for (Variable capturedVariable : capturedVariables) {
+            typeParametersWithCaptures.add(capturedVariable.getType());
+            parameterNamesWithCaptures.add(capturedVariable.getName());
         }
+
         typeParametersWithCaptures.addAll(typeParameters);
-        parameterNames.addAll(this.parameterNames);
+        parameterNamesWithCaptures.addAll(parameterNames);
 
         // desugar lambda body into a synthetic method
-        name = scriptScope.getNextSyntheticName("lambda");
+        String name = scriptScope.getNextSyntheticName("lambda");
         scriptScope.getFunctionTable().addFunction(name, returnType, typeParametersWithCaptures, true, true);
 
+        Class<?> valueType;
         // setup method reference to synthetic method
         if (targetType == null) {
-            String defReferenceEncoding = "Sthis." + name + "," + captures.size();
+            String defReferenceEncoding = "Sthis." + name + "," + capturedVariables.size();
             valueType = String.class;
-            semanticScope.putDecoration(this, new EncodingDecoration(defReferenceEncoding));
+            semanticScope.putDecoration(userLambdaNode, new EncodingDecoration(defReferenceEncoding));
         } else {
             FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
-                    getLocation(), targetType.getTargetType(), "this", name, captures.size());
+                    location, targetType.getTargetType(), "this", name, capturedVariables.size());
             valueType = targetType.getTargetType();
-            semanticScope.putDecoration(this, new ReferenceDecoration(ref));
+            semanticScope.putDecoration(userLambdaNode, new ReferenceDecoration(ref));
         }
 
-        semanticScope.putDecoration(this, new ValueType(valueType));
-        semanticScope.putDecoration(this, new MethodNameDecoration(name));
-        semanticScope.putDecoration(this, new ReturnType(returnType));
-        semanticScope.putDecoration(this, new TypeParameters(typeParametersWithCaptures));
-        semanticScope.putDecoration(this, new ParameterNames(parameterNames));
-        semanticScope.putDecoration(this, new CapturesDecoration(captures));
+        semanticScope.putDecoration(userLambdaNode, new ValueType(valueType));
+        semanticScope.putDecoration(userLambdaNode, new MethodNameDecoration(name));
+        semanticScope.putDecoration(userLambdaNode, new ReturnType(returnType));
+        semanticScope.putDecoration(userLambdaNode, new TypeParameters(typeParametersWithCaptures));
+        semanticScope.putDecoration(userLambdaNode, new ParameterNames(parameterNamesWithCaptures));
+        semanticScope.putDecoration(userLambdaNode, new CapturesDecoration(capturedVariables));
     }
 }

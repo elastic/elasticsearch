@@ -218,7 +218,7 @@ public class UserTreeBaseVisitor<Input, Output> implements UserTreeVisitor<Input
     }
 
     @Override
-    public Output visitNewObj(ENewObj userNewObjectNode, Input input) {
+    public Output visitNewObj(ENewObj userNewObjNode, Input input) {
         throw new UnsupportedOperationException();
     }
 

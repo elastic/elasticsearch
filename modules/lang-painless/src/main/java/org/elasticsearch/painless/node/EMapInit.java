@@ -23,6 +23,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.Internal;
 import org.elasticsearch.painless.symbol.Decorations.Read;
@@ -68,14 +69,16 @@ public class EMapInit extends AExpression {
         return userTreeVisitor.visitMapInit(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to map initializer"));
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, EMapInit userMapInitNode, SemanticScope semanticScope) {
+
+        if (semanticScope.getCondition(userMapInitNode, Write.class)) {
+            throw userMapInitNode.createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to map initializer"));
         }
 
-        if (semanticScope.getCondition(this, Read.class) == false) {
-            throw createError(new IllegalArgumentException("not a statement: result not used from map initializer"));
+        if (semanticScope.getCondition(userMapInitNode, Read.class) == false) {
+            throw userMapInitNode.createError(new IllegalArgumentException("not a statement: result not used from map initializer"));
         }
 
         Class<?> valueType = HashMap.class;
@@ -83,40 +86,44 @@ public class EMapInit extends AExpression {
         PainlessConstructor constructor = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessConstructor(valueType, 0);
 
         if (constructor == null) {
-            throw createError(new IllegalArgumentException(
+            throw userMapInitNode.createError(new IllegalArgumentException(
                     "constructor [" + typeToCanonicalTypeName(valueType) + ", <init>/0] not found"));
         }
 
-        semanticScope.putDecoration(this, new StandardPainlessConstructor(constructor));
+        semanticScope.putDecoration(userMapInitNode, new StandardPainlessConstructor(constructor));
 
         PainlessMethod method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(valueType, false, "put", 2);
 
         if (method == null) {
-            throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(valueType) + ", put/2] not found"));
+            throw userMapInitNode.createError(new IllegalArgumentException(
+                    "method [" + typeToCanonicalTypeName(valueType) + ", put/2] not found"));
         }
 
-        semanticScope.putDecoration(this, new StandardPainlessMethod(method));
+        semanticScope.putDecoration(userMapInitNode, new StandardPainlessMethod(method));
 
-        if (keyNodes.size() != valueNodes.size()) {
-            throw createError(new IllegalStateException("Illegal tree structure."));
+        List<AExpression> userKeyNodes = userMapInitNode.getKeyNodes();
+        List<AExpression> userValueNodes = userMapInitNode.getValueNodes();
+
+        if (userKeyNodes.size() != userValueNodes.size()) {
+            throw userMapInitNode.createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        for (int i = 0; i < keyNodes.size(); ++i) {
-            AExpression expression = keyNodes.get(i);
-            semanticScope.setCondition(expression, Read.class);
-            semanticScope.putDecoration(expression, new TargetType(def.class));
-            semanticScope.setCondition(expression, Internal.class);
-            analyze(expression, semanticScope);
-            expression.cast(semanticScope);
+        for (int i = 0; i < userKeyNodes.size(); ++i) {
+            AExpression userKeyNode = userKeyNodes.get(i);
+            semanticScope.setCondition(userKeyNode, Read.class);
+            semanticScope.putDecoration(userKeyNode, new TargetType(def.class));
+            semanticScope.setCondition(userKeyNode, Internal.class);
+            visitor.checkedVisit(userKeyNode, semanticScope);
+            visitor.decorateWithCast(userKeyNode, semanticScope);
 
-            expression = valueNodes.get(i);
-            semanticScope.setCondition(expression, Read.class);
-            semanticScope.putDecoration(expression, new TargetType(def.class));
-            semanticScope.setCondition(expression, Internal.class);
-            analyze(expression, semanticScope);
-            expression.cast(semanticScope);
+            AExpression userValueNode = userValueNodes.get(i);
+            semanticScope.setCondition(userValueNode, Read.class);
+            semanticScope.putDecoration(userValueNode, new TargetType(def.class));
+            semanticScope.setCondition(userValueNode, Internal.class);
+            visitor.visit(userValueNode, semanticScope);
+            visitor.decorateWithCast(userValueNode, semanticScope);
         }
 
-        semanticScope.putDecoration(this, new ValueType(valueType));
+        semanticScope.putDecoration(userMapInitNode, new ValueType(valueType));
     }
 }

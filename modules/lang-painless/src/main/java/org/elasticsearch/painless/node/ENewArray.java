@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.Internal;
 import org.elasticsearch.painless.symbol.Decorations.Read;
@@ -66,30 +67,33 @@ public class ENewArray extends AExpression {
         return userTreeVisitor.visitNewArray(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to new array"));
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, ENewArray userNewArrayNode, SemanticScope semanticScope) {
+
+        if (semanticScope.getCondition(userNewArrayNode, Write.class)) {
+            throw userNewArrayNode.createError(new IllegalArgumentException("invalid assignment: cannot assign a value to new array"));
         }
 
-        if (semanticScope.getCondition(this, Read.class) == false) {
-            throw createError(new IllegalArgumentException("not a statement: result not used from new array"));
+        if (semanticScope.getCondition(userNewArrayNode, Read.class) == false) {
+            throw userNewArrayNode.createError(new IllegalArgumentException("not a statement: result not used from new array"));
         }
 
+        String canonicalTypeName = userNewArrayNode.getCanonicalTypeName();
         Class<?> valueType = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
         if (valueType == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
+            throw userNewArrayNode.createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
         }
 
-        for (AExpression expression : valueNodes) {
-            semanticScope.setCondition(expression, Read.class);
-            semanticScope.putDecoration(expression, new TargetType(isInitializer ? valueType.getComponentType() : int.class));
-            semanticScope.setCondition(expression, Internal.class);
-            analyze(expression, semanticScope);
-            expression.cast(semanticScope);
+        for (AExpression userValueNode : userNewArrayNode.getValueNodes()) {
+            semanticScope.setCondition(userValueNode, Read.class);
+            semanticScope.putDecoration(userValueNode,
+                    new TargetType(userNewArrayNode.isInitializer() ? valueType.getComponentType() : int.class));
+            semanticScope.setCondition(userValueNode, Internal.class);
+            visitor.checkedVisit(userValueNode, semanticScope);
+            visitor.decorateWithCast(userValueNode, semanticScope);
         }
 
-        semanticScope.putDecoration(this, new ValueType(valueType));
+        semanticScope.putDecoration(userNewArrayNode, new ValueType(valueType));
     }
 }

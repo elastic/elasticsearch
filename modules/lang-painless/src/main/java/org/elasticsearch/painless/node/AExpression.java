@@ -19,17 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.symbol.Decorations.Explicit;
-import org.elasticsearch.painless.symbol.Decorations.ExpressionPainlessCast;
-import org.elasticsearch.painless.symbol.Decorations.Internal;
-import org.elasticsearch.painless.symbol.Decorations.PartialCanonicalTypeName;
-import org.elasticsearch.painless.symbol.Decorations.StaticType;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 /**
  * The superclass for all E* (expression) and P* (postfix) nodes.

@@ -153,6 +153,7 @@ import org.elasticsearch.painless.symbol.Decorations.ListShortcut;
 import org.elasticsearch.painless.symbol.Decorations.MapShortcut;
 import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
 import org.elasticsearch.painless.symbol.Decorations.MethodNameDecoration;
+import org.elasticsearch.painless.symbol.Decorations.Negate;
 import org.elasticsearch.painless.symbol.Decorations.ParameterNames;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.ReferenceDecoration;
@@ -323,7 +324,7 @@ public class IRTreeBuilder implements UserTreeVisitor<ScriptScope, IRNode> {
         IfElseNode irIfElseNode = new IfElseNode();
         irIfElseNode.setConditionNode(injectCast(userIfElseNode.getConditionNode(), scriptScope));
         irIfElseNode.setBlockNode((BlockNode)visit(userIfElseNode.getIfBlockNode(), scriptScope));
-        irIfElseNode.setElseBlockNode((BlockNode)visit(userIfElseNode.getElseblockNode(), scriptScope));
+        irIfElseNode.setElseBlockNode((BlockNode)visit(userIfElseNode.getElseBlockNode(), scriptScope));
         irIfElseNode.setLocation(userIfElseNode.getLocation());
 
         return irIfElseNode;
@@ -554,7 +555,7 @@ public class IRTreeBuilder implements UserTreeVisitor<ScriptScope, IRNode> {
 
         IRNode irNode;
 
-        if ((userUnaryNode.getOperation() == Operation.ADD || userUnaryNode.getOperation() == Operation.SUB) && unaryType == null) {
+        if (scriptScope.getCondition(userUnaryNode.getChildNode(), Negate.class)) {
             irNode = visit(userUnaryNode.getChildNode(), scriptScope);
         } else {
             UnaryMathNode irUnaryMathNode = new UnaryMathNode();

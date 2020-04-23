@@ -24,6 +24,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.BinaryType;
 import org.elasticsearch.painless.symbol.Decorations.Concatenate;
@@ -72,108 +73,113 @@ public class EBinary extends AExpression {
         return userTreeVisitor.visitBinary(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException(
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, EBinary userBinaryNode, SemanticScope semanticScope) {
+
+        Operation operation = userBinaryNode.getOperation();
+
+        if (semanticScope.getCondition(userBinaryNode, Write.class)) {
+            throw userBinaryNode.createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
 
-        if (semanticScope.getCondition(this, Read.class) == false) {
-            throw createError(new IllegalArgumentException(
+        if (semanticScope.getCondition(userBinaryNode, Read.class) == false) {
+            throw userBinaryNode.createError(new IllegalArgumentException(
                     "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
 
-        semanticScope.setCondition(leftNode, Read.class);
-        analyze(leftNode, semanticScope);
-        Class<?> leftValueType = semanticScope.getDecoration(leftNode, ValueType.class).getValueType();
+        AExpression userLeftNode = userBinaryNode.getLeftNode();
+        semanticScope.setCondition(userLeftNode, Read.class);
+        visitor.checkedVisit(userLeftNode, semanticScope);
+        Class<?> leftValueType = semanticScope.getDecoration(userLeftNode, ValueType.class).getValueType();
 
-        semanticScope.setCondition(rightNode, Read.class);
-        analyze(rightNode, semanticScope);
-        Class<?> rightValueType = semanticScope.getDecoration(rightNode, ValueType.class).getValueType();
+        AExpression userRightNode = userBinaryNode.getRightNode();
+        semanticScope.setCondition(userRightNode, Read.class);
+        visitor.checkedVisit(userRightNode, semanticScope);
+        Class<?> rightValueType = semanticScope.getDecoration(userRightNode, ValueType.class).getValueType();
         
         Class<?> valueType;
-        Class<?> promote;
-        Class<?> shiftDistance = null;
+        Class<?> binaryType;
+        Class<?> shiftType = null;
 
         if (operation == Operation.FIND || operation == Operation.MATCH) {
-            semanticScope.putDecoration(leftNode, new TargetType(String.class));
-            semanticScope.putDecoration(rightNode, new TargetType(Pattern.class));
-            leftNode.cast(semanticScope);
-            rightNode.cast(semanticScope);
-            promote = boolean.class;
+            semanticScope.putDecoration(userLeftNode, new TargetType(String.class));
+            semanticScope.putDecoration(userLeftNode, new TargetType(Pattern.class));
+            visitor.decorateWithCast(userLeftNode, semanticScope);
+            visitor.decorateWithCast(userRightNode, semanticScope);
+            binaryType = boolean.class;
             valueType = boolean.class;
         } else {
             if (operation == Operation.MUL || operation == Operation.DIV || operation == Operation.REM) {
-                promote = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
+                binaryType = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
             } else if (operation == Operation.ADD) {
-                promote = AnalyzerCaster.promoteAdd(leftValueType, rightValueType);
+                binaryType = AnalyzerCaster.promoteAdd(leftValueType, rightValueType);
             } else if (operation == Operation.SUB) {
-                promote = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
+                binaryType = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
             } else if (operation == Operation.LSH || operation == Operation.RSH || operation == Operation.USH) {
-                promote = AnalyzerCaster.promoteNumeric(leftValueType, false);
-                shiftDistance = AnalyzerCaster.promoteNumeric(rightValueType, false);
+                binaryType = AnalyzerCaster.promoteNumeric(leftValueType, false);
+                shiftType = AnalyzerCaster.promoteNumeric(rightValueType, false);
 
-                if (shiftDistance == null) {
-                    promote = null;
+                if (shiftType == null) {
+                    binaryType = null;
                 }
             } else if (operation == Operation.BWOR || operation == Operation.BWAND) {
-                promote = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, false);
+                binaryType = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, false);
             } else if (operation == Operation.XOR) {
-                promote = AnalyzerCaster.promoteXor(leftValueType, rightValueType);
+                binaryType = AnalyzerCaster.promoteXor(leftValueType, rightValueType);
             } else {
-                throw createError(new IllegalStateException("unexpected binary operation [" + operation.name + "]"));
+                throw userBinaryNode.createError(new IllegalStateException("unexpected binary operation [" + operation.name + "]"));
             }
 
-            if (promote == null) {
-                throw createError(new ClassCastException("cannot apply the " + operation.name + " operator " +
+            if (binaryType == null) {
+                throw userBinaryNode.createError(new ClassCastException("cannot apply the " + operation.name + " operator " +
                         "[" + operation.symbol + "] to the types " +
                         "[" + PainlessLookupUtility.typeToCanonicalTypeName(leftValueType) + "] and " +
                         "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightValueType) + "]"));
             }
 
-            valueType = promote;
+            valueType = binaryType;
 
-            if (operation == Operation.ADD && promote == String.class) {
-                if (leftNode instanceof EBinary &&
-                        ((EBinary)leftNode).getOperation() == Operation.ADD && leftValueType == String.class) {
-                    semanticScope.setCondition(leftNode, Concatenate.class);
+            if (operation == Operation.ADD && binaryType == String.class) {
+                if (userLeftNode instanceof EBinary &&
+                        ((EBinary)userLeftNode).getOperation() == Operation.ADD && leftValueType == String.class) {
+                    semanticScope.setCondition(userLeftNode, Concatenate.class);
                 }
                 
-                if (rightNode instanceof EBinary &&
-                        ((EBinary)rightNode).getOperation() == Operation.ADD && rightValueType == String.class) {
-                    semanticScope.setCondition(rightNode, Concatenate.class);
+                if (userRightNode instanceof EBinary &&
+                        ((EBinary)userRightNode).getOperation() == Operation.ADD && rightValueType == String.class) {
+                    semanticScope.setCondition(userRightNode, Concatenate.class);
                 }
-            } else if (promote == def.class || shiftDistance == def.class) {
-                TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
+            } else if (binaryType == def.class || shiftType == def.class) {
+                TargetType targetType = semanticScope.getDecoration(userBinaryNode, TargetType.class);
 
                 if (targetType != null) {
                     valueType = targetType.getTargetType();
                 }
             } else {
-                semanticScope.putDecoration(leftNode, new TargetType(promote));
+                semanticScope.putDecoration(userLeftNode, new TargetType(binaryType));
 
                 if (operation == Operation.LSH || operation == Operation.RSH || operation == Operation.USH) {
-                    if (shiftDistance == long.class) {
-                        semanticScope.putDecoration(rightNode, new TargetType(int.class));
-                        semanticScope.setCondition(rightNode, Explicit.class);
+                    if (shiftType == long.class) {
+                        semanticScope.putDecoration(userRightNode, new TargetType(int.class));
+                        semanticScope.setCondition(userRightNode, Explicit.class);
                     } else {
-                        semanticScope.putDecoration(rightNode, new TargetType(shiftDistance));
+                        semanticScope.putDecoration(userRightNode, new TargetType(shiftType));
                     }
                 } else {
-                    semanticScope.putDecoration(rightNode, new TargetType(promote));
+                    semanticScope.putDecoration(userRightNode, new TargetType(binaryType));
                 }
 
-                leftNode.cast(semanticScope);
-                rightNode.cast(semanticScope);
+                visitor.decorateWithCast(userLeftNode, semanticScope);
+                visitor.decorateWithCast(userRightNode, semanticScope);
             }
         }
 
-        semanticScope.putDecoration(this, new ValueType(valueType));
-        semanticScope.putDecoration(this, new BinaryType(promote));
+        semanticScope.putDecoration(userBinaryNode, new ValueType(valueType));
+        semanticScope.putDecoration(userBinaryNode, new BinaryType(binaryType));
 
-        if (shiftDistance != null) {
-            semanticScope.putDecoration(this, new ShiftType(shiftDistance));
+        if (shiftType != null) {
+            semanticScope.putDecoration(userBinaryNode, new ShiftType(shiftType));
         }
     }
 }

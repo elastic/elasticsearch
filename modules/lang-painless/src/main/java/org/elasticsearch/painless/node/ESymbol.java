@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.PartialCanonicalTypeName;
 import org.elasticsearch.painless.symbol.Decorations.Read;
@@ -54,39 +55,42 @@ public class ESymbol extends AExpression {
         return userTreeVisitor.visitSymbol(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        boolean read = semanticScope.getCondition(this, Read.class);
-        boolean write = semanticScope.getCondition(this, Write.class);
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, ESymbol userSymbolNode, SemanticScope semanticScope) {
+
+        boolean read = semanticScope.getCondition(userSymbolNode, Read.class);
+        boolean write = semanticScope.getCondition(userSymbolNode, Write.class);
+        String symbol = userSymbolNode.getSymbol();
         Class<?> staticType = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(symbol);
 
         if (staticType != null)  {
             if (write) {
-                throw createError(new IllegalArgumentException("invalid assignment: " +
+                throw userSymbolNode.createError(new IllegalArgumentException("invalid assignment: " +
                         "cannot write a value to a static type [" + PainlessLookupUtility.typeToCanonicalTypeName(staticType) + "]"));
             }
 
             if (read == false) {
-                throw createError(new IllegalArgumentException("not a statement: " +
+                throw userSymbolNode.createError(new IllegalArgumentException("not a statement: " +
                         "static type [" + PainlessLookupUtility.typeToCanonicalTypeName(staticType) + "] not used"));
             }
 
-            semanticScope.putDecoration(this, new StaticType(staticType));
+            semanticScope.putDecoration(userSymbolNode, new StaticType(staticType));
         } else if (semanticScope.isVariableDefined(symbol)) {
             if (read == false && write == false) {
-                throw createError(new IllegalArgumentException("not a statement: variable [" + symbol + "] not used"));
+                throw userSymbolNode.createError(new IllegalArgumentException("not a statement: variable [" + symbol + "] not used"));
             }
 
-            Variable variable = semanticScope.getVariable(getLocation(), symbol);
+            Location location = userSymbolNode.getLocation();
+            Variable variable = semanticScope.getVariable(location, symbol);
 
             if (write && variable.isFinal()) {
-                throw createError(new IllegalArgumentException("Variable [" + variable.getName() + "] is read-only."));
+                throw userSymbolNode.createError(new IllegalArgumentException("Variable [" + variable.getName() + "] is read-only."));
             }
 
             Class<?> valueType = variable.getType();
-            semanticScope.putDecoration(this, new ValueType(valueType));
+            semanticScope.putDecoration(userSymbolNode, new ValueType(valueType));
         } else {
-            semanticScope.putDecoration(this, new PartialCanonicalTypeName(symbol));
+            semanticScope.putDecoration(userSymbolNode, new PartialCanonicalTypeName(symbol));
         }
     }
 }

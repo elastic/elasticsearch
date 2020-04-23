@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.StandardConstant;
@@ -50,18 +51,21 @@ public class EString extends AExpression {
         return userTreeVisitor.visitString(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException(
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, EString userStringNode, SemanticScope semanticScope) {
+
+        String string = userStringNode.getString();
+
+        if (semanticScope.getCondition(userStringNode, Write.class)) {
+            throw userStringNode.createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to string constant [" + string + "]"));
         }
 
-        if (semanticScope.getCondition(this, Read.class) == false) {
-            throw createError(new IllegalArgumentException("not a statement: string constant [" + string + "] not used"));
+        if (semanticScope.getCondition(userStringNode, Read.class) == false) {
+            throw userStringNode.createError(new IllegalArgumentException("not a statement: string constant [" + string + "] not used"));
         }
 
-        semanticScope.putDecoration(this, new ValueType(String.class));
-        semanticScope.putDecoration(this, new StandardConstant(string));
+        semanticScope.putDecoration(userStringNode, new ValueType(String.class));
+        semanticScope.putDecoration(userStringNode, new StandardConstant(string));
     }
 }

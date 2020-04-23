@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.EncodingDecoration;
 import org.elasticsearch.painless.symbol.Decorations.MethodNameDecoration;
@@ -49,49 +50,56 @@ public class ENewArrayFunctionRef extends AExpression {
         this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
     }
 
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
+    }
+
     @Override
     public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
         return userTreeVisitor.visitNewArrayFunctionRef(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException(
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, ENewArrayFunctionRef userNewArrayFunctionRefNode, SemanticScope semanticScope) {
+
+        String canonicalTypeName = userNewArrayFunctionRefNode.getCanonicalTypeName();
+
+        if (semanticScope.getCondition(userNewArrayFunctionRefNode, Write.class)) {
+            throw userNewArrayFunctionRefNode.createError(new IllegalArgumentException(
                     "cannot assign a value to new array function reference with target type [ + " + canonicalTypeName  + "]"));
         }
 
-        if (semanticScope.getCondition(this, Read.class) == false) {
-            throw createError(new IllegalArgumentException(
+        if (semanticScope.getCondition(userNewArrayFunctionRefNode, Read.class) == false) {
+            throw userNewArrayFunctionRefNode.createError(new IllegalArgumentException(
                     "not a statement: new array function reference with target type [" + canonicalTypeName + "] not used"));
         }
 
         ScriptScope scriptScope = semanticScope.getScriptScope();
-        TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
+        TargetType targetType = semanticScope.getDecoration(userNewArrayFunctionRefNode, TargetType.class);
 
         Class<?> valueType;
         Class<?> clazz = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
-        semanticScope.putDecoration(this, new ReturnType(clazz));
+        semanticScope.putDecoration(userNewArrayFunctionRefNode, new ReturnType(clazz));
 
         if (clazz == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
+            throw userNewArrayFunctionRefNode.createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
         }
 
         String name = scriptScope.getNextSyntheticName("newarray");
         scriptScope.getFunctionTable().addFunction(name, clazz, Collections.singletonList(int.class), true, true);
-        semanticScope.putDecoration(this, new MethodNameDecoration(name));
+        semanticScope.putDecoration(userNewArrayFunctionRefNode, new MethodNameDecoration(name));
 
         if (targetType == null) {
             String defReferenceEncoding = "Sthis." + name + ",0";
             valueType = String.class;
-            scriptScope.putDecoration(this, new EncodingDecoration(defReferenceEncoding));
+            scriptScope.putDecoration(userNewArrayFunctionRefNode, new EncodingDecoration(defReferenceEncoding));
         } else {
             FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
-                    getLocation(), targetType.getTargetType(), "this", name, 0);
+                    userNewArrayFunctionRefNode.getLocation(), targetType.getTargetType(), "this", name, 0);
             valueType = targetType.getTargetType();
-            semanticScope.putDecoration(this, new ReferenceDecoration(ref));
+            semanticScope.putDecoration(userNewArrayFunctionRefNode, new ReferenceDecoration(ref));
         }
 
-        semanticScope.putDecoration(this, new ValueType(valueType));
+        semanticScope.putDecoration(userNewArrayFunctionRefNode, new ValueType(valueType));
     }
 }

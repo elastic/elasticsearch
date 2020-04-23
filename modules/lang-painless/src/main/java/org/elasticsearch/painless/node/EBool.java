@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
@@ -64,28 +65,33 @@ public class EBool extends AExpression {
         return userTreeVisitor.visitBool(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException(
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, EBool userBoolNode, SemanticScope semanticScope) {
+
+        Operation operation = userBoolNode.getOperation();
+
+        if (semanticScope.getCondition(userBoolNode, Write.class)) {
+            throw userBoolNode.createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
 
-        if (semanticScope.getCondition(this, Read.class) == false) {
-            throw createError(new IllegalArgumentException(
+        if (semanticScope.getCondition(userBoolNode, Read.class) == false) {
+            throw userBoolNode.createError(new IllegalArgumentException(
                     "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
 
-        semanticScope.setCondition(leftNode, Read.class);
-        semanticScope.putDecoration(leftNode, new TargetType(boolean.class));
-        analyze(leftNode, semanticScope);
-        leftNode.cast(semanticScope);
+        AExpression userLeftNode = userBoolNode.getLeftNode();
+        semanticScope.setCondition(userLeftNode, Read.class);
+        semanticScope.putDecoration(userLeftNode, new TargetType(boolean.class));
+        visitor.checkedVisit(userLeftNode, semanticScope);
+        visitor.decorateWithCast(userLeftNode, semanticScope);
 
-        semanticScope.setCondition(rightNode, Read.class);
-        semanticScope.putDecoration(rightNode, new TargetType(boolean.class));
-        analyze(rightNode, semanticScope);
-        rightNode.cast(semanticScope);
+        AExpression userRightNode = userBoolNode.getRightNode();
+        semanticScope.setCondition(userRightNode, Read.class);
+        semanticScope.putDecoration(userRightNode, new TargetType(boolean.class));
+        visitor.checkedVisit(userRightNode, semanticScope);
+        visitor.decorateWithCast(userRightNode, semanticScope);
 
-        semanticScope.putDecoration(this, new ValueType(boolean.class));
+        semanticScope.putDecoration(userBoolNode, new ValueType(boolean.class));
     }
 }

@@ -22,6 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
 import org.elasticsearch.painless.symbol.Decorations.Explicit;
@@ -82,93 +83,99 @@ public class ECall extends AExpression {
         return userTreeVisitor.visitCall(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to method call [" + methodName + "/" + argumentNodes.size() + "]"));
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, ECall userCallNode, SemanticScope semanticScope) {
+
+        String methodName = userCallNode.getMethodName();
+        List<AExpression> userArgumentNodes = userCallNode.getArgumentNodes();
+        int userArgumentsSize = userArgumentNodes.size();
+
+        if (semanticScope.getCondition(userCallNode, Write.class)) {
+            throw userCallNode.createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to method call [" + methodName + "/" + userArgumentsSize + "]"));
         }
 
-        semanticScope.setCondition(prefixNode, Read.class);
-        prefixNode.analyze(semanticScope);
-        ValueType prefixValueType = semanticScope.getDecoration(prefixNode, ValueType.class);
-        StaticType prefixStaticType = semanticScope.getDecoration(prefixNode, StaticType.class);
+        AExpression userPrefixNode = userCallNode.getPrefixNode();
+        semanticScope.setCondition(userPrefixNode, Read.class);
+        visitor.visit(userPrefixNode, semanticScope);
+        ValueType prefixValueType = semanticScope.getDecoration(userPrefixNode, ValueType.class);
+        StaticType prefixStaticType = semanticScope.getDecoration(userPrefixNode, StaticType.class);
 
         if (prefixValueType != null && prefixStaticType != null) {
-            throw createError(new IllegalStateException("cannot have both " +
+            throw userCallNode.createError(new IllegalStateException("cannot have both " +
                     "value [" + prefixValueType.getValueCanonicalTypeName() + "] " +
                     "and type [" + prefixStaticType.getStaticCanonicalTypeName() + "]"));
         }
 
-        if (semanticScope.hasDecoration(prefixNode, PartialCanonicalTypeName.class)) {
-            throw createError(new IllegalArgumentException("cannot resolve symbol " +
-                    "[" + semanticScope.getDecoration(prefixNode, PartialCanonicalTypeName.class).getPartialCanonicalTypeName() + "]"));
+        if (semanticScope.hasDecoration(userPrefixNode, PartialCanonicalTypeName.class)) {
+            throw userCallNode.createError(new IllegalArgumentException("cannot resolve symbol " +
+                    "[" + semanticScope.getDecoration(userPrefixNode, PartialCanonicalTypeName.class).getPartialCanonicalTypeName() + "]"));
         }
 
         Class<?> valueType;
 
         if (prefixValueType != null && prefixValueType.getValueType() == def.class) {
-            for (AExpression argument : argumentNodes) {
-                semanticScope.setCondition(argument, Read.class);
-                semanticScope.setCondition(argument, Internal.class);
-                analyze(argument, semanticScope);
-                Class<?> argumentValueType = semanticScope.getDecoration(argument, ValueType.class).getValueType();
+            for (AExpression userArgumentNode : userArgumentNodes) {
+                semanticScope.setCondition(userArgumentNode, Read.class);
+                semanticScope.setCondition(userArgumentNode, Internal.class);
+                visitor.checkedVisit(userArgumentNode, semanticScope);
+                Class<?> argumentValueType = semanticScope.getDecoration(userArgumentNode, ValueType.class).getValueType();
 
                 if (argumentValueType == void.class) {
-                    throw createError(new IllegalArgumentException(
+                    throw userCallNode.createError(new IllegalArgumentException(
                             "Argument(s) cannot be of [void] type when calling method [" + methodName + "]."));
                 }
             }
 
-            TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
+            TargetType targetType = semanticScope.getDecoration(userCallNode, TargetType.class);
             // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
             valueType = targetType == null || targetType.getTargetType() == ZonedDateTime.class ||
-                    semanticScope.getCondition(this, Explicit.class) ? def.class : targetType.getTargetType();
+                    semanticScope.getCondition(userCallNode, Explicit.class) ? def.class : targetType.getTargetType();
         } else {
             PainlessMethod method;
 
             if (prefixValueType != null) {
                 method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(
-                        prefixValueType.getValueType(), false, methodName, argumentNodes.size());
+                        prefixValueType.getValueType(), false, methodName, userArgumentsSize);
 
                 if (method == null) {
-                    throw createError(new IllegalArgumentException("member method " +
-                            "[" + prefixValueType.getValueCanonicalTypeName() + ", " + methodName + "/" + argumentNodes.size() + "] " +
+                    throw userCallNode.createError(new IllegalArgumentException("member method " +
+                            "[" + prefixValueType.getValueCanonicalTypeName() + ", " + methodName + "/" + userArgumentsSize + "] " +
                             "not found"));
                 }
             } else if (prefixStaticType != null) {
                 method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(
-                        prefixStaticType.getStaticType(), true, methodName, argumentNodes.size());
+                        prefixStaticType.getStaticType(), true, methodName, userArgumentsSize);
 
                 if (method == null) {
-                    throw createError(new IllegalArgumentException("static method " +
-                            "[" + prefixStaticType.getStaticCanonicalTypeName() + ", " + methodName + "/" + argumentNodes.size() + "] " +
+                    throw userCallNode.createError(new IllegalArgumentException("static method " +
+                            "[" + prefixStaticType.getStaticCanonicalTypeName() + ", " + methodName + "/" + userArgumentsSize + "] " +
                             "not found"));
                 }
             } else {
-                throw createError(new IllegalStateException("value required: instead found no value"));
+                throw userCallNode.createError(new IllegalStateException("value required: instead found no value"));
             }
 
             semanticScope.getScriptScope().markNonDeterministic(method.annotations.containsKey(NonDeterministicAnnotation.class));
 
-            for (int argument = 0; argument < argumentNodes.size(); ++argument) {
-                AExpression expression = argumentNodes.get(argument);
+            for (int argument = 0; argument < userArgumentsSize; ++argument) {
+                AExpression userArgumentNode = userArgumentNodes.get(argument);
 
-                semanticScope.setCondition(expression, Read.class);
-                semanticScope.putDecoration(expression, new TargetType(method.typeParameters.get(argument)));
-                semanticScope.setCondition(expression, Internal.class);
-                analyze(expression, semanticScope);
-                expression.cast(semanticScope);
+                semanticScope.setCondition(userArgumentNode, Read.class);
+                semanticScope.putDecoration(userArgumentNode, new TargetType(method.typeParameters.get(argument)));
+                semanticScope.setCondition(userArgumentNode, Internal.class);
+                visitor.checkedVisit(userArgumentNode, semanticScope);
+                visitor.decorateWithCast(userArgumentNode, semanticScope);
             }
 
-            semanticScope.putDecoration(this, new StandardPainlessMethod(method));
+            semanticScope.putDecoration(userCallNode, new StandardPainlessMethod(method));
             valueType = method.returnType;
         }
 
-        if (isNullSafe && valueType.isPrimitive()) {
+        if (userCallNode.isNullSafe() && valueType.isPrimitive()) {
             throw new IllegalArgumentException("Result of null safe operator must be nullable");
         }
 
-        semanticScope.putDecoration(this, new ValueType(valueType));
+        semanticScope.putDecoration(userCallNode, new ValueType(valueType));
     }
 }

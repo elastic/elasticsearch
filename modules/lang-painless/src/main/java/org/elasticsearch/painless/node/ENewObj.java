@@ -22,6 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
 import org.elasticsearch.painless.symbol.Decorations.Internal;
@@ -67,49 +68,54 @@ public class ENewObj extends AExpression {
         return userTreeVisitor.visitNewObj(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException("invalid assignment cannot assign a value to new object with constructor " +
-                    "[" + canonicalTypeName + "/" + argumentNodes.size() + "]"));
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, ENewObj userNewObjNode, SemanticScope semanticScope) {
+
+        String canonicalTypeName =  userNewObjNode.getCanonicalTypeName();
+        List<AExpression> userArgumentNodes = userNewObjNode.getArgumentNodes();
+        int userArgumentsSize = userArgumentNodes.size();
+
+        if (semanticScope.getCondition(userNewObjNode, Write.class)) {
+            throw userNewObjNode.createError(new IllegalArgumentException("invalid assignment cannot assign a value to new object with constructor " +
+                    "[" + canonicalTypeName + "/" + userArgumentsSize + "]"));
         }
 
         ScriptScope scriptScope = semanticScope.getScriptScope();
         Class<?> valueType = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
         if (valueType == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
+            throw userNewObjNode.createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
         }
 
-        PainlessConstructor constructor = scriptScope.getPainlessLookup().lookupPainlessConstructor(valueType, argumentNodes.size());
+        PainlessConstructor constructor = scriptScope.getPainlessLookup().lookupPainlessConstructor(valueType, userArgumentsSize);
 
         if (constructor == null) {
-            throw createError(new IllegalArgumentException(
-                    "constructor [" + typeToCanonicalTypeName(valueType) + ", <init>/" + argumentNodes.size() + "] not found"));
+            throw userNewObjNode.createError(new IllegalArgumentException(
+                    "constructor [" + typeToCanonicalTypeName(valueType) + ", <init>/" + userArgumentsSize + "] not found"));
         }
 
-        scriptScope.putDecoration(this, new StandardPainlessConstructor(constructor));
+        scriptScope.putDecoration(userNewObjNode, new StandardPainlessConstructor(constructor));
         scriptScope.markNonDeterministic(constructor.annotations.containsKey(NonDeterministicAnnotation.class));
 
         Class<?>[] types = new Class<?>[constructor.typeParameters.size()];
         constructor.typeParameters.toArray(types);
 
-        if (constructor.typeParameters.size() != argumentNodes.size()) {
-            throw createError(new IllegalArgumentException(
+        if (constructor.typeParameters.size() != userArgumentsSize) {
+            throw userNewObjNode.createError(new IllegalArgumentException(
                     "When calling constructor on type [" + PainlessLookupUtility.typeToCanonicalTypeName(valueType) + "] " +
-                    "expected [" + constructor.typeParameters.size() + "] arguments, but found [" + argumentNodes.size() + "]."));
+                    "expected [" + constructor.typeParameters.size() + "] arguments, but found [" + userArgumentsSize + "]."));
         }
 
-        for (int i = 0; i < argumentNodes.size(); ++i) {
-            AExpression expression = argumentNodes.get(i);
+        for (int i = 0; i < userArgumentsSize; ++i) {
+            AExpression userArgumentNode = userArgumentNodes.get(i);
 
-            semanticScope.setCondition(expression, Read.class);
-            semanticScope.putDecoration(expression, new TargetType(types[i]));
-            semanticScope.setCondition(expression, Internal.class);
-            analyze(expression, semanticScope);
-            expression.cast(semanticScope);
+            semanticScope.setCondition(userArgumentNode, Read.class);
+            semanticScope.putDecoration(userArgumentNode, new TargetType(types[i]));
+            semanticScope.setCondition(userArgumentNode, Internal.class);
+            visitor.checkedVisit(userArgumentNode, semanticScope);
+            visitor.decorateWithCast(userArgumentNode, semanticScope);
         }
 
-        semanticScope.putDecoration(this, new ValueType(valueType));
+        semanticScope.putDecoration(userNewObjNode, new ValueType(valueType));
     }
 }

@@ -24,9 +24,11 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.Explicit;
 import org.elasticsearch.painless.symbol.Decorations.Internal;
+import org.elasticsearch.painless.symbol.Decorations.Negate;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
 import org.elasticsearch.painless.symbol.Decorations.UnaryType;
@@ -64,89 +66,78 @@ public class EUnary extends AExpression {
         return userTreeVisitor.visitUnary(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException(
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, EUnary userUnaryNode, SemanticScope semanticScope) {
+
+        Operation operation = userUnaryNode.getOperation();
+
+        if (semanticScope.getCondition(userUnaryNode, Write.class)) {
+            throw userUnaryNode.createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
 
-        if (semanticScope.getCondition(this, Read.class) == false) {
-            throw createError(new IllegalArgumentException(
+        if (semanticScope.getCondition(userUnaryNode, Read.class) == false) {
+            throw userUnaryNode.createError(new IllegalArgumentException(
                     "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
 
+        AExpression userChildNode = userUnaryNode.getChildNode();
         Class<?> valueType;
-        Class<?> promote = null;
+        Class<?> unaryType = null;
 
-        if ((operation == Operation.SUB || operation == Operation.ADD) &&
-                (childNode instanceof ENumeric || childNode instanceof EDecimal)) {
-            semanticScope.setCondition(childNode, Read.class);
-            semanticScope.copyDecoration(this, childNode, TargetType.class);
-            semanticScope.replicateCondition(this, childNode, Explicit.class);
-            semanticScope.replicateCondition(this, childNode, Internal.class);
+        if (operation == Operation.SUB && (userChildNode instanceof ENumeric || userChildNode instanceof EDecimal)) {
+            semanticScope.setCondition(userChildNode, Read.class);
+            semanticScope.copyDecoration(userUnaryNode, userChildNode, TargetType.class);
+            semanticScope.replicateCondition(userUnaryNode, userChildNode, Explicit.class);
+            semanticScope.replicateCondition(userUnaryNode, userChildNode, Internal.class);
+            semanticScope.setCondition(userChildNode, Negate.class);
+            visitor.checkedVisit(userChildNode, semanticScope);
 
-            if (childNode instanceof ENumeric) {
-                ENumeric numeric = (ENumeric)childNode;
-
-                if (operation == Operation.SUB) {
-                    numeric.analyze(semanticScope, numeric.getNumeric().charAt(0) != '-');
-                } else {
-                    childNode.analyze(semanticScope);
-                }
-            } else if (childNode instanceof EDecimal) {
-                EDecimal decimal = (EDecimal)childNode;
-
-                if (operation == Operation.SUB) {
-                    decimal.analyze(semanticScope, decimal.getDecimal().charAt(0) != '-');
-                } else {
-                    childNode.analyze(semanticScope);
-                }
-            } else {
-                throw createError(new IllegalArgumentException("illegal tree structure"));
+            if (semanticScope.hasDecoration(userUnaryNode, TargetType.class)) {
+                visitor.decorateWithCast(userChildNode, semanticScope);
             }
 
-            valueType = semanticScope.getDecoration(childNode, ValueType.class).getValueType();
+            valueType = semanticScope.getDecoration(userChildNode, ValueType.class).getValueType();
         } else {
             if (operation == Operation.NOT) {
-                semanticScope.setCondition(childNode, Read.class);
-                semanticScope.putDecoration(childNode, new TargetType(boolean.class));
-                analyze(childNode, semanticScope);
-                childNode.cast(semanticScope);
+                semanticScope.setCondition(userChildNode, Read.class);
+                semanticScope.putDecoration(userChildNode, new TargetType(boolean.class));
+                visitor.visit(userChildNode, semanticScope);
+                visitor.decorateWithCast(userChildNode, semanticScope);
 
                 valueType = boolean.class;
             } else if (operation == Operation.BWNOT || operation == Operation.ADD || operation == Operation.SUB) {
-                semanticScope.setCondition(childNode, Read.class);
-                analyze(childNode, semanticScope);
-                Class<?> childValueType = semanticScope.getDecoration(childNode, ValueType.class).getValueType();
+                semanticScope.setCondition(userChildNode, Read.class);
+                visitor.checkedVisit(userChildNode, semanticScope);
+                Class<?> childValueType = semanticScope.getDecoration(userChildNode, ValueType.class).getValueType();
 
-                promote = AnalyzerCaster.promoteNumeric(childValueType, operation != Operation.BWNOT);
+                unaryType = AnalyzerCaster.promoteNumeric(childValueType, operation != Operation.BWNOT);
 
-                if (promote == null) {
-                    throw createError(new ClassCastException("cannot apply the " + operation.name + " operator " +
+                if (unaryType == null) {
+                    throw userUnaryNode.createError(new ClassCastException("cannot apply the " + operation.name + " operator " +
                             "[" + operation.symbol + "] to the type " +
                             "[" + PainlessLookupUtility.typeToCanonicalTypeName(childValueType) + "]"));
                 }
 
-                semanticScope.putDecoration(childNode, new TargetType(promote));
-                childNode.cast(semanticScope);
+                semanticScope.putDecoration(userChildNode, new TargetType(unaryType));
+                visitor.decorateWithCast(userChildNode, semanticScope);
 
-                TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
+                TargetType targetType = semanticScope.getDecoration(userUnaryNode, TargetType.class);
 
-                if (promote == def.class && targetType != null) {
+                if (unaryType == def.class && targetType != null) {
                     valueType = targetType.getTargetType();
                 } else {
-                    valueType = promote;
+                    valueType = unaryType;
                 }
             } else {
-                throw createError(new IllegalStateException("unexpected unary operation [" + operation.name + "]"));
+                throw userUnaryNode.createError(new IllegalStateException("unexpected unary operation [" + operation.name + "]"));
             }
         }
 
-        semanticScope.putDecoration(this, new ValueType(valueType));
+        semanticScope.putDecoration(userUnaryNode, new ValueType(valueType));
 
-        if (promote != null) {
-            semanticScope.putDecoration(this, new UnaryType(promote));
+        if (unaryType != null) {
+            semanticScope.putDecoration(userUnaryNode, new UnaryType(unaryType));
         }
     }
 }

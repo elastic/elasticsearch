@@ -567,4 +567,8 @@ public class Decorations {
             return PainlessLookupUtility.typeToCanonicalTypeName(instanceType);
         }
     }
+
+    public interface Negate extends Condition {
+
+    }
 }

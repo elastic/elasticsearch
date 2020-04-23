@@ -234,136 +234,190 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
     @Override
     public Void visitAssignment(EAssignment userAssignmentNode, SemanticScope semanticScope) {
+        EAssignment.visitDefaultSemanticAnalysis(this, userAssignmentNode, semanticScope);
+
         return null;
     }
 
     @Override
     public Void visitUnary(EUnary userUnaryNode, SemanticScope semanticScope) {
+        EUnary.visitDefaultSemanticAnalysis(this, userUnaryNode, semanticScope);
+
         return null;
     }
 
     @Override
     public Void visitBinary(EBinary userBinaryNode, SemanticScope semanticScope) {
+        EBinary.visitDefaultSemanticAnalysis(this, userBinaryNode, semanticScope);
+
         return null;
     }
 
     @Override
     public Void visitBool(EBool userBoolNode, SemanticScope semanticScope) {
+        EBool.visitDefaultSemanticAnalysis(this, userBoolNode, semanticScope);
+
         return null;
     }
 
     @Override
     public Void visitComp(EComp userCompNode, SemanticScope semanticScope) {
+        EComp.visitDefaultSemanticAnalysis(this, userCompNode, semanticScope);
+
         return null;
     }
 
     @Override
     public Void visitExplicit(EExplicit userExplicitNode, SemanticScope semanticScope) {
+        EExplicit.visitDefaultSemanticAnalysis(this, userExplicitNode, semanticScope);
+
         return null;
     }
 
     @Override
     public Void visitInstanceof(EInstanceof userInstanceofNode, SemanticScope semanticScope) {
+        EInstanceof.visitDefaultSemanticAnalysis(this, userInstanceofNode, semanticScope);
+
         return null;
     }
 
     @Override
     public Void visitConditional(EConditional userConditionalNode, SemanticScope semanticScope) {
+        EConditional.visitDefaultSemanticAnalysis(this, userConditionalNode, semanticScope);
+
         return null;
     }
 
     @Override
     public Void visitElvis(EElvis userElvisNode, SemanticScope semanticScope) {
+        EElvis.visitDefaultSemanticAnalysis(this, userElvisNode, semanticScope);
+
         return null;
     }
 
     @Override
     public Void visitListInit(EListInit userListInitNode, SemanticScope semanticScope) {
+        EListInit.visitDefaultSemanticAnalysis(this, userListInitNode, semanticScope);
+
         return null;
     }
 
     @Override
     public Void visitMapInit(EMapInit userMapInitNode, SemanticScope semanticScope) {
+        EMapInit.visitDefaultSemanticAnalysis(this, userMapInitNode, semanticScope);
+
         return null;
     }
 
     @Override
     public Void visitNewArray(ENewArray userNewArrayNode, SemanticScope semanticScope) {
+        ENewArray.visitDefaultSemanticAnalysis(this, userNewArrayNode, semanticScope);
+
         return null;
     }
 
     @Override
-    public Void visitNewObj(ENewObj userNewObjectNode, SemanticScope semanticScope) {
+    public Void visitNewObj(ENewObj userNewObjNode, SemanticScope semanticScope) {
+        ENewObj.visitDefaultSemanticAnalysis(this, userNewObjNode, semanticScope);
+
         return null;
     }
 
     @Override
     public Void visitCallLocal(ECallLocal userCallLocalNode, SemanticScope semanticScope) {
+        ECallLocal.visitDefaultSemanticAnalysis(this, userCallLocalNode, semanticScope);
+
         return null;
     }
 
     @Override
     public Void visitBoolean(EBoolean userBooleanNode, SemanticScope semanticScope) {
+        EBoolean.visitDefaultSemanticAnalysis(this, userBooleanNode, semanticScope);
+
         return null;
     }
 
     @Override
     public Void visitNumeric(ENumeric userNumericNode, SemanticScope semanticScope) {
+        ENumeric.visitDefaultSemanticAnalysis(this, userNumericNode, semanticScope);
+
         return null;
     }
 
     @Override
     public Void visitDecimal(EDecimal userDecimalNode, SemanticScope semanticScope) {
+        EDecimal.visitDefaultSemanticAnalysis(this, userDecimalNode, semanticScope);
+
         return null;
     }
 
     @Override
     public Void visitString(EString userStringNode, SemanticScope semanticScope) {
+        EString.visitDefaultSemanticAnalysis(this, userStringNode, semanticScope);
+        
         return null;
     }
 
     @Override
     public Void visitNull(ENull userNullNode, SemanticScope semanticScope) {
+        ENull.visitDefaultSemanticAnalysis(this, userNullNode, semanticScope);
+
         return null;
     }
 
     @Override
     public Void visitRegex(ERegex userRegexNode, SemanticScope semanticScope) {
+        ERegex.visitDefaultSemanticAnalysis(this, userRegexNode, semanticScope);
+
         return null;
     }
 
     @Override
     public Void visitLambda(ELambda userLambdaNode, SemanticScope semanticScope) {
+        ELambda.visitDefaultSemanticAnalysis(this, userLambdaNode, semanticScope);
+
         return null;
     }
 
     @Override
     public Void visitFunctionRef(EFunctionRef userFunctionRefNode, SemanticScope semanticScope) {
+        EFunctionRef.visitDefaultSemanticAnalysis(this, userFunctionRefNode, semanticScope);
+
         return null;
     }
 
     @Override
     public Void visitNewArrayFunctionRef(ENewArrayFunctionRef userNewArrayFunctionRefNode, SemanticScope semanticScope) {
+        ENewArrayFunctionRef.visitDefaultSemanticAnalysis(this, userNewArrayFunctionRefNode, semanticScope);
+
         return null;
     }
 
     @Override
     public Void visitSymbol(ESymbol userSymbolNode, SemanticScope semanticScope) {
+        ESymbol.visitDefaultSemanticAnalysis(this, userSymbolNode, semanticScope);
+
         return null;
     }
 
     @Override
     public Void visitDot(EDot userDotNode, SemanticScope semanticScope) {
+        EDot.visitDefaultSemanticAnalysis(this, userDotNode, semanticScope);
+
         return null;
     }
 
     @Override
     public Void visitBrace(EBrace userBraceNode, SemanticScope semanticScope) {
+        EBrace.visitDefaultSemanticAnalysis(this, userBraceNode, semanticScope);
+
         return null;
     }
 
     @Override
     public Void visitCall(ECall userCallNode, SemanticScope semanticScope) {
+        ECall.visitDefaultSemanticAnalysis(this, userCallNode, semanticScope);
+
         return null;
     }
 }

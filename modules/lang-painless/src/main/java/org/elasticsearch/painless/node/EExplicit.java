@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.Explicit;
 import org.elasticsearch.painless.symbol.Decorations.Read;
@@ -58,30 +59,34 @@ public class EExplicit extends AExpression {
         return userTreeVisitor.visitExplicit(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException(
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, EExplicit userExplicitNode, SemanticScope semanticScope) {
+
+        String canonicalTypeName = userExplicitNode.getCanonicalTypeName();
+
+        if (semanticScope.getCondition(userExplicitNode, Write.class)) {
+            throw userExplicitNode.createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to an explicit cast with target type [" + canonicalTypeName + "]"));
         }
 
-        if (semanticScope.getCondition(this, Read.class) == false) {
-            throw createError(new IllegalArgumentException(
+        if (semanticScope.getCondition(userExplicitNode, Read.class) == false) {
+            throw userExplicitNode.createError(new IllegalArgumentException(
                     "not a statement: result not used from explicit cast with target type [" + canonicalTypeName + "]"));
         }
 
         Class<?> valueType = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
         if (valueType == null) {
-            throw createError(new IllegalArgumentException("cannot resolve type [" + canonicalTypeName + "]"));
+            throw userExplicitNode.createError(new IllegalArgumentException("cannot resolve type [" + canonicalTypeName + "]"));
         }
 
-        semanticScope.setCondition(childNode, Read.class);
-        semanticScope.putDecoration(childNode, new TargetType(valueType));
-        semanticScope.setCondition(childNode, Explicit.class);
-        analyze(childNode, semanticScope);
-        childNode.cast(semanticScope);
+        AExpression userChildNode = userExplicitNode.getChildNode();
+        semanticScope.setCondition(userChildNode, Read.class);
+        semanticScope.putDecoration(userChildNode, new TargetType(valueType));
+        semanticScope.setCondition(userChildNode, Explicit.class);
+        visitor.checkedVisit(userChildNode, semanticScope);
+        visitor.decorateWithCast(userChildNode, semanticScope);
 
-        semanticScope.putDecoration(this, new ValueType(valueType));
+        semanticScope.putDecoration(userExplicitNode, new ValueType(valueType));
     }
 }

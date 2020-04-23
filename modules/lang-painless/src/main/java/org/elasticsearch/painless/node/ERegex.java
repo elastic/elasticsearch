@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.StandardConstant;
@@ -59,53 +60,73 @@ public class ERegex extends AExpression {
         return userTreeVisitor.visitRegex(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException(
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, ERegex userRegexNode, SemanticScope semanticScope) {
+
+        String pattern = userRegexNode.getPattern();
+        String flags = userRegexNode.getFlags();
+
+        if (semanticScope.getCondition(userRegexNode, Write.class)) {
+            throw userRegexNode.createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to regex constant [" + pattern + "] with flags [" + flags + "]"));
         }
 
-        if (semanticScope.getCondition(this, Read.class) == false) {
-            throw createError(new IllegalArgumentException(
+        if (semanticScope.getCondition(userRegexNode, Read.class) == false) {
+            throw userRegexNode.createError(new IllegalArgumentException(
                     "not a statement: regex constant [" + pattern + "] with flags [" + flags + "] not used"));
         }
 
         if (semanticScope.getScriptScope().getCompilerSettings().areRegexesEnabled() == false) {
-            throw createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
+            throw userRegexNode.createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
                     + "in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep "
                     + "recursion and long loops."));
         }
 
-        int flags = 0;
+        Location location = userRegexNode.getLocation();
 
-        for (int c = 0; c < this.flags.length(); c++) {
-            flags |= flagForChar(this.flags.charAt(c));
+        int constant = 0;
+
+        for (int i = 0; i < flags.length(); ++i) {
+            char flag = flags.charAt(i);
+
+            switch (flag) {
+                case 'c':
+                    constant |= Pattern.CANON_EQ;
+                    break;
+                case 'i':
+                    constant |= Pattern.CASE_INSENSITIVE;
+                    break;
+                case 'l':
+                    constant |= Pattern.LITERAL;
+                    break;
+                case 'm':
+                    constant |= Pattern.MULTILINE;
+                    break;
+                case 's':
+                    constant |= Pattern.DOTALL;
+                    break;
+                case 'U':
+                    constant |= Pattern.UNICODE_CHARACTER_CLASS;
+                    break;
+                case 'u':
+                    constant |= Pattern.UNICODE_CASE;
+                    break;
+                case 'x':
+                    constant |= Pattern.COMMENTS;
+                    break;
+                default:
+                    throw new IllegalArgumentException("invalid regular expression: unknown flag [" + flag + "]");
+            }
         }
 
         try {
-            Pattern.compile(pattern, flags);
+            Pattern.compile(pattern, constant);
         } catch (PatternSyntaxException e) {
-            throw new Location(getLocation().getSourceName(), getLocation().getOffset() + 1 + e.getIndex()).createError(
+            throw new Location(location.getSourceName(), location.getOffset() + 1 + e.getIndex()).createError(
                     new IllegalArgumentException("Error compiling regex: " + e.getDescription()));
         }
 
-        semanticScope.putDecoration(this, new ValueType(Pattern.class));
-        semanticScope.putDecoration(this, new StandardConstant(flags));
-    }
-
-    private int flagForChar(char c) {
-        switch (c) {
-            case 'c': return Pattern.CANON_EQ;
-            case 'i': return Pattern.CASE_INSENSITIVE;
-            case 'l': return Pattern.LITERAL;
-            case 'm': return Pattern.MULTILINE;
-            case 's': return Pattern.DOTALL;
-            case 'U': return Pattern.UNICODE_CHARACTER_CLASS;
-            case 'u': return Pattern.UNICODE_CASE;
-            case 'x': return Pattern.COMMENTS;
-            default:
-                throw new IllegalArgumentException("Unknown flag [" + c + "]");
-        }
+        semanticScope.putDecoration(userRegexNode, new ValueType(Pattern.class));
+        semanticScope.putDecoration(userRegexNode, new StandardConstant(flags));
     }
 }

@@ -20,7 +20,9 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.Negate;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.StandardConstant;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
@@ -57,58 +59,61 @@ public class ENumeric extends AExpression {
         return userTreeVisitor.visitNumeric(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        analyze(semanticScope, false);
-    }
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, ENumeric userNumericNode, SemanticScope semanticScope) {
 
-    void analyze(SemanticScope semanticScope, boolean negate) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException(
+        String numeric = userNumericNode.getNumeric();
+
+        if (semanticScope.getCondition(userNumericNode, Negate.class)) {
+            numeric = "-" + numeric;
+        }
+
+        if (semanticScope.getCondition(userNumericNode, Write.class)) {
+            throw userNumericNode.createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to numeric constant [" + numeric + "]"));
         }
 
-        if (semanticScope.getCondition(this, Read.class) == false) {
-            throw createError(new IllegalArgumentException("not a statement: numeric constant [" + numeric + "] not used"));
+        if (semanticScope.getCondition(userNumericNode, Read.class) == false) {
+            throw userNumericNode.createError(new IllegalArgumentException(
+                    "not a statement: numeric constant [" + numeric + "] not used"));
         }
 
+        int radix = userNumericNode.getRadix();
         Class<?> valueType;
         Object constant;
 
-        String numeric = negate ? "-" + this.numeric : this.numeric;
-
         if (numeric.endsWith("d") || numeric.endsWith("D")) {
             if (radix != 10) {
-                throw createError(new IllegalStateException("Illegal tree structure."));
+                throw userNumericNode.createError(new IllegalStateException("Illegal tree structure."));
             }
 
             try {
                 constant = Double.parseDouble(numeric.substring(0, numeric.length() - 1));
                 valueType = double.class;
             } catch (NumberFormatException exception) {
-                throw createError(new IllegalArgumentException("Invalid double constant [" + numeric + "]."));
+                throw userNumericNode.createError(new IllegalArgumentException("Invalid double constant [" + numeric + "]."));
             }
         } else if (numeric.endsWith("f") || numeric.endsWith("F")) {
             if (radix != 10) {
-                throw createError(new IllegalStateException("Illegal tree structure."));
+                throw userNumericNode.createError(new IllegalStateException("Illegal tree structure."));
             }
 
             try {
                 constant = Float.parseFloat(numeric.substring(0, numeric.length() - 1));
                 valueType = float.class;
             } catch (NumberFormatException exception) {
-                throw createError(new IllegalArgumentException("Invalid float constant [" + numeric + "]."));
+                throw userNumericNode.createError(new IllegalArgumentException("Invalid float constant [" + numeric + "]."));
             }
         } else if (numeric.endsWith("l") || numeric.endsWith("L")) {
             try {
                 constant = Long.parseLong(numeric.substring(0, numeric.length() - 1), radix);
                 valueType = long.class;
             } catch (NumberFormatException exception) {
-                throw createError(new IllegalArgumentException("Invalid long constant [" + numeric + "]."));
+                throw userNumericNode.createError(new IllegalArgumentException("Invalid long constant [" + numeric + "]."));
             }
         } else {
             try {
-                TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
+                TargetType targetType = semanticScope.getDecoration(userNumericNode, TargetType.class);
                 Class<?> sort = targetType == null ? int.class : targetType.getTargetType();
                 int integer = Integer.parseInt(numeric, radix);
 
@@ -129,16 +134,16 @@ public class ENumeric extends AExpression {
                 try {
                     // Check if we can parse as a long. If so then hint that the user might prefer that.
                     Long.parseLong(numeric, radix);
-                    throw createError(new IllegalArgumentException("Invalid int constant [" + numeric + "]. If you want a long constant "
-                            + "then change it to [" + numeric + "L]."));
+                    throw userNumericNode.createError(new IllegalArgumentException(
+                            "Invalid int constant [" + numeric + "]. If you want a long constant then change it to [" + numeric + "L]."));
                 } catch (NumberFormatException longNoGood) {
                     // Ignored
                 }
-                throw createError(new IllegalArgumentException("Invalid int constant [" + numeric + "]."));
+                throw userNumericNode.createError(new IllegalArgumentException("Invalid int constant [" + numeric + "]."));
             }
         }
 
-        semanticScope.putDecoration(this, new ValueType(valueType));
-        semanticScope.putDecoration(this, new StandardConstant(constant));
+        semanticScope.putDecoration(userNumericNode, new ValueType(valueType));
+        semanticScope.putDecoration(userNumericNode, new StandardConstant(constant));
     }
 }

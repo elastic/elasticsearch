@@ -22,6 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.CapturesDecoration;
 import org.elasticsearch.painless.symbol.Decorations.EncodingDecoration;
@@ -55,7 +56,7 @@ public class EFunctionRef extends AExpression {
         return symbol;
     }
 
-    public String getCall() {
+    public String getMethodName() {
         return methodName;
     }
 
@@ -64,49 +65,54 @@ public class EFunctionRef extends AExpression {
         return userTreeVisitor.visitFunctionRef(this, input);
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        ScriptScope scriptScope = semanticScope.getScriptScope();
-        boolean read = semanticScope.getCondition(this, Read.class);
-        TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, EFunctionRef userFunctionRefNode, SemanticScope semanticScope) {
 
-        Class<?> valueType;
+        ScriptScope scriptScope = semanticScope.getScriptScope();
+
+        Location location = userFunctionRefNode.getLocation();
+        String symbol = userFunctionRefNode.getSymbol();
+        String methodName = userFunctionRefNode.getMethodName();
+        boolean read = semanticScope.getCondition(userFunctionRefNode, Read.class);
+
         Class<?> type = scriptScope.getPainlessLookup().canonicalTypeNameToType(symbol);
+        TargetType targetType = semanticScope.getDecoration(userFunctionRefNode, TargetType.class);
+        Class<?> valueType;
 
         if (symbol.equals("this") || type != null)  {
-            if (semanticScope.getCondition(this, Write.class)) {
-                throw createError(new IllegalArgumentException(
+            if (semanticScope.getCondition(userFunctionRefNode, Write.class)) {
+                throw userFunctionRefNode.createError(new IllegalArgumentException(
                         "invalid assignment: cannot assign a value to function reference [" + symbol + ":" + methodName + "]"));
             }
 
             if (read == false) {
-                throw createError(new IllegalArgumentException(
+                throw userFunctionRefNode.createError(new IllegalArgumentException(
                         "not a statement: function reference [" + symbol + ":" + methodName + "] not used"));
             }
 
             if (targetType == null) {
                 valueType = String.class;
                 String defReferenceEncoding = "S" + symbol + "." + methodName + ",0";
-                semanticScope.putDecoration(this, new EncodingDecoration(defReferenceEncoding));
+                semanticScope.putDecoration(userFunctionRefNode, new EncodingDecoration(defReferenceEncoding));
             } else {
                 FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
-                        getLocation(), targetType.getTargetType(), symbol, methodName, 0);
+                        location, targetType.getTargetType(), symbol, methodName, 0);
                 valueType = targetType.getTargetType();
-                semanticScope.putDecoration(this, new ReferenceDecoration(ref));
+                semanticScope.putDecoration(userFunctionRefNode, new ReferenceDecoration(ref));
             }
         } else {
-            if (semanticScope.getCondition(this, Write.class)) {
-                throw createError(new IllegalArgumentException(
+            if (semanticScope.getCondition(userFunctionRefNode, Write.class)) {
+                throw userFunctionRefNode.createError(new IllegalArgumentException(
                         "invalid assignment: cannot assign a value to capturing function reference [" + symbol + ":"  + methodName + "]"));
             }
 
             if (read == false) {
-                throw createError(new IllegalArgumentException(
+                throw userFunctionRefNode.createError(new IllegalArgumentException(
                         "not a statement: capturing function reference [" + symbol + ":"  + methodName + "] not used"));
             }
 
-            SemanticScope.Variable captured = semanticScope.getVariable(getLocation(), symbol);
-            semanticScope.putDecoration(this, new CapturesDecoration(Collections.singletonList(captured)));
+            SemanticScope.Variable captured = semanticScope.getVariable(location, symbol);
+            semanticScope.putDecoration(userFunctionRefNode, new CapturesDecoration(Collections.singletonList(captured)));
             if (targetType == null) {
                 String defReferenceEncoding;
                 if (captured.getType() == def.class) {
@@ -117,18 +123,18 @@ public class EFunctionRef extends AExpression {
                     defReferenceEncoding = "S" + captured.getCanonicalTypeName() + "." + methodName + ",1";
                 }
                 valueType = String.class;
-                semanticScope.putDecoration(this, new EncodingDecoration(defReferenceEncoding));
+                semanticScope.putDecoration(userFunctionRefNode, new EncodingDecoration(defReferenceEncoding));
             } else {
                 valueType = targetType.getTargetType();
                 // static case
                 if (captured.getType() != def.class) {
-                    FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(), getLocation(),
+                    FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(), location,
                             targetType.getTargetType(), captured.getCanonicalTypeName(), methodName, 1);
-                    semanticScope.putDecoration(this, new ReferenceDecoration(ref));
+                    semanticScope.putDecoration(userFunctionRefNode, new ReferenceDecoration(ref));
                 }
             }
         }
 
-        semanticScope.putDecoration(this, new ValueType(valueType));
+        semanticScope.putDecoration(userFunctionRefNode, new ValueType(valueType));
     }
 }

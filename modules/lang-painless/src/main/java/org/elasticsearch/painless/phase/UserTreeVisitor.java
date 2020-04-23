@@ -105,7 +105,7 @@ public interface UserTreeVisitor<Input, Output> {
     Output visitListInit(EListInit userListInitNode, Input input);
     Output visitMapInit(EMapInit userMapInitNode, Input input);
     Output visitNewArray(ENewArray userNewArrayNode, Input input);
-    Output visitNewObj(ENewObj userNewObjectNode, Input input);
+    Output visitNewObj(ENewObj userNewObjNode, Input input);
     Output visitCallLocal(ECallLocal userCallLocalNode, Input input);
     Output visitBoolean(EBoolean userBooleanNode, Input input);
     Output visitNumeric(ENumeric userNumericNode, Input input);

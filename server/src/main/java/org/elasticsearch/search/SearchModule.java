@@ -424,7 +424,9 @@ public class SearchModule {
                     .addResultReader(InternalDateHistogram::new)
                     .setAggregatorRegistrar(DateHistogramAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(AutoDateHistogramAggregationBuilder.NAME, AutoDateHistogramAggregationBuilder::new,
-                AutoDateHistogramAggregationBuilder.PARSER).addResultReader(InternalAutoDateHistogram::new));
+                AutoDateHistogramAggregationBuilder.PARSER)
+                    .addResultReader(InternalAutoDateHistogram::new)
+                    .setAggregatorRegistrar(AutoDateHistogramAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(GeoDistanceAggregationBuilder.NAME, GeoDistanceAggregationBuilder::new,
                 GeoDistanceAggregationBuilder::parse).addResultReader(InternalGeoDistance::new));
         registerAggregation(new AggregationSpec(GeoHashGridAggregationBuilder.NAME, GeoHashGridAggregationBuilder::new,

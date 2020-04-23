@@ -37,6 +37,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -71,6 +72,10 @@ public class AutoDateHistogramAggregationBuilder
         entry(Rounding.DateTimeUnit.MINUTES_OF_HOUR, "minute"),
         entry(Rounding.DateTimeUnit.SECOND_OF_MINUTE, "second")
     );
+
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        AutoDateHistogramAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    }
 
     /**
      *

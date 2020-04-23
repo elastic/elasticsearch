@@ -358,12 +358,22 @@ public class ReactiveStorageDeciderDecisionTests extends ESTestCase {
     }
 
     private boolean hasStartedSubjectShard() {
-        return state.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).stream().filter(ShardRouting::primary).map(ShardRouting::shardId).anyMatch(subjectShards::contains);
+        return state.getRoutingNodes()
+            .shardsWithState(ShardRoutingState.STARTED)
+            .stream()
+            .filter(ShardRouting::primary)
+            .map(ShardRouting::shardId)
+            .anyMatch(subjectShards::contains);
     }
 
     private static AllocationDeciders createAllocationDeciders(AllocationDecider... extraDeciders) {
         Collection<AllocationDecider> systemAllocationDeciders = ClusterModule.createAllocationDeciders(
-            Settings.builder().put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE).build(),
+            Settings.builder()
+                .put(
+                    ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(),
+                    Integer.MAX_VALUE
+                )
+                .build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             Collections.emptyList()
         );

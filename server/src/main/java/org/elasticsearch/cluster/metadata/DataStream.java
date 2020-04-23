@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -68,6 +69,29 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         return generation;
     }
 
+    /**
+     * Performs a rollover on a {@code DataStream} instance and returns a new instance containing
+     * the updated list of backing indices and incremented generation.
+     *
+     * @param newWriteIndex the new write backing index. Must conform to the naming convention for
+     *                      backing indices on data streams. See {@link #getBackingIndexName}.
+     * @return new {@code DataStream} instance with the rollover operation applied
+     */
+    public DataStream rollover(Index newWriteIndex) {
+        assert newWriteIndex.getName().equals(getBackingIndexName(name, generation + 1));
+        List<Index> backingIndices = new ArrayList<>(indices);
+        backingIndices.add(newWriteIndex);
+        return new DataStream(name, timeStampField, backingIndices, generation + 1);
+    }
+
+    /**
+     * Generates the name of the index that conforms to the naming convention for backing indices
+     * on data streams given the specified data stream name and generation.
+     *
+     * @param dataStreamName name of the data stream
+     * @param generation generation of the data stream
+     * @return backing index name
+     */
     public static String getBackingIndexName(String dataStreamName, long generation) {
         return String.format(Locale.ROOT, "%s-%06d", dataStreamName, generation);
     }

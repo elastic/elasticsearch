@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.is;
 
 public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapshotStep> {
@@ -149,7 +149,7 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
                                                                                                       ActionListener<Response> listener) {
                 assertThat(action.name(), is(DeleteSnapshotAction.NAME));
                 assertTrue(request instanceof DeleteSnapshotRequest);
-                assertThat(((DeleteSnapshotRequest) request).snapshot(), equalTo(expectedSnapshotName));
+                assertThat(((DeleteSnapshotRequest) request).snapshots(), arrayContaining(expectedSnapshotName));
             }
         };
     }

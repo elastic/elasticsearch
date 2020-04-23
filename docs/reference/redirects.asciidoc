@@ -483,3 +483,13 @@ This section was deleted.
 === Assertions
 
 This page was deleted.
+
+[role="exclude",id="_actions"]
+=== {ilm-init} actions
+
+See <<ilm-actions>>.
+
+[role="exclude",id="ilm-policy-definition"]
+=== {ilm-init} policy definition
+
+See <<ilm-index-lifecycle>>.

@@ -119,7 +119,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .putCustom(SnapshotDeletionsInProgress.TYPE,
                 SnapshotDeletionsInProgress.newInstance(
                     new SnapshotDeletionsInProgress.Entry(
-                        new Snapshot("repo1", new SnapshotId("snap1", UUIDs.randomBase64UUID())),
+                        Collections.singletonList(new SnapshotId("snap1", UUIDs.randomBase64UUID())), "repo1",
                         randomNonNegativeLong(), randomNonNegativeLong())
                 ));
         if (includeRestore) {

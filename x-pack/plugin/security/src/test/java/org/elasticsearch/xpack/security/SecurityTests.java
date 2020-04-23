@@ -455,4 +455,12 @@ public class SecurityTests extends ESTestCase {
         Security.validateForFips(settings);
         // no exception thrown
     }
+
+    public void testValidateForFipsNoErrorsForDefaultSettings() {
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
+            .build();
+        Security.validateForFips(settings);
+        // no exception thrown
+    }
 }

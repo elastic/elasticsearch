@@ -26,6 +26,8 @@ import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -39,8 +41,10 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -84,10 +88,32 @@ public class DataStreamIT extends ESIntegTestCase {
         int numDocsFoo = randomIntBetween(2, 16);
         indexDocs("metrics-foo", numDocsFoo);
 
-        verifyDocs("metrics-bar", numDocsBar);
-        verifyDocs("metrics-foo", numDocsFoo);
+        verifyDocs("metrics-bar", numDocsBar, 1, 1);
+        verifyDocs("metrics-foo", numDocsFoo, 1, 1);
 
-        // TODO: execute rollover and index some more data.
+        RolloverResponse rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("metrics-foo", null)).get();
+        assertThat(rolloverResponse.getNewIndex(), equalTo("metrics-foo-000002"));
+        assertTrue(rolloverResponse.isRolledOver());
+
+        rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("metrics-bar", null)).get();
+        assertThat(rolloverResponse.getNewIndex(), equalTo("metrics-bar-000002"));
+        assertTrue(rolloverResponse.isRolledOver());
+
+        getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices("metrics-foo-000002")).actionGet();
+        assertThat(getIndexResponse.getSettings().get("metrics-foo-000002"), notNullValue());
+        assertThat(getIndexResponse.getSettings().get("metrics-foo-000002").getAsBoolean("index.hidden", null), is(true));
+
+        getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices("metrics-bar-000002")).actionGet();
+        assertThat(getIndexResponse.getSettings().get("metrics-bar-000002"), notNullValue());
+        assertThat(getIndexResponse.getSettings().get("metrics-bar-000002").getAsBoolean("index.hidden", null), is(true));
+
+        int numDocsBar2 = randomIntBetween(2, 16);
+        indexDocs("metrics-bar", numDocsBar2);
+        int numDocsFoo2 = randomIntBetween(2, 16);
+        indexDocs("metrics-foo", numDocsFoo2);
+
+        verifyDocs("metrics-bar", numDocsBar + numDocsBar2, 1, 2);
+        verifyDocs("metrics-foo", numDocsFoo + numDocsFoo2, 1, 2);
 
         DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request("metrics-*");
         client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();
@@ -97,7 +123,11 @@ public class DataStreamIT extends ESIntegTestCase {
         expectThrows(IndexNotFoundException.class,
             () -> client().admin().indices().getIndex(new GetIndexRequest().indices("metrics-bar-000001")).actionGet());
         expectThrows(IndexNotFoundException.class,
+            () -> client().admin().indices().getIndex(new GetIndexRequest().indices("metrics-bar-000002")).actionGet());
+        expectThrows(IndexNotFoundException.class,
             () -> client().admin().indices().getIndex(new GetIndexRequest().indices("metrics-foo-000001")).actionGet());
+        expectThrows(IndexNotFoundException.class,
+            () -> client().admin().indices().getIndex(new GetIndexRequest().indices("metrics-foo-000002")).actionGet());
     }
 
     public void testOtherWriteOps() throws Exception {
@@ -163,13 +193,18 @@ public class DataStreamIT extends ESIntegTestCase {
         client().admin().indices().refresh(new RefreshRequest(dataStream)).actionGet();
     }
 
-    private static void verifyDocs(String dataStream, long expectedNumHits) {
+    private static void verifyDocs(String dataStream, long expectedNumHits, long minGeneration, long maxGeneration) {
         SearchRequest searchRequest = new SearchRequest(dataStream);
         searchRequest.source().size((int) expectedNumHits);
         SearchResponse searchResponse = client().search(searchRequest).actionGet();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(expectedNumHits));
+
+        List<String> expectedIndices = new ArrayList<>();
+        for (long k = minGeneration; k <= maxGeneration; k++) {
+            expectedIndices.add(DataStream.getBackingIndexName(dataStream, k));
+        }
         Arrays.stream(searchResponse.getHits().getHits()).forEach(hit -> {
-            assertThat(hit.getIndex(), equalTo(DataStream.getBackingIndexName(dataStream, 1)));
+            assertTrue(expectedIndices.contains(hit.getIndex()));
         });
     }
 

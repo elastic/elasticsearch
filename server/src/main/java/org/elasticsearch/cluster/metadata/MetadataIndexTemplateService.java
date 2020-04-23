@@ -768,8 +768,6 @@ public class MetadataIndexTemplateService {
         Optional.ofNullable(template.template())
             .map(Template::mappings)
             .ifPresent(mappings::add);
-        // When actually merging mappings, the highest precedence ones should go first, so reverse the list
-        Collections.reverse(mappings);
         return Collections.unmodifiableList(mappings);
     }
 

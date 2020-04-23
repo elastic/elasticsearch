@@ -113,7 +113,7 @@ public class ValuesSourceRegistry {
         }
     }
 
-    // Maps Aggregation names to (ValuesSourceType, Supplier) pairs, keyed by ValuesSourceType
+    /** Maps Aggregation names to (ValuesSourceType, Supplier) pairs, keyed by ValuesSourceType */
     private Map<String, List<Map.Entry<Predicate<ValuesSourceType>, AggregatorSupplier>>> aggregatorRegistry;
     public ValuesSourceRegistry(Map<String, List<Map.Entry<Predicate<ValuesSourceType>, AggregatorSupplier>>> aggregatorRegistry) {
         /*

@@ -16,6 +16,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;

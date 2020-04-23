@@ -28,7 +28,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
-import org.elasticsearch.xpack.spatial.index.mapper.ShapeUtils;
+import org.elasticsearch.xpack.spatial.common.ShapeUtils;
 
 import java.util.ArrayList;
 import java.util.List;

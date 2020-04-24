@@ -75,8 +75,8 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
             metadata);
     }
 
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(GeoBoundsAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(GeoBoundsAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
             (GeoBoundsAggregatorSupplier) (name, aggregationContext, parent, valuesSource, wrapLongitude, metadata)
                 -> new GeoBoundsAggregator(name, aggregationContext, parent, (ValuesSource.GeoPoint) valuesSource,
                     wrapLongitude, metadata));

@@ -5,6 +5,20 @@
  */
 package org.elasticsearch.xpack.analytics.stringstats;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static java.util.Collections.singleton;
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
+import static java.util.stream.Collectors.toList;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Function;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
@@ -23,6 +37,7 @@ import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
@@ -36,30 +51,17 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.junit.BeforeClass;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.LeafDocLookup;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Consumer;
-import java.util.function.Function;
-
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
-import static java.util.Collections.singleton;
-import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
-import static java.util.stream.Collectors.toList;
+import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 public class StringStatsAggregatorTests extends AggregatorTestCase {
 
-    @BeforeClass()
-    public static void registerBuilder() {
-        StringStatsAggregationBuilder.registerAggregators(valuesSourceRegistry);
+    @Override
+    protected List<SearchPlugin> getSearchPlugins() {
+        return List.of(new AnalyticsPlugin());
     }
+
     private static final String VALUE_SCRIPT_NAME = "value_script";
     private static final String FIELD_SCRIPT_NAME = "field_script";
 

@@ -18,8 +18,8 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
-import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStats;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStats;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -171,14 +171,6 @@ public class AnalyticsResultProcessor {
                 phaseProgress.getProgressPercent());
             statsHolder.getProgressTracker().analyzingPercent.set(phaseProgress.getProgressPercent());
         }
-
-        // TODO remove after process is writing out phase_progress
-        Integer progressPercent = result.getProgressPercent();
-        if (progressPercent != null) {
-            LOGGER.debug("[{}] Analyzing progress updated to [{}]", analytics.getId(), progressPercent);
-            statsHolder.getProgressTracker().analyzingPercent.set(progressPercent);
-        }
-
         TrainedModelDefinition.Builder inferenceModelBuilder = result.getInferenceModelBuilder();
         if (inferenceModelBuilder != null) {
             createAndIndexInferenceModel(inferenceModelBuilder);

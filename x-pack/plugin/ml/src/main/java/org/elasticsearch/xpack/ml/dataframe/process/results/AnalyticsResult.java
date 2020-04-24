@@ -30,7 +30,6 @@ public class AnalyticsResult implements ToXContentObject {
     public static final ParseField TYPE = new ParseField("analytics_result");
 
     private static final ParseField PHASE_PROGRESS = new ParseField("phase_progress");
-    private static final ParseField PROGRESS_PERCENT = new ParseField("progress_percent");
     private static final ParseField INFERENCE_MODEL = new ParseField("inference_model");
     private static final ParseField ANALYTICS_MEMORY_USAGE = new ParseField("analytics_memory_usage");
     private static final ParseField OUTLIER_DETECTION_STATS = new ParseField("outlier_detection_stats");
@@ -41,18 +40,16 @@ public class AnalyticsResult implements ToXContentObject {
             a -> new AnalyticsResult(
                 (RowResults) a[0],
                 (PhaseProgress) a[1],
-                (Integer) a[2],
-                (TrainedModelDefinition.Builder) a[3],
-                (MemoryUsage) a[4],
-                (OutlierDetectionStats) a[5],
-                (ClassificationStats) a[6],
-                (RegressionStats) a[7]
+                (TrainedModelDefinition.Builder) a[2],
+                (MemoryUsage) a[3],
+                (OutlierDetectionStats) a[4],
+                (ClassificationStats) a[5],
+                (RegressionStats) a[6]
             ));
 
     static {
         PARSER.declareObject(optionalConstructorArg(), RowResults.PARSER, RowResults.TYPE);
         PARSER.declareObject(optionalConstructorArg(), PhaseProgress.PARSER, PHASE_PROGRESS);
-        PARSER.declareInt(optionalConstructorArg(), PROGRESS_PERCENT);
         // TODO change back to STRICT_PARSER once native side is aligned
         PARSER.declareObject(optionalConstructorArg(), TrainedModelDefinition.LENIENT_PARSER, INFERENCE_MODEL);
         PARSER.declareObject(optionalConstructorArg(), MemoryUsage.STRICT_PARSER, ANALYTICS_MEMORY_USAGE);
@@ -63,10 +60,6 @@ public class AnalyticsResult implements ToXContentObject {
 
     private final RowResults rowResults;
     private final PhaseProgress phaseProgress;
-
-    // TODO remove after process is writing out phase_progress
-    private final Integer progressPercent;
-
     private final TrainedModelDefinition.Builder inferenceModelBuilder;
     private final TrainedModelDefinition inferenceModel;
     private final MemoryUsage memoryUsage;
@@ -76,7 +69,6 @@ public class AnalyticsResult implements ToXContentObject {
 
     public AnalyticsResult(@Nullable RowResults rowResults,
                            @Nullable PhaseProgress phaseProgress,
-                           @Nullable Integer progressPercent,
                            @Nullable TrainedModelDefinition.Builder inferenceModelBuilder,
                            @Nullable MemoryUsage memoryUsage,
                            @Nullable OutlierDetectionStats outlierDetectionStats,
@@ -84,7 +76,6 @@ public class AnalyticsResult implements ToXContentObject {
                            @Nullable RegressionStats regressionStats) {
         this.rowResults = rowResults;
         this.phaseProgress = phaseProgress;
-        this.progressPercent = progressPercent;
         this.inferenceModelBuilder = inferenceModelBuilder;
         this.inferenceModel = inferenceModelBuilder == null ? null : inferenceModelBuilder.build();
         this.memoryUsage = memoryUsage;
@@ -99,10 +90,6 @@ public class AnalyticsResult implements ToXContentObject {
 
     public PhaseProgress getPhaseProgress() {
         return phaseProgress;
-    }
-
-    public Integer getProgressPercent() {
-        return progressPercent;
     }
 
     public TrainedModelDefinition.Builder getInferenceModelBuilder() {
@@ -133,9 +120,6 @@ public class AnalyticsResult implements ToXContentObject {
         }
         if (phaseProgress != null) {
             builder.field(PHASE_PROGRESS.getPreferredName(), phaseProgress);
-        }
-        if (progressPercent != null) {
-            builder.field(PROGRESS_PERCENT.getPreferredName(), progressPercent);
         }
         if (inferenceModel != null) {
             builder.field(INFERENCE_MODEL.getPreferredName(),
@@ -170,7 +154,6 @@ public class AnalyticsResult implements ToXContentObject {
         AnalyticsResult that = (AnalyticsResult) other;
         return Objects.equals(rowResults, that.rowResults)
             && Objects.equals(phaseProgress, that.phaseProgress)
-            && Objects.equals(progressPercent, that.progressPercent)
             && Objects.equals(inferenceModel, that.inferenceModel)
             && Objects.equals(memoryUsage, that.memoryUsage)
             && Objects.equals(outlierDetectionStats, that.outlierDetectionStats)
@@ -180,7 +163,7 @@ public class AnalyticsResult implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(rowResults, phaseProgress, progressPercent, inferenceModel, memoryUsage, outlierDetectionStats,
-            classificationStats, regressionStats);
+        return Objects.hash(rowResults, phaseProgress, inferenceModel, memoryUsage, outlierDetectionStats, classificationStats,
+            regressionStats);
     }
 }

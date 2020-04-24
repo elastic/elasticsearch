@@ -43,7 +43,6 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
     protected AnalyticsResult createTestInstance() {
         RowResults rowResults = null;
         PhaseProgress phaseProgress = null;
-        Integer progressPercent = null;
         TrainedModelDefinition.Builder inferenceModel = null;
         MemoryUsage memoryUsage = null;
         OutlierDetectionStats outlierDetectionStats = null;
@@ -54,9 +53,6 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
         }
         if (randomBoolean()) {
             phaseProgress = new PhaseProgress(randomAlphaOfLength(10), randomIntBetween(0, 100));
-        }
-        if (randomBoolean()) {
-            progressPercent = randomIntBetween(0, 100);
         }
         if (randomBoolean()) {
             inferenceModel = TrainedModelDefinitionTests.createRandomBuilder();
@@ -73,7 +69,7 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
         if (randomBoolean()) {
             regressionStats = RegressionStatsTests.createRandom();
         }
-        return new AnalyticsResult(rowResults, phaseProgress, progressPercent, inferenceModel, memoryUsage, outlierDetectionStats,
+        return new AnalyticsResult(rowResults, phaseProgress, inferenceModel, memoryUsage, outlierDetectionStats,
             classificationStats, regressionStats);
     }
 

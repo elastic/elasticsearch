@@ -149,7 +149,7 @@ The output format of the `moving_percentiles` aggregation is inherited from the 
 Moving percentiles pipeline aggregations always run with `skip` gap policy.
 
 
-[[shift-parameter]]
+[[moving-percentiles-shift-parameter]]
 ==== shift parameter
 
 By default (with `shift = 0`), the window that is offered for calculation is the last `n` values excluding the current bucket.

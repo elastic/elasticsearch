@@ -64,7 +64,7 @@ See <<eql-limitations,EQL limitations>>.
 Comma-separated list of index names or <<indices-aliases,index aliases>> used to
 limit the request. Accepts wildcard expressions.
 +
-To search all indices, use `_all`.
+To search all indices, use `_all` or `*`.
 
 [[eql-search-api-query-params]]
 ==== {api-query-parms-title}
@@ -128,7 +128,7 @@ runs.
 Reserved for future use.
 
 `size`::
-(Optional, integer)
+(Optional, integer or float)
 Maximum number of matching documents to return. Defaults to `50`. Values must be
 greater than `0`.
 

@@ -143,7 +143,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 try (ReleasableLock ignored = cacheFile.fileLock()) {
                     final Tuple<Long, Long> range = computeRange(pos);
                     bytesRead = cacheFile.fetchRange(
-                        range,
+                        range.v1(),
+                        range.v2(),
                         (start, end) -> readCacheFile(cacheFile.getChannel(), end, pos, buffer, off, len),
                         (start, end) -> writeCacheFile(cacheFile.getChannel(), start, end)
                     ).get();
@@ -182,7 +183,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         try {
             final CacheFile cacheFile = getCacheFileSafe();
             try (ReleasableLock ignored = cacheFile.fileLock()) {
-                final int bytesRead = cacheFile.fetchRange(range, (start, end) -> {
+                final int bytesRead = cacheFile.fetchRange(range.v1(), range.v2(), (start, end) -> {
                     logger.trace("range [{}-{}] of file [{}] is now available in cache", start, end, fileInfo.physicalName());
                     return Math.toIntExact(end - start);
                 }, (start, end) -> writeCacheFile(cacheFile.getChannel(), start, end)).get();

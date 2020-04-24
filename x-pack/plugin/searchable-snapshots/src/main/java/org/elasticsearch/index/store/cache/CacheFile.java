@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 
@@ -248,23 +247,24 @@ public class CacheFile {
     }
 
     CompletableFuture<Integer> fetchRange(
-        Tuple<Long, Long> range,
+        long start,
+        long end,
         CheckedBiFunction<Long, Long, Integer, IOException> onRangeAvailable,
         CheckedBiConsumer<Long, Long, IOException> onRangeMissing
     ) {
         final CompletableFuture<Integer> future = new CompletableFuture<>();
         try {
-            if (range.v1() < 0 || range.v1() > tracker.getLength() || range.v2() < 0 || range.v2() > tracker.getLength()) {
+            if (start < 0 || start > tracker.getLength() || start > end || end > tracker.getLength()) {
                 throw new IllegalArgumentException(
-                    "Invalid range [start=" + range.v1() + ", end=" + range.v2() + "] for length [" + tracker.getLength() + ']'
+                    "Invalid range [start=" + start + ", end=" + end + "] for length [" + tracker.getLength() + ']'
                 );
             }
             ensureOpen();
             final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
-                range.v1(),
-                range.v2(),
+                start,
+                end,
                 ActionListener.wrap(
-                    rangeReady -> future.complete(onRangeAvailable.apply(range.v1(), range.v2())),
+                    rangeReady -> future.complete(onRangeAvailable.apply(start, end)),
                     rangeFailure -> future.completeExceptionally(rangeFailure)
                 )
             );

@@ -43,7 +43,7 @@ public class RestSimulateIndexTemplateAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "post_simulate_index_template_action";
+        return "simulate_index_template_action";
     }
 
     @Override

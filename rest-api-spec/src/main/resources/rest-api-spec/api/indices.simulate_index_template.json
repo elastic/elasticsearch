@@ -1,5 +1,5 @@
 {
-  "indices.post_simulate_index_template":{
+  "indices.simulate_index_template":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html",
       "description": "Simulate matching the given index name against the index templates in the system"

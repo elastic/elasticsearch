@@ -56,6 +56,7 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
@@ -111,6 +112,7 @@ final class DefaultSearchContext extends SearchContext {
     private ScriptFieldsContext scriptFields;
     private FetchSourceContext fetchSourceContext;
     private FetchDocValuesContext docValuesContext;
+    private FetchFieldsContext fetchFieldsContext;
     private int from = -1;
     private int size = -1;
     private SortAndFormats sort;
@@ -451,6 +453,17 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public SearchContext docValuesContext(FetchDocValuesContext docValuesContext) {
         this.docValuesContext = docValuesContext;
+        return this;
+    }
+
+    @Override
+    public FetchFieldsContext fetchFieldsContext() {
+        return fetchFieldsContext;
+    }
+
+    @Override
+    public SearchContext fetchFieldsContext(FetchFieldsContext fetchFieldsContext) {
+        this.fetchFieldsContext = fetchFieldsContext;
         return this;
     }
 

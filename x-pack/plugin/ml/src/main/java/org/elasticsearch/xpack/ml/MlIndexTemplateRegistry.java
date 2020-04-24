@@ -76,10 +76,8 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
     private static IndexTemplateConfig stateTemplate() {
         Map<String, String> variables = new HashMap<>();
         variables.put(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id));
-        variables.put(
-            "xpack.ml.index.lifecycle.settings",
-            ",\"index.lifecycle.name\": \"" + ML_SIZE_BASED_ILM_POLICY_NAME + "\"\n" +
-            ",\"index.lifecycle.rollover_alias\": \"" + AnomalyDetectorsIndex.jobStateIndexWriteAlias() + "\"\n");
+        variables.put("xpack.ml.index.lifecycle.name", ML_SIZE_BASED_ILM_POLICY_NAME);
+        variables.put("xpack.ml.index.rollover_alias.name", AnomalyDetectorsIndex.jobStateIndexWriteAlias());
 
         return new IndexTemplateConfig(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             ANOMALY_DETECTION_PATH + "state_index_template.json",
@@ -102,10 +100,8 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
         Map<String, String> variables = new HashMap<>();
         variables.put(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id));
         variables.put("xpack.ml.stats.mappings", MlStatsIndex.mapping());
-        variables.put(
-            "xpack.ml.index.lifecycle.settings",
-            ",\"index.lifecycle.name\": \"" + ML_SIZE_BASED_ILM_POLICY_NAME + "\"\n" +
-            ",\"index.lifecycle.rollover_alias\": \"" + MlStatsIndex.writeAlias() + "\"\n");
+        variables.put("xpack.ml.index.lifecycle.name", ML_SIZE_BASED_ILM_POLICY_NAME);
+        variables.put("xpack.ml.index.lifecycle.rollover_alias", MlStatsIndex.writeAlias());
 
         return new IndexTemplateConfig(MlStatsIndex.TEMPLATE_NAME,
             ROOT_RESOURCE_PATH + "stats_index_template.json",

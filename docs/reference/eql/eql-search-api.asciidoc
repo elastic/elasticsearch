@@ -1,0 +1,311 @@
+[role="xpack"]
+[testenv="basic"]
+
+[[eql-search-api]]
+=== EQL search API
+++++
+<titleabbrev>EQL search</titleabbrev>
+++++
+
+experimental::[]
+
+Returns search results for an <<eql,Event Query Language (EQL)>> query.
+
+////
+[source,console]
+----
+PUT my_index/_bulk?refresh
+{"index":{"_index" : "my_index", "_id" : "1"}}
+{ "@timestamp": "2020-12-06T11:04:05.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process" }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{"index":{"_index" : "my_index", "_id" : "2"}}
+{ "@timestamp": "2020-12-06T11:04:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file" }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{"index":{"_index" : "my_index", "_id" : "3"}}
+{ "@timestamp": "2020-12-07T11:06:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process" }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{"index":{"_index" : "my_index", "_id" : "4"}}
+{ "@timestamp": "2020-12-07T11:07:08.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file" }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{"index":{"_index" : "my_index", "_id" : "5"}}
+{ "@timestamp": "2020-12-07T11:07:09.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process" }, "process": { "name": "regsvr32.exe", "path": "C:\\Windows\\System32\\regsvr32.exe" } }
+----
+// TESTSETUP
+////
+
+[source,console]
+----
+GET my_index/_eql/search
+{
+  "query": """
+    process where process.name = "regsvr32.exe"
+  """
+}
+----
+
+[[eql-search-api-request]]
+==== {api-request-title}
+
+`GET <index>/_eql/search`
+
+`POST <index>/_eql/search`
+
+[[eql-search-api-prereqs]]
+==== {api-prereq-title}
+
+See <<eql-requirements,EQL requirements>>.
+
+[[eql-search-api-limitations]]
+===== Limitations
+
+See <<eql-limitations,EQL limitations>>.
+
+[[eql-search-api-path-params]]
+==== {api-path-parms-title}
+
+`<index>`::
+(Required, string)
+Comma-separated list of index names or <<indices-aliases,index aliases>> used to
+limit the request. Accepts wildcard expressions.
++
+To search all indices, use `_all` or `*`.
+
+[[eql-search-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `false`.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+[[eql-search-api-request-body]]
+==== {api-request-body-title}
+
+`query`::
+(Required, string)
+<<eql-syntax,EQL>> query you wish to run.
++
+IMPORTANT: This parameter supports a subset of EQL syntax. See
+<<eql-unsupported-syntax>>.
+
+`event_category_field`::
+(Required*, string)
+Field containing the event classification, such as `process`, `file`, or
+`network`.
++
+Defaults to `event.category`, as defined in the {ecs-ref}/ecs-event.html[Elastic
+Common Schema (ECS)]. If an index does not contain the `event.category` field,
+this value is required.
+
+[[eql-search-api-timestamp-field]]
+`timestamp_field`::
++
+--
+(Required*, string)
+Field containing event timestamp.
+
+Defaults to `@timestamp`, as defined in the
+{ecs-ref}/ecs-event.html[Elastic Common Schema (ECS)]. If an index does not
+contain the `@timestamp` field, this value is required.
+
+Events in the API response are sorted by this field's value, converted to
+milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in
+ascending order.
+--
+
+`implicit_join_key_field`::
+(Optional, string)
+Reserved for future use.
+
+`filter`::
+(Optional, <<query-dsl,query DSL object>>)
+Query, written in query DSL, used to filter the documents on which the EQL query
+runs.
+
+`search_after`::
+(Optional, string)
+Reserved for future use.
+
+`size`::
+(Optional, integer or float)
+Maximum number of matching documents to return. Defaults to `50`. Values must be
+greater than `0`.
+
+[[eql-search-api-response-body]]
+==== {api-response-body-title}
+
+`took`::
++
+--
+(integer)
+Milliseconds it took {es} to execute the request.
+
+This value is calculated by measuring the time elapsed
+between receipt of a request on the coordinating node
+and the time at which the coordinating node is ready to send the response.
+
+Took time includes:
+
+* Communication time between the coordinating node and data nodes
+* Time the request spends in a <<modules-threadpool,thread pool>>,
+  queued for execution
+* Actual execution time
+
+Took time does *not* include:
+
+* Time needed to send the request to {es}
+* Time needed to serialize the JSON response
+* Time needed to send the response to a client
+--
+
+`timed_out`::
+(boolean)
+If `true`, the request timed out before completion; returned results may be
+partial or empty.
+
+`hits`::
+(object)
+Contains returned results and metadata.
+
+`hits.total.value`::
+(integer)
+Total number of returned documents.
+
+`hits.total.relation`::
++
+--
+(string)
+Indicates whether the number of documents returned is accurate or a lower bound.
+
+Returned values are:
+
+`eq`::: Accurate
+`gte`::: Lower bound, including returned documents
+--
+
+`hits.events`::
+(array of objects)
+Contains returned documents matching the query. Each object represents a
+matching document.
+
+`hits.events._index`::
+(string)
+Name of the index containing the returned document.
+
+`hits.events._id`::
+(string)
+Unique identifier for the returned document.
+
+`hits.events._score`::
+(float)
+Positive 32-bit floating point number indicating the relevance of the returned
+document. See <<relevance-scores>>.
+
+`hits.events._source`::
+(object)
+Object containing the original JSON body passed for the document at index time.
+
+`hits.events.sort`::
+(array)
+Integer used as the sort value for the event.
++
+By default, this is the event's <<eql-search-api-timestamp-field,timestamp
+value>>, converted to milliseconds since the
+https://en.wikipedia.org/wiki/Unix_time[Unix epoch].
+
+[[eql-search-api-example]]
+==== {api-examples-title}
+
+The following EQL search request searches for events with an `event.category` of
+`file` that meet the following conditions:
+
+* A `file.name` of `cmd.exe`
+* An `agent.id` that is _not_ `my_user`
+
+[source,console]
+----
+GET my_index/_eql/search
+{
+  "query": """
+    file where (file.name == "cmd.exe" and agent.id != "my_user")
+  """
+}
+----
+
+The API returns the following response. Events in the response are sorted by
+<<eql-search-api-timestamp-field,timestamp>>, converted to milliseconds since
+the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
+
+[source,console-result]
+----
+{
+  "took": 6,
+  "timed_out": false,
+  "hits": {
+    "total": {
+      "value": 2,
+      "relation": "eq"
+    },
+    "events": [
+      {
+        "_index": "my_index",
+        "_id": "2",
+        "_score": null,
+        "_source": {
+          "@timestamp": "2020-12-06T11:04:07.000Z",
+          "agent": {
+            "id": "8a4f500d"
+          },
+          "event": {
+            "category": "file"
+          },
+          "file": {
+            "accessed": "2020-12-07T11:07:08.000Z",
+            "name": "cmd.exe",
+            "path": "C:\\Windows\\System32\\cmd.exe",
+            "type": "file",
+            "size": 16384
+          },
+          "process": {
+            "name": "cmd.exe",
+            "path": "C:\\Windows\\System32\\cmd.exe"
+          }
+        },
+        "sort": [
+          1607252647000
+        ]
+      },
+      {
+        "_index": "my_index",
+        "_id": "4",
+        "_score": null,
+        "_source": {
+          "@timestamp": "2020-12-07T11:07:08.000Z",
+          "agent": {
+            "id": "8a4f500d"
+          },
+          "event": {
+            "category": "file"
+          },
+          "file": {
+            "accessed": "2020-12-07T11:07:08.000Z",
+            "name": "cmd.exe",
+            "path": "C:\\Windows\\System32\\cmd.exe",
+            "type": "file",
+            "size": 16384
+          },
+          "process": {
+            "name": "cmd.exe",
+            "path": "C:\\Windows\\System32\\cmd.exe"
+          }
+        },
+        "sort": [
+          1607339228000
+        ]
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 6/"took": $body.took/]

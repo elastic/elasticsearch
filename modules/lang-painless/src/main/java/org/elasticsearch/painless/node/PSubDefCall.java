@@ -49,23 +49,12 @@ public class PSubDefCall extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        Output output = new Output();
-
-        StringBuilder recipe = new StringBuilder();
-        List<String> pointers = new ArrayList<>();
-        List<Class<?>> parameterTypes = new ArrayList<>();
-
-        parameterTypes.add(Object.class);
-        int totalCaptures = 0;
-
         List<Output> argumentOutputs = new ArrayList<>(arguments.size());
 
-        for (int argument = 0; argument < arguments.size(); ++argument) {
-            AExpression expression = arguments.get(argument);
-
+        for (AExpression argument : arguments) {
             Input expressionInput = new Input();
             expressionInput.internal = true;
-            Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
+            Output expressionOutput = argument.analyze(classNode, scriptRoot, scope, expressionInput);
             argumentOutputs.add(expressionOutput);
 
             if (expressionOutput.actual == void.class) {
@@ -73,21 +62,10 @@ public class PSubDefCall extends AExpression {
             }
 
             expressionInput.expected = expressionOutput.actual;
-            expression.cast(expressionInput, expressionOutput);
-            parameterTypes.add(expressionOutput.actual);
-
-            // TODO: #54015
-            if (expression instanceof ILambda) {
-                ILambda lambda = (ILambda) expression;
-                pointers.add(lambda.getPointer());
-                // encode this parameter as a deferred reference
-                char ch = (char) (argument + totalCaptures);
-                recipe.append(ch);
-                totalCaptures += lambda.getCaptureCount();
-                parameterTypes.addAll(lambda.getCaptures());
-            }
+            argument.cast(expressionInput, expressionOutput);
         }
 
+        Output output = new Output();
         // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
         output.actual = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
 
@@ -100,9 +78,6 @@ public class PSubDefCall extends AExpression {
         callSubDefNode.setLocation(location);
         callSubDefNode.setExpressionType(output.actual);
         callSubDefNode.setName(name);
-        callSubDefNode.setRecipe(recipe.toString());
-        callSubDefNode.getPointers().addAll(pointers);
-        callSubDefNode.getTypeParameters().addAll(parameterTypes);
 
         output.expressionNode = callSubDefNode;
 

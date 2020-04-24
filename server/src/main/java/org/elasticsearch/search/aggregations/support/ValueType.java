@@ -30,6 +30,11 @@ import java.io.IOException;
 import java.time.ZoneOffset;
 import java.util.Set;
 
+/**
+ * @deprecated We are in the process of replacing this class with {@link ValuesSourceType}, so new uses or entries to the enum are
+ * discouraged.  There is currently no migration path for existing uses, notably parsing user value type hints and Composite aggregation,
+ * should continue to use this for now. Most importantly DO NOT ADD NEW PLACES WE SERIALIZE THIS ENUM!
+ */
 @Deprecated
 public enum ValueType implements Writeable {
 

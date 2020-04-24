@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutResponse;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationResponse;
@@ -385,7 +386,8 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
 
     private void initializeRealms(Realm... realms) {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthorizationRealmAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
 
         final List<Realm> realmList = Arrays.asList(realms);
         for (Realm realm : realms) {

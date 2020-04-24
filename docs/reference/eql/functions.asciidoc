@@ -15,6 +15,7 @@ experimental::[]
 * <<eql-fn-length>>
 * <<eql-fn-startswith>>
 * <<eql-fn-string>>
+* <<eql-fn-stringcontains>>
 * <<eql-fn-substring>>
 * <<eql-fn-wildcard>>
 
@@ -530,6 +531,68 @@ If using a field as the argument, this parameter does not support the
 <<text,`text`>> field datatype.
 
 *Returns:* string or `null`
+====
+
+[discrete]
+[[eql-fn-stringcontains]]
+=== `stringContains`
+
+Returns `true` if a source string contains a provided substring.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+// process.command_line = "start regsvr32.exe"
+stringContains(process.command_line, "regsvr32")  // returns true
+stringContains(process.command_line, "start ")    // returns true
+stringContains(process.command_line, "explorer")  // returns false
+
+// process.name = "regsvr32.exe"
+stringContains(command_line, process.name)        // returns true
+
+// empty strings
+stringContains("", "")                            // returns false
+stringContains(process.command_line, "")          // returns false
+
+// null handling
+stringContains(null, "regsvr32")                  // returns null
+stringContains(process.command_line, null)        // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+stringContains(<source>, <substring>)
+----
+
+*Parameters*
+`<source>`::
+(Required, string or `null`)
+Source string to search. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+
+`<substring>`::
+(Required, string or `null`)
+Substring to search for. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+
+*Returns:* boolean or `null`
 ====
 
 [discrete]

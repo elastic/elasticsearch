@@ -269,15 +269,13 @@ public class CacheFile {
                 )
             );
 
-            if (gaps.size() > 0) {
-                for (SparseFileTracker.Gap gap : gaps) {
-                    try {
-                        ensureOpen();
-                        onRangeMissing.accept(gap.start, gap.end);
-                        gap.onResponse(null);
-                    } catch (Exception e) {
-                        gap.onFailure(e);
-                    }
+            for (SparseFileTracker.Gap gap : gaps) {
+                try {
+                    ensureOpen();
+                    onRangeMissing.accept(gap.start, gap.end);
+                    gap.onResponse(null);
+                } catch (Exception e) {
+                    gap.onFailure(e);
                 }
             }
         } catch (Exception e) {

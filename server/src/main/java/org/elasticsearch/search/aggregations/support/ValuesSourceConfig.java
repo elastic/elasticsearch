@@ -157,7 +157,6 @@ public class ValuesSourceConfig {
                 aggregationScript = createScript(script, context);
             }
         }
-        context.getValuesSourceRegistry().incUsage(aggregationName, valuesSourceType);
         config = new ValuesSourceConfig(valuesSourceType, fieldType, unmapped, aggregationScript, scriptValueType , context);
         config.format(resolveFormat(format, valuesSourceType, timeZone, fieldType));
         config.missing(missing);

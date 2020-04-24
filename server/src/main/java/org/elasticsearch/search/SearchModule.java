@@ -249,6 +249,7 @@ import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.usage.UsageService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -273,7 +274,8 @@ public class SearchModule {
     private final Settings settings;
     private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
     private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
-    private ValuesSourceRegistry valuesSourceRegistry;
+    private final ValuesSourceRegistry valuesSourceRegistry;
+    private final UsageService usageService;
 
     /**
      * Constructs a new SearchModule object
@@ -283,8 +285,9 @@ public class SearchModule {
      *  @param settings Current settings
      * @param plugins List of included {@link SearchPlugin} objects.
      */
-    public SearchModule(Settings settings, List<SearchPlugin> plugins) {
+    public SearchModule(Settings settings, List<SearchPlugin> plugins, UsageService usageService) {
         this.settings = settings;
+        this.usageService = usageService;
         registerSuggesters(plugins);
         highlighters = setupHighlighters(settings, plugins);
         registerScoreFunctions(plugins);
@@ -300,6 +303,11 @@ public class SearchModule {
         registerShapes();
         registerIntervalsSourceProviders();
         namedWriteables.addAll(SortValue.namedWriteables());
+    }
+
+    // Temporary for testing
+    public SearchModule(Settings settings, List<SearchPlugin> plugins) {
+        this(settings, plugins, new UsageService());
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -322,13 +330,14 @@ public class SearchModule {
     }
 
     private ValuesSourceRegistry registerAggregations(List<SearchPlugin> plugins) {
-        ValuesSourceRegistry.Builder builder = new ValuesSourceRegistry.Builder();
+        ValuesSourceRegistry.Builder builder = new ValuesSourceRegistry.Builder(usageService);
 
         registerAggregation(new AggregationSpec(AvgAggregationBuilder.NAME, AvgAggregationBuilder::new, AvgAggregationBuilder.PARSER)
             .addResultReader(InternalAvg::new)
             .setAggregatorRegistrar(AvgAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(WeightedAvgAggregationBuilder.NAME, WeightedAvgAggregationBuilder::new,
-            WeightedAvgAggregationBuilder.PARSER).addResultReader(InternalWeightedAvg::new), builder);
+            WeightedAvgAggregationBuilder.PARSER).addResultReader(InternalWeightedAvg::new)
+            .setAggregatorRegistrar(WeightedAvgAggregationBuilder::registerUsage), builder);
         registerAggregation(new AggregationSpec(SumAggregationBuilder.NAME, SumAggregationBuilder::new, SumAggregationBuilder.PARSER)
             .addResultReader(InternalSum::new)
             .setAggregatorRegistrar(SumAggregationBuilder::registerAggregators), builder);
@@ -479,6 +488,8 @@ public class SearchModule {
         Consumer<ValuesSourceRegistry.Builder> register = spec.getAggregatorRegistrar();
         if (register != null) {
             register.accept(builder);
+        } else {
+            usageService.registerAggregationUsage(spec.getName().getPreferredName());
         }
     }
 

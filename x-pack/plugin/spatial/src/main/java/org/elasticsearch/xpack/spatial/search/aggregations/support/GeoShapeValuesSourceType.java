@@ -116,7 +116,7 @@ public class GeoShapeValuesSourceType implements Writeable, ValuesSourceType {
     }
 
     @Override
-    public String value() {
+    public String typeName() {
         return "geoshape";
     }
 

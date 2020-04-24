@@ -103,5 +103,5 @@ public interface ValuesSourceType {
      * Returns the name of the Values Source Type for stats purposes
      * @return the name of the Values Source Type
      */
-    String value();
+    String typeName();
 }

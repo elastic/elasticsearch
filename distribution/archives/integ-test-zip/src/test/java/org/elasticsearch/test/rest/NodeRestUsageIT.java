@@ -19,13 +19,11 @@
 
 package org.elasticsearch.test.rest;
 
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
@@ -161,7 +159,6 @@ public class NodeRestUsageIT extends ESRestTestCase {
         SearchSourceBuilder searchSource = new SearchSourceBuilder()
             .aggregation(AggregationBuilders.terms("str_terms").field("str.keyword"))
             .aggregation(AggregationBuilders.terms("num_terms").field("num"))
-            .aggregation(AggregationBuilders.terms("script_terms_unknown").script(new Script("10"))) // That will use bytes by default
             .aggregation(AggregationBuilders.avg("num_avg").field("num"));
         searchRequest.setJsonEntity(Strings.toString(searchSource));
         searchRequest.setJsonEntity(Strings.toString(searchSource));
@@ -172,7 +169,6 @@ public class NodeRestUsageIT extends ESRestTestCase {
             .aggregation(AggregationBuilders.terms("start").field("start"))
             .aggregation(AggregationBuilders.avg("num1").field("num"))
             .aggregation(AggregationBuilders.avg("num2").field("num"))
-            .aggregation(AggregationBuilders.terms("script_terms_known").script(new Script("10")).userValueTypeHint(ValueType.NUMERIC))
             .aggregation(AggregationBuilders.terms("foo").field("foo.keyword"));
         String r = Strings.toString(searchSource);
         searchRequest.setJsonEntity(Strings.toString(searchSource));
@@ -189,9 +185,9 @@ public class NodeRestUsageIT extends ESRestTestCase {
 
         Map<String, Map<String, Long>> afterCombinedAggsUsage = getTotalUsage(nodesMap);
 
-        assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "terms", "numeric", 2L);
+        assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "terms", "numeric", 1L);
         assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "terms", "date", 1L);
-        assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "terms", "bytes", 3L);
+        assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "terms", "bytes", 2L);
         assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "avg", "numeric", 3L);
     }
 

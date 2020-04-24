@@ -46,7 +46,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
  * A service to monitor usage of Elasticsearch features.
@@ -54,7 +54,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class UsageService {
 
     private final Map<String, BaseRestHandler> handlers;
-    private final Map<String, Map<String, AtomicLong>> aggs;
+    private final Map<String, Map<String, LongAdder>> aggs;
     private final long sinceTime;
 
     public UsageService() {
@@ -92,11 +92,25 @@ public class UsageService {
         }
     }
 
-    public void addAggregationUsage(String aggregationName, String valuesSourceType, AtomicLong val) {
-        Map<String, AtomicLong> subAgg = aggs.computeIfAbsent(aggregationName, k -> new HashMap<>());
-        if ( subAgg.put(valuesSourceType, val) != null) {
+    public static final String OTHER_SUBTYPE = "other";
+
+    public void registerAggregationUsage(String aggregationName) {
+        registerAggregationUsage(aggregationName, OTHER_SUBTYPE);
+    }
+
+    public void registerAggregationUsage(String aggregationName, String valuesSourceType) {
+        Map<String, LongAdder> subAgg = aggs.computeIfAbsent(aggregationName, k -> new HashMap<>());
+        if ( subAgg.put(valuesSourceType, new LongAdder()) != null) {
             throw new IllegalArgumentException("stats for aggregation [" + aggregationName + "][" + valuesSourceType +
                 "] already registered");
+        }
+    }
+
+    public void incAggregationUsage(String aggregationName, String valuesSourceType) {
+        Map<String, LongAdder> valuesSourceMap = aggs.get(aggregationName);
+        // Not all aggs register their usage at the moment
+        if (valuesSourceMap != null) {
+            valuesSourceMap.get(valuesSourceType).increment();
         }
     }
 
@@ -130,7 +144,7 @@ public class UsageService {
             aggs.forEach((name, agg) -> {
                 Map<String, Long> aggUsageMap = new HashMap<>();
                 agg.forEach((k, v) -> {
-                    long val = v.get();
+                    long val = v.longValue();
                     if (val > 0) {
                         aggUsageMap.put(k, val);
                     }

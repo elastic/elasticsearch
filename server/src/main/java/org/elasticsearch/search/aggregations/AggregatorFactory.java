@@ -32,6 +32,8 @@ import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.usage.UsageService.OTHER_SUBTYPE;
+
 public abstract class AggregatorFactory {
 
     public static final class MultiBucketAggregatorWrapper extends Aggregator {
@@ -238,4 +240,7 @@ public abstract class AggregatorFactory {
         return new MultiBucketAggregatorWrapper(bigArrays, searchContext, parent, factory, first);
     }
 
+    public String getStatsSubtype() {
+        return OTHER_SUBTYPE;
+    }
 }

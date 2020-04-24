@@ -34,8 +34,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.usage.UsageService.OTHER_SUBTYPE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -97,7 +97,7 @@ public class UsageServiceTests extends ESTestCase {
 
     public void testRestUsage() throws Exception {
         DiscoveryNode discoveryNode = new DiscoveryNode("foo", new TransportAddress(InetAddress.getByName("localhost"), 12345),
-                Version.CURRENT);
+            Version.CURRENT);
         RestRequest restRequest = new FakeRestRequest();
         BaseRestHandler handlerA = new MockRestHandler("a");
         BaseRestHandler handlerB = new MockRestHandler("b");
@@ -150,39 +150,42 @@ public class UsageServiceTests extends ESTestCase {
         DiscoveryNode discoveryNode = new DiscoveryNode("foo", new TransportAddress(InetAddress.getByName("localhost"), 12345),
             Version.CURRENT);
         UsageService usageService = new UsageService();
-        AtomicLong ax = new AtomicLong();
-        AtomicLong ay = new AtomicLong();
-        AtomicLong bx = new AtomicLong();
-        AtomicLong cx = new AtomicLong();
-        AtomicLong by = new AtomicLong();
-        AtomicLong az = new AtomicLong();
 
-        usageService.addAggregationUsage("a", "x", ax);
-        usageService.addAggregationUsage("a", "y", ay);
-        usageService.addAggregationUsage("b", "x", bx);
-        usageService.addAggregationUsage("c", "x", cx);
-        usageService.addAggregationUsage("b", "y", by);
-        usageService.addAggregationUsage("a", "z", az);
+        usageService.registerAggregationUsage("a", "x");
+        usageService.registerAggregationUsage("a", "y");
+        usageService.registerAggregationUsage("b", "x");
+        usageService.registerAggregationUsage("c");
+        usageService.registerAggregationUsage("b", "y");
+        usageService.registerAggregationUsage("a", "z");
 
-        ax.set(1);
-        ay.set(2);
-        az.set(3);
-        bx.set(4);
-        by.set(5);
-        cx.set(6);
+        usageService.incAggregationUsage("a", "x");
+        for (int i = 0; i < 2; i++) {
+            usageService.incAggregationUsage("a", "y");
+        }
+        for (int i = 0; i < 3; i++) {
+            usageService.incAggregationUsage("a", "z");
+        }
+        for (int i = 0; i < 4; i++) {
+            usageService.incAggregationUsage("b", "x");
+        }
+        for (int i = 0; i < 5; i++) {
+            usageService.incAggregationUsage("b", "y");
+        }
+        for (int i = 0; i < 6; i++) {
+            usageService.incAggregationUsage("c", OTHER_SUBTYPE);
+        }
 
         NodeUsage usage = usageService.getUsageStats(discoveryNode, false, true);
         assertThat(usage.getNode(), sameInstance(discoveryNode));
         Map<String, Object> aggsUsage = usage.getAggregationUsage();
         assertThat(aggsUsage, notNullValue());
         assertThat(aggsUsage.size(), equalTo(3));
-        assertThat(((Map<String, Object>)aggsUsage.get("a")).get("x"), equalTo(1L));
-        assertThat(((Map<String, Object>)aggsUsage.get("a")).get("y"), equalTo(2L));
-        assertThat(((Map<String, Object>)aggsUsage.get("a")).get("z"), equalTo(3L));
-        assertThat(((Map<String, Object>)aggsUsage.get("b")).get("x"), equalTo(4L));
-        assertThat(((Map<String, Object>)aggsUsage.get("b")).get("y"), equalTo(5L));
-        assertThat(((Map<String, Object>)aggsUsage.get("c")).get("x"), equalTo(6L));
-
+        assertThat(((Map<String, Object>) aggsUsage.get("a")).get("x"), equalTo(1L));
+        assertThat(((Map<String, Object>) aggsUsage.get("a")).get("y"), equalTo(2L));
+        assertThat(((Map<String, Object>) aggsUsage.get("a")).get("z"), equalTo(3L));
+        assertThat(((Map<String, Object>) aggsUsage.get("b")).get("x"), equalTo(4L));
+        assertThat(((Map<String, Object>) aggsUsage.get("b")).get("y"), equalTo(5L));
+        assertThat(((Map<String, Object>) aggsUsage.get("c")).get(OTHER_SUBTYPE), equalTo(6L));
 
         usage = usageService.getUsageStats(discoveryNode, false, false);
         assertThat(usage.getNode(), sameInstance(discoveryNode));

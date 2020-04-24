@@ -288,4 +288,8 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         return name().toLowerCase(Locale.ROOT);
     }
 
+    @Override
+    public String typeName() {
+        return value();
+    }
 }

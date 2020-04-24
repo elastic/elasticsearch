@@ -37,7 +37,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
@@ -111,8 +111,8 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
                 Histogram.ORDER_FIELD);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        DateHistogramAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        DateHistogramAggregatorFactory.registerAggregators(builder);
     }
 
     private DateIntervalWrapper dateHistogramInterval = new DateIntervalWrapper();
@@ -128,7 +128,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     protected DateHistogramAggregationBuilder(DateHistogramAggregationBuilder clone,
-                                              Builder factoriesBuilder, Map<String, Object> metadata) {
+                                              AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         super(clone, factoriesBuilder, metadata);
         this.dateHistogramInterval = clone.dateHistogramInterval;
         this.offset = clone.offset;
@@ -139,7 +139,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new DateHistogramAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
@@ -520,7 +520,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
-                                                       Builder subFactoriesBuilder) throws IOException {
+                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         final ZoneId tz = timeZone();
         final Rounding rounding = dateHistogramInterval.createRounding(tz, offset);
         final ZoneId rewrittenTimeZone = rewriteTimeZone(queryShardContext);

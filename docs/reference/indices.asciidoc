@@ -47,12 +47,17 @@ index settings, aliases, mappings, and index templates.
 * <<indices-analyze>>
 
 [float]
-[[index-templates]]
+[[index-template-apis]]
 === Index templates:
 * <<indices-templates>>
 * <<indices-delete-template>>
 * <<indices-get-template>>
 * <<indices-template-exists>>
+
+[float]
+[[component-template-apis]]
+=== Component templates:
+* <<component-templates>>
 
 [float]
 [[monitoring]]

@@ -105,9 +105,10 @@ public class SuggestionEntryTests extends ESTestCase {
                 // exclude "options" which contain SearchHits,
                 // on root level of SearchHit fields are interpreted as meta-fields and will be kept
                 Predicate<String> excludeFilter = (
-                        path) -> (path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName()) || path.endsWith("highlight")
-                                || path.endsWith("fields") || path.contains("_source") || path.contains("inner_hits")
+                        path -> path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName()) || path.endsWith("highlight")
+                                || path.contains("fields") || path.contains("_source") || path.contains("inner_hits")
                                 || path.contains("options"));
+
                 mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
             } else {
                 mutated = originalBytes;

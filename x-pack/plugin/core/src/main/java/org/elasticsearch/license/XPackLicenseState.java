@@ -30,6 +30,32 @@ import java.util.function.Predicate;
  */
 public class XPackLicenseState {
 
+    /**
+     * A licensed feature.
+     *
+     * Each value defines the licensed state necessary for the feature to be allowed.
+     */
+    public enum Feature {
+        SECURITY_IP_FILTERING(OperationMode.GOLD, false),
+        SECURITY_AUDITING(OperationMode.GOLD, false),
+        SECURITY_DLS_FLS(OperationMode.PLATINUM, false),
+        SECURITY_ALL_REALMS(OperationMode.PLATINUM, false),
+        SECURITY_STANDARD_REALMS(OperationMode.GOLD, false),
+        SECURITY_CUSTOM_ROLE_PROVIDERS(OperationMode.PLATINUM, true),
+        SECURITY_TOKEN_SERVICE(OperationMode.GOLD, false),
+        SECURITY_API_KEY_SERVICE(OperationMode.MISSING, false),
+        SECURITY_AUTHORIZATION_REALM(OperationMode.PLATINUM, true),
+        SECURITY_AUTHORIZATION_ENGINE(OperationMode.PLATINUM, true);
+
+        final OperationMode minimumOperationMode;
+        final boolean needsActive;
+
+        Feature(OperationMode minimumOperationMode, boolean needsActive) {
+            this.minimumOperationMode = minimumOperationMode;
+            this.needsActive = needsActive;
+        }
+    }
+
     /** Messages for each feature which are printed when the license expires. */
     static final Map<String, String[]> EXPIRATION_MESSAGES;
     static {
@@ -401,75 +427,12 @@ public class XPackLicenseState {
         return checkAgainstStatus(status -> status.active);
     }
 
-    public boolean isIpFilteringAllowed() {
-        return isAllowedByLicense(OperationMode.GOLD, false);
-    }
-
-    public boolean isAuditingAllowed() {
-        return isAllowedByLicense(OperationMode.GOLD, false);
+    public boolean isAllowed(Feature feature) {
+        return isAllowedByLicense(feature.minimumOperationMode, feature.needsActive);
     }
 
     public boolean isStatsAndHealthAllowed() {
         return allowForAllLicenses();
-    }
-
-    /**
-     * Determine if Document Level Security (DLS) and Field Level Security (FLS) should be enabled.
-     * <p>
-     * DLS and FLS are only disabled when the mode is not:
-     * <ul>
-     * <li>{@link OperationMode#PLATINUM} or higher</li>
-     * <li>{@link OperationMode#TRIAL}</li>
-     * </ul>
-     * Note: This does not consider the <em>state</em> of the license so that Security does not suddenly leak information!
-     * i.e. the same DLS guarantee keeps working for existing configuration even after license expires.
-     *
-     * @return {@code true} to enable DLS and FLS. Otherwise {@code false}.
-     */
-    public boolean isDocumentAndFieldLevelSecurityAllowed() {
-        return isAllowedByLicense(OperationMode.PLATINUM, false);
-    }
-
-    public boolean areAllRealmsAllowed() {
-        return isAllowedByLicense(OperationMode.PLATINUM, false);
-    }
-
-    public boolean areStandardRealmsAllowed() {
-        return isAllowedByLicense(OperationMode.GOLD, false);
-    }
-
-    public boolean isCustomRoleProvidersAllowed() {
-        return isAllowedByLicense(OperationMode.PLATINUM, true);
-    }
-
-    /**
-     * Whether the Elasticsearch {@code TokenService} is allowed
-     */
-    public boolean isTokenServiceAllowed() {
-        return isAllowedByLicense(OperationMode.GOLD, false);
-    }
-
-    /**
-     * Whether the Elasticsearch {@code ApiKeyService} is allowed
-     */
-    public boolean isApiKeyServiceAllowed() {
-        return isAllowedByLicense(OperationMode.MISSING, false);
-    }
-
-    /**
-     * Whether "authorization_realms" is allowed
-     * @see org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings
-     */
-    public boolean isAuthorizationRealmAllowed() {
-        return isAllowedByLicense(OperationMode.PLATINUM, true);
-    }
-
-    /**
-     * Whether a custom authorization engine is allowed
-     * @see org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings
-     */
-    public boolean isAuthorizationEngineAllowed() {
-        return isAllowedByLicense(OperationMode.PLATINUM, true);
     }
 
     public boolean isWatcherAllowed() {

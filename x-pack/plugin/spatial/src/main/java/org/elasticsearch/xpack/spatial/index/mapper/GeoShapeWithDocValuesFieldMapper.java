@@ -23,13 +23,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
+import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TypeParsers;
@@ -83,7 +82,7 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
     }
 
     @SuppressWarnings("rawtypes")
-    public static class Builder extends AbstractGeometryFieldMapper.Builder<AbstractGeometryFieldMapper.Builder,
+    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<AbstractShapeGeometryFieldMapper.Builder,
             GeoShapeWithDocValuesFieldMapper> {
         public Builder(String name) {
             super (name, new GeoShapeWithDocValuesFieldType(), new GeoShapeWithDocValuesFieldType());
@@ -93,7 +92,7 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
         public GeoShapeWithDocValuesFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new GeoShapeWithDocValuesFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
-                ignoreZValue(), docValues(), context.indexSettings(),
+                ignoreZValue(), orientation(), docValues(), context.indexSettings(),
                 multiFieldsBuilder.build(this, context), copyTo);
         }
 
@@ -185,11 +184,11 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
         }
     }
 
-    public static final class TypeParser extends AbstractGeometryFieldMapper.TypeParser {
+    public static final class TypeParser extends AbstractShapeGeometryFieldMapper.TypeParser {
 
         @Override
         @SuppressWarnings("rawtypes")
-        protected AbstractGeometryFieldMapper.Builder newBuilder(String name, Map<String, Object> params) {
+        protected AbstractShapeGeometryFieldMapper.Builder newBuilder(String name, Map<String, Object> params) {
             if (params.containsKey(DEPRECATED_PARAMETERS_KEY)) {
                 return new LegacyGeoShapeFieldMapper.Builder(name,
                     (LegacyGeoShapeFieldMapper.DeprecatedParameters)params.get(DEPRECATED_PARAMETERS_KEY));
@@ -199,8 +198,9 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
 
         @Override
         @SuppressWarnings("rawtypes")
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            AbstractGeometryFieldMapper.Builder builder = (AbstractGeometryFieldMapper.Builder) super.parse(name, node, parserContext);
+        public AbstractShapeGeometryFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
+                throws MapperParsingException {
+            AbstractShapeGeometryFieldMapper.Builder builder = super.parse(name, node, parserContext);
             Map<String, Object> params = new HashMap<>();
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -221,9 +221,10 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
 
     public GeoShapeWithDocValuesFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                             Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                                            Explicit<Boolean> ignoreZValue, Explicit<Boolean> docValues, Settings indexSettings,
+                                            Explicit<Boolean> ignoreZValue, Explicit<ShapeBuilder.Orientation> orientation,
+                                            Explicit<Boolean> docValues, Settings indexSettings,
                                             MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, indexSettings,
+        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, orientation, indexSettings,
             multiFields, copyTo);
         this.docValues = docValues;
     }

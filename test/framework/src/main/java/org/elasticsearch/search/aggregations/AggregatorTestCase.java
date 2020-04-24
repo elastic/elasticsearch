@@ -185,7 +185,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     // Make this @Before instead of @BeforeClass so it can call the non-static getSearchPlugins method
     @Before
     public void initValuesSourceRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, getSearchPlugins());
         valuesSourceRegistry = searchModule.getValuesSourceRegistry();
     }
 

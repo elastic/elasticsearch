@@ -356,9 +356,11 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                 long totalBytesRead = 0L;
                 long minBytesRead = Long.MAX_VALUE;
                 long maxBytesRead = Long.MIN_VALUE;
+                long lastReadPosition = 0L;
+                int iterations = between(1, 10);
 
-                for (long i = 1L; i <= randomLongBetween(1L, 10L); i++) {
-                    final long randomPosition = randomLongBetween(1L, input.length() - 1L);
+                for (int i = 1; i <= iterations; i++) {
+                    final long randomPosition = randomValueOtherThan(lastReadPosition, () -> randomLongBetween(1L, input.length() - 1L));
                     input.seek(randomPosition);
 
                     final byte[] readBuffer = new byte[512];
@@ -367,6 +369,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
 
                     // BufferedIndexInput tries to read as much bytes as possible
                     final long bytesRead = Math.min(BufferedIndexInput.bufferSize(ioContext), input.length() - randomPosition);
+                    lastReadPosition = randomPosition + bytesRead;
                     totalBytesRead += bytesRead;
                     minBytesRead = (bytesRead < minBytesRead) ? bytesRead : minBytesRead;
                     maxBytesRead = (bytesRead > maxBytesRead) ? bytesRead : maxBytesRead;

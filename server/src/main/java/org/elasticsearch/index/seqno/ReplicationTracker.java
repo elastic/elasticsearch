@@ -224,7 +224,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     private final double fileBasedRecoveryThreshold;
 
-    private final Consumer<ReplicationGroup> onReplicationGroup;
+    private final Consumer<ReplicationGroup> onReplicationGroupUpdated;
 
     /**
      * Get all retention leases tracked on this shard.
@@ -880,13 +880,13 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * Initialize the global checkpoint service. The specified global checkpoint should be set to the last known global checkpoint, or
      * {@link SequenceNumbers#UNASSIGNED_SEQ_NO}.
      *
-     * @param shardId               the shard ID
-     * @param allocationId          the allocation ID
-     * @param indexSettings         the index settings
-     * @param operationPrimaryTerm  the current primary term
-     * @param globalCheckpoint      the last known global checkpoint for this shard, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO}
-     * @param onSyncRetentionLeases a callback when a new retention lease is created or an existing retention lease expires
-     * @param onReplicationGroup    a callback when the replica group changes
+     * @param shardId                   the shard ID
+     * @param allocationId              the allocation ID
+     * @param indexSettings             the index settings
+     * @param operationPrimaryTerm      the current primary term
+     * @param globalCheckpoint          the last known global checkpoint for this shard, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO}
+     * @param onSyncRetentionLeases     a callback when a new retention lease is created or an existing retention lease expires
+     * @param onReplicationGroupUpdated a callback when the replica group changes
      */
     public ReplicationTracker(
             final ShardId shardId,
@@ -898,7 +898,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             final LongSupplier currentTimeMillisSupplier,
             final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases,
             final Supplier<SafeCommitInfo> safeCommitInfoSupplier,
-            final Consumer<ReplicationGroup> onReplicationGroup) {
+            final Consumer<ReplicationGroup> onReplicationGroupUpdated) {
         super(shardId, indexSettings);
         assert globalCheckpoint >= SequenceNumbers.UNASSIGNED_SEQ_NO : "illegal initial global checkpoint: " + globalCheckpoint;
         this.shardAllocationId = allocationId;
@@ -921,7 +921,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
         this.fileBasedRecoveryThreshold = IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.get(indexSettings.getSettings());
         this.safeCommitInfoSupplier = safeCommitInfoSupplier;
-        this.onReplicationGroup = onReplicationGroup;
+        this.onReplicationGroupUpdated = onReplicationGroupUpdated;
         assert Version.V_EMPTY.equals(indexSettings.getIndexVersionCreated()) == false;
         assert invariant();
     }
@@ -937,9 +937,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     private void updateReplicationGroupAndNotify() {
+        assert Thread.holdsLock(this);
         ReplicationGroup newReplicationGroup = calculateReplicationGroup();
-        onReplicationGroup.accept(newReplicationGroup);
         replicationGroup = newReplicationGroup;
+        onReplicationGroupUpdated.accept(newReplicationGroup);
     }
 
     private ReplicationGroup calculateReplicationGroup() {

@@ -138,8 +138,9 @@ public class ReplicationOperation<
             final long maxSeqNoOfUpdatesOrDeletes = primary.maxSeqNoOfUpdatesOrDeletes();
             assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "seqno_of_updates still uninitialized";
             final ReplicationGroup replicationGroup = primary.getReplicationGroup();
+            final PendingReplicationActions pendingReplicationActions = primary.getPendingReplicationActions();
             markUnavailableShardsAsStale(replicaRequest, replicationGroup);
-            performOnReplicas(replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, replicationGroup);
+            performOnReplicas(replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, replicationGroup, pendingReplicationActions);
         }
         primaryResult.runPostReplicationActions(new ActionListener<>() {
 
@@ -173,7 +174,8 @@ public class ReplicationOperation<
     }
 
     private void performOnReplicas(final ReplicaRequest replicaRequest, final long globalCheckpoint,
-                                   final long maxSeqNoOfUpdatesOrDeletes, final ReplicationGroup replicationGroup) {
+                                   final long maxSeqNoOfUpdatesOrDeletes, final ReplicationGroup replicationGroup,
+                                   final PendingReplicationActions pendingReplicationActions) {
         // for total stats, add number of unassigned shards and
         // number of initializing shards that are not ready yet to receive operations (recovery has not opened engine yet on the target)
         totalShards.addAndGet(replicationGroup.getSkippedShards().size());
@@ -182,19 +184,19 @@ public class ReplicationOperation<
 
         for (final ShardRouting shard : replicationGroup.getReplicationTargets()) {
             if (shard.isSameAllocation(primaryRouting) == false) {
-                performOnReplica(shard, replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes);
+                performOnReplica(shard, replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, pendingReplicationActions);
             }
         }
     }
 
     private void performOnReplica(final ShardRouting shard, final ReplicaRequest replicaRequest,
-                                  final long globalCheckpoint, final long maxSeqNoOfUpdatesOrDeletes) {
+                                  final long globalCheckpoint, final long maxSeqNoOfUpdatesOrDeletes,
+                                  final PendingReplicationActions pendingReplicationActions) {
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] sending op [{}] to replica {} for request [{}]", shard.shardId(), opType, shard, replicaRequest);
         }
         totalShards.incrementAndGet();
         pendingActions.incrementAndGet();
-        PendingReplicationActions pendingReplicationActions = primary.getPendingReplicationActions();
         final ActionListener<ReplicaResponse> replicationListener = new ActionListener<>() {
             @Override
             public void onResponse(ReplicaResponse response) {
@@ -231,42 +233,27 @@ public class ReplicationOperation<
         final RetryableAction<ReplicaResponse> replicationAction = new RetryableAction<>(logger, threadPool, TimeValue.timeValueMillis(50),
             replicaRequest.timeout(), replicationListener) {
 
-            private boolean addedToPending = false;
-
             @Override
             public void tryAction(ActionListener<ReplicaResponse> listener) {
                 replicasProxy.performOn(shard, replicaRequest, primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, listener);
             }
 
             @Override
-            public void onSchedulingRetry() {
-                super.onSchedulingRetry();
-                if (addedToPending == false) {
-                    pendingReplicationActions.addPendingAction(shard.currentNodeId(), this);
-                    addedToPending = true;
-                }
-            }
-
-            @Override
             public void onFinished() {
                 super.onFinished();
-                pendingReplicationActions.removeReplicationAction(shard.currentNodeId(), this);
+                pendingReplicationActions.removeReplicationAction(shard.allocationId(), this);
             }
 
             @Override
             public boolean shouldRetry(Exception e) {
-                // If the node has left the replication group, do not retry
-                if (primary.getReplicationGroup().getReplicaNodeIds().contains(shard.currentNodeId()) == false) {
-                    return false;
-                } else {
-                    final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                    return cause instanceof CircuitBreakingException ||
-                        cause instanceof EsRejectedExecutionException ||
-                        cause instanceof ConnectTransportException;
-                }
+                final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                return cause instanceof CircuitBreakingException ||
+                    cause instanceof EsRejectedExecutionException ||
+                    cause instanceof ConnectTransportException;
             }
         };
 
+        pendingReplicationActions.addPendingAction(shard.allocationId(), replicationAction);
         replicationAction.run();
     }
 

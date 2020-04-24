@@ -113,9 +113,6 @@ public abstract class RetryableAction<Response> {
 
     public abstract boolean shouldRetry(Exception e);
 
-    public void onSchedulingRetry() {
-    }
-
     public void onFinished() {
     }
 
@@ -161,7 +158,6 @@ public abstract class RetryableAction<Response> {
                     if (isDone.get() == false) {
                         final TimeValue delay = TimeValue.timeValueMillis(delayMillis);
                         logger.debug(() -> new ParameterizedMessage("retrying action that failed in {}", delay), e);
-                        onSchedulingRetry();
                         retryTask = threadPool.schedule(runnable, delay, executor);
                     }
                 }

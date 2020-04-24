@@ -21,6 +21,8 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.RetryableAction;
+import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.IndexShardClosedException;
@@ -33,10 +35,11 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 public class PendingReplicationActions implements Consumer<ReplicationGroup>, Releasable {
 
-    private final Map<String, Set<RetryableAction<?>>> onGoingReplicationActions = ConcurrentCollections.newConcurrentMap();
+    private final Map<AllocationId, Set<RetryableAction<?>>> onGoingReplicationActions = ConcurrentCollections.newConcurrentMap();
     private final ShardId shardId;
     private final ThreadPool threadPool;
 
@@ -45,11 +48,11 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
         this.threadPool = threadPool;
     }
 
-    public void addPendingAction(String nodeId, RetryableAction<?> replicationAction) {
-        Set<RetryableAction<?>> ongoingActionsOnNode = onGoingReplicationActions.get(nodeId);
+    public void addPendingAction(AllocationId allocationId, RetryableAction<?> replicationAction) {
+        Set<RetryableAction<?>> ongoingActionsOnNode = onGoingReplicationActions.get(allocationId);
         if (ongoingActionsOnNode != null) {
             ongoingActionsOnNode.add(replicationAction);
-            if (onGoingReplicationActions.containsKey(nodeId) == false) {
+            if (onGoingReplicationActions.containsKey(allocationId) == false) {
                 replicationAction.cancel(new UnavailableShardsException(shardId,
                     "Replica unavailable - replica could have left ReplicationGroup or IndexShard might have closed"));
             }
@@ -59,8 +62,8 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
         }
     }
 
-    public void removeReplicationAction(String nodeId, RetryableAction<?> action) {
-        Set<RetryableAction<?>> ongoingActionsOnNode = onGoingReplicationActions.get(nodeId);
+    public void removeReplicationAction(AllocationId allocationId, RetryableAction<?> action) {
+        Set<RetryableAction<?>> ongoingActionsOnNode = onGoingReplicationActions.get(allocationId);
         if (ongoingActionsOnNode != null) {
             ongoingActionsOnNode.remove(action);
         }
@@ -68,15 +71,16 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
 
     @Override
     public synchronized void accept(ReplicationGroup replicationGroup) {
-        Set<String> newReplicaNodeIds = replicationGroup.getReplicaNodeIds();
+        Set<AllocationId> newTargetAllocationIds = replicationGroup.getReplicationTargets()
+            .stream().map(ShardRouting::allocationId).collect(Collectors.toSet());
 
-        for (String replicaNodeId : newReplicaNodeIds) {
-            onGoingReplicationActions.putIfAbsent(replicaNodeId, ConcurrentCollections.newConcurrentSet());
+        for (AllocationId targetAllocationId : newTargetAllocationIds) {
+            onGoingReplicationActions.putIfAbsent(targetAllocationId, ConcurrentCollections.newConcurrentSet());
         }
         ArrayList<Set<RetryableAction<?>>> toCancel = new ArrayList<>();
-        for (String existingReplicaNodeId : onGoingReplicationActions.keySet()) {
-            if (newReplicaNodeIds.contains(existingReplicaNodeId) == false) {
-                toCancel.add(onGoingReplicationActions.remove(existingReplicaNodeId));
+        for (AllocationId allocationId : onGoingReplicationActions.keySet()) {
+            if (newTargetAllocationIds.contains(allocationId) == false) {
+                toCancel.add(onGoingReplicationActions.remove(allocationId));
             }
         }
 

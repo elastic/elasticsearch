@@ -5,11 +5,10 @@
  */
 package org.elasticsearch.xpack.spatial;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -20,33 +19,25 @@ import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValue
 import java.util.List;
 import java.util.function.Consumer;
 
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SpatialPluginTests extends ESTestCase {
 
-    public void testGeoAggregationsByLicense() {
+    public void testGeoCentroidLicenseCheck() {
         for (License.OperationMode operationMode : License.OperationMode.values()) {
             SpatialPlugin plugin = getPluginWithOperationMode(operationMode);
             ValuesSourceRegistry.Builder registryBuilder = new ValuesSourceRegistry.Builder();
             List<Consumer<ValuesSourceRegistry.Builder>> registrar = plugin.getAggregationExtentions();
             registrar.forEach(c -> c.accept(registryBuilder));
             ValuesSourceRegistry registry = registryBuilder.build();
-            switch (operationMode) {
-                case STANDARD:
-                case BASIC:
-                case MISSING:
-                    assertThat(registry.getAggregator(GeoShapeValuesSourceType.instance(), GeoBoundsAggregationBuilder.NAME),
-                        instanceOf(GeoBoundsAggregatorSupplier.class));
-                    break;
-                case ENTERPRISE:
-                case PLATINUM:
-                case GOLD:
-                case TRIAL:
-                    assertThat(registry.getAggregator(GeoShapeValuesSourceType.instance(), GeoCentroidAggregationBuilder.NAME),
-                        instanceOf(GeoCentroidAggregatorSupplier.class));
-                    break;
-                default:
-                    throw new IllegalArgumentException("unchecked operation mode [" + operationMode + "]");
+            GeoCentroidAggregatorSupplier centroidSupplier = (GeoCentroidAggregatorSupplier) registry.getAggregator(
+                GeoShapeValuesSourceType.instance(), GeoCentroidAggregationBuilder.NAME);
+            if (License.OperationMode.TRIAL != operationMode &&
+                    License.OperationMode.compare(operationMode, License.OperationMode.GOLD) < 0) {
+                ElasticsearchSecurityException exception = expectThrows(ElasticsearchSecurityException.class,
+                    () -> centroidSupplier.build(null, null, null, null, null));
+                assertThat(exception.getMessage(),
+                    equalTo("current license is non-compliant for [geo_centroid aggregation on geo_shape fields]"));
             }
         }
     }

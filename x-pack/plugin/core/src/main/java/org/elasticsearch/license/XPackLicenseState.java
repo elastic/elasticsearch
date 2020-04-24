@@ -45,7 +45,8 @@ public class XPackLicenseState {
         SECURITY_TOKEN_SERVICE(OperationMode.GOLD, false),
         SECURITY_API_KEY_SERVICE(OperationMode.MISSING, false),
         SECURITY_AUTHORIZATION_REALM(OperationMode.PLATINUM, true),
-        SECURITY_AUTHORIZATION_ENGINE(OperationMode.PLATINUM, true);
+        SECURITY_AUTHORIZATION_ENGINE(OperationMode.PLATINUM, true),
+        SPATIAL_GEO_CENTROID(OperationMode.GOLD, true);
 
         final OperationMode minimumOperationMode;
         final boolean needsActive;
@@ -559,10 +560,6 @@ public class XPackLicenseState {
 
     public boolean isSpatialAllowed() {
         return allowForAllLicenses();
-    }
-
-    public boolean isSpatialGoldAllowed() {
-        return isAllowedByLicense(OperationMode.GOLD);
     }
 
     public boolean isAnalyticsAllowed() {

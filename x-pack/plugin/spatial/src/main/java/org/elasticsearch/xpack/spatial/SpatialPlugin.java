@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.geo.GeoPlugin;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -33,7 +34,6 @@ import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeBound
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -73,12 +73,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
 
     @Override
     public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
-        List<Consumer<ValuesSourceRegistry.Builder>> items = new ArrayList<>();
-        items.add(SpatialPlugin::registerGeoShapeBoundsAggregator);
-        if (getLicenseState().isSpatialGoldAllowed()) {
-            items.add(SpatialPlugin::registerGeoShapeCentroidAggregator);
-        }
-        return Collections.unmodifiableList(items);
+        return List.of(this::registerGeoShapeBoundsAggregator, this::registerGeoShapeCentroidAggregator);
     }
 
     @Override
@@ -86,16 +81,21 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
         return Map.of(CircleProcessor.TYPE, new CircleProcessor.Factory());
     }
 
-    public static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {
+    public void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(GeoBoundsAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (GeoBoundsAggregatorSupplier) (name, aggregationContext, parent, valuesSource, wrapLongitude, metadata)
                 -> new GeoShapeBoundsAggregator(name, aggregationContext, parent, (GeoShapeValuesSource) valuesSource,
                 wrapLongitude, metadata));
     }
 
-    public static void registerGeoShapeCentroidAggregator(ValuesSourceRegistry.Builder builder) {
+    public void registerGeoShapeCentroidAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(GeoCentroidAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (GeoCentroidAggregatorSupplier) (name, aggregationContext, parent, valuesSource, metadata)
-                -> new GeoShapeCentroidAggregator(name, aggregationContext, parent, (GeoShapeValuesSource) valuesSource, metadata));
+                -> {
+            if (getLicenseState().isAllowed(XPackLicenseState.Feature.SPATIAL_GEO_CENTROID)) {
+                return new GeoShapeCentroidAggregator(name, aggregationContext, parent, (GeoShapeValuesSource) valuesSource, metadata);
+            }
+                throw LicenseUtils.newComplianceException("geo_centroid aggregation on geo_shape fields");
+            });
     }
 }

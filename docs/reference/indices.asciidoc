@@ -123,6 +123,8 @@ include::indices/template-exists.asciidoc[]
 
 include::indices/open-close.asciidoc[]
 
+include::indices/index-templates.asciidoc[]
+
 include::indices/templates.asciidoc[]
 
 include::indices/put-mapping.asciidoc[]

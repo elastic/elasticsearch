@@ -59,11 +59,9 @@
         body:
           index_patterns: test-*
           "priority": 15,
-            "template": {
-              "settings": {
-                "index.blocks.write": true
-              }
-            }
+          "template":
+            "settings":
+              "index.blocks.write": true
 
 
   - match: {template.settings.index.blocks.write: true}

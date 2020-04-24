@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SimulateIndexTemplateRequestTests extends AbstractWireSerializingTestCase<SimulateIndexTemplateRequest> {
-   
+
     @Override
     protected Writeable.Reader<SimulateIndexTemplateRequest> instanceReader() {
         return SimulateIndexTemplateRequest::new;

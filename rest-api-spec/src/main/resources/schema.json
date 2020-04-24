@@ -130,7 +130,7 @@
             "additionalProperties": false,
             "properties": {
                 "url": {
-                    "type": "string",
+                    "type": ["string", "null"],
                     "format": "uri"
                 },
                 "description": {

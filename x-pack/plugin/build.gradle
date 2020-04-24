@@ -119,6 +119,4 @@ validateRestSpec {
   ignore 'autoscaling.delete_autoscaling_policy.json'
   ignore 'autoscaling.get_autoscaling_policy.json'
   ignore 'autoscaling.put_autoscaling_policy.json'
-  ignore 'ml.validate.json'
-  ignore 'ml.validate_detector.json'
 }

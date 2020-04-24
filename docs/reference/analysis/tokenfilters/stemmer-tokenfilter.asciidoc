@@ -4,8 +4,8 @@
 <titleabbrev>Stemmer</titleabbrev>
 ++++
 
-Provides algorithmic stemming for several languages, some with additional
-variants. For a list of supported languages, see the
+Provides <<algorithmic-stemmers,algorithmic stemming>> for several languages,
+some with additional variants. For a list of supported languages, see the
 <<analysis-stemmer-tokenfilter-language-parm,`language`>> parameter.
 
 When not customized, the filter uses the

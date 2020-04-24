@@ -609,8 +609,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
             assert deletionsInProgress.getEntries().size() == 1 : "only one in-progress deletion allowed per cluster";
             SnapshotDeletionsInProgress.Entry entry = deletionsInProgress.getEntries().get(0);
-            deleteSnapshotsFromRepository(entry.repository(), entry.getSnapshots(), null, entry.repositoryStateId(),
-                    state.nodes().getMinNodeVersion());
+            deleteSnapshotsFromRepository(entry.repository(), entry.getSnapshots(), null, state.nodes().getMinNodeVersion());
         }
     }
 
@@ -1230,7 +1229,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                deleteSnapshotsFromRepository(repoName, snapshotIds, listener, repositoryStateId, newState.nodes().getMinNodeVersion());
+                deleteSnapshotsFromRepository(repoName, snapshotIds, listener, newState.nodes().getMinNodeVersion());
             }
         });
     }
@@ -1295,21 +1294,33 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param repoName          repository name
      * @param snapshotIds       snapshot ids
      * @param listener          listener
-     * @param repositoryStateId the unique id representing the state of the repository at the time the deletion began
      * @param minNodeVersion    minimum node version in the cluster
      */
     private void deleteSnapshotsFromRepository(String repoName, Collection<SnapshotId> snapshotIds, @Nullable ActionListener<Void> listener,
-                                               long repositoryStateId, Version minNodeVersion) {
+                                               Version minNodeVersion) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
             Repository repository = repositoriesService.repository(repoName);
-            repository.getRepositoryData(ActionListener.wrap(repositoryData -> repository.deleteSnapshots(snapshotIds,
-                repositoryStateId,
-                minCompatibleVersion(minNodeVersion, repoName, repositoryData, snapshotIds),
-                ActionListener.wrap(v -> {
-                        logger.info("snapshots {} deleted", snapshotIds);
-                        removeSnapshotDeletionFromClusterState(snapshotIds, null, l);
-                    }, ex -> removeSnapshotDeletionFromClusterState(snapshotIds, ex, l)
-                )), ex -> removeSnapshotDeletionFromClusterState(snapshotIds, ex, l)));
+            repository.getRepositoryData(ActionListener.wrap(repositoryData -> {
+                final Collection<SnapshotId> snapshotIdsInRepo = repositoryData.getSnapshotIds();
+                final Collection<SnapshotId> snapshotIdsToDelete =
+                        snapshotIds.stream().filter(snapshotIdsInRepo::contains).collect(Collectors.toList());
+                if (snapshotIdsToDelete.size() < snapshotIds.size()) {
+                    logger.info("Some snapshots from {} were concurrently deleted already, only deleting {}",
+                            snapshotIds, snapshotIdsToDelete);
+                }
+                if (snapshotIdsToDelete.isEmpty()) {
+                    removeSnapshotDeletionFromClusterState(snapshotIdsToDelete, null, l);
+                    return;
+                }
+                repository.deleteSnapshots(snapshotIdsToDelete,
+                        repositoryData.getGenId(),
+                        minCompatibleVersion(minNodeVersion, repoName, repositoryData, snapshotIdsToDelete),
+                        ActionListener.wrap(v -> {
+                                    logger.info("snapshots {} deleted", snapshotIdsToDelete);
+                                    removeSnapshotDeletionFromClusterState(snapshotIdsToDelete, null, l);
+                                }, ex -> removeSnapshotDeletionFromClusterState(snapshotIdsToDelete, ex, l)
+                        ));
+            }, ex -> removeSnapshotDeletionFromClusterState(snapshotIds, ex, l)));
         }));
     }
 

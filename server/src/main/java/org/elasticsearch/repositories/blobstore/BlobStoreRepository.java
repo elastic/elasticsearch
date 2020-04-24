@@ -498,6 +498,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try {
                 final Map<String, BlobMetadata> rootBlobs = blobContainer().listBlobs();
                 final RepositoryData repositoryData = safeRepositoryData(repositoryStateId, rootBlobs);
+                assert snapshotIds.isEmpty() == false;
+                assert repositoryData.getSnapshotIds().containsAll(snapshotIds) : "Repository data contained snapshots " +
+                        repositoryData.getSnapshotIds() + " but tried to delete " + snapshotIds;
                 // Cache the indices that were found before writing out the new index-N blob so that a stuck master will never
                 // delete an index that was created by another master node after writing this index-N blob.
                 final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children();

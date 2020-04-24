@@ -143,8 +143,9 @@ public interface Repository extends LifecycleComponent {
     /**
      * Deletes snapshots
      *
-     * @param snapshotIds           snapshot ids
+     * @param snapshotIds           snapshot ids to delete (must not be empty)
      * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot deletion began
+     *                              (repository is expected to contain all given {@code snapshotIds} at this generation)
      * @param repositoryMetaVersion version of the updated repository metadata to write
      * @param listener              completion listener
      */

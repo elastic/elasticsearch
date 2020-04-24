@@ -77,12 +77,12 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final SignificanceHeuristic significanceHeuristic;
 
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(SignificantTermsAggregationBuilder.NAME,
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(SignificantTermsAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
             SignificantTermsAggregatorFactory.bytesSupplier());
 
-        valuesSourceRegistry.register(SignificantTermsAggregationBuilder.NAME,
+        builder.register(SignificantTermsAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.NUMERIC),
             SignificantTermsAggregatorFactory.numericSupplier());
     }

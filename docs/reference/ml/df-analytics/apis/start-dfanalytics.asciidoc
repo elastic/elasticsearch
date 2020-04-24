@@ -64,6 +64,17 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
 (Optional, <<time-units,time units>>) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=timeout-start]
 
+[[ml-start-dfanalytics-response-body]]
+==== {api-response-body-title}
+
+`acknowledged`::
+  (boolean) For a successful response, this value is always `true`. On failure, an
+  exception is returned instead.
+
+`node`::
+  (string) The ID of the node that the job was started on.
+  If the job is allowed to open lazily and has not yet been assigned to a node, this value is an empty string.
+
 [[ml-start-dfanalytics-example]]
 ==== {api-examples-title}
 
@@ -80,6 +91,7 @@ When the {dfanalytics-job} starts, you receive the following results:
 [source,console-result]
 ----
 {
-  "acknowledged" : true
+  "acknowledged" : true,
+  "node" : "node-1"
 }
 ----

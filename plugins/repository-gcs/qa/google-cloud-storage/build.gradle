@@ -43,7 +43,8 @@ restResources {
   }
 }
 
-testFixtures.useFixture(':test:fixtures:gcs-fixture')
+testFixtures.useFixture(':test:fixtures:gcs-fixture', 'gcs-fixture')
+testFixtures.useFixture(':test:fixtures:gcs-fixture', 'gcs-fixture-third-party')
 boolean useFixture = false
 
 String gcsServiceAccount = System.getenv("google_storage_service_account")

@@ -51,9 +51,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
     public void testStatusApiConsistency() {
         Client client = client();
 
-        logger.info("-->  creating repository");
-        assertAcked(client.admin().cluster().preparePutRepository("test-repo").setType("fs").setSettings(
-            Settings.builder().put("location", randomRepoPath()).build()));
+        createRepository("test-repo", "fs", randomRepoPath());
 
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
         ensureGreen();
@@ -125,10 +123,8 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
     public void testExceptionOnMissingSnapBlob() throws IOException {
         disableRepoConsistencyCheck("This test intentionally corrupts the repository");
 
-        logger.info("--> creating repository");
         final Path repoPath = randomRepoPath();
-        assertAcked(client().admin().cluster().preparePutRepository("test-repo").setType("fs").setSettings(
-            Settings.builder().put("location", repoPath).build()));
+        createRepository("test-repo", "fs", repoPath);
 
         logger.info("--> snapshot");
         final CreateSnapshotResponse response =
@@ -145,10 +141,8 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
     public void testExceptionOnMissingShardLevelSnapBlob() throws IOException {
         disableRepoConsistencyCheck("This test intentionally corrupts the repository");
 
-        logger.info("--> creating repository");
         final Path repoPath = randomRepoPath();
-        assertAcked(client().admin().cluster().preparePutRepository("test-repo").setType("fs").setSettings(
-            Settings.builder().put("location", repoPath).build()));
+        createRepository("test-repo", "fs", repoPath);
 
         createIndex("test-idx-1");
         ensureGreen();
@@ -175,9 +169,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testGetSnapshotsWithoutIndices() {
-        logger.info("--> creating repository");
-        assertAcked(client().admin().cluster().preparePutRepository("test-repo").setType("fs").setSettings(
-            Settings.builder().put("location", randomRepoPath()).build()));
+        createRepository("test-repo", "fs", randomRepoPath());
 
         logger.info("--> snapshot");
         final SnapshotInfo snapshotInfo =

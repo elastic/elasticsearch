@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.significant;
 
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
@@ -62,11 +61,6 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
         }
         return new SignificantLongTerms(name, requiredSize, 1L, metadata, format, subsetSize,
                 supersetSize, significanceHeuristic, buckets);
-    }
-
-    @Override
-    protected Writeable.Reader<InternalSignificantTerms<?, ?>> instanceReader() {
-        return SignificantLongTerms::new;
     }
 
     @Override

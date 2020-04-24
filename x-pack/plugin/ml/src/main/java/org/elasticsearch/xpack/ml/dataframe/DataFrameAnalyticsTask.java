@@ -197,7 +197,9 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
         }
     }
 
-    public void setFailed(String reason) {
+    public void setFailed(Exception error) {
+        LOGGER.error(new ParameterizedMessage("[{}] Setting task to failed", taskParams.getId()), error);
+        String reason = ExceptionsHelper.unwrapCause(error).getMessage();
         DataFrameAnalyticsTaskState newTaskState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.FAILED,
                 getAllocationId(), reason);
         updatePersistentTaskState(

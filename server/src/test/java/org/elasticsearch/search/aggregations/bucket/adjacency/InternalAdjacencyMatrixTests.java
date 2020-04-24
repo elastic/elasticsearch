@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.adjacency;
 
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
@@ -92,11 +91,6 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
                     (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
         }
         assertEquals(expectedCounts, actualCounts);
-    }
-
-    @Override
-    protected Reader<InternalAdjacencyMatrix> instanceReader() {
-        return InternalAdjacencyMatrix::new;
     }
 
     @Override

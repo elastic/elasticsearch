@@ -13,6 +13,7 @@ There are several thread pools, but the important ones include:
     For generic operations (for example, background node discovery).
     Thread pool type is `scaling`.
 
+[[search-threadpool]]
 `search`::
     For count/search/suggest operations. Thread pool type is
     `fixed` with a size of `int((`<<node.processors,

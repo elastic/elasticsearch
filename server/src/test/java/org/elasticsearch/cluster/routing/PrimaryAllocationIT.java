@@ -78,7 +78,8 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -304,7 +305,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
 
         Set<String> newHistoryUUIds = Stream.of(shardStats)
             .map(shard -> shard.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY)).collect(Collectors.toSet());
-        assertThat(newHistoryUUIds, everyItem(not(isIn(historyUUIDs))));
+        assertThat(newHistoryUUIds, everyItem(is(not(in(historyUUIDs)))));
         assertThat(newHistoryUUIds, hasSize(1));
     }
 
@@ -539,7 +540,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             Set<String> selectedPartition = replicasSide1.contains(newPrimaryNode) ? replicasSide1 : replicasSide2;
             assertThat(shardRoutingTable.activeShards(), hasSize(selectedPartition.size()));
             for (ShardRouting activeShard : shardRoutingTable.activeShards()) {
-                assertThat(state.getRoutingNodes().node(activeShard.currentNodeId()).node().getName(), isIn(selectedPartition));
+                assertThat(state.getRoutingNodes().node(activeShard.currentNodeId()).node().getName(), is(in(selectedPartition)));
             }
             assertThat(state.metadata().index("test").inSyncAllocationIds(shardId.id()), hasSize(numberOfReplicas + 1));
         }, 1, TimeUnit.MINUTES);

@@ -15,11 +15,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
@@ -42,6 +44,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -102,8 +105,8 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
     public void testProcess_GivenEmptyResults() {
         givenDataFrameRows(2);
         givenProcessResults(Arrays.asList(
-            new AnalyticsResult(null, 50, null, null, null, null, null),
-            new AnalyticsResult(null, 100, null, null, null, null, null)));
+            new AnalyticsResult(null, null,null, null, null, null, null),
+            new AnalyticsResult(null, null, null, null, null, null, null)));
         AnalyticsResultProcessor resultProcessor = createResultProcessor();
 
         resultProcessor.process(process);
@@ -118,8 +121,8 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         givenDataFrameRows(2);
         RowResults rowResults1 = mock(RowResults.class);
         RowResults rowResults2 = mock(RowResults.class);
-        givenProcessResults(Arrays.asList(new AnalyticsResult(rowResults1, 50, null, null, null, null, null),
-            new AnalyticsResult(rowResults2, 100, null, null, null, null, null)));
+        givenProcessResults(Arrays.asList(new AnalyticsResult(rowResults1, null,null, null, null, null, null),
+            new AnalyticsResult(rowResults2, null, null, null, null, null, null)));
         AnalyticsResultProcessor resultProcessor = createResultProcessor();
 
         resultProcessor.process(process);
@@ -136,8 +139,8 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         givenDataFrameRows(2);
         RowResults rowResults1 = mock(RowResults.class);
         RowResults rowResults2 = mock(RowResults.class);
-        givenProcessResults(Arrays.asList(new AnalyticsResult(rowResults1, 50, null, null, null, null, null),
-            new AnalyticsResult(rowResults2, 100, null, null, null, null, null)));
+        givenProcessResults(Arrays.asList(new AnalyticsResult(rowResults1, null,null, null, null, null, null),
+            new AnalyticsResult(rowResults2, null, null, null, null, null, null)));
 
         doThrow(new RuntimeException("some failure")).when(dataFrameRowsJoiner).processRowResults(any(RowResults.class));
 
@@ -208,6 +211,19 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         verify(auditor).info(eq(JOB_ID), auditCaptor.capture());
         assertThat(auditCaptor.getValue(), containsString("Stored trained model with id [" + JOB_ID));
         Mockito.verifyNoMoreInteractions(auditor);
+    }
+
+    public void testGetPredictionFieldType() {
+        List<ExtractedField> extractedFieldList = Arrays.asList(
+            new DocValueField("foo", Collections.emptySet()),
+            new DocValueField("bar", Set.of("keyword")),
+            new DocValueField("baz", Set.of("long")),
+            new DocValueField("bingo", Set.of("boolean")));
+        AnalyticsResultProcessor resultProcessor = createResultProcessor(extractedFieldList);
+        assertThat(resultProcessor.getPredictionFieldType(new Classification("foo")), equalTo(PredictionFieldType.STRING));
+        assertThat(resultProcessor.getPredictionFieldType(new Classification("bar")), equalTo(PredictionFieldType.STRING));
+        assertThat(resultProcessor.getPredictionFieldType(new Classification("baz")), equalTo(PredictionFieldType.NUMBER));
+        assertThat(resultProcessor.getPredictionFieldType(new Classification("bingo")), equalTo(PredictionFieldType.BOOLEAN));
     }
 
     @SuppressWarnings("unchecked")

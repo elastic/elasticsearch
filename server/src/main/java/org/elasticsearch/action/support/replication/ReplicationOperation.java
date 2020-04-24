@@ -230,6 +230,7 @@ public class ReplicationOperation<
             }
         };
 
+        final String allocationId = shard.allocationId().getId();
         final RetryableAction<ReplicaResponse> replicationAction = new RetryableAction<>(logger, threadPool, TimeValue.timeValueMillis(50),
             replicaRequest.timeout(), replicationListener) {
 
@@ -241,7 +242,7 @@ public class ReplicationOperation<
             @Override
             public void onFinished() {
                 super.onFinished();
-                pendingReplicationActions.removeReplicationAction(shard.allocationId(), this);
+                pendingReplicationActions.removeReplicationAction(allocationId, this);
             }
 
             @Override
@@ -253,7 +254,7 @@ public class ReplicationOperation<
             }
         };
 
-        pendingReplicationActions.addPendingAction(shard.allocationId(), replicationAction);
+        pendingReplicationActions.addPendingAction(allocationId, replicationAction);
         replicationAction.run();
     }
 

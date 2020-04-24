@@ -81,6 +81,10 @@ public class ReplicationGroup {
         return inSyncAllocationIds;
     }
 
+    public Set<String> getTrackedAllocationIds() {
+        return trackedAllocationIds;
+    }
+
     /**
      * Returns the set of shard allocation ids that are in the in-sync set but have no assigned routing entry
      */

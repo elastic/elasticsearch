@@ -21,8 +21,6 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.RetryableAction;
-import org.elasticsearch.cluster.routing.AllocationId;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.IndexShardClosedException;
@@ -35,11 +33,10 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 public class PendingReplicationActions implements Consumer<ReplicationGroup>, Releasable {
 
-    private final Map<AllocationId, Set<RetryableAction<?>>> onGoingReplicationActions = ConcurrentCollections.newConcurrentMap();
+    private final Map<String, Set<RetryableAction<?>>> onGoingReplicationActions = ConcurrentCollections.newConcurrentMap();
     private final ShardId shardId;
     private final ThreadPool threadPool;
 
@@ -48,7 +45,7 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
         this.threadPool = threadPool;
     }
 
-    public void addPendingAction(AllocationId allocationId, RetryableAction<?> replicationAction) {
+    public void addPendingAction(String allocationId, RetryableAction<?> replicationAction) {
         Set<RetryableAction<?>> ongoingActionsOnNode = onGoingReplicationActions.get(allocationId);
         if (ongoingActionsOnNode != null) {
             ongoingActionsOnNode.add(replicationAction);
@@ -62,7 +59,7 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
         }
     }
 
-    public void removeReplicationAction(AllocationId allocationId, RetryableAction<?> action) {
+    public void removeReplicationAction(String allocationId, RetryableAction<?> action) {
         Set<RetryableAction<?>> ongoingActionsOnNode = onGoingReplicationActions.get(allocationId);
         if (ongoingActionsOnNode != null) {
             ongoingActionsOnNode.remove(action);
@@ -71,15 +68,14 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
 
     @Override
     public synchronized void accept(ReplicationGroup replicationGroup) {
-        Set<AllocationId> newTargetAllocationIds = replicationGroup.getReplicationTargets()
-            .stream().map(ShardRouting::allocationId).collect(Collectors.toSet());
+        Set<String> trackedAllocationIds = replicationGroup.getTrackedAllocationIds();
 
-        for (AllocationId targetAllocationId : newTargetAllocationIds) {
+        for (String targetAllocationId : trackedAllocationIds) {
             onGoingReplicationActions.putIfAbsent(targetAllocationId, ConcurrentCollections.newConcurrentSet());
         }
         ArrayList<Set<RetryableAction<?>>> toCancel = new ArrayList<>();
-        for (AllocationId allocationId : onGoingReplicationActions.keySet()) {
-            if (newTargetAllocationIds.contains(allocationId) == false) {
+        for (String allocationId : onGoingReplicationActions.keySet()) {
+            if (trackedAllocationIds.contains(allocationId) == false) {
                 toCancel.add(onGoingReplicationActions.remove(allocationId));
             }
         }

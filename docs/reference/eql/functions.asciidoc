@@ -9,6 +9,7 @@ experimental::[]
 {es} supports the following EQL functions:
 
 * <<eql-fn-between>>
+* <<eql-fn-cidrmatch>>
 * <<eql-fn-endswith>>
 * <<eql-fn-indexof>>
 * <<eql-fn-length>>
@@ -126,6 +127,55 @@ in regular expressions. Defaults to `false`.
 If `true`, matching is case-sensitive. Defaults to `false`.
 
 *Returns:* string or `null`
+====
+
+[discrete]
+[[eql-fn-cidrmatch]]
+==== `cidrMatch`
+
+Returns `true` if an IP address is contained in one or more provided
+https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing[CIDR] blocks.
+
+[%collapsible]
+====
+*Example*
+
+[source,eql]
+----
+// source.address = "192.168.152.12"
+cidrMatch(source.address, "192.168.0.0/16")               // returns true
+cidrMatch(source.address, "192.168.0.0/16", "10.0.0.0/8") // returns true
+cidrMatch(source.address, "10.0.0.0/8")                   // returns false
+cidrMatch(source.address, "10.0.0.0/8", "10.128.0.0/9")   // returns false
+
+// null handling
+cidrMatch(null, "10.0.0.0/8")                             // returns null
+cidrMatch(source.address, null)                           // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+`cidrMatch(<ip_address>, <cidr_block>[, ...])`
+----
+
+*Parameters*
+
+`<ip_address>`::
+(Required, string or `null`)
+IP address. Supports
+https://en.wikipedia.org/wiki/IPv4[IPv4] and
+https://en.wikipedia.org/wiki/IPv6[IPv6] addresses. If `null`, the function
+returns `null`.
++
+If using a field as the argument, this parameter supports only the <<ip,`ip`>>
+field datatype.
+
+`<cidr_block>`::
+(Required{multi-arg}, string or `null`)
+CIDR block you wish to search. If `null`, the function returns `null`.
+
+*Returns:* boolean or `null`
 ====
 
 [discrete]

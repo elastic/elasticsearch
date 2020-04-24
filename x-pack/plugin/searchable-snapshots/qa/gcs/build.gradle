@@ -61,10 +61,6 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
   serviceAccountFile = new File(gcsServiceAccount)
 }
 
-def encodedCredentials = {
-  Base64.encoder.encodeToString(Files.readAllBytes(serviceAccountFile.toPath()))
-}
-
 /** A service account file that points to the Google Cloud Storage service emulated by the fixture **/
 task createServiceAccountFile() {
   doLast {
@@ -105,13 +101,21 @@ processTestResources {
 if (useFixture) {
   apply plugin: 'elasticsearch.test.fixtures'
   testFixtures.useFixture(fixture.path, 'gcs-fixture-other')
+} else {
+  gradle.projectsEvaluated {
+    def repositoryPluginCheckTask = repositoryPlugin.tasks.findByName('check')
+    if (repositoryPluginCheckTask == null) {
+      throw new GradleException('Could not find task \'check\' in repository plugin project')
+    }
+    repositoryPluginCheckTask.dependsOn(project.tasks.check)
+  }
 }
 
 integTest {
   dependsOn repositoryPlugin.bundlePlugin
   runner {
     systemProperty 'test.gcs.bucket', gcsBucket
-    systemProperty 'test.gcs.base_path', gcsBasePath + "/searchable_snapshots_tests"
+    systemProperty 'test.gcs.base_path', gcsBasePath + "_searchable_snapshots_tests"
   }
 }
 

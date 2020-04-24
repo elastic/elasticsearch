@@ -57,13 +57,21 @@ if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSas
 if (useFixture) {
   apply plugin: 'elasticsearch.test.fixtures'
   testFixtures.useFixture(fixture.path, 'azure-fixture-other')
+} else {
+  gradle.projectsEvaluated {
+    def repositoryPluginCheckTask = repositoryPlugin.tasks.findByName('check')
+    if (repositoryPluginCheckTask == null) {
+      throw new GradleException('Could not find task \'check\' in repository plugin project')
+    }
+    repositoryPluginCheckTask.dependsOn(project.tasks.check)
+  }
 }
 
 integTest {
   dependsOn repositoryPlugin.bundlePlugin
   runner {
     systemProperty 'test.azure.container', azureContainer
-    systemProperty 'test.azure.base_path', azureBasePath + "/searchable_snapshots_tests"
+    systemProperty 'test.azure.base_path', azureBasePath + "_searchable_snapshots_tests"
   }
 }
 

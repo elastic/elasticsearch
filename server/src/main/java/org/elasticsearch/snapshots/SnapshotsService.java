@@ -1308,18 +1308,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     logger.info("Some snapshots from {} were concurrently deleted already, only deleting {}",
                             snapshotIds, snapshotIdsToDelete);
                 }
-                if (snapshotIdsToDelete.isEmpty()) {
+                final ActionListener<Void> deleteFromRepoListener = ActionListener.wrap(v -> {
+                    logger.info("snapshots {} deleted", snapshotIdsToDelete);
                     removeSnapshotDeletionFromClusterState(snapshotIdsToDelete, null, l);
-                    return;
+                }, ex -> removeSnapshotDeletionFromClusterState(snapshotIdsToDelete, ex, l));
+                if (snapshotIdsToDelete.isEmpty()) {
+                    deleteFromRepoListener.onResponse(null);
+                } else {
+                    repository.deleteSnapshots(snapshotIdsToDelete, repositoryData.getGenId(),
+                            minCompatibleVersion(minNodeVersion, repoName, repositoryData, snapshotIdsToDelete), deleteFromRepoListener);
                 }
-                repository.deleteSnapshots(snapshotIdsToDelete,
-                        repositoryData.getGenId(),
-                        minCompatibleVersion(minNodeVersion, repoName, repositoryData, snapshotIdsToDelete),
-                        ActionListener.wrap(v -> {
-                                    logger.info("snapshots {} deleted", snapshotIdsToDelete);
-                                    removeSnapshotDeletionFromClusterState(snapshotIdsToDelete, null, l);
-                                }, ex -> removeSnapshotDeletionFromClusterState(snapshotIdsToDelete, ex, l)
-                        ));
             }, ex -> removeSnapshotDeletionFromClusterState(snapshotIds, ex, l)));
         }));
     }

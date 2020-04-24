@@ -3,8 +3,8 @@ apply plugin: 'base'
 task buildDockerBuildContext(type: Tar) {
   extension = 'tar.gz'
   compression = Compression.GZIP
-  archiveClassifier = "docker-build-context"
-  archiveBaseName = "elasticsearch-aarch64"
+  archiveClassifier = "docker-build-context-aarch64"
+  archiveBaseName = "elasticsearch"
   with dockerBuildContext("aarch64", false, false)
 }
 

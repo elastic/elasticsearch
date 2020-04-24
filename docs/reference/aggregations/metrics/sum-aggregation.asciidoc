@@ -32,9 +32,9 @@ Resulting in:
 --------------------------------------------------
 {
     ...
-    "aggregations": {
-        "hat_prices": {
-           "value": 450.0
+    "aggregations" : {
+        "hat_prices" : {
+           "value" : 450.0
         }
     }
 }
@@ -160,6 +160,7 @@ POST /sales/_search?size=0
 --------------------------------------------------
 // TEST[setup:sales]
 
+[[search-aggregations-metrics-sum-aggregation-histogram-fields]]
 ==== Histogram fields
 
 When the sums are computed on <<histogram,histogram fields>>, the result of the aggregation is the sum of all elements in the `values`
@@ -172,7 +173,7 @@ For example, if we have the following index that stores pre-aggregated histogram
 PUT metrics_index/_doc/1
 {
   "network.name" : "net-1",
-  "my_histogram" : {
+  "latency_histo" : {
       "values" : [0.1, 0.2, 0.3, 0.4, 0.5], <1>
       "counts" : [3, 7, 23, 12, 6] <2>
    }
@@ -202,10 +203,11 @@ in the `counts` array <2>. Eventually, it will add all values for all histograms
 --------------------------------------------------
 {
     ...
-    "aggregations": {
-        "total_latency": {
-           "value": 28.8
+    "aggregations" : {
+        "total_latency" : {
+           "value" : 28.8
         }
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[skip:test not setup]

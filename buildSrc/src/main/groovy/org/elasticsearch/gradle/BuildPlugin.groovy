@@ -695,7 +695,8 @@ class BuildPlugin implements Plugin<Project> {
                 // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
                 nonInputProperties.systemProperty('java.io.tmpdir', test.workingDir.toPath().resolve('temp'))
 
-                nonInputProperties.systemProperty('compiler.java', "${-> BuildParams.compilerJavaVersion.majorVersion}")
+                nonInputProperties.systemProperty('compiler.java', BuildParams.compilerJavaVersion.majorVersion)
+                nonInputProperties.systemProperty('runtime.java', BuildParams.runtimeJavaVersion.majorVersion)
 
                 // TODO: remove setting logging level via system property
                 test.systemProperty 'tests.logger.level', 'WARN'

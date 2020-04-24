@@ -28,7 +28,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class RemoteConnectionManager implements ConnectionManager {
+public final class RemoteConnectionManager implements ConnectionManager {
 
     private final String clusterAlias;
     private final ConnectionManager delegate;
@@ -76,7 +76,7 @@ public class RemoteConnectionManager implements ConnectionManager {
     @Override
     public Transport.Connection getConnection(DiscoveryNode node) {
         try {
-            return delegate.getConnection(node);
+            return new RemoteConnection(delegate.getConnection(node), clusterAlias);
         } catch (NodeNotConnectedException e) {
             return new ProxyConnection(getAnyRemoteConnection(), node);
         }
@@ -104,7 +104,8 @@ public class RemoteConnectionManager implements ConnectionManager {
         } else {
             long curr;
             while ((curr = counter.incrementAndGet()) == Long.MIN_VALUE);
-            return localConnections.get(Math.floorMod(curr, localConnections.size()));
+            final Transport.Connection connection = localConnections.get(Math.floorMod(curr, localConnections.size()));
+            return new RemoteConnection(connection, clusterAlias);
         }
     }
 
@@ -149,7 +150,7 @@ public class RemoteConnectionManager implements ConnectionManager {
         private final Transport.Connection connection;
         private final DiscoveryNode targetNode;
 
-        private ProxyConnection(Transport.Connection connection, DiscoveryNode targetNode) {
+        private ProxyConnection(Transport.Connection connection,  DiscoveryNode targetNode) {
             this.connection = connection;
             this.targetNode = targetNode;
         }
@@ -157,6 +158,11 @@ public class RemoteConnectionManager implements ConnectionManager {
         @Override
         public DiscoveryNode getNode() {
             return targetNode;
+        }
+
+        @Override
+        public String clusterAlias() {
+            return connection.clusterAlias();
         }
 
         @Override
@@ -184,6 +190,57 @@ public class RemoteConnectionManager implements ConnectionManager {
         @Override
         public Version getVersion() {
             return connection.getVersion();
+        }
+    }
+
+    private static class RemoteConnection implements Transport.Connection {
+        private final Transport.Connection connection;
+        private final String clusterAlias;
+
+        RemoteConnection(Transport.Connection connection, String clusterAlias) {
+            this.connection = connection;
+            this.clusterAlias = clusterAlias;
+        }
+
+        @Override
+        public DiscoveryNode getNode() {
+            return connection.getNode();
+        }
+
+        @Override
+        public String clusterAlias() {
+            return clusterAlias;
+        }
+
+        @Override
+        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+            throws IOException, TransportException {
+            connection.sendRequest(requestId, action, request, options);
+        }
+
+        @Override
+        public void addCloseListener(ActionListener<Void> listener) {
+            connection.addCloseListener(listener);
+        }
+
+        @Override
+        public boolean isClosed() {
+            return connection.isClosed();
+        }
+
+        @Override
+        public Version getVersion() {
+            return connection.getVersion();
+        }
+
+        @Override
+        public Object getCacheKey() {
+            return connection.getCacheKey();
+        }
+
+        @Override
+        public void close() {
+            connection.close();
         }
     }
 }

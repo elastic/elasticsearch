@@ -412,10 +412,6 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             assertThat(response.getTaskFailures().size() + response.getTasks().size(), lessThanOrEqualTo(1));
         }
 
-        for (int i = 1; i < testNodes.length; i++) {
-            assertEquals("No bans on the node " + i, 0, testNodes[i].transportService.getTaskManager().getBanCount());
-        }
-
         // Close the first node
         testNodes[0].close();
 

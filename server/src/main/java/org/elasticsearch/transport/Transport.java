@@ -97,6 +97,13 @@ public interface Transport extends LifecycleComponent {
         DiscoveryNode getNode();
 
         /**
+         * Returns the cluster alias of the target cluster if this is a cross cluster connection; otherwise, return null.
+         */
+        default String clusterAlias() {
+            return null;
+        }
+
+        /**
          * Sends the request to the node this connection is associated with
          * @param requestId see {@link ResponseHandlers#add(ResponseContext)} for details
          * @param action the action to execute

@@ -63,6 +63,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -392,7 +393,7 @@ public class TransportSearchActionTests extends ESTestCase {
             AtomicReference<Exception> failure = new AtomicReference<>();
             LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
                 ActionListener.wrap(r -> fail("no response expected"), failure::set), latch);
-            TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider,
+            TransportSearchAction.ccsRemoteReduce(TaskId.EMPTY_TASK_ID, searchRequest, localIndices, remoteIndicesByCluster, timeProvider,
                     emptyReduceContextBuilder(), remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
             if (localIndices == null) {
                 assertNull(setOnce.get());
@@ -437,8 +438,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicReference<SearchResponse> response = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
                     ActionListener.wrap(response::set, e -> fail("no failures expected")), latch);
-                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider,
-                        emptyReduceContextBuilder(), remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
+                TransportSearchAction.ccsRemoteReduce(TaskId.EMPTY_TASK_ID, searchRequest, localIndices, remoteIndicesByCluster,
+                    timeProvider, emptyReduceContextBuilder(), remoteClusterService, threadPool, listener,
+                    (r, l) -> setOnce.set(Tuple.tuple(r, l)));
                 if (localIndices == null) {
                     assertNull(setOnce.get());
                 } else {
@@ -463,8 +465,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicReference<Exception> failure = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
                     ActionListener.wrap(r -> fail("no response expected"), failure::set), latch);
-                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider,
-                        emptyReduceContextBuilder(), remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
+                TransportSearchAction.ccsRemoteReduce(TaskId.EMPTY_TASK_ID, searchRequest, localIndices, remoteIndicesByCluster,
+                    timeProvider, emptyReduceContextBuilder(), remoteClusterService, threadPool, listener,
+                    (r, l) -> setOnce.set(Tuple.tuple(r, l)));
                 if (localIndices == null) {
                     assertNull(setOnce.get());
                 } else {
@@ -510,8 +513,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicReference<Exception> failure = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
                     ActionListener.wrap(r -> fail("no response expected"), failure::set), latch);
-                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider,
-                        emptyReduceContextBuilder(), remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
+                TransportSearchAction.ccsRemoteReduce(TaskId.EMPTY_TASK_ID, searchRequest, localIndices, remoteIndicesByCluster,
+                    timeProvider, emptyReduceContextBuilder(), remoteClusterService, threadPool, listener,
+                    (r, l) -> setOnce.set(Tuple.tuple(r, l)));
                 if (localIndices == null) {
                     assertNull(setOnce.get());
                 } else {
@@ -539,8 +543,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicReference<SearchResponse> response = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
                     ActionListener.wrap(response::set, e -> fail("no failures expected")), latch);
-                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider,
-                        emptyReduceContextBuilder(), remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
+                TransportSearchAction.ccsRemoteReduce(TaskId.EMPTY_TASK_ID, searchRequest, localIndices, remoteIndicesByCluster,
+                    timeProvider, emptyReduceContextBuilder(), remoteClusterService, threadPool, listener,
+                    (r, l) -> setOnce.set(Tuple.tuple(r, l)));
                 if (localIndices == null) {
                     assertNull(setOnce.get());
                 } else {
@@ -579,8 +584,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicReference<SearchResponse> response = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
                     ActionListener.wrap(response::set, e -> fail("no failures expected")), latch);
-                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider,
-                        emptyReduceContextBuilder(), remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
+                TransportSearchAction.ccsRemoteReduce(TaskId.EMPTY_TASK_ID, searchRequest, localIndices, remoteIndicesByCluster,
+                    timeProvider, emptyReduceContextBuilder(), remoteClusterService, threadPool, listener,
+                    (r, l) -> setOnce.set(Tuple.tuple(r, l)));
                 if (localIndices == null) {
                     assertNull(setOnce.get());
                 } else {

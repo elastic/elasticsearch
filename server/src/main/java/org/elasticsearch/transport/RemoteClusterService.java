@@ -48,6 +48,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -175,7 +176,9 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * @throws IllegalArgumentException if the remote cluster is unknown
      */
     public Transport.Connection getConnection(DiscoveryNode node, String cluster) {
-        return getRemoteClusterConnection(cluster).getConnection(node);
+        final Transport.Connection connection = getRemoteClusterConnection(cluster).getConnection(node);
+        assert Objects.equals(connection.clusterAlias(), cluster) : connection.clusterAlias() + " != " + cluster;
+        return connection;
     }
 
     /**
@@ -194,7 +197,9 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     }
 
     public Transport.Connection getConnection(String cluster) {
-        return getRemoteClusterConnection(cluster).getConnection();
+        final Transport.Connection connection = getRemoteClusterConnection(cluster).getConnection();
+        assert Objects.equals(connection.clusterAlias(), cluster) : connection.clusterAlias() + " != " + cluster;
+        return connection;
     }
 
     RemoteClusterConnection getRemoteClusterConnection(String cluster) {

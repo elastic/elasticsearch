@@ -71,7 +71,6 @@ public class OutlierDetectionWithMissingFieldsIT extends MlNativeDataFrameAnalyt
         String id = "test_outlier_detection_with_missing_fields";
         DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", null,
             new OutlierDetection.Builder().build());
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(id);

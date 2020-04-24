@@ -56,6 +56,10 @@
         "type":"string",
         "description":"The field to use as default where no field prefix is given in the query string"
       },
+      "fields": {
+        "type":"list",
+        "description":"A comma-separated list of fields to retrieve as part of each hit"
+      },
       "explain":{
         "type":"boolean",
         "description":"Specify whether to return detailed information about score computation as part of a hit"

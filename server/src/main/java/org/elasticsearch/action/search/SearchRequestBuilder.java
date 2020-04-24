@@ -303,6 +303,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return addDocValueField(name, null);
     }
 
+    public SearchRequestBuilder addFetchField(String name) {
+        sourceBuilder().fetchField(name);
+        return this;
+    }
+
     /**
      * Adds a stored field to load and return (note, it must be stored) as part of the search request.
      */

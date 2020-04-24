@@ -1,0 +1,45 @@
+setup:
+  - skip:
+      version: " - 7.99.99"
+      reason: "fields retrieval is currently only implemented on master"
+  - do:
+      indices.create:
+          index:  test
+          body:
+            mappings:
+              properties:
+                keyword:
+                  type: keyword
+                integer_range:
+                  type: integer_range
+
+  - do:
+      index:
+          index:  test
+          id:     1
+          body:
+            keyword: [ "first", "second" ]
+            integer_range:
+              gte: 0
+              lte: 42
+
+  - do:
+      indices.refresh:
+          index: [ test ]
+
+---
+"Test basic field retrieval":
+  - do:
+      search:
+        index: test
+        body:
+          fields: [keyword, integer_range]
+
+  - is_true: hits.hits.0._id
+  - is_true: hits.hits.0._source
+
+  - match: { hits.hits.0.fields.keyword.0: first }
+  - match: { hits.hits.0.fields.keyword.1: second }
+
+  - match: { hits.hits.0.fields.integer_range.0.gte: 0 }
+  - match: { hits.hits.0.fields.integer_range.0.lte: 42 }

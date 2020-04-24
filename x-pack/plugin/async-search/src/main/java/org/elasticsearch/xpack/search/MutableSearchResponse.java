@@ -24,7 +24,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+<<<<<<< HEAD
 import static org.elasticsearch.xpack.search.AsyncSearchIndexService.restoreResponseHeadersContext;
+=======
+import static java.util.Collections.singletonList;
+import static org.apache.lucene.search.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
+import static org.elasticsearch.search.aggregations.InternalAggregations.topLevelReduce;
+import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.restoreResponseHeadersContext;
+>>>>>>> master
 
 /**
  * A mutable search response that allows to update and create partial response synchronously.
@@ -42,8 +49,18 @@ class MutableSearchResponse {
     private boolean isPartial;
     private int successfulShards;
     private TotalHits totalHits;
+    /**
+     * How we get the reduced aggs when {@link #finalResponse} isn't populated.
+     * We default to returning no aggs, this {@code -> null}. We'll replace
+     * this as we receive updates on the search progress listener. 
+     */
     private Supplier<InternalAggregations> reducedAggsSource = () -> null;
     private int reducePhase;
+    /**
+     * The response produced by the search API. Once we receive it we stop
+     * building our own {@linkplain SearchResponse}s when you get the status
+     * and instead return this.
+     */
     private SearchResponse finalResponse;
     private ElasticsearchException failure;
     private Map<String, List<String>> responseHeaders;
@@ -72,6 +89,7 @@ class MutableSearchResponse {
 
     /**
      * Updates the response with the result of a partial reduction.
+     * @param reducedAggs is a strategy for producing the reduced aggs
      */
     synchronized void updatePartialResponse(int successfulShards, TotalHits totalHits,
             Supplier<InternalAggregations> reducedAggs, int reducePhase) {
@@ -89,8 +107,8 @@ class MutableSearchResponse {
     }
 
     /**
-     * Updates the response with the final {@link SearchResponseSections} merged from #<code>successfulShards</code>
-     * shards.
+     * Updates the response with the final {@link SearchResponse} once the
+     * search is complete.
      */
     synchronized void updateFinalResponse(SearchResponse response) {
         failIfFrozen();
@@ -130,8 +148,7 @@ class MutableSearchResponse {
      * This method is synchronized to ensure that we don't perform final reduces concurrently.
      */
     synchronized AsyncSearchResponse toAsyncSearchResponse(AsyncSearchTask task, long expirationTime) {
-        SearchResponse response = findOrBuildResponse(task);
-        return new AsyncSearchResponse(task.getSearchId().getEncoded(), response,
+        return new AsyncSearchResponse(task.getExecutionId().getEncoded(), findOrBuildResponse(task),
                 failure, isPartial, frozen == false, task.getStartTime(), expirationTime);
     }
 

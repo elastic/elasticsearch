@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 
 public class GetAsyncSearchRequestTests extends AbstractWireSerializingTestCase<GetAsyncSearchAction.Request> {
@@ -31,7 +32,7 @@ public class GetAsyncSearchRequestTests extends AbstractWireSerializingTestCase<
     }
 
     static String randomSearchId() {
-        return AsyncSearchId.encode(UUIDs.randomBase64UUID(),
+        return AsyncExecutionId.encode(UUIDs.randomBase64UUID(),
             new TaskId(randomAlphaOfLengthBetween(10, 20), randomLongBetween(0, Long.MAX_VALUE)));
     }
 }

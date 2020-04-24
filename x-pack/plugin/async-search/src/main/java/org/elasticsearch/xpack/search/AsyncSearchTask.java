@@ -26,6 +26,8 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 
 import java.util.ArrayList;
@@ -43,9 +45,9 @@ import static java.util.Collections.singletonList;
 /**
  * Task that tracks the progress of a currently running {@link SearchRequest}.
  */
-final class AsyncSearchTask extends SearchTask {
+final class AsyncSearchTask extends SearchTask implements AsyncTask {
     private final BooleanSupplier checkSubmitCancellation;
-    private final AsyncSearchId searchId;
+    private final AsyncExecutionId searchId;
     private final Client client;
     private final ThreadPool threadPool;
     private final Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier;
@@ -74,7 +76,7 @@ final class AsyncSearchTask extends SearchTask {
      * @param checkSubmitCancellation A boolean supplier that checks if the submit task has been cancelled.
      * @param originHeaders All the request context headers.
      * @param taskHeaders The filtered request headers for the task.
-     * @param searchId The {@link AsyncSearchId} of the task.
+     * @param searchId The {@link AsyncExecutionId} of the task.
      * @param threadPool The threadPool to schedule runnable.
      * @param aggReduceContextSupplier A supplier to create final reduce contexts.
      */
@@ -86,7 +88,7 @@ final class AsyncSearchTask extends SearchTask {
                     TimeValue keepAlive,
                     Map<String, String> originHeaders,
                     Map<String, String> taskHeaders,
-                    AsyncSearchId searchId,
+                    AsyncExecutionId searchId,
                     Client client,
                     ThreadPool threadPool,
                     Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier) {
@@ -105,14 +107,16 @@ final class AsyncSearchTask extends SearchTask {
     /**
      * Returns all of the request contexts headers
      */
-    Map<String, String> getOriginHeaders() {
+    @Override
+    public Map<String, String> getOriginHeaders() {
         return originHeaders;
     }
 
     /**
-     * Returns the {@link AsyncSearchId} of the task
+     * Returns the {@link AsyncExecutionId} of the task
      */
-    AsyncSearchId getSearchId() {
+    @Override
+    public AsyncExecutionId getExecutionId() {
         return searchId;
     }
 
@@ -342,12 +346,16 @@ final class AsyncSearchTask extends SearchTask {
             // best effort to cancel expired tasks
             checkCancellation();
             searchResponse.get().addShardFailure(shardIndex,
+                // the nodeId is null if all replicas of this shard failed
                 new ShardSearchFailure(exc, shardTarget.getNodeId() != null ? shardTarget : null));
         }
 
         @Override
-        protected void onFetchFailure(int shardIndex, Exception exc) {
+        protected void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
             checkCancellation();
+            searchResponse.get().addShardFailure(shardIndex,
+                // the nodeId is null if all replicas of this shard failed
+                new ShardSearchFailure(exc, shardTarget.getNodeId() != null ? shardTarget : null));
         }
 
         @Override
@@ -364,8 +372,26 @@ final class AsyncSearchTask extends SearchTask {
                 DelayableWriteable.Serialized<InternalAggregations> aggregations, int reducePhase) {
             // best effort to cancel expired tasks
             checkCancellation();
-            Supplier<InternalAggregations> reducedAggs = () -> aggregations == null ?
-                    null : InternalAggregations.topLevelReduce(singletonList(aggregations.get()), aggReduceContextSupplier.get());
+            // The way that the MutableSearchResponse will build the aggs.
+            Supplier<InternalAggregations> reducedAggs;
+            if (aggregations == null) {
+                // There aren't any aggs to reduce.
+                reducedAggs = () -> null;
+            } else {
+                /*
+                 * Keep a reference to the serialiazed form of the partially
+                 * reduced aggs and reduce it on the fly when someone asks
+                 * for it. This will produce right-ish aggs. Much more right
+                 * than if you don't do the final reduce. Its important that
+                 * we wait until someone needs the result so we don't perform
+                 * the final reduce only to throw it away. And it is important
+                 * that we kep the reference to the serialized aggrgations
+                 * because the SearchPhaseController *already* has that
+                 * reference so we're not creating more garbage. 
+                 */
+                reducedAggs = () ->
+                    InternalAggregations.topLevelReduce(singletonList(aggregations.get()), aggReduceContextSupplier.get()); 
+            }
             searchResponse.get().updatePartialResponse(shards.size(), totalHits, reducedAggs, reducePhase);
         }
 

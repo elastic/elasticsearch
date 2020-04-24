@@ -159,6 +159,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
         private final long startTime;
         private final CountDownLatch latch;
+        private volatile float maximumRequestsPerSecond;
 
         // counters
         private volatile boolean started = false;
@@ -169,15 +170,26 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         private volatile int bulkOps = 0;
 
         protected MockIndexerFiveRuns(ThreadPool threadPool, String executorName, AtomicReference<IndexerState> initialState,
-                Integer initialPosition, float requestPerSecond, CountDownLatch latch) {
-            super(threadPool, executorName, initialState, initialPosition, new MockJobStats(), requestPerSecond);
+                Integer initialPosition, float maximumRequestsPerSecond, CountDownLatch latch) {
+            super(threadPool, executorName, initialState, initialPosition, new MockJobStats());
             startTime = System.nanoTime();
             this.latch = latch;
+            this.maximumRequestsPerSecond = maximumRequestsPerSecond;
+        }
+
+        public void rethrottle(float maximumRequestsPerSecond) {
+            this.maximumRequestsPerSecond = maximumRequestsPerSecond;
+            rethrottle();
         }
 
         @Override
         protected String getJobId() {
             return "mock_5_runs";
+        }
+
+        @Override
+        protected float getMaximumRequestsPerSecond() {
+            return maximumRequestsPerSecond;
         }
 
         @Override

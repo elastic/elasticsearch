@@ -60,7 +60,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     private final String executorName;
 
     // throttling
-    private volatile float maximumRequestsPerSecond;
+    private volatile float currentMaximumRequestsPerSecond;
     private volatile long lastSearchStartTimeNanos = 0;
     private volatile long lastDocCount = 0;
     private volatile ScheduledRunnable scheduledNextSearch;
@@ -101,23 +101,11 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         JobPosition initialPosition,
         JobStats jobStats
     ) {
-        this(threadPool, executorName, initialState, initialPosition, jobStats, -1);
-    }
-
-    protected AsyncTwoPhaseIndexer(
-        ThreadPool threadPool,
-        String executorName,
-        AtomicReference<IndexerState> initialState,
-        JobPosition initialPosition,
-        JobStats jobStats,
-        float maximumRequestsPerSecond
-    ) {
         this.threadPool = threadPool;
         this.executorName = executorName;
         this.state = initialState;
         this.position = new AtomicReference<>(initialPosition);
         this.stats = jobStats;
-        this.maximumRequestsPerSecond = maximumRequestsPerSecond;
     }
 
     /**
@@ -254,23 +242,31 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     }
 
     /**
-     * Sets a new requestsPerSecond and re-schedules the search request if necessary, either
-     * immediately or according to the new requestsPerSecond setting.
-     *
-     * @param requestsPerSecond requests per second
+     * Re-schedules the search request if necessary, this method can be called to apply a change
+     * in maximumRequestsPerSecond immediately
      */
-    protected void rethrottle(float requestsPerSecond) {
-        if (requestsPerSecond == maximumRequestsPerSecond) {
+    protected void rethrottle() {
+        // simple check if the setting has changed, ignores the call if it hasn't
+        if (getMaximumRequestsPerSecond() == currentMaximumRequestsPerSecond) {
             return;
         }
 
-        maximumRequestsPerSecond = requestsPerSecond;
         reQueueThrottledSearch();
     }
 
     // protected, so it can be overwritten by tests
     protected long getTimeNanos() {
         return System.nanoTime();
+    }
+
+    /**
+     * Called to get maximum requests per second, to be used for throttling. To be overwritten if
+     * throttling is implemented, otherwise return -1 for no throttling.
+     *
+     * @return a float with maximum requests per second, -1 if throttling is not activated
+     */
+    protected float getMaximumRequestsPerSecond() {
+        return -1;
     }
 
     /**
@@ -533,9 +529,10 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     }
 
     protected void nextSearch() {
-        if (maximumRequestsPerSecond > 0 && lastDocCount > 0) {
+        currentMaximumRequestsPerSecond = getMaximumRequestsPerSecond();
+        if (currentMaximumRequestsPerSecond > 0 && lastDocCount > 0) {
             TimeValue executionDelay = calculateThrottlingDelay(
-                maximumRequestsPerSecond,
+                currentMaximumRequestsPerSecond,
                 lastDocCount,
                 lastSearchStartTimeNanos,
                 getTimeNanos()
@@ -546,7 +543,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                     "throttling job [{}], wait for {} ({} {})",
                     getJobId(),
                     executionDelay,
-                    maximumRequestsPerSecond,
+                    currentMaximumRequestsPerSecond,
                     lastDocCount
                 );
                 scheduledNextSearch = new ScheduledRunnable(
@@ -612,15 +609,23 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     }
 
     private synchronized void reQueueThrottledSearch() {
+        currentMaximumRequestsPerSecond = getMaximumRequestsPerSecond();
+
         if (scheduledNextSearch != null) {
             TimeValue executionDelay = calculateThrottlingDelay(
-                maximumRequestsPerSecond,
+                currentMaximumRequestsPerSecond,
                 lastDocCount,
                 lastSearchStartTimeNanos,
                 getTimeNanos()
             );
 
-            logger.debug("rethrottling job [{}], wait for {} ({} {})", getJobId(), executionDelay, maximumRequestsPerSecond, lastDocCount);
+            logger.debug(
+                "rethrottling job [{}], wait for {} ({} {})",
+                getJobId(),
+                executionDelay,
+                currentMaximumRequestsPerSecond,
+                lastDocCount
+            );
             scheduledNextSearch.reschedule(executionDelay);
         }
     }

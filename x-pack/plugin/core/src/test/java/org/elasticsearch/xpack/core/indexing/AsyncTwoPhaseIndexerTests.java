@@ -519,8 +519,8 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
     }
 
     public void doTestFiveRunsRethrottle(
-        float requests_per_second,
-        float requests_per_second_rethrottle,
+        float requestsPerSecond,
+        float requestsPerSecondRethrottle,
         Collection<TimeValue> expectedDelays
     ) throws Exception {
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
@@ -528,15 +528,15 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         final MockThreadPool threadPool = new MockThreadPool(getTestName());
         try {
             CountDownLatch latch = new CountDownLatch(1);
-            MockIndexerFiveRuns indexer = new MockIndexerFiveRuns (threadPool, ThreadPool.Names.GENERIC, state, 2, requests_per_second,
+            MockIndexerFiveRuns indexer = new MockIndexerFiveRuns (threadPool, ThreadPool.Names.GENERIC, state, 2, requestsPerSecond,
                 latch);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
-            // wait until the indexer reached latch await
+            // wait until the indexer starts waiting on the latch
             assertBusy(() -> assertTrue(indexer.waitingForLatchCountDown()));
             // rethrottle
-            indexer.rethrottle(requests_per_second_rethrottle);
+            indexer.rethrottle(requestsPerSecondRethrottle);
             latch.countDown();
             // let it finish
             assertBusy(() -> assertTrue(isFinished.get()));

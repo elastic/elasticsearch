@@ -46,6 +46,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * A service to monitor usage of Elasticsearch features.
@@ -53,10 +54,12 @@ import java.util.Objects;
 public class UsageService {
 
     private final Map<String, BaseRestHandler> handlers;
+    private final Map<String, Map<String, AtomicLong>> aggs;
     private final long sinceTime;
 
     public UsageService() {
         this.handlers = new HashMap<>();
+        this.aggs = new HashMap<>();
         this.sinceTime = System.currentTimeMillis();
     }
 
@@ -89,6 +92,14 @@ public class UsageService {
         }
     }
 
+    public void addAggregationUsage(String aggregationName, String valuesSourceType, AtomicLong val) {
+        Map<String, AtomicLong> subAgg = aggs.computeIfAbsent(aggregationName, k -> new HashMap<>());
+        if ( subAgg.put(valuesSourceType, val) != null) {
+            throw new IllegalArgumentException("stats for aggregation [" + aggregationName + "][" + valuesSourceType +
+                "] already registered");
+        }
+    }
+
     /**
      * Get the current usage statistics for this node.
      *
@@ -100,8 +111,9 @@ public class UsageService {
      * @return the {@link NodeUsage} representing the usage statistics for this
      *         node
      */
-    public NodeUsage getUsageStats(DiscoveryNode localNode, boolean restActions) {
+    public NodeUsage getUsageStats(DiscoveryNode localNode, boolean restActions, boolean aggregations) {
         Map<String, Long> restUsageMap;
+        Map<String, Object> aggsUsageMap;
         if (restActions) {
             restUsageMap = new HashMap<>();
             handlers.values().forEach(handler -> {
@@ -113,7 +125,24 @@ public class UsageService {
         } else {
             restUsageMap = null;
         }
-        return new NodeUsage(localNode, System.currentTimeMillis(), sinceTime, restUsageMap);
+        if (aggregations) {
+            aggsUsageMap = new HashMap<>();
+            aggs.forEach((name, agg) -> {
+                Map<String, Long> aggUsageMap = new HashMap<>();
+                agg.forEach((k, v) -> {
+                    long val = v.get();
+                    if (val > 0) {
+                        aggUsageMap.put(k, val);
+                    }
+                });
+                if (aggUsageMap.isEmpty() == false) {
+                    aggsUsageMap.put(name, aggUsageMap);
+                }
+            });
+        } else {
+            aggsUsageMap = null;
+        }
+        return new NodeUsage(localNode, System.currentTimeMillis(), sinceTime, restUsageMap, aggsUsageMap);
     }
 
 }

@@ -34,6 +34,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -125,8 +126,9 @@ public class UsageServiceTests extends ESTestCase {
         handlerF.handleRequest(restRequest, null, null);
         handlerC.handleRequest(restRequest, null, null);
         handlerD.handleRequest(restRequest, null, null);
-        NodeUsage usage = usageService.getUsageStats(discoveryNode, true);
+        NodeUsage usage = usageService.getUsageStats(discoveryNode, true, false);
         assertThat(usage.getNode(), sameInstance(discoveryNode));
+        assertThat(usage.getAggregationUsage(), nullValue());
         Map<String, Long> restUsage = usage.getRestUsage();
         assertThat(restUsage, notNullValue());
         assertThat(restUsage.size(), equalTo(6));
@@ -137,7 +139,52 @@ public class UsageServiceTests extends ESTestCase {
         assertThat(restUsage.get("e"), equalTo(1L));
         assertThat(restUsage.get("f"), equalTo(1L));
 
-        usage = usageService.getUsageStats(discoveryNode, false);
+        usage = usageService.getUsageStats(discoveryNode, false, false);
+        assertThat(usage.getNode(), sameInstance(discoveryNode));
+        assertThat(usage.getRestUsage(), nullValue());
+        assertThat(usage.getAggregationUsage(), nullValue());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testAggsUsage() throws Exception {
+        DiscoveryNode discoveryNode = new DiscoveryNode("foo", new TransportAddress(InetAddress.getByName("localhost"), 12345),
+            Version.CURRENT);
+        UsageService usageService = new UsageService();
+        AtomicLong ax = new AtomicLong();
+        AtomicLong ay = new AtomicLong();
+        AtomicLong bx = new AtomicLong();
+        AtomicLong cx = new AtomicLong();
+        AtomicLong by = new AtomicLong();
+        AtomicLong az = new AtomicLong();
+
+        usageService.addAggregationUsage("a", "x", ax);
+        usageService.addAggregationUsage("a", "y", ay);
+        usageService.addAggregationUsage("b", "x", bx);
+        usageService.addAggregationUsage("c", "x", cx);
+        usageService.addAggregationUsage("b", "y", by);
+        usageService.addAggregationUsage("a", "z", az);
+
+        ax.set(1);
+        ay.set(2);
+        az.set(3);
+        bx.set(4);
+        by.set(5);
+        cx.set(6);
+
+        NodeUsage usage = usageService.getUsageStats(discoveryNode, false, true);
+        assertThat(usage.getNode(), sameInstance(discoveryNode));
+        Map<String, Object> aggsUsage = usage.getAggregationUsage();
+        assertThat(aggsUsage, notNullValue());
+        assertThat(aggsUsage.size(), equalTo(3));
+        assertThat(((Map<String, Object>)aggsUsage.get("a")).get("x"), equalTo(1L));
+        assertThat(((Map<String, Object>)aggsUsage.get("a")).get("y"), equalTo(2L));
+        assertThat(((Map<String, Object>)aggsUsage.get("a")).get("z"), equalTo(3L));
+        assertThat(((Map<String, Object>)aggsUsage.get("b")).get("x"), equalTo(4L));
+        assertThat(((Map<String, Object>)aggsUsage.get("b")).get("y"), equalTo(5L));
+        assertThat(((Map<String, Object>)aggsUsage.get("c")).get("x"), equalTo(6L));
+
+
+        usage = usageService.getUsageStats(discoveryNode, false, false);
         assertThat(usage.getNode(), sameInstance(discoveryNode));
         assertThat(usage.getRestUsage(), nullValue());
     }

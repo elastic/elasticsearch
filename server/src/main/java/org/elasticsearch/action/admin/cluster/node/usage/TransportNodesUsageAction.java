@@ -66,7 +66,7 @@ public class TransportNodesUsageAction
     @Override
     protected NodeUsage nodeOperation(NodeUsageRequest nodeUsageRequest, Task task) {
         NodesUsageRequest request = nodeUsageRequest.request;
-        return usageService.getUsageStats(clusterService.localNode(), request.restActions());
+        return usageService.getUsageStats(clusterService.localNode(), request.restActions(), request.aggregations());
     }
 
     public static class NodeUsageRequest extends TransportRequest {

@@ -80,6 +80,8 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
                 out.writeString(entry.getKey());
                 out.writeStringCollection(entry.getValue());
             }
+        } else {
+            out.writeBoolean(false);
         }
     }
 

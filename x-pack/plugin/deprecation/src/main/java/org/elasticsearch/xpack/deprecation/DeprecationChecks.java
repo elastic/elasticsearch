@@ -49,7 +49,10 @@ public class DeprecationChecks {
             (settings, pluginsAndModules) -> NodeDeprecationChecks.checkThreadPoolListenerQueueSize(settings),
             (settings, pluginsAndModules) -> NodeDeprecationChecks.checkThreadPoolListenerSize(settings),
             NodeDeprecationChecks::checkClusterRemoteConnectSetting,
-            NodeDeprecationChecks::checkNodeLocalStorageSetting
+            NodeDeprecationChecks::checkNodeLocalStorageSetting,
+            NodeDeprecationChecks::checkGeneralScriptSizeSetting,
+            NodeDeprecationChecks::checkGeneralScriptExpireSetting,
+            NodeDeprecationChecks::checkGeneralScriptCompileSettings
         ));
 
     static List<Function<IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS =

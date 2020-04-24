@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -134,6 +135,36 @@ class NodeDeprecationChecks {
             settings,
             Node.NODE_LOCAL_STORAGE_SETTING,
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-node-local-storage"
+        );
+    }
+
+    public static DeprecationIssue checkGeneralScriptSizeSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        return checkDeprecatedSetting(
+            settings,
+            pluginsAndModules,
+            ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING,
+            ScriptService.SCRIPT_CACHE_SIZE_SETTING,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-general-script-cache-size"
+        );
+    }
+
+     public static DeprecationIssue checkGeneralScriptExpireSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        return checkDeprecatedSetting(
+            settings,
+            pluginsAndModules,
+            ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING,
+            ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-general-script-expire"
+        );
+    }
+
+     public static DeprecationIssue checkGeneralScriptCompileSettings(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        return checkDeprecatedSetting(
+            settings,
+            pluginsAndModules,
+            ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING,
+            ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-general-script-compile-rate"
         );
     }
 

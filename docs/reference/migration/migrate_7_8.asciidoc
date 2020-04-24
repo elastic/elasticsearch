@@ -92,4 +92,55 @@ To avoid deprecation warnings, discontinue use of the `node.local_storage`
 setting.
 ====
 
+[[deprecate-general-script-cache-size]]
+.The `script.cache.max_size` setting is deprecated.
+
+[%collapsible]
+====
+*Details* +
+The `script.cache.max_size` setting is deprecated. In {es} 8.0.0, this is
+set per-context.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the `script.cache.max_size`
+setting. You may use `script.context.$CONTEXT.context_max_size` for the particular context.
+For example, for the `ingest` context, use `script.context.ingest.context_max_size`.
+
+See [[painless-contexts]] for more about painless contexts.
+====
+
+[[deprecate-general-script-expire]]
+.The `script.cache.expire` setting is deprecated.
+
+[%collapsible]
+====
+*Details* +
+The `script.cache.expire` setting is deprecated. In {es} 8.0.0, this is
+set per-context.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the `script.cache.expire`
+setting. You may use `script.context.$CONTEXT.cache_expire` for the particular context.
+For example, for the `update` context, use `script.context.update.context_max_size`.
+
+See [[painless-contexts]] for more about painless contexts.
+====
+
+[[deprecate-general-script-compile-rate]]
+.The `script.max_compilations_rate` setting is deprecated.
+
+[%collapsible]
+====
+*Details* +
+The `script.max_compilations_rate` setting is deprecated. In {es} 8.0.0, this is
+set per-context.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the `script.max_compilations_rate`
+setting. You may use `script.context.$CONTEXT.max_compilations_rate` for the particular
+context.  For example, for the `processor_conditional` context, use 
+`script.context.processor_conditional.context_max_size`.
+
+See [[painless-contexts]] for more about painless contexts.
+====
 //end::notable-breaking-changes[]

@@ -178,6 +178,51 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.size"});
     }
 
+    public void testGeneralScriptSizeSetting() {
+        final int size = randomIntBetween(1, 4);
+        final Settings settings = Settings.builder().put("script.cache.max_size", size).build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> issues =
+            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "setting [script.cache.max_size] is deprecated in favor of setting [script.context.*.max_size]",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-general-script-cache-size",
+            "the setting [script.cache.max_size] is currently set to [" + size + "], remove this setting");
+        assertThat(issues, contains(expected));
+        assertSettingDeprecationsAndWarnings(new String[]{"script.cache.max_size"});
+    }
+
+    public void testGeneralScriptExpireSetting() {
+        final String size = randomIntBetween(1, 4) + "m";
+        final Settings settings = Settings.builder().put("script.cache.expire", size).build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> issues =
+            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "setting [script.cache.expire] is deprecated in favor of setting [script.context.*.expire]",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-general-script-expire",
+            "the setting [script.cache.expire] is currently set to [" + size + "], remove this setting");
+        assertThat(issues, contains(expected));
+        assertSettingDeprecationsAndWarnings(new String[]{"script.cache.expire"});
+    }
+
+    public void testGeneralScriptCompileSettings() {
+        final String rate = randomIntBetween(1, 100) + "/" + randomIntBetween(1, 200) + "m";
+        final Settings settings = Settings.builder().put("script.max_compilations_rate", rate).build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> issues =
+            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "setting [script.max_compilations_rate] is deprecated in favor of setting [script.context.*.max_compilations_rate]",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-general-script-compile-rate",
+            "the setting [script.max_compilations_rate] is currently set to [" + rate + "], remove this setting");
+        assertThat(issues, contains(expected));
+        assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.size"});
+    }
+
     public void testClusterRemoteConnectSetting() {
         final boolean value = randomBoolean();
         final Settings settings = Settings.builder().put(RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(), value).build();
@@ -238,5 +283,4 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             equalTo("the setting [node.removed_setting] is currently set to [value], remove this setting"));
         assertThat(issue.getUrl(), equalTo("https://removed-setting.example.com"));
     }
-
 }

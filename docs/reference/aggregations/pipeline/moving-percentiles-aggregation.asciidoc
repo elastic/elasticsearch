@@ -146,6 +146,9 @@ And the following may be the response:
 The output format of the `moving_percentiles` aggregation is inherited from the format of the referenced
 <<search-aggregations-metrics-percentile-aggregation,`percentiles`>> aggregation.
 
+Moving percentiles pipeline aggregations always run with `skip` gap policy.
+
+
 [[shift-parameter]]
 ==== shift parameter
 

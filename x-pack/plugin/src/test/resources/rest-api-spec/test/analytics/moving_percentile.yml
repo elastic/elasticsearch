@@ -63,7 +63,6 @@ setup:
 
 ---
 "Basic Search TDigest":
-# --tests "org.elasticsearch.xpack.test.rest.XPackRestIT.test {p0=analytics/moving_percentile/Basic Search}"
   - do:
       search:
         index: "foo"
@@ -102,7 +101,6 @@ setup:
 
 ---
 "Basic Search HDR":
-  # --tests "org.elasticsearch.xpack.test.rest.XPackRestIT.test {p0=analytics/moving_percentile/Basic Search}"
   - do:
       search:
         index: "foo"

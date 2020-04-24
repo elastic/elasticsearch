@@ -27,7 +27,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
 
@@ -103,7 +102,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
             }
 
             if (state != null) {
-                List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
+                List<InternalAggregation> aggs = bucket.getAggregations().asList().stream()
                     .map((p) -> (InternalAggregation) p)
                     .collect(Collectors.toList());
                 aggs.add(new InternalTDigestPercentiles(name(), config.keys, state, config.keyed, config.formatter, metadata()));
@@ -149,7 +148,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
             }
 
             if (state != null) {
-                List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
+                List<InternalAggregation> aggs = bucket.getAggregations().asList().stream()
                     .map((p) -> (InternalAggregation) p)
                     .collect(Collectors.toList());
                 aggs.add(new InternalHDRPercentiles(name(), config.keys, state, config.keyed, config.formatter, metadata()));
@@ -166,8 +165,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
         List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
         Object propertyValue = bucket.getProperty(agg.getName(), aggPathsList);
         if (propertyValue == null) {
-            throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
-                + " must reference an aggregation");
+            throw buildResolveError(agg, aggPathsList, propertyValue, "percentiles");
         }
 
         if (propertyValue instanceof InternalTDigestPercentiles) {
@@ -184,17 +182,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
                                         internalHDRPercentiles.keyed(),
                                         internalHDRPercentiles.formatter());
         }
-
-        String currentAggName;
-        if (aggPathsList.isEmpty()) {
-            currentAggName = agg.getName();
-        } else {
-            currentAggName = aggPathsList.get(0);
-        }
-
-        throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
-            + " must reference a percentiles aggregation, got: ["
-            + propertyValue.getClass().getSimpleName() + "] at aggregation [" + currentAggName + "]");
+        throw buildResolveError(agg, aggPathsList, propertyValue, "percentiles");
     }
 
     private TDigestState resolveTDigestBucketValue(MultiBucketsAggregation agg,
@@ -202,25 +190,10 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
                                                    String aggPath) {
         List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
         Object propertyValue = bucket.getProperty(agg.getName(), aggPathsList);
-        if (propertyValue == null) {
-            throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
-                + " must reference a TDigest percentile aggregation");
+        if (propertyValue == null || (propertyValue instanceof InternalTDigestPercentiles) == false) {
+            throw buildResolveError(agg, aggPathsList, propertyValue, "TDigest");
         }
-
-        if (propertyValue instanceof InternalTDigestPercentiles) {
-            return ((InternalTDigestPercentiles) propertyValue).getState();
-        }
-
-        String currentAggName;
-        if (aggPathsList.isEmpty()) {
-            currentAggName = agg.getName();
-        } else {
-            currentAggName = aggPathsList.get(0);
-        }
-
-        throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
-            + " must reference a TDigest percentiles aggregation, got: ["
-            + propertyValue.getClass().getSimpleName() + "] at aggregation [" + currentAggName + "]");
+        return ((InternalTDigestPercentiles) propertyValue).getState();
     }
 
     private DoubleHistogram resolveHDRBucketValue(MultiBucketsAggregation agg,
@@ -228,25 +201,28 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
                                                   String aggPath) {
         List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
         Object propertyValue = bucket.getProperty(agg.getName(), aggPathsList);
+        if (propertyValue == null || (propertyValue instanceof InternalHDRPercentiles) == false) {
+            throw buildResolveError(agg, aggPathsList, propertyValue, "HDR");
+        }
+        return ((InternalHDRPercentiles) propertyValue).getState();
+    }
+
+    private IllegalArgumentException buildResolveError(MultiBucketsAggregation agg, List<String> aggPathsList,
+                                                       Object propertyValue, String method) {
         if (propertyValue == null) {
-            throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
-                + " must reference a HDR percentile aggregation");
-        }
-
-        if (propertyValue instanceof InternalHDRPercentiles) {
-            return ((InternalHDRPercentiles) propertyValue).getState();
-        }
-
-        String currentAggName;
-        if (aggPathsList.isEmpty()) {
-            currentAggName = agg.getName();
+            return new IllegalArgumentException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                + " must reference a " + method + " percentile aggregation");
         } else {
-            currentAggName = aggPathsList.get(0);
+            String currentAggName;
+            if (aggPathsList.isEmpty()) {
+                currentAggName = agg.getName();
+            } else {
+                currentAggName = aggPathsList.get(0);
+            }
+            return new IllegalArgumentException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                + " must reference a " + method + " percentiles aggregation, got: ["
+                + propertyValue.getClass().getSimpleName() + "] at aggregation [" + currentAggName + "]");
         }
-
-        throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
-            + " must reference a HDR percentiles aggregation, got: ["
-            + propertyValue.getClass().getSimpleName() + "] at aggregation [" + currentAggName + "]");
     }
 
     private int clamp(int index, int length) {
@@ -259,6 +235,8 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
         return index;
     }
 
+    // TODO: replace this with the PercentilesConfig that's used by the percentiles builder.
+    //  The config isn't available through the Internal objects
     /** helper class to collect the percentile's configuration */
     private static class PercentileConfig {
         final double[] keys;

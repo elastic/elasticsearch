@@ -44,6 +44,7 @@ ext.expansions = { architecture, oss, local ->
     'git_revision'        : BuildParams.gitRevision,
     'license'             : oss ? 'Apache-2.0' : 'Elastic-License',
     'source_elasticsearch': local ? "COPY $elasticsearch /opt/" : "RUN cd /opt && curl --retry 8 -s -L -O https://artifacts.elastic.co/downloads/elasticsearch/${elasticsearch} && cd -",
+    'tini_suffix'         : "aarch64".equals(architecture) ? "-arm64" : "",
     'version'             : VersionProperties.elasticsearch
   ]
 }
@@ -227,6 +228,7 @@ subprojects { Project subProject ->
     def tarFile = "${parent.projectDir}/build/elasticsearch${"aarch64".equals(architecture) ? '-aarch64' : ''}${oss ? '-oss' : ''}_test.${VersionProperties.elasticsearch}.docker.tar"
 
     final Task exportDockerImageTask = task(exportTaskName, type: LoggedExec) {
+      inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")
       executable 'docker'
       outputs.file(tarFile)
       args "save",

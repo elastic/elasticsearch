@@ -14,9 +14,21 @@
 FROM ${base_image} AS builder
 
 RUN for iter in {1..10}; do yum update --setopt=tsflags=nodocs -y && \
-    yum install --setopt=tsflags=nodocs -y gzip shadow-utils tar && \
+    yum install --setopt=tsflags=nodocs -y wget gzip shadow-utils tar && \
     yum clean all && exit_code=0 && break || exit_code=\$? && echo "yum error: retry \$iter in 10s" && sleep 10; done; \
     (exit \$exit_code)
+
+# `tini` is a tiny but valid init for containers. This is used to cleanly
+# control how ES and any child processes are shut down.
+#
+# The tini GitHub page gives instructions for verifying the binary using
+# gpg, but the keyservers are slow to return the key and this can fail the
+# build. Instead, we check the binary against a checksum that they provide.
+RUN wget --no-cookies --quiet https://github.com/krallin/tini/releases/download/v0.19.0/tini-${tini_arch} \
+    && wget --no-cookies --quiet https://github.com/krallin/tini/releases/download/v0.19.0/tini-${tini_arch}.sha256sum \
+    && sha256sum -c tini-${tini_arch}.sha256sum \
+    && mv tini-${tini_arch} /tini \
+    && chmod +x /tini
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
@@ -34,17 +46,6 @@ RUN mkdir -p config config/jvm.options.d data logs
 RUN chmod 0775 config config/jvm.options.d data logs
 COPY config/elasticsearch.yml config/log4j2.properties config/
 RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
-
-# `tini` is a tiny but valid init for containers. This is used to cleanly
-# control how ES and any child processes are shut down.
-#
-# The tini GitHub page gives instructions for verifying the binary using
-# gpg, but the keyservers are slow to return the key and this can fail the
-# build. Instead, we check the binary against a checksum that we have
-# computed.
-ADD https://github.com/krallin/tini/releases/download/v0.18.0/tini${tini_suffix} /tini
-COPY config/tini${tini_suffix}.sha512 /tini.sha512
-RUN sha512sum -c /tini.sha512 && chmod +x /tini
 
 ################################################################################
 # Build stage 1 (the actual elasticsearch image):

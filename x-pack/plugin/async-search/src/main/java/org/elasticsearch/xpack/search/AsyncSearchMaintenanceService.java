@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.search;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -24,10 +25,12 @@ public class AsyncSearchMaintenanceService extends AsyncTaskMaintenanceService {
     public static final Setting<TimeValue> ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING =
         Setting.timeSetting("async_search.index_cleanup_interval", TimeValue.timeValueHours(1), Setting.Property.NodeScope);
 
-    AsyncSearchMaintenanceService(String localNodeId,
+    AsyncSearchMaintenanceService(ClusterService clusterService,
+                                  String localNodeId,
                                   Settings nodeSettings,
                                   ThreadPool threadPool,
                                   AsyncTaskIndexService<?> indexService) {
-        super(AsyncSearch.INDEX, localNodeId, threadPool, indexService, ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING.get(nodeSettings));
+        super(clusterService, AsyncSearch.INDEX, localNodeId, threadPool, indexService,
+            ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING.get(nodeSettings));
     }
 }

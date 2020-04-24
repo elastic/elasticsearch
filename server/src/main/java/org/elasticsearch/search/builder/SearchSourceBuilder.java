@@ -21,6 +21,7 @@ package org.elasticsearch.search.builder;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -94,6 +95,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField _SOURCE_FIELD = new ParseField("_source");
     public static final ParseField STORED_FIELDS_FIELD = new ParseField("stored_fields");
     public static final ParseField DOCVALUE_FIELDS_FIELD = new ParseField("docvalue_fields");
+    public static final ParseField FETCH_FIELDS_FIELD = new ParseField("fields");
     public static final ParseField SCRIPT_FIELDS_FIELD = new ParseField("script_fields");
     public static final ParseField SCRIPT_FIELD = new ParseField("script");
     public static final ParseField IGNORE_FAILURE_FIELD = new ParseField("ignore_failure");
@@ -170,6 +172,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private List<FieldAndFormat> docValueFields;
     private List<ScriptField> scriptFields;
     private FetchSourceContext fetchSourceContext;
+    private List<String> fetchFields;
 
     private AggregatorFactories.Builder aggregations;
 
@@ -244,6 +247,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         sliceBuilder = in.readOptionalWriteable(SliceBuilder::new);
         collapse = in.readOptionalWriteable(CollapseBuilder::new);
         trackTotalHitsUpTo = in.readOptionalInt();
+
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            fetchFields = in.readOptionalStringList();
+        }
     }
 
     @Override
@@ -298,6 +305,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalWriteable(sliceBuilder);
         out.writeOptionalWriteable(collapse);
         out.writeOptionalInt(trackTotalHitsUpTo);
+
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalStringCollection(fetchFields);
+        }
     }
 
     /**
@@ -827,6 +838,24 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
+     * Gets the fields to load and return as part of the search request.
+     */
+    public List<String> fetchFields() {
+        return fetchFields;
+    }
+
+    /**
+     * Adds a field to load and return as part of the search request.
+     */
+    public SearchSourceBuilder fetchField(String fieldName) {
+        if (fetchFields == null) {
+            fetchFields = new ArrayList<>();
+        }
+        fetchFields.add(fieldName);
+        return this;
+    }
+
+    /**
      * Adds a script field under the given name with the provided script.
      *
      * @param name
@@ -1121,6 +1150,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         docValueFields.add(FieldAndFormat.fromXContent(parser));
                     }
+                } else if (FETCH_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    fetchFields = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        fetchFields.add(parser.text());
+                    }
                 } else if (INDICES_BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         indexBoosts.add(new IndexBoost(parser));
@@ -1226,6 +1260,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 builder.endObject();
             }
             builder.endArray();
+        }
+
+        if (fetchFields != null) {
+            builder.array(FETCH_FIELDS_FIELD.getPreferredName(), fetchFields);
         }
 
         if (scriptFields != null) {

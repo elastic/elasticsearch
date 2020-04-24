@@ -26,6 +26,7 @@ import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
@@ -59,6 +60,7 @@ public class SubSearchContext extends FilteredSearchContext {
     private ScriptFieldsContext scriptFields;
     private FetchSourceContext fetchSourceContext;
     private FetchDocValuesContext docValuesContext;
+    private FetchFieldsContext fetchFieldsContext;
     private SearchContextHighlight highlight;
 
     private boolean explain;
@@ -157,6 +159,17 @@ public class SubSearchContext extends FilteredSearchContext {
     @Override
     public SearchContext docValuesContext(FetchDocValuesContext docValuesContext) {
         this.docValuesContext = docValuesContext;
+        return this;
+    }
+
+    @Override
+    public FetchFieldsContext fetchFieldsContext() {
+        return fetchFieldsContext;
+    }
+
+    @Override
+    public SearchContext fetchFieldsContext(FetchFieldsContext fetchFieldsContext) {
+        this.fetchFieldsContext = fetchFieldsContext;
         return this;
     }
 

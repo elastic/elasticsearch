@@ -124,10 +124,10 @@ public class SuggestionTests extends ESTestCase {
                 // - the root object should be excluded since it contains the named suggestion arrays
                 // We also exclude options that contain SearchHits, as all unknown fields
                 // on a root level of SearchHit are interpreted as meta-fields and will be kept.
-                Predicate<String> excludeFilter = path -> (path.isEmpty()
+                Predicate<String> excludeFilter = path -> path.isEmpty()
                         || path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName()) || path.endsWith("highlight")
-                        || path.endsWith("fields") || path.contains("_source") || path.contains("inner_hits")
-                        || path.contains("options"));
+                        || path.contains("fields") || path.contains("_source") || path.contains("inner_hits")
+                        || path.contains("options");
                 mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
             } else {
                 mutated = originalBytes;

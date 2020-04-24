@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.template.post;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateV2Action;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Nullable;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<SimulateIndexTemplateRequest> {
 
@@ -47,7 +47,7 @@ public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<Simulate
     public SimulateIndexTemplateRequest(StreamInput in) throws IOException {
         super(in);
         indexName = in.readString();
-        in.readOptionalWriteable(PutIndexTemplateRequest::new);
+        indexTemplateRequest = in.readOptionalWriteable(PutIndexTemplateV2Action.Request::new);
     }
 
     @Override
@@ -83,5 +83,23 @@ public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<Simulate
     public SimulateIndexTemplateRequest indexTemplateRequest(PutIndexTemplateV2Action.Request indexTemplateRequest) {
         this.indexTemplateRequest = indexTemplateRequest;
         return this;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        SimulateIndexTemplateRequest that = (SimulateIndexTemplateRequest) o;
+        return indexName.equals(that.indexName) &&
+            Objects.equals(indexTemplateRequest, that.indexTemplateRequest);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(indexName, indexTemplateRequest);
     }
 }

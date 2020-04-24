@@ -1,0 +1,69 @@
+---
+"Simulate index template without new template in the body":
+  - skip:
+      version: " - 7.7.99"
+      reason: "simulate index template API is unavailable before 7.8"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [test] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test
+        body:
+          index_patterns: test-*
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                field:
+                  type: keyword
+
+  - do:
+      indices.post_simulate_index_template:
+        name: test
+
+  - match: {template.settings.number_of_shards: 1}
+  - match: {template.settings.number_of_replicas: 0}
+  - match: {template.mappings._doc.properties.filed.type: "keyword"}
+
+---
+"Simulate index template specifying a new template":
+  - skip:
+      version: " - 7.7.99"
+      reason: "simulate index template API is unavailable before 7.8"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [test] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test
+        body:
+          index_patterns: test-*
+          priority: 10
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                field:
+                  type: keyword
+
+  - do:
+      indices.post_simulate_index_template:
+        name: test
+        body:
+          index_patterns: test-*
+          "priority": 15,
+            "template": {
+              "settings": {
+                "index.blocks.write": true
+              }
+            }
+
+
+  - match: {template.settings.index.blocks.write: true}

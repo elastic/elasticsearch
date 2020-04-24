@@ -64,7 +64,7 @@ public class TransportSimulateIndexTemplateAction
                                                 ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
                                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                                 NamedXContentRegistry xContentRegistry) {
-        super(PostSimulateIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(SimulateIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
             SimulateIndexTemplateRequest::new, indexNameExpressionResolver);
         this.indexTemplateService = indexTemplateService;
         this.xContentRegistry = xContentRegistry;

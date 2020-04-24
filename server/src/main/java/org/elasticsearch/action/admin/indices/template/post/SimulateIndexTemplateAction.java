@@ -21,12 +21,12 @@ package org.elasticsearch.action.admin.indices.template.post;
 
 import org.elasticsearch.action.ActionType;
 
-public class PostSimulateIndexTemplateAction extends ActionType<SimulateIndexTemplateResponse> {
+public class SimulateIndexTemplateAction extends ActionType<SimulateIndexTemplateResponse> {
 
-    public static final PostSimulateIndexTemplateAction INSTANCE = new PostSimulateIndexTemplateAction();
+    public static final SimulateIndexTemplateAction INSTANCE = new SimulateIndexTemplateAction();
     public static final String NAME = "indices:admin/index_template/simulate_index/post";
 
-    private PostSimulateIndexTemplateAction() {
+    private SimulateIndexTemplateAction() {
         super(NAME, SimulateIndexTemplateResponse::new);
     }
 

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.admin.indices.template.post.PostSimulateIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.post.SimulateIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.post.SimulateIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateV2Action;
 import org.elasticsearch.client.node.NodeClient;
@@ -57,7 +57,7 @@ public class RestPostSimulateIndexTemplateAction extends BaseRestHandler {
             simulateIndexTemplateRequest.indexTemplateRequest(indexTemplateRequest);
         }
 
-        return channel -> client.execute(PostSimulateIndexTemplateAction.INSTANCE, simulateIndexTemplateRequest,
+        return channel -> client.execute(SimulateIndexTemplateAction.INSTANCE, simulateIndexTemplateRequest,
             new RestToXContentListener<>(channel));
     }
 }

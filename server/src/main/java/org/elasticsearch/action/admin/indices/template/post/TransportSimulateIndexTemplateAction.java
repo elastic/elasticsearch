@@ -92,6 +92,10 @@ public class TransportSimulateIndexTemplateAction
         }
 
         String matchingTemplate = findV2Template(simulateOnClusterState.metadata(), request.getIndexName(), false);
+        if (matchingTemplate == null) {
+            listener.onResponse(new SimulateIndexTemplateResponse(null, null));
+            return;
+        }
         Settings settings = resolveSettings(simulateOnClusterState.metadata(), matchingTemplate);
 
         // empty request mapping as the user can't specify any explicit mappings via the simulate api

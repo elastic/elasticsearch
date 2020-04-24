@@ -51,6 +51,8 @@ setup:
       indices.create:
         index:  test
         body:
+          settings:
+            number_of_shards: 1
           mappings:
             _source:
               enabled: false

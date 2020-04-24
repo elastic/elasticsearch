@@ -186,6 +186,10 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
         consumer.accept(aggregations);
     }
 
+    public final InternalAggregation undefer() {
+        return undeferBuckets();
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;

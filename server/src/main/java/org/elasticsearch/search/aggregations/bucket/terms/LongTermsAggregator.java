@@ -22,7 +22,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -32,11 +31,14 @@ import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude.LongFilter;
+import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds.BucketOrdsEnum;
+import org.elasticsearch.search.aggregations.bucket.terms.LongTerms.Bucket;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
@@ -44,19 +46,19 @@ import static java.util.Collections.emptyList;
 public class LongTermsAggregator extends TermsAggregator {
 
     protected final ValuesSource.Numeric valuesSource;
-    protected final LongHash bucketOrds;
+    protected final LongKeyedBucketOrds bucketOrds;
     private boolean showTermDocCountError;
     private LongFilter longFilter;
 
     public LongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
             BucketOrder order, BucketCountThresholds bucketCountThresholds, SearchContext aggregationContext, Aggregator parent,
             SubAggCollectionMode subAggCollectMode, boolean showTermDocCountError, IncludeExclude.LongFilter longFilter,
-            Map<String, Object> metadata) throws IOException {
+            boolean collectsFromSingleBucket, Map<String, Object> metadata) throws IOException {
         super(name, factories, aggregationContext, parent, bucketCountThresholds, order, format, subAggCollectMode, metadata);
         this.valuesSource = valuesSource;
         this.showTermDocCountError = showTermDocCountError;
         this.longFilter = longFilter;
-        bucketOrds = new LongHash(1, aggregationContext.bigArrays());
+        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), collectsFromSingleBucket);
     }
 
     @Override
@@ -77,8 +79,7 @@ public class LongTermsAggregator extends TermsAggregator {
         final SortedNumericDocValues values = getValues(valuesSource, ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
-            public void collect(int doc, long owningBucketOrdinal) throws IOException {
-                assert owningBucketOrdinal == 0;
+            public void collect(int doc, long owningBucketOrd) throws IOException {
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
 
@@ -87,7 +88,7 @@ public class LongTermsAggregator extends TermsAggregator {
                         final long val = values.nextValue();
                         if (previous != val || i == 0) {
                             if ((longFilter == null) || (longFilter.accept(val))) {
-                                long bucketOrdinal = bucketOrds.add(val);
+                                long bucketOrdinal = bucketOrds.add(owningBucketOrd, val);
                                 if (bucketOrdinal < 0) { // already seen
                                     bucketOrdinal = -1 - bucketOrdinal;
                                     collectExistingBucket(sub, doc, bucketOrdinal);
@@ -105,11 +106,10 @@ public class LongTermsAggregator extends TermsAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0;
-
+    public InternalAggregation buildAggregation(long owningBucketOrd) throws IOException {
+        long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrd);
         if (bucketCountThresholds.getMinDocCount() == 0 && (InternalOrder.isCountDesc(order) == false ||
-                bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
+                bucketsInOrd < bucketCountThresholds.getRequiredSize())) {
             // we need to fill-in the blanks
             for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {
                 final SortedNumericDocValues values = getValues(valuesSource, ctx);
@@ -119,26 +119,28 @@ public class LongTermsAggregator extends TermsAggregator {
                         for (int i = 0; i < valueCount; ++i) {
                             long value = values.nextValue();
                             if (longFilter == null || longFilter.accept(value)) {
-                                bucketOrds.add(value);
+                                bucketOrds.add(owningBucketOrd, value);
                             }
                         }
                     }
                 }
             }
+            bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrd);
         }
 
-        final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
+        final int size = (int) Math.min(bucketsInOrd, bucketCountThresholds.getShardSize());
         long otherDocCount = 0;
         BucketPriorityQueue<LongTerms.Bucket> ordered = new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);
         LongTerms.Bucket spare = null;
-        for (long i = 0; i < bucketOrds.size(); i++) {
+        BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
+        while (ordsEnum.next()) {
             if (spare == null) {
                 spare = new LongTerms.Bucket(0, 0, null, showTermDocCountError, 0, format);
             }
-            spare.term = bucketOrds.get(i);
-            spare.docCount = bucketDocCount(i);
+            spare.term = ordsEnum.value();
+            spare.docCount = bucketDocCount(ordsEnum.ord());
             otherDocCount += spare.docCount;
-            spare.bucketOrd = i;
+            spare.bucketOrd = ordsEnum.ord();
             if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
                 spare = ordered.insertWithOverflow(spare);
                 if (spare == null) {
@@ -149,25 +151,29 @@ public class LongTermsAggregator extends TermsAggregator {
 
         // Get the top buckets
         final LongTerms.Bucket[] list = new LongTerms.Bucket[ordered.size()];
-        long survivingBucketOrds[] = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
-            final LongTerms.Bucket bucket = (LongTerms.Bucket) ordered.pop();
-            survivingBucketOrds[i] = bucket.bucketOrd;
+            final LongTerms.Bucket bucket = ordered.pop();
+            recordSurvingOrd(bucket.bucketOrd);
             list[i] = bucket;
             otherDocCount -= bucket.docCount;
         }
 
-        runDeferredCollections(survivingBucketOrds);
+        // Return a deferred agg that will build the buckets when undeferred
+        final long finalOtherDocCount = otherDocCount;
+        return deferred(() -> {
+            for (int i = 0; i < list.length; i++) {
+                list[i].aggregations = bucketAggregations(list[i].bucketOrd);
+                list[i].docCountError = 0;
+            }
 
-        // Now build the aggs
-        for (int i = 0; i < list.length; i++) {
-            list[i].aggregations = bucketAggregations(list[i].bucketOrd);
-            list[i].docCountError = 0;
-        }
+            return buildResult(finalOtherDocCount, Arrays.asList(list));
+        });
+    }
 
+    protected InternalAggregation buildResult(long otherDocCount, List<Bucket> buckets) {
         return new LongTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError, otherDocCount,
-                Arrays.asList(list), 0);
+            metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError, otherDocCount,
+            buckets, 0);
     }
 
     @Override
@@ -178,7 +184,7 @@ public class LongTermsAggregator extends TermsAggregator {
 
     @Override
     public void doClose() {
+        super.doClose();
         Releasables.close(bucketOrds);
     }
-
 }

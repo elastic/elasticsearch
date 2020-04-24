@@ -29,7 +29,6 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketCollector;
@@ -146,7 +145,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
      * Replay the wrapped collector, but only on a selection of buckets.
      */
     @Override
-    public void prepareSelectedBuckets(long... selectedBuckets) throws IOException {
+    public void prepareSelectedBuckets(LongHash selectedBuckets) throws IOException {
         if (finished == false) {
             throw new IllegalStateException("Cannot replay yet, collection is not finished: postCollect() has not been called");
         }
@@ -154,11 +153,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
             throw new IllegalStateException("Already been replayed");
         }
 
-        final LongHash hash = new LongHash(selectedBuckets.length, BigArrays.NON_RECYCLING_INSTANCE);
-        for (long bucket : selectedBuckets) {
-            hash.add(bucket);
-        }
-        this.selectedBuckets = hash;
+        this.selectedBuckets = selectedBuckets;
 
         boolean needsScores = scoreMode().needsScores();
         Weight weight = null;
@@ -185,7 +180,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 for (long i = 0, end = entry.docDeltas.size(); i < end; ++i) {
                     doc += docDeltaIterator.next();
                     final long bucket = buckets.next();
-                    final long rebasedBucket = hash.find(bucket);
+                    final long rebasedBucket = selectedBuckets.find(bucket);
                     if (rebasedBucket != -1) {
                         if (needsScores) {
                             if (scoreIt.docID() < doc) {

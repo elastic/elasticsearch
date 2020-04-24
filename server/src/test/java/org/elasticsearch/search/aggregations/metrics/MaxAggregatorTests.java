@@ -897,17 +897,17 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             indexSearcher.search(new MatchAllDocsQuery(), bucketCollector);
             bucketCollector.postCollection();
 
-            InternalMax max = (InternalMax) maxAggregator.buildAggregation(0L);
+            InternalMax max = (InternalMax) maxAggregator.buildTopLevel();
             assertNotNull(max);
             assertEquals(12.0, max.getValue(), 0);
             assertEquals("max", max.getName());
 
-            InternalValueCount count = (InternalValueCount) countAggregator.buildAggregation(0L);
+            InternalValueCount count = (InternalValueCount) countAggregator.buildTopLevel();
             assertNotNull(count);
             assertEquals(20L, count.getValue());
             assertEquals("count", count.getName());
 
-            Terms terms = (Terms) termsAggregator.buildAggregation(0L);
+            Terms terms = (Terms) termsAggregator.buildTopLevel();
             assertNotNull(terms);
             List<? extends Terms.Bucket> buckets = terms.getBuckets();
             assertNotNull(buckets);

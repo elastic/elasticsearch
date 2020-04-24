@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
+import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds.BucketOrdsEnum;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTermsAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -47,7 +48,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
             IncludeExclude.LongFilter includeExclude, Map<String, Object> metadata) throws IOException {
 
         super(name, factories, valuesSource, format, null, bucketCountThresholds, context, parent,
-                SubAggCollectionMode.BREADTH_FIRST, false, includeExclude, metadata);
+                SubAggCollectionMode.BREADTH_FIRST, false, includeExclude, false, metadata);
         this.significanceHeuristic = significanceHeuristic;
         this.termsAggFactory = termsAggFactory;
     }
@@ -69,25 +70,27 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
     }
 
     @Override
-    public SignificantLongTerms buildAggregation(long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0;
+    public SignificantLongTerms buildAggregation(long owningBucketOrd) throws IOException {
+        assert owningBucketOrd == 0;
 
-        final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
+        long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrd);
+        final int size = (int) Math.min(bucketsInOrd, bucketCountThresholds.getShardSize());
 
         long supersetSize = termsAggFactory.getSupersetNumDocs();
         long subsetSize = numCollectedDocs;
 
         BucketSignificancePriorityQueue<SignificantLongTerms.Bucket> ordered = new BucketSignificancePriorityQueue<>(size);
         SignificantLongTerms.Bucket spare = null;
-        for (long i = 0; i < bucketOrds.size(); i++) {
-            final int docCount = bucketDocCount(i);
+        BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
+        while (ordsEnum.next()) {
+            final int docCount = bucketDocCount(ordsEnum.ord());
             if (docCount < bucketCountThresholds.getShardMinDocCount()) {
                 continue;
             }
             if (spare == null) {
                 spare = new SignificantLongTerms.Bucket(0, 0, 0, 0, 0, null, format, 0);
             }
-            spare.term = bucketOrds.get(i);
+            spare.term = ordsEnum.value();
             spare.subsetDf = docCount;
             spare.subsetSize = subsetSize;
             spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.term);
@@ -96,7 +99,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
             // Back at the central reducer these properties will be updated with global stats
             spare.updateScore(significanceHeuristic);
 
-            spare.bucketOrd = i;
+            spare.bucketOrd = ordsEnum.ord();
             spare = ordered.insertWithOverflow(spare);
             if (spare == null) {
                 consumeBucketsAndMaybeBreak(1);

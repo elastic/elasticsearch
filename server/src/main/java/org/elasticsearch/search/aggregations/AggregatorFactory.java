@@ -160,6 +160,18 @@ public abstract class AggregatorFactory {
         }
 
         @Override
+        public boolean runDeferredCollections() throws IOException {
+            boolean ran = false;
+            for (long i = 0; i < aggregators.size(); ++i) {
+                final Aggregator aggregator = aggregators.get(i);
+                if (aggregator != null) {
+                    ran |= aggregator.runDeferredCollections();
+                }
+            }
+            return ran;
+        }
+
+        @Override
         public void close() {
             Releasables.close(aggregators, collectors);
         }

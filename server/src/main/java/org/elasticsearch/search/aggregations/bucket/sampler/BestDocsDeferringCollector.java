@@ -32,6 +32,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -131,7 +132,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
 
 
     @Override
-    public void prepareSelectedBuckets(long... selectedBuckets) throws IOException {
+    public void prepareSelectedBuckets(LongHash selectedBuckets) throws IOException {
         // no-op - deferred aggs processed in postCollection call
     }
 

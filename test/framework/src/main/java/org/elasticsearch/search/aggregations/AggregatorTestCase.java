@@ -424,9 +424,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         searcher.search(query, a);
         a.postCollection();
         @SuppressWarnings("unchecked")
-        A internalAgg = (A) a.buildAggregation(0L);
-        InternalAggregationTestCase.assertMultiBucketConsumer(internalAgg, bucketConsumer);
-        return internalAgg;
+        A result = (A) a.buildTopLevel();
+        InternalAggregationTestCase.assertMultiBucketConsumer(result, bucketConsumer);
+        return result;
     }
 
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(IndexSearcher searcher,
@@ -494,7 +494,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             a.preCollection();
             subSearcher.search(weight, a);
             a.postCollection();
-            InternalAggregation agg = a.buildAggregation(0L);
+            InternalAggregation agg = a.buildTopLevel(); 
             aggs.add(agg);
             InternalAggregationTestCase.assertMultiBucketConsumer(agg, shardBucketConsumer);
         }

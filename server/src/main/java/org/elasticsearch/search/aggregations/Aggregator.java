@@ -152,14 +152,52 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     }
 
     /**
-     * Build an aggregation for data that has been collected into {@code bucket}.
+     * Build an aggregation for data that has been collected into
+     * {@code owningBucketOrd}.
+     * <p>
+     * Bucketing aggregations sometimes delay collecting their results if they
+     * are selective (like {@code terms}) or if they aren't sure which buckets
+     * their documents will ultimately fall into
+     * (like {@code auto_date_histogram}). If they do so then anything they
+     * return from this method can't be trusted. To turn them into "real"
+     * results you have to make all of the calls to this method that you
+     * will ever make, then call {@link #runDeferredCollections()}. If that
+     * returns {@code true} then every aggregation will need to be rewritten
+     * with {@code InternalAggregation#undefer()}. This entire dance is
+     * generally accomplished by calling {@link #buildTopLevel()} on each top
+     * level aggregator. 
      */
-    public abstract InternalAggregation buildAggregation(long bucket) throws IOException;
+    public abstract InternalAggregation buildAggregation(long owningBucketOrd) throws IOException;
+
+    /**
+     * Build the result of this aggregation if it is on top level of the
+     * aggregation tree, properly handling deferred collections. It is only
+     * correct to call this on aggregations that <strong>are</strong> at the
+     * top level of the aggregation tree. Calling it for other aggregations
+     * will trip assertions or return the wrong result. Those aggregtions will
+     * have {@link #buildAggregation(long)}, {@link #runDeferredCollections()}
+     * and {@link InternalAggregation#undefer()} called by their parent
+     * aggregations. 
+     */
+    public final InternalAggregation buildTopLevel() throws IOException {
+        assert parent() == null;
+        InternalAggregation result = buildAggregation(0);
+        if (runDeferredCollections()) {
+            return result.undefer();
+        }
+        return result;
+    }
 
     /**
      * Build an empty aggregation.
      */
     public abstract InternalAggregation buildEmptyAggregation();
+
+    /**
+     * Run any deferred collections that are required to
+     * {@link InternalAggregation#undefer()} this aggregations's results.
+     */
+    public abstract boolean runDeferredCollections() throws IOException;
 
     /** Aggregation mode for sub aggregations. */
     public enum SubAggCollectionMode implements Writeable {

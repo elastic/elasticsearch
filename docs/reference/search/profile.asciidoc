@@ -784,46 +784,52 @@ This yields the following aggregation profile output:
           {
             "type" : "LongTermsAggregator",
             "description" : "my_scoped_agg",
-            "time_in_nanos" : 195386,
+            "time_in_nanos" : 195421,
             "breakdown" : {
               "reduce" : 0,
-              "build_aggregation" : 81171,
+              "build_aggregation" : 80927,
               "build_aggregation_count" : 1,
-              "initialize" : 22753,
+              "initialize" : 3619,
               "initialize_count" : 1,
               "reduce_count" : 0,
-              "collect" : 91456,
-              "collect_count" : 4
+              "collect" : 109778,
+              "collect_count" : 4,
+              "run_deferred_collections" : 1090,
+              "run_deferred_collections_count" : 1
             }
           },
           {
             "type" : "GlobalAggregator",
             "description" : "my_global_agg",
-            "time_in_nanos" : 190430,
+            "time_in_nanos" : 231761,
             "breakdown" : {
               "reduce" : 0,
-              "build_aggregation" : 59990,
+              "build_aggregation" : 64334,
               "build_aggregation_count" : 1,
-              "initialize" : 29619,
+              "initialize" : 17229,
               "initialize_count" : 1,
               "reduce_count" : 0,
-              "collect" : 100815,
-              "collect_count" : 4
+              "collect" : 147490,
+              "collect_count" : 4,
+              "run_deferred_collections" : 2701,
+              "run_deferred_collections_count": 1
             },
             "children" : [
               {
                 "type" : "LongTermsAggregator",
                 "description" : "my_level_agg",
-                "time_in_nanos" : 160329,
+                "time_in_nanos" : 198881,
                 "breakdown" : {
                   "reduce" : 0,
-                  "build_aggregation" : 55712,
+                  "build_aggregation" : 58959,
                   "build_aggregation_count" : 1,
-                  "initialize" : 10559,
+                  "initialize" : 1801,
                   "initialize_count" : 1,
                   "reduce_count" : 0,
-                  "collect" : 94052,
-                  "collect_count" : 4
+                  "collect" : 137302,
+                  "collect_count" : 4,
+                  "run_deferred_collections" : 812,
+                  "run_deferred_collections_count" : 1
                 }
               }
             ]

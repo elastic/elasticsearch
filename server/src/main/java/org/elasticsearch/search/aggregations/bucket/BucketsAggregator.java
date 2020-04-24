@@ -174,6 +174,9 @@ public abstract class BucketsAggregator extends AggregatorBase {
 
     @Override
     public BucketComparator bucketComparator(String key, SortOrder order) {
+        if (false == this instanceof SingleBucketAggregator) {
+            return super.bucketComparator(key, order);
+        }
         if (key == null || "doc_count".equals(key)) {
             return (lhs, rhs) -> order.reverseMul() * Integer.compare(bucketDocCount(lhs), bucketDocCount(rhs));
         }

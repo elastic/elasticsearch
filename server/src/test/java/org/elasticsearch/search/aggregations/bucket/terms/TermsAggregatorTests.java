@@ -1291,6 +1291,37 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }, fieldType);
     }
 
+    public void testThreeLayerLong() throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                Document d = new Document();
+                for (int i = 0; i < 10; i++) {
+                    for (int j = 0; j < 10; j++) {
+                        for (int k = 0; k < 10; k++) {
+                            d.add(new SortedNumericDocValuesField("i", i));
+                            d.add(new SortedNumericDocValuesField("j", j));
+                            d.add(new SortedNumericDocValuesField("k", k));
+                            writer.addDocument(d);
+                        }
+                    }
+                }
+                try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
+                    IndexSearcher searcher = newIndexSearcher(reader);
+                    TermsAggregationBuilder request = new TermsAggregationBuilder("i").field("i")
+                        .subAggregation(new TermsAggregationBuilder("j").field("j")
+                            .subAggregation(new TermsAggregationBuilder("k").field("k")));
+                    InternalTerms result = search(searcher, new MatchAllDocsQuery(), request,
+                        longField("i"), longField("j"), longField("k"));
+                }
+            }
+        }
+    }
+
+    private NumberFieldMapper.NumberFieldType longField(String name) {
+        NumberFieldMapper.NumberFieldType type = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+        type.setName(name);
+        return type;
+    }
 
     private void assertNestedTopHitsScore(InternalMultiBucketAggregation<?, ?> terms, boolean withScore) {
         assertThat(terms.getBuckets().size(), equalTo(9));

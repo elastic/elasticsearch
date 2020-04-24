@@ -25,6 +25,7 @@ public enum AggregationTimingType {
     INITIALIZE,
     COLLECT,
     BUILD_AGGREGATION,
+    RUN_DEFERRED_COLLECTIONS,
     REDUCE;
 
     @Override

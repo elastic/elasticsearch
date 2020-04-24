@@ -21,6 +21,9 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -45,10 +48,21 @@ public abstract class DeferringBucketCollector extends BucketCollector {
     public abstract void setDeferredCollector(Iterable<BucketCollector> deferredCollectors);
 
     public final void replay(long... selectedBuckets) throws IOException {
-        prepareSelectedBuckets(selectedBuckets);
+        LongHash hash = new LongHash(selectedBuckets.length, BigArrays.NON_RECYCLING_INSTANCE);
+        for (long bucket : selectedBuckets) {
+            hash.add(bucket);
+        }
+        prepareSelectedBuckets(hash);
     }
 
-    public abstract void prepareSelectedBuckets(long... selectedBuckets) throws IOException;
+    /**
+     * Replay some selected buckets.
+     * <p>
+     * The collector <strong>might</strong> retain a reference to the provided
+     * buckets but it doesn't take responsibility for
+     * {@link Releasable#close() closing} it.
+     */
+    public abstract void prepareSelectedBuckets(LongHash selectedBuckets) throws IOException;
 
     /**
      * Wrap the provided aggregator so that it behaves (almost) as if it had
@@ -103,6 +117,11 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         @Override
         public InternalAggregation buildEmptyAggregation() {
             return in.buildEmptyAggregation();
+        }
+
+        @Override
+        public boolean runDeferredCollections() throws IOException {
+            return in.runDeferredCollections();
         }
 
         @Override

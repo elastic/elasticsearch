@@ -138,7 +138,7 @@ final class CompositeAggregator extends BucketsAggregator {
         consumeBucketsAndMaybeBreak(queue.size());
         if (deferredCollectors != NO_OP_COLLECTOR) {
             // Replay all documents that contain at least one top bucket (collected during the first pass).
-            runDeferredCollections();
+            runCompositeDeferredCollections();
         }
 
         int num = Math.min(size, queue.size());
@@ -352,8 +352,11 @@ final class CompositeAggregator extends BucketsAggregator {
     /**
      * Replay the documents that might contain a top bucket and pass top buckets to
      * the {@link #deferredCollectors}.
+     * <p>
+     * Note: this is distinct from {@link #runDeferredCollections()} because it
+     * predates it and works differently.
      */
-    private void runDeferredCollections() throws IOException {
+    private void runCompositeDeferredCollections() throws IOException {
         final boolean needsScores = scoreMode().needsScores();
         Weight weight = null;
         if (needsScores) {

@@ -158,19 +158,27 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
 
     @Override
     public InternalAggregation copyWithRewritenBuckets(Function<InternalAggregations, InternalAggregations> rewriter) {
-        boolean modified = false;
-        List<B> newBuckets = new ArrayList<>();
-        for (B bucket : getBuckets()) {
+        List<B> orig = getBuckets();
+        List<B> newBuckets = null;
+        for (int b = 0; b < orig.size(); b++) {
+            B bucket = orig.get(b);
             InternalAggregations rewritten = rewriter.apply((InternalAggregations) bucket.getAggregations());
             if (rewritten == null) {
-                newBuckets.add(bucket);
+                if (newBuckets != null) {
+                    newBuckets.add(bucket);
+                }
                 continue;
             }
-            modified = true;
+            if (newBuckets == null) {
+                newBuckets = new ArrayList<>(orig.size());
+                for (int fillIn = 0; fillIn < b; fillIn++) {
+                    newBuckets.add(orig.get(fillIn));
+                }
+            }
             B newBucket = createBucket(rewritten, bucket);
             newBuckets.add(newBucket);
         }
-        return modified ? create(newBuckets) : this;
+        return newBuckets == null ? this : create(newBuckets);
     }
 
     @Override
@@ -191,6 +199,10 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
             reducedBuckets.add(createBucket(new InternalAggregations(aggs), bucket));
         }
         return reducedBuckets;
+    }
+
+    public final InternalAggregation undefer() {
+        return undeferBuckets();
     }
 
     public abstract static class InternalBucket implements Bucket, Writeable {

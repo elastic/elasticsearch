@@ -53,8 +53,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
     }
 
     /**
-     * Adds the {@link Authentication} to the {@link ScrollContext}
-     * @param readerContext
+     * Adds the {@link Authentication} to the {@link ReaderContext}
      */
     @Override
     public void onNewScrollContext(ReaderContext readerContext) {
@@ -64,8 +63,8 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
     }
 
     /**
-     * Checks for the {@link ScrollContext} if it exists and compares the {@link Authentication}
-     * object from the scroll context with the current authentication context
+     * compares the {@link Authentication} object from the reader context with the current
+     * authentication context
      */
     @Override
     public void validateSearchContext(ReaderContext readerContext, SearchContext searchContext, TransportRequest request) {

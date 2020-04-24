@@ -93,6 +93,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration()));
         assertThat(updated.getTimeStampField(), equalTo(original.getTimeStampField()));
+        assertThat(updated.getIndices().size(), equalTo(numBackingIndices - 1));
         for (int k = 0; k < (numBackingIndices - 1); k++) {
             assertThat(updated.getIndices().get(k), equalTo(original.getIndices().get(k < (indexToRemove - 1) ? k : k + 1)));
         }

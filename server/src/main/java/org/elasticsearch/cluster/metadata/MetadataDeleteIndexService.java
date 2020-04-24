@@ -97,8 +97,7 @@ public class MetadataDeleteIndexService {
         for (Index index : indices) {
             IndexMetadata im = meta.getIndexSafe(index);
             IndexAbstraction.DataStream parent = meta.getIndicesLookup().get(im.getIndex().getName()).getParentDataStream();
-            if (parent != null)
-            {
+            if (parent != null) {
                 if (parent.getWriteIndex().equals(im)) {
                     throw new IllegalArgumentException("index [" + index.getName() + "] is the write index for data stream [" +
                         parent.getName() + "] and cannot be deleted");

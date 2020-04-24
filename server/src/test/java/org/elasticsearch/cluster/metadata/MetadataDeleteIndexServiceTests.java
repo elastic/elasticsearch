@@ -38,6 +38,7 @@ import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotInfoTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.hamcrest.core.IsNull;
 import org.junit.Before;
 
 import java.util.List;
@@ -47,6 +48,7 @@ import java.util.Set;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -121,12 +123,9 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         Index indexToDelete = before.metadata().index(DataStream.getBackingIndexName(dataStreamName, numIndexToDelete)).getIndex();
         ClusterState after = service.deleteIndices(before, Set.of(indexToDelete));
 
-        assertNull(after.metadata().getIndices().get(indexToDelete.getName()));
-        for (int k = 1; k <= numBackingIndices; k++) {
-            if (k != numIndexToDelete) {
-                assertNotNull(after.metadata().getIndices().get(DataStream.getBackingIndexName(dataStreamName, k)));
-            }
-        }
+        assertThat(after.metadata().getIndices().get(indexToDelete.getName()), IsNull.nullValue());
+        assertThat(after.metadata().getIndices().size(), equalTo(numBackingIndices - 1));
+        assertThat(after.metadata().getIndices().get(DataStream.getBackingIndexName(dataStreamName, numIndexToDelete)), IsNull.nullValue());
     }
 
     public void testDeleteCurrentWriteIndexForDataStream() {

@@ -73,8 +73,8 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         boolean forbidClosedIndices = request.paramAsBoolean("forbid_closed_indices", true);
         IndicesOptions defaultIndicesOption = forbidClosedIndices ? indicesStatsRequest.indicesOptions()
             : IndicesOptions.strictExpandOpen();
-        assert indicesStatsRequest.indicesOptions() == IndicesOptions.strictExpandOpenAndForbidClosed() : "IndicesStats default indices " +
-            "options changed";
+        assert indicesStatsRequest.indicesOptions() == IndicesOptions.strictIncludeDataStreamsExpandOpenAndForbidClosed()
+            : "IndicesStats default indices options changed";
         indicesStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, defaultIndicesOption));
         indicesStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
 

@@ -180,6 +180,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             throw new IllegalArgumentException("Unexpected part number [" + part + "]");
         }
         final Tuple<Long, Long> range = computeRange(IntStream.range(0, part).mapToLong(fileInfo::partBytes).sum());
+        assert assertRangeIsAlignedWithPart(range);
         try {
             final CacheFile cacheFile = getCacheFileSafe();
             try (ReleasableLock ignored = cacheFile.fileLock()) {
@@ -194,6 +195,24 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         } catch (final Exception e) {
             throw new IOException("Failed to prefetch file part in cache", e);
         }
+    }
+
+    /**
+     * Asserts that the range of bytes to warm in cache is aligned with {@link #fileInfo}'s part size.
+     */
+    private boolean assertRangeIsAlignedWithPart(Tuple<Long, Long> range) {
+        if (fileInfo.numberOfParts() == 1L) {
+            final long length = fileInfo.length();
+            assert range.v1() == 0L : "start of range [" + range.v1() + "] is not aligned with zero";
+            assert range.v2() == length : "end of range [" + range.v2() + "] is not aligned with file length [" + length + ']';
+        } else {
+            final long length = fileInfo.partSize().getBytes();
+            assert range.v1() % length == 0L : "start of range [" + range.v1() + "] is not aligned with part start";
+            assert range.v2() % length == 0L || (range.v2() == fileInfo.length()) : "end of range ["
+                + range.v2()
+                + "] is not aligned with part end or with file length";
+        }
+        return true;
     }
 
     private int readCacheFile(FileChannel fc, long end, long position, byte[] buffer, int offset, long length) throws IOException {

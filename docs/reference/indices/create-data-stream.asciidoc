@@ -58,7 +58,7 @@ Data stream names must meet the following criteria:
 - Cannot be longer than 255 bytes (note it is bytes, so multi-byte characters will count towards the 255 limit faster)
 --
 
-[[indices-create-api-request-body]]
+[[indices-create-data-stream-api-request-body]]
 ==== {api-request-body-title}
 
 `timestamp_field`::

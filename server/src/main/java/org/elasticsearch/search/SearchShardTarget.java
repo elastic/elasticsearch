@@ -50,7 +50,11 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
         }
         shardId = new ShardId(in);
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            originalIndices = OriginalIndices.readOriginalIndices(in);
+            if (in.readBoolean()) {
+                originalIndices = OriginalIndices.readOriginalIndices(in);
+            } else {
+                originalIndices = null;
+            }
         } else {
             originalIndices = null;
         }
@@ -74,7 +78,12 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
         }
         shardId.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            OriginalIndices.writeOriginalIndices(originalIndices, out);
+            if (originalIndices != null) {
+                out.writeBoolean(true);
+                OriginalIndices.writeOriginalIndices(originalIndices, out);
+            } else {
+                out.writeBoolean(false);
+            }
         }
         out.writeOptionalString(clusterAlias);
     }

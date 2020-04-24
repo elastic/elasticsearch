@@ -725,8 +725,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 v = NumericUtils.floatToSortableInt(f);
                 json = "{ \"" + fieldName + "\" : \"" + f + "\" }";
             } else if (typeName.equals(NumberFieldMapper.NumberType.HALF_FLOAT.typeName())) {
-                // Respect half float range
-                float f = Math.abs((randomFloat() * 2 - 1) * 70000);
+                // Generate a random float that respects the limits of half float
+                float f = Math.abs((randomFloat() * 2 - 1) * 65504);
                 v = HalfFloatPoint.halfFloatToSortableShort(f);
                 json = "{ \"" + fieldName + "\" : \"" + f + "\" }";
             } else {

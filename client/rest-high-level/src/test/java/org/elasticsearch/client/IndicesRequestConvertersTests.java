@@ -943,9 +943,9 @@ public class IndicesRequestConvertersTests extends ESTestCase {
 
         Request request = IndicesRequestConverters.rollover(rolloverRequest);
         if (rolloverRequest.getNewIndexName() == null) {
-            Assert.assertEquals("/" + rolloverRequest.getAlias() + "/_rollover", request.getEndpoint());
+            Assert.assertEquals("/" + rolloverRequest.getRolloverTarget() + "/_rollover", request.getEndpoint());
         } else {
-            Assert.assertEquals("/" + rolloverRequest.getAlias() + "/_rollover/" + rolloverRequest.getNewIndexName(),
+            Assert.assertEquals("/" + rolloverRequest.getRolloverTarget() + "/_rollover/" + rolloverRequest.getNewIndexName(),
                 request.getEndpoint());
         }
         Assert.assertEquals(HttpPost.METHOD_NAME, request.getMethod());

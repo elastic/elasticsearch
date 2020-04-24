@@ -347,6 +347,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         final int numDocs = 10000;
         for (int i = 0; i < numDocs; ++i) {
             Document doc = new Document();
+            // Note: this test purposefully allows half-floats to be indexed over their dynamic range (65504), which
+            // ends up being rounded to Infinity by halfFloatToSortableShort()
             float value = (randomFloat() * 2 - 1) * 70000;
             float rounded = HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(value));
             doc.add(new HalfFloatPoint("half_float", value));

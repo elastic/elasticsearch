@@ -63,8 +63,7 @@ class AggregationToJsonProcessor {
      * @param includeDocCount whether to include the doc_count
      * @param startTime buckets with a timestamp before this time are discarded
      */
-    AggregationToJsonProcessor(String timeField, Set<String> fields, boolean includeDocCount, long startTime)
-            throws IOException {
+    AggregationToJsonProcessor(String timeField, Set<String> fields, boolean includeDocCount, long startTime) {
         this.timeField = Objects.requireNonNull(timeField);
         this.fields = Objects.requireNonNull(fields);
         this.includeDocCount = includeDocCount;
@@ -279,7 +278,7 @@ class AggregationToJsonProcessor {
      * Adds a leaf key-value. It returns {@code true} if the key added or {@code false} when nothing was added.
      * Non-finite metric values are not added.
      */
-    private boolean processLeaf(Aggregation agg) throws IOException {
+    private boolean processLeaf(Aggregation agg) {
         if (agg instanceof NumericMetricsAggregation.SingleValue) {
             return processSingleValue((NumericMetricsAggregation.SingleValue) agg);
         } else if (agg instanceof Percentiles) {
@@ -291,7 +290,7 @@ class AggregationToJsonProcessor {
         }
     }
 
-    private boolean processSingleValue(NumericMetricsAggregation.SingleValue singleValue) throws IOException {
+    private boolean processSingleValue(NumericMetricsAggregation.SingleValue singleValue) {
         return addMetricIfFinite(singleValue.getName(), singleValue.value());
     }
 
@@ -311,7 +310,7 @@ class AggregationToJsonProcessor {
         return false;
     }
 
-    private boolean processPercentiles(Percentiles percentiles) throws IOException {
+    private boolean processPercentiles(Percentiles percentiles) {
         Iterator<Percentile> percentileIterator = percentiles.iterator();
         boolean aggregationAdded = addMetricIfFinite(percentiles.getName(), percentileIterator.next().getValue());
         if (percentileIterator.hasNext()) {

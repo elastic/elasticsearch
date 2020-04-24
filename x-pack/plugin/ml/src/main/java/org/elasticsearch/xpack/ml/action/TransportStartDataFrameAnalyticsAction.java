@@ -16,7 +16,6 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
@@ -56,6 +55,7 @@ import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -94,7 +94,7 @@ import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
  * Starts the persistent task for running data frame analytics.
  */
 public class TransportStartDataFrameAnalyticsAction
-    extends TransportMasterNodeAction<StartDataFrameAnalyticsAction.Request, AcknowledgedResponse> {
+    extends TransportMasterNodeAction<StartDataFrameAnalyticsAction.Request, NodeAcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportStartDataFrameAnalyticsAction.class);
     private static final String PRIMARY_SHARDS_INACTIVE = "not all primary shards are active";
@@ -140,8 +140,8 @@ public class TransportStartDataFrameAnalyticsAction
     }
 
     @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
+    protected NodeAcknowledgedResponse read(StreamInput in) throws IOException {
+        return new NodeAcknowledgedResponse(in);
     }
 
     @Override
@@ -154,7 +154,7 @@ public class TransportStartDataFrameAnalyticsAction
 
     @Override
     protected void masterOperation(Task task, StartDataFrameAnalyticsAction.Request request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) {
+                                   ActionListener<NodeAcknowledgedResponse> listener) {
         if (licenseState.isMachineLearningAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
@@ -388,7 +388,7 @@ public class TransportStartDataFrameAnalyticsAction
     }
 
     private void waitForAnalyticsStarted(PersistentTasksCustomMetadata.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> task,
-                                         TimeValue timeout, ActionListener<AcknowledgedResponse> listener) {
+                                         TimeValue timeout, ActionListener<NodeAcknowledgedResponse> listener) {
         AnalyticsPredicate predicate = new AnalyticsPredicate();
         persistentTasksService.waitForPersistentTaskCondition(task.getId(), predicate, timeout,
 
@@ -402,7 +402,7 @@ public class TransportStartDataFrameAnalyticsAction
                         cancelAnalyticsStart(task, predicate.exception, listener);
                     } else {
                         auditor.info(task.getParams().getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_STARTED);
-                        listener.onResponse(new AcknowledgedResponse(true));
+                        listener.onResponse(new NodeAcknowledgedResponse(true, predicate.node));
                     }
                 }
 
@@ -457,6 +457,7 @@ public class TransportStartDataFrameAnalyticsAction
     private static class AnalyticsPredicate implements Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> {
 
         private volatile Exception exception;
+        private volatile String node = "";
         private volatile String assignmentExplanation;
 
         @Override
@@ -491,6 +492,7 @@ public class TransportStartDataFrameAnalyticsAction
                 case STARTED:
                 case REINDEXING:
                 case ANALYZING:
+                    node = persistentTask.getExecutorNode();
                     return true;
                 case STOPPING:
                     exception = ExceptionsHelper.conflictStatusException("the task has been stopped while waiting to be started");
@@ -513,7 +515,7 @@ public class TransportStartDataFrameAnalyticsAction
 
     private void cancelAnalyticsStart(
         PersistentTasksCustomMetadata.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> persistentTask, Exception exception,
-        ActionListener<AcknowledgedResponse> listener) {
+        ActionListener<NodeAcknowledgedResponse> listener) {
         persistentTasksService.sendRemoveRequest(persistentTask.getId(),
             new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
                 @Override

@@ -217,7 +217,7 @@ The API returns the following response:
 
 [source,console]
 --------------------------------------------------
-PUT _data_stream/my-data-stream <1>
+PUT /_data_stream/my-data-stream <1>
 {
   "timestamp_field": "@timestamp"
 }

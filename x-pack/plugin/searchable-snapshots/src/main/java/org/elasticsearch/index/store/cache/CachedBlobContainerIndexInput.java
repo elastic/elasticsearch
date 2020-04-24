@@ -32,8 +32,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME;
-
 public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexInput {
 
     /**
@@ -237,13 +235,6 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             final long endTimeNanos = stats.currentTimeNanos();
             stats.addCachedBytesWritten(bytesCopied, endTimeNanos - startTimeNanos);
         }
-    }
-
-    @Override
-    protected boolean assertCurrentThreadMayAccessBlobStore() {
-        assert Thread.currentThread().getName().contains('[' + SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME + ']')
-            || super.assertCurrentThreadMayAccessBlobStore();
-        return true;
     }
 
     @Override

@@ -499,6 +499,9 @@ stringContains(process.command_line, "regsvr32")  // returns true
 stringContains(process.command_line, "start ")    // returns true
 stringContains(process.command_line, "explorer")  // returns false
 
+// process.name = "regsvr32.exe"
+stringContains(command_line, process.name)        // returns true
+
 // empty strings
 stringContains("", "")                            // returns false
 stringContains(process.command_line, "")          // returns false

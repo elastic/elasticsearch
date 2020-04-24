@@ -43,8 +43,6 @@ import java.util.function.LongSupplier;
 /**
  * {@link CoreValuesSourceType} holds the {@link ValuesSourceType} implementations for the core aggregations package.
  */
-
-
 public enum CoreValuesSourceType implements ValuesSourceType {
 
     NUMERIC() {
@@ -293,5 +291,6 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         return name().toLowerCase(Locale.ROOT);
     }
 
+    /** List containing all members of the enumeration. */
     public static List<ValuesSourceType> ALL = Arrays.asList(CoreValuesSourceType.values());
 }

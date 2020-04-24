@@ -61,8 +61,12 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     private Collector collector;
 
     public CardinalityAggregator(
-        String name, ValuesSource valuesSource, int precision, SearchContext context, Aggregator parent, Map<String, Object> metadata)
-        throws IOException {
+            String name,
+            ValuesSource valuesSource,
+            int precision,
+            SearchContext context,
+            Aggregator parent,
+            Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
         this.valuesSource = valuesSource;
         this.precision = precision;

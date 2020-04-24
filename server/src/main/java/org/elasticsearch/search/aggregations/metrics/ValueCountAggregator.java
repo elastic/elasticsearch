@@ -48,8 +48,12 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
     // a count per bucket
     LongArray counts;
 
-    public ValueCountAggregator(String name, ValuesSource valuesSource,
-            SearchContext aggregationContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
+    public ValueCountAggregator(
+            String name,
+            ValuesSource valuesSource,
+            SearchContext aggregationContext,
+            Aggregator parent,
+            Map<String, Object> metadata) throws IOException {
         super(name, aggregationContext, parent, metadata);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {

@@ -84,7 +84,7 @@ is because dictionary stemmers have the following disadvantages:
 A dictionary stemmer is only as good as its dictionary. To work well, these
 dictionaries must include a significant number of words, be updated regularly,
 and change with language trends. Often, by the time a dictionary has been made
-available, it's incomplete and some of its entries are already out-of-date.
+available, it's incomplete and some of its entries are already outdated.
 
 * *Size and performance* +
 Dictionary stemmers must load all words, prefixes, and suffixes from its

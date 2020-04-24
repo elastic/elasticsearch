@@ -23,7 +23,4 @@ DELETE _data_stream/my-data-stream
 ==== {api-path-parms-title}
 
 `<data-stream>`::
-+
---
 (Required, string) Name or wildcard expression of data stream(s) to delete.
-

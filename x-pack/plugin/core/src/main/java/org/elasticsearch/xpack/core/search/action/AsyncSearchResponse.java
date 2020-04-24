@@ -176,7 +176,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
             // shard failures are not considered fatal for partial results so
             // we return OK until we get the final response even if we don't have
             // a single successful shard.
-            return error != null ? ExceptionsHelper.status(error) : OK;
+            return error != null ? ExceptionsHelper.status(ExceptionsHelper.unwrapCause(error)) : OK;
         } else {
             return searchResponse.status();
         }

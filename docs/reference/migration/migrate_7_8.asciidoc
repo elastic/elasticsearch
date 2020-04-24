@@ -143,4 +143,5 @@ context.  For example, for the `processor_conditional` context, use
 
 See [[painless-contexts]] for more about painless contexts.
 ====
+
 //end::notable-breaking-changes[]

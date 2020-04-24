@@ -201,7 +201,8 @@ public class RetryableActionTests extends ESTestCase {
         retryableAction.cancel(new ElasticsearchException("Cancelled"));
         taskQueue.runAllRunnableTasks();
 
-        assertEquals(2, executedCount.get());
+        // A second run will not occur because it is cancelled
+        assertEquals(1, executedCount.get());
         expectThrows(ElasticsearchException.class, future::actionGet);
     }
 }

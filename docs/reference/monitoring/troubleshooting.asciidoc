@@ -14,6 +14,9 @@ a ticket in the
 https://support.elastic.co/customers/s/login/[Elastic Support portal].
 Or post in the https://discuss.elastic.co/[Elastic forum].
 
+[[monitoring-troubleshooting-no-data]]
+=== No monitoring data is visible in {kib}
+
 *Symptoms*:
 There is no information about your cluster on the *Stack Monitoring* page in
 {kib}.
@@ -27,3 +30,14 @@ monitoring data by using {metricbeat} the indices have `-mb` in their names. If
 the indices do not exist, review your configuration. For example, see
 <<monitoring-production>>.
 
+[[monitoring-troubleshooting-uuid]]
+=== Some monitoring data is missing from {kib}
+
+*Symptoms*:
+The information about some nodes, instances, or Beats in your cluster are
+missing from the *Stack Monitoring* page in {kib}.
+
+*Resolution*:
+Verify that the missing items have unique UUIDs. Each {es} node, {ls} node,
+{kib} instance, and Beat is considered unique based on its persistent UUID,
+which is found in its `path.data` directory.

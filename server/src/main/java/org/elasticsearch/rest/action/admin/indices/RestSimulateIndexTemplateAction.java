@@ -33,7 +33,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestPostSimulateIndexTemplateAction extends BaseRestHandler {
+public class RestSimulateIndexTemplateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {

@@ -312,7 +312,7 @@ import org.elasticsearch.rest.action.admin.indices.RestIndicesSegmentsAction;
 import org.elasticsearch.rest.action.admin.indices.RestIndicesShardStoresAction;
 import org.elasticsearch.rest.action.admin.indices.RestIndicesStatsAction;
 import org.elasticsearch.rest.action.admin.indices.RestOpenIndexAction;
-import org.elasticsearch.rest.action.admin.indices.RestPostSimulateIndexTemplateAction;
+import org.elasticsearch.rest.action.admin.indices.RestSimulateIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestPutComponentTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateV2Action;
@@ -704,7 +704,7 @@ public class ActionModule extends AbstractModule {
             registerHandler.accept(new RestPutIndexTemplateV2Action());
             registerHandler.accept(new RestGetIndexTemplateV2Action());
             registerHandler.accept(new RestDeleteIndexTemplateV2Action());
-            registerHandler.accept(new RestPostSimulateIndexTemplateAction());
+            registerHandler.accept(new RestSimulateIndexTemplateAction());
         }
 
         registerHandler.accept(new RestPutMappingAction());

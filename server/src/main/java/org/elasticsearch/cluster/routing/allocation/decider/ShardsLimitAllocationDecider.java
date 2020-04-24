@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -98,7 +98,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
 
     private Decision doDecide(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation,
                               BiPredicate<Integer, Integer> decider) {
-        IndexMetaData indexMd = allocation.metaData().getIndexSafe(shardRouting.index());
+        IndexMetadata indexMd = allocation.metadata().getIndexSafe(shardRouting.index());
         final int indexShardLimit = INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(indexMd.getSettings(), settings);
         // Capture the limit here in case it changes during this method's
         // execution

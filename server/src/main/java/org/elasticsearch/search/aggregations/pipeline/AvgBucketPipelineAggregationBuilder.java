@@ -46,8 +46,8 @@ public class AvgBucketPipelineAggregationBuilder extends BucketMetricsPipelineAg
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
-        return new AvgBucketPipelineAggregator(name, bucketsPaths, gapPolicy(), formatter(), metaData);
+    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
+        return new AvgBucketPipelineAggregator(name, bucketsPaths, gapPolicy(), formatter(), metadata);
     }
 
     @Override

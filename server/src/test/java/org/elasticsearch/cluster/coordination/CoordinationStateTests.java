@@ -22,9 +22,9 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -791,9 +791,9 @@ public class CoordinationStateTests extends ESTestCase {
         return setValue(ClusterState.builder(ClusterName.DEFAULT)
             .version(version)
             .nodes(discoveryNodes)
-            .metaData(MetaData.builder()
+            .metadata(Metadata.builder()
                 .clusterUUID(UUIDs.randomBase64UUID(random())) // generate cluster UUID deterministically for repeatable tests
-                .coordinationMetaData(CoordinationMetaData.builder()
+                .coordinationMetadata(CoordinationMetadata.builder()
                         .term(term)
                         .lastCommittedConfiguration(lastCommittedConfig)
                         .lastAcceptedConfiguration(lastAcceptedConfig)
@@ -803,10 +803,10 @@ public class CoordinationStateTests extends ESTestCase {
     }
 
     public static ClusterState setValue(ClusterState clusterState, long value) {
-        return ClusterState.builder(clusterState).metaData(
-            MetaData.builder(clusterState.metaData())
+        return ClusterState.builder(clusterState).metadata(
+            Metadata.builder(clusterState.metadata())
                 .persistentSettings(Settings.builder()
-                    .put(clusterState.metaData().persistentSettings())
+                    .put(clusterState.metadata().persistentSettings())
                     .put("value", value)
                     .build())
                 .build())
@@ -814,6 +814,6 @@ public class CoordinationStateTests extends ESTestCase {
     }
 
     public static long value(ClusterState clusterState) {
-        return clusterState.metaData().persistentSettings().getAsLong("value", 0L);
+        return clusterState.metadata().persistentSettings().getAsLong("value", 0L);
     }
 }

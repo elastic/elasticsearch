@@ -25,7 +25,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -78,15 +78,15 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         assertTrue(indexExists("ro"));
     }
 
-    public void testIndexReadWriteMetaDataBlocks() {
+    public void testIndexReadWriteMetadataBlocks() {
         canCreateIndex("test1");
         canIndexDocument("test1");
         client().admin().indices().prepareUpdateSettings("test1")
-                .setSettings(Settings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, true))
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true))
                 .execute().actionGet();
         canNotIndexDocument("test1");
         client().admin().indices().prepareUpdateSettings("test1")
-                .setSettings(Settings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, false))
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, false))
                 .execute().actionGet();
         canIndexDocument("test1");
     }
@@ -133,7 +133,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
     private void setIndexReadOnly(String index, Object value) {
         HashMap<String, Object> newSettings = new HashMap<>();
-        newSettings.put(IndexMetaData.SETTING_READ_ONLY, value);
+        newSettings.put(IndexMetadata.SETTING_READ_ONLY, value);
 
         UpdateSettingsRequestBuilder settingsRequest = client().admin().indices().prepareUpdateSettings(index);
         settingsRequest.setSettings(newSettings);

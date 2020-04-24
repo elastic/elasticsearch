@@ -1,7 +1,8 @@
 {
   "rollup.delete_job":{
     "documentation":{
-      "url":""
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-delete-job.html",
+      "description":"Deletes an existing rollup job."
     },
     "stability":"experimental",
     "url":{

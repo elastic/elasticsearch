@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.transform.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.TimeValue;
@@ -54,7 +54,7 @@ public class RestCatTransformAction extends AbstractCatAction {
     protected RestChannelConsumer doCatRequest(RestRequest restRequest, NodeClient client) {
         String id = restRequest.param(TransformField.TRANSFORM_ID);
         if (Strings.isNullOrEmpty(id)) {
-            id = MetaData.ALL;
+            id = Metadata.ALL;
         }
 
         GetTransformAction.Request request = new GetTransformAction.Request(id);

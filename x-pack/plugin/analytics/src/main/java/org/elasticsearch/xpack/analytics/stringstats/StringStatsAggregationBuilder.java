@@ -44,8 +44,8 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
 
     public StringStatsAggregationBuilder(StringStatsAggregationBuilder clone,
                                          AggregatorFactories.Builder factoriesBuilder,
-                                         Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                         Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.showDistribution = clone.showDistribution();
     }
 
@@ -61,8 +61,8 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new StringStatsAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new StringStatsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     @Override
@@ -80,7 +80,7 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
                                                       ValuesSourceConfig config,
                                                       AggregatorFactory parent,
                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new StringStatsAggregatorFactory(name, config, showDistribution, queryShardContext, parent, subFactoriesBuilder, metaData);
+        return new StringStatsAggregatorFactory(name, config, showDistribution, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
@@ -113,8 +113,8 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
         return this;
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        StringStatsAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        StringStatsAggregatorFactory.registerAggregators(builder);
     }
 
     @Override

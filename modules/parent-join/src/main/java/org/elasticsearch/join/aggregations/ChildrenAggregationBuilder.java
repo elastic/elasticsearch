@@ -66,8 +66,8 @@ public class ChildrenAggregationBuilder
     }
 
     protected ChildrenAggregationBuilder(ChildrenAggregationBuilder clone,
-                                         Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                         Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.childType = clone.childType;
         this.childFilter = clone.childFilter;
         this.parentFilter = clone.parentFilter;
@@ -79,8 +79,8 @@ public class ChildrenAggregationBuilder
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new ChildrenAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new ChildrenAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -106,7 +106,7 @@ public class ChildrenAggregationBuilder
                                                        AggregatorFactory parent,
                                                        Builder subFactoriesBuilder) throws IOException {
         return new ChildrenAggregatorFactory(name, config, childFilter, parentFilter, queryShardContext, parent,
-                subFactoriesBuilder, metaData);
+                subFactoriesBuilder, metadata);
     }
 
     @Override

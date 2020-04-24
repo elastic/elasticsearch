@@ -16,8 +16,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
@@ -174,8 +174,8 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
     private boolean shouldRemoveIndex(GetIndexResponse getIndexResponse, Map<String, EnrichPolicy> policies, String indexName) {
         // Find the policy on the index
         logger.debug("Checking if should remove enrich index [{}]", indexName);
-        MappingMetaData mappingMetaData = getIndexResponse.getMappings().get(indexName);
-        Map<String, Object> mapping = mappingMetaData.getSourceAsMap();
+        MappingMetadata mappingMetadata = getIndexResponse.getMappings().get(indexName);
+        Map<String, Object> mapping = mappingMetadata.getSourceAsMap();
         String policyName = ObjectPath.eval(MAPPING_POLICY_FIELD_PATH, mapping);
         // Check if index has a corresponding policy
         if (policyName == null || policies.containsKey(policyName) == false) {
@@ -185,12 +185,12 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
         }
         // Check if index is currently linked to an alias
         final String aliasName = EnrichPolicy.getBaseName(policyName);
-        List<AliasMetaData> aliasMetadata = getIndexResponse.aliases().get(indexName);
+        List<AliasMetadata> aliasMetadata = getIndexResponse.aliases().get(indexName);
         if (aliasMetadata == null) {
             logger.debug("Enrich index [{}] is not marked as a live index since it has no alias information", indexName);
             return true;
         }
-        boolean hasAlias = aliasMetadata.stream().anyMatch((aliasMetaData -> aliasMetaData.getAlias().equals(aliasName)));
+        boolean hasAlias = aliasMetadata.stream().anyMatch((am -> am.getAlias().equals(aliasName)));
         // Index is not currently published to the enrich alias. Should be marked for removal.
         if (hasAlias == false) {
             logger.debug("Enrich index [{}] is not marked as a live index since it lacks the alias [{}]", indexName, aliasName);

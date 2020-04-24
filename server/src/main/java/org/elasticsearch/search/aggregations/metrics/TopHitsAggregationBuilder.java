@@ -79,8 +79,8 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     protected TopHitsAggregationBuilder(TopHitsAggregationBuilder clone,
-                                        Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                        Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.from = clone.from;
         this.size = clone.size;
         this.explain = clone.explain;
@@ -100,8 +100,8 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new TopHitsAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new TopHitsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -607,7 +607,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         }
         return new TopHitsAggregatorFactory(name, from, size, explain, version, seqNoAndPrimaryTerm, trackScores, optionalSort,
             highlightBuilder, storedFieldsContext, docValueFields, fields, fetchSourceContext, queryShardContext, parent,
-            subfactoriesBuilder, metaData);
+            subfactoriesBuilder, metadata);
     }
 
     @Override

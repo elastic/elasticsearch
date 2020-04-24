@@ -24,8 +24,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
@@ -639,8 +639,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         if (isRunningAgainstOldCluster()) {
             Settings.Builder settings = Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                 // if the node with the replica is the first to be restarted, while a replica is still recovering
                 // then delayed allocation will kick in. When the node comes back, the master will search for a copy
                 // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
@@ -963,7 +963,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     public void testClosedIndices() throws Exception {
         if (isRunningAgainstOldCluster()) {
             createIndex(index, Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build());
             ensureGreen(index);
 
@@ -1016,7 +1016,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         final Map<String, ?> blocks = (Map<String, Object>) XContentMapValues.extractValue("blocks.indices." + index, state);
         assertThat(blocks, notNullValue());
-        assertThat(blocks.containsKey(String.valueOf(MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID)), is(true));
+        assertThat(blocks.containsKey(String.valueOf(MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID)), is(true));
 
         final Map<String, ?> settings = (Map<String, Object>) XContentMapValues.extractValue("settings", metadata);
         assertThat(settings, notNullValue());
@@ -1264,8 +1264,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      */
     public void testOperationBasedRecovery() throws Exception {
         if (isRunningAgainstOldCluster()) {
-            Settings.Builder settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1);
+            Settings.Builder settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
             if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
@@ -1300,8 +1300,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     public void testTurnOffTranslogRetentionAfterUpgraded() throws Exception {
         if (isRunningAgainstOldCluster()) {
             createIndex(index, Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
             ensureGreen(index);
             int numDocs = randomIntBetween(10, 100);
@@ -1323,8 +1323,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         int numDocs;
         if (isRunningAgainstOldCluster()) {
             final Settings.Builder settings = Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1);
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1);
             if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
             }
@@ -1355,7 +1355,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             {
                 final String target = index + "_shrunken";
                 Request shrinkRequest = new Request("PUT", "/" + index + "/_shrink/" + target);
-                Settings.Builder settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1);
+                Settings.Builder settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
                 if (randomBoolean()) {
                     settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
                 }
@@ -1366,7 +1366,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             }
             {
                 final String target = index + "_split";
-                Settings.Builder settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 6);
+                Settings.Builder settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 6);
                 if (randomBoolean()) {
                     settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
                 }

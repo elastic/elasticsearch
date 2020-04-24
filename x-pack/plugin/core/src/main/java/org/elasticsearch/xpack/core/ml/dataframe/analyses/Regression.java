@@ -163,6 +163,7 @@ public class Regression implements DataFrameAnalysis {
         if (predictionFieldName != null) {
             params.put(PREDICTION_FIELD_NAME.getPreferredName(), predictionFieldName);
         }
+        params.put(TRAINING_PERCENT.getPreferredName(), trainingPercent);
         return params;
     }
 

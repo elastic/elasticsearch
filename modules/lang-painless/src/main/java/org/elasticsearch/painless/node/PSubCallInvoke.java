@@ -65,7 +65,6 @@ public class PSubCallInvoke extends AExpression {
             argumentOutputs.add(expressionOutput);
         }
 
-        output.statement = true;
         output.actual = method.returnType;
 
         CallSubNode callSubNode = new CallSubNode();

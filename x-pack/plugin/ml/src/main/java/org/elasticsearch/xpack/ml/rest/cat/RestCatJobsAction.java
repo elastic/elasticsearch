@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.rest.cat;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
@@ -47,7 +47,7 @@ public class RestCatJobsAction extends AbstractCatAction {
     protected RestChannelConsumer doCatRequest(RestRequest restRequest, NodeClient client) {
         String jobId = restRequest.param(Job.ID.getPreferredName());
         if (Strings.isNullOrEmpty(jobId)) {
-            jobId = MetaData.ALL;
+            jobId = Metadata.ALL;
         }
         GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
         request.setAllowNoJobs(restRequest.paramAsBoolean(GetJobsStatsAction.Request.ALLOW_NO_JOBS.getPreferredName(),

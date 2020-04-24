@@ -25,7 +25,7 @@ esplugin {
 dependencies {
   compile 'com.google.cloud:google-cloud-storage:1.106.0'
   compile 'com.google.cloud:google-cloud-core:1.93.3'
-  compile 'com.google.guava:guava:26.0-jre'
+  runtimeOnly 'com.google.guava:guava:26.0-jre'
   compile 'com.google.http-client:google-http-client:1.34.2'
   compile "commons-logging:commons-logging:${versions.commonslogging}"
   compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"

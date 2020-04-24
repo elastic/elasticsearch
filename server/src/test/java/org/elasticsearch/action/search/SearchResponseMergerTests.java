@@ -63,6 +63,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.InternalAggregationTestCase.emptyReduceContextBuilder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.greaterThan;
@@ -361,14 +363,13 @@ public class SearchResponseMergerTests extends ESTestCase {
         for (int i = 0; i < numResponses; i++) {
             double value = randomDouble();
             maxValue = Math.max(value, maxValue);
-            InternalMax max = new InternalMax(maxAggName, value, DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap());
+            InternalMax max = new InternalMax(maxAggName, value, DocValueFormat.RAW, Collections.emptyMap());
             InternalDateRange.Factory factory = new InternalDateRange.Factory();
             int count = randomIntBetween(1, 1000);
             totalCount += count;
             InternalDateRange.Bucket bucket = factory.createBucket("bucket", 0, 10000, count, InternalAggregations.EMPTY,
                 false, DocValueFormat.RAW);
-            InternalDateRange range = factory.create(rangeAggName, Collections.singletonList(bucket), DocValueFormat.RAW, false,
-                Collections.emptyList(), Collections.emptyMap());
+            InternalDateRange range = factory.create(rangeAggName, singletonList(bucket), DocValueFormat.RAW, false, emptyMap());
             InternalAggregations aggs = new InternalAggregations(Arrays.asList(range, max));
             SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
             InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, aggs, null, null, false, null, 1);

@@ -70,12 +70,12 @@ import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasProperty;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.collection.IsArrayContainingInAnyOrder.arrayContainingInAnyOrder;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {

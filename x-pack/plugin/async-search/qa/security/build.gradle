@@ -10,6 +10,7 @@ dependencies {
 
 testClusters.integTest {
   testDistribution = 'DEFAULT'
+  numberOfNodes = 2
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   extraConfigFile 'roles.yml', file('roles.yml')

@@ -11,6 +11,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
 import java.util.Collections;
@@ -93,6 +95,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         task = mock(DataFrameAnalyticsTask.class);
         when(task.getAllocationId()).thenReturn(TASK_ALLOCATION_ID);
         when(task.getStatsHolder()).thenReturn(new StatsHolder());
+        when(task.getParentTaskId()).thenReturn(new TaskId(""));
         dataFrameAnalyticsConfig = DataFrameAnalyticsConfigTests.createRandomBuilder(CONFIG_ID,
             false,
             OutlierDetectionTests.createRandom()).build();
@@ -133,10 +136,15 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         inOrder.verify(task).isStopping();
         inOrder.verify(task).getAllocationId();
         inOrder.verify(task).isStopping();
+        inOrder.verify(task).getParentTaskId();
         inOrder.verify(task).getStatsHolder();
         inOrder.verify(task).isStopping();
         inOrder.verify(task).getAllocationId();
-        inOrder.verify(task).setFailed("[config-id] Could not create process as one already exists");
+
+        ArgumentCaptor<Exception> failureCaptor = ArgumentCaptor.forClass(Exception.class);
+        inOrder.verify(task).setFailed(failureCaptor.capture());
+        assertThat(failureCaptor.getValue().getMessage(), equalTo("[config-id] Could not create process as one already exists"));
+
         verifyNoMoreInteractions(task);
     }
 
@@ -168,6 +176,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         inOrder.verify(dataExtractor).collectDataSummary();
         inOrder.verify(dataExtractor).getCategoricalFields(dataFrameAnalyticsConfig.getAnalysis());
         inOrder.verify(process).isProcessAlive();
+        inOrder.verify(task).getParentTaskId();
         inOrder.verify(task).getStatsHolder();
         inOrder.verify(dataExtractor).getAllExtractedFields();
         inOrder.verify(executorServiceForProcess, times(2)).execute(any());  // 'processData' and 'processResults' threads
@@ -226,6 +235,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         inOrder.verify(dataExtractor).collectDataSummary();
         inOrder.verify(dataExtractor).getCategoricalFields(dataFrameAnalyticsConfig.getAnalysis());
         inOrder.verify(process).isProcessAlive();
+        inOrder.verify(task).getParentTaskId();
         inOrder.verify(task).getStatsHolder();
         inOrder.verify(dataExtractor).getAllExtractedFields();
         // stop

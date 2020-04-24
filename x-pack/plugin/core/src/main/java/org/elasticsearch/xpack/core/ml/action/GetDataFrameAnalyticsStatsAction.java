@@ -54,7 +54,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
 
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
 
-        private String id;
+        private String id = "_all";
         private boolean allowNoMatch = true;
         private PageParams pageParams = PageParams.defaultParams();
 
@@ -94,7 +94,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
         }
 
         public void setId(String id) {
-            this.id = id;
+            this.id = ExceptionsHelper.requireNonNull(id, DataFrameAnalyticsConfig.ID.getPreferredName());
         }
 
         public String getId() {

@@ -37,7 +37,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -146,8 +146,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
         assertThat(cluster().numDataNodes(), greaterThanOrEqualTo(3));
 
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
             // no checkindex - we corrupt shards on purpose
             .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
@@ -176,7 +176,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
          /*
          * we corrupted the primary shard - now lets make sure we never recover from it successfully
          */
-        Settings build = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "2").build();
+        Settings build = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "2").build();
         client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
         ClusterHealthResponse health = client().admin().cluster()
             .health(Requests.clusterHealthRequest("test").waitForGreenStatus()
@@ -255,7 +255,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
 
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
             .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false) // no checkindex - we corrupt shards on purpose
             // no translog based flush - it might change the .liv / segments.N files
@@ -279,7 +279,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         /*
          * we corrupted the primary shard - now lets make sure we never recover from it successfully
          */
-        Settings build = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1").build();
+        Settings build = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1").build();
         client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
         client().admin().cluster().prepareReroute().get();
 
@@ -344,8 +344,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
         NodeStats primariesNode = dataNodeStats.get(0);
         NodeStats unluckyNode = dataNodeStats.get(1);
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put("index.routing.allocation.include._name", primariesNode.getNode().getName())
             .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
             .put("index.allocation.max_retries", Integer.MAX_VALUE) // keep on retrying
@@ -371,7 +371,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
 
         Settings build = Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
             .put("index.routing.allocation.include._name",
                 primariesNode.getNode().getName() + "," + unluckyNode.getNode().getName()).build();
         client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
@@ -408,8 +408,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
 
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(1, 4)) // don't go crazy here it must recovery fast
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 4)) // don't go crazy here it must recovery fast
             // This does corrupt files on the replica, so we can't check:
             .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
             .put("index.routing.allocation.include._name", primariesNode.getNode().getName())
@@ -451,7 +451,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
 
         Settings build = Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
             .put("index.routing.allocation.include._name", "*").build();
         client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
         client().admin().cluster().prepareReroute().get();
@@ -493,7 +493,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
         assertAcked(
             prepareCreate("test").setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0") // no replicas for this test
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0") // no replicas for this test
                 .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                 // no checkindex - we corrupt shards on purpose
                 .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
@@ -555,7 +555,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
 
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, cluster().numDataNodes() - 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, cluster().numDataNodes() - 1)
             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
             .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false) // no checkindex - we corrupt shards on purpose
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
@@ -640,7 +640,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
     private ShardRouting corruptRandomPrimaryFile(final boolean includePerCommitFiles) throws IOException {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        Index test = state.metaData().index("test").getIndex();
+        Index test = state.metadata().index("test").getIndex();
         GroupShardsIterator shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
         List<ShardIterator> iterators = iterableAsArrayList(shardIterators);
         ShardIterator shardIterator = RandomPicks.randomFrom(random(), iterators);
@@ -692,7 +692,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
     public List<Path> listShardFiles(ShardRouting routing) throws IOException {
         NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(routing.currentNodeId()).setFs(true).get();
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final Index test = state.metaData().index("test").getIndex();
+        final Index test = state.metadata().index("test").getIndex();
         assertThat(routing.toString(), nodeStatses.getNodes().size(), equalTo(1));
         List<Path> files = new ArrayList<>();
         for (FsInfo.Path info : nodeStatses.getNodes().get(0).getFs()) {

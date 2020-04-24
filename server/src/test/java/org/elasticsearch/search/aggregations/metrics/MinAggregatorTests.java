@@ -48,7 +48,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -912,7 +912,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             DateFieldMapper.Resolution resolution) {
         ValuesSourceConfig config = mock(ValuesSourceConfig.class);
         Mapper.BuilderContext builderContext = new Mapper.BuilderContext(
-                Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(),
+                Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build(),
                 new ContentPath());
         MappedFieldType ft = new DateFieldMapper.Builder(fieldName)
                 .index(indexed)

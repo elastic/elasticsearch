@@ -24,20 +24,17 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.metadata.IndexTemplateV2;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class GetIndexTemplateV2Action extends ActionType<GetIndexTemplateV2Action.Response> {
 
@@ -53,58 +50,49 @@ public class GetIndexTemplateV2Action extends ActionType<GetIndexTemplateV2Actio
      */
     public static class Request extends MasterNodeReadRequest<Request> {
 
-        private String[] names;
+        @Nullable
+        private String name;
 
         public Request() { }
 
-        public Request(String... names) {
-            this.names = names;
+        public Request(@Nullable String name) {
+            this.name = name;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            names = in.readStringArray();
+            name = in.readOptionalString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeStringArray(names);
+            out.writeOptionalString(name);
         }
 
         @Override
         public ActionRequestValidationException validate() {
-            ActionRequestValidationException validationException = null;
-            if (names == null) {
-                validationException = addValidationError("names is null or empty", validationException);
-            } else {
-                for (String name : names) {
-                    if (name == null || Strings.hasText(name) == false) {
-                        validationException = addValidationError("name is missing", validationException);
-                    }
-                }
-            }
-            return validationException;
+            return null;
         }
 
         /**
-         * Sets the names of the index templates.
+         * Sets the name of the index template.
          */
-        public Request names(String... names) {
-            this.names = names;
+        public Request name(String name) {
+            this.name = name;
             return this;
         }
 
         /**
-         * The names of the index templates.
+         * The name of the index templates.
          */
-        public String[] names() {
-            return this.names;
+        public String name() {
+            return this.name;
         }
 
         @Override
         public int hashCode() {
-            return Arrays.hashCode(names);
+            return Objects.hash(name);
         }
 
         @Override
@@ -116,7 +104,7 @@ public class GetIndexTemplateV2Action extends ActionType<GetIndexTemplateV2Actio
                 return false;
             }
             Request other = (Request) obj;
-            return Arrays.equals(other.names, this.names);
+            return Objects.equals(name, other.name);
         }
     }
 

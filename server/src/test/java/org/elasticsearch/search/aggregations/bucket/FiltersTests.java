@@ -136,7 +136,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
     public void testRewrite() throws IOException {
         // test non-keyed filter that doesn't rewrite
         AggregationBuilder original = new FiltersAggregationBuilder("my-agg", new MatchAllQueryBuilder());
-        original.setMetaData(Collections.singletonMap(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20)));
+        original.setMetadata(Collections.singletonMap(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20)));
         AggregationBuilder rewritten = original.rewrite(new QueryRewriteContext(xContentRegistry(), null, null, () -> 0L));
         assertSame(original, rewritten);
 

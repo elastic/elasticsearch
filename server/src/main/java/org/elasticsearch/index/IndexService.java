@@ -29,7 +29,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -49,7 +49,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
-import org.elasticsearch.gateway.MetaDataStateFormat;
+import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.IndexCache;
@@ -237,13 +237,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     static boolean needsMapperService(IndexSettings indexSettings, IndexCreationContext indexCreationContext) {
-        return false == (indexSettings.getIndexMetaData().getState() == IndexMetaData.State.CLOSE &&
+        return false == (indexSettings.getIndexMetadata().getState() == IndexMetadata.State.CLOSE &&
             indexCreationContext == IndexCreationContext.CREATE_INDEX); // metadata verification needs a mapper service
     }
 
     public enum IndexCreationContext {
         CREATE_INDEX,
-        META_DATA_VERIFICATION
+        METADATA_VERIFICATION
     }
 
     public int numberOfShards() {
@@ -344,7 +344,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             return;
         }
         try {
-            IndexMetaData.FORMAT.writeAndCleanup(getMetaData(), nodeEnv.indexPaths(index()));
+            IndexMetadata.FORMAT.writeAndCleanup(getMetadata(), nodeEnv.indexPaths(index()));
         } catch (WriteStateException e) {
             logger.warn(() -> new ParameterizedMessage("failed to write dangling indices state for index {}", index()), e);
         }
@@ -356,7 +356,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             return;
         }
         try {
-            MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(index()));
+            MetadataStateFormat.deleteMetaState(nodeEnv.indexPaths(index()));
         } catch (IOException e) {
             logger.warn(() -> new ParameterizedMessage("failed to delete dangling indices state for index {}", index()), e);
         }
@@ -613,11 +613,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     @Override
-    public boolean updateMapping(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) throws IOException {
+    public boolean updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) throws IOException {
         if (mapperService == null) {
             return false;
         }
-        return mapperService.updateMapping(currentIndexMetaData, newIndexMetaData);
+        return mapperService.updateMapping(currentIndexMetadata, newIndexMetadata);
     }
 
     private class StoreCloseListener implements Store.OnClose {
@@ -703,23 +703,23 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    public IndexMetaData getMetaData() {
-        return indexSettings.getIndexMetaData();
+    public IndexMetadata getMetadata() {
+        return indexSettings.getIndexMetadata();
     }
 
-    private final CopyOnWriteArrayList<Consumer<IndexMetaData>> metaDataListeners = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<Consumer<IndexMetadata>> metadataListeners = new CopyOnWriteArrayList<>();
 
-    public void addMetaDataListener(Consumer<IndexMetaData> listener) {
-        metaDataListeners.add(listener);
+    public void addMetadataListener(Consumer<IndexMetadata> listener) {
+        metadataListeners.add(listener);
     }
 
     @Override
-    public synchronized void updateMetaData(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) {
-        final boolean updateIndexSettings = indexSettings.updateIndexMetaData(newIndexMetaData);
+    public synchronized void updateMetadata(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) {
+        final boolean updateIndexSettings = indexSettings.updateIndexMetadata(newIndexMetadata);
 
-        if (Assertions.ENABLED && currentIndexMetaData != null) {
-            final long currentSettingsVersion = currentIndexMetaData.getSettingsVersion();
-            final long newSettingsVersion = newIndexMetaData.getSettingsVersion();
+        if (Assertions.ENABLED && currentIndexMetadata != null) {
+            final long currentSettingsVersion = currentIndexMetadata.getSettingsVersion();
+            final long newSettingsVersion = newIndexMetadata.getSettingsVersion();
             if (currentSettingsVersion == newSettingsVersion) {
                 assert updateIndexSettings == false;
             } else {
@@ -767,7 +767,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             updateFsyncTaskIfNecessary();
         }
 
-        metaDataListeners.forEach(c -> c.accept(newIndexMetaData));
+        metadataListeners.forEach(c -> c.accept(newIndexMetadata));
     }
 
     private void updateFsyncTaskIfNecessary() {
@@ -920,7 +920,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         protected boolean mustReschedule() {
             // don't re-schedule if the IndexService instance is closed or if the index is closed
             return indexService.closed.get() == false
-                && indexService.indexSettings.getIndexMetaData().getState() == IndexMetaData.State.OPEN;
+                && indexService.indexSettings.getIndexMetadata().getState() == IndexMetadata.State.OPEN;
         }
     }
 

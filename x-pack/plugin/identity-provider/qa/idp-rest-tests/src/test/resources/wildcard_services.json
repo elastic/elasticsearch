@@ -8,9 +8,7 @@
         "name": "Application 1 ({{service}})",
         "privileges": {
           "resource": "sso:{{entity_id}}",
-          "roles": {
-            "admin": "sso:admin"
-          }
+          "roles": [ "sso:(.*)" ]
         },
         "attributes": {
           "principal": "saml:attribute:principal",
@@ -28,9 +26,7 @@
         "name": "Application 2 ({{service}})",
         "privileges": {
           "resource": "sso:{{entity_id}}",
-          "roles": {
-            "admin": "sso:admin"
-          }
+          "roles": [ "sso:(.*)" ]
         },
         "attributes": {
           "principal": "saml:attribute:principal",

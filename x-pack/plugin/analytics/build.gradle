@@ -18,6 +18,8 @@ dependencies {
 
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+
+  compile 'org.apache.commons:commons-math3:3.2'
 }
 
 integTest.enabled = false

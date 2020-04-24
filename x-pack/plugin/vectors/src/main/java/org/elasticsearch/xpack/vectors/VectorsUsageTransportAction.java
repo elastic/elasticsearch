@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.vectors;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -54,10 +54,10 @@ public class VectorsUsageTransportAction extends XPackUsageFeatureTransportActio
         int avgDenseVectorDims = 0;
 
         if (vectorsAvailable && vectorsEnabled && state != null) {
-            for (IndexMetaData indexMetaData : state.metaData()) {
-                MappingMetaData mappingMetaData = indexMetaData.mapping();
-                if (mappingMetaData != null) {
-                    Map<String, Object> mappings = mappingMetaData.getSourceAsMap();
+            for (IndexMetadata indexMetadata : state.metadata()) {
+                MappingMetadata mappingMetadata = indexMetadata.mapping();
+                if (mappingMetadata != null) {
+                    Map<String, Object> mappings = mappingMetadata.getSourceAsMap();
                     if (mappings.containsKey("properties")) {
                         @SuppressWarnings("unchecked") Map<String, Map<String, Object>> fieldMappings =
                             (Map<String, Map<String, Object>>) mappings.get("properties");

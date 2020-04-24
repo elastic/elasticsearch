@@ -179,7 +179,6 @@ public class SamlAuthnRequestValidator {
         checkDestination(authnRequest);
         final String acs = checkAcs(authnRequest, sp, authnState);
         validateNameIdPolicy(authnRequest, sp, authnState);
-        authnState.put(SamlAuthenticationState.Fields.ENTITY_ID.getPreferredName(), sp.getEntityId());
         authnState.put(SamlAuthenticationState.Fields.AUTHN_REQUEST_ID.getPreferredName(), authnRequest.getID());
         final SamlValidateAuthnRequestResponse response = new SamlValidateAuthnRequestResponse(sp.getEntityId(), acs,
             authnRequest.isForceAuthn(), authnState);
@@ -266,7 +265,6 @@ public class SamlAuthnRequestValidator {
             throw new ElasticsearchSecurityException("The registered ACS URL for this Service Provider is [{}] but the authentication " +
                 "request contained [{}]", RestStatus.BAD_REQUEST, sp.getAssertionConsumerService(), acs);
         }
-        authnState.put(SamlAuthenticationState.Fields.ACS_URL.getPreferredName(), acs);
         return acs;
     }
 

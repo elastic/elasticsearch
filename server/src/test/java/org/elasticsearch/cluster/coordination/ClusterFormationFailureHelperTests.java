@@ -22,8 +22,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper.ClusterFormationState;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -167,7 +167,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         final DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .version(7L)
-            .metaData(MetaData.builder().coordinationMetaData(CoordinationMetaData.builder().term(4L).build()))
+            .metadata(Metadata.builder().coordinationMetadata(CoordinationMetadata.builder().term(4L).build()))
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId())).build();
 
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), emptyList(), 1L, electionStrategy).getDescription(),
@@ -211,7 +211,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
     private static ClusterState state(DiscoveryNode localNode, String[] acceptedConfig, String[] committedConfig) {
         return ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
-            .metaData(MetaData.builder().coordinationMetaData(CoordinationMetaData.builder()
+            .metadata(Metadata.builder().coordinationMetadata(CoordinationMetadata.builder()
                 .lastAcceptedConfiguration(config(acceptedConfig))
                 .lastCommittedConfiguration(config(committedConfig)).build())).build();
     }
@@ -378,7 +378,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         String[] configNodeIds = new String[]{"n1", "n2"};
         final ClusterState stateWithOtherNodes = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).add(otherMasterNode).add(otherNonMasterNode))
-            .metaData(MetaData.builder().coordinationMetaData(CoordinationMetaData.builder()
+            .metadata(Metadata.builder().coordinationMetadata(CoordinationMetadata.builder()
                 .lastAcceptedConfiguration(config(configNodeIds))
                 .lastCommittedConfiguration(config(configNodeIds)).build())).build();
 

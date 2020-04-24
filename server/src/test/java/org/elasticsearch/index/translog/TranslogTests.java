@@ -36,7 +36,7 @@ import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -132,9 +132,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -230,7 +230,7 @@ public class TranslogTests extends ESTestCase {
     }
 
     private TranslogConfig getTranslogConfig(final Path path) {
-        final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build();
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build();
         return getTranslogConfig(path, settings);
     }
 
@@ -2442,11 +2442,11 @@ public class TranslogTests extends ESTestCase {
         }
 
         @Override
-        public void force(boolean metaData) throws IOException {
+        public void force(boolean metadata) throws IOException {
             if (fail.fail()) {
                 throw new MockDirectoryWrapper.FakeIOException();
             }
-            super.force(metaData);
+            super.force(metadata);
         }
 
         @Override
@@ -2933,7 +2933,7 @@ public class TranslogTests extends ESTestCase {
                 assertThat(snapshot.totalOperations(), equalTo(expectedSnapshotOps));
                 Translog.Operation op;
                 while ((op = snapshot.next()) != null) {
-                    assertThat(Tuple.tuple(op.seqNo(), op.primaryTerm()), isIn(seenSeqNos));
+                    assertThat(Tuple.tuple(op.seqNo(), op.primaryTerm()), is(in(seenSeqNos)));
                     readFromSnapshot++;
                 }
                 readFromSnapshot += snapshot.skippedOperations();

@@ -20,7 +20,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -52,7 +52,7 @@ import static org.mockito.Mockito.when;
 public class QueryShardContextTests extends ESTestCase {
 
     public void testFailIfFieldMappingNotFound() {
-        QueryShardContext context = createQueryShardContext(IndexMetaData.INDEX_UUID_NA_VALUE, null);
+        QueryShardContext context = createQueryShardContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
         context.setAllowUnmappedFields(false);
         MappedFieldType fieldType = new TextFieldMapper.TextFieldType();
         MappedFieldType result = context.failIfFieldMappingNotFound("name", fieldType);
@@ -77,7 +77,7 @@ public class QueryShardContextTests extends ESTestCase {
     }
 
     public void testToQueryFails() {
-        QueryShardContext context = createQueryShardContext(IndexMetaData.INDEX_UUID_NA_VALUE, null);
+        QueryShardContext context = createQueryShardContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
         Exception exc = expectThrows(Exception.class,
             () -> context.toQuery(new AbstractQueryBuilder() {
                 @Override
@@ -115,13 +115,13 @@ public class QueryShardContextTests extends ESTestCase {
 
     public void testClusterAlias() throws IOException {
         final String clusterAlias = randomBoolean() ? null : "remote_cluster";
-        QueryShardContext context = createQueryShardContext(IndexMetaData.INDEX_UUID_NA_VALUE, clusterAlias);
+        QueryShardContext context = createQueryShardContext(IndexMetadata.INDEX_UUID_NA_VALUE, clusterAlias);
 
         Mapper.BuilderContext ctx = new Mapper.BuilderContext(context.getIndexSettings().getSettings(), new ContentPath());
         IndexFieldMapper mapper = new IndexFieldMapper.Builder(null).build(ctx);
 
         IndexFieldData<?> forField = context.getForField(mapper.fieldType());
-        String expected = clusterAlias == null ? context.getIndexSettings().getIndexMetaData().getIndex().getName()
+        String expected = clusterAlias == null ? context.getIndexSettings().getIndexMetadata().getIndex().getName()
             : clusterAlias + ":" + context.getIndexSettings().getIndex().getName();
         assertEquals(expected, ((AbstractLeafOrdinalsFieldData)forField.load(null)).getOrdinalsValues().lookupOrd(0).utf8ToString());
     }
@@ -135,17 +135,17 @@ public class QueryShardContextTests extends ESTestCase {
     }
 
     public static QueryShardContext createQueryShardContext(String indexUuid, String clusterAlias) {
-        IndexMetaData.Builder indexMetadataBuilder = new IndexMetaData.Builder("index");
+        IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder("index");
         indexMetadataBuilder.settings(Settings.builder().put("index.version.created", Version.CURRENT)
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 1)
-            .put(IndexMetaData.SETTING_INDEX_UUID, indexUuid)
+            .put(IndexMetadata.SETTING_INDEX_UUID, indexUuid)
         );
-        IndexMetaData indexMetaData = indexMetadataBuilder.build();
-        IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
+        IndexMetadata indexMetadata = indexMetadataBuilder.build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
-        when(mapperService.index()).thenReturn(indexMetaData.getIndex());
+        when(mapperService.index()).thenReturn(indexMetadata.getIndex());
         final long nowInMillis = randomNonNegativeLong();
 
         return new QueryShardContext(

@@ -29,7 +29,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
@@ -93,8 +93,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
                 IncludeExclude::parseExclude, IncludeExclude.EXCLUDE_FIELD, ObjectParser.ValueType.STRING_ARRAY);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        TermsAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        TermsAggregatorFactory.registerAggregators(builder);
     }
 
     private BucketOrder order = BucketOrder.compound(BucketOrder.count(false)); // automatically adds tie-breaker key asc order
@@ -109,8 +109,10 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         super(name);
     }
 
-    protected TermsAggregationBuilder(TermsAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    protected TermsAggregationBuilder(TermsAggregationBuilder clone,
+                                      AggregatorFactories.Builder factoriesBuilder,
+                                      Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.order = clone.order;
         this.executionHint = clone.executionHint;
         this.includeExclude = clone.includeExclude;
@@ -125,8 +127,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new TermsAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new TermsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -344,9 +346,9 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
-                                                       Builder subFactoriesBuilder) throws IOException {
+                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new TermsAggregatorFactory(name, config, order, includeExclude, executionHint, collectMode,
-                bucketCountThresholds, showTermDocCountError, queryShardContext, parent, subFactoriesBuilder, metaData);
+                bucketCountThresholds, showTermDocCountError, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

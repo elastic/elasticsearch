@@ -15,21 +15,21 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 public class AnalyticsPercentilesAggregatorFactory {
-    public static void registerPercentilesAggregator(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(PercentilesAggregationBuilder.NAME,
+    public static void registerPercentilesAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(PercentilesAggregationBuilder.NAME,
             AnalyticsValuesSourceType.HISTOGRAM,
             (PercentilesAggregatorSupplier) (name, valuesSource, context, parent, percents, percentilesConfig, keyed,
-                                             formatter, pipelineAggregators, metaData) -> {
+                                             formatter, metadata) -> {
 
                 if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
                     double compression = ((PercentilesConfig.TDigest)percentilesConfig).getCompression();
                     return new HistoBackedTDigestPercentilesAggregator(name, valuesSource, context, parent,
-                        percents, compression, keyed, formatter, pipelineAggregators, metaData);
+                        percents, compression, keyed, formatter, metadata);
 
                 } else if (percentilesConfig.getMethod().equals(PercentilesMethod.HDR)) {
                     int numSigFig = ((PercentilesConfig.Hdr)percentilesConfig).getNumberOfSignificantValueDigits();
                     return new HistoBackedHDRPercentilesAggregator(name, valuesSource, context, parent,
-                        percents, numSigFig, keyed, formatter, pipelineAggregators, metaData);
+                        percents, numSigFig, keyed, formatter, metadata);
                 }
 
                 throw new IllegalArgumentException("Percentiles algorithm: [" + percentilesConfig.getMethod().toString() + "] " +
@@ -37,21 +37,21 @@ public class AnalyticsPercentilesAggregatorFactory {
             });
     }
 
-    public static void registerPercentileRanksAggregator(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(PercentileRanksAggregationBuilder.NAME,
+    public static void registerPercentileRanksAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(PercentileRanksAggregationBuilder.NAME,
             AnalyticsValuesSourceType.HISTOGRAM,
             (PercentilesAggregatorSupplier) (name, valuesSource, context, parent, percents, percentilesConfig, keyed,
-                                                      formatter, pipelineAggregators, metaData) -> {
+                                                      formatter, metadata) -> {
 
                 if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
                     double compression = ((PercentilesConfig.TDigest)percentilesConfig).getCompression();
                     return new HistoBackedTDigestPercentileRanksAggregator(name, valuesSource, context, parent,
-                        percents, compression, keyed, formatter, pipelineAggregators, metaData);
+                        percents, compression, keyed, formatter, metadata);
 
                 } else if (percentilesConfig.getMethod().equals(PercentilesMethod.HDR)) {
                     int numSigFig = ((PercentilesConfig.Hdr)percentilesConfig).getNumberOfSignificantValueDigits();
                     return new HistoBackedHDRPercentileRanksAggregator(name, valuesSource, context, parent,
-                        percents, numSigFig, keyed, formatter, pipelineAggregators, metaData);
+                        percents, numSigFig, keyed, formatter, metadata);
                 }
 
                 throw new IllegalArgumentException("Percentiles algorithm: [" + percentilesConfig.getMethod().toString() + "] " +

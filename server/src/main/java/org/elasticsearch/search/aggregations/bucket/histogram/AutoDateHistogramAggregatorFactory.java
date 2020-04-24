@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -33,7 +32,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public final class AutoDateHistogramAggregatorFactory
@@ -49,8 +47,8 @@ public final class AutoDateHistogramAggregatorFactory
                                               QueryShardContext queryShardContext,
                                               AggregatorFactory parent,
                                               AggregatorFactories.Builder subFactoriesBuilder,
-                                              Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                              Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.numBuckets = numBuckets;
         this.roundingInfos = roundingInfos;
     }
@@ -60,8 +58,7 @@ public final class AutoDateHistogramAggregatorFactory
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         if (valuesSource instanceof Numeric == false) {
             throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
                 this.name());
@@ -69,23 +66,21 @@ public final class AutoDateHistogramAggregatorFactory
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
-        return createAggregator((Numeric) valuesSource, searchContext, parent, pipelineAggregators, metaData);
+        return createAggregator((Numeric) valuesSource, searchContext, parent, metadata);
     }
 
     private Aggregator createAggregator(ValuesSource.Numeric valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         return new AutoDateHistogramAggregator(name, factories, numBuckets, roundingInfos,
-            valuesSource, config.format(), searchContext, parent, pipelineAggregators, metaData);
+            valuesSource, config.format(), searchContext, parent, metadata);
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return createAggregator(null, searchContext, parent, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        return createAggregator(null, searchContext, parent, metadata);
     }
 }

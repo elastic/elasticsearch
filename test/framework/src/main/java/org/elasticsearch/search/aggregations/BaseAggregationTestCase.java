@@ -168,7 +168,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
 
     public void testShallowCopy() {
         AB original = createTestAggregatorBuilder();
-        AggregationBuilder clone = original.shallowCopy(original.factoriesBuilder, original.metaData);
+        AggregationBuilder clone = original.shallowCopy(original.factoriesBuilder, original.metadata);
         assertNotSame(original, clone);
         assertEquals(original, clone);
     }

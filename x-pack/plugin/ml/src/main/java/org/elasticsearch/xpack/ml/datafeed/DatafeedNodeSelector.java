@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -32,20 +32,20 @@ public class DatafeedNodeSelector {
 
     private static final Logger LOGGER = LogManager.getLogger(DatafeedNodeSelector.class);
 
-    public static final PersistentTasksCustomMetaData.Assignment AWAITING_JOB_ASSIGNMENT =
-        new PersistentTasksCustomMetaData.Assignment(null, "datafeed awaiting job assignment.");
+    public static final PersistentTasksCustomMetadata.Assignment AWAITING_JOB_ASSIGNMENT =
+        new PersistentTasksCustomMetadata.Assignment(null, "datafeed awaiting job assignment.");
 
     private final String datafeedId;
     private final String jobId;
     private final List<String> datafeedIndices;
-    private final PersistentTasksCustomMetaData.PersistentTask<?> jobTask;
+    private final PersistentTasksCustomMetadata.PersistentTask<?> jobTask;
     private final ClusterState clusterState;
     private final IndexNameExpressionResolver resolver;
     private final IndicesOptions indicesOptions;
 
     public DatafeedNodeSelector(ClusterState clusterState, IndexNameExpressionResolver resolver, String datafeedId,
                                 String jobId, List<String> datafeedIndices, IndicesOptions indicesOptions) {
-        PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         this.datafeedId = datafeedId;
         this.jobId = jobId;
         this.datafeedIndices = datafeedIndices;
@@ -72,7 +72,7 @@ public class DatafeedNodeSelector {
         }
     }
 
-    public PersistentTasksCustomMetaData.Assignment selectNode() {
+    public PersistentTasksCustomMetadata.Assignment selectNode() {
         if (MlMetadata.getMlMetadata(clusterState).isUpgradeMode()) {
             return AWAITING_UPGRADE;
         }
@@ -83,11 +83,11 @@ public class DatafeedNodeSelector {
             if (jobNode == null) {
                 return AWAITING_JOB_ASSIGNMENT;
             }
-            return new PersistentTasksCustomMetaData.Assignment(jobNode, "");
+            return new PersistentTasksCustomMetadata.Assignment(jobNode, "");
         }
         LOGGER.debug(assignmentFailure.reason);
         assert assignmentFailure.reason.isEmpty() == false;
-        return new PersistentTasksCustomMetaData.Assignment(null, assignmentFailure.reason);
+        return new PersistentTasksCustomMetadata.Assignment(null, assignmentFailure.reason);
     }
 
     @Nullable

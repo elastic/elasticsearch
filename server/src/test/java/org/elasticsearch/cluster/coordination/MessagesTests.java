@@ -207,8 +207,8 @@ public class MessagesTests extends ESTestCase {
 
     public ClusterState randomClusterState() {
         return CoordinationStateTests.clusterState(randomNonNegativeLong(), randomNonNegativeLong(), createNode(randomAlphaOfLength(10)),
-            new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))),
-            new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))),
+            new CoordinationMetadata.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))),
+            new CoordinationMetadata.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))),
             randomLong());
     }
 

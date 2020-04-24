@@ -21,7 +21,7 @@ package org.elasticsearch.discovery;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.settings.Settings;
@@ -105,8 +105,8 @@ public class DiskDisruptionIT extends AbstractDisruptionTestCase {
         assertAcked(prepareCreate("test")
             .setSettings(Settings.builder()
                 .put(indexSettings())
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
             ));
         ensureGreen();
 

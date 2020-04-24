@@ -27,8 +27,8 @@ package org.elasticsearch.search.aggregations.support;
  * lambda" syntax:
  *
  * {@code
- * (GeoCentroidAggregatorSupplier) (name, context, parent, valuesSource, pipelineAggregators, metaData) ->
- *                 new GeoCentroidAggregator(name, context, parent, (ValuesSource.GeoPoint) valuesSource, pipelineAggregators, metaData));
+ * (GeoCentroidAggregatorSupplier) (name, context, parent, valuesSource, pipelineAggregators, metadata) ->
+ *                 new GeoCentroidAggregator(name, context, parent, (ValuesSource.GeoPoint) valuesSource, pipelineAggregators, metadata));
  * }
  *
  * The suppliers are responsible for any casting of {@link ValuesSource} that needs to happen.  They must accept a base {@link ValuesSource}

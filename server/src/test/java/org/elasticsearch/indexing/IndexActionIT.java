@@ -23,7 +23,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -192,8 +192,8 @@ public class IndexActionIT extends ESIntegTestCase {
     }
 
     public void testCreateIndexWithLongName() {
-        int min = MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES + 1;
-        int max = MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES * 2;
+        int min = MetadataCreateIndexService.MAX_INDEX_NAME_BYTES + 1;
+        int max = MetadataCreateIndexService.MAX_INDEX_NAME_BYTES * 2;
         try {
             createIndex(randomAlphaOfLengthBetween(min, max).toLowerCase(Locale.ROOT));
             fail("exception should have been thrown on too-long index name");
@@ -212,7 +212,7 @@ public class IndexActionIT extends ESIntegTestCase {
 
         try {
             // Catch chars that are more than a single byte
-            client().prepareIndex(randomAlphaOfLength(MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES - 1).toLowerCase(Locale.ROOT) +
+            client().prepareIndex(randomAlphaOfLength(MetadataCreateIndexService.MAX_INDEX_NAME_BYTES - 1).toLowerCase(Locale.ROOT) +
                             "Ϟ".toLowerCase(Locale.ROOT)).setSource("foo", "bar").get();
             fail("exception should have been thrown on too-long index name");
         } catch (InvalidIndexNameException e) {
@@ -221,7 +221,7 @@ public class IndexActionIT extends ESIntegTestCase {
         }
 
         // we can create an index of max length
-        createIndex(randomAlphaOfLength(MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES).toLowerCase(Locale.ROOT));
+        createIndex(randomAlphaOfLength(MetadataCreateIndexService.MAX_INDEX_NAME_BYTES).toLowerCase(Locale.ROOT));
     }
 
     public void testInvalidIndexName() {

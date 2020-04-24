@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,7 +43,7 @@ public class GetRollupCapsAction extends ActionType<GetRollupCapsAction.Response
 
         public Request(String indexPattern) {
             if (Strings.isNullOrEmpty(indexPattern) || indexPattern.equals("*")) {
-                this.indexPattern = MetaData.ALL;
+                this.indexPattern = Metadata.ALL;
             } else {
                 this.indexPattern = indexPattern;
             }

@@ -19,28 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import static org.elasticsearch.test.InternalAggregationTestCase.emptyReduceContextBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.CoreMatchers.startsWith;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
@@ -54,7 +32,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.GroupShardsIteratorTests;
@@ -100,6 +78,28 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+
+import static org.elasticsearch.test.InternalAggregationTestCase.emptyReduceContextBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.startsWith;
 
 public class TransportSearchActionTests extends ESTestCase {
 
@@ -539,7 +539,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicReference<SearchResponse> response = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
                     ActionListener.wrap(response::set, e -> fail("no failures expected")), latch);
-                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider, 
+                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider,
                         emptyReduceContextBuilder(), remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -855,17 +855,17 @@ public class TransportSearchActionTests extends ESTestCase {
         {
             SearchRequest searchRequest = new SearchRequest();
             assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(2, 127)));
+                indices, randomIntBetween(2, 128)));
             assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(127, 10000)));
+                indices, randomIntBetween(129, 10000)));
         }
         {
             SearchRequest searchRequest = new SearchRequest()
                 .source(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("timestamp")));
             assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(2, 127)));
+                indices, randomIntBetween(2, 128)));
             assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(127, 10000)));
+                indices, randomIntBetween(129, 10000)));
         }
         {
             SearchRequest searchRequest = new SearchRequest()
@@ -880,9 +880,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 .source(new SearchSourceBuilder().sort(SortBuilders.fieldSort("timestamp")))
                 .scroll("5m");
             assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(2, 127)));
+                indices, randomIntBetween(2, 128)));
             assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(127, 10000)));
+                indices, randomIntBetween(129, 10000)));
         }
     }
 
@@ -896,9 +896,9 @@ public class TransportSearchActionTests extends ESTestCase {
             indices[i] = new Index(indexName, indexName + "-uuid");
             if (--numReadOnly >= 0) {
                 if (randomBoolean()) {
-                    blocksBuilder.addIndexBlock(indexName, IndexMetaData.INDEX_WRITE_BLOCK);
+                    blocksBuilder.addIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
                 } else {
-                    blocksBuilder.addIndexBlock(indexName, IndexMetaData.INDEX_READ_ONLY_BLOCK);
+                    blocksBuilder.addIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_BLOCK);
                 }
             }
         }

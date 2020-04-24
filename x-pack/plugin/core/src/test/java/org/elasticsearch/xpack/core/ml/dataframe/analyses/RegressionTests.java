@@ -131,7 +131,20 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
     public void testGetParams() {
         assertThat(
             new Regression("foo").getParams(null),
-            equalTo(Map.of("dependent_variable", "foo", "prediction_field_name", "foo_prediction")));
+            equalTo(Map.of(
+                "dependent_variable", "foo",
+                "prediction_field_name", "foo_prediction",
+                "training_percent", 100.0)));
+        assertThat(
+            new Regression("foo",
+                BoostedTreeParams.builder().build(),
+                null,
+                50.0,
+                null).getParams(null),
+            equalTo(Map.of(
+                "dependent_variable", "foo",
+                "prediction_field_name", "foo_prediction",
+                "training_percent", 50.0)));
     }
 
     public void testRequiredFieldsIsNonEmpty() {

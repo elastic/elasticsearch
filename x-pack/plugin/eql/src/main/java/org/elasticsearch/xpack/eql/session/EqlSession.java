@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.eql.session;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.eql.analysis.Analyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
@@ -35,8 +37,8 @@ public class EqlSession {
 
     public EqlSession(Client client, Configuration cfg, IndexResolver indexResolver, PreAnalyzer preAnalyzer, Analyzer analyzer,
             Optimizer optimizer, Planner planner, PlanExecutor planExecutor) {
-        
-        this.client = client;
+
+        this.client = new ParentTaskAssigningClient(client, cfg.getTaskId());
         this.configuration = cfg;
         this.indexResolver = indexResolver;
         this.preAnalyzer = preAnalyzer;
@@ -60,7 +62,7 @@ public class EqlSession {
     public void eql(String eql, ParserParams params, ActionListener<Results> listener) {
         eqlExecutable(eql, params, wrap(e -> e.execute(this, listener), listener::onFailure));
     }
-    
+
     public void eqlExecutable(String eql, ParserParams params, ActionListener<PhysicalPlan> listener) {
         try {
             physicalPlan(doParse(eql, params), listener);
@@ -88,7 +90,9 @@ public class EqlSession {
 
     private <T> void preAnalyze(LogicalPlan parsed, ActionListener<LogicalPlan> listener) {
         String indexWildcard = Strings.arrayToCommaDelimitedString(configuration.indices());
-
+        if(configuration.isCancelled()){
+            throw new TaskCancelledException("cancelled");
+        }
         indexResolver.resolveAsMergedMapping(indexWildcard, null, configuration.includeFrozen(), wrap(r -> {
             listener.onResponse(preAnalyzer.preAnalyze(parsed, r));
         }, listener::onFailure));

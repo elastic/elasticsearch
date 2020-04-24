@@ -139,7 +139,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             CoreValuesSourceType.BOOLEAN);
     }
 
-    public void testGlobalOrdinalsExecutionHint() throws Exception {
+    public void testUsesGlobalOrdinalsByDefault() throws Exception {
         randomizeAggregatorImpl = false;
 
         Directory directory = newDirectory();
@@ -150,8 +150,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = new IndexSearcher(indexReader);
 
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(ValueType.STRING)
-            .field("string")
-            .collectMode(Aggregator.SubAggCollectionMode.BREADTH_FIRST);
+            .field("string");
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
         fieldType.setName("string");
         fieldType.setHasDocValues(true);
@@ -161,11 +160,29 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         GlobalOrdinalsStringTermsAggregator globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
         assertFalse(globalAgg.remapGlobalOrds());
 
+        // Infers depth_first because the maxOrd is 0 which is less than the size
         aggregationBuilder
             .subAggregation(AggregationBuilders.cardinality("card").field("string"));
         aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
         globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
+        assertThat(globalAgg.collectMode, equalTo(Aggregator.SubAggCollectionMode.DEPTH_FIRST));
+        assertTrue(globalAgg.remapGlobalOrds());
+
+        aggregationBuilder
+            .collectMode(Aggregator.SubAggCollectionMode.DEPTH_FIRST);
+        aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
+        globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
+        assertThat(globalAgg.collectMode, equalTo(Aggregator.SubAggCollectionMode.DEPTH_FIRST));
+        assertTrue(globalAgg.remapGlobalOrds());
+
+        aggregationBuilder
+            .collectMode(Aggregator.SubAggCollectionMode.BREADTH_FIRST);
+        aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
+        globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
+        assertThat(globalAgg.collectMode, equalTo(Aggregator.SubAggCollectionMode.BREADTH_FIRST));
         assertFalse(globalAgg.remapGlobalOrds());
 
         aggregationBuilder

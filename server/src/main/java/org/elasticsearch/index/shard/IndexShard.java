@@ -46,9 +46,12 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
+import org.elasticsearch.index.bulk.stats.BulkOperationListener;
+import org.elasticsearch.index.bulk.stats.BulkStats;
+import org.elasticsearch.index.bulk.stats.ShardBulkStats;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
@@ -127,7 +130,7 @@ import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.Store.MetadataSnapshot;
-import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
@@ -208,6 +211,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final SearchOperationListener searchOperationListener;
 
+    private final ShardBulkStats bulkOperationListener;
     private final GlobalCheckpointListeners globalCheckpointListeners;
     private final ReplicationTracker replicationTracker;
 
@@ -310,6 +314,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final List<IndexingOperationListener> listenersList = new ArrayList<>(listeners);
         listenersList.add(internalIndexingStats);
         this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(listenersList, logger);
+        this.bulkOperationListener = new ShardBulkStats();
         this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
         final List<SearchOperationListener> searchListenersList = new ArrayList<>(searchOperationListener);
@@ -329,7 +334,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.checkIndexOnStartup = indexSettings.getValue(IndexSettings.INDEX_CHECK_ON_STARTUP);
         this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bigArrays);
         final String aId = shardRouting.allocationId().getId();
-        final long primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
+        final long primaryTerm = indexSettings.getIndexMetadata().primaryTerm(shardId.id());
         this.pendingPrimaryTerm = primaryTerm;
         this.globalCheckpointListeners =
                 new GlobalCheckpointListeners(shardId, threadPool.scheduler(), logger);
@@ -399,6 +404,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return this.searchOperationListener;
     }
 
+    public BulkOperationListener getBulkOperationListener() {
+        return this.bulkOperationListener;
+    }
+
     public ShardIndexWarmerService warmerService() {
         return this.shardWarmerService;
     }
@@ -416,7 +425,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Returns the primary term the index shard is supposed to be on. In case of primary promotion or when a replica learns about
      * a new term due to a new primary, the term that's exposed here will not be the term that the shard internally uses to assign
      * to operations. The shard will auto-correct its internal operation term, but this might take time.
-     * See {@link org.elasticsearch.cluster.metadata.IndexMetaData#primaryTerm(int)}
+     * See {@link org.elasticsearch.cluster.metadata.IndexMetadata#primaryTerm(int)}
      */
     public long getPendingPrimaryTerm() {
         return this.pendingPrimaryTerm;
@@ -477,7 +486,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                 changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
             } else if (currentRouting.primary() && currentRouting.relocating() && replicationTracker.isRelocated() &&
-                (newRouting.relocating() == false || newRouting.equalsIgnoringMetaData(currentRouting) == false)) {
+                (newRouting.relocating() == false || newRouting.equalsIgnoringMetadata(currentRouting) == false)) {
                 // if the shard is not in primary mode anymore (after primary relocation) we have to fail when any changes in shard
                 // routing occur (e.g. due to recovery failure / cancellation). The reason is that at the moment we cannot safely
                 // reactivate primary mode without risking two active primaries.
@@ -1028,6 +1037,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().completionStats(fields);
     }
 
+    public BulkStats bulkStats() {
+        return bulkOperationListener.stats();
+    }
+
     /**
      * Executes the given flush request against the engine.
      *
@@ -1310,6 +1323,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    public void preRecovery() {
+        final IndexShardState currentState = this.state; // single volatile read
+        if (currentState == IndexShardState.CLOSED) {
+            throw new IndexShardNotRecoveringException(shardId, currentState);
+        }
+        assert currentState == IndexShardState.RECOVERING : "expected a recovering shard " + shardId + " but got " + currentState;
+        indexEventListener.beforeIndexShardRecovery(this, indexSettings);
+    }
+
     public void postRecovery(String reason) throws IndexShardStartedException, IndexShardRelocatedException, IndexShardClosedException {
         synchronized (postRecoveryMutex) {
             // we need to refresh again to expose all operations that were index until now. Otherwise
@@ -1381,8 +1403,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 recoveryState.getTranslog().totalLocal(0);
                 return globalCheckpoint + 1;
             }
-            if (indexSettings.getIndexMetaData().getState() == IndexMetaData.State.CLOSE ||
-                IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.get(indexSettings.getSettings())) {
+            if (indexSettings.getIndexMetadata().getState() == IndexMetadata.State.CLOSE ||
+                IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(indexSettings.getSettings())) {
                 logger.trace("skip local recovery as the index was closed or not allowed to write; safe commit {} global checkpoint {}",
                     safeCommit.get(), globalCheckpoint);
                 recoveryState.getTranslog().totalLocal(0);
@@ -1796,7 +1818,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return path;
     }
 
-    void recoverFromLocalShards(Consumer<MappingMetaData> mappingUpdateConsumer, List<IndexShard> localShards,
+    void recoverFromLocalShards(Consumer<MappingMetadata> mappingUpdateConsumer, List<IndexShard> localShards,
                                           ActionListener<Boolean> listener) throws IOException {
         assert shardRouting.primary() : "recover from local shards only makes sense if the shard is a primary shard";
         assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS : "invalid recovery type: " +
@@ -2284,7 +2306,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             .stream(globalCheckpoints.values().spliterator(), false)
                             .anyMatch(v -> v.value < globalCheckpoint);
             // only sync if index is not closed and there is a shard lagging the primary
-            if (syncNeeded && indexSettings.getIndexMetaData().getState() == IndexMetaData.State.OPEN) {
+            if (syncNeeded && indexSettings.getIndexMetadata().getState() == IndexMetadata.State.OPEN) {
                 logger.trace("syncing global checkpoint for [{}]", reason);
                 globalCheckpointSyncer.run();
             }
@@ -2408,7 +2430,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // physical verification only: verify all checksums for the latest commit
             IOException corrupt = null;
             MetadataSnapshot metadata = snapshotStoreMetadata();
-            for (Map.Entry<String, StoreFileMetaData> entry : metadata.asMap().entrySet()) {
+            for (Map.Entry<String, StoreFileMetadata> entry : metadata.asMap().entrySet()) {
                 try {
                     Store.checkIntegrity(entry.getValue(), store.directory());
                     out.println("checksum passed: " + entry.getKey());
@@ -2462,7 +2484,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void startRecovery(RecoveryState recoveryState, PeerRecoveryTargetService recoveryTargetService,
                               PeerRecoveryTargetService.RecoveryListener recoveryListener, RepositoriesService repositoriesService,
-                              Consumer<MappingMetaData> mappingUpdateConsumer,
+                              Consumer<MappingMetadata> mappingUpdateConsumer,
                               IndicesService indicesService) {
         // TODO: Create a proper object to encapsulate the recovery context
         // all of the current methods here follow a pattern of:
@@ -2502,15 +2524,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     recoveryState, recoveryListener, l -> restoreFromRepository(repositoriesService.repository(repo), l));
                 break;
             case LOCAL_SHARDS:
-                final IndexMetaData indexMetaData = indexSettings().getIndexMetaData();
-                final Index resizeSourceIndex = indexMetaData.getResizeSourceIndex();
+                final IndexMetadata indexMetadata = indexSettings().getIndexMetadata();
+                final Index resizeSourceIndex = indexMetadata.getResizeSourceIndex();
                 final List<IndexShard> startedShards = new ArrayList<>();
                 final IndexService sourceIndexService = indicesService.indexService(resizeSourceIndex);
                 final Set<ShardId> requiredShards;
                 final int numShards;
                 if (sourceIndexService != null) {
-                    requiredShards = IndexMetaData.selectRecoverFromShards(shardId().id(),
-                        sourceIndexService.getMetaData(), indexMetaData.getNumberOfShards());
+                    requiredShards = IndexMetadata.selectRecoverFromShards(shardId().id(),
+                        sourceIndexService.getMetadata(), indexMetadata.getNumberOfShards());
                     for (IndexShard shard : sourceIndexService) {
                         if (shard.state() == IndexShardState.STARTED && requiredShards.contains(shard.shardId())) {
                             startedShards.add(shard);
@@ -2636,9 +2658,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 writeReason = "routing changed from " + currentRouting + " to " + newRouting;
             }
             logger.trace("{} writing shard state, reason [{}]", shardId, writeReason);
-            final ShardStateMetaData newShardStateMetadata =
-                    new ShardStateMetaData(newRouting.primary(), indexSettings.getUUID(), newRouting.allocationId());
-            ShardStateMetaData.FORMAT.writeAndCleanup(newShardStateMetadata, shardPath.getShardStatePath());
+            final ShardStateMetadata newShardStateMetadata =
+                    new ShardStateMetadata(newRouting.primary(), indexSettings.getUUID(), newRouting.allocationId());
+            ShardStateMetadata.FORMAT.writeAndCleanup(newShardStateMetadata, shardPath.getShardStatePath());
         } else {
             logger.trace("{} skip writing shard state, has been written before", shardId);
         }
@@ -3303,7 +3325,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // we must create both new read-only engine and new read-write engine under engineMutex to ensure snapshotStoreMetadata,
             // acquireXXXCommit and close works.
             final Engine readOnlyEngine =
-                new ReadOnlyEngine(newEngineConfig(replicationTracker), seqNoStats, translogStats, false, Function.identity()) {
+                new ReadOnlyEngine(newEngineConfig(replicationTracker), seqNoStats, translogStats, false, Function.identity(), true) {
                     @Override
                     public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) {
                         synchronized (engineMutex) {

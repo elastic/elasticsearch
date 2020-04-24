@@ -76,7 +76,7 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         // need to apply plugin after test source sets are created
         project.pluginManager.apply(RestResourcesPlugin)
 
-        project.tasks.withType(Test) { Test test ->
+        project.tasks.withType(Test).configureEach { Test test ->
             test.testClassesDirs = testSourceSet.output.classesDirs
             test.classpath = testSourceSet.runtimeClasspath
         }

@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     /**
-     * Waits for the Machine Learning templates to be created by {@link org.elasticsearch.plugins.MetaDataUpgrader}
+     * Waits for the Machine Learning templates to be created by {@link org.elasticsearch.plugins.MetadataUpgrader}
      */
     @Before
     public void waitForTemplates() throws Exception {

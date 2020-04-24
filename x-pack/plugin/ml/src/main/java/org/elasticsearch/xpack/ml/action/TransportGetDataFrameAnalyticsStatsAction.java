@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -25,7 +26,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -211,8 +212,16 @@ public class TransportGetDataFrameAnalyticsStatsAction
 
         executeAsyncWithOrigin(client, ML_ORIGIN, MultiSearchAction.INSTANCE, multiSearchRequest, ActionListener.wrap(
             multiSearchResponse -> {
-                for (MultiSearchResponse.Item itemResponse : multiSearchResponse.getResponses()) {
+                MultiSearchResponse.Item[] itemResponses = multiSearchResponse.getResponses();
+                for (int i = 0; i < itemResponses.length; ++i) {
+                    MultiSearchResponse.Item itemResponse = itemResponses[i];
                     if (itemResponse.isFailure()) {
+                        SearchRequest itemRequest = multiSearchRequest.requests().get(i);
+                        logger.error(
+                            new ParameterizedMessage(
+                                "[{}] Item failure encountered during multi search for request [indices={}, source={}]: {}",
+                                configId, itemRequest.indices(), itemRequest.source(), itemResponse.getFailureMessage()),
+                            itemResponse.getFailure());
                         listener.onFailure(ExceptionsHelper.serverError(itemResponse.getFailureMessage(), itemResponse.getFailure()));
                         return;
                     } else {
@@ -284,8 +293,8 @@ public class TransportGetDataFrameAnalyticsStatsAction
                                                                        MemoryUsage memoryUsage,
                                                                        AnalysisStats analysisStats) {
         ClusterState clusterState = clusterService.state();
-        PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        PersistentTasksCustomMetaData.PersistentTask<?> analyticsTask = MlTasks.getDataFrameAnalyticsTask(concreteAnalyticsId, tasks);
+        PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata.PersistentTask<?> analyticsTask = MlTasks.getDataFrameAnalyticsTask(concreteAnalyticsId, tasks);
         DataFrameAnalyticsState analyticsState = MlTasks.getDataFrameAnalyticsState(concreteAnalyticsId, tasks);
         String failureReason = null;
         if (analyticsState == DataFrameAnalyticsState.FAILED) {

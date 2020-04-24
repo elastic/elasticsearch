@@ -79,7 +79,7 @@ public class SecurityActionFilter implements ActionFilter {
             throw LicenseUtils.newComplianceException(XPackField.SECURITY);
         }
 
-        if (licenseState.isAuthAllowed()) {
+        if (licenseState.isSecurityEnabled()) {
             final ActionListener<Response> contextPreservingListener =
                     ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
             ActionListener<Void> authenticatedListener = ActionListener.wrap(
@@ -156,7 +156,7 @@ public class SecurityActionFilter implements ActionFilter {
                 ActionListener.wrap((authc) -> {
                     if (authc != null) {
                         authorizeRequest(authc, securityAction, request, listener);
-                    } else if (licenseState.isAuthAllowed() == false) {
+                    } else if (licenseState.isSecurityEnabled() == false) {
                         listener.onResponse(null);
                     } else {
                         listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));

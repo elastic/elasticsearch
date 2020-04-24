@@ -65,6 +65,10 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
             objectParser.declareField(ValuesSourceAggregationBuilder::script,
                     (parser, context) -> Script.parse(parser),
                     Script.SCRIPT_PARSE_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
+            String[] fields = new String[]{ParseField.CommonFields.FIELD.getPreferredName(), Script.SCRIPT_PARSE_FIELD.getPreferredName()};
+            objectParser.declareRequiredFieldSet(fields);
+        } else {
+            objectParser.declareRequiredFieldSet(ParseField.CommonFields.FIELD.getPreferredName());
         }
 
         if (timezoneAware) {
@@ -85,8 +89,8 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
             super(name);
         }
 
-        protected LeafOnly(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-            super(clone, factoriesBuilder, metaData);
+        protected LeafOnly(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+            super(clone, factoriesBuilder, metadata);
             if (factoriesBuilder.count() > 0) {
                 throw new AggregationInitializationException("Aggregator [" + name + "] of type ["
                     + getType() + "] cannot accept sub-aggregations");
@@ -125,8 +129,8 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     }
 
     protected ValuesSourceAggregationBuilder(ValuesSourceAggregationBuilder<AB> clone,
-                                             Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                             Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.field = clone.field;
         this.userValueTypeHint = clone.userValueTypeHint;
         this.format = clone.format;

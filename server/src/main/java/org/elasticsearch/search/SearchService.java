@@ -1116,6 +1116,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // we don't want to use the reader wrapper since it could run costly operations
         // and we can afford false positives.
         try (Engine.Searcher searcher = indexShard.acquireCanMatchSearcher()) {
+            final boolean aliasFilterCanMatch = request.getAliasFilter()
+                .getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
             QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), searcher,
                 request::nowInMillis, request.getClusterAlias());
             Rewriteable.rewrite(request.getRewriteable(), context, false);
@@ -1123,10 +1125,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
             if (canRewriteToMatchNone(request.source())) {
                 QueryBuilder queryBuilder = request.source().query();
-                return new CanMatchResponse(queryBuilder instanceof MatchNoneQueryBuilder == false, minMax);
+                return new CanMatchResponse(
+                    aliasFilterCanMatch && queryBuilder instanceof MatchNoneQueryBuilder == false, minMax
+                );
             }
             // null query means match_all
-            return new CanMatchResponse(true, minMax);
+            return new CanMatchResponse(aliasFilterCanMatch, minMax);
         }
     }
 

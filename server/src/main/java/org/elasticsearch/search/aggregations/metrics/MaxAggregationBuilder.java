@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -45,16 +45,18 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        MaxAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        MaxAggregatorFactory.registerAggregators(builder);
     }
 
     public MaxAggregationBuilder(String name) {
         super(name);
     }
 
-    protected MaxAggregationBuilder(MaxAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    protected MaxAggregationBuilder(MaxAggregationBuilder clone,
+                                    AggregatorFactories.Builder factoriesBuilder,
+                                    Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
     }
 
     @Override
@@ -63,8 +65,8 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new MaxAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new MaxAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -81,8 +83,9 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
 
     @Override
     protected MaxAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
-                                              AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
-        return new MaxAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                              AggregatorFactory parent,
+                                              AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        return new MaxAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

@@ -54,6 +54,7 @@ public class RestRolloverIndexAction extends BaseRestHandler {
         rolloverIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", rolloverIndexRequest.masterNodeTimeout()));
         rolloverIndexRequest.getCreateIndexRequest().waitForActiveShards(
                 ActiveShardCount.parseString(request.param("wait_for_active_shards")));
+        rolloverIndexRequest.getCreateIndexRequest().preferV2Templates(RestCreateIndexAction.preferV2Templates(request));
         return channel -> client.admin().indices().rolloverIndex(rolloverIndexRequest, new RestToXContentListener<>(channel));
     }
 }

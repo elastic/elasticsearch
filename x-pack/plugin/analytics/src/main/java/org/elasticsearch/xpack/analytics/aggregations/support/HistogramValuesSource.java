@@ -43,6 +43,7 @@ public class HistogramValuesSource {
                 };
             }
 
+            @Override
             public HistogramValues getHistogramValues(LeafReaderContext context) throws IOException {
                 return indexFieldData.load(context).getHistogramValues();
             }

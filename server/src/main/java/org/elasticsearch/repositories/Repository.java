@@ -23,11 +23,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,6 +40,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -67,17 +69,17 @@ public interface Repository extends LifecycleComponent {
          * Constructs a repository.
          * @param metadata    metadata for the repository including name and settings
          */
-        Repository create(RepositoryMetaData metadata) throws Exception;
+        Repository create(RepositoryMetadata metadata) throws Exception;
 
-        default Repository create(RepositoryMetaData metaData, Function<String, Repository.Factory> typeLookup) throws Exception {
-            return create(metaData);
+        default Repository create(RepositoryMetadata metadata, Function<String, Repository.Factory> typeLookup) throws Exception {
+            return create(metadata);
         }
     }
 
     /**
      * Returns metadata about this repository.
      */
-    RepositoryMetaData getMetadata();
+    RepositoryMetadata getMetadata();
 
     /**
      * Reads snapshot description from repository.
@@ -93,7 +95,7 @@ public interface Repository extends LifecycleComponent {
      * @param snapshotId the snapshot id to load the global metadata from
      * @return the global metadata about the snapshot
      */
-    MetaData getSnapshotGlobalMetaData(SnapshotId snapshotId);
+    Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId);
 
     /**
      * Returns the index metadata associated with the snapshot.
@@ -102,7 +104,7 @@ public interface Repository extends LifecycleComponent {
      * @param index      the {@link IndexId} to load the metadata from
      * @return the index metadata about the given index for the given snapshot
      */
-    IndexMetaData getSnapshotIndexMetaData(SnapshotId snapshotId, IndexId index) throws IOException;
+    IndexMetadata getSnapshotIndexMetadata(SnapshotId snapshotId, IndexId index) throws IOException;
 
     /**
      * Returns a {@link RepositoryData} to describe the data in the repository, including the snapshots
@@ -124,26 +126,30 @@ public interface Repository extends LifecycleComponent {
      * @param shardFailures         list of shard failures
      * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot began
      * @param includeGlobalState    include cluster global state
-     * @param clusterMetaData       cluster metadata
+     * @param clusterMetadata       cluster metadata
      * @param userMetadata          user metadata
      * @param repositoryMetaVersion version of the updated repository metadata to write
-     * @param listener              listener to be called on completion of the snapshot
+     * @param stateTransformer      a function that filters the last cluster state update that the snapshot finalization will execute and
+     *                              is used to remove any state tracked for the in-progress snapshot from the cluster state
+     * @param listener              listener to be invoked with the new {@link RepositoryData} and the snapshot's {@link SnapshotInfo}
+     *                              completion of the snapshot
      */
     void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                           int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                          boolean includeGlobalState, MetaData clusterMetaData, Map<String, Object> userMetadata,
-                          Version repositoryMetaVersion, ActionListener<SnapshotInfo> listener);
+                          boolean includeGlobalState, Metadata clusterMetadata, Map<String, Object> userMetadata,
+                          Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateTransformer,
+                          ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener);
 
     /**
-     * Deletes snapshot
+     * Deletes snapshots
      *
-     * @param snapshotId            snapshot id
+     * @param snapshotIds           snapshot ids
      * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot deletion began
      * @param repositoryMetaVersion version of the updated repository metadata to write
      * @param listener              completion listener
      */
-    void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version repositoryMetaVersion, ActionListener<Void> listener);
-
+    void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
+                         ActionListener<Void> listener);
     /**
      * Returns snapshot throttle time in nanoseconds
      */
@@ -154,6 +160,12 @@ public interface Repository extends LifecycleComponent {
      */
     long getRestoreThrottleTimeInNanos();
 
+    /**
+     * Returns stats on the repository usage
+     */
+    default RepositoryStats stats() {
+        return RepositoryStats.EMPTY_STATS;
+    }
 
     /**
      * Verifies repository on the master node and returns the verification token.

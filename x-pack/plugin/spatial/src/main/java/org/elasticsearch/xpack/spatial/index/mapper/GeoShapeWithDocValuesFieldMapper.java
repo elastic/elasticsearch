@@ -73,14 +73,6 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
 
     private Explicit<Boolean> docValues;
 
-    @Override
-    public void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        super.doXContentBody(builder, includeDefaults, params);
-        if (includeDefaults || docValues.explicit()) {
-            builder.field(TypeParsers.DOC_VALUES, docValues.value());
-        }
-    }
-
     @SuppressWarnings("rawtypes")
     public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<AbstractShapeGeometryFieldMapper.Builder,
             GeoShapeWithDocValuesFieldMapper> {

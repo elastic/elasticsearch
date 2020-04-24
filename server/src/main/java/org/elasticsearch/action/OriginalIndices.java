@@ -58,13 +58,17 @@ public final class OriginalIndices implements IndicesRequest {
     }
 
     public static OriginalIndices readOriginalIndices(StreamInput in) throws IOException {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0) && in.readBoolean() == false) {
+            return OriginalIndices.NONE;
+        }
         return new OriginalIndices(in.readStringArray(), IndicesOptions.readIndicesOptions(in));
     }
 
     public static void writeOriginalIndices(OriginalIndices originalIndices, StreamOutput out) throws IOException {
-        if (out.getVersion(out).onOrAfter(Version.V_8_0_0) && in.readBoolean() == false) {
-            originalIndices = NONE;
-        } else {
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeBoolean(originalIndices != OriginalIndices.NONE);
+        }
+        if (originalIndices != OriginalIndices.NONE) {
             out.writeStringArrayNullable(originalIndices.indices);
             originalIndices.indicesOptions.writeIndicesOptions(out);
         }

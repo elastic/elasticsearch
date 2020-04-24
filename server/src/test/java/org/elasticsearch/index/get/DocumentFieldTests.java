@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
@@ -101,29 +102,43 @@ public class DocumentFieldTests extends ESTestCase {
     }
 
     public static Tuple<DocumentField, DocumentField> randomDocumentField(XContentType xContentType) {
-        if (randomBoolean()) {
-            String metaField = randomValueOtherThanMany(field -> field.equals(TypeFieldMapper.NAME)
-                    || field.equals(IndexFieldMapper.NAME) || field.equals(IdFieldMapper.NAME),
-                () -> randomFrom(MapperService.getAllMetaFields()));
-            DocumentField documentField;
-            if (metaField.equals(IgnoredFieldMapper.NAME)) {
-                int numValues = randomIntBetween(1, 3);
-                List<Object> ignoredFields = new ArrayList<>(numValues);
-                for (int i = 0; i < numValues; i++) {
-                    ignoredFields.add(randomAlphaOfLengthBetween(3, 10));
+        switch(randomIntBetween(0, 3)) {
+            case 0:
+                String metaField = randomValueOtherThanMany(field -> field.equals(TypeFieldMapper.NAME)
+                        || field.equals(IndexFieldMapper.NAME) || field.equals(IdFieldMapper.NAME),
+                    () -> randomFrom(MapperService.getAllMetaFields()));
+                DocumentField documentField;
+                if (metaField.equals(IgnoredFieldMapper.NAME)) {
+                    int numValues = randomIntBetween(1, 3);
+                    List<Object> ignoredFields = new ArrayList<>(numValues);
+                    for (int i = 0; i < numValues; i++) {
+                        ignoredFields.add(randomAlphaOfLengthBetween(3, 10));
+                    }
+                    documentField = new DocumentField(metaField, ignoredFields);
+                } else {
+                    //meta fields are single value only, besides _ignored
+                    documentField = new DocumentField(metaField, Collections.singletonList(randomAlphaOfLengthBetween(3, 10)));
                 }
-                documentField = new DocumentField(metaField, ignoredFields);
-            } else {
-                //meta fields are single value only, besides _ignored
-                documentField = new DocumentField(metaField, Collections.singletonList(randomAlphaOfLengthBetween(3, 10)));
-            }
-            return Tuple.tuple(documentField, documentField);
-        } else {
-            String fieldName = randomAlphaOfLengthBetween(3, 10);
-            Tuple<List<Object>, List<Object>> tuple = RandomObjects.randomStoredFieldValues(random(), xContentType);
-            DocumentField input = new DocumentField(fieldName, tuple.v1());
-            DocumentField expected = new DocumentField(fieldName, tuple.v2());
-            return Tuple.tuple(input, expected);
+                return Tuple.tuple(documentField, documentField);
+            case 1:
+                String fieldName = randomAlphaOfLengthBetween(3, 10);
+                Tuple<List<Object>, List<Object>> tuple = RandomObjects.randomStoredFieldValues(random(), xContentType);
+                DocumentField input = new DocumentField(fieldName, tuple.v1());
+                DocumentField expected = new DocumentField(fieldName, tuple.v2());
+                return Tuple.tuple(input, expected);
+            case 2:
+                List<Object> listValues = randomList(1, 5, () -> randomList(1, 5, ESTestCase::randomInt));
+                DocumentField listField = new DocumentField(randomAlphaOfLength(5), listValues);
+                return Tuple.tuple(listField, listField);
+            case 3:
+                List<Object> objectValues = randomList(1, 5, () ->
+                    Map.of(randomAlphaOfLength(5), randomInt(),
+                        randomAlphaOfLength(5), randomBoolean(),
+                        randomAlphaOfLength(5), randomAlphaOfLength(10)));
+                DocumentField objectField = new DocumentField(randomAlphaOfLength(5), objectValues);
+                return Tuple.tuple(objectField, objectField);
+            default:
+                throw new IllegalStateException();
         }
     }
 }

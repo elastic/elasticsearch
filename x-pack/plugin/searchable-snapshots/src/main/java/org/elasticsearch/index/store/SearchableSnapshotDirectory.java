@@ -309,12 +309,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     @Override
     public IndexInput openInput(final String name, final IOContext context) throws IOException {
-        return openInput(fileInfo(name), context);
-    }
-
-    private IndexInput openInput(final BlobStoreIndexShardSnapshot.FileInfo fileInfo, final IOContext context) {
         ensureOpen();
-        final String name = fileInfo.physicalName();
+
+        final BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfo(name);
         if (fileInfo.metadata().hashEqualsContents()) {
             final BytesRef content = fileInfo.metadata().hash();
             return new ByteArrayIndexInput("ByteArrayIndexInput(" + name + ')', content.bytes, content.offset, content.length);

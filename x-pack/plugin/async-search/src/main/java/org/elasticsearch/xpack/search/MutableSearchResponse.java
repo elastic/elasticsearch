@@ -9,7 +9,6 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -24,14 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-<<<<<<< HEAD
-import static org.elasticsearch.xpack.search.AsyncSearchIndexService.restoreResponseHeadersContext;
-=======
-import static java.util.Collections.singletonList;
-import static org.apache.lucene.search.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
-import static org.elasticsearch.search.aggregations.InternalAggregations.topLevelReduce;
 import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.restoreResponseHeadersContext;
->>>>>>> master
 
 /**
  * A mutable search response that allows to update and create partial response synchronously.

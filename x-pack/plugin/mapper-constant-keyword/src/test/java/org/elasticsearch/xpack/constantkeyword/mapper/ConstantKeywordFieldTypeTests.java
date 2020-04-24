@@ -100,7 +100,7 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
         ConstantKeywordFieldType ft = new ConstantKeywordFieldType();
         assertEquals(new MatchNoDocsQuery(), ft.existsQuery(null));
         ft.setValue("foo");
-        assertEquals(new MatchAllDocsQuery(),  ft.existsQuery(null));
+        assertEquals(new MatchAllDocsQuery(), ft.existsQuery(null));
     }
 
     public void testRangeQuery() {

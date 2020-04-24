@@ -6,11 +6,21 @@
 
 Deletes an existing data stream along with its backing indices.
 
+////
+[source,console]
+-----------------------------------
+PUT /_data_stream/my-data-stream
+{
+  "timestamp_field" : "@timestamp"
+}
+-----------------------------------
+// TESTSETUP
+////
+
 [source,console]
 --------------------------------------------------
 DELETE _data_stream/my-data-stream
 --------------------------------------------------
-// TEST[setup:twitter]
 
 
 [[delete-data-stream-api-request]]

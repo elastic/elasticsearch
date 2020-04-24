@@ -10,7 +10,6 @@ Returns information about one or more data streams.
 --------------------------------------------------
 GET _data_streams/my-data-stream
 --------------------------------------------------
-// TEST[setup:twitter]
 
 [[get-data-stream-api-request]]
 ==== {api-request-title}
@@ -65,4 +64,3 @@ The API returns the following response:
 <2> The name of the timestamp field for the data stream
 <3> List of backing indices
 <4> Current generation for the data stream
-

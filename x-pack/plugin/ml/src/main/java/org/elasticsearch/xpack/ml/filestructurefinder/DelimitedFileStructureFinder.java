@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FieldStats;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
@@ -80,6 +81,11 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
         for (int index = isHeaderInFile ? 1 : 0; index < rows.size(); ++index) {
             List<String> row = rows.get(index);
             int lineNumber = lineNumbers.get(index);
+            // Indicates an illformatted row. We allow a certain number of these
+            if (row.size() != columnNames.length) {
+                prevMessageEndLineNumber = lineNumber;
+                continue;
+            }
             Map<String, String> sampleRecord = new LinkedHashMap<>();
             Util.filterListToMap(sampleRecord, columnNames,
                 trimFields ? row.stream().map(field -> (field == null) ? null : field.trim()).collect(Collectors.toList()) : row);
@@ -488,7 +494,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
     }
 
     static boolean canCreateFromSample(List<String> explanation, String sample, int minFieldsPerRow, CsvPreference csvPreference,
-                                       String formatName) {
+                                       String formatName, double allowedFractionOfBadLines) {
 
         // Logstash's CSV parser won't tolerate fields where just part of the
         // value is quoted, whereas SuperCSV will, hence this extra check
@@ -506,6 +512,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             int fieldsInFirstRow = -1;
             int fieldsInLastRow = -1;
 
+            List<Integer> illFormattedRows = new ArrayList<>();
             int numberOfRows = 0;
             try {
                 List<String> row;
@@ -529,16 +536,25 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
                         --fieldsInThisRow;
                     }
 
-                    if (fieldsInLastRow != fieldsInFirstRow) {
-                        explanation.add("Not " + formatName + " because row [" + (numberOfRows - 1) +
-                            "] has a different number of fields to the first row: [" + fieldsInFirstRow + "] and [" +
-                            fieldsInLastRow + "]");
-                        return false;
+                    if (fieldsInThisRow != fieldsInFirstRow) {
+                        illFormattedRows.add(fieldsInFirstRow);
+                        continue;
                     }
 
                     fieldsInLastRow = fieldsInThisRow;
                 }
 
+                // We should only allow a certain percentage of ill formatted rows
+                // as it may effects our sample sizing and down stream processing
+                if (illFormattedRows.size() > (allowedFractionOfBadLines * numberOfRows) ) {
+                    explanation.add(new ParameterizedMessage(
+                        "Not {} because more than {} rows did not have the same number of fields as the first row({}). Bad rows {}",
+                        formatName,
+                        illFormattedRows.size(),
+                        fieldsInFirstRow,
+                        illFormattedRows).getFormattedMessage());
+                    return false;
+                }
                 if (fieldsInLastRow > fieldsInFirstRow) {
                     explanation.add("Not " + formatName + " because last row has more fields than first row: [" + fieldsInFirstRow +
                         "] and [" + fieldsInLastRow + "]");

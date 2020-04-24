@@ -14,6 +14,7 @@ import java.util.Locale;
 
 public class DelimitedFileStructureFinderFactory implements FileStructureFinderFactory {
 
+    static final double DEFAULT_BAD_ROWS_PERCENTAGE = 0.10d;
     private final CsvPreference csvPreference;
     private final int minFieldsPerRow;
     private final boolean trimFields;
@@ -44,7 +45,7 @@ public class DelimitedFileStructureFinderFactory implements FileStructureFinderF
      * it could have been truncated when the file was sampled.
      */
     @Override
-    public boolean canCreateFromSample(List<String> explanation, String sample) {
+    public boolean canCreateFromSample(List<String> explanation, String sample, double allowedFractionOfBadLines) {
         String formatName;
         switch ((char) csvPreference.getDelimiterChar()) {
             case ',':
@@ -57,7 +58,12 @@ public class DelimitedFileStructureFinderFactory implements FileStructureFinderF
                 formatName = Character.getName(csvPreference.getDelimiterChar()).toLowerCase(Locale.ROOT) + " delimited values";
                 break;
         }
-        return DelimitedFileStructureFinder.canCreateFromSample(explanation, sample, minFieldsPerRow, csvPreference, formatName);
+        return DelimitedFileStructureFinder.canCreateFromSample(explanation,
+            sample,
+            minFieldsPerRow,
+            csvPreference,
+            formatName,
+            allowedFractionOfBadLines);
     }
 
     @Override

@@ -474,7 +474,9 @@ public final class FileStructureFinderManager {
         Character quote = overrides.getQuote();
         Boolean shouldTrimFields = overrides.getShouldTrimFields();
         List<FileStructureFinderFactory> factories;
+        double allowedFractionOfBadLines = 0.0;
         if (delimiter != null) {
+            allowedFractionOfBadLines = DelimitedFileStructureFinderFactory.DEFAULT_BAD_ROWS_PERCENTAGE;
 
             // If a precise delimiter is specified, we only need one structure finder
             // factory, and we'll tolerate as little as one column in the input
@@ -482,6 +484,7 @@ public final class FileStructureFinderManager {
                 (shouldTrimFields == null) ? (delimiter == '|') : shouldTrimFields));
 
         } else if (quote != null || shouldTrimFields != null) {
+            allowedFractionOfBadLines = DelimitedFileStructureFinderFactory.DEFAULT_BAD_ROWS_PERCENTAGE;
 
             // The delimiter is not specified, but some other aspect of delimited files is,
             // so clone our default delimited factories altering the overridden values
@@ -499,7 +502,7 @@ public final class FileStructureFinderManager {
 
         for (FileStructureFinderFactory factory : factories) {
             timeoutChecker.check("high level format detection");
-            if (factory.canCreateFromSample(explanation, sample)) {
+            if (factory.canCreateFromSample(explanation, sample, allowedFractionOfBadLines)) {
                 return factory.createFromSample(explanation, sample, charsetName, hasByteOrderMarker, lineMergeSizeLimit, overrides,
                     timeoutChecker);
             }

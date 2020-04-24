@@ -120,6 +120,8 @@ dependencies {
   compile 'com.github.jengelman.gradle.plugins:shadow:5.1.0'
   compile 'de.thetaphi:forbiddenapis:2.7'
   compile 'com.avast.gradle:gradle-docker-compose-plugin:0.8.12'
+  compile 'org.apache.maven:maven-model:3.6.2'
+  compile 'com.networknt:json-schema-validator:1.0.36'
   compileOnly "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
   testCompile "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
   testCompile "junit:junit:${props.getProperty('junit')}"
@@ -158,7 +160,6 @@ if (project == rootProject) {
 if (project != rootProject) {
   apply plugin: 'elasticsearch.build'
   apply plugin: 'nebula.maven-base-publish'
-  apply plugin: 'nebula.maven-scm'
 
   // groovydoc succeeds, but has some weird internal exception...
   groovydoc.enabled = false
@@ -166,9 +167,7 @@ if (project != rootProject) {
   // build-tools is not ready for primetime with these...
   dependencyLicenses.enabled = false
   dependenciesInfo.enabled = false
-  forbiddenApisMain.enabled = false
-  forbiddenApisMinimumRuntime.enabled = false
-  forbiddenApisTest.enabled = false
+  disableTasks('forbiddenApisMain', 'forbiddenApisMinimumRuntime', 'forbiddenApisTest')
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
   if (Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))){

@@ -22,7 +22,7 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionC
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig.NUM_TOP_FEATURE_IMPORTANCE_VALUES;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig.RESULTS_FIELD;
 
-public class RegressionConfigUpdate implements InferenceConfigUpdate<RegressionConfig> {
+public class RegressionConfigUpdate implements InferenceConfigUpdate {
 
     public static final ParseField NAME = new ParseField("regression");
 
@@ -127,11 +127,19 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate<RegressionC
     }
 
     @Override
-    public RegressionConfig apply(RegressionConfig originalConfig) {
-        if (isNoop(originalConfig)) {
+    public InferenceConfig apply(InferenceConfig originalConfig) {
+        if (originalConfig instanceof RegressionConfig == false) {
+            throw ExceptionsHelper.badRequestException(
+                "Inference config of type [{}] can not be updated with a inference request of type [{}]",
+                originalConfig.getName(),
+                getName());
+        }
+
+        RegressionConfig regressionConfig = (RegressionConfig)originalConfig;
+        if (isNoop(regressionConfig)) {
             return originalConfig;
         }
-        RegressionConfig.Builder builder = new RegressionConfig.Builder(originalConfig);
+        RegressionConfig.Builder builder = new RegressionConfig.Builder(regressionConfig);
         if (resultsField != null) {
             builder.setResultsField(resultsField);
         }

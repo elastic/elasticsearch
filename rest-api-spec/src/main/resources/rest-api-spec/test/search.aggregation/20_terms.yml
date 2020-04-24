@@ -710,6 +710,18 @@ setup:
 
   - gt: { indices.test_1.total.fielddata.memory_size_in_bytes: 0}
 
+---
+"No field or script":
+  - skip:
+      version: "all" # TODO change this after backport
+      reason:  "Exception was a deep, server exception before 7.8"
+  - do:
+      catch: /Required one of fields \[field, script\], but none were specified/
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body: { "size" : 0, "aggs" : { "no_field_terms" : { "terms" : { "size": 1 } } } }
+
 
 
 

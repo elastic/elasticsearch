@@ -17,6 +17,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -287,7 +288,8 @@ public class FileRolesStoreTests extends ESTestCase {
         List<String> events = CapturingLogger.output(logger.getName(), Level.WARN);
         events.clear();
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(false);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_DLS_FLS)).thenReturn(false);
         Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, licenseState, xContentRegistry());
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(9));
@@ -351,8 +353,6 @@ public class FileRolesStoreTests extends ESTestCase {
             descriptors = store.roleDescriptors(Collections.singleton("role5"));
             assertThat(descriptors, notNullValue());
             assertTrue(descriptors.isEmpty());
-
-            watcherService.start();
 
             try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
                 writer.append("\n");
@@ -438,7 +438,7 @@ public class FileRolesStoreTests extends ESTestCase {
             assertEquals(1, descriptors.size());
         } finally {
             if (watcherService != null) {
-                watcherService.stop();
+                watcherService.close();
             }
             terminate(threadPool);
         }

@@ -24,14 +24,18 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
 public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsyncSearchAction.Request, AsyncSearchResponse> {
     private final Logger logger = LogManager.getLogger(TransportGetAsyncSearchAction.class);
     private final ClusterService clusterService;
     private final TransportService transportService;
-    private final AsyncSearchIndexService store;
+    private final AsyncTaskIndexService<AsyncSearchResponse> store;
 
     @Inject
     public TransportGetAsyncSearchAction(TransportService transportService,
@@ -43,14 +47,15 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
         super(GetAsyncSearchAction.NAME, transportService, actionFilters, GetAsyncSearchAction.Request::new);
         this.clusterService = clusterService;
         this.transportService = transportService;
-        this.store = new AsyncSearchIndexService(clusterService, threadPool.getThreadContext(), client, registry);
+        this.store = new AsyncTaskIndexService<>(AsyncSearch.INDEX, clusterService, threadPool.getThreadContext(), client,
+            ASYNC_SEARCH_ORIGIN, AsyncSearchResponse::new, registry);
     }
 
     @Override
     protected void doExecute(Task task, GetAsyncSearchAction.Request request, ActionListener<AsyncSearchResponse> listener) {
         try {
             long nowInMillis = System.currentTimeMillis();
-            AsyncSearchId searchId = AsyncSearchId.decode(request.getId());
+            AsyncExecutionId searchId = AsyncExecutionId.decode(request.getId());
             DiscoveryNode node = clusterService.state().nodes().get(searchId.getTaskId().getNodeId());
             if (clusterService.localNode().getId().equals(searchId.getTaskId().getNodeId()) || node == null) {
                 if (request.getKeepAlive().getMillis() > 0) {
@@ -82,13 +87,13 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
         }
     }
 
-    private void getSearchResponseFromTask(AsyncSearchId searchId,
+    private void getSearchResponseFromTask(AsyncExecutionId searchId,
                                            GetAsyncSearchAction.Request request,
                                            long nowInMillis,
                                            long expirationTimeMillis,
                                            ActionListener<AsyncSearchResponse> listener) {
         try {
-            final AsyncSearchTask task = store.getTask(taskManager, searchId);
+            final AsyncSearchTask task = store.getTask(taskManager, searchId, AsyncSearchTask.class);
             if (task == null) {
                 getSearchResponseFromIndex(searchId, request, nowInMillis, listener);
                 return;
@@ -118,7 +123,7 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
         }
     }
 
-   private void getSearchResponseFromIndex(AsyncSearchId searchId,
+   private void getSearchResponseFromIndex(AsyncExecutionId searchId,
                                            GetAsyncSearchAction.Request request,
                                            long nowInMillis,
                                            ActionListener<AsyncSearchResponse> listener) {

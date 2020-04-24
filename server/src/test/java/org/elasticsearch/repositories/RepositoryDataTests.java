@@ -64,10 +64,11 @@ public class RepositoryDataTests extends ESTestCase {
         final List<IndexId> indicesBefore = List.copyOf(repositoryData.getIndices().values());
         final SnapshotId randomSnapshot = randomFrom(repositoryData.getSnapshotIds());
         final IndexId[] indicesToUpdate = indicesBefore.stream().filter(index -> {
-            final Set<SnapshotId> snapshotIds = repositoryData.getSnapshots(index);
+            final List<SnapshotId> snapshotIds = repositoryData.getSnapshots(index);
             return snapshotIds.contains(randomSnapshot) && snapshotIds.size() > 1;
         }).toArray(IndexId[]::new);
-        assertThat(repositoryData.indicesToUpdateAfterRemovingSnapshot(randomSnapshot), containsInAnyOrder(indicesToUpdate));
+        assertThat(repositoryData.indicesToUpdateAfterRemovingSnapshot(
+            Collections.singleton(randomSnapshot)), containsInAnyOrder(indicesToUpdate));
     }
 
     public void testXContent() throws IOException {
@@ -111,7 +112,7 @@ public class RepositoryDataTests extends ESTestCase {
         // verify that the new repository data has the new snapshot and its indices
         assertTrue(newRepoData.getSnapshotIds().contains(newSnapshot));
         for (IndexId indexId : indices) {
-            Set<SnapshotId> snapshotIds = newRepoData.getSnapshots(indexId);
+            List<SnapshotId> snapshotIds = newRepoData.getSnapshots(indexId);
             assertTrue(snapshotIds.contains(newSnapshot));
             if (newIndices.contains(indexId)) {
                 assertEquals(snapshotIds.size(), 1); // if it was a new index, only the new snapshot should be in its set
@@ -134,7 +135,7 @@ public class RepositoryDataTests extends ESTestCase {
         RepositoryData repositoryData = new RepositoryData(EMPTY_REPO_GEN, snapshotIds,
             Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), ShardGenerations.EMPTY);
         // test that initializing indices works
-        Map<IndexId, Set<SnapshotId>> indices = randomIndices(snapshotIds);
+        Map<IndexId, List<SnapshotId>> indices = randomIndices(snapshotIds);
         RepositoryData newRepoData =
             new RepositoryData(repositoryData.getGenId(), snapshotIds, snapshotStates, snapshotVersions, indices, ShardGenerations.EMPTY);
         List<SnapshotId> expected = new ArrayList<>(repositoryData.getSnapshotIds());
@@ -152,7 +153,7 @@ public class RepositoryDataTests extends ESTestCase {
         List<SnapshotId> snapshotIds = new ArrayList<>(repositoryData.getSnapshotIds());
         assertThat(snapshotIds.size(), greaterThan(0));
         SnapshotId removedSnapshotId = snapshotIds.remove(randomIntBetween(0, snapshotIds.size() - 1));
-        RepositoryData newRepositoryData = repositoryData.removeSnapshot(removedSnapshotId, ShardGenerations.EMPTY);
+        RepositoryData newRepositoryData = repositoryData.removeSnapshots(Collections.singleton(removedSnapshotId), ShardGenerations.EMPTY);
         // make sure the repository data's indices no longer contain the removed snapshot
         for (final IndexId indexId : newRepositoryData.getIndices().values()) {
             assertFalse(newRepositoryData.getSnapshots(indexId).contains(removedSnapshotId));
@@ -201,11 +202,11 @@ public class RepositoryDataTests extends ESTestCase {
 
         final IndexId corruptedIndexId = randomFrom(parsedRepositoryData.getIndices().values());
 
-        Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
+        Map<IndexId, List<SnapshotId>> indexSnapshots = new HashMap<>();
         final ShardGenerations.Builder shardGenBuilder = ShardGenerations.builder();
         for (Map.Entry<String, IndexId> snapshottedIndex : parsedRepositoryData.getIndices().entrySet()) {
             IndexId indexId = snapshottedIndex.getValue();
-            Set<SnapshotId> snapshotsIds = new LinkedHashSet<>(parsedRepositoryData.getSnapshots(indexId));
+            List<SnapshotId> snapshotsIds = new ArrayList<>(parsedRepositoryData.getSnapshots(indexId));
             if (corruptedIndexId.equals(indexId)) {
                 snapshotsIds.add(new SnapshotId("_uuid", "_does_not_exist"));
             }
@@ -293,11 +294,11 @@ public class RepositoryDataTests extends ESTestCase {
         return repositoryData;
     }
 
-    private static Map<IndexId, Set<SnapshotId>> randomIndices(final Map<String, SnapshotId> snapshotIdsMap) {
+    private static Map<IndexId, List<SnapshotId>> randomIndices(final Map<String, SnapshotId> snapshotIdsMap) {
         final List<SnapshotId> snapshotIds = new ArrayList<>(snapshotIdsMap.values());
         final int totalSnapshots = snapshotIds.size();
         final int numIndices = randomIntBetween(1, 30);
-        final Map<IndexId, Set<SnapshotId>> indices = new HashMap<>(numIndices);
+        final Map<IndexId, List<SnapshotId>> indices = new HashMap<>(numIndices);
         for (int i = 0; i < numIndices; i++) {
             final IndexId indexId = new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
             final Set<SnapshotId> indexSnapshots = new LinkedHashSet<>();
@@ -305,7 +306,7 @@ public class RepositoryDataTests extends ESTestCase {
             for (int j = 0; j < numIndicesForSnapshot; j++) {
                 indexSnapshots.add(snapshotIds.get(randomIntBetween(0, totalSnapshots - 1)));
             }
-            indices.put(indexId, indexSnapshots);
+            indices.put(indexId, List.copyOf(indexSnapshots));
         }
         return indices;
     }

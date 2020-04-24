@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.search;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -19,6 +18,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -107,7 +108,8 @@ public class AsyncSearchResponseTests extends ESTestCase {
 
             case 2:
                 return new AsyncSearchResponse(searchId, searchResponse,
-                    new ElasticsearchException(new IOException("boum")), randomBoolean(), randomBoolean(),
+                    new ScriptException("messageData", new Exception("causeData"), Arrays.asList("stack1", "stack2"),
+                        "sourceData", "langData"), randomBoolean(), randomBoolean(),
                     randomNonNegativeLong(), randomNonNegativeLong());
 
             default:

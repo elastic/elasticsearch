@@ -208,5 +208,4 @@ class NodeDeprecationChecks {
             String.format(Locale.ROOT, "the setting [%s] is currently set to [%s], remove this setting", removedSettingKey, value);
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
     }
-
 }

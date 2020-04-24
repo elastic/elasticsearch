@@ -94,6 +94,7 @@ When the operation is complete, you receive the following results:
       "frequent_category_count" : 0,
       "rare_category_count" : 0,
       "dead_category_count" : 0,
+      "failed_category_count" : 0,
       "categorization_status" : "ok",
       "log_time" : 1575402237000,
       "timestamp" : 1576965600000

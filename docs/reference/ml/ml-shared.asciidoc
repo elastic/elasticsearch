@@ -603,6 +603,17 @@ If `true`, the output excludes interim results. By default, interim results are
 included.
 end::exclude-interim-results[]
 
+tag::failed-category-count[]
+The number of times that categorization wanted to create a new category but
+couldn't because the job had hit its `model_memory_limit`. This number can
+be higher than the number of extra categories that would have been created
+if unlimited memory had been available, because many of the occasions where
+a message didn't match any existing category might have been placed in the
+same extra category. So the number of extra categories that would have been
+created if unlimited memory had been available could be anywhere between 1
+and `failed-category-count`.
+end::failed-category-count[]
+
 tag::feature-bag-fraction[]
 Advanced configuration option. Defines the fraction of features that will be
 used when selecting a random bag for each candidate split. 

@@ -387,7 +387,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
 
         @Override
         public void onResponse(SearchResponse response) {
-            searchResponse.get().updateFinalResponse(response.getSuccessfulShards(), response.getInternalResponse());
+            searchResponse.get().updateFinalResponse(response);
             executeCompletionListeners();
         }
 

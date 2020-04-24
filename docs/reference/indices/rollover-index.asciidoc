@@ -4,11 +4,12 @@
 <titleabbrev>Rollover index</titleabbrev>
 ++++
 
-Creates a new index for a rollover target when the target's existing index meets a
-condition you provide. A rollover target can be either an <<indices-aliases, index alias>>
-or a <<indices-datastreams, data stream>>. When targeting an alias, the alias is updated to
-point to the new index. When targeting a data stream, the new index becomes the data stream's
-write index and its generation is incremented.
+Creates a new index for a rollover target when the target's existing index meets
+a condition you provide. A rollover target can be either an
+<<indices-aliases, index alias>> or a <<indices-datastreams, data stream>>. When
+targeting an alias, the alias is updated to point to the new index. When
+targeting a data stream, the new index becomes the data stream's write index and
+its generation is incremented.
 
 [source,console]
 ----
@@ -66,7 +67,7 @@ In this case, the rollover request:
 If the specified rollover target is a data stream, the rollover request:
 
 . Creates a new index
-. Adds the new index as a backing index on the data stream
+. Adds the new index as a backing index and the write index on the data stream
 . Increments the `generation` attribute of the data stream
 
 
@@ -95,16 +96,18 @@ Name of the target index to create and assign the index alias.
 
 include::{docdir}/indices/create-index.asciidoc[tag=index-name-reqs]
 
-*This parameter is not permitted if `rollover-target` is a data stream. In that case, the
-new index name will be in the form `<rollover-target>-000001` where the zero-padded number
-of length 6 is the generation of the data stream.
+*This parameter is not permitted if `rollover-target` is a data stream. In
+that case, the new index name will be in the form `<rollover-target>-000001`
+where the zero-padded number of length 6 is the generation of the data stream.
 
-If `rollover-target` is an alias that is assigned to an index name that ends with `-` and
-a number such as `logs-000001`. In this case, the name of the new index follows the same pattern
-and increments the number. For example, `logs-000001` increments to `logs-000002`. This number
-is zero-padded with a length of 6, regardless of the prior index name.
+If `rollover-target` is an alias that is assigned to an index name that ends
+with `-` and a number such as `logs-000001`. In this case, the name of the new
+index follows the same pattern and increments the number. For example,
+`logs-000001` increments to `logs-000002`. This number is zero-padded with a
+length of 6, regardless of the prior index name.
 
-If the existing index for the alias does not match this pattern, this parameter is required.
+If the existing index for the alias does not match this pattern, this parameter
+is required.
 --
 
 
@@ -131,8 +134,9 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=aliases]
 `conditions`::
 +
 --
-(Required, object)
-Set of conditions the rollover target's existing index must meet to roll over.
+(Optional, object)
+If supplied, the set of conditions the rollover target's existing index must
+meet to roll over. If omitted, the rollover will be performed unconditionally.
 
 Parameters include:
 

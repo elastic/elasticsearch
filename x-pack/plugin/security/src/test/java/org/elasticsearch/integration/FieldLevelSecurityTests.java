@@ -767,7 +767,6 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                 assertThat(response.getHits().getHits().length, is(1));
                 assertThat(response.getHits().getAt(0).getSourceAsMap().size(), is(1));
                 assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
-                ++from;
             }
         } finally {
             client().execute(ClearReaderAction.INSTANCE, new ClearReaderRequest(readerId)).actionGet();

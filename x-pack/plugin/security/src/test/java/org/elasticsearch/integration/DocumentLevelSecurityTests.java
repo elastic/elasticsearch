@@ -768,13 +768,13 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
         final int numVisible = scaledRandomIntBetween(2, 10);
-        final int numInVisible = scaledRandomIntBetween(2, 10);
+        final int numInvisible = scaledRandomIntBetween(2, 10);
         int id = 1;
         for (int i = 0; i < numVisible; i++) {
             client().prepareIndex("test").setId(String.valueOf(id++)).setSource("field1", "value1").get();
         }
 
-        for (int i = 0; i < numInVisible; i++) {
+        for (int i = 0; i < numInvisible; i++) {
             client().prepareIndex("test").setId(String.valueOf(id++)).setSource("field2", "value2").get();
             client().prepareIndex("test").setId(String.valueOf(id++)).setSource("field3", "value3").get();
         }

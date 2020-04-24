@@ -506,8 +506,11 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         doTestFiveRunsRethrottle(1000, 100, timeValueCollectionFromMilliseconds(950L, 950L, 950L, 9950L));
     }
 
-    public void doTestFiveRunsRethrottle(float requests_per_second, float requests_per_second_rethrottle,
-                                         Collection<TimeValue> expectedDelays) throws Exception {
+    public void doTestFiveRunsRethrottle(
+        float requests_per_second,
+        float requests_per_second_rethrottle,
+        Collection<TimeValue> expectedDelays
+    ) throws Exception {
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
 
         final MockThreadPool threadPool = new MockThreadPool(getTestName());
@@ -543,8 +546,10 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         assertThat(AsyncTwoPhaseIndexer.calculateThrottlingDelay(100, 100, 1_000_000, 1_000_000), equalTo(TimeValue.timeValueSeconds(1)));
 
         // 100 requests/second with 100 requests, 200ms passed -> 800ms delay
-        assertThat(AsyncTwoPhaseIndexer.calculateThrottlingDelay(100, 100, 1_000_000_000L, 1_200_000_000L),
-            equalTo(TimeValue.timeValueMillis(800)));
+        assertThat(
+            AsyncTwoPhaseIndexer.calculateThrottlingDelay(100, 100, 1_000_000_000L, 1_200_000_000L),
+            equalTo(TimeValue.timeValueMillis(800))
+        );
 
         // 100 requests/second with 100 requests done, time passed -> no delay
         assertThat(AsyncTwoPhaseIndexer.calculateThrottlingDelay(100, 100, 1_000_000_000L, 5_000_000_000L), equalTo(TimeValue.ZERO));
@@ -553,8 +558,10 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         assertThat(AsyncTwoPhaseIndexer.calculateThrottlingDelay(1_000_000, 1, 1_000_000_000L, 1_000_000_000L), equalTo(TimeValue.ZERO));
 
         // max: 1 requests/second with 1_000_000 requests done, time passed -> no delay
-        assertThat(AsyncTwoPhaseIndexer.calculateThrottlingDelay(1, 1_000_000, 1_000_000_000L, 1_000_000_000L),
-            equalTo(TimeValue.timeValueHours(1)));
+        assertThat(
+            AsyncTwoPhaseIndexer.calculateThrottlingDelay(1, 1_000_000, 1_000_000_000L, 1_000_000_000L),
+            equalTo(TimeValue.timeValueHours(1))
+        );
 
         // min: 100 requests/second with 100 requests, 995ms passed -> no delay, because minimum not reached
         assertThat(AsyncTwoPhaseIndexer.calculateThrottlingDelay(100, 100, 1_000_000_000L, 1_995_000_000L), equalTo(TimeValue.ZERO));

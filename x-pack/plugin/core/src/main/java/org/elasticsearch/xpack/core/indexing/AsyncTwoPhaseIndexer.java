@@ -43,12 +43,14 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     private static final Logger logger = LogManager.getLogger(AsyncTwoPhaseIndexer.class.getName());
 
     // max time to wait for throttling
-    private static final TimeValue MAX_THROTTLE_WAIT_TIME =  TimeValue.timeValueHours(1);
+    private static final TimeValue MAX_THROTTLE_WAIT_TIME = TimeValue.timeValueHours(1);
     // min time to trigger delayed execution
-    private static final TimeValue MIN_THROTTLE_WAIT_TIME =  TimeValue.timeValueMillis(10);
+    private static final TimeValue MIN_THROTTLE_WAIT_TIME = TimeValue.timeValueMillis(10);
 
-    private final ActionListener<SearchResponse> searchResponseListener =
-        ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure);
+    private final ActionListener<SearchResponse> searchResponseListener = ActionListener.wrap(
+        this::onSearchResponse,
+        this::finishWithSearchFailure
+    );
 
     private final JobStats stats;
 
@@ -76,7 +78,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             // with wrapping the command in RunOnce we ensure the command isn't executed twice, e.g. if the
             // future is already running and cancel returns true
             this.command = new RunOnce(command);
-            this.scheduled = threadPool.schedule(() -> {command.run();}, delay, executorName);
+            this.scheduled = threadPool.schedule(() -> { command.run(); }, delay, executorName);
         }
 
         public void reschedule(TimeValue delay) {
@@ -92,13 +94,24 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
     }
 
-    protected AsyncTwoPhaseIndexer(ThreadPool threadPool, String executorName, AtomicReference<IndexerState> initialState,
-                                   JobPosition initialPosition, JobStats jobStats) {
+    protected AsyncTwoPhaseIndexer(
+        ThreadPool threadPool,
+        String executorName,
+        AtomicReference<IndexerState> initialState,
+        JobPosition initialPosition,
+        JobStats jobStats
+    ) {
         this(threadPool, executorName, initialState, initialPosition, jobStats, -1);
     }
 
-    protected AsyncTwoPhaseIndexer(ThreadPool threadPool, String executorName, AtomicReference<IndexerState> initialState,
-            JobPosition initialPosition, JobStats jobStats, float maximumRequestsPerSecond) {
+    protected AsyncTwoPhaseIndexer(
+        ThreadPool threadPool,
+        String executorName,
+        AtomicReference<IndexerState> initialState,
+        JobPosition initialPosition,
+        JobStats jobStats,
+        float maximumRequestsPerSecond
+    ) {
         this.threadPool = threadPool;
         this.executorName = executorName;
         this.state = initialState;
@@ -521,14 +534,27 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
     protected void nextSearch() {
         if (maximumRequestsPerSecond > 0 && lastDocCount > 0) {
-            TimeValue executionDelay = calculateThrottlingDelay(maximumRequestsPerSecond, lastDocCount, lastSearchStartTimeNanos,
-                    getTimeNanos());
+            TimeValue executionDelay = calculateThrottlingDelay(
+                maximumRequestsPerSecond,
+                lastDocCount,
+                lastSearchStartTimeNanos,
+                getTimeNanos()
+            );
 
             if (executionDelay.duration() > 0) {
-                logger.debug("throttling job [{}], wait for {} ({} {})", getJobId(), executionDelay, maximumRequestsPerSecond,
-                        lastDocCount);
-                scheduledNextSearch = new ScheduledRunnable(threadPool, executorName, executionDelay,
-                        () -> triggerNextSearch(executionDelay.getNanos()));
+                logger.debug(
+                    "throttling job [{}], wait for {} ({} {})",
+                    getJobId(),
+                    executionDelay,
+                    maximumRequestsPerSecond,
+                    lastDocCount
+                );
+                scheduledNextSearch = new ScheduledRunnable(
+                    threadPool,
+                    executorName,
+                    executionDelay,
+                    () -> triggerNextSearch(executionDelay.getNanos())
+                );
 
                 // corner case: if for whatever reason stop() has been called meanwhile fast forward
                 if (getState().equals(IndexerState.STOPPING)) {
@@ -587,11 +613,14 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
     private synchronized void reQueueThrottledSearch() {
         if (scheduledNextSearch != null) {
-            TimeValue executionDelay = calculateThrottlingDelay(maximumRequestsPerSecond, lastDocCount, lastSearchStartTimeNanos,
-                    getTimeNanos());
+            TimeValue executionDelay = calculateThrottlingDelay(
+                maximumRequestsPerSecond,
+                lastDocCount,
+                lastSearchStartTimeNanos,
+                getTimeNanos()
+            );
 
-            logger.debug("rethrottling job [{}], wait for {} ({} {})", getJobId(), executionDelay, maximumRequestsPerSecond,
-                    lastDocCount);
+            logger.debug("rethrottling job [{}], wait for {} ({} {})", getJobId(), executionDelay, maximumRequestsPerSecond, lastDocCount);
             scheduledNextSearch.reschedule(executionDelay);
         }
     }
@@ -600,11 +629,12 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         if (requestsPerSecond <= 0) {
             return TimeValue.ZERO;
         }
-        float timeToWaitNanos = (docCount / requestsPerSecond) * TimeUnit.SECONDS.toNanos(1) ;
+        float timeToWaitNanos = (docCount / requestsPerSecond) * TimeUnit.SECONDS.toNanos(1);
 
         // from timeToWaitNanos - (now - startTimeNanos)
-        TimeValue executionDelay = TimeValue.timeValueNanos(Math.min(MAX_THROTTLE_WAIT_TIME.getNanos(),
-                Math.max(0, (long) timeToWaitNanos + startTimeNanos - now)));
+        TimeValue executionDelay = TimeValue.timeValueNanos(
+            Math.min(MAX_THROTTLE_WAIT_TIME.getNanos(), Math.max(0, (long) timeToWaitNanos + startTimeNanos - now))
+        );
 
         if (executionDelay.compareTo(MIN_THROTTLE_WAIT_TIME) < 0) {
             return TimeValue.ZERO;

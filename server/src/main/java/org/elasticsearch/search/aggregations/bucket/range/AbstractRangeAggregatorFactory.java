@@ -47,8 +47,9 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     private final boolean keyed;
     private final String aggregationTypeName;
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry, String aggregationName) {
-        valuesSourceRegistry.register(aggregationName,
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder,
+                                           String aggregationName) {
+        builder.register(aggregationName,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             new RangeAggregatorSupplier() {
                 @Override

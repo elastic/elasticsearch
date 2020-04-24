@@ -624,10 +624,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
         SnapshotDeletionsInProgress deletionsInProgress = masterNode.clusterService.state().custom(SnapshotDeletionsInProgress.TYPE);
         assertFalse(deletionsInProgress.hasDeletionsInProgress());
         final Repository repository = masterNode.repositoriesService.repository(repoName);
-        Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
+        final RepositoryData repositoryData = getRepositoryData(repository);
+        Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
         // We end up with no snapshots since at least one of the deletes worked out
         assertThat(snapshotIds, empty());
         assertThat(successfulDeletes.get(), either(is(1)).or(is(2)));
+        // We did one snapshot and one delete so we went two steps from the empty generation (-1) to 1
+        assertThat(repositoryData.getGenId(), is(1L));
     }
 
     public void testConcurrentSnapshotRestoreAndDeleteOther() {

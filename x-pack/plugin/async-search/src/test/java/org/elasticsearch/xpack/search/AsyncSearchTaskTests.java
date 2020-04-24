@@ -149,7 +149,6 @@ public class AsyncSearchTaskTests extends ESTestCase {
             newSearchResponse(numShards+numSkippedShards, numShards, numSkippedShards));
         assertCompletionListeners(task, numShards+numSkippedShards,
             numSkippedShards, numShardFailures, false);
-        threadPool.shutdownNow();
     }
 
     public void testWithFetchFailures() throws InterruptedException {
@@ -173,7 +172,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
         }
         task.getSearchProgressActionListener().onFinalReduce(shards,
             new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
-        int numFetchFailures = randomIntBetween(1, numShards);
+        int numFetchFailures = randomIntBetween(0, numShards);
         for (int i = 0; i < numFetchFailures; i++) {
             task.getSearchProgressActionListener().onFetchFailure(i,
                 new SearchShardTarget("0", new ShardId("0", "0", 1), null, OriginalIndices.NONE),
@@ -185,7 +184,6 @@ public class AsyncSearchTaskTests extends ESTestCase {
             newSearchResponse(numShards+numSkippedShards, numShards, numSkippedShards));
         assertCompletionListeners(task, numShards+numSkippedShards,
             numSkippedShards, numFetchFailures, false);
-        threadPool.shutdownNow();
     }
 
     private static SearchResponse newSearchResponse(int totalShards, int successfulShards, int skippedShards) {

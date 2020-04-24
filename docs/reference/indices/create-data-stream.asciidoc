@@ -27,6 +27,12 @@ PUT _data_stream/foo
 }
 --------------------------------------------------
 
+////
+[source,console]
+-----------------------------------
+DELETE /_data_stream/foo
+-----------------------------------
+////
 
 [[indices-create-data-stream-request]]
 ==== {api-request-title}

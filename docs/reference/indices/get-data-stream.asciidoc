@@ -6,6 +6,25 @@
 
 Returns information about one or more data streams.
 
+////
+[source,console]
+-----------------------------------
+PUT /_data_stream/my-data-stream
+{
+  "timestamp_field" : "@timestamp"
+}
+-----------------------------------
+// TESTSETUP
+////
+
+////
+[source,console]
+-----------------------------------
+DELETE /_data_stream/foo
+-----------------------------------
+// TEARDOWN
+////
+
 [source,console]
 --------------------------------------------------
 GET _data_streams/my-data-stream
@@ -64,3 +83,4 @@ The API returns the following response:
 <2> The name of the timestamp field for the data stream
 <3> List of backing indices
 <4> Current generation for the data stream
+

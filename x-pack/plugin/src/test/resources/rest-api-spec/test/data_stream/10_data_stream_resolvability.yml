@@ -1,0 +1,32 @@
+---
+"Verify data stream resolvability":
+  - skip:
+      version: " - 7.99.99"
+      reason: skip untill backported
+
+  - do:
+      indices.create_data_stream:
+        name: logs-foobar
+        body:
+          timestamp_field: "@timestamp"
+  - is_true: acknowledged
+
+  - do:
+      indices.reload_search_analyzers:
+        index: logs-foobar
+  - length: { reload_details: 1}
+
+  - do:
+      searchable_snapshots.clear_cache:
+        index: logs-foobar
+  - match: { _shards.length: 1}
+
+  - do:
+      searchable_snapshots.stats:
+        index: logs-foobar
+  - match: { _shards.length: 1}
+
+  - do:
+      indices.delete_data_stream:
+        name: logs-foobar
+  - is_true: acknowledged

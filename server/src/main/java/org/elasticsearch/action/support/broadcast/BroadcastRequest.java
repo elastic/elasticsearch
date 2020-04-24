@@ -31,7 +31,7 @@ import java.io.IOException;
 public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends ActionRequest implements IndicesRequest.Replaceable {
 
     protected String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
+    private IndicesOptions indicesOptions = IndicesOptions.strictIncludeDataStreamsExpandOpenAndForbidClosed();
 
     public BroadcastRequest(StreamInput in) throws IOException {
         super(in);

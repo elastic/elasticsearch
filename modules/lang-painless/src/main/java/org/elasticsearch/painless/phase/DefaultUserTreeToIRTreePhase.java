@@ -194,9 +194,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.regex.Pattern;
 
-public class DefaultUserTreeToIRTreeVisitor implements UserTreeVisitor<ScriptScope> {
+public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope> {
 
-    private ClassNode irClassNode;
+    protected ClassNode irClassNode;
 
     /**
      * This injects additional ir nodes required for resolving the def type at runtime.

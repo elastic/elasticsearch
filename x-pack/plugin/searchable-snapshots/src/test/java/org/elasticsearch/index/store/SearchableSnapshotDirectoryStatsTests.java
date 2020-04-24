@@ -35,6 +35,7 @@ import static org.elasticsearch.index.store.cache.TestUtils.createCacheService;
 import static org.elasticsearch.index.store.cache.TestUtils.singleBlobContainer;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -116,7 +117,13 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                 );
                 assertThat(
                     inputStats.getCachedBytesWritten().totalNanoseconds(),
-                    equalTo(cachedBytesWriteCount * FAKE_CLOCK_ADVANCE_NANOS)
+                    allOf(
+                        // each read takes at least FAKE_CLOCK_ADVANCE_NANOS time
+                        greaterThanOrEqualTo(FAKE_CLOCK_ADVANCE_NANOS * cachedBytesWriteCount),
+
+                        // worst case: we start all reads before finishing any of them
+                        lessThanOrEqualTo(FAKE_CLOCK_ADVANCE_NANOS * cachedBytesWriteCount * cachedBytesWriteCount)
+                    )
                 );
 
                 assertThat(inputStats.getCachedBytesRead(), notNullValue());

@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
@@ -1210,7 +1211,10 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     public void clearMlState() throws Exception {
         new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
         // Don't check rollup jobs because we clear them in the superclass.
-        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(RollupJob.NAME));
+        // Don't check analytics jobs as they are independent of anomaly detection jobs and should not be created by this test.
+        waitForPendingTasks(
+            adminClient(),
+            taskName -> taskName.startsWith(RollupJob.NAME) || taskName.contains(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME));
     }
 
     private static class DatafeedBuilder {

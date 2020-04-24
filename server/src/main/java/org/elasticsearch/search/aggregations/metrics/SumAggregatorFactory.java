@@ -49,8 +49,8 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(SumAggregationBuilder.NAME,
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(SumAggregationBuilder.NAME,
            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             new MetricAggregatorSupplier() {
                 @Override

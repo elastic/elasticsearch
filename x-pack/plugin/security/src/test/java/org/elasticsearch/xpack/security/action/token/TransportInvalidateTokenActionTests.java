@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -74,7 +75,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
         this.clusterService = ClusterServiceUtils.createClusterService(threadPool);
         this.license = mock(XPackLicenseState.class);
         when(license.isSecurityEnabled()).thenReturn(true);
-        when(license.isTokenServiceAllowed()).thenReturn(true);
+        when(license.isAllowed(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
     }
 
     public void testInvalidateTokensWhenIndexUnavailable() throws Exception {

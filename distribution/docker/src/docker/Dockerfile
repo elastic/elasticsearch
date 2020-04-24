@@ -13,8 +13,6 @@
 
 FROM ${builder_image} AS builder
 
-ENV PATH /usr/share/elasticsearch/bin:\$PATH
-
 RUN groupadd -g 1000 elasticsearch && \
     adduser -u 1000 -g 1000 -d /usr/share/elasticsearch elasticsearch
 

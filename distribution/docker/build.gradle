@@ -32,21 +32,29 @@ private static String baseImageFilename(final String architecture) {
 }
 
 ext.expansions = { architecture, oss, local ->
+  String builder_image = null
+  String platform = null
+  String classifier = null
   switch (architecture) {
     case "aarch64":
+      builder_image = "arm64v8/centos:7"
+      platform = "linux/arm64"
+      classifier = "linux-aarch64"
+      break
     case "x64":
+      builder_image = "amd64/centos:7"
+      platform = "linux/amd64"
+      classifier = "linux-x86_64"
       break
     default:
-      throw new IllegalArgumentException("unrecongized architecture [" + architecture + "], must be one of (aarch64|x64)")
+      throw new IllegalArgumentException("unrecognized architecture [" + architecture + "], must be one of (aarch64|x64)")
   }
 
-  final boolean isAarch64 = "aarch64".equals(architecture)
-  final String classifier = isAarch64 ? "linux-aarch64" : "linux-x86_64"
   final String elasticsearch = "elasticsearch${oss ? '-oss' : ''}-${VersionProperties.elasticsearch}-${classifier}.tar.gz"
 
   return [
-    'platform'            : isAarch64 ? 'linux/arm64' : 'linux/amd64',
-    'builder_image'       : isAarch64 ? 'arm64v8/centos:7' : 'centos:7',
+    'platform'            : platform,
+    'builder_image'       : builder_image,
     'base_image_tar'      : baseImageFilename(architecture),
     'build_date'          : BuildParams.buildDate,
     'elasticsearch'       : elasticsearch,

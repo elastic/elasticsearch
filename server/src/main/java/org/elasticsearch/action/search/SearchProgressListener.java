@@ -103,9 +103,10 @@ abstract class SearchProgressListener {
      * Executed when a shard reports a fetch failure.
      *
      * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.
+     * @param shardTarget The last shard target that thrown an exception.
      * @param exc The cause of the failure.
      */
-    protected void onFetchFailure(int shardIndex, Exception exc) {}
+    protected void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
 
     final void notifyListShards(List<SearchShard> shards, List<SearchShard> skippedShards, Clusters clusters, boolean fetchPhase) {
         this.shards = shards;
@@ -159,9 +160,9 @@ abstract class SearchProgressListener {
         }
     }
 
-    final void notifyFetchFailure(int shardIndex, Exception exc) {
+    final void notifyFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
         try {
-            onFetchFailure(shardIndex, exc);
+            onFetchFailure(shardIndex, shardTarget, exc);
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("[{}] Failed to execute progress listener on fetch failure",
                 shards.get(shardIndex)), e);

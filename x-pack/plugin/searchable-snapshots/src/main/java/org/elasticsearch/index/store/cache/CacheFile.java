@@ -85,16 +85,20 @@ public class CacheFile {
     }
 
     ReleasableLock fileLock() {
-        try (ReleasableLock ignored = evictionLock.acquire()) {
+        boolean success = false;
+        final ReleasableLock fileLock = readLock.acquire();
+        try {
             ensureOpen();
-            // check if we have a channel under eviction lock
+            // check if we have a channel while holding the read lock
             if (channel == null) {
                 throw new AlreadyClosedException("Cache file channel has been released and closed");
             }
-            // acquire next read lock while holding the eviction lock
-            // makes sure that channel won't be closed until this
-            // read lock is released
-            return readLock.acquire();
+            success = true;
+            return fileLock;
+        } finally {
+            if (success == false) {
+                fileLock.close();
+            }
         }
     }
 

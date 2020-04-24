@@ -26,8 +26,10 @@ import org.elasticsearch.painless.Scope.LambdaScope;
 import org.elasticsearch.painless.Scope.Variable;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
 import org.elasticsearch.painless.ir.FunctionNode;
-import org.elasticsearch.painless.ir.LambdaNode;
+import org.elasticsearch.painless.ir.ReferenceNode;
+import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
@@ -60,15 +62,11 @@ import java.util.List;
  * <br>
  * {@code sort(list, lambda$0(capture))}
  */
-public class ELambda extends AExpression implements ILambda {
+public class ELambda extends AExpression {
 
     protected final List<String> paramTypeStrs;
     protected final List<String> paramNameStrs;
     protected final List<AStatement> statements;
-
-    // TODO: #54015
-    private List<Variable> captures;
-    private String defPointer;
 
     public ELambda(Location location,
                    List<String> paramTypes, List<String> paramNames,
@@ -96,7 +94,6 @@ public class ELambda extends AExpression implements ILambda {
         List<String> parameterNames;
         SBlock block;
         int maxLoopCounter;
-        FunctionRef ref;
 
         Output output = new Output();
 
@@ -181,7 +178,7 @@ public class ELambda extends AExpression implements ILambda {
         maxLoopCounter = scriptRoot.getCompilerSettings().getMaxLoopCounter();
 
         // prepend capture list to lambda's arguments
-        captures = new ArrayList<>(lambdaScope.getCaptures());
+        List<Variable> captures = new ArrayList<>(lambdaScope.getCaptures());
         typeParametersWithCaptures = new ArrayList<>(captures.size() + typeParameters.size());
         parameterNames = new ArrayList<>(captures.size() + paramNameStrs.size());
         for (Variable var : captures) {
@@ -195,16 +192,24 @@ public class ELambda extends AExpression implements ILambda {
         name = scriptRoot.getNextSyntheticName("lambda");
         scriptRoot.getFunctionTable().addFunction(name, returnType, typeParametersWithCaptures, true, true);
 
+        ReferenceNode referenceNode;
+
         // setup method reference to synthetic method
         if (input.expected == null) {
-            ref = null;
             output.actual = String.class;
-            defPointer = "Sthis." + name + "," + captures.size();
+            String defReferenceEncoding = "Sthis." + name + "," + captures.size();
+
+            DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode();
+            defInterfaceReferenceNode.setDefReferenceEncoding(defReferenceEncoding);
+            referenceNode = defInterfaceReferenceNode;
         } else {
-            defPointer = null;
-            ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(),
+            FunctionRef ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(),
                     location, input.expected, "this", name, captures.size());
             output.actual = input.expected;
+
+            TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode();
+            typedInterfaceReferenceNode.setReference(ref);
+            referenceNode = typedInterfaceReferenceNode;
         }
 
         FunctionNode functionNode = new FunctionNode();
@@ -221,31 +226,15 @@ public class ELambda extends AExpression implements ILambda {
 
         classNode.addFunctionNode(functionNode);
 
-        LambdaNode lambdaNode = new LambdaNode();
-        lambdaNode.setLocation(location);
-        lambdaNode.setExpressionType(output.actual);
-        lambdaNode.setFuncRef(ref);
+        referenceNode.setLocation(location);
+        referenceNode.setExpressionType(output.actual);
 
         for (Variable capture : captures) {
-            lambdaNode.addCapture(capture.getName());
+            referenceNode.addCapture(capture.getName());
         }
 
-        output.expressionNode = lambdaNode;
+        output.expressionNode = referenceNode;
 
         return output;
-    }
-
-    @Override
-    public String getPointer() {
-        return defPointer;
-    }
-
-    @Override
-    public List<Class<?>> getCaptures() {
-        List<Class<?>> types = new ArrayList<>();
-        for (Variable capture : captures) {
-            types.add(capture.getType());
-        }
-        return types;
     }
 }

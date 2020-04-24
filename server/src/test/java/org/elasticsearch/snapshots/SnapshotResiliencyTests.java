@@ -506,6 +506,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertEquals(0, snapshotInfo.failedShards());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55702")
     public void testConcurrentSnapshotCreateAndDeleteOther() {
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
 
@@ -1370,7 +1371,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new NodeMappingRefreshAction(transportService, metadataMappingService),
                     repositoriesService,
                     mock(SearchService.class),
-                    new PeerRecoverySourceService(transportService, indicesService, recoverySettings),
+                    new PeerRecoverySourceService(transportService, indicesService, recoverySettings, bigArrays),
                     snapshotShardsService,
                     new PrimaryReplicaSyncer(
                         transportService,

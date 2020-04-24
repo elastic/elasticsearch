@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -175,7 +176,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         if (Files.exists(path)) {
             try {
                 List<String> roleSegments = roleSegments(path);
-                final boolean flsDlsLicensed = licenseState.isDocumentAndFieldLevelSecurityAllowed();
+                final boolean flsDlsLicensed = licenseState.isAllowed(Feature.SECURITY_DLS_FLS);
                 for (String segment : roleSegments) {
                     RoleDescriptor descriptor = parseRoleDescriptor(segment, path, logger, resolvePermission, settings, xContentRegistry);
                     if (descriptor != null) {

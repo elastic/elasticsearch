@@ -371,6 +371,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     final CountDown countDown = new CountDown(Math.toIntExact(numberOfParts));
                     for (long p = 0; p < numberOfParts; p++) {
                         final int part = Math.toIntExact(p);
+                        // TODO use multiple workers to warm each part instead of filling the thread pool
                         executor.execute(new AbstractRunnable() {
                             @Override
                             protected void doRun() throws Exception {

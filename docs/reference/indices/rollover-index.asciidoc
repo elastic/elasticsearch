@@ -7,7 +7,7 @@
 Creates a new index for a rollover target when the target's existing index meets a
 condition you provide. A rollover target can be either an <<indices-aliases, index alias>>
 or a <<indices-datastreams, data stream>>. When targeting an alias, the alias is updated to
-reference the new index. When targeting a data stream, the new index becomes the data stream's
+point to the new index. When targeting a data stream, the new index becomes the data stream's
 write index and its generation is incremented.
 
 [source,console]

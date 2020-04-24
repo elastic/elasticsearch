@@ -332,7 +332,6 @@ public class SearchModule {
         registerSignificanceHeuristics(plugins);
         this.valuesSourceRegistry = registerAggregations(plugins);
         registerMovingAverageModels(plugins);
-        registerAggregations(plugins);
         registerPipelineAggregations(plugins);
         registerFetchSubPhases(plugins);
         registerSearchExts(plugins);

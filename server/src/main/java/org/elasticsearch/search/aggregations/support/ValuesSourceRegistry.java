@@ -93,21 +93,6 @@ public class ValuesSourceRegistry {
             }, aggregatorSupplier);
         }
 
-        /**
-         * Register an aggregator that applies to any values source type.  This is a convenience method for aggregations that do not care at
-         * all about the types of their inputs.  Aggregations using this version of registration should not make any other registrations, as
-         * the aggregator registered using this function will be applied in all cases.
-         *
-         * @param aggregationName The name of the family of aggregations, typically found via
-         *                        {@link ValuesSourceAggregationBuilder#getType()}
-         * @param aggregatorSupplier An Aggregation-specific specialization of AggregatorSupplier which will construct the mapped aggregator
-         *                           from the aggregation standard set of parameters.
-         */
-        public void registerAny(String aggregationName, AggregatorSupplier aggregatorSupplier) {
-            register(aggregationName, (ignored) -> true, aggregatorSupplier);
-        }
-
-
         public ValuesSourceRegistry build() {
             return new ValuesSourceRegistry(aggregatorRegistry);
         }

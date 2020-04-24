@@ -14,17 +14,23 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.CardinalityAggregator;
+import org.elasticsearch.search.aggregations.metrics.CardinalityAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregatorSupplier;
+import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ValueCountAggregator;
+import org.elasticsearch.search.aggregations.metrics.ValueCountAggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
-import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeBoundsAggregator;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.ingest.CircleProcessor;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeBoundsAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
@@ -62,7 +68,11 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
 
     @Override
     public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
-        return List.of(SpatialPlugin::registerGeoShapeBoundsAggregator);
+        return List.of(
+            SpatialPlugin::registerGeoShapeBoundsAggregator,
+            SpatialPlugin::registerValueCountAggregator,
+            SpatialPlugin::registerCardinalityAggregator
+        );
     }
 
     @Override
@@ -75,5 +85,16 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
             (GeoBoundsAggregatorSupplier) (name, aggregationContext, parent, valuesSource, wrapLongitude, metadata)
                 -> new GeoShapeBoundsAggregator(name, aggregationContext, parent, (GeoShapeValuesSource) valuesSource,
                 wrapLongitude, metadata));
+    }
+
+    public static void registerValueCountAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(ValueCountAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
+            (ValueCountAggregatorSupplier) ValueCountAggregator::new
+        );
+    }
+
+    public static void registerCardinalityAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(CardinalityAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
+            (CardinalityAggregatorSupplier) CardinalityAggregator::new);
     }
 }

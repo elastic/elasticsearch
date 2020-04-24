@@ -275,7 +275,8 @@ public class ModelLoadingService implements ClusterStateListener {
                 INFERENCE_MODEL_CACHE_TTL.getKey());
             auditIfNecessary(notification.getKey(), msg);
         }
-        notification.getValue().persistStats();
+        // If the model is no longer referenced, flush the stats to persist as soon as possible
+        notification.getValue().persistStats(referencedModels.contains(notification.getKey()) == false);
     }
 
     @Override

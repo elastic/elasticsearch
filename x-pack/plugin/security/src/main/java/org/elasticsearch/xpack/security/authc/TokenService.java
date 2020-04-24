@@ -1025,7 +1025,7 @@ public final class TokenService {
                         if (cause instanceof VersionConflictEngineException) {
                             // The document has been updated by another thread, get it again.
                             logger.debug("version conflict while updating document [{}], attempting to get it again", tokenDocId);
-                            getTokenDocAsync(tokenDocId, refreshedTokenIndex, new ActionListener<GetResponse>() {
+                            getTokenDocAsync(tokenDocId, refreshedTokenIndex, true, new ActionListener<GetResponse>() {
                                 @Override
                                 public void onResponse(GetResponse response) {
                                     if (response.isExists()) {
@@ -1042,7 +1042,8 @@ public final class TokenService {
                                     if (isShardNotAvailableException(e)) {
                                         if (backoff.hasNext()) {
                                             logger.info("could not get token document [{}] for refresh, retrying", tokenDocId);
-                                            client.threadPool().schedule(() -> getTokenDocAsync(tokenDocId, refreshedTokenIndex, this),
+                                            client.threadPool().schedule(
+                                                () -> getTokenDocAsync(tokenDocId, refreshedTokenIndex, true, this),
                                                 backoff.next(), GENERIC);
                                         } else {
                                             logger.warn("could not get token document [{}] for refresh after all retries", tokenDocId);
@@ -1104,7 +1105,7 @@ public final class TokenService {
                     if (backoff.hasNext()) {
                         logger.info("could not get token document [{}] that should have been created, retrying", tokenDocId);
                         client.threadPool().schedule(
-                            () -> getTokenDocAsync(tokenDocId, tokensIndex, actionListener),
+                            () -> getTokenDocAsync(tokenDocId, tokensIndex, false, actionListener),
                             backoff.next(), GENERIC);
                     } else {
                         logger.warn("could not get token document [{}] that should have been created after all retries",
@@ -1112,7 +1113,7 @@ public final class TokenService {
                         onFailure.accept(invalidGrantException("could not refresh the requested token"));
                     }
                 };
-                getTokenDocAsync(tokenDocId, tokensIndex, new ActionListener<>() {
+                getTokenDocAsync(tokenDocId, tokensIndex, false, new ActionListener<>() {
                     @Override
                     public void onResponse(GetResponse response) {
                         if (response.isExists()) {
@@ -1157,11 +1158,14 @@ public final class TokenService {
         return Base64.getEncoder().encodeToString(cipher.doFinal(supersedingTokens.getBytes(StandardCharsets.UTF_8)));
     }
 
-    private void getTokenDocAsync(String tokenDocId, SecurityIndexManager tokensIndex, ActionListener<GetResponse> listener) {
-        final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), tokenDocId).request();
+    private void getTokenDocAsync(String tokenDocId, SecurityIndexManager tokensIndex,
+                                  boolean fetchSource, ActionListener<GetResponse> listener) {
+        final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), tokenDocId)
+            .setFetchSource(fetchSource)
+            .request();
         tokensIndex.checkIndexVersionThenExecute(
-                ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() + "]", tokenDocId, ex)),
-                () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest, listener, client::get));
+            ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() + "]", tokenDocId, ex)),
+            () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest, listener, client::get));
     }
 
     Version getTokenVersionCompatibility() {

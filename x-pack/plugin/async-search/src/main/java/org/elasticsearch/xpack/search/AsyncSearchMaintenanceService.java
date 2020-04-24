@@ -13,7 +13,8 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -25,7 +26,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.io.IOException;
 
 import static org.elasticsearch.xpack.search.AsyncSearchIndexService.EXPIRATION_TIME_FIELD;
 import static org.elasticsearch.xpack.search.AsyncSearchIndexService.INDEX;
@@ -33,7 +34,7 @@ import static org.elasticsearch.xpack.search.AsyncSearchIndexService.INDEX;
 /**
  * A service that runs a periodic cleanup over the async-search index.
  */
-class AsyncSearchMaintenanceService implements Releasable, ClusterStateListener {
+class AsyncSearchMaintenanceService  extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(AsyncSearchMaintenanceService.class);
 
     /**
@@ -45,23 +46,39 @@ class AsyncSearchMaintenanceService implements Releasable, ClusterStateListener 
     public static final Setting<TimeValue> ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING =
         Setting.timeSetting("async_search.index_cleanup_interval", TimeValue.timeValueHours(1), Setting.Property.NodeScope);
 
+    private final ClusterService clusterService;
     private final String localNodeId;
     private final ThreadPool threadPool;
     private final AsyncSearchIndexService indexService;
     private final TimeValue delay;
 
     private boolean isCleanupRunning;
-    private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private volatile Scheduler.Cancellable cancellable;
 
-    AsyncSearchMaintenanceService(String localNodeId,
+    AsyncSearchMaintenanceService(ClusterService clusterService,
+                                  String localNodeId,
                                   Settings nodeSettings,
                                   ThreadPool threadPool,
                                   AsyncSearchIndexService indexService) {
+        this.clusterService = clusterService;
         this.localNodeId = localNodeId;
         this.threadPool = threadPool;
         this.indexService = indexService;
         this.delay = ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING.get(nodeSettings);
+    }
+
+    @Override
+    protected void doStart() {
+        clusterService.addListener(this);
+    }
+
+    @Override
+    protected void doStop() {
+        stopCleanup();
+    }
+
+    @Override
+    protected final void doClose() throws IOException {
     }
 
     @Override
@@ -75,12 +92,12 @@ class AsyncSearchMaintenanceService implements Releasable, ClusterStateListener 
     }
 
     synchronized void tryStartCleanup(ClusterState state) {
-        if (isClosed.get()) {
+        if (lifecycle.stoppedOrClosed()) {
             return;
         }
-        IndexRoutingTable indexRouting = state.routingTable().index(AsyncSearchIndexService.INDEX);
+        IndexRoutingTable indexRouting = state.routingTable().index(INDEX);
         if (indexRouting == null) {
-            stop();
+            stopCleanup();
             return;
         }
         String primaryNodeId = indexRouting.shard(0).primaryShard().currentNodeId();
@@ -90,22 +107,22 @@ class AsyncSearchMaintenanceService implements Releasable, ClusterStateListener 
                 executeNextCleanup();
             }
         } else {
-            stop();
+            stopCleanup();
         }
     }
 
     synchronized void executeNextCleanup() {
-        if (isClosed.get() == false && isCleanupRunning) {
+        if (lifecycle.stoppedOrClosed() == false && isCleanupRunning) {
             long nowInMillis = System.currentTimeMillis();
             DeleteByQueryRequest toDelete = new DeleteByQueryRequest(INDEX)
                 .setQuery(QueryBuilders.rangeQuery(EXPIRATION_TIME_FIELD).lte(nowInMillis));
             indexService.getClient()
-                .execute(DeleteByQueryAction.INSTANCE, toDelete, ActionListener.wrap(() -> scheduleNextCleanup()));
+                .execute(DeleteByQueryAction.INSTANCE, toDelete, ActionListener.wrap(this::scheduleNextCleanup));
         }
     }
 
     synchronized void scheduleNextCleanup() {
-        if (isClosed.get() == false && isCleanupRunning) {
+        if (lifecycle.stoppedOrClosed() == false && isCleanupRunning) {
             try {
                 cancellable = threadPool.schedule(this::executeNextCleanup, delay, ThreadPool.Names.GENERIC);
             } catch (EsRejectedExecutionException e) {
@@ -118,18 +135,12 @@ class AsyncSearchMaintenanceService implements Releasable, ClusterStateListener 
         }
     }
 
-    synchronized void stop() {
+    synchronized void stopCleanup() {
         if (isCleanupRunning) {
             if (cancellable != null && cancellable.isCancelled() == false) {
                 cancellable.cancel();
             }
             isCleanupRunning = false;
         }
-    }
-
-    @Override
-    public void close() {
-        stop();
-        isClosed.compareAndSet(false, true);
     }
 }

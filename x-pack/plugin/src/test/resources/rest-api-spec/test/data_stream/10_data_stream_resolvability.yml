@@ -16,7 +16,7 @@
         index: logs-foobar
   - length: { reload_details: 1}
 
-  # this 404 is expected, becayse there are no snapshot indices
+  # this 404 is expected, because there are no snapshot indices
   # but the data stream was resolved, which is what is being tested here
   - do:
       catch: missing
@@ -24,7 +24,7 @@
         index: logs-foobar
   - match: { error.reason: "No searchable snapshots indices found"}
 
-  # this 404 is expected, becayse there are no snapshot indices
+  # this 404 is expected, because there are no snapshot indices
   # but the data stream was resolved, which is what is being tested here
   - do:
       catch: missing

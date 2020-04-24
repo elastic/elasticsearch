@@ -103,8 +103,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         true,
         Setting.Property.IndexScope
     );
-    public static final Setting<Boolean> SNAPSHOT_CACHE_LOAD_EAGERLY_SETTING = Setting.boolSetting(
-        "index.store.snapshot.cache.load.eagerly",
+    public static final Setting<Boolean> SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING = Setting.boolSetting(
+        "index.store.snapshot.cache.prewarm.enabled",
         false,
         Setting.Property.IndexScope
     );
@@ -147,7 +147,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 SNAPSHOT_SNAPSHOT_ID_SETTING,
                 SNAPSHOT_INDEX_ID_SETTING,
                 SNAPSHOT_CACHE_ENABLED_SETTING,
-                SNAPSHOT_CACHE_LOAD_EAGERLY_SETTING,
+                SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING,
                 SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING,
                 SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING,
                 CacheService.SNAPSHOT_CACHE_SIZE_SETTING,

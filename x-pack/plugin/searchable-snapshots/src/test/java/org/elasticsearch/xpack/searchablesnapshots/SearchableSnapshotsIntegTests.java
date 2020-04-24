@@ -127,7 +127,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), cacheEnabled)
             .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString());
         if (cacheEnabled) {
-            indexSettingsBuilder.put(SearchableSnapshots.SNAPSHOT_CACHE_LOAD_EAGERLY_SETTING.getKey(), randomBoolean());
+            indexSettingsBuilder.put(SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), randomBoolean());
         }
         final List<String> nonCachedExtensions;
         if (randomBoolean()) {

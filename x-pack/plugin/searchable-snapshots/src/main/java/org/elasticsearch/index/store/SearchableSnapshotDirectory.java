@@ -63,7 +63,7 @@ import java.util.stream.Collectors;
 import static org.apache.lucene.store.BufferedIndexInput.bufferSize;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_LOAD_EAGERLY_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
@@ -96,7 +96,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private final ThreadPool threadPool;
     private final CacheService cacheService;
     private final boolean useCache;
-    private final boolean loadCacheEagerly;
+    private final boolean prewarmCache;
     private final Set<String> excludedFileTypes;
     private final long uncachedChunkSize; // if negative use BlobContainer#readBlobPreferredLength, see #getUncachedChunkSize()
     private final Path cacheDir;
@@ -131,7 +131,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.cacheDir = Objects.requireNonNull(cacheDir);
         this.closed = new AtomicBoolean(false);
         this.useCache = SNAPSHOT_CACHE_ENABLED_SETTING.get(indexSettings);
-        this.loadCacheEagerly = useCache ? SNAPSHOT_CACHE_LOAD_EAGERLY_SETTING.get(indexSettings) : false;
+        this.prewarmCache = useCache ? SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.get(indexSettings) : false;
         this.excludedFileTypes = new HashSet<>(SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING.get(indexSettings));
         this.uncachedChunkSize = SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.get(indexSettings).getBytes();
         this.threadPool = threadPool;
@@ -351,7 +351,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     private void prewarmCache() {
-        if (loadCacheEagerly) {
+        if (prewarmCache) {
             final List<BlobStoreIndexShardSnapshot.FileInfo> cacheFiles = snapshot().indexFiles()
                 .stream()
                 .filter(file -> file.metadata().hashEqualsContents() == false)

@@ -70,7 +70,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_LOAD_EAGERLY_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -194,7 +194,7 @@ public class CachePreWarmingTests extends ESTestCase {
 
                 final Settings restoredIndexSettings = Settings.builder()
                     .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
-                    .put(SNAPSHOT_CACHE_LOAD_EAGERLY_SETTING.getKey(), true)
+                    .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), true)
                     .putList(SearchableSnapshots.SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING.getKey(), excludedFromCache)
                     .build();
 

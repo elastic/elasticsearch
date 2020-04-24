@@ -93,7 +93,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_LOAD_EAGERLY_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -443,7 +443,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                         shardId,
                         Settings.builder()
                             .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), randomBoolean())
-                            .put(SNAPSHOT_CACHE_LOAD_EAGERLY_SETTING.getKey(), randomBoolean())
+                            .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), randomBoolean())
                             .build(),
                         () -> 0L,
                         cacheService,
@@ -529,7 +529,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     shardId,
                     Settings.builder()
                         .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
-                        .put(SNAPSHOT_CACHE_LOAD_EAGERLY_SETTING.getKey(), randomBoolean())
+                        .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), randomBoolean())
                         .build(),
                     () -> 0L,
                     cacheService,

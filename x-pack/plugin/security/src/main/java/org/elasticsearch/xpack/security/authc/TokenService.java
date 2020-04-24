@@ -1010,10 +1010,11 @@ public final class TokenService {
             return;
         }
         final RefreshTokenStatus refreshTokenStatus = checkRefreshResult.v1();
+        final SecurityIndexManager refreshedTokenIndex = getTokensIndexForVersion(refreshTokenStatus.getVersion());
         if (refreshTokenStatus.isRefreshed()) {
             logger.debug("Token document [{}] was recently refreshed, when a new token document was generated. Reusing that result.",
                 tokenDocId);
-            decryptAndReturnSupersedingTokens(refreshToken, refreshTokenStatus, listener);
+            decryptAndReturnSupersedingTokens(refreshToken, refreshTokenStatus, refreshedTokenIndex, listener);
         } else {
             final String newAccessTokenString = UUIDs.randomBase64UUID();
             final String newRefreshTokenString = UUIDs.randomBase64UUID();
@@ -1037,7 +1038,6 @@ public final class TokenService {
             }
             assert seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO : "expected an assigned sequence number";
             assert primaryTerm != SequenceNumbers.UNASSIGNED_PRIMARY_TERM : "expected an assigned primary term";
-            final SecurityIndexManager refreshedTokenIndex = getTokensIndexForVersion(refreshTokenStatus.getVersion());
             final UpdateRequestBuilder updateRequest = client
                     .prepareUpdate(refreshedTokenIndex.aliasName(), tokenDocId)
                     .setDoc("refresh_token", updateMap)
@@ -1072,7 +1072,7 @@ public final class TokenService {
                         if (cause instanceof VersionConflictEngineException) {
                             // The document has been updated by another thread, get it again.
                             logger.debug("version conflict while updating document [{}], attempting to get it again", tokenDocId);
-                            getTokenDocAsync(tokenDocId, refreshedTokenIndex, new ActionListener<GetResponse>() {
+                            getTokenDocAsync(tokenDocId, refreshedTokenIndex, true, new ActionListener<GetResponse>() {
                                 @Override
                                 public void onResponse(GetResponse response) {
                                     if (response.isExists()) {
@@ -1089,7 +1089,8 @@ public final class TokenService {
                                     if (isShardNotAvailableException(e)) {
                                         if (backoff.hasNext()) {
                                             logger.info("could not get token document [{}] for refresh, retrying", tokenDocId);
-                                            client.threadPool().schedule(() -> getTokenDocAsync(tokenDocId, refreshedTokenIndex, this),
+                                            client.threadPool().schedule(
+                                                () -> getTokenDocAsync(tokenDocId, refreshedTokenIndex, true, this),
                                                 backoff.next(), GENERIC);
                                         } else {
                                             logger.warn("could not get token document [{}] for refresh after all retries", tokenDocId);
@@ -1117,17 +1118,20 @@ public final class TokenService {
     }
 
     /**
-     * Decrypts the values of the superseding access token and the refresh token, using a key derived from the superseded refresh token. It
+     * Decrypts the values of the superseding access token and the refresh token, using a key derived from the superseded refresh token.
+     * It verifies that the token document for the access token it decrypted exists first, before calling the listener.  It
      * encodes the version and serializes the tokens before calling the listener, in the same manner as {@link #createOAuth2Tokens } does.
      *
-     * @param refreshToken The refresh token that the user sent in the request, used to derive the decryption key
+     * @param refreshToken       The refresh token that the user sent in the request, used to derive the decryption key
      * @param refreshTokenStatus The {@link RefreshTokenStatus} containing information about the superseding tokens as retrieved from the
-     *                          index
-     * @param listener The listener to call upon completion with a {@link Tuple} containing the
-     *                 serialized access token and serialized refresh token as these will be returned to the client
+     *                           index
+     * @param tokensIndex        the manager for the index where the tokens are stored
+     * @param listener           The listener to call upon completion with a {@link Tuple} containing the
+     *                           serialized access token and serialized refresh token as these will be returned to the client
      */
-    void decryptAndReturnSupersedingTokens(String refreshToken, RefreshTokenStatus refreshTokenStatus,
+    void decryptAndReturnSupersedingTokens(String refreshToken, RefreshTokenStatus refreshTokenStatus, SecurityIndexManager tokensIndex,
                                            ActionListener<Tuple<String, String>> listener) {
+
         final byte[] iv = Base64.getDecoder().decode(refreshTokenStatus.getIv());
         final byte[] salt = Base64.getDecoder().decode(refreshTokenStatus.getSalt());
         final byte[] encryptedSupersedingTokens = Base64.getDecoder().decode(refreshTokenStatus.getSupersedingTokens());
@@ -1139,10 +1143,51 @@ public final class TokenService {
                 logger.warn("Decrypted tokens string is not correctly formatted");
                 listener.onFailure(invalidGrantException("could not refresh the requested token"));
             } else {
-                listener.onResponse(new Tuple<>(prependVersionAndEncodeAccessToken(refreshTokenStatus.getVersion(), decryptedTokens[0]),
-                    prependVersionAndEncodeRefreshToken(refreshTokenStatus.getVersion(), decryptedTokens[1])));
+                // We expect this to protect against race conditions that manifest within few ms
+                final Iterator<TimeValue> backoff = BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(10), 8).iterator();
+                final String tokenDocId = getTokenDocumentId(hashTokenString(decryptedTokens[0]));
+                final Consumer<Exception> onFailure = ex ->
+                    listener.onFailure(traceLog("decrypt and get superseding token", tokenDocId, ex));
+                final Consumer<ActionListener<GetResponse>> maybeRetryGet = actionListener -> {
+                    if (backoff.hasNext()) {
+                        logger.info("could not get token document [{}] that should have been created, retrying", tokenDocId);
+                        client.threadPool().schedule(
+                            () -> getTokenDocAsync(tokenDocId, tokensIndex, false, actionListener),
+                            backoff.next(), GENERIC);
+                    } else {
+                        logger.warn("could not get token document [{}] that should have been created after all retries",
+                            tokenDocId);
+                        onFailure.accept(invalidGrantException("could not refresh the requested token"));
+                    }
+                };
+                getTokenDocAsync(tokenDocId, tokensIndex, false, new ActionListener<>() {
+                    @Override
+                    public void onResponse(GetResponse response) {
+                        if (response.isExists()) {
+                            try {
+                                listener.onResponse(
+                                    new Tuple<>(prependVersionAndEncodeAccessToken(refreshTokenStatus.getVersion(), decryptedTokens[0]),
+                                        prependVersionAndEncodeRefreshToken(refreshTokenStatus.getVersion(), decryptedTokens[1])));
+                            } catch (GeneralSecurityException | IOException e) {
+                                logger.warn("Could not format stored superseding token values", e);
+                                onFailure.accept(invalidGrantException("could not refresh the requested token"));
+                            }
+                        } else {
+                            maybeRetryGet.accept(this);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (isShardNotAvailableException(e)) {
+                            maybeRetryGet.accept(this);
+                        } else {
+                            onFailure.accept(e);
+                        }
+                    }
+                });
             }
-        } catch (GeneralSecurityException | IOException e) {
+        } catch (GeneralSecurityException e) {
             logger.warn("Could not get stored superseding token values", e);
             listener.onFailure(invalidGrantException("could not refresh the requested token"));
         }
@@ -1160,11 +1205,14 @@ public final class TokenService {
         return Base64.getEncoder().encodeToString(cipher.doFinal(supersedingTokens.getBytes(StandardCharsets.UTF_8)));
     }
 
-    private void getTokenDocAsync(String tokenDocId, SecurityIndexManager tokensIndex, ActionListener<GetResponse> listener) {
-        final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), tokenDocId).request();
+    private void getTokenDocAsync(String tokenDocId, SecurityIndexManager tokensIndex,
+                                  boolean fetchSource, ActionListener<GetResponse> listener) {
+        final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), tokenDocId)
+            .setFetchSource(fetchSource)
+            .request();
         tokensIndex.checkIndexVersionThenExecute(
-                ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() + "]", tokenDocId, ex)),
-                () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest, listener, client::get));
+            ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() + "]", tokenDocId, ex)),
+            () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest, listener, client::get));
     }
 
     Version getTokenVersionCompatibility() {

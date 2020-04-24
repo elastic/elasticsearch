@@ -233,6 +233,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                     indexMetadata.getIndex().getName(), alias)));
             }
         }, MASTER_TIMEOUT);
+
         verify(client, times(0)).admin();
     }
 

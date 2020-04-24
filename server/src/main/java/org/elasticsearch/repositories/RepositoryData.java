@@ -36,11 +36,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -179,14 +181,23 @@ public final class RepositoryData {
      * Returns the list of {@link IndexId} that have their snapshots updated but not removed (because they are still referenced by other
      * snapshots) after removing the given snapshot from the repository.
      *
-     * @param snapshotId SnapshotId to remove
+     * @param snapshotIds SnapshotId to remove
      * @return List of indices that are changed but not removed
      */
-    public List<IndexId> indicesToUpdateAfterRemovingSnapshot(SnapshotId snapshotId) {
+    public List<IndexId> indicesToUpdateAfterRemovingSnapshot(Collection<SnapshotId> snapshotIds) {
         return indexSnapshots.entrySet().stream()
-            .filter(entry -> entry.getValue().size() > 1 && entry.getValue().contains(snapshotId))
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toList());
+            .filter(entry -> {
+                final Collection<SnapshotId> existingIds = entry.getValue();
+                if (snapshotIds.containsAll(existingIds)) {
+                    return existingIds.size() > snapshotIds.size();
+                }
+                for (SnapshotId snapshotId : snapshotIds) {
+                    if (entry.getValue().contains(snapshotId)) {
+                        return true;
+                    }
+                }
+                return false;
+            }).map(Map.Entry::getKey).collect(Collectors.toList());
     }
 
     /**
@@ -244,43 +255,40 @@ public final class RepositoryData {
     }
 
     /**
-     * Remove a snapshot and remove any indices that no longer exist in the repository due to the deletion of the snapshot.
+     * Remove snapshots and remove any indices that no longer exist in the repository due to the deletion of the snapshots.
      *
-     * @param snapshotId              Snapshot Id
+     * @param snapshots               Snapshot ids to remove
      * @param updatedShardGenerations Shard generations that changed as a result of removing the snapshot.
      *                                The {@code String[]} passed for each {@link IndexId} contains the new shard generation id for each
      *                                changed shard indexed by its shardId
      */
-    public RepositoryData removeSnapshot(final SnapshotId snapshotId, final ShardGenerations updatedShardGenerations) {
-        Map<String, SnapshotId> newSnapshotIds = snapshotIds.values().stream()
-            .filter(id -> !snapshotId.equals(id))
+    public RepositoryData removeSnapshots(final Collection<SnapshotId> snapshots, final ShardGenerations updatedShardGenerations) {
+        Map<String, SnapshotId> newSnapshotIds = snapshotIds.values().stream().filter(Predicate.not(snapshots::contains))
             .collect(Collectors.toMap(SnapshotId::getUUID, Function.identity()));
-        if (newSnapshotIds.size() == snapshotIds.size()) {
-            throw new ResourceNotFoundException("Attempting to remove non-existent snapshot [{}] from repository data", snapshotId);
+        if (newSnapshotIds.size() != snapshotIds.size() - snapshots.size()) {
+            final Collection<SnapshotId> notFound = new HashSet<>(snapshots);
+            notFound.removeAll(snapshotIds.values());
+            throw new ResourceNotFoundException("Attempting to remove non-existent snapshots {} from repository data", notFound);
         }
         Map<String, SnapshotState> newSnapshotStates = new HashMap<>(snapshotStates);
-        newSnapshotStates.remove(snapshotId.getUUID());
         final Map<String, Version> newSnapshotVersions = new HashMap<>(snapshotVersions);
-        newSnapshotVersions.remove(snapshotId.getUUID());
+        for (SnapshotId snapshotId : snapshots) {
+            newSnapshotStates.remove(snapshotId.getUUID());
+            newSnapshotVersions.remove(snapshotId.getUUID());
+        }
         Map<IndexId, List<SnapshotId>> indexSnapshots = new HashMap<>();
         for (final IndexId indexId : indices.values()) {
-            List<SnapshotId> remaining;
             List<SnapshotId> snapshotIds = this.indexSnapshots.get(indexId);
             assert snapshotIds != null;
-            final int listIndex = snapshotIds.indexOf(snapshotId);
-            if (listIndex > -1) {
-                if (snapshotIds.size() == 1) {
-                    // removing the snapshot will mean no more snapshots
-                    // have this index, so just skip over it
-                    continue;
-                }
-                remaining = new ArrayList<>(snapshotIds);
-                remaining.remove(listIndex);
+            List<SnapshotId> remaining = new ArrayList<>(snapshotIds);
+            if (remaining.removeAll(snapshots)) {
                 remaining = Collections.unmodifiableList(remaining);
             } else {
                 remaining = snapshotIds;
             }
-            indexSnapshots.put(indexId, remaining);
+            if (remaining.isEmpty() == false) {
+                indexSnapshots.put(indexId, remaining);
+            }
         }
 
         return new RepositoryData(genId, newSnapshotIds, newSnapshotStates, newSnapshotVersions, indexSnapshots,

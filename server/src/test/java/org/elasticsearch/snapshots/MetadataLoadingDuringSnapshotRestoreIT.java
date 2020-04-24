@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
@@ -71,9 +70,7 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
             client().prepareIndex("others").setSource("rank", 4),
             client().prepareIndex("others").setSource("rank", 5));
 
-        assertAcked(client().admin().cluster().preparePutRepository("repository")
-                                              .setType("coutingmock")
-                                              .setSettings(Settings.builder().put("location", randomRepoPath())));
+        createRepository("repository", CountingMockRepositoryPlugin.TYPE, randomRepoPath());
 
         // Creating a snapshot does not load any metadata
         CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("repository", "snap")
@@ -204,10 +201,13 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
 
     /** A plugin that uses CountingMockRepository as implementation of the Repository **/
     public static class CountingMockRepositoryPlugin extends MockRepository.Plugin {
+
+        public static final String TYPE = "countingmock";
+
         @Override
         public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
                                                                ClusterService clusterService) {
-            return Collections.singletonMap("coutingmock",
+            return Collections.singletonMap(TYPE,
                 metadata -> new CountingMockRepository(metadata, env, namedXContentRegistry, clusterService));
         }
     }

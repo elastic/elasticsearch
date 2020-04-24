@@ -10,7 +10,7 @@ experimental::[]
 
 [IMPORTANT]
 ====
-{es} supports a subset of EQL syntax.
+{es} supports a subset of EQL syntax. See <<eql-limitations>>.
 ====
 
 [discrete]
@@ -71,6 +71,19 @@ You can specify and combine these criteria using the following operators:
 ----
 <   <=   ==   !=   >=   >
 ----
+
+[IMPORTANT]
+====
+Avoid using the equal operator (`==`) to perform exact matching on `text` field
+values.
+
+By default, {es} changes the values of <<text,`text`>> fields as part of
+<<analysis, analysis>>. This can make finding exact matches for `text` field
+values difficult.
+
+To search `text` fields, consider using a <<eql-search-filter-query-dsl,query
+DSL filter>> that contains a <<query-dsl-match-query,`match`>> query.
+====
 
 .*Definitions*
 [%collapsible]

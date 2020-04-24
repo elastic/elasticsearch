@@ -50,11 +50,6 @@ The modules in this section are:
 
     Information about the dedicated thread pools used in Elasticsearch.
 
-<<modules-transport,Transport>>::
-
-    Configure the transport networking layer, used internally by Elasticsearch
-    to communicate between nodes.
-
 <<modules-cross-cluster-search, {ccs-cap}>>::
 
     {ccs-cap} enables executing search requests across more than one cluster
@@ -75,5 +70,3 @@ include::modules/network.asciidoc[]
 include::modules/node.asciidoc[]
 
 include::modules/threadpool.asciidoc[]
-
-include::modules/transport.asciidoc[]

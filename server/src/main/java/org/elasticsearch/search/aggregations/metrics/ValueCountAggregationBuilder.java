@@ -47,8 +47,8 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        ValueCountAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        ValueCountAggregatorFactory.registerAggregators(builder);
     }
 
     public ValueCountAggregationBuilder(String name) {

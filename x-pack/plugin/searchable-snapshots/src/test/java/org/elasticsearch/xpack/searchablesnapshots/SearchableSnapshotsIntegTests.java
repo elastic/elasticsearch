@@ -43,13 +43,15 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_DIRECTORY_FACTORY_KEY;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -205,6 +207,86 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
         assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
+    }
+
+    public void testCanMountSnapshotTakenWhileConcurrentlyIndexing() throws Exception {
+        final String fsRepoName = randomAlphaOfLength(10);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        final Path repo = randomRepoPath();
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(fsRepoName)
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", repo).put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES))
+        );
+
+        assertAcked(prepareCreate(indexName, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true)));
+
+        final CyclicBarrier cyclicBarrier = new CyclicBarrier(2);
+
+        final Thread indexingThead = new Thread(() -> {
+            final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+            for (int i = between(10, 10_000); i >= 0; i--) {
+                indexRequestBuilders.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
+            }
+            try {
+                cyclicBarrier.await();
+                indexRandom(true, true, indexRequestBuilders);
+            } catch (InterruptedException | BrokenBarrierException e) {
+                throw new AssertionError(e);
+            }
+            refresh(indexName);
+            assertThat(
+                client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
+                equalTo(0)
+            );
+        });
+
+        final Thread snapshotThread = new Thread(() -> {
+            try {
+                cyclicBarrier.await();
+            } catch (InterruptedException | BrokenBarrierException e) {
+                throw new AssertionError(e);
+            }
+            CreateSnapshotResponse createSnapshotResponse = client().admin()
+                .cluster()
+                .prepareCreateSnapshot(fsRepoName, snapshotName)
+                .setWaitForCompletion(true)
+                .get();
+            final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+            assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+            assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        });
+
+        indexingThead.start();
+        snapshotThread.start();
+        indexingThead.join();
+        snapshotThread.join();
+
+        assertAcked(client().admin().indices().prepareDelete(indexName));
+
+        logger.info("--> restoring index [{}]", restoredIndexName);
+
+        Settings.Builder indexSettingsBuilder = Settings.builder()
+            .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString());
+        final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            restoredIndexName,
+            fsRepoName,
+            snapshotName,
+            indexName,
+            indexSettingsBuilder.build(),
+            Strings.EMPTY_ARRAY,
+            true
+        );
+
+        final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
+        ensureGreen(restoredIndexName);
     }
 
     private void assertRecovered(String indexName, TotalHits originalAllHits, TotalHits originalBarHits) throws Exception {

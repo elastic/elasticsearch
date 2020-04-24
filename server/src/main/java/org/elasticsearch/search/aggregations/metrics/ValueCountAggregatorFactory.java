@@ -36,8 +36,8 @@ import java.util.Map;
 
 class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.registerAny(ValueCountAggregationBuilder.NAME,
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.registerAny(ValueCountAggregationBuilder.NAME,
             new ValueCountAggregatorSupplier() {
                 @Override
                 public Aggregator build(String name,

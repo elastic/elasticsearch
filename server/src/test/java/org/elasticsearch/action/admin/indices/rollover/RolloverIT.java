@@ -141,7 +141,7 @@ public class RolloverIT extends ESIntegTestCase {
         }
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> client().admin().indices().prepareRolloverIndex("alias").dryRun(randomBoolean()).get());
-        assertThat(exception.getMessage(), equalTo("source alias [alias] does not point to a write index"));
+        assertThat(exception.getMessage(), equalTo("rollover target [alias] does not point to a write index"));
     }
 
     public void testRolloverWithIndexSettings() throws Exception {

@@ -5,13 +5,13 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Start datafeed API
+=== Start {dfeed} API
 
-Starts a {ml} datafeed in the cluster. It accepts a +{request}+ object and
+Starts a {ml} {dfeed} in the cluster. It accepts a +{request}+ object and
 responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Start datafeed request
+==== Start {dfeed} request
 
 A +{request}+ object is created referencing a non-null `datafeedId`.
 All other fields are optional for the request.
@@ -30,14 +30,29 @@ The following arguments are optional.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-options]
 --------------------------------------------------
-<1> Set when the datafeed should end, the value is exclusive.
+<1> Set when the {dfeed} should end, the value is exclusive.
 May be an epoch seconds, epoch millis or an ISO 8601 string.
 "now" is a special value that indicates the current time.
-If you do not specify an end time, the datafeed runs continuously.
-<2> Set when the datafeed should start, the value is inclusive.
+If you do not specify an end time, the {dfeed} runs continuously.
+<2> Set when the {dfeed} should start, the value is inclusive.
 May be an epoch seconds, epoch millis or an ISO 8601 string.
-If you do not specify a start time and the datafeed is associated with a new job,
+If you do not specify a start time and the {dfeed} is associated with a new job,
 the analysis starts from the earliest time for which data is available.
 <3> Set the timeout for the request
+
+[id="{upid}-{api}-response"]
+==== Start {dfeed} response
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> `isStarted()` from the +{response}+ is always `true` if the {dfeed} was
+started successfully. (An exception would be thrown instead if the {dfeed}
+was not started successfully.)
+<2> `getNode()` returns the node that the {dfeed} was assigned to. If the
+{dfeed} is allowed to open lazily and has not yet been assigned to a node
+then an empty string is returned. If `getNode()` returns `null` then
+the server is an old version that does not return node information.
 
 include::../execution.asciidoc[]

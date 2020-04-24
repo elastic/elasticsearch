@@ -389,7 +389,8 @@ coming::[7.x]
 [role="exclude",id="data-streams"]
 === Data stream APIs
 
-coming::[7.x]
+See <<indices-create-data-stream>>, <<indices-get-data-stream>>, and
+<<indices-delete-data-stream>>.
 
 [role="exclude",id="modules-indices"]
 === Indices module

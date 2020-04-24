@@ -324,5 +324,9 @@ public interface IndexAbstraction {
         public boolean isHidden() {
             return false;
         }
+
+        public org.elasticsearch.cluster.metadata.DataStream getDataStream() {
+            return dataStream;
+        }
     }
 }

@@ -110,6 +110,26 @@ public class CreateDataStreamRequestTests extends AbstractWireSerializingTestCas
         assertThat(e.getMessage(), containsString("must not contain the following characters"));
     }
 
+    public void testCreateDataStreamWithUppercaseCharacters() throws Exception {
+        final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
+        final String dataStreamName = "MAY_NOT_USE_UPPERCASE";
+        ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
+        CreateDataStreamAction.Request req = new CreateDataStreamAction.Request(dataStreamName);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> CreateDataStreamAction.TransportAction.createDataStream(metadataCreateIndexService, cs, req));
+        assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] must be lowercase"));
+    }
+
+    public void testCreateDataStreamStartingWithPeriod() throws Exception {
+        final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
+        final String dataStreamName = ".may_not_start_with_period";
+        ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
+        CreateDataStreamAction.Request req = new CreateDataStreamAction.Request(dataStreamName);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> CreateDataStreamAction.TransportAction.createDataStream(metadataCreateIndexService, cs, req));
+        assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] must not start with '.'"));
+    }
+
     private static MetadataCreateIndexService getMetadataCreateIndexService() throws Exception {
         MetadataCreateIndexService s = mock(MetadataCreateIndexService.class);
         when(s.applyCreateIndexRequest(any(ClusterState.class), any(CreateIndexClusterStateUpdateRequest.class), anyBoolean()))

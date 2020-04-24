@@ -277,7 +277,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     public static ExecutorBuilder<?> executorBuilder() {
         return new ScalingExecutorBuilder(
             SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME,
-            1,
+            0,
             32,
             TimeValue.timeValueSeconds(30L),
             "xpack.searchable_snapshots.thread_pool"

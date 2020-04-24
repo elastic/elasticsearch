@@ -61,13 +61,12 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final boolean showTermDocCountError;
 
-    // TODO: Registration should happen on the actual aggregator classes
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(TermsAggregationBuilder.NAME,
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(TermsAggregationBuilder.NAME,
             Arrays.asList(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
             TermsAggregatorFactory.bytesSupplier());
 
-        valuesSourceRegistry.register(TermsAggregationBuilder.NAME,
+        builder.register(TermsAggregationBuilder.NAME,
             Arrays.asList(CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.NUMERIC),
             TermsAggregatorFactory.numericSupplier());
     }

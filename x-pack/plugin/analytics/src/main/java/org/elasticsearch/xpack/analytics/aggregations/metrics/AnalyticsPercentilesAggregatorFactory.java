@@ -15,8 +15,8 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 public class AnalyticsPercentilesAggregatorFactory {
-    public static void registerPercentilesAggregator(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(PercentilesAggregationBuilder.NAME,
+    public static void registerPercentilesAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(PercentilesAggregationBuilder.NAME,
             AnalyticsValuesSourceType.HISTOGRAM,
             (PercentilesAggregatorSupplier) (name, valuesSource, context, parent, percents, percentilesConfig, keyed,
                                              formatter, metadata) -> {
@@ -37,8 +37,8 @@ public class AnalyticsPercentilesAggregatorFactory {
             });
     }
 
-    public static void registerPercentileRanksAggregator(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(PercentileRanksAggregationBuilder.NAME,
+    public static void registerPercentileRanksAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(PercentileRanksAggregationBuilder.NAME,
             AnalyticsValuesSourceType.HISTOGRAM,
             (PercentilesAggregatorSupplier) (name, valuesSource, context, parent, percents, percentilesConfig, keyed,
                                                       formatter, metadata) -> {

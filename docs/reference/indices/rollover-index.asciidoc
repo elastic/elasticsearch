@@ -82,7 +82,7 @@ index creation applies to the rollover action.
 ==== {api-path-parms-title}
 
 `<rollover-target>`::
-(Required, string)
+(Required*, string)
 Name of the existing index alias or data stream on which to
 perform the rollover.
 

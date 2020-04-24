@@ -87,7 +87,7 @@ public class CompletionSuggestionOptionTests extends ESTestCase {
             // also there can be inner search hits fields inside this option, we need to exclude another couple of paths
             // where we cannot add random stuff
             Predicate<String> excludeFilter = (path) -> (path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName())
-                    || path.endsWith("highlight") || path.endsWith("fields") || path.contains("_source") || path.contains("inner_hits"));
+                    || path.endsWith("highlight") || path.contains("fields") || path.contains("_source") || path.contains("inner_hits"));
             mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
         } else {
             mutated = originalBytes;

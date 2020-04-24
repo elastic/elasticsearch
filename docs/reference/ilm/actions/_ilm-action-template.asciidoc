@@ -66,6 +66,7 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
+// TEST[skip: For illustrative purposes only. Contains fake actions.]
 
 [[ilm-sample2-ex]]
 ===== Describe example
@@ -90,4 +91,4 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
-
+// TEST[skip: For illustrative purposes only. Contains fake actions.]

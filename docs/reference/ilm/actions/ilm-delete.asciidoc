@@ -13,7 +13,8 @@ Permanently removes the index.
 (Optional, boolean)
 Deletes the searchable snapshot created in the cold phase. 
 Defaults to `true`.
-This option is applicable when the <<ilm-searchable-snapshot-action>> is used in the cold phase.
+This option is applicable when the <<ilm-searchable-snapshot-action,searchable
+snapshot>> action is used in the cold phase.
 
 [[ilm-delete-action-ex]]
 ==== Example

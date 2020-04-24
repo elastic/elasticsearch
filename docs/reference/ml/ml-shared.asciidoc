@@ -605,13 +605,9 @@ end::exclude-interim-results[]
 
 tag::failed-category-count[]
 The number of times that categorization wanted to create a new category but
-couldn't because the job had hit its `model_memory_limit`. This number can
-be higher than the number of extra categories that would have been created
-if unlimited memory had been available, because many of the occasions where
-a message didn't match any existing category might have been placed in the
-same extra category. So the number of extra categories that would have been
-created if unlimited memory had been available could be anywhere between 1
-and `failed-category-count`.
+couldn't because the job had hit its `model_memory_limit`. This count does not
+track which specific categories failed to be created. Therefore you cannot use
+this value to determine the number of unique categories that were missed.
 end::failed-category-count[]
 
 tag::feature-bag-fraction[]

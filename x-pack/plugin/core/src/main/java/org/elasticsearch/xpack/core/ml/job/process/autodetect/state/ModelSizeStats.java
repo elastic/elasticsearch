@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -189,43 +188,20 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
     public ModelSizeStats(StreamInput in) throws IOException {
         jobId = in.readString();
         modelBytes = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            modelBytesExceeded = in.readOptionalLong();
-        } else {
-            modelBytesExceeded = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            modelBytesMemoryLimit = in.readOptionalLong();
-        } else {
-            modelBytesMemoryLimit = null;
-        }
+        modelBytesExceeded = in.readOptionalLong();
+        modelBytesMemoryLimit = in.readOptionalLong();
         totalByFieldCount = in.readVLong();
         totalOverFieldCount = in.readVLong();
         totalPartitionFieldCount = in.readVLong();
         bucketAllocationFailuresCount = in.readVLong();
         memoryStatus = MemoryStatus.readFromStream(in);
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            categorizedDocCount = in.readVLong();
-            totalCategoryCount = in.readVLong();
-            frequentCategoryCount = in.readVLong();
-            rareCategoryCount = in.readVLong();
-            deadCategoryCount = in.readVLong();
-            // TODO: change in backport
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                failedCategoryCount = in.readVLong();
-            } else {
-                failedCategoryCount = 0;
-            }
-            categorizationStatus = CategorizationStatus.readFromStream(in);
-        } else {
-            categorizedDocCount = 0;
-            totalCategoryCount = 0;
-            frequentCategoryCount = 0;
-            rareCategoryCount = 0;
-            deadCategoryCount = 0;
-            failedCategoryCount = 0;
-            categorizationStatus = CategorizationStatus.OK;
-        }
+        categorizedDocCount = in.readVLong();
+        totalCategoryCount = in.readVLong();
+        frequentCategoryCount = in.readVLong();
+        rareCategoryCount = in.readVLong();
+        deadCategoryCount = in.readVLong();
+        failedCategoryCount = in.readVLong();
+        categorizationStatus = CategorizationStatus.readFromStream(in);
         logTime = new Date(in.readVLong());
         timestamp = in.readBoolean() ? new Date(in.readVLong()) : null;
     }
@@ -242,29 +218,20 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
         out.writeVLong(modelBytes);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            out.writeOptionalLong(modelBytesExceeded);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            out.writeOptionalLong(modelBytesMemoryLimit);
-        }
+        out.writeOptionalLong(modelBytesExceeded);
+        out.writeOptionalLong(modelBytesMemoryLimit);
         out.writeVLong(totalByFieldCount);
         out.writeVLong(totalOverFieldCount);
         out.writeVLong(totalPartitionFieldCount);
         out.writeVLong(bucketAllocationFailuresCount);
         memoryStatus.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeVLong(categorizedDocCount);
-            out.writeVLong(totalCategoryCount);
-            out.writeVLong(frequentCategoryCount);
-            out.writeVLong(rareCategoryCount);
-            out.writeVLong(deadCategoryCount);
-            // TODO: change in backport
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeVLong(failedCategoryCount);
-            }
-            categorizationStatus.writeTo(out);
-        }
+        out.writeVLong(categorizedDocCount);
+        out.writeVLong(totalCategoryCount);
+        out.writeVLong(frequentCategoryCount);
+        out.writeVLong(rareCategoryCount);
+        out.writeVLong(deadCategoryCount);
+        out.writeVLong(failedCategoryCount);
+        categorizationStatus.writeTo(out);
         out.writeVLong(logTime.getTime());
         boolean hasTimestamp = timestamp != null;
         out.writeBoolean(hasTimestamp);

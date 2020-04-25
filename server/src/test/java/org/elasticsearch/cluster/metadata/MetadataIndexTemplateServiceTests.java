@@ -368,7 +368,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         List<String> patterns = new ArrayList<>(template.indexPatterns());
         patterns.add("new-pattern");
         template = new IndexTemplateV2(patterns, template.template(), template.composedOf(), template.priority(), template.version(),
-            template.metadata());
+            template.metadata(), null);
         state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template);
 
         assertNotNull(state.metadata().templatesV2().get("foo"));

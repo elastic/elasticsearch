@@ -330,6 +330,61 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    @Override
+    public void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
+                                             Consumer<Exception> onFailure) {
+        final RepositoryMetadata repositoryMetadataStart = metadata;
+        threadPool.generic().execute(new AbstractRunnable() {
+
+            @Override
+            protected void doRun() {
+                getRepositoryData(ActionListener.wrap(repositoryData ->
+                        clusterService.submitStateUpdateTask("consistent state update", new ClusterStateUpdateTask() {
+
+                            private ClusterStateUpdateTask updateTask;
+
+                            @Override
+                            public ClusterState execute(ClusterState currentState) throws Exception {
+                                // Comparing the full metadata here on purpose instead of simply comparing the safe generation.
+                                // If the safe generation has changed, then we have to reload repository data and start over.
+                                // If the pending generation has changed we are in the midst of a write operation and might pick up the
+                                // updated repository data and state on the retry. We don't want to wait for the write to finish though
+                                // because it could fail for any number of reasons so we just retry instead of waiting on the cluster state
+                                // to change in any form.
+                                if (repositoryMetadataStart.equals(getRepoMetadata(currentState))) {
+                                    updateTask = createUpdateTask.apply(repositoryData);
+                                    return updateTask.execute(currentState);
+                                }
+                                return currentState;
+                            }
+
+                            @Override
+                            public void onFailure(String source, Exception e) {
+                                if (updateTask == null) {
+                                    onFailure.accept(e);
+                                } else {
+                                    updateTask.onFailure(source, e);
+                                }
+                            }
+
+                            @Override
+                            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                                if (updateTask == null) {
+                                    executeConsistentStateUpdate(createUpdateTask, onFailure);
+                                } else {
+                                    updateTask.clusterStateProcessed(source, oldState, newState);
+                                }
+                            }
+                        }), onFailure));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                onFailure.accept(e);
+            }
+        });
+    }
+
     // Inspects all cluster state elements that contain a hint about what the current repository generation is and updates
     // #latestKnownRepoGen if a newer than currently known generation is found
     @Override

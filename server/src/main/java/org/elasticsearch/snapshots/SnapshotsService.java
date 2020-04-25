@@ -982,7 +982,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * If deleting a single snapshot, first checks if a snapshot is still running and if so cancels the snapshot and then deletes it from
      * the repository.
      * If the snapshot is not running or multiple snapshot names are given, moves to trying to find a matching {@link Snapshot}s for the
-     * given names in the repository and deletes them by invoking {@link #deleteCompletedSnapshots}.
+     * given names in the repository and deletes them.
      *
      * @param repositoryName  repositoryName
      * @param snapshotNames   snapshotNames
@@ -1083,18 +1083,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 if (runningSnapshot == null) {
-                    threadPool.generic().execute(ActionRunnable.wrap(listener, l ->
-                            repositoriesService.repository(repositoryName).getRepositoryData(ActionListener.wrap(repositoryData ->
-                                    deleteCompletedSnapshots(matchingSnapshotIds(repositoryData, snapshotNames, repositoryName),
-                                            repositoryName, repositoryData.getGenId(), Priority.NORMAL, l), l::onFailure))));
+                    repositoriesService.repository(repositoryName).executeConsistentStateUpdate(repositoryData ->
+                            createDeleteStateUpdate(matchingSnapshotIds(repositoryData, snapshotNames, repositoryName), repositoryName,
+                                    repositoryData.getGenId(), Priority.NORMAL, listener), listener::onFailure);
                     return;
                 }
                 logger.trace("adding snapshot completion listener to wait for deleted snapshot to finish");
                 addListener(runningSnapshot, ActionListener.wrap(
                     result -> {
                         logger.debug("deleted snapshot completed - deleting files");
-                        deleteCompletedSnapshots(Collections.singletonList(result.v2().snapshotId()), repositoryName,
-                                result.v1().getGenId(), Priority.IMMEDIATE, listener);
+                        clusterService.submitStateUpdateTask("delete snapshot",
+                                createDeleteStateUpdate(Collections.singletonList(result.v2().snapshotId()), repositoryName,
+                                        result.v1().getGenId(), Priority.IMMEDIATE, listener));
                     },
                     e -> {
                         if (abortedDuringInit) {
@@ -1160,23 +1160,28 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         return snapshotEntry;
     }
 
-    /**
-     * Deletes snapshots that are assumed to be in the repository and not tracked as in-progress in the cluster state.
-     *
-     * @param snapshotIds       Snapshots to delete
-     * @param repoName          Repository name
-     * @param repositoryStateId Repository generation to base the delete on
-     * @param listener          Listener to complete when done
-     */
-    private void deleteCompletedSnapshots(List<SnapshotId> snapshotIds, String repoName, long repositoryStateId, Priority priority,
-                                          ActionListener<Void> listener) {
+    private ClusterStateUpdateTask createDeleteStateUpdate(List<SnapshotId> snapshotIds, String repoName, long repositoryStateId,
+                                                           Priority priority, ActionListener<Void> listener) {
+        // Short circuit to noop state update if there isn't anything to delete
         if (snapshotIds.isEmpty()) {
-            listener.onResponse(null);
-            return;
+            return new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return currentState;
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    listener.onResponse(null);
+                }
+            };
         }
-        logger.debug("deleting snapshots {} assuming repository generation [{}] and with priority [{}]", snapshotIds, repositoryStateId,
-            priority);
-        clusterService.submitStateUpdateTask("delete snapshot", new ClusterStateUpdateTask(priority) {
+        return new ClusterStateUpdateTask(priority) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
@@ -1232,7 +1237,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 deleteSnapshotsFromRepository(repoName, snapshotIds, listener, repositoryStateId, newState.nodes().getMinNodeVersion());
             }
-        });
+        };
     }
 
     /**

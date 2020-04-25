@@ -356,6 +356,25 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertNotNull(state.metadata().templatesV2().get("bar"));
     }
 
+    public void testUpdateIndexTemplateV2() throws Exception {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        IndexTemplateV2 template = IndexTemplateV2Tests.randomInstance();
+        state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template);
+
+        assertNotNull(state.metadata().templatesV2().get("foo"));
+        assertTemplatesEqual(state.metadata().templatesV2().get("foo"), template);
+
+        List<String> patterns = new ArrayList<>(template.indexPatterns());
+        patterns.add("new-pattern");
+        template = new IndexTemplateV2(patterns, template.template(), template.composedOf(), template.priority(), template.version(),
+            template.metadata());
+        state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template);
+
+        assertNotNull(state.metadata().templatesV2().get("foo"));
+        assertTemplatesEqual(state.metadata().templatesV2().get("foo"), template);
+    }
+
     public void testRemoveIndexTemplateV2() throws Exception {
         IndexTemplateV2 template = IndexTemplateV2Tests.randomInstance();
         final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
@@ -677,16 +696,16 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .collect(Collectors.toList());
 
         // The order of mappings should be:
-        // - index template
-        // - ct_high
         // - ct_low
-        // Because the first elements when merging mappings have the highest precedence
+        // - ct_high
+        // - index template
+        // Because the first elements when merging mappings have the lowest precedence
         assertThat(parsedMappings.get(0),
-            equalTo(Map.of("_doc", Map.of("properties", Map.of("field", Map.of("type", "keyword"))))));
+            equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "text"))))));
         assertThat(parsedMappings.get(1),
             equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "keyword"))))));
         assertThat(parsedMappings.get(2),
-            equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "text"))))));
+            equalTo(Map.of("_doc", Map.of("properties", Map.of("field", Map.of("type", "keyword"))))));
     }
 
     public void testResolveSettings() throws Exception {

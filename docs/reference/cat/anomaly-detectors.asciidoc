@@ -197,6 +197,9 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=categorized-doc-count]
 `model.dead_category_count`, `mdcc`, `modelDeadCategoryCount`:::
 include::{docdir}/ml/ml-shared.asciidoc[tag=dead-category-count]
 
+`model.failed_category_count`, `mdcc`, `modelFailedCategoryCount`:::
+include::{docdir}/ml/ml-shared.asciidoc[tag=failed-category-count]
+
 `model.frequent_category_count`, `mfcc`, `modelFrequentCategoryCount`:::
 include::{docdir}/ml/ml-shared.asciidoc[tag=frequent-category-count]
 

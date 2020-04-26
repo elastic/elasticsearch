@@ -980,8 +980,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         final boolean ssl = HTTP_SSL_ENABLED.get(settings);
         final SSLConfiguration httpSSLConfig = getSslService().getHttpTransportSSLConfiguration();
         boolean extractClientCertificate = ssl && getSslService().isSSLClientAuthEnabled(httpSSLConfig);
+        final boolean unauthorizedErrorTrace = SecurityRestFilter.SHOW_UNAUTHORIZED_ERROR_TRACE_ENABLED.get(settings);
         return handler -> new SecurityRestFilter(getLicenseState(), threadContext, authcService.get(), secondayAuthc.get(),
-            handler, extractClientCertificate);
+            handler, extractClientCertificate, unauthorizedErrorTrace);
     }
 
     @Override

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.license.XPackLicenseState;
@@ -29,6 +30,8 @@ import java.util.List;
 
 public class SecurityRestFilter implements RestHandler {
 
+    public static final Setting<Boolean> SHOW_UNAUTHORIZED_ERROR_TRACE_ENABLED =
+            Setting.boolSetting("xpack.security.authc.show_unauthorized_error_trace.enabled", false, Setting.Property.NodeScope);
     private static final Logger logger = LogManager.getLogger(SecurityRestFilter.class);
 
     private final RestHandler restHandler;
@@ -37,15 +40,18 @@ public class SecurityRestFilter implements RestHandler {
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
     private final boolean extractClientCertificate;
+    private final boolean unauthorizedErrorTrace;
 
     public SecurityRestFilter(XPackLicenseState licenseState, ThreadContext threadContext, AuthenticationService authenticationService,
-                              SecondaryAuthenticator secondaryAuthenticator, RestHandler restHandler, boolean extractClientCertificate) {
+                              SecondaryAuthenticator secondaryAuthenticator, RestHandler restHandler, boolean extractClientCertificate,
+                              boolean unauthorizedErrorTrace) {
         this.licenseState = licenseState;
         this.threadContext = threadContext;
         this.authenticationService = authenticationService;
         this.secondaryAuthenticator = secondaryAuthenticator;
         this.restHandler = restHandler;
         this.extractClientCertificate = extractClientCertificate;
+        this.unauthorizedErrorTrace = unauthorizedErrorTrace;
     }
 
     @Override

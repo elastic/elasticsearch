@@ -46,6 +46,8 @@ public class BytesRestResponse extends RestResponse {
 
     private static final String STATUS = "status";
 
+    private static final Logger SUPPRESSED_ERROR_LOGGER = LogManager.getLogger("rest.suppressed");
+
     private final RestStatus status;
     private final BytesReference content;
     private final String contentType;
@@ -92,8 +94,19 @@ public class BytesRestResponse extends RestResponse {
     }
 
     public BytesRestResponse(RestChannel channel, RestStatus status, Exception e) throws IOException {
+        ToXContent.Params params = paramsFromRequest(channel.request());
+        if (false == params.paramAsBoolean("error_trace", !REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) && e != null) {
+            Supplier<?> messageSupplier = () -> new ParameterizedMessage("path: {}, params: {}",
+                    channel.request().rawPath(), channel.request().params());
+            if (status.getStatus() < 500) {
+                SUPPRESSED_ERROR_LOGGER.debug(messageSupplier, e);
+            } else {
+                SUPPRESSED_ERROR_LOGGER.warn(messageSupplier, e);
+            }
+        }
         this.status = status;
-        try (XContentBuilder builder = build(channel, status, e)) {
+        try (XContentBuilder builder = channel.newErrorBuilder()) {
+            build(builder, params, status, channel.detailedErrorsEnabled(), e);
             this.content = BytesReference.bytes(builder);
             this.contentType = builder.contentType().mediaType();
         }
@@ -117,28 +130,19 @@ public class BytesRestResponse extends RestResponse {
         return this.status;
     }
 
-    private static final Logger SUPPRESSED_ERROR_LOGGER = LogManager.getLogger("rest.suppressed");
-
-    private static XContentBuilder build(RestChannel channel, RestStatus status, Exception e) throws IOException {
-        ToXContent.Params params = channel.request();
+    protected ToXContent.Params paramsFromRequest(RestRequest restRequest) {
+        ToXContent.Params params = restRequest;
         if (params.paramAsBoolean("error_trace", !REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT)) {
             params =  new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
-        } else if (e != null) {
-            Supplier<?> messageSupplier = () -> new ParameterizedMessage("path: {}, params: {}",
-                    channel.request().rawPath(), channel.request().params());
-
-            if (status.getStatus() < 500) {
-                SUPPRESSED_ERROR_LOGGER.debug(messageSupplier, e);
-            } else {
-                SUPPRESSED_ERROR_LOGGER.warn(messageSupplier, e);
-            }
         }
+        return params;
+    }
 
-        XContentBuilder builder = channel.newErrorBuilder().startObject();
-        ElasticsearchException.generateFailureXContent(builder, params, e, channel.detailedErrorsEnabled());
+    private void build(XContentBuilder builder, ToXContent.Params params, RestStatus status, boolean detailedErrorsEnabled, Exception e) throws IOException {
+        builder.startObject();
+        ElasticsearchException.generateFailureXContent(builder, params, e, detailedErrorsEnabled);
         builder.field(STATUS, status.getStatus());
         builder.endObject();
-        return builder;
     }
 
     static BytesRestResponse createSimpleErrorResponse(RestChannel channel, RestStatus status, String errorMessage) throws IOException {

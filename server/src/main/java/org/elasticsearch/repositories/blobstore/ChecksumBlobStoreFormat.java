@@ -22,7 +22,11 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.store.ByteBuffersDataInput;
+import org.apache.lucene.store.ByteBuffersIndexInput;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
@@ -48,6 +52,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -125,8 +130,10 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
     public T readBlob(BlobContainer blobContainer, String blobName) throws IOException {
         final BytesReference bytes = Streams.readFully(blobContainer.readBlob(blobName));
         final String resourceDesc = "ChecksumBlobStoreFormat.readBlob(blob=\"" + blobName + "\")";
-        try (ByteArrayIndexInput indexInput =
-                 new ByteArrayIndexInput(resourceDesc, BytesReference.toBytes(bytes))) {
+        try {
+            final IndexInput indexInput = bytes.length() > 0 ? new ByteBuffersIndexInput(
+                    new ByteBuffersDataInput(Arrays.asList(BytesReference.toByteBuffers(bytes))), resourceDesc)
+                    : new ByteArrayIndexInput(resourceDesc, BytesRef.EMPTY_BYTES);
             CodecUtil.checksumEntireFile(indexInput);
             CodecUtil.checkHeader(indexInput, codec, VERSION, VERSION);
             long filePointer = indexInput.getFilePointer();

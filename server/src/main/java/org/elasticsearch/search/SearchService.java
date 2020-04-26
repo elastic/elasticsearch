@@ -1115,18 +1115,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         IndexShard indexShard = indexService.getShard(request.shardId().getId());
         // we don't want to use the reader wrapper since it could run costly operations
         // and we can afford false positives.
+        final boolean hasRefreshPending = indexShard.hasRefreshPending();
         try (Engine.Searcher searcher = indexShard.acquireCanMatchSearcher()) {
             QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), searcher,
                 request::nowInMillis, request.getClusterAlias());
             Rewriteable.rewrite(request.getRewriteable(), context, false);
             FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
             MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
+            final boolean canMatch;
             if (canRewriteToMatchNone(request.source())) {
                 QueryBuilder queryBuilder = request.source().query();
-                return new CanMatchResponse(queryBuilder instanceof MatchNoneQueryBuilder == false, minMax);
+                canMatch = queryBuilder instanceof MatchNoneQueryBuilder == false;
+            } else {
+                // null query means match_all
+                canMatch = true;
             }
-            // null query means match_all
-            return new CanMatchResponse(true, minMax);
+            return new CanMatchResponse(canMatch || hasRefreshPending, minMax);
         }
     }
 
@@ -1202,28 +1206,28 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final class CanMatchResponse extends SearchPhaseResult {
         private final boolean canMatch;
-        private final MinAndMax<?> minAndMax;
+        private final MinAndMax<?> estimatedMinAndMax;
 
         public CanMatchResponse(StreamInput in) throws IOException {
             super(in);
             this.canMatch = in.readBoolean();
             if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
-                minAndMax = in.readOptionalWriteable(MinAndMax::new);
+                estimatedMinAndMax = in.readOptionalWriteable(MinAndMax::new);
             } else {
-                minAndMax = null;
+                estimatedMinAndMax = null;
             }
         }
 
-        public CanMatchResponse(boolean canMatch, MinAndMax<?> minAndMax) {
+        public CanMatchResponse(boolean canMatch, MinAndMax<?> estimatedMinAndMax) {
             this.canMatch = canMatch;
-            this.minAndMax = minAndMax;
+            this.estimatedMinAndMax = estimatedMinAndMax;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(canMatch);
             if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
-                out.writeOptionalWriteable(minAndMax);
+                out.writeOptionalWriteable(estimatedMinAndMax);
             }
         }
 
@@ -1231,8 +1235,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             return canMatch;
         }
 
-        public MinAndMax<?> minAndMax() {
-            return minAndMax;
+        public MinAndMax<?> estimatedMinAndMax() {
+            return estimatedMinAndMax;
         }
     }
 

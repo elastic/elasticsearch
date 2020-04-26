@@ -38,8 +38,7 @@ import java.util.Map;
 public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(
-            MissingAggregationBuilder.NAME, CoreValuesSourceType.ALL,
+        builder.register(MissingAggregationBuilder.NAME, CoreValuesSourceType.ALL_CORE,
             (MissingAggregatorSupplier) MissingAggregator::new);
     }
 

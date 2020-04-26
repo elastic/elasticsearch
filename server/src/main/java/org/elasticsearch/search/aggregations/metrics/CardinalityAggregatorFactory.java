@@ -50,7 +50,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(CardinalityAggregationBuilder.NAME, CoreValuesSourceType.ALL,
+        builder.register(CardinalityAggregationBuilder.NAME, CoreValuesSourceType.ALL_CORE,
             (CardinalityAggregatorSupplier) CardinalityAggregator::new);
     }
 

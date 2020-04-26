@@ -292,5 +292,5 @@ public enum CoreValuesSourceType implements ValuesSourceType {
     }
 
     /** List containing all members of the enumeration. */
-    public static List<ValuesSourceType> ALL = Arrays.asList(CoreValuesSourceType.values());
+    public static List<ValuesSourceType> ALL_CORE = Arrays.asList(CoreValuesSourceType.values());
 }

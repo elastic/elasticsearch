@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
@@ -90,6 +91,7 @@ class ScriptedMetricAggregator extends MetricsAggregator {
         } else {
             aggregation = aggState;
         }
+        StreamOutput.checkWriteable(aggregation);
         return new InternalScriptedMetric(name, aggregation, reduceScript, metadata());
     }
 

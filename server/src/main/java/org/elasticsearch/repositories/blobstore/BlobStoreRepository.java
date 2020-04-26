@@ -333,11 +333,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
                                              Consumer<Exception> onFailure) {
-        final RepositoryMetadata repositoryMetadataStart = metadata;
         threadPool.generic().execute(new AbstractRunnable() {
-
             @Override
             protected void doRun() {
+                final RepositoryMetadata repositoryMetadataStart = metadata;
                 getRepositoryData(ActionListener.wrap(repositoryData ->
                         clusterService.submitStateUpdateTask("consistent state update", new ClusterStateUpdateTask() {
 

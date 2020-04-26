@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
@@ -46,7 +45,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.CorruptStateException;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -182,19 +180,9 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         });
     }
 
-    private void writeTo(final T obj, final String blobName, final CheckedConsumer<BytesArray, IOException> consumer) throws IOException {
-        final BytesReference bytes;
-        try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
-            if (compress) {
-                try (StreamOutput compressedStreamOutput = CompressorFactory.COMPRESSOR.streamOutput(bytesStreamOutput)) {
-                    write(obj, compressedStreamOutput);
-                }
-            } else {
-                write(obj, bytesStreamOutput);
-            }
-            bytes = bytesStreamOutput.bytes();
-        }
-        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+    private void writeTo(final T obj, final String blobName,
+                         final CheckedConsumer<BytesReference, IOException> consumer) throws IOException {
+        try (BytesStreamOutput outputStream = new BytesStreamOutput()) {
             final String resourceDesc = "ChecksumBlobStoreFormat.writeBlob(blob=\"" + blobName + "\")";
             try (OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(resourceDesc, blobName, outputStream, BUFFER_SIZE)) {
                 CodecUtil.writeHeader(indexOutput, codec, VERSION);
@@ -205,15 +193,21 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
                         // in order to write the footer we need to prevent closing the actual index input.
                     }
                 }) {
-                    bytes.writeTo(indexOutputOutputStream);
+                    if (compress) {
+                        try (StreamOutput compressedStreamOutput = CompressorFactory.COMPRESSOR.streamOutput(indexOutputOutputStream)) {
+                            write(obj, compressedStreamOutput);
+                        }
+                    } else {
+                        write(obj, indexOutputOutputStream);
+                    }
                 }
                 CodecUtil.writeFooter(indexOutput);
             }
-            consumer.accept(new BytesArray(outputStream.toByteArray()));
+            consumer.accept(outputStream.bytes());
         }
     }
 
-    private void write(T obj, StreamOutput streamOutput) throws IOException {
+    private void write(T obj, OutputStream streamOutput) throws IOException {
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE, streamOutput)) {
             builder.startObject();
             obj.toXContent(builder, SNAPSHOT_ONLY_FORMAT_PARAMS);

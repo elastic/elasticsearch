@@ -35,6 +35,8 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
     private static final String ANOMALY_DETECTION_PATH = ROOT_RESOURCE_PATH + "anomalydetection/";
     private static final String VERSION_PATTERN = "xpack.ml.version";
     private static final String VERSION_ID_PATTERN = "xpack.ml.version.id";
+    private static final String INDEX_LIFECYCLE_NAME = "xpack.ml.index.lifecycle.name";
+    private static final String INDEX_LIFECYCLE_ROLLOVER_ALIAS = "xpack.ml.index.lifecycle.rollover_alias";
 
     private static final IndexTemplateConfig ANOMALY_DETECTION_RESULTS_TEMPLATE = anomalyDetectionResultsTemplate();
 
@@ -76,8 +78,8 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
     private static IndexTemplateConfig stateTemplate() {
         Map<String, String> variables = new HashMap<>();
         variables.put(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id));
-        variables.put("xpack.ml.index.lifecycle.name", ML_SIZE_BASED_ILM_POLICY_NAME);
-        variables.put("xpack.ml.index.rollover_alias.name", AnomalyDetectorsIndex.jobStateIndexWriteAlias());
+        variables.put(INDEX_LIFECYCLE_NAME, ML_SIZE_BASED_ILM_POLICY_NAME);
+        variables.put(INDEX_LIFECYCLE_ROLLOVER_ALIAS, AnomalyDetectorsIndex.jobStateIndexWriteAlias());
 
         return new IndexTemplateConfig(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             ANOMALY_DETECTION_PATH + "state_index_template.json",
@@ -100,8 +102,8 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
         Map<String, String> variables = new HashMap<>();
         variables.put(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id));
         variables.put("xpack.ml.stats.mappings", MlStatsIndex.mapping());
-        variables.put("xpack.ml.index.lifecycle.name", ML_SIZE_BASED_ILM_POLICY_NAME);
-        variables.put("xpack.ml.index.lifecycle.rollover_alias", MlStatsIndex.writeAlias());
+        variables.put(INDEX_LIFECYCLE_NAME, ML_SIZE_BASED_ILM_POLICY_NAME);
+        variables.put(INDEX_LIFECYCLE_ROLLOVER_ALIAS, MlStatsIndex.writeAlias());
 
         return new IndexTemplateConfig(MlStatsIndex.TEMPLATE_NAME,
             ROOT_RESOURCE_PATH + "stats_index_template.json",

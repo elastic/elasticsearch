@@ -148,6 +148,11 @@ public class SecurityRestFilter implements RestHandler {
         return restHandler.replacedRoutes();
     }
 
+    public boolean showsUnauthorizedErrorTrace() {
+        return unauthorizedErrorTrace;
+    }
+
+
     private RestRequest maybeWrapRestRequest(RestRequest restRequest) throws IOException {
         if (restHandler instanceof RestRequestFilter) {
             return ((RestRequestFilter)restHandler).getFilteredRequest(restRequest);

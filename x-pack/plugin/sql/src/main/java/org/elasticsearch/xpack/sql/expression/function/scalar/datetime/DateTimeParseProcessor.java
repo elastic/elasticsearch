@@ -9,68 +9,79 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
+
 import java.io.IOException;
-import java.time.DateTimeException;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
+import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC;
 
 public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
 
+    public enum DateTimeParseExtractor {
+        DATE_TIME((timestampStr, pattern) -> DateTimeFormatter.ofPattern(pattern, Locale.ROOT).parseBest(timestampStr, ZonedDateTime::from, LocalDateTime::from)),
+        TIME((timestampStr, pattern) -> DateTimeFormatter.ofPattern(pattern, Locale.ROOT).parseBest(timestampStr, OffsetTime::from, LocalTime::from));
+
+        private final BiFunction<String, String, TemporalAccessor> apply;
+
+        DateTimeParseExtractor(BiFunction<String, String, TemporalAccessor> apply) {
+            this.apply = apply;
+        }
+
+        public Object extract(Object timestamp, Object pattern) {
+            if (timestamp == null || pattern == null) {
+                return null;
+            }
+            if (timestamp instanceof String == false) {
+                throw new SqlIllegalArgumentException("A string is required; received [{}]", timestamp);
+            }
+            if (pattern instanceof String == false) {
+                throw new SqlIllegalArgumentException("A string is required; received [{}]", pattern);
+            }
+
+            if (((String) timestamp).isEmpty() || ((String) pattern).isEmpty()) {
+                return null;
+            }
+            try {
+            TemporalAccessor ta = apply.apply((String)timestamp, (String) pattern);
+            if (ta instanceof LocalDateTime) {
+                return ZonedDateTime.ofInstant((LocalDateTime) ta, ZoneOffset.UTC, UTC);
+            } else if (ta instanceof LocalTime) {
+                return OffsetTime.of((LocalTime) ta, ZoneOffset.UTC);
+            } else {
+                return ta;
+            }
+            } catch (IllegalArgumentException | DateTimeException e) {
+                String msg = e.getMessage();
+                if (msg.contains("Unable to convert parsed text using any of the specified queries")) {
+                    msg = "Unable to convert parsed text into [datetime or date or time]";
+                }
+                throw new SqlIllegalArgumentException(
+                    "Invalid date/time/datetime string [{}] or pattern [{}] is received; {}",
+                    timestamp,
+                    pattern,
+                    msg
+                );
+            }
+        }
+    }
+
+    final private DateTimeParseExtractor extractor;
+
     public static final String NAME = "dtparse";
 
-    public DateTimeParseProcessor(Processor source1, Processor source2) {
+    public DateTimeParseProcessor(Processor source1, Processor source2, DateTimeParseExtractor extractor) {
         super(source1, source2, null);
+        this.extractor = extractor;
     }
 
     public DateTimeParseProcessor(StreamInput in) throws IOException {
         super(in);
-    }
-
-    /**
-     * Used in Painless scripting
-     */
-    public static Object process(Object timestampStr, Object pattern) {
-        if (timestampStr == null || pattern == null) {
-            return null;
-        }
-        if (timestampStr instanceof String == false) {
-            throw new SqlIllegalArgumentException("A string is required; received [{}]", timestampStr);
-        }
-        if (pattern instanceof String == false) {
-            throw new SqlIllegalArgumentException("A string is required; received [{}]", pattern);
-        }
-
-        if (((String) timestampStr).isEmpty() || ((String) pattern).isEmpty()) {
-            return null;
-        }
-
-        try {
-            TemporalAccessor ta = DateTimeFormatter.ofPattern((String) pattern, Locale.ROOT)
-                .parseBest((String) timestampStr, ZonedDateTime::from, LocalDateTime::from);
-            if (ta instanceof LocalDateTime) {
-                return ZonedDateTime.ofInstant((LocalDateTime) ta, ZoneOffset.UTC, UTC);
-            } else {
-                return ta;
-            }
-        } catch (IllegalArgumentException | DateTimeException e) {
-            String msg = e.getMessage();
-            if (msg.contains("Unable to convert parsed text using any of the specified queries")) {
-                msg = "Unable to convert parsed text into [datetime]";
-            }
-            throw new SqlIllegalArgumentException(
-                "Invalid date/time string [{}] or pattern [{}] is received; {}",
-                timestampStr,
-                pattern,
-                msg
-            );
-        }
+        this.extractor = in.readEnum(DateTimeParseExtractor.class);
     }
 
     @Override
@@ -80,7 +91,7 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
 
     @Override
     protected Object doProcess(Object timestamp, Object pattern) {
-        return process(timestamp, pattern);
+            return this.extractor.extract(timestamp, pattern);
     }
 
     @Override

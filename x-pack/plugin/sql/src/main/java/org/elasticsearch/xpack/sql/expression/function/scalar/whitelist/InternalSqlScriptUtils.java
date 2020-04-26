@@ -15,13 +15,12 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiffP
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePartProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFormatProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTruncProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.DateTimeParseExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.TimeFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.TimeParseProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistanceProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StWkttosqlProcessor;
@@ -295,11 +294,11 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     }
 
     public static Object dateTimeParse(String dateField, String pattern, String tzId) {
-        return DateTimeParseProcessor.process(dateField, pattern);
+        return DateTimeParseExtractor.DATE_TIME.extract(dateField, pattern);
     }
 
     public static Object timeParse(String dateField, String pattern, String tzId) {
-        return TimeParseProcessor.process(dateField, pattern);
+        return DateTimeParseExtractor.TIME.extract(dateField, pattern);
     }
 
 

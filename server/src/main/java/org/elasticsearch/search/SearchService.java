@@ -372,10 +372,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         rewriteAndFetchShardRequest(shard, request, new ActionListener<ShardSearchRequest>() {
             @Override
             public void onResponse(ShardSearchRequest orig) {
-                Releasable releasable = null;
+                ReaderContext readerContext = createOrGetReaderContext(orig, keepStatesInContext);
                 try {
-                    final ReaderContext readerContext = createOrGetReaderContext(orig, keepStatesInContext);
-                    releasable = readerContext::close;
                     if (orig.canReturnNullResponseIfMatchNoDocs()) {
                         assert orig.shouldCreatePersistentReader() == false;
                         // we clone the shard request and perform a quick rewrite using a lightweight
@@ -399,8 +397,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                     listener.onResponse(QuerySearchResult.nullInstance());
                                 } finally {
                                     // close and remove the ephemeral reader context
-                                    removeReaderContext(readerContext.id().getId());
-                                    readerContext.close();
+                                    try (readerContext) {
+                                        removeReaderContext(readerContext.id().getId());
+                                    }
                                 }
                             }
                             return;
@@ -409,8 +408,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // fork the execution in the search thread pool
                     runAsync(shard, () -> executeQueryPhase(orig, task, readerContext), listener);
                 } catch (Exception exc) {
-                    Releasables.close(releasable);
-                    listener.onFailure(exc);
+                    try (readerContext) {
+                        removeReaderContext(readerContext.id().getId());
+                        listener.onFailure(exc);
+                    }
                 }
             }
 

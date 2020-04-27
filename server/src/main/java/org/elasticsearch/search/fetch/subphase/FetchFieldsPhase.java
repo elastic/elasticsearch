@@ -22,20 +22,13 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
 
 /**
  * A fetch sub-phase for high-level field retrieval. Given a list of fields, it
@@ -45,14 +38,6 @@ public final class FetchFieldsPhase implements FetchSubPhase {
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) {
-        hitsExecute(context, hit -> getSourceLookup(context, hit), hits);
-    }
-
-    // Visible for testing.
-    @SuppressWarnings("unchecked")
-    void hitsExecute(SearchContext context,
-                     Function<SearchHit, SourceLookup> sourceProvider,
-                     SearchHit[] hits) {
         FetchFieldsContext fetchFieldsContext = context.fetchFieldsContext();
         if (fetchFieldsContext == null || fetchFieldsContext.fields().isEmpty()) {
             return;
@@ -64,52 +49,20 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                 "disabled in the mappings for index [" + context.indexShard().shardId().getIndexName() + "]");
         }
 
-        Set<String> fields = new HashSet<>();
-        for (String fieldPattern : context.fetchFieldsContext().fields()) {
-            if (documentMapper.objectMappers().containsKey(fieldPattern)) {
-                continue;
-            }
-            Collection<String> concreteFields = context.mapperService().simpleMatchToFullName(fieldPattern);
-            fields.addAll(concreteFields);
-        }
+        SourceLookup sourceLookup = context.lookup().source();
+        FieldValueRetriever fieldValueRetriever = FieldValueRetriever.create(
+            context.mapperService(),
+            fetchFieldsContext.fields());
 
         for (SearchHit hit : hits) {
-            SourceLookup sourceLookup = sourceProvider.apply(hit);
-            Map<String, Object> valuesByField = extractValues(sourceLookup, fields);
+            int readerIndex = ReaderUtil.subIndex(hit.docId(), context.searcher().getIndexReader().leaves());
+            LeafReaderContext readerContext = context.searcher().getIndexReader().leaves().get(readerIndex);
+            sourceLookup.setSegmentAndDocument(readerContext, hit.docId());
 
-            for (Map.Entry<String, Object> entry : valuesByField.entrySet()) {
-                String field = entry.getKey();
-                Object value = entry.getValue();
-                List<Object> values = value instanceof List
-                    ? (List<Object>) value
-                    : List.of(value);
-
-                DocumentField documentField = new DocumentField(field, values);
-                hit.setDocumentField(field, documentField);
+            Map<String, DocumentField> documentFields = fieldValueRetriever.retrieve(sourceLookup);
+            for (Map.Entry<String, DocumentField> entry : documentFields.entrySet()) {
+                hit.setDocumentField(entry.getKey(), entry.getValue());
             }
         }
-    }
-
-    private SourceLookup getSourceLookup(SearchContext context, SearchHit hit) {
-        SourceLookup sourceLookup = context.lookup().source();
-        int readerIndex = ReaderUtil.subIndex(hit.docId(), context.searcher().getIndexReader().leaves());
-        LeafReaderContext readerContext = context.searcher().getIndexReader().leaves().get(readerIndex);
-        sourceLookup.setSegmentAndDocument(readerContext, hit.docId());
-        return sourceLookup;
-    }
-
-    /**
-     * For each of the provided paths, return its value in the source. Note that in contrast with
-     * {@link SourceLookup#extractRawValues}, array and object values can be returned.
-     */
-    private Map<String, Object> extractValues(SourceLookup sourceLookup, Collection<String> paths) {
-        Map<String, Object> result = new HashMap<>(paths.size());
-        for (String path : paths) {
-            Object value = XContentMapValues.extractValue(path, sourceLookup);
-            if (value != null) {
-                result.put(path, value);
-            }
-        }
-        return result;
     }
 }

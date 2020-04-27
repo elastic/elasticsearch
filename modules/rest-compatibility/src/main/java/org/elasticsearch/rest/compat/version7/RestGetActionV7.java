@@ -45,8 +45,6 @@ public class RestGetActionV7 extends RestGetAction {
 
     @Override
     public List<Route> routes() {
-        assert Version.CURRENT.major == 8 : "REST API compatibility for version 7 is only supported on version 8";
-
         return List.of(new Route(GET, "/{index}/{type}/{id}"), new Route(HEAD, "/{index}/{type}/{id}"));
     }
 

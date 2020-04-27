@@ -64,10 +64,10 @@ component templates are not matched or applied to an index, instead they are use
 configuration.
 // end::component-template-def[]
 
-Component templates are only used during index creation.
-Changes to component templates do not affect existing indices.
-Settings and mappings specified in <<indices-create-index, create index>> API requests
-override any settings or mappings specified in a component template.
+Component templates are only used during index creation. Changes to component templates do not
+affect existing indices. Settings and mappings specified in <<indices-create-index, create index>>
+API requests and <<indices-templates,index templates>> override any settings or mappings specified
+in a component template.
 
 ===== Comments in component templates
 You can use C-style /* */ block comments in component templates.

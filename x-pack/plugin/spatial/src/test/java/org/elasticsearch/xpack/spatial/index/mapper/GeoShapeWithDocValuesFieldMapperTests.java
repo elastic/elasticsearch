@@ -41,7 +41,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.spatial.SpatialPlugin;
+import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -61,7 +61,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends ESSingleNodeTestCase 
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class, SpatialPlugin.class, LocalStateCompositeXPackPlugin.class);
+        return pluginList(InternalSettingsPlugin.class, LocalStateCompositeXPackPlugin.class, LocalStateSpatialPlugin.class);
     }
 
     public void testDefaultConfiguration() throws IOException {

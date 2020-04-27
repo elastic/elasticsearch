@@ -28,7 +28,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xpack.spatial.SpatialPlugin;
+import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
 import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
@@ -48,7 +48,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return Collections.singletonList(new SpatialPlugin());
+        return Collections.singletonList(new LocalStateSpatialPlugin());
     }
 
     public void testEmpty() throws Exception {

@@ -132,12 +132,13 @@ public class Util {
      * @return An Optional that contains the Java test SourceSet if it exists.
      */
     public static Optional<SourceSet> getSingleTestSourceSet(Project project) {
-        if(getYamlTestSourceSet(project).isPresent()){
+        if (getYamlTestSourceSet(project).isPresent()) {
             return getYamlTestSourceSet(project);
-        }else{
+        } else {
             return getJavaTestSourceSet(project);
         }
     }
+
     /**
      * @param project The project to look for test Java sources.
      * @return An Optional that contains the Java test SourceSet if it exists.

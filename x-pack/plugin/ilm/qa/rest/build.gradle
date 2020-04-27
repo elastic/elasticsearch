@@ -29,5 +29,4 @@ testClusters.all {
   user clusterCredentials
 }
 
-
-
+test.enabled = false

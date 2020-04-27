@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gradle.test.rest;
 
-import org.elasticsearch.gradle.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.elasticsearch.gradle.test.RestIntegTestTask;
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask;
@@ -27,7 +26,6 @@ import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
@@ -52,41 +50,39 @@ public class YamlTestPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
 
-        //can not simply apply it since it is groovy and this is in Java, so consumers will need to apply the build plugin first
+        // can not simply apply it since it is groovy and this is in Java, so consumers will need to apply the build plugin first
         if (project.getPluginManager().hasPlugin("elasticsearch.build") == false) {
             throw new InvalidUserDataException("elasticsearch.build plugin must be applied before the YAML test plugin");
         }
 
-        project.getPluginManager().apply(JavaPlugin.class); //for the Java based runner
-        project.getPluginManager().apply(TestClustersPlugin.class); //to spin up the external cluster
-        project.getPluginManager().apply(RestResourcesPlugin.class); //to copy around the yaml tests and json spec
+        project.getPluginManager().apply(JavaPlugin.class); // for the Java based runner
+        project.getPluginManager().apply(TestClustersPlugin.class); // to spin up the external cluster
+        project.getPluginManager().apply(RestResourcesPlugin.class); // to copy around the yaml tests and json spec
 
-        //create source set
+        // create source set
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         SourceSet yamlTestSourceSet = sourceSets.create("yamlTest");
 
-        //create task
+        // create task
         RestIntegTestTask yamlTestTask = project.getTasks()
-            .create("yamlTest", RestIntegTestTask.class, task -> {
-                task.dependsOn(project.getTasks().getByName("copyRestApiSpecsTask"));
-            });
+            .create("yamlTest", RestIntegTestTask.class, task -> { task.dependsOn(project.getTasks().getByName("copyRestApiSpecsTask")); });
         yamlTestTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
         yamlTestTask.setDescription("Runs the YAML based REST tests against an external cluster");
 
-        //setup task dependency
+        // setup task dependency
         project.getDependencies().add("yamlTestCompile", project.project(":test:framework"));
 
-        //ensure correct dependency and execution order
+        // ensure correct dependency and execution order
         project.getTasks().getByName("check").dependsOn(yamlTestTask);
         yamlTestTask.mustRunAfter(project.getTasks().getByName("test"));
         yamlTestTask.mustRunAfter(project.getTasks().getByName("precommit"));
 
-        //setup the runner
+        // setup the runner
         RestTestRunnerTask runner = (RestTestRunnerTask) project.getTasks().getByName(yamlTestTask.getName() + "Runner");
         runner.setTestClassesDirs(yamlTestSourceSet.getOutput().getClassesDirs());
         runner.setClasspath(yamlTestSourceSet.getRuntimeClasspath());
 
-        //if this a module or plugin, it may have an associated zip file with it's contents, add that to the test cluster
+        // if this a module or plugin, it may have an associated zip file with it's contents, add that to the test cluster
         boolean isModule = project.getPath().startsWith(":modules:");
         Zip bundle = (Zip) project.getTasks().findByName("bundlePlugin");
         if (bundle != null) {
@@ -101,10 +97,10 @@ public class YamlTestPlugin implements Plugin<Project> {
         // es-plugins may declare dependencies on additional modules, add those to the test cluster too.
         project.afterEvaluate(p -> {
             PluginPropertiesExtension pluginPropertiesExtension = project.getExtensions().findByType(PluginPropertiesExtension.class);
-            if (pluginPropertiesExtension != null) { //not all projects are defined as plugins
+            if (pluginPropertiesExtension != null) { // not all projects are defined as plugins
                 pluginPropertiesExtension.getExtendedPlugins().forEach(pluginName -> {
                     Project extensionProject = project.getProject().findProject(":modules:" + pluginName);
-                    if (extensionProject != null) { //extension plugin may be defined, but not required to be a module
+                    if (extensionProject != null) { // extension plugin may be defined, but not required to be a module
                         Zip extensionBundle = (Zip) extensionProject.getTasks().getByName("bundlePlugin");
                         yamlTestTask.dependsOn(extensionBundle);
                         runner.getClusters().forEach(c -> c.module(extensionBundle.getArchiveFile()));
@@ -113,7 +109,7 @@ public class YamlTestPlugin implements Plugin<Project> {
             }
         });
 
-        //setup eclipse
+        // setup eclipse
         EclipseModel eclipse = project.getExtensions().getByType(EclipseModel.class);
         List<SourceSet> eclipseSourceSets = StreamSupport.stream(eclipse.getClasspath().getSourceSets().spliterator(), false)
             .collect(Collectors.toList());
@@ -123,10 +119,11 @@ public class YamlTestPlugin implements Plugin<Project> {
         plusConfiguration.add(project.getConfigurations().getByName("yamlTestRuntimeClasspath"));
         eclipse.getClasspath().setPlusConfigurations(plusConfiguration);
 
-        //setup intellij
+        // setup intellij
         IdeaModel idea = project.getExtensions().getByType(IdeaModel.class);
         idea.getModule().getTestSourceDirs().addAll(yamlTestSourceSet.getJava().getSrcDirs());
-        idea.getModule().getScopes()
+        idea.getModule()
+            .getScopes()
             .put("TEST", Map.of("plus", Collections.singletonList(project.getConfigurations().getByName("yamlTestRuntimeClasspath"))));
     }
 }

@@ -183,7 +183,7 @@ public class CopyRestApiTask extends DefaultTask {
 
     private File getTestSourceResourceDir() {
         Optional<SourceSet> testSourceSet = Util.getSingleTestSourceSet(getProject());
-        if(testSourceSet.isPresent()){
+        if (testSourceSet.isPresent()) {
             SourceSet testSources = testSourceSet.get();
             Set<File> resourceDir = testSources.getResources()
                 .getSrcDirs()
@@ -195,7 +195,7 @@ public class CopyRestApiTask extends DefaultTask {
                 return null;
             }
             return resourceDir.iterator().next();
-        } else{
+        } else {
             return null;
         }
     }

@@ -83,8 +83,9 @@ public class TestingConventionsTasks extends DefaultTask {
     @Input
     public Map<String, File> getTestClassNames() {
         if (testClassNames == null) {
-            //add standard test source sets class files
-            testClassNames = Util.getJavaTestSourceSet(getProject()).get()
+            // add standard test source sets class files
+            testClassNames = Util.getJavaTestSourceSet(getProject())
+                .get()
                 .getOutput()
                 .getClassesDirs()
                 .getFiles()
@@ -93,9 +94,10 @@ public class TestingConventionsTasks extends DefaultTask {
                 .flatMap(testRoot -> walkPathAndLoadClasses(testRoot).entrySet().stream())
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-            //add yaml test source sets if they exist
+            // add yaml test source sets if they exist
             if (Util.getYamlTestSourceSet(getProject()).isPresent()) {
-                Map<String, File> yamlTestClassNames = Util.getYamlTestSourceSet(getProject()).get()
+                Map<String, File> yamlTestClassNames = Util.getYamlTestSourceSet(getProject())
+                    .get()
                     .getOutput()
                     .getClassesDirs()
                     .getFiles()
@@ -175,13 +177,7 @@ public class TestingConventionsTasks extends DefaultTask {
             final Map<String, Set<Class<?>>> x = classFilesPerTask.entrySet()
                 .stream()
                 .collect(
-                    Collectors.toMap(
-                        Map.Entry::getKey,
-                        entry -> entry.getValue()
-                            .stream()
-                            .map(classes::get)
-                            .collect(Collectors.toSet())
-                    )
+                    Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().stream().map(classes::get).collect(Collectors.toSet()))
                 );
 
             final Map<String, Set<Class<?>>> testClassesPerTask = classFilesPerTask.entrySet()

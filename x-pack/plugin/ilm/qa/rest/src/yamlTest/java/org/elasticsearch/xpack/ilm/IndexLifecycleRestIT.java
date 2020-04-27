@@ -38,10 +38,6 @@ public class IndexLifecycleRestIT extends ESClientYamlSuiteTestCase {
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
-        return Settings.builder()
-                .put(super.restClientSettings())
-                .put(ThreadContext.PREFIX + ".Authorization", token)
-                .build();
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 }
-

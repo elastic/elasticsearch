@@ -32,6 +32,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -188,7 +189,7 @@ public class SearchInputTests extends ESTestCase {
     }
 
     private WatcherSearchTemplateService watcherSearchTemplateService() {
-        SearchModule module = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        SearchModule module = new SearchModule(Settings.EMPTY, Collections.emptyList(), new UsageService());
         return new WatcherSearchTemplateService(scriptService, new NamedXContentRegistry(module.getNamedXContents()));
     }
 }

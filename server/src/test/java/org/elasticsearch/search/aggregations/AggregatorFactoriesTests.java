@@ -40,6 +40,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.usage.UsageService;
 
 import java.util.Collection;
 import java.util.List;
@@ -71,7 +72,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
             String type = randomAlphaOfLengthBetween(1, 10);
             currentTypes[i] = type;
         }
-        xContentRegistry = new NamedXContentRegistry(new SearchModule(settings, emptyList()).getNamedXContents());
+        xContentRegistry = new NamedXContentRegistry(new SearchModule(settings, emptyList(), new UsageService()).getNamedXContents());
     }
 
     public void testGetAggregatorFactories_returnsUnmodifiableList() {

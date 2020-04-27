@@ -39,6 +39,7 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder.Validati
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -78,7 +79,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
             .put("node.name", AbstractQueryTestCase.class.toString())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .build();
-        SearchModule searchModule = new SearchModule(settings, plugins());
+        SearchModule searchModule = new SearchModule(settings, plugins(), new UsageService());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(IndicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());

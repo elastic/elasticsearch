@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -45,7 +46,7 @@ public class TransformConfigTests extends AbstractXContentTestCase<TransformConf
             randomSourceConfig(),
             randomDestConfig(),
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1000, 1000000)),
-            randomBoolean() ? null : randomSyncConfig(), 
+            randomBoolean() ? null : randomSyncConfig(),
             PivotConfigTests.randomPivotConfig(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100),
             randomBoolean() ? null : Instant.now(),
@@ -79,7 +80,7 @@ public class TransformConfigTests extends AbstractXContentTestCase<TransformConf
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList(), new UsageService());
         List<NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();
         namedXContents.addAll(new TransformNamedXContentProvider().getNamedXContentParsers());
 

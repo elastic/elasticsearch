@@ -70,6 +70,7 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContex
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -172,7 +173,8 @@ public class SearchModuleTests extends ESTestCase {
     }
 
     private ThrowingRunnable registryForPlugin(SearchPlugin plugin) {
-        return () -> new NamedXContentRegistry(new SearchModule(Settings.EMPTY, singletonList(plugin)).getNamedXContents());
+        return () -> new NamedXContentRegistry(new SearchModule(Settings.EMPTY, singletonList(plugin), new UsageService())
+            .getNamedXContents());
     }
 
     public void testRegisterSuggester() {
@@ -186,7 +188,7 @@ public class SearchModuleTests extends ESTestCase {
                         TestSuggestionBuilder::fromXContent,
                         TestSuggestion::new));
             }
-        }));
+        }), new UsageService());
 
         assertEquals(1, module.getNamedXContents().stream()
                 .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) &&
@@ -227,7 +229,7 @@ public class SearchModuleTests extends ESTestCase {
             public Map<String, Highlighter> getHighlighters() {
                 return singletonMap("custom", customHighlighter);
             }
-        }));
+        }), new UsageService());
 
         Map<String, Highlighter> highlighters = module.getHighlighters();
         assertEquals(FastVectorHighlighter.class, highlighters.get("fvh").getClass());
@@ -240,7 +242,7 @@ public class SearchModuleTests extends ESTestCase {
         List<String> allSupportedQueries = new ArrayList<>();
         Collections.addAll(allSupportedQueries, NON_DEPRECATED_QUERIES);
         Collections.addAll(allSupportedQueries, DEPRECATED_QUERIES);
-        SearchModule module = new SearchModule(Settings.EMPTY, emptyList());
+        SearchModule module = new SearchModule(Settings.EMPTY, emptyList(), new UsageService());
 
         Set<String> registeredNonDeprecated = module.getNamedXContents().stream()
                 .filter(e -> e.categoryClass.equals(QueryBuilder.class))
@@ -262,7 +264,7 @@ public class SearchModuleTests extends ESTestCase {
             public List<AggregationSpec> getAggregations() {
                 return singletonList(new AggregationSpec("test", TestAggregationBuilder::new, TestAggregationBuilder::fromXContent));
             }
-        }));
+        }), new UsageService());
 
         assertThat(
                 module.getNamedXContents().stream()
@@ -279,7 +281,7 @@ public class SearchModuleTests extends ESTestCase {
                 return singletonList(new PipelineAggregationSpec("test",
                         TestPipelineAggregationBuilder::new, TestPipelineAggregationBuilder::fromXContent));
             }
-        }));
+        }), new UsageService());
 
         assertThat(
                 module.getNamedXContents().stream()
@@ -295,7 +297,7 @@ public class SearchModuleTests extends ESTestCase {
             public List<RescorerSpec<?>> getRescorers() {
                 return singletonList(new RescorerSpec<>("test", TestRescorerBuilder::new, TestRescorerBuilder::fromXContent));
             }
-        }));
+        }), new UsageService());
         assertThat(
                 module.getNamedXContents().stream()
                     .filter(entry -> entry.categoryClass.equals(RescorerBuilder.class) &&

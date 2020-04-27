@@ -43,6 +43,7 @@ import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.usage.UsageService;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -144,7 +145,8 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
     private static class HighLevelClient extends RestHighLevelClient {
         private HighLevelClient(RestClient restClient) {
-            super(restClient, (client) -> {}, new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
+            super(restClient, (client) -> {}, new SearchModule(Settings.EMPTY, Collections.emptyList(),
+                new UsageService()).getNamedXContents());
         }
     }
 

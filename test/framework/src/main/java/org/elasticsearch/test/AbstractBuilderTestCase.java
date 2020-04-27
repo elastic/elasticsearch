@@ -76,6 +76,7 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.usage.UsageService;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -342,7 +343,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             List<Setting<?>> additionalSettings = pluginsService.getPluginSettings();
             SettingsModule settingsModule =
                     new SettingsModule(nodeSettings, additionalSettings, pluginsService.getPluginSettingsFilter(), Collections.emptySet());
-            searchModule = new SearchModule(nodeSettings, pluginsService.filterPlugins(SearchPlugin.class));
+            searchModule = new SearchModule(nodeSettings, pluginsService.filterPlugins(SearchPlugin.class), new UsageService());
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
             entries.addAll(IndicesModule.getNamedWriteables());

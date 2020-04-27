@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
@@ -126,7 +127,8 @@ public class TransformInternalIndexIT extends ESRestTestCase {
 
     private class TestRestHighLevelClient extends RestHighLevelClient {
         TestRestHighLevelClient() {
-            super(client(), restClient -> {}, new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
+            super(client(), restClient -> {},
+                new SearchModule(Settings.EMPTY, Collections.emptyList(), new UsageService()).getNamedXContents());
         }
     }
 }

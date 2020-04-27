@@ -37,6 +37,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -73,12 +74,13 @@ public class PainlessExecuteRequestTests extends AbstractWireSerializingTestCase
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
+        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList(),
+            new UsageService()).getNamedWriteables());
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
+        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList(), new UsageService()).getNamedXContents());
     }
 
     @Override

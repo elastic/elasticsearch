@@ -27,6 +27,7 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
 
@@ -56,7 +57,7 @@ public class QueryConfigTests extends AbstractXContentTestCase<QueryConfig> {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList(), new UsageService());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 }

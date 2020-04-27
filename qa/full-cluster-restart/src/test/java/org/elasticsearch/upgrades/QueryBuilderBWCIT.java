@@ -46,6 +46,7 @@ import org.elasticsearch.index.query.SpanTermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.usage.UsageService;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -188,7 +189,7 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
             }
         } else {
             NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY,
-                Collections.emptyList()).getNamedWriteables());
+                Collections.emptyList(), new UsageService()).getNamedWriteables());
 
             for (int i = 0; i < CANDIDATES.size(); i++) {
                 QueryBuilder expectedQueryBuilder = (QueryBuilder) CANDIDATES.get(i)[1];

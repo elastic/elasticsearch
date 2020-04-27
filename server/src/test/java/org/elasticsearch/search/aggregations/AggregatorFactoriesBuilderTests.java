@@ -28,6 +28,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.pipeline.CumulativeSumPipelineAggregationBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.usage.UsageService;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -49,7 +50,7 @@ public class AggregatorFactoriesBuilderTests extends AbstractSerializingTestCase
         super.setUp();
 
         // register aggregations as NamedWriteable
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList(), new UsageService());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
         namedXContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }

@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
@@ -47,13 +48,13 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList(), new UsageService());
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList(), new UsageService());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
@@ -65,7 +66,7 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
                 randomBoolean(), randomBoolean()
         );
     }
-    
+
     @Override
     protected Writeable.Reader<SqlQueryRequest> instanceReader() {
         return SqlQueryRequest::new;
@@ -92,7 +93,7 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
         mutator.accept(newRequest);
         return newRequest;
     }
-    
+
     private AbstractSqlQueryRequest mutateRequestInfo(SqlQueryRequest oldRequest, SqlQueryRequest newRequest) {
         RequestInfo requestInfo = randomValueOtherThan(newRequest.requestInfo(), this::randomRequestInfo);
         newRequest.requestInfo(requestInfo);
@@ -106,10 +107,10 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
                 param.hasExplicitType(true);
             }
         }
-        
+
         return newRequest;
     }
-    
+
     public void testFromXContent() throws IOException {
         xContentTester(this::createParser, this::createTestInstance, SqlQueryRequestTests::toXContent, this::doParseInstance)
             .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
@@ -126,11 +127,11 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> sqlQueryRequest.zoneId(null));
         assertEquals("time zone may not be null.", e.getMessage());
     }
-    
+
     private RequestInfo randomRequestInfo() {
         return new RequestInfo(randomFrom(Mode.values()), randomFrom(randomFrom(CLIENT_IDS), requestInfo.clientId()));
     }
-    
+
     private TimeValue randomTV() {
         return TimeValue.parseTimeValue(randomTimeValue(), null, "test");
     }

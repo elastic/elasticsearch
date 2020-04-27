@@ -38,6 +38,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests;
 import org.elasticsearch.search.rescore.QueryRescorerBuilderTests;
 import org.elasticsearch.search.suggest.SuggestBuilderTests;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -60,7 +61,7 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         searchExtPlugin = new TestSearchExtPlugin();
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.singletonList(searchExtPlugin));
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.singletonList(searchExtPlugin), new UsageService());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(IndicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());

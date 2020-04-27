@@ -19,6 +19,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.usage.UsageService;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -88,7 +89,8 @@ public class TTestAggregationBuilderTests extends AbstractSerializingTestCase<TT
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
+        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList(), new UsageService())
+            .getNamedWriteables());
     }
 
     @Override
@@ -98,7 +100,7 @@ public class TTestAggregationBuilderTests extends AbstractSerializingTestCase<TT
             BaseAggregationBuilder.class,
             new ParseField(TTestAggregationBuilder.NAME),
             (p, n) -> TTestAggregationBuilder.PARSER.apply(p, (String) n)));
-        namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
+        namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList(), new UsageService()).getNamedXContents());
         return new NamedXContentRegistry(namedXContent);
     }
 }

@@ -282,8 +282,9 @@ public class SearchModule {
      *
      * NOTE: This constructor should not be called in production unless an accurate {@link Settings} object is provided.
      *       When constructed, a static flag is set in Lucene {@link BooleanQuery#setMaxClauseCount} according to the settings.
-     *  @param settings Current settings
+     * @param settings Current settings
      * @param plugins List of included {@link SearchPlugin} objects.
+     * @param usageService usage service for gathering aggregetion stats
      */
     public SearchModule(Settings settings, List<SearchPlugin> plugins, UsageService usageService) {
         this.settings = settings;
@@ -303,11 +304,6 @@ public class SearchModule {
         registerShapes();
         registerIntervalsSourceProviders();
         namedWriteables.addAll(SortValue.namedWriteables());
-    }
-
-    // Temporary for testing
-    public SearchModule(Settings settings, List<SearchPlugin> plugins) {
-        this(settings, plugins, new UsageService());
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {

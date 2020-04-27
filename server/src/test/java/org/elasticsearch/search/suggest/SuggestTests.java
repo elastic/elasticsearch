@@ -44,6 +44,7 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -242,7 +243,7 @@ public class SuggestTests extends ESTestCase {
         final Suggest bwcSuggest;
 
         NamedWriteableRegistry registry = new NamedWriteableRegistry
-            (new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
+            (new SearchModule(Settings.EMPTY, emptyList(), new UsageService()).getNamedWriteables());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(bwcVersion);

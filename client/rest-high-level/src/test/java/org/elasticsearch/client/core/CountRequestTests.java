@@ -31,6 +31,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -67,7 +68,7 @@ public class CountRequestTests extends AbstractRequestTestCase<CountRequest, Que
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedXContents());
+        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, List.of(), new UsageService()).getNamedXContents());
     }
 
     public void testIllegalArguments() {

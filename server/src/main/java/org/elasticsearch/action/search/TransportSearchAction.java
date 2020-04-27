@@ -278,6 +278,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             OriginalIndices indices = entry.getValue();
             SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(searchRequest, indices.indices(),
                 clusterAlias, timeProvider.getAbsoluteStartMillis(), true);
+            // NORELEASE: We should only set the parent task if the target node on the new version;
+            // otherwise, this sub task will be cancelled when some nodes get removed in the remote cluster.
             ccsSearchRequest.setParentTask(parentTaskId);
             Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
             remoteClusterClient.search(ccsSearchRequest, new ActionListener<SearchResponse>() {
@@ -316,6 +318,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 OriginalIndices indices = entry.getValue();
                 SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(searchRequest, indices.indices(),
                     clusterAlias, timeProvider.getAbsoluteStartMillis(), false);
+                // NORELEASE: We should only set the parent task if the target node on the new version;
+                // otherwise, this sub task will be cancelled when some nodes get removed in the remote cluster.
                 ccsSearchRequest.setParentTask(parentTaskId);
                 ActionListener<SearchResponse> ccsListener = createCCSListener(clusterAlias, skipUnavailable, countDown,
                     skippedClusters, exceptions, searchResponseMerger, totalClusters,  listener);

@@ -45,7 +45,7 @@ public class TaskManagerTests extends ESTestCase {
         int iters = randomIntBetween(1, 200);
         for (int i = 0; i < iters; i++) {
             taskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
-            taskManager.setBan(taskId, randomAlphaOfLength(10));
+            taskManager.setBan(taskId, false, randomAlphaOfLength(10));
             timeInMillis.addAndGet(randomInt(1000));
             expectedBanParents.values().removeIf(timestamp -> timestamp - timeInMillis.get() > banRetainingIntervalInMillis);
             expectedBanParents.put(taskId, timeInMillis.get());

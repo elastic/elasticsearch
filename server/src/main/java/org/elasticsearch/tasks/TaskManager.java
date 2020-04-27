@@ -381,13 +381,16 @@ public class TaskManager implements ClusterStateApplier {
      * This method is called when a parent task that has children is cancelled.
      * @return a list of pending cancellable child tasks
      */
-    public List<CancellableTask> setBan(TaskId parentTaskId, String reason) {
+    public List<CancellableTask> setBan(TaskId parentTaskId, boolean removeOnNodeLeft, String reason) {
         logger.trace("setting ban for the parent task {} {}", parentTaskId, reason);
         final long timeInMillis = threadPool.relativeTimeInMillis();
         // Set the ban first, so the newly created tasks cannot be registered
         synchronized (banedParents) {
             maybeCleanupOldBanMarkers(timeInMillis);
-            banedParents.put(parentTaskId, new BanReason(reason, timeInMillis));
+            if (removeOnNodeLeft == false || lastDiscoveryNodes.nodeExists(parentTaskId.getNodeId())) {
+                // Only set the ban if the node is the part of the cluster
+                banedParents.put(parentTaskId, new BanReason(removeOnNodeLeft, reason, timeInMillis));
+            }
         }
         return cancellableTasks.values().stream()
             .filter(t -> t.hasParent(parentTaskId))
@@ -416,13 +419,16 @@ public class TaskManager implements ClusterStateApplier {
             oldestBanMarkerInMillis = Long.MAX_VALUE;
             while (banIterator.hasNext()) {
                 final Map.Entry<TaskId, BanReason> entry = banIterator.next();
-                final long elapsed = nowInMillis - entry.getValue().timeInMillis;
                 // TODO: extends the time to live of the marker
-                if (elapsed > banParentRetainingIntervalInMillis) {
-                    logger.debug("Clean up ban for the parent task [{}] after [{}]", entry.getKey(), TimeValue.timeValueMillis(elapsed));
-                    banIterator.remove();
-                } else {
-                    oldestBanMarkerInMillis = Math.min(oldestBanMarkerInMillis, entry.getValue().timeInMillis);
+                if (entry.getValue().removeOnNodeLeft == false) {
+                    final long elapsed = nowInMillis - entry.getValue().timeInMillis;
+                    if (elapsed > banParentRetainingIntervalInMillis) {
+                        logger.debug("Clean up ban for the parent task [{}] after [{}]",
+                            entry.getKey(), TimeValue.timeValueMillis(elapsed));
+                        banIterator.remove();
+                    } else {
+                        oldestBanMarkerInMillis = Math.min(oldestBanMarkerInMillis, entry.getValue().timeInMillis);
+                    }
                 }
             }
         }
@@ -454,6 +460,19 @@ public class TaskManager implements ClusterStateApplier {
     public void applyClusterState(ClusterChangedEvent event) {
         lastDiscoveryNodes = event.state().getNodes();
         if (event.nodesRemoved()) {
+            synchronized (banedParents) {
+                lastDiscoveryNodes = event.state().getNodes();
+                // Remove all bans that were registered by nodes that are no longer in the cluster state
+                Iterator<Map.Entry<TaskId, BanReason>> banIterator = banedParents.entrySet().iterator();
+                while (banIterator.hasNext()) {
+                    Map.Entry<TaskId, BanReason> entry = banIterator.next();
+                    if (entry.getValue().removeOnNodeLeft && lastDiscoveryNodes.nodeExists(entry.getKey().getNodeId()) == false) {
+                        logger.debug("Removing ban for the parent [{}] on the node [{}], reason: the parent node is gone",
+                            entry.getKey(), event.state().getNodes().getLocalNode());
+                        banIterator.remove();
+                    }
+                }
+            }
             // Cancel cancellable tasks for the nodes that are gone
             for (Map.Entry<Long, CancellableTaskHolder> taskEntry : cancellableTasks.entrySet()) {
                 CancellableTaskHolder holder = taskEntry.getValue();
@@ -624,10 +643,13 @@ public class TaskManager implements ClusterStateApplier {
     }
 
     private static class BanReason {
+        // for bwc purpose when the parent task on an old node which does not send heartbeats periodically
+        private final boolean removeOnNodeLeft;
         private final String reason;
         private final long timeInMillis;
 
-        BanReason(String reason, long timeInMillis) {
+        BanReason(boolean removeOnNodeLeft, String reason, long timeInMillis) {
+            this.removeOnNodeLeft = removeOnNodeLeft;
             this.reason = reason;
             this.timeInMillis = timeInMillis;
         }

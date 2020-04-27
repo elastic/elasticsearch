@@ -275,7 +275,8 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             if (request.ban) {
                 logger.debug("Received ban for the parent [{}] on the node [{}], reason: [{}]", request.parentTaskId,
                     clusterService.localNode().getId(), request.reason);
-                final List<CancellableTask> childTasks = taskManager.setBan(request.parentTaskId, request.reason);
+                final boolean removeOnNodeLeave = channel.getVersion().before(Version.V_8_0_0);
+                final List<CancellableTask> childTasks = taskManager.setBan(request.parentTaskId, removeOnNodeLeave, request.reason);
                 final GroupedActionListener<Void> listener = new GroupedActionListener<>(ActionListener.map(
                     new ChannelActionListener<>(channel, BAN_PARENT_ACTION_NAME, request), r -> TransportResponse.Empty.INSTANCE),
                     childTasks.size() + 1);

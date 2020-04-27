@@ -20,7 +20,6 @@
 package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -32,12 +31,8 @@ import org.elasticsearch.test.ESTokenStreamTestCase;
 import java.io.IOException;
 import java.io.StringReader;
 
-/**
- * Test class for edge_ngram token filter.
- *
- * @author Amit Khandelwal
- */
 public class EdgeNGramTokenFilterFactoryTests extends ESTokenStreamTestCase {
+
     public void testDefault() throws IOException {
         ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
             Settings.builder()

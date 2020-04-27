@@ -175,7 +175,7 @@ Minimum character length of a gram. Defaults to `1`.
 
 `preserve_original`::
 (Optional, boolean)
-If set to true then it would also emit the original token. Defaults to `false`.
+Emits original token when set to `true`. Defaults to `false`.
 
 `side`::
 +

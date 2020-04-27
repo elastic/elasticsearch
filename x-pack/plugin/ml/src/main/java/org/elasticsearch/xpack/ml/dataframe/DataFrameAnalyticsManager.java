@@ -295,7 +295,8 @@ public class DataFrameAnalyticsManager {
     }
 
     private static boolean isTaskCancelledException(Exception error) {
-        return ExceptionsHelper.unwrapCause(error) instanceof TaskCancelledException || error.getCause() instanceof TaskCancelledException;
+        return ExceptionsHelper.unwrapCause(error) instanceof TaskCancelledException
+            || ExceptionsHelper.unwrapCause(error.getCause()) instanceof TaskCancelledException;
     }
 
     private void startAnalytics(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {

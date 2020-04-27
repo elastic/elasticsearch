@@ -35,7 +35,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
+import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheRequest;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -362,8 +362,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             new ApplicationPrivilegeDescriptor("app2", "all", newHashSet("*"), emptyMap())
         );
 
-        final PlainActionFuture<Map<String, List<String>>> future = new PlainActionFuture<>();
-        store.putPrivileges(putPrivileges, WriteRequest.RefreshPolicy.IMMEDIATE, future);
+        final PlainActionFuture<Map<String, List<String>>> putPrivilegeFuture = new PlainActionFuture<>();
+        store.putPrivileges(putPrivileges, WriteRequest.RefreshPolicy.IMMEDIATE, putPrivilegeFuture);
         assertThat(requests, iterableWithSize(putPrivileges.size()));
         assertThat(requests, everyItem(instanceOf(IndexRequest.class)));
 
@@ -392,10 +392,10 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertBusy(() -> assertFalse(requests.isEmpty()), 1, TimeUnit.SECONDS);
 
         assertThat(requests, iterableWithSize(1));
-        assertThat(requests.get(0), instanceOf(ClearRolesCacheRequest.class));
+        assertThat(requests.get(0), instanceOf(ClearPrivilegesCacheRequest.class));
         listener.get().onResponse(null);
 
-        final Map<String, List<String>> map = future.actionGet();
+        final Map<String, List<String>> map = putPrivilegeFuture.actionGet();
         assertThat(map.entrySet(), iterableWithSize(2));
         assertThat(map.get("app1"), iterableWithSize(1));
         assertThat(map.get("app2"), iterableWithSize(1));
@@ -432,13 +432,35 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertBusy(() -> assertFalse(requests.isEmpty()), 1, TimeUnit.SECONDS);
 
         assertThat(requests, iterableWithSize(1));
-        assertThat(requests.get(0), instanceOf(ClearRolesCacheRequest.class));
+        assertThat(requests.get(0), instanceOf(ClearPrivilegesCacheRequest.class));
         listener.get().onResponse(null);
 
         final Map<String, List<String>> map = future.actionGet();
         assertThat(map.entrySet(), iterableWithSize(1));
         assertThat(map.get("app1"), iterableWithSize(2));
         assertThat(map.get("app1"), containsInAnyOrder("p1", "p3"));
+    }
+
+    public void testInvalidate() {
+        store.getApplicationNamesCache().put(singleton("*"), Set.of());
+        store.getDescriptorsCache().put("app-1",
+            singleton(new ApplicationPrivilegeDescriptor("app-1", "read", emptySet(), emptyMap())));
+        store.getDescriptorsCache().put("app-2",
+            singleton(new ApplicationPrivilegeDescriptor("app-2", "read", emptySet(), emptyMap())));
+        store.invalidate(singletonList("app-1"));
+        assertEquals(0, store.getApplicationNamesCache().count());
+        assertEquals(1, store.getDescriptorsCache().count());
+    }
+
+    public void testInvalidateAll() {
+        store.getApplicationNamesCache().put(singleton("*"), Set.of());
+        store.getDescriptorsCache().put("app-1",
+            singleton(new ApplicationPrivilegeDescriptor("app-1", "read", emptySet(), emptyMap())));
+        store.getDescriptorsCache().put("app-2",
+            singleton(new ApplicationPrivilegeDescriptor("app-2", "read", emptySet(), emptyMap())));
+        store.invalidateAll();
+        assertEquals(0, store.getApplicationNamesCache().count());
+        assertEquals(0, store.getDescriptorsCache().count());
     }
 
     private SearchHit[] buildHits(List<ApplicationPrivilegeDescriptor> sourcePrivileges) {

@@ -46,9 +46,9 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
-import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
-import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
-import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheResponse;
+import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheAction;
+import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheRequest;
+import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheResponse;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -64,7 +64,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
@@ -191,18 +190,6 @@ public class NativePrivilegeStore {
         }
     }
 
-    public void invalidate(Set<String> updatedApplicationNames) {
-        numInvalidation.incrementAndGet();
-        applicationNamesCacheHelper.removeValuesIf(names -> Sets.intersection(names, updatedApplicationNames).isEmpty() == false);
-        descriptorsCacheHelper.removeKeysIf(updatedApplicationNames::contains);
-    }
-
-    public void invalidateAll() {
-        numInvalidation.incrementAndGet();
-        applicationNamesCache.invalidateAll();
-        descriptorsCache.invalidateAll();
-    }
-
     public void getPrivilegesWithoutCaching(Collection<String> applications, Collection<String> names,
         ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
 
@@ -254,6 +241,20 @@ public class NativePrivilegeStore {
                 }
             });
         }
+    }
+
+    public void invalidate(Collection<String> updatedApplicationNames) {
+        numInvalidation.incrementAndGet();
+        final Set<String> uniqueUpdatedApplicationNames = Set.copyOf(updatedApplicationNames);
+        // Always completely invalidate application names cache due to wildcard
+        applicationNamesCache.invalidateAll();
+        descriptorsCacheHelper.removeKeysIf(updatedApplicationNames::contains);
+    }
+
+    public void invalidateAll() {
+        numInvalidation.incrementAndGet();
+        applicationNamesCache.invalidateAll();
+        descriptorsCache.invalidateAll();
     }
 
     private Tuple<Set<String>, Map<String, Set<ApplicationPrivilegeDescriptor>>> cacheStatusForApplicationNames(
@@ -382,7 +383,9 @@ public class NativePrivilegeStore {
                         .map(r -> r.getId())
                         .map(NativePrivilegeStore::nameFromDocId)
                         .collect(TUPLES_TO_MAP);
-                    clearRolesCache(listener, createdNames);
+                    clearCaches(listener,
+                        privileges.stream().map(ApplicationPrivilegeDescriptor::getApplication).collect(Collectors.toList()),
+                        createdNames);
                 }, listener::onFailure), privileges.size());
             for (ApplicationPrivilegeDescriptor privilege : privileges) {
                 innerPutPrivilege(privilege, refreshPolicy, groupListener);
@@ -404,7 +407,6 @@ public class NativePrivilegeStore {
             logger.warn("Failed to put privilege {} - {}", Strings.toString(privilege), e.toString());
             listener.onFailure(e);
         }
-
     }
 
     public void deletePrivileges(String application, Collection<String> names, WriteRequest.RefreshPolicy refreshPolicy,
@@ -423,7 +425,7 @@ public class NativePrivilegeStore {
                             .map(r -> r.getId())
                             .map(NativePrivilegeStore::nameFromDocId)
                             .collect(TUPLES_TO_MAP);
-                        clearRolesCache(listener, deletedNames);
+                        clearCaches(listener, Collections.singletonList(application), deletedNames);
                     }, listener::onFailure), names.size());
                 for (String name : names) {
                     ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
@@ -435,21 +437,22 @@ public class NativePrivilegeStore {
         }
     }
 
-    private <T> void clearRolesCache(ActionListener<T> listener, T value) {
+    private <T> void clearCaches(ActionListener<T> listener, List<String> applicationNames, T value) {
         // This currently clears _all_ roles, but could be improved to clear only those roles that reference the affected application
-        ClearRolesCacheRequest request = new ClearRolesCacheRequest();
-        executeAsyncWithOrigin(client, SECURITY_ORIGIN, ClearRolesCacheAction.INSTANCE, request,
+        final ClearPrivilegesCacheRequest request = new ClearPrivilegesCacheRequest().names(applicationNames.toArray(String[]::new));
+        executeAsyncWithOrigin(client, SECURITY_ORIGIN, ClearPrivilegesCacheAction.INSTANCE, request,
             new ActionListener<>() {
                 @Override
-                public void onResponse(ClearRolesCacheResponse nodes) {
+                public void onResponse(ClearPrivilegesCacheResponse nodes) {
                     listener.onResponse(value);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error("unable to clear role cache", e);
+                    logger.error("unable to clear application privileges and role cache", e);
                     listener.onFailure(
-                        new ElasticsearchException("clearing the role cache failed. please clear the role cache manually", e));
+                        new ElasticsearchException("clearing the application privileges and role cache failed. " +
+                            "please clear the caches manually", e));
                 }
             });
     }

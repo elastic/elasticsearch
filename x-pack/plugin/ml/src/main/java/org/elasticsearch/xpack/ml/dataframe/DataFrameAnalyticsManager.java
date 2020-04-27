@@ -294,7 +294,7 @@ public class DataFrameAnalyticsManager {
                 new GetIndexRequest().indices(config.getDest().getIndex()), destIndexListener);
     }
 
-    private boolean isTaskCancelledException(Exception error) {
+    private static boolean isTaskCancelledException(Exception error) {
         return ExceptionsHelper.unwrapCause(error) instanceof TaskCancelledException || error.getCause() instanceof TaskCancelledException;
     }
 

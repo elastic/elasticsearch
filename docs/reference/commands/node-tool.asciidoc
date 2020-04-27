@@ -41,7 +41,7 @@ This tool has a number of modes:
 
 * `elasticsearch-node detach-cluster` enables you to move nodes from one
   cluster to another.  This can be used to move nodes into a new cluster
-  created with the `elasticsearch-node unsafe-bootstap` command. If unsafe
+  created with the `elasticsearch-node unsafe-bootstrap` command. If unsafe
   cluster bootstrapping was not possible, it also enables you to move nodes
   into a brand-new cluster.
 

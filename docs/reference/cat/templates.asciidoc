@@ -71,3 +71,15 @@ template1 [tea*]         1
 template2 [teak*]        2     7
 --------------------------------------------------
 // TESTRESPONSE[s/\*/\\*/ s/\[/\\[/ s/\]/\\]/ non_json]
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_template/template0
+DELETE /_template/template1
+DELETE /_template/template2
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////

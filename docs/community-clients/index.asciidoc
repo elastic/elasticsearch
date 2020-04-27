@@ -4,6 +4,15 @@
 == Preface
 :client: https://www.elastic.co/guide/en/elasticsearch/client
 
+[NOTE]
+====
+This is a list of clients submitted by members of the Elastic community.
+Elastic does not support or endorse these clients.
+
+If you'd like to add a new client to this list, please
+https://github.com/elastic/elasticsearch/blob/master/CONTRIBUTING.md#contributing-code-and-documentation-changes[open a pull request].
+====
+
 Besides the link:/guide[officially supported Elasticsearch clients], there are
 a number of clients that have been contributed by the community for various languages:
 
@@ -64,6 +73,8 @@ a number of clients that have been contributed by the community for various lang
   http://github.com/karmi/tire[Tire]. Ready to use in pure Erlang
   environment.
 
+* https://github.com/sashman/elasticsearch_elixir_bulk_processor[Elixir Bulk Processor]:
+  Dynamically configurable Elixir port of the [Bulk Processor](https://www.elastic.co/guide/en/elasticsearch/client/java-api/current/java-docs-bulk-processor.html). Implemented using GenStages to handle backpressure.
 
 [[go]]
 == Go

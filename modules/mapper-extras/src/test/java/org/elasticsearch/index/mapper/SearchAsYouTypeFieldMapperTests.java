@@ -70,12 +70,12 @@ import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasProperty;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.collection.IsArrayContainingInAnyOrder.arrayContainingInAnyOrder;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
@@ -258,14 +258,14 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
             fields.add(path);
             final MapperService mapperService =
                 createIndex(index, Settings.EMPTY, mapping).mapperService();
-            FieldType fieldType = mapperService.fullName(path + "._index_prefix");
+            FieldType fieldType = mapperService.fieldType(path + "._index_prefix");
             assertThat(fieldType, instanceOf(PrefixFieldType.class));
             PrefixFieldType prefixFieldType = (PrefixFieldType) fieldType;
             assertEquals(path, prefixFieldType.parentField);
             for (int i = 2; i < shingleSize; i++) {
                 String name = path + "._" + i + "gram";
                 fields.add(name);
-                fieldType = mapperService.fullName(name);
+                fieldType = mapperService.fieldType(name);
                 assertThat(fieldType, instanceOf(ShingleFieldType.class));
                 ShingleFieldType ft = (ShingleFieldType) fieldType;
                 assertEquals(i, ft.shingleSize);

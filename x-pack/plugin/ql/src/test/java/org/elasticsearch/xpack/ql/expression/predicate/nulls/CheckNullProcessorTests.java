@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.CheckNullProcessor;
 import org.elasticsearch.xpack.ql.expression.processor.Processors;
 
 public class CheckNullProcessorTests extends AbstractWireSerializingTestCase<CheckNullProcessor> {

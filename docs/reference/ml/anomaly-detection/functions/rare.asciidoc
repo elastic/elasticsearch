@@ -21,7 +21,7 @@ number of times (frequency) rare values occur.
 looking for rare events. The functions model whether something happens in a
 bucket at least once. With longer bucket spans, it is more likely that
 entities will be seen in a bucket and therefore they appear less rare.
-Picking the ideal the bucket span depends on the characteristics of the data
+Picking the ideal bucket span depends on the characteristics of the data
 with shorter bucket spans typically being measured in minutes, not hours.
 * To model rare data, a learning period of at least 20 buckets is required
 for typical data.

@@ -72,4 +72,11 @@ public abstract class CollectionUtils {
         }
         return list;
     }
+
+    public static int mapSize(int size) {
+        if (size < 2) {
+            return size + 1;
+        }
+        return (int) (size / 0.75f + 1f);
+    }
 }

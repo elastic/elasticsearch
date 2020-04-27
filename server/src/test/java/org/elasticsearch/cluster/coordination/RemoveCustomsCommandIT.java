@@ -50,7 +50,7 @@ public class RemoveCustomsCommandIT extends ESIntegTestCase {
         String node = internalCluster().startNode();
         createIndex("test");
         client().admin().indices().prepareDelete("test").get();
-        assertEquals(1, client().admin().cluster().prepareState().get().getState().metaData().indexGraveyard().getTombstones().size());
+        assertEquals(1, client().admin().cluster().prepareState().get().getState().metadata().indexGraveyard().getTombstones().size());
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
         internalCluster().stopRandomDataNode();
@@ -67,7 +67,7 @@ public class RemoveCustomsCommandIT extends ESIntegTestCase {
         assertThat(terminal.getOutput(), containsString("index-graveyard"));
 
         internalCluster().startNode(dataPathSettings);
-        assertEquals(0, client().admin().cluster().prepareState().get().getState().metaData().indexGraveyard().getTombstones().size());
+        assertEquals(0, client().admin().cluster().prepareState().get().getState().metadata().indexGraveyard().getTombstones().size());
     }
 
     public void testCustomDoesNotMatch() throws Exception {
@@ -75,7 +75,7 @@ public class RemoveCustomsCommandIT extends ESIntegTestCase {
         String node = internalCluster().startNode();
         createIndex("test");
         client().admin().indices().prepareDelete("test").get();
-        assertEquals(1, client().admin().cluster().prepareState().get().getState().metaData().indexGraveyard().getTombstones().size());
+        assertEquals(1, client().admin().cluster().prepareState().get().getState().metadata().indexGraveyard().getTombstones().size());
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
         internalCluster().stopRandomDataNode();

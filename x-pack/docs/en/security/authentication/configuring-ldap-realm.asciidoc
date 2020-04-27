@@ -21,11 +21,9 @@ However, multiple bind operations might be needed to find the correct user DN.
 
 .. Add a realm configuration of to `elasticsearch.yml` under the
 `xpack.security.authc.realms.ldap` namespace. At a minimum, you must specify
-the `url` of the LDAP server, and set `user_search.base_dn` to the container DN
-where the users are searched for.
-If you are configuring multiple realms, you should also explicitly set the
-`order` attribute to control the order in which the realms are consulted during 
-authentication. See <<ref-ldap-settings>> for all of the options you can set for 
+the `url` and `order` of the LDAP server, and set `user_search.base_dn` to the
+container DN where the users are searched for.
+See <<ref-ldap-settings>> for all of the options you can set for 
 an `ldap` realm.
 +
 --
@@ -72,10 +70,8 @@ realms you specify are used for authentication. If you also want to use the
 
 .. Add a realm configuration to `elasticsearch.yml` in the
 `xpack.security.authc.realms.ldap` namespace. At a minimum, you must specify
-the `url` of the LDAP server, and specify at least one template with the
-`user_dn_templates` option. If you are configuring multiple realms, you should
-also explicitly set the `order` attribute to control the order in which the
-realms are consulted during authentication.
+the `url` and `order` of the LDAP server, and specify at least one template
+with the `user_dn_templates` option.
 See <<ref-ldap-settings>> for all of the options you can set for an `ldap` realm.
 +
 --
@@ -206,6 +202,7 @@ xpack:
       realms:
         ldap:
           ldap1:
+            order: 0
             metadata: cn
 --------------------------------------------------
 --

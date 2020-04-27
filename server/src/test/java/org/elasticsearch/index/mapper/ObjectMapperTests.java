@@ -181,6 +181,24 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
         assertEquals(Dynamic.STRICT, mapper.root().dynamic());
     }
 
+    public void testEmptyName() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("")
+                    .startObject("properties")
+                        .startObject("name")
+                            .field("type", "text")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject());
+
+        // Empty name not allowed in index created after 5.0
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            createIndex("test").mapperService().documentMapperParser().parse("", new CompressedXContent(mapping));
+        });
+        assertThat(e.getMessage(), containsString("name cannot be empty string"));
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(InternalSettingsPlugin.class);

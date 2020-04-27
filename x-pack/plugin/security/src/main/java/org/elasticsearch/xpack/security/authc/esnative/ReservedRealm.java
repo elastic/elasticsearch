@@ -18,6 +18,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -63,7 +64,11 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     public ReservedRealm(Environment env, Settings settings, NativeUsersStore nativeUsersStore, AnonymousUser anonymousUser,
                          SecurityIndexManager securityIndex, ThreadPool threadPool) {
-        super(new RealmConfig(new RealmConfig.RealmIdentifier(TYPE, TYPE), settings, env, threadPool.getThreadContext()), threadPool);
+        super(new RealmConfig(new RealmConfig.RealmIdentifier(TYPE, TYPE),
+            Settings.builder()
+                .put(settings)
+                .put(RealmSettings.realmSettingPrefix(new RealmConfig.RealmIdentifier(TYPE, TYPE)) + "order", Integer.MIN_VALUE)
+                .build(), env, threadPool.getThreadContext()), threadPool);
         this.nativeUsersStore = nativeUsersStore;
         this.realmEnabled = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
         this.anonymousUser = anonymousUser;

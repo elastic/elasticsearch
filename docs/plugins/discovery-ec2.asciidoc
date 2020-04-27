@@ -8,7 +8,7 @@ matching certain criteria determined by the <<discovery-ec2-usage,plugin
 settings>>.
 
 *If you are looking for a hosted solution of {es} on AWS, please visit
-http://www.elastic.co/cloud.*
+https://www.elastic.co/cloud.*
 
 :plugin_name: discovery-ec2
 include::install_remove.asciidoc[]
@@ -285,7 +285,7 @@ you to set `discovery.seed_providers: ec2`. However they do require that the
 This section contains some other information about designing and managing an
 {es} cluster on your own AWS infrastructure. If you would prefer to avoid these
 operational details then you may be interested in a hosted {es} installation
-available on AWS-based infrastructure from http://www.elastic.co/cloud.
+available on AWS-based infrastructure from https://www.elastic.co/cloud.
 
 ===== Storage
 

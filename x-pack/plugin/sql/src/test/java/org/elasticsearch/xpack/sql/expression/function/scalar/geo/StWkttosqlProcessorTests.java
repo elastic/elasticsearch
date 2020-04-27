@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.geo;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.expression.function.scalar.geo.GeoShape;
+import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 
 import static org.hamcrest.Matchers.instanceOf;
 

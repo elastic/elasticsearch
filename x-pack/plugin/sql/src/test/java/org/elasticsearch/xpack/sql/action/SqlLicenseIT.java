@@ -17,7 +17,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.transport.Netty4Plugin;
@@ -154,7 +154,7 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
             .query("SELECT * FROM test").get();
         SearchSourceBuilder source = response.source();
         assertThat(source.docValueFields(), Matchers.contains(
-                new DocValueFieldsContext.FieldAndFormat("count", null)));
+                new FetchDocValuesContext.FieldAndFormat("count", null)));
         FetchSourceContext fetchSource = source.fetchSource();
         assertThat(fetchSource.includes(), Matchers.arrayContaining("data"));
     }

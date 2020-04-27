@@ -22,8 +22,8 @@ package org.elasticsearch.action.admin.indices.get;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponseTests;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponseTests;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -46,8 +46,8 @@ public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIn
     @Override
     protected GetIndexResponse createTestInstance() {
         String[] indices = generateRandomStringArray(5, 5, false, false);
-        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliases = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, List<AliasMetadata>> aliases = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> settings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> defaultSettings = ImmutableOpenMap.builder();
         IndexScopedSettings indexScopedSettings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS;
@@ -55,13 +55,13 @@ public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIn
         for (String index: indices) {
             mappings.put(index, GetMappingsResponseTests.createMappingsForIndex());
 
-            List<AliasMetaData> aliasMetaDataList = new ArrayList<>();
+            List<AliasMetadata> aliasMetadataList = new ArrayList<>();
             int aliasesNum = randomIntBetween(0, 3);
             for (int i=0; i<aliasesNum; i++) {
-                aliasMetaDataList.add(GetAliasesResponseTests.createAliasMetaData());
+                aliasMetadataList.add(GetAliasesResponseTests.createAliasMetadata());
             }
-            CollectionUtil.timSort(aliasMetaDataList, Comparator.comparing(AliasMetaData::alias));
-            aliases.put(index, Collections.unmodifiableList(aliasMetaDataList));
+            CollectionUtil.timSort(aliasMetadataList, Comparator.comparing(AliasMetadata::alias));
+            aliases.put(index, Collections.unmodifiableList(aliasMetadataList));
 
             Settings.Builder builder = Settings.builder();
             builder.put(RandomCreateIndexGenerator.randomIndexSettings());

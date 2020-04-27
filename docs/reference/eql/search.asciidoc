@@ -1,0 +1,197 @@
+[role="xpack"]
+[testenv="basic"]
+[[eql-search]]
+== Run an EQL search
+
+experimental::[]
+
+To start using EQL in {es}, first ensure your event data meets
+<<eql-requirements,EQL requirements>>. Then ingest or add the data to an {es}
+index.
+
+The following <<docs-bulk,bulk API>> request adds some example log data to the
+`sec_logs` index. This log data follows the {ecs-ref}[Elastic Common Schema
+(ECS)].
+
+[source,console]
+----
+PUT sec_logs/_bulk?refresh
+{"index":{"_index" : "sec_logs", "_id" : "1"}}
+{ "@timestamp": "2020-12-06T11:04:05.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process" }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{"index":{"_index" : "sec_logs", "_id" : "2"}}
+{ "@timestamp": "2020-12-06T11:04:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file" }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{"index":{"_index" : "sec_logs", "_id" : "3"}}
+{ "@timestamp": "2020-12-07T11:06:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process" }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{"index":{"_index" : "sec_logs", "_id" : "4"}}
+{ "@timestamp": "2020-12-07T11:07:08.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file" }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{"index":{"_index" : "sec_logs", "_id" : "5"}}
+{ "@timestamp": "2020-12-07T11:07:09.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process" }, "process": { "name": "regsvr32.exe", "path": "C:\\Windows\\System32\\regsvr32.exe" } }
+----
+// TESTSETUP
+
+[TIP]
+====
+You also can set up {beats-ref}/getting-started.html[{beats}], such as
+{auditbeat-ref}/auditbeat-getting-started.html[{auditbeat}] or
+{winlogbeat-ref}/winlogbeat-getting-started.html[{winlogbeat}], to automatically
+send and index your event data in {es}. See
+{beats-ref}/getting-started.html[Getting started with {beats}].
+====
+
+You can now use the EQL search API to search this index using an EQL query.
+
+The following request searches the `sec_logs` index using the EQL query
+specified in the `query` parameter. The EQL query matches events with an
+`event.category` of `process` that have a `process.name` of `cmd.exe`.
+
+[source,console]
+----
+GET sec_logs/_eql/search
+{
+  "query": """
+    process where process.name == "cmd.exe"
+  """
+}
+----
+
+Because the `sec_log` index follows the ECS, you don't need to specify the
+required <<eql-required-fields,event category or timestamp>> fields. The request
+uses the `event.category` and `@timestamp` fields by default.
+
+The API returns the following response containing the matching events. Events
+in the response are sorted by timestamp, converted to milliseconds since the
+https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
+
+[source,console-result]
+----
+{
+  "took": 60,
+  "timed_out": false,
+  "hits": {
+    "total": {
+      "value": 2,
+      "relation": "eq"
+    },
+    "events": [
+      {
+        "_index": "sec_logs",
+        "_id": "1",
+        "_score": null,
+        "_source": {
+          "@timestamp": "2020-12-06T11:04:05.000Z",
+          "agent": {
+            "id": "8a4f500d"
+          },
+          "event": {
+            "category": "process"
+          },
+          "process": {
+            "name": "cmd.exe",
+            "path": "C:\\Windows\\System32\\cmd.exe"
+          }
+        },
+        "sort": [
+          1607252645000
+        ]
+      },
+      {
+        "_index": "sec_logs",
+        "_id": "3",
+        "_score": null,
+        "_source": {
+          "@timestamp": "2020-12-07T11:06:07.000Z",
+          "agent": {
+            "id": "8a4f500d"
+          },
+          "event": {
+            "category": "process"
+          },
+          "process": {
+            "name": "cmd.exe",
+            "path": "C:\\Windows\\System32\\cmd.exe"
+          }
+        },
+        "sort": [
+          1607339167000
+        ]
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 60/"took": $body.took/]
+
+[discrete]
+[[eql-search-specify-event-category-field]]
+=== Specify an event category field
+
+The EQL search API uses `event.category` as the required
+<<eql-required-fields,event category field>> by default. You can use the
+`event_category_field` parameter to specify another event category field.
+
+For example, the following request specifies `file.type` as the event category
+field.
+
+[source,console]
+----
+GET sec_logs/_eql/search
+{
+   "event_category_field": "file.type",
+  "query": """
+    file where agent.id == "8a4f500d"
+  """
+}
+----
+
+[discrete]
+[[eql-search-specify-timestamp-field]]
+=== Specify a timestamp field
+
+The EQL search API uses `@timestamp` as the required <<eql-required-fields,event
+timestamp field>> by default. You can use the `timestamp_field` parameter to
+specify another timestamp field.
+
+For example, the following request specifies `file.accessed` as the event
+timestamp field.
+
+[source,console]
+----
+GET sec_logs/_eql/search
+{
+  "timestamp_field": "file.accessed",
+  "query": """
+    file where (file.size > 1 and file.type == "file")
+  """
+}
+----
+
+[discrete]
+[[eql-search-filter-query-dsl]]
+=== Filter using query DSL
+
+You can use the `filter` parameter to specify an additional query using
+<<query-dsl,query DSL>>. This query filters the documents on which the EQL query
+runs.
+
+For example, the following request uses a `range` query to filter the `sec_logs`
+index down to only documents with a `file.size` value greater than `1` but less
+than `1000000` bytes. The EQL query in `query` parameter then runs on these
+filtered documents.
+
+[source,console]
+----
+GET sec_logs/_eql/search
+{
+  "filter": {
+    "range" : {
+      "file.size" : {
+        "gte" : 1,
+        "lte" : 1000000
+      }
+    }
+  },
+  "query": """
+    file where (file.type == "file" and file.name == "cmd.exe")
+  """
+}
+----

@@ -64,11 +64,11 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaults() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field").field("type", FIELD_TYPE).endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -105,11 +105,11 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testNullValue() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field").field("type", FIELD_TYPE).endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
@@ -120,12 +120,12 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
             XContentType.JSON));
         assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
 
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field").field("type", FIELD_TYPE)
             .field("null_value", "1234").endObject().endObject()
             .endObject().endObject());
 
-        mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -155,12 +155,12 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testEnableStore() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field").field("type", FIELD_TYPE)
             .field("store", true).endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -177,12 +177,12 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDisableIndex() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field").field("type", FIELD_TYPE)
             .field("index", false).endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -200,12 +200,12 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDisableDocValues() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field").field("type", FIELD_TYPE)
             .field("doc_values", false).endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -222,11 +222,11 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testMultipleValues() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field").field("type", FIELD_TYPE).endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -284,12 +284,12 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexOptions() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field").field("type", FIELD_TYPE)
             .field("index_options", "freqs").endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -317,12 +317,12 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testEnableNorms() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field").field("type", FIELD_TYPE)
             .field("norms", true).endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -339,14 +339,14 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testCollator() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field")
             .field("type", FIELD_TYPE)
             .field("language", "tr")
             .field("strength", "primary")
             .endObject().endObject().endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -406,12 +406,12 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
 
 
     public void testIgnoreAbove() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field").field("type", FIELD_TYPE)
             .field("ignore_above", 5).endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 

@@ -56,7 +56,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      * versions of the instance are equal.
      */
     public final void testEqualsAndHashcode() {
-        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
+        for (int runs = 0; runs < 1; runs++) {
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(), this::copyInstance, this::mutateInstance);
         }
     }

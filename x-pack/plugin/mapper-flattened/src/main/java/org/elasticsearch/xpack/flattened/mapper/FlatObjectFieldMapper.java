@@ -23,6 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -30,12 +31,13 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DynamicKeyFieldMapper;
@@ -49,7 +51,12 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -306,7 +313,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
-                                boolean transpositions) {
+                                boolean transpositions, QueryShardContext context) {
             throw new UnsupportedOperationException("[fuzzy] queries are not currently supported on keyed " +
                 "[" + CONTENT_TYPE + "] fields.");
         }
@@ -343,6 +350,11 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new KeyedFlatObjectFieldData.Builder(key);
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.BYTES;
         }
     }
 
@@ -386,20 +398,26 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
 
         @Override
+        public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
+                SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+            throw new IllegalArgumentException("only supported on numeric fields");
+        }
+
+        @Override
         public void clear() {
             delegate.clear();
         }
 
         @Override
-        public AtomicOrdinalsFieldData load(LeafReaderContext context) {
-            AtomicOrdinalsFieldData fieldData = delegate.load(context);
-            return new KeyedFlatObjectAtomicFieldData(key, fieldData);
+        public LeafOrdinalsFieldData load(LeafReaderContext context) {
+            LeafOrdinalsFieldData fieldData = delegate.load(context);
+            return new KeyedFlatObjectLeafFieldData(key, fieldData);
         }
 
         @Override
-        public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
-            AtomicOrdinalsFieldData fieldData = delegate.loadDirect(context);
-            return new KeyedFlatObjectAtomicFieldData(key, fieldData);
+        public LeafOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
+            LeafOrdinalsFieldData fieldData = delegate.loadDirect(context);
+            return new KeyedFlatObjectLeafFieldData(key, fieldData);
         }
 
         @Override
@@ -445,7 +463,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                                            MapperService mapperService) {
                 String fieldName = fieldType.name();
                 IndexOrdinalsFieldData delegate = new SortedSetDVOrdinalsIndexFieldData(indexSettings,
-                    cache, fieldName, breakerService, AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+                    cache, fieldName, breakerService, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
                 return new KeyedFlatObjectFieldData(key, delegate);
             }
         }
@@ -522,6 +540,11 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder();
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.BYTES;
         }
     }
 

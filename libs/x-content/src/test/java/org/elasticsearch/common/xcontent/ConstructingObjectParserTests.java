@@ -528,4 +528,45 @@ public class ConstructingObjectParserTests extends ESTestCase {
             namedSuppliedInOrder = true;
         }
     }
+
+    public void testRequiredAndExclusiveFields() throws IOException {
+
+        class TestStruct {
+            final String a;
+            final long b;
+            TestStruct(String a) {
+                this.a = a;
+                this.b = 0;
+            }
+            TestStruct(long b) {
+                this.a = null;
+                this.b = b;
+            }
+        }
+
+        XContentParser ok = createParser(JsonXContent.jsonXContent, "{ \"a\" : \"a\" }");
+        XContentParser toomany = createParser(JsonXContent.jsonXContent, "{ \"a\" : \"a\", \"b\" : 1 }");
+        XContentParser notenough = createParser(JsonXContent.jsonXContent, "{ }");
+
+        ConstructingObjectParser<TestStruct, Void> parser = new ConstructingObjectParser<>("teststruct", args -> {
+            if (args[0] != null) {
+                return new TestStruct((String) args[0]);
+            }
+            return new TestStruct((Long) args[1]);
+        });
+        parser.declareString(optionalConstructorArg(), new ParseField("a"));
+        parser.declareLong(optionalConstructorArg(), new ParseField("b"));
+        parser.declareExclusiveFieldSet("a", "b");
+        parser.declareRequiredFieldSet("a", "b");
+
+        TestStruct actual = parser.parse(ok, null);
+        assertThat(actual.a, equalTo("a"));
+        assertThat(actual.b, equalTo(0L));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parser.parse(toomany, null));
+        assertThat(e.getMessage(), containsString("allowed together: [a, b]"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> parser.parse(notenough, null));
+        assertThat(e.getMessage(), containsString("Required one of fields [a, b], but none were specified."));
+    }
 }

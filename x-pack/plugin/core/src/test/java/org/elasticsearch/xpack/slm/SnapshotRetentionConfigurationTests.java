@@ -182,7 +182,7 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
     }
 
     private void assertUnsuccessfulNotCountedTowardsMaximum(boolean failure) {
-        SnapshotRetentionConfiguration conf = new SnapshotRetentionConfiguration(() -> 1, TimeValue.timeValueDays(1), 2, 2);
+        SnapshotRetentionConfiguration conf = new SnapshotRetentionConfiguration(() -> 5, TimeValue.timeValueDays(1), 2, 2);
         SnapshotInfo s1 = makeInfo(1);
         SnapshotInfo s2 = makeFailureOrPartial(2, failure);
         SnapshotInfo s3 = makeFailureOrPartial(3, failure);

@@ -102,27 +102,15 @@ Mayuko     | 12
 ;
 
 selectWithScalarOnNested
-SELECT first_name f, last_name l, YEAR(dep.from_date) start FROM test_emp WHERE dep.dep_name = 'Production' AND languages > 1 ORDER BY start LIMIT 5;
+SELECT first_name f, last_name l, YEAR(dep.from_date) start FROM test_emp WHERE dep.dep_name = 'Production' AND languages > 1 ORDER BY dep.from_date LIMIT 5;
 
 f:s                  | l:s           | start:i
 
-Sreekrishna          |Servieres      |1985           
-Zhongwei             |Rosen          |1986           
-Chirstian            |Koblick        |1986           
-null                 |Chappelet      |1988           
-Zvonko               |Nyanchama      |1989     
-;
-
-selectWithScalarOnNestedWithoutProjection
-SELECT first_name f, last_name l FROM test_emp WHERE dep.dep_name = 'Production' AND languages > 1 ORDER BY YEAR(dep.from_date) LIMIT 5;
-
-f:s                  | l:s
-
-Sreekrishna          |Servieres      
-Zhongwei             |Rosen          
-Chirstian            |Koblick        
-null                 |Chappelet      
-Zvonko               |Nyanchama  
+Sreekrishna          |Servieres      |1985
+Zhongwei             |Rosen          |1986
+Chirstian            |Koblick        |1986
+null                 |Chappelet      |1988
+Zvonko               |Nyanchama      |1989
 ;
 
 //

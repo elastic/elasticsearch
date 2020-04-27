@@ -16,15 +16,14 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryMissingException;
@@ -48,7 +47,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -109,8 +107,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         String followerIndex = "index2";
 
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
-        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1));
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderGreen(leaderIndex);
 
@@ -118,7 +115,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         final ClusterService clusterService = getFollowerCluster().getCurrentMasterNodeInstance(ClusterService.class);
 
         Settings.Builder settingsBuilder = Settings.builder()
-            .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, followerIndex)
+            .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, followerIndex)
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
         RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST)
             .indices(leaderIndex).indicesOptions(indicesOptions).renamePattern("^(.*)$")
@@ -137,7 +134,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             .cluster()
             .prepareState()
             .clear()
-            .setMetaData(true)
+            .setMetadata(true)
             .setIndices(leaderIndex)
             .get();
         ClusterStateResponse followerState = followerClient()
@@ -145,19 +142,18 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             .cluster()
             .prepareState()
             .clear()
-            .setMetaData(true)
+            .setMetadata(true)
             .setIndices(followerIndex)
             .get();
 
-        IndexMetaData leaderMetadata = leaderState.getState().metaData().index(leaderIndex);
-        IndexMetaData followerMetadata = followerState.getState().metaData().index(followerIndex);
+        IndexMetadata leaderMetadata = leaderState.getState().metadata().index(leaderIndex);
+        IndexMetadata followerMetadata = followerState.getState().metadata().index(followerIndex);
         assertEquals(leaderMetadata.getNumberOfShards(), followerMetadata.getNumberOfShards());
         Map<String, String> ccrMetadata = followerMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
         assertEquals(leaderIndex, ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY));
         assertEquals(leaderMetadata.getIndexUUID(), ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY));
         assertEquals("leader_cluster", ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY));
-        assertEquals(followerIndex, followerMetadata.getSettings().get(IndexMetaData.SETTING_INDEX_PROVIDED_NAME));
-        assertEquals(true, IndexSettings.INDEX_SOFT_DELETES_SETTING.get(followerMetadata.getSettings()));
+        assertEquals(followerIndex, followerMetadata.getSettings().get(IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
 
         // UUID is changed so that we can follow indexes on same cluster
         assertNotEquals(leaderMetadata.getIndexUUID(), followerMetadata.getIndexUUID());
@@ -174,8 +170,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         String followerIndex = "index2";
 
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
-        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1));
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderGreen(leaderIndex);
 
@@ -192,7 +187,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         leaderClient().admin().indices().prepareFlush(leaderIndex).setForce(true).setWaitIfOngoing(true).get();
 
         Settings.Builder settingsBuilder = Settings.builder()
-            .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, followerIndex)
+            .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, followerIndex)
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
         RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST)
             .indices(leaderIndex).indicesOptions(indicesOptions).renamePattern("^(.*)$")
@@ -231,8 +226,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         String followerIndex = "index2";
 
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
-        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1));
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderGreen(leaderIndex);
 
@@ -259,7 +253,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         leaderClient().admin().indices().prepareFlush(leaderIndex).setForce(true).setWaitIfOngoing(true).get();
 
         Settings.Builder settingsBuilder = Settings.builder()
-            .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, followerIndex)
+            .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, followerIndex)
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
         RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST)
             .indices(leaderIndex).indicesOptions(indicesOptions).renamePattern("^(.*)$")
@@ -297,8 +291,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         String followerIndex = "index2";
 
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
-        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1));
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderGreen(leaderIndex);
 
@@ -324,7 +317,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         leaderClient().admin().indices().prepareFlush(leaderIndex).setForce(true).setWaitIfOngoing(true).get();
 
         Settings.Builder settingsBuilder = Settings.builder()
-            .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, followerIndex)
+            .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, followerIndex)
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
         RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST)
             .indices(leaderIndex).indicesOptions(indicesOptions).renamePattern("^(.*)$")
@@ -372,8 +365,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         String followerIndex = "index2";
 
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
-        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1));
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderGreen(leaderIndex);
 
@@ -381,7 +373,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         final ClusterService clusterService = getFollowerCluster().getCurrentMasterNodeInstance(ClusterService.class);
 
         Settings.Builder settingsBuilder = Settings.builder()
-            .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, followerIndex)
+            .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, followerIndex)
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
         RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST)
             .indices(leaderIndex).indicesOptions(indicesOptions).renamePattern("^(.*)$")
@@ -431,11 +423,11 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
 
             ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
             clusterStateRequest.clear();
-            clusterStateRequest.metaData(true);
+            clusterStateRequest.metadata(true);
             clusterStateRequest.indices(followerIndex);
-            MappingMetaData mappingMetaData = followerClient().admin().indices().prepareGetMappings("index2").get().getMappings()
+            MappingMetadata mappingMetadata = followerClient().admin().indices().prepareGetMappings("index2").get().getMappings()
                 .get("index2");
-            assertThat(XContentMapValues.extractValue("properties.k.type", mappingMetaData.sourceAsMap()), equalTo("long"));
+            assertThat(XContentMapValues.extractValue("properties.k.type", mappingMetadata.sourceAsMap()), equalTo("long"));
         } finally {
             for (MockTransportService transportService : transportServices) {
                 transportService.clearAllRules();

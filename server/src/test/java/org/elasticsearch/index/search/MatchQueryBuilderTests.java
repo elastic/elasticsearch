@@ -21,8 +21,8 @@ package org.elasticsearch.index.search;
 
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermAndBoost;
 import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.util.QueryBuilder.TermAndBoost;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.search.MatchQuery.MatchQueryBuilder;
 import org.elasticsearch.test.ESTestCase;

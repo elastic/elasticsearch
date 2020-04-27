@@ -22,7 +22,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -84,6 +84,9 @@ public final class IndexSettings {
                         "[true, false, checksum] but was: " + s);
             }
         }, Property.IndexScope);
+    // This setting is undocumented as it is considered as an escape hatch.
+    public static final Setting<Boolean> ON_HEAP_ID_TERMS_INDEX =
+            Setting.boolSetting("index.force_memory_id_terms_dictionary", false, Property.IndexScope);
 
     /**
      * Index setting describing the maximum value of from + size on a query.
@@ -227,11 +230,10 @@ public final class IndexSettings {
 
     /**
      * Specifies if the index should use soft-delete instead of hard-delete for update/delete operations.
-     * Soft-deletes is enabled by default for 7.0+ indices.
+     * Soft-deletes is enabled by default for 7.0 indices and mandatory for 8.0 indices.
      */
-    public static final Setting<Boolean> INDEX_SOFT_DELETES_SETTING = Setting.boolSetting("index.soft_deletes.enabled",
-        settings -> Boolean.toString(IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(Version.V_7_0_0)),
-        Property.IndexScope, Property.Final);
+    public static final Setting<Boolean> INDEX_SOFT_DELETES_SETTING =
+        Setting.boolSetting("index.soft_deletes.enabled", true, Property.IndexScope, Property.Final);
 
     /**
      * Controls how many soft-deleted documents will be kept around before being merged away. Keeping more deleted
@@ -246,31 +248,20 @@ public final class IndexSettings {
      * Controls how long translog files that are no longer needed for persistence reasons
      * will be kept around before being deleted. Keeping more files is useful to increase
      * the chance of ops based recoveries for indices with soft-deletes disabled.
-     * This setting will be ignored if soft-deletes is used in peer recoveries (default in 7.4).
+     * TODO: Remove this setting in 9.0.
      **/
     public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING =
-        Setting.timeSetting("index.translog.retention.age",
-            settings -> shouldDisableTranslogRetention(settings) ? TimeValue.MINUS_ONE : TimeValue.timeValueHours(12),
+        Setting.timeSetting("index.translog.retention.age", settings -> TimeValue.MINUS_ONE,
             TimeValue.MINUS_ONE, Property.Dynamic, Property.IndexScope);
 
     /**
      * Controls how many translog files that are no longer needed for persistence reasons
      * will be kept around before being deleted. Keeping more files is useful to increase
      * the chance of ops based recoveries for indices with soft-deletes disabled.
-     * This setting will be ignored if soft-deletes is used in peer recoveries (default in 7.4).
+     * TODO: Remove this setting in 9.0.
      **/
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_RETENTION_SIZE_SETTING =
-        Setting.byteSizeSetting("index.translog.retention.size",
-            settings -> shouldDisableTranslogRetention(settings) ? "-1" : "512MB",
-            Property.Dynamic, Property.IndexScope);
-
-    /**
-     * Controls the number of translog files that are no longer needed for persistence reasons will be kept around before being deleted.
-     * This is a safeguard making sure that the translog deletion policy won't keep too many translog files especially when they're small.
-     * This setting is intentionally not registered, it is only used in tests
-     **/
-    public static final Setting<Integer> INDEX_TRANSLOG_RETENTION_TOTAL_FILES_SETTING =
-        Setting.intSetting("index.translog.retention.total_files", 100, 0, Setting.Property.IndexScope);
+        Setting.byteSizeSetting("index.translog.retention.size", settings -> "-1", Property.Dynamic, Property.IndexScope);
 
     /**
      * Controls the maximum length of time since a retention lease is created or renewed before it is considered expired.
@@ -340,9 +331,9 @@ public final class IndexSettings {
     private final String nodeName;
     private final Settings nodeSettings;
     private final int numberOfShards;
-    // volatile fields are updated via #updateIndexMetaData(IndexMetaData) under lock
+    // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
-    private volatile IndexMetaData indexMetaData;
+    private volatile IndexMetadata indexMetadata;
     private volatile List<String> defaultFields;
     private final boolean queryStringLenient;
     private final boolean queryStringAnalyzeWildcard;
@@ -352,8 +343,6 @@ public final class IndexSettings {
     private volatile TimeValue syncInterval;
     private volatile TimeValue refreshInterval;
     private volatile ByteSizeValue flushThresholdSize;
-    private volatile TimeValue translogRetentionAge;
-    private volatile ByteSizeValue translogRetentionSize;
     private volatile ByteSizeValue generationThresholdSize;
     private volatile ByteSizeValue flushAfterMergeThresholdSize;
     private final MergeSchedulerConfig mergeSchedulerConfig;
@@ -452,30 +441,30 @@ public final class IndexSettings {
      * Creates a new {@link IndexSettings} instance. The given node settings will be merged with the settings in the metadata
      * while index level settings will overwrite node settings.
      *
-     * @param indexMetaData the index metadata this settings object is associated with
+     * @param indexMetadata the index metadata this settings object is associated with
      * @param nodeSettings the nodes settings this index is allocated on.
      */
-    public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings) {
-        this(indexMetaData, nodeSettings, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+    public IndexSettings(final IndexMetadata indexMetadata, final Settings nodeSettings) {
+        this(indexMetadata, nodeSettings, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
     }
 
     /**
      * Creates a new {@link IndexSettings} instance. The given node settings will be merged with the settings in the metadata
      * while index level settings will overwrite node settings.
      *
-     * @param indexMetaData the index metadata this settings object is associated with
+     * @param indexMetadata the index metadata this settings object is associated with
      * @param nodeSettings the nodes settings this index is allocated on.
      */
-    public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings, IndexScopedSettings indexScopedSettings) {
-        scopedSettings = indexScopedSettings.copy(nodeSettings, indexMetaData);
+    public IndexSettings(final IndexMetadata indexMetadata, final Settings nodeSettings, IndexScopedSettings indexScopedSettings) {
+        scopedSettings = indexScopedSettings.copy(nodeSettings, indexMetadata);
         this.nodeSettings = nodeSettings;
-        this.settings = Settings.builder().put(nodeSettings).put(indexMetaData.getSettings()).build();
-        this.index = indexMetaData.getIndex();
-        version = IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(settings);
+        this.settings = Settings.builder().put(nodeSettings).put(indexMetadata.getSettings()).build();
+        this.index = indexMetadata.getIndex();
+        version = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
         logger = Loggers.getLogger(getClass(), index);
         nodeName = Node.NODE_NAME_SETTING.get(settings);
-        this.indexMetaData = indexMetaData;
-        numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
+        this.indexMetadata = indexMetadata;
+        numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
 
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
@@ -492,6 +481,7 @@ public final class IndexSettings {
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         softDeleteEnabled = scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
+        assert softDeleteEnabled || version.before(Version.V_8_0_0) : "soft deletes must be enabled in version " + version;
         softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
         retentionLeaseMillis = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING).millis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
@@ -512,8 +502,6 @@ public final class IndexSettings {
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
-        setTranslogRetentionAge(scopedSettings.get(INDEX_TRANSLOG_RETENTION_AGE_SETTING));
-        setTranslogRetentionSize(scopedSettings.get(INDEX_TRANSLOG_RETENTION_SIZE_SETTING));
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
@@ -551,8 +539,6 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(
                 INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING,
                 this::setGenerationThresholdSize);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_AGE_SETTING, this::setTranslogRetentionAge);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_SIZE_SETTING, this::setTranslogRetentionSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
         scopedSettings.addSettingsUpdateConsumer(MAX_ANALYZED_OFFSET_SETTING, this::setHighlightMaxAnalyzedOffset);
@@ -576,24 +562,6 @@ public final class IndexSettings {
 
     private void setFlushAfterMergeThresholdSize(ByteSizeValue byteSizeValue) {
         this.flushAfterMergeThresholdSize = byteSizeValue;
-    }
-
-    private void setTranslogRetentionSize(ByteSizeValue byteSizeValue) {
-        if (shouldDisableTranslogRetention(settings) && byteSizeValue.getBytes() >= 0) {
-            // ignore the translog retention settings if soft-deletes enabled
-            this.translogRetentionSize = new ByteSizeValue(-1);
-        } else {
-            this.translogRetentionSize = byteSizeValue;
-        }
-    }
-
-    private void setTranslogRetentionAge(TimeValue age) {
-        if (shouldDisableTranslogRetention(settings) && age.millis() >= 0) {
-            // ignore the translog retention settings if soft-deletes enabled
-            this.translogRetentionAge = TimeValue.MINUS_ONE;
-        } else {
-            this.translogRetentionAge = age;
-        }
     }
 
     private void setGenerationThresholdSize(final ByteSizeValue generationThresholdSize) {
@@ -639,7 +607,7 @@ public final class IndexSettings {
      * Returns the customDataPath for this index, if configured. <code>""</code> o.w.
      */
     public String customDataPath() {
-        return IndexMetaData.INDEX_DATA_PATH_SETTING.get(settings);
+        return IndexMetadata.INDEX_DATA_PATH_SETTING.get(settings);
     }
 
     /**
@@ -658,10 +626,10 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns the current IndexMetaData for this index
+     * Returns the current IndexMetadata for this index
      */
-    public IndexMetaData getIndexMetaData() {
-        return indexMetaData;
+    public IndexMetadata getIndexMetadata() {
+        return indexMetadata;
     }
 
     /**
@@ -672,7 +640,7 @@ public final class IndexSettings {
     /**
      * Returns the number of replicas this index has.
      */
-    public int getNumberOfReplicas() { return settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null); }
+    public int getNumberOfReplicas() { return settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, null); }
 
     /**
      * Returns the node settings. The settings returned from {@link #getSettings()} are a merged version of the
@@ -688,17 +656,17 @@ public final class IndexSettings {
      *
      * @return <code>true</code> iff any setting has been updated otherwise <code>false</code>.
      */
-    public synchronized boolean updateIndexMetaData(IndexMetaData indexMetaData) {
-        final Settings newSettings = indexMetaData.getSettings();
+    public synchronized boolean updateIndexMetadata(IndexMetadata indexMetadata) {
+        final Settings newSettings = indexMetadata.getSettings();
         if (version.equals(Version.indexCreated(newSettings)) == false) {
             throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " +
                 Version.indexCreated(newSettings));
         }
-        final String newUUID = newSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
+        final String newUUID = newSettings.get(IndexMetadata.SETTING_INDEX_UUID, IndexMetadata.INDEX_UUID_NA_VALUE);
         if (newUUID.equals(getUUID()) == false) {
             throw new IllegalArgumentException("uuid mismatch on settings update expected: " + getUUID() + " but was: " + newUUID);
         }
-        this.indexMetaData = indexMetaData;
+        this.indexMetadata = indexMetadata;
         final Settings newIndexSettings = Settings.builder().put(nodeSettings).put(newSettings).build();
         if (same(this.settings, newIndexSettings)) {
             // nothing to update, same settings
@@ -771,36 +739,6 @@ public final class IndexSettings {
      * Returns the merge threshold size when to forcefully flush the index and free resources.
      */
     public ByteSizeValue getFlushAfterMergeThresholdSize() { return flushAfterMergeThresholdSize; }
-
-    /**
-     * Returns the transaction log retention size which controls how much of the translog is kept around to allow for ops based recoveries
-     */
-    public ByteSizeValue getTranslogRetentionSize() {
-        assert shouldDisableTranslogRetention(settings) == false || translogRetentionSize.getBytes() == -1L : translogRetentionSize;
-        return translogRetentionSize;
-    }
-
-    /**
-     * Returns the transaction log retention age which controls the maximum age (time from creation) that translog files will be kept
-     * around
-     */
-    public TimeValue getTranslogRetentionAge() {
-        assert shouldDisableTranslogRetention(settings) == false || translogRetentionAge.millis() == -1L : translogRetentionSize;
-        return translogRetentionAge;
-    }
-
-    /**
-     * Returns the maximum number of translog files that that no longer required for persistence should be kept for peer recovery
-     * when soft-deletes is disabled.
-     */
-    public int getTranslogRetentionTotalFiles() {
-        return INDEX_TRANSLOG_RETENTION_TOTAL_FILES_SETTING.get(getSettings());
-    }
-
-    private static boolean shouldDisableTranslogRetention(Settings settings) {
-        return INDEX_SOFT_DELETES_SETTING.get(settings)
-            && IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(Version.V_7_4_0);
-    }
 
     /**
      * Returns the generation threshold size. As sequence numbers can cause multiple generations to

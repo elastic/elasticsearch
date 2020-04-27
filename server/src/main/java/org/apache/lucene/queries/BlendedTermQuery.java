@@ -32,10 +32,12 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.InPlaceMergeSorter;
+import org.apache.lucene.util.QueryBuilder.TermAndBoost;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -111,7 +113,7 @@ public abstract class BlendedTermQuery extends Query {
             // at least max(df) documents have that term. Sum or Averages don't seem
             // to have a significant meaning here.
             // TODO: Maybe it could also make sense to assume independent distributions of documents and eg. have:
-            //   df = df1 + df2 - (df1 * df2 / maxDoc)?
+            // df = df1 + df2 - (df1 * df2 / maxDoc)?
             max = Math.max(df, max);
             if (ctx.totalTermFreq() > 0) {
                 // we need to find out the minimum sumTTF to adjust the statistics
@@ -120,7 +122,7 @@ public abstract class BlendedTermQuery extends Query {
             }
         }
         if (maxDoc > minSumTTF) {
-            maxDoc = (int)minSumTTF;
+            maxDoc = (int) minSumTTF;
         }
         if (max == 0) {
             return; // we are done that term doesn't exist at all
@@ -137,6 +139,7 @@ public abstract class BlendedTermQuery extends Query {
                 tieBreak[i] = tieBreak[j];
                 tieBreak[j] = tmp;
             }
+
             @Override
             protected int compare(int i, int j) {
                 return Integer.compare(contexts[tieBreak[j]].docFreq(), contexts[tieBreak[i]].docFreq());
@@ -144,8 +147,7 @@ public abstract class BlendedTermQuery extends Query {
         }.sort(0, tieBreak.length);
         int prev = contexts[tieBreak[0]].docFreq();
         int actualDf = Math.min(maxDoc, max);
-        assert actualDf >=0 : "DF must be >= 0";
-
+        assert actualDf >= 0 : "DF must be >= 0";
 
         // here we try to add a little bias towards
         // the more popular (more frequent) fields
@@ -257,24 +259,69 @@ public abstract class BlendedTermQuery extends Query {
         visitor.getSubVisitor(BooleanClause.Occur.SHOULD, this).consumeTerms(this, terms);
     }
 
-    private volatile TermAndBoost[] equalTermsAndBoosts = null;
+    private static class ComparableTermAndBoost extends TermAndBoost implements Comparable<ComparableTermAndBoost> {
 
-    private TermAndBoost[] equalsTermsAndBoosts() {
+        public ComparableTermAndBoost(Term term, float boost) {
+            super(term, boost);
+        }
+
+        @Override
+        public int compareTo(ComparableTermAndBoost other) {
+            int compareTo = term.compareTo(other.term);
+            if (compareTo == 0) {
+                compareTo = Float.compare(boost, other.boost);
+            }
+            return compareTo;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o instanceof TermAndBoost == false) {
+                return false;
+            }
+
+            TermAndBoost that = (TermAndBoost) o;
+            return term.equals(that.term) && (Float.compare(boost, that.boost) == 0);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * term.hashCode() + Float.hashCode(boost);
+        }
+
+    }
+
+    private volatile ComparableTermAndBoost[] equalTermsAndBoosts = null;
+
+    private ComparableTermAndBoost[] equalsTermsAndBoosts() {
         if (equalTermsAndBoosts != null) {
             return equalTermsAndBoosts;
         }
         if (terms.length == 1) {
             float boost = (boosts != null ? boosts[0] : 1f);
-            equalTermsAndBoosts = new TermAndBoost[] {new TermAndBoost(terms[0], boost)};
+            equalTermsAndBoosts = new ComparableTermAndBoost[] { new ComparableTermAndBoost(terms[0], boost) };
         } else {
             // sort the terms to make sure equals and hashCode are consistent
             // this should be a very small cost and equivalent to a HashSet but less object creation
-            equalTermsAndBoosts = new TermAndBoost[terms.length];
+            equalTermsAndBoosts = new ComparableTermAndBoost[terms.length];
             for (int i = 0; i < terms.length; i++) {
                 float boost = (boosts != null ? boosts[i] : 1f);
-                equalTermsAndBoosts[i] = new TermAndBoost(terms[i], boost);
+                equalTermsAndBoosts[i] = new ComparableTermAndBoost(terms[i], boost);
             }
-            ArrayUtil.timSort(equalTermsAndBoosts);
+            ArrayUtil.timSort(equalTermsAndBoosts, new Comparator<TermAndBoost>() {
+
+                @Override
+                public int compare(TermAndBoost o1, TermAndBoost o2) {
+                    int compareTo = o1.term.compareTo(o2.term);
+                    if (compareTo == 0) {
+                        compareTo = Float.compare(o1.boost, o2.boost);
+                    }
+                    return compareTo;
+                }
+            });
         }
         return equalTermsAndBoosts;
     }

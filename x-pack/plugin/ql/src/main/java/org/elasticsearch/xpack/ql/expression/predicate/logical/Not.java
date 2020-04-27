@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isBoolean;
 
@@ -35,7 +36,7 @@ public class Not extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        if (DataType.BOOLEAN == field().dataType()) {
+        if (DataTypes.BOOLEAN == field().dataType()) {
             return TypeResolution.TYPE_RESOLVED;
         }
         return isBoolean(field(), sourceText(), ParamOrdinal.DEFAULT);
@@ -53,7 +54,7 @@ public class Not extends UnaryScalarFunction {
 
     @Override
     public String processScript(String script) {
-        return Scripts.formatTemplate(Scripts.SQL_SCRIPTS + ".not(" + script + ")");
+        return Scripts.formatTemplate(Scripts.QL_SCRIPTS + ".not(" + script + ")");
     }
 
     @Override
@@ -67,6 +68,6 @@ public class Not extends UnaryScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return DataTypes.BOOLEAN;
     }
 }

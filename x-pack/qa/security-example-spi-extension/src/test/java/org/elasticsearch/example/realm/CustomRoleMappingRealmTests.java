@@ -7,10 +7,12 @@ package org.elasticsearch.example.realm;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -18,6 +20,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
@@ -30,9 +33,11 @@ public class CustomRoleMappingRealmTests extends ESTestCase {
     public void testCachingOfUserLookup() throws Exception {
         final Environment env = super.newEnvironment();
         final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
+        final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier(CustomRoleMappingRealm.TYPE, "test");
         final RealmConfig realmConfig = new RealmConfig(
-            new RealmConfig.RealmIdentifier(CustomRoleMappingRealm.TYPE, "test"),
-            env.settings(), env, new ThreadContext(env.settings())
+            realmIdentifier,
+            Settings.builder().put(env.settings()).put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
+            env, new ThreadContext(env.settings())
         );
         CustomRoleMappingRealm realm = new CustomRoleMappingRealm(realmConfig, roleMapper);
 

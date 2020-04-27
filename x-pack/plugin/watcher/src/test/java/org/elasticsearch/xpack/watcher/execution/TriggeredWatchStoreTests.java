@@ -28,9 +28,9 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -95,8 +95,8 @@ import static org.mockito.Mockito.when;
 public class TriggeredWatchStoreTests extends ESTestCase {
 
     private Settings indexSettings = settings(Version.CURRENT)
-        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
         .build();
 
     private Client client;
@@ -148,17 +148,17 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("name"));
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        MetaData.Builder metaDataBuilder = MetaData.builder();
+        Metadata.Builder metadataBuilder = Metadata.builder();
 
         int numShards = 2 + randomInt(2);
         int numStartedShards = 1;
         Settings settings = settings(Version.CURRENT)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .build();
-        metaDataBuilder.put(IndexMetaData.builder(TriggeredWatchStoreField.INDEX_NAME).settings(settings)
+        metadataBuilder.put(IndexMetadata.builder(TriggeredWatchStoreField.INDEX_NAME).settings(settings)
             .numberOfShards(numShards).numberOfReplicas(1));
-        final Index index = metaDataBuilder.get(TriggeredWatchStoreField.INDEX_NAME).getIndex();
+        final Index index = metadataBuilder.get(TriggeredWatchStoreField.INDEX_NAME).getIndex();
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
         for (int i = 0; i < numShards; i++) {
             final ShardRoutingState state;
@@ -179,7 +179,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         }
         routingTableBuilder.add(indexRoutingTableBuilder.build());
 
-        csBuilder.metaData(metaDataBuilder);
+        csBuilder.metadata(metadataBuilder);
         csBuilder.routingTable(routingTableBuilder.build());
         ClusterState cs = csBuilder.build();
 
@@ -190,9 +190,9 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        MetaData.Builder metaDataBuilder = MetaData.builder();
-        metaDataBuilder.put(IndexMetaData.builder(TriggeredWatchStoreField.INDEX_NAME).settings(indexSettings));
-        final Index index = metaDataBuilder.get(TriggeredWatchStoreField.INDEX_NAME).getIndex();
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        metadataBuilder.put(IndexMetadata.builder(TriggeredWatchStoreField.INDEX_NAME).settings(indexSettings));
+        final Index index = metadataBuilder.get(TriggeredWatchStoreField.INDEX_NAME).getIndex();
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
         ShardId shardId = new ShardId(index, 0);
         indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(shardId)
@@ -200,7 +200,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             .build());
         indexRoutingTableBuilder.addReplica();
         routingTableBuilder.add(indexRoutingTableBuilder.build());
-        csBuilder.metaData(metaDataBuilder);
+        csBuilder.metadata(metadataBuilder);
         csBuilder.routingTable(routingTableBuilder.build());
         ClusterState cs = csBuilder.build();
 
@@ -214,7 +214,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(searchResponse1.getSuccessfulShards()).thenReturn(1);
         when(searchResponse1.getTotalShards()).thenReturn(1);
         BytesArray source = new BytesArray("{}");
-        SearchHit hit = new SearchHit(0, "first_foo", null);
+        SearchHit hit = new SearchHit(0, "first_foo", null, null);
         hit.version(1L);
         hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null, OriginalIndices.NONE));
         hit.sourceRef(source);
@@ -228,7 +228,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
 
         // First return a scroll response with a single hit and then with no hits
-        hit = new SearchHit(0, "second_foo", null);
+        hit = new SearchHit(0, "second_foo", null, null);
         hit.version(1L);
         hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null, OriginalIndices.NONE));
         hit.sourceRef(source);
@@ -295,10 +295,10 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        MetaData.Builder metaDataBuilder = MetaData.builder();
-        metaDataBuilder.put(IndexMetaData.builder("triggered-watches-alias").settings(indexSettings)
-            .putAlias(new AliasMetaData.Builder(TriggeredWatchStoreField.INDEX_NAME).build()));
-        final Index index = metaDataBuilder.get("triggered-watches-alias").getIndex();
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        metadataBuilder.put(IndexMetadata.builder("triggered-watches-alias").settings(indexSettings)
+            .putAlias(new AliasMetadata.Builder(TriggeredWatchStoreField.INDEX_NAME).build()));
+        final Index index = metadataBuilder.get("triggered-watches-alias").getIndex();
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
         ShardId shardId = new ShardId(index, 0);
         indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(shardId)
@@ -306,7 +306,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             .build());
         indexRoutingTableBuilder.addReplica();
         routingTableBuilder.add(indexRoutingTableBuilder.build());
-        csBuilder.metaData(metaDataBuilder);
+        csBuilder.metadata(metadataBuilder);
         csBuilder.routingTable(routingTableBuilder.build());
         ClusterState cs = csBuilder.build();
 
@@ -318,26 +318,26 @@ public class TriggeredWatchStoreTests extends ESTestCase {
     public void testLoadingFailsWithTwoAliases() {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
 
-        MetaData.Builder metaDataBuilder = MetaData.builder();
+        Metadata.Builder metadataBuilder = Metadata.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        metaDataBuilder.put(IndexMetaData.builder("triggered-watches-alias").settings(indexSettings)
-            .putAlias(new AliasMetaData.Builder(TriggeredWatchStoreField.INDEX_NAME).build()));
-        metaDataBuilder.put(IndexMetaData.builder("whatever").settings(indexSettings)
-            .putAlias(new AliasMetaData.Builder(TriggeredWatchStoreField.INDEX_NAME).build()));
+        metadataBuilder.put(IndexMetadata.builder("triggered-watches-alias").settings(indexSettings)
+            .putAlias(new AliasMetadata.Builder(TriggeredWatchStoreField.INDEX_NAME).build()));
+        metadataBuilder.put(IndexMetadata.builder("whatever").settings(indexSettings)
+            .putAlias(new AliasMetadata.Builder(TriggeredWatchStoreField.INDEX_NAME).build()));
 
-        final Index index = metaDataBuilder.get("triggered-watches-alias").getIndex();
+        final Index index = metadataBuilder.get("triggered-watches-alias").getIndex();
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
         indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(index, 0))
             .addShard(TestShardRouting.newShardRouting("triggered-watches-alias", 0, "_node_id", null, true, ShardRoutingState.STARTED))
             .build());
         indexRoutingTableBuilder.addReplica();
-        final Index otherIndex = metaDataBuilder.get("whatever").getIndex();
+        final Index otherIndex = metadataBuilder.get("whatever").getIndex();
         IndexRoutingTable.Builder otherIndexRoutingTableBuilder = IndexRoutingTable.builder(otherIndex);
         otherIndexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(index, 0))
             .addShard(TestShardRouting.newShardRouting("whatever", 0, "_node_id", null, true, ShardRoutingState.STARTED))
             .build());
 
-        csBuilder.metaData(metaDataBuilder);
+        csBuilder.metadata(metadataBuilder);
         csBuilder.routingTable(routingTableBuilder.build());
         ClusterState cs = csBuilder.build();
 
@@ -349,11 +349,11 @@ public class TriggeredWatchStoreTests extends ESTestCase {
     public void testTriggeredWatchesIndexIsClosed() {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
 
-        MetaData.Builder metaDataBuilder = MetaData.builder();
-        metaDataBuilder.put(IndexMetaData.builder(TriggeredWatchStoreField.INDEX_NAME)
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        metadataBuilder.put(IndexMetadata.builder(TriggeredWatchStoreField.INDEX_NAME)
             .settings(indexSettings)
-            .state(IndexMetaData.State.CLOSE));
-        csBuilder.metaData(metaDataBuilder);
+            .state(IndexMetadata.State.CLOSE));
+        csBuilder.metadata(metadataBuilder);
 
         assertThat(TriggeredWatchStore.validate(csBuilder.build()), is(false));
     }
@@ -367,11 +367,11 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         verify(client, times(0)).execute(any(), any(), any());
     }
 
-    public void testIndexNotFoundButInMetaData() {
+    public void testIndexNotFoundButInMetadata() {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-        MetaData.Builder metaDataBuilder = MetaData.builder()
-            .put(IndexMetaData.builder(TriggeredWatchStoreField.INDEX_NAME).settings(indexSettings));
-        csBuilder.metaData(metaDataBuilder);
+        Metadata.Builder metadataBuilder = Metadata.builder()
+            .put(IndexMetadata.builder(TriggeredWatchStoreField.INDEX_NAME).settings(indexSettings));
+        csBuilder.metadata(metadataBuilder);
 
         ClusterState cs = csBuilder.build();
         Watch watch = mock(Watch.class);

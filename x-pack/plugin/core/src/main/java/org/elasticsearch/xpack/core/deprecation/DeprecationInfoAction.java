@@ -15,7 +15,7 @@ import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBui
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -176,7 +176,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                                                           String[] indices, IndicesOptions indicesOptions,
                                                           List<DatafeedConfig> datafeeds,
                                                           NodesDeprecationCheckResponse nodeDeprecationResponse,
-                                                          List<Function<IndexMetaData, DeprecationIssue>> indexSettingsChecks,
+                                                          List<Function<IndexMetadata, DeprecationIssue>> indexSettingsChecks,
                                                           List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks,
                                                           List<BiFunction<DatafeedConfig, NamedXContentRegistry, DeprecationIssue>>
                                                               mlSettingsCheck) {
@@ -192,9 +192,9 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
 
             Map<String, List<DeprecationIssue>> indexSettingsIssues = new HashMap<>();
             for (String concreteIndex : concreteIndexNames) {
-                IndexMetaData indexMetaData = state.getMetaData().index(concreteIndex);
+                IndexMetadata indexMetadata = state.getMetadata().index(concreteIndex);
                 List<DeprecationIssue> singleIndexIssues = filterChecks(indexSettingsChecks,
-                    c -> c.apply(indexMetaData));
+                    c -> c.apply(indexMetadata));
                 if (singleIndexIssues.size() > 0) {
                     indexSettingsIssues.put(concreteIndex, singleIndexIssues);
                 }

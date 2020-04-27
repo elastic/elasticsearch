@@ -27,57 +27,64 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
     @Before
     public void setUp() throws Exception {
         // Build the sample jars
-        getGradleRunner("thirdPartyAudit")
-            .withArguments("build", "-s")
-            .build();
+        getGradleRunner("thirdPartyAudit").withArguments("build", "-s").build();
     }
 
     public void testElasticsearchIgnored() {
-        BuildResult result = getGradleRunner("thirdPartyAudit")
-            .withArguments("clean", "empty", "-s",
-                "-PcompileOnlyGroup=elasticsearch.gradle:broken-log4j", "-PcompileOnlyVersion=0.0.1",
-                "-PcompileGroup=elasticsearch.gradle:dummy-io", "-PcompileVersion=0.0.1"
-            )
-            .build();
+        BuildResult result = getGradleRunner("thirdPartyAudit").withArguments(
+            "clean",
+            "empty",
+            "-s",
+            "-PcompileOnlyGroup=elasticsearch.gradle:broken-log4j",
+            "-PcompileOnlyVersion=0.0.1",
+            "-PcompileGroup=elasticsearch.gradle:dummy-io",
+            "-PcompileVersion=0.0.1"
+        ).build();
         assertTaskNoSource(result, ":empty");
     }
 
     public void testWithEmptyRules() {
-        BuildResult result = getGradleRunner("thirdPartyAudit")
-            .withArguments("clean", "empty", "-s",
-                "-PcompileOnlyGroup=other.gradle:broken-log4j", "-PcompileOnlyVersion=0.0.1",
-                "-PcompileGroup=other.gradle:dummy-io", "-PcompileVersion=0.0.1"
-            )
-            .buildAndFail();
+        BuildResult result = getGradleRunner("thirdPartyAudit").withArguments(
+            "clean",
+            "empty",
+            "-s",
+            "-PcompileOnlyGroup=other.gradle:broken-log4j",
+            "-PcompileOnlyVersion=0.0.1",
+            "-PcompileGroup=other.gradle:dummy-io",
+            "-PcompileVersion=0.0.1"
+        ).buildAndFail();
     }
 
     public void testViolationFoundAndCompileOnlyIgnored() {
-        BuildResult result = getGradleRunner("thirdPartyAudit")
-            .withArguments("clean", "absurd", "-s",
-                "-PcompileOnlyGroup=other.gradle:broken-log4j", "-PcompileOnlyVersion=0.0.1",
-                "-PcompileGroup=other.gradle:dummy-io", "-PcompileVersion=0.0.1"
-            )
-            .buildAndFail();
+        BuildResult result = getGradleRunner("thirdPartyAudit").withArguments(
+            "clean",
+            "absurd",
+            "-s",
+            "-PcompileOnlyGroup=other.gradle:broken-log4j",
+            "-PcompileOnlyVersion=0.0.1",
+            "-PcompileGroup=other.gradle:dummy-io",
+            "-PcompileVersion=0.0.1"
+        ).buildAndFail();
 
         assertTaskFailed(result, ":absurd");
-        assertOutputContains(result.getOutput(),
-            "Classes with violations:",
-            "  * TestingIO",
-            "> Audit of third party dependencies failed"
-        );
-        assertOutputDoesNotContain(result.getOutput(),"Missing classes:");
+        assertOutputContains(result.getOutput(), "Classes with violations:", "  * TestingIO", "> Audit of third party dependencies failed");
+        assertOutputDoesNotContain(result.getOutput(), "Missing classes:");
     }
 
     public void testClassNotFoundAndCompileOnlyIgnored() {
-        BuildResult result = getGradleRunner("thirdPartyAudit")
-            .withArguments("clean", "absurd", "-s",
-                "-PcompileGroup=other.gradle:broken-log4j", "-PcompileVersion=0.0.1",
-                "-PcompileOnlyGroup=other.gradle:dummy-io", "-PcompileOnlyVersion=0.0.1"
-            )
-            .buildAndFail();
+        BuildResult result = getGradleRunner("thirdPartyAudit").withArguments(
+            "clean",
+            "absurd",
+            "-s",
+            "-PcompileGroup=other.gradle:broken-log4j",
+            "-PcompileVersion=0.0.1",
+            "-PcompileOnlyGroup=other.gradle:dummy-io",
+            "-PcompileOnlyVersion=0.0.1"
+        ).buildAndFail();
         assertTaskFailed(result, ":absurd");
 
-        assertOutputContains(result.getOutput(),
+        assertOutputContains(
+            result.getOutput(),
             "Missing classes:",
             "  * org.apache.logging.log4j.LogManager",
             "> Audit of third party dependencies failed"
@@ -86,15 +93,19 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
     }
 
     public void testJarHellWithJDK() {
-        BuildResult result = getGradleRunner("thirdPartyAudit")
-            .withArguments("clean", "absurd", "-s",
-                "-PcompileGroup=other.gradle:jarhellJdk", "-PcompileVersion=0.0.1",
-                "-PcompileOnlyGroup=other.gradle:dummy-io", "-PcompileOnlyVersion=0.0.1"
-            )
-            .buildAndFail();
+        BuildResult result = getGradleRunner("thirdPartyAudit").withArguments(
+            "clean",
+            "absurd",
+            "-s",
+            "-PcompileGroup=other.gradle:jarhellJdk",
+            "-PcompileVersion=0.0.1",
+            "-PcompileOnlyGroup=other.gradle:dummy-io",
+            "-PcompileOnlyVersion=0.0.1"
+        ).buildAndFail();
         assertTaskFailed(result, ":absurd");
 
-        assertOutputContains(result.getOutput(),
+        assertOutputContains(
+            result.getOutput(),
             "> Audit of third party dependencies failed:",
             "   Jar Hell with the JDK:",
             "    * java.lang.String"
@@ -103,12 +114,15 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
     }
 
     public void testElasticsearchIgnoredWithViolations() {
-        BuildResult result = getGradleRunner("thirdPartyAudit")
-            .withArguments("clean", "absurd", "-s",
-                "-PcompileOnlyGroup=elasticsearch.gradle:broken-log4j", "-PcompileOnlyVersion=0.0.1",
-                "-PcompileGroup=elasticsearch.gradle:dummy-io", "-PcompileVersion=0.0.1"
-            )
-            .build();
+        BuildResult result = getGradleRunner("thirdPartyAudit").withArguments(
+            "clean",
+            "absurd",
+            "-s",
+            "-PcompileOnlyGroup=elasticsearch.gradle:broken-log4j",
+            "-PcompileOnlyVersion=0.0.1",
+            "-PcompileGroup=elasticsearch.gradle:dummy-io",
+            "-PcompileVersion=0.0.1"
+        ).build();
         assertTaskNoSource(result, ":absurd");
     }
 

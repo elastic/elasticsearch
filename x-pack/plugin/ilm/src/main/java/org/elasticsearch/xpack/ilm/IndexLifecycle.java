@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -30,6 +30,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
@@ -48,11 +49,12 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.LifecycleType;
 import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
-import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
+import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
@@ -163,6 +165,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING,
             LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING,
             LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING,
+            LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING,
             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING,
             LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING,
             LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING,
@@ -173,7 +176,9 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver expressionResolver,
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
         final List<Object> components = new ArrayList<>();
         if (ilmEnabled) {
             // This registers a cluster state listener, so appears unused but is not.
@@ -212,9 +217,9 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
     public List<org.elasticsearch.common.xcontent.NamedXContentRegistry.Entry> getNamedXContent() {
         return Arrays.asList(
             // Custom Metadata
-            new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(IndexLifecycleMetadata.TYPE),
+            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(IndexLifecycleMetadata.TYPE),
                 parser -> IndexLifecycleMetadata.PARSER.parse(parser, null)),
-            new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(SnapshotLifecycleMetadata.TYPE),
+            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(SnapshotLifecycleMetadata.TYPE),
                 parser -> SnapshotLifecycleMetadata.PARSER.parse(parser, null)),
             // Lifecycle Types
             new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TimeseriesLifecycleType.TYPE),
@@ -229,7 +234,10 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(FreezeAction.NAME), FreezeAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(WaitForSnapshotAction.NAME), WaitForSnapshotAction::parse)
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(WaitForSnapshotAction.NAME),
+                WaitForSnapshotAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SearchableSnapshotAction.NAME),
+                SearchableSnapshotAction::parse)
         );
     }
 
@@ -240,29 +248,29 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         List<RestHandler> handlers = new ArrayList<>();
         if (ilmEnabled) {
             handlers.addAll(Arrays.asList(
-                new RestPutLifecycleAction(restController),
-                new RestGetLifecycleAction(restController),
-                new RestDeleteLifecycleAction(restController),
-                new RestExplainLifecycleAction(restController),
-                new RestRemoveIndexLifecyclePolicyAction(restController),
-                new RestMoveToStepAction(restController),
-                new RestRetryAction(restController),
-                new RestStopAction(restController),
-                new RestStartILMAction(restController),
-                new RestGetStatusAction(restController)
+                new RestPutLifecycleAction(),
+                new RestGetLifecycleAction(),
+                new RestDeleteLifecycleAction(),
+                new RestExplainLifecycleAction(),
+                new RestRemoveIndexLifecyclePolicyAction(),
+                new RestMoveToStepAction(),
+                new RestRetryAction(),
+                new RestStopAction(),
+                new RestStartILMAction(),
+                new RestGetStatusAction()
             ));
         }
         if (slmEnabled) {
             handlers.addAll(Arrays.asList(
-                new RestPutSnapshotLifecycleAction(restController),
-                new RestDeleteSnapshotLifecycleAction(restController),
-                new RestGetSnapshotLifecycleAction(restController),
-                new RestExecuteSnapshotLifecycleAction(restController),
-                new RestGetSnapshotLifecycleStatsAction(restController),
-                new RestExecuteSnapshotRetentionAction(restController),
-                new RestStopSLMAction(restController),
-                new RestStartSLMAction(restController),
-                new RestGetSLMStatusAction(restController)
+                new RestPutSnapshotLifecycleAction(),
+                new RestDeleteSnapshotLifecycleAction(),
+                new RestGetSnapshotLifecycleAction(),
+                new RestExecuteSnapshotLifecycleAction(),
+                new RestGetSnapshotLifecycleStatsAction(),
+                new RestExecuteSnapshotRetentionAction(),
+                new RestStopSLMAction(),
+                new RestStartSLMAction(),
+                new RestGetSLMStatusAction()
             ));
         }
         return handlers;

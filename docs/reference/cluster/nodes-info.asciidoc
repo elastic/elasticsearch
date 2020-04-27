@@ -33,7 +33,7 @@ By default, it returns all attributes and core settings for a node.
 ==== {api-path-parms-title}
 
 `<metric>`::
-		(Optional, string) Limits the information returned to the specific metrics. 
+		(Optional, string) Limits the information returned to the specific metrics.
 		A comma-separated list of the following options:
 +
 --
@@ -46,14 +46,14 @@ By default, it returns all attributes and core settings for a node.
 		Statistics about ingest preprocessing.
 
 `jvm`::
-		JVM stats, memory pool information, garbage collection, buffer pools, number 
+		JVM stats, memory pool information, garbage collection, buffer pools, number
 		of loaded/unloaded classes.
 
 `os`::
 		Operating system stats, load average, mem, swap.
-		
+
 `plugins`::
-		Details about the installed plugins and modules per node. The following 
+		Details about the installed plugins and modules per node. The following
 		information are available for each plugin and module:
 +
 ---
@@ -61,20 +61,20 @@ By default, it returns all attributes and core settings for a node.
 		* `version`: version of Elasticsearch the plugin was built for
 		* `description`: short description of the plugin's purpose
 		* `classname`: fully-qualified class name of the plugin's entry point
-		* `has_native_controller`: whether or not the plugin has a native controller 
+		* `has_native_controller`: whether or not the plugin has a native controller
 		process
 ---
-	
+
 `process`::
 		Process statistics, memory consumption, cpu usage, open file descriptors.
 
 `settings`::
-		
+
 
 `thread_pool`::
-		Statistics about each thread pool, including current size, queue and 
+		Statistics about each thread pool, including current size, queue and
 		rejected tasks
-		
+
 `transport`::
 		Transport statistics about sent and received bytes in cluster communication.
 --
@@ -113,7 +113,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id]
 `version`::
 		{es} version running on this node.
 
-The `os` flag can be set to retrieve information that concern the operating 
+The `os` flag can be set to retrieve information that concern the operating
 system:
 
 `os.refresh_interval_in_millis`::
@@ -132,12 +132,12 @@ system:
 		Number of processors available to the Java virtual machine
 
 `os.allocated_processors`::
-	  The number of processors actually used to calculate thread pool size. This 
-		number can be set with the `processors` setting of a node and defaults to 
-		the number of processors reported by the OS. In both cases this number will 
-		never be larger than 32.
+	  The number of processors actually used to calculate thread pool size. This
+		number can be set with the <<node.processors, `node.processors`>>
+		setting of a node and defaults to the number of processors reported by
+		the OS.
 
-The `process` flag can be set to retrieve information that concern the current 
+The `process` flag can be set to retrieve information that concern the current
 running process:
 
 `process.refresh_interval_in_millis`::
@@ -185,7 +185,7 @@ The `_all` flag can be set to return all the information - or you can omit it.
 [[cluster-nodes-info-api-example-plugins]]
 ===== Example for plugins metric
 
-If `plugins` is specified, the result will contain details about the installed 
+If `plugins` is specified, the result will contain details about the installed
 plugins and modules:
 
 [source,console]
@@ -256,7 +256,7 @@ The API returns the following response:
 [[cluster-nodes-info-api-example-ingest]]
 ===== Example for ingest metric
 
-If `ingest` is specified, the response contains details about the available 
+If `ingest` is specified, the response contains details about the available
 processors per node:
 
 [source,console]

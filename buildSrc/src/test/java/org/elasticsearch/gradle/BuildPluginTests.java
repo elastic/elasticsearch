@@ -25,7 +25,6 @@ import org.junit.Test;
 import java.net.URI;
 import java.net.URISyntaxException;
 
-
 public class BuildPluginTests extends GradleUnitTestCase {
 
     @Test(expected = GradleException.class)

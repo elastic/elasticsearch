@@ -1,0 +1,102 @@
+---
+"Basic test for upgrade indices < 8.0.0":
+  - skip:
+      version: "8.0.0 - "
+      reason: "_upgrade api has deprecation header since 8.0.0"
+      features: "node_selector"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+  - do:
+      indices.upgrade:
+        index: test_index
+      node_selector:
+        version: " - 7.99.99"
+
+  - match: {upgraded_indices.test_index.oldest_lucene_segment_version: '/(\d\.)+\d/'}
+  - is_true: upgraded_indices.test_index.upgrade_version
+
+---
+"Upgrade indices ignore unavailable < 8.0.0":
+  - skip:
+      version: "8.0.0 - "
+      reason: "_upgrade api has deprecation header since 8.0.0"
+      features: "node_selector"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      indices.upgrade:
+        index: ["does_not_exist", "test_index"]
+        ignore_unavailable: true
+      node_selector:
+        version: " - 7.99.99"
+
+  - match: {_shards.total: 1}
+  - is_true: upgraded_indices.test_index.upgrade_version
+  - is_false: upgraded_indices.does_not_exist
+
+---
+"Upgrade indices allow no indices < 8.0.0":
+  - skip:
+      version: "8.0.0 - "
+      reason: "_upgrade api has deprecation header since 8.0.0"
+      features: "node_selector"
+
+  - do:
+      indices.upgrade:
+        index: test_index
+        ignore_unavailable: true
+        allow_no_indices: true
+      node_selector:
+        version: " - 7.99.99"
+
+  - match: {_shards.total: 0}
+
+---
+"Upgrade indices disallow no indices < 8.0.0":
+  - skip:
+      version: "8.0.0 - "
+      reason: "_upgrade api has deprecation header since 8.0.0"
+      features: "node_selector"
+
+  - do:
+      catch: missing
+      indices.upgrade:
+        index: test_index
+        ignore_unavailable: true
+        allow_no_indices: false
+      node_selector:
+        version: " - 7.99.99"
+
+---
+"Upgrade indices disallow unavailable < 8.0.0":
+  - skip:
+      version: "8.0.0 - "
+      reason: "_upgrade api has deprecation header since 8.0.0"
+      features: "node_selector"
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      catch: missing
+      indices.upgrade:
+        index: ["test_index", "does_not_exist"]
+        ignore_unavailable: false
+      node_selector:
+        version: " - 7.99.99"

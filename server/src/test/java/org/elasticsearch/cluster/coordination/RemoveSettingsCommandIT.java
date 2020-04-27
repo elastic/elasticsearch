@@ -56,7 +56,7 @@ public class RemoveSettingsCommandIT extends ESIntegTestCase {
         String node = internalCluster().startNode();
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false).build()).get();
-        assertThat(client().admin().cluster().prepareState().get().getState().metaData().persistentSettings().keySet(),
+        assertThat(client().admin().cluster().prepareState().get().getState().metadata().persistentSettings().keySet(),
             contains(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()));
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
@@ -75,7 +75,7 @@ public class RemoveSettingsCommandIT extends ESIntegTestCase {
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey() + ": "  + false));
 
         internalCluster().startNode(dataPathSettings);
-        assertThat(client().admin().cluster().prepareState().get().getState().metaData().persistentSettings().keySet(),
+        assertThat(client().admin().cluster().prepareState().get().getState().metadata().persistentSettings().keySet(),
             not(contains(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey())));
     }
 
@@ -84,7 +84,7 @@ public class RemoveSettingsCommandIT extends ESIntegTestCase {
         String node = internalCluster().startNode();
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false).build()).get();
-        assertThat(client().admin().cluster().prepareState().get().getState().metaData().persistentSettings().keySet(),
+        assertThat(client().admin().cluster().prepareState().get().getState().metadata().persistentSettings().keySet(),
             contains(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()));
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);

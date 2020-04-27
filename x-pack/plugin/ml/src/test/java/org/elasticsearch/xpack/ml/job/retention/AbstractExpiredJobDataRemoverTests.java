@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -57,6 +60,11 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
             getRetentionDaysCallCount++;
             // cover both code paths
             return randomBoolean() ? null : 0L;
+        }
+
+        void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<Long> listener) {
+            long nowEpochMs = Instant.now(Clock.systemDefaultZone()).toEpochMilli();
+            listener.onResponse(nowEpochMs - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis());
         }
 
         @Override

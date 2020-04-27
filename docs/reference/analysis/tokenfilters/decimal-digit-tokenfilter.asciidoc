@@ -8,7 +8,7 @@ Converts all digits in the Unicode `Decimal_Number` General Category to `0-9`.
 For example, the filter changes the Bengali numeral `৩` to `3`.
 
 This filter uses Lucene's
-https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysiscore/DecimalDigitFilter.html[DecimalDigitFilter].
+{lucene-analysis-docs}/core/DecimalDigitFilter.html[DecimalDigitFilter].
 
 [[analysis-decimal-digit-tokenfilter-analyze-ex]]
 ==== Example

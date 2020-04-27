@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 
@@ -16,9 +17,9 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
 
     /**
      * @return The analysis parameters as a map
-     * @param extractedFields map of (name, types) for all the extracted fields
+     * @param fieldInfo Information about the fields like types and cardinalities
      */
-    Map<String, Object> getParams(Map<String, Set<String>> extractedFields);
+    Map<String, Object> getParams(FieldInfo fieldInfo);
 
     /**
      * @return {@code true} if this analysis supports fields with categorical values (i.e. text, keyword, ip)
@@ -37,20 +38,18 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
     List<RequiredField> getRequiredFields();
 
     /**
-     * @return {@link Map} containing cardinality limits for the selected (analysis-specific) fields
+     * @return {@link List} containing cardinality constraints for the selected (analysis-specific) fields
      */
-    Map<String, Long> getFieldCardinalityLimits();
+    List<FieldCardinalityConstraint> getFieldCardinalityConstraints();
 
     /**
-     * Returns fields for which the mappings should be copied from source index to destination index.
-     * Each entry of the returned {@link Map} is of the form:
-     *   key   - field path in the destination index
-     *   value - field path in the source index from which the mapping should be taken
+     * Returns fields for which the mappings should be either predefined or copied from source index to destination index.
      *
+     * @param mappingsProperties mappings.properties portion of the index mappings
      * @param resultsFieldName name of the results field under which all the results are stored
-     * @return {@link Map} containing fields for which the mappings should be copied from source index to destination index
+     * @return {@link Map} containing fields for which the mappings should be handled explicitly
      */
-    Map<String, String> getExplicitlyMappedFields(String resultsFieldName);
+    Map<String, Object> getExplicitlyMappedFields(Map<String, Object> mappingsProperties, String resultsFieldName);
 
     /**
      * @return {@code true} if this analysis supports data frame rows with missing values
@@ -66,4 +65,27 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
      * Returns the document id for the analysis state
      */
     String getStateDocId(String jobId);
+
+    /**
+     * Summarizes information about the fields that is necessary for analysis to generate
+     * the parameters needed for the process configuration.
+     */
+    interface FieldInfo {
+
+        /**
+         * Returns the types for the given field or {@code null} if the field is unknown
+         * @param field the field whose types to return
+         * @return the types for the given field or {@code null} if the field is unknown
+         */
+        @Nullable
+        Set<String> getTypes(String field);
+
+        /**
+         * Returns the cardinality of the given field or {@code null} if there is no cardinality for that field
+         * @param field the field whose cardinality to get
+         * @return the cardinality of the given field or {@code null} if there is no cardinality for that field
+         */
+        @Nullable
+        Long getCardinality(String field);
+    }
 }

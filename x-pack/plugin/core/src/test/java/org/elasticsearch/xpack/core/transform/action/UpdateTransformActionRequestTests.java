@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.transform.action;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Request;
 
-import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdateTests.randomDataFrameTransformConfigUpdate;
+import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdateTests.randomTransformConfigUpdate;
 
 public class UpdateTransformActionRequestTests extends AbstractWireSerializingTransformTestCase<Request> {
 
@@ -20,7 +20,7 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomDataFrameTransformConfigUpdate(), randomAlphaOfLength(10), randomBoolean());
+        return new Request(randomTransformConfigUpdate(), randomAlphaOfLength(10), randomBoolean());
     }
 
 }

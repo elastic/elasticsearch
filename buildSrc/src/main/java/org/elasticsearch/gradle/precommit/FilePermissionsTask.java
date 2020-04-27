@@ -28,7 +28,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.tools.ant.taskdefs.condition.Os;
-import org.elasticsearch.gradle.tool.Boilerplate;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
@@ -50,10 +50,10 @@ public class FilePermissionsTask extends DefaultTask {
      * A pattern set of which files should be checked.
      */
     private final PatternFilterable filesFilter = new PatternSet()
-            // we always include all source files, and exclude what should not be checked
-            .include("**")
-            // exclude sh files that might have the executable bit set
-            .exclude("**/*.sh");
+        // we always include all source files, and exclude what should not be checked
+        .include("**")
+        // exclude sh files that might have the executable bit set
+        .exclude("**/*.sh");
 
     private File outputMarker = new File(getProject().getBuildDir(), "markers/filePermissions");
 
@@ -64,11 +64,11 @@ public class FilePermissionsTask extends DefaultTask {
     private static boolean isExecutableFile(File file) {
         try {
             Set<PosixFilePermission> permissions = Files.getFileAttributeView(file.toPath(), PosixFileAttributeView.class)
-                    .readAttributes()
-                    .permissions();
+                .readAttributes()
+                .permissions();
             return permissions.contains(PosixFilePermission.OTHERS_EXECUTE)
-                    || permissions.contains(PosixFilePermission.OWNER_EXECUTE)
-                    || permissions.contains(PosixFilePermission.GROUP_EXECUTE);
+                || permissions.contains(PosixFilePermission.OWNER_EXECUTE)
+                || permissions.contains(PosixFilePermission.GROUP_EXECUTE);
         } catch (IOException e) {
             throw new IllegalStateException("unable to read the file " + file + " attributes", e);
         }
@@ -80,10 +80,11 @@ public class FilePermissionsTask extends DefaultTask {
     @InputFiles
     @SkipWhenEmpty
     public FileCollection getFiles() {
-        return Boilerplate.getJavaSourceSets(getProject()).stream()
-                .map(sourceSet -> sourceSet.getAllSource().matching(filesFilter))
-                .reduce(FileTree::plus)
-                .orElse(getProject().files().getAsFileTree());
+        return GradleUtils.getJavaSourceSets(getProject())
+            .stream()
+            .map(sourceSet -> sourceSet.getAllSource().matching(filesFilter))
+            .reduce(FileTree::plus)
+            .orElse(getProject().files().getAsFileTree());
     }
 
     @TaskAction
@@ -91,10 +92,11 @@ public class FilePermissionsTask extends DefaultTask {
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             throw new StopExecutionException();
         }
-        List<String> failures = getFiles().getFiles().stream()
-                .filter(FilePermissionsTask::isExecutableFile)
-                .map(file -> "Source file is executable: " + file)
-                .collect(Collectors.toList());
+        List<String> failures = getFiles().getFiles()
+            .stream()
+            .filter(FilePermissionsTask::isExecutableFile)
+            .map(file -> "Source file is executable: " + file)
+            .collect(Collectors.toList());
 
         if (!failures.isEmpty()) {
             throw new GradleException("Found invalid file permissions:\n" + String.join("\n", failures));

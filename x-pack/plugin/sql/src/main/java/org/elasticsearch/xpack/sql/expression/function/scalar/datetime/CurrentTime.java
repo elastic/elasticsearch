@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.time.OffsetTime;
 
@@ -22,7 +22,7 @@ public class CurrentTime extends CurrentFunction<OffsetTime> {
 
     public CurrentTime(Source source, Expression precision, Configuration configuration) {
         super(source, configuration, nanoPrecision(configuration.now().toOffsetDateTime().toOffsetTime(), precision),
-            DataType.TIME);
+            SqlDataTypes.TIME);
         this.precision = precision;
     }
 

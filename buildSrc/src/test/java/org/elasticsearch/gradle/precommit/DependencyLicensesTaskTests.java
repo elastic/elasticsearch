@@ -170,10 +170,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
         File licensesDir = getLicensesDir(project);
         createAllDefaultDependencyFiles(licensesDir, "groovy-all");
 
-        Path groovySha = Files
-            .list(licensesDir.toPath())
-            .filter(file -> file.toFile().getName().contains("sha"))
-            .findFirst().get();
+        Path groovySha = Files.list(licensesDir.toPath()).filter(file -> file.toFile().getName().contains("sha")).findFirst().get();
 
         Files.write(groovySha, new byte[] { 1 }, StandardOpenOption.CREATE);
 
@@ -247,16 +244,14 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
     }
 
     private UpdateShasTask createUpdateShasTask(Project project, TaskProvider<DependencyLicensesTask> dependencyLicensesTask) {
-        UpdateShasTask task =  project.getTasks()
-            .register("updateShas", UpdateShasTask.class)
-            .get();
+        UpdateShasTask task = project.getTasks().register("updateShas", UpdateShasTask.class).get();
 
         task.setParentTask(dependencyLicensesTask);
         return task;
     }
 
     private TaskProvider<DependencyLicensesTask> createDependencyLicensesTask(Project project) {
-        TaskProvider<DependencyLicensesTask> task =  project.getTasks()
+        TaskProvider<DependencyLicensesTask> task = project.getTasks()
             .register("dependencyLicenses", DependencyLicensesTask.class, new Action<DependencyLicensesTask>() {
                 @Override
                 public void execute(DependencyLicensesTask dependencyLicensesTask) {

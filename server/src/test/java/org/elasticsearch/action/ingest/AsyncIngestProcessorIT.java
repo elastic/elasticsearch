@@ -24,6 +24,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -37,6 +38,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,6 +48,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -99,7 +102,9 @@ public class AsyncIngestProcessorIT extends ESSingleNodeTestCase {
         public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                    ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                    NamedXContentRegistry xContentRegistry, Environment environment,
-                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                                   IndexNameExpressionResolver expressionResolver,
+                                                   Supplier<RepositoriesService> repositoriesServiceSupplier) {
             this.threadPool = threadPool;
             return List.of();
         }

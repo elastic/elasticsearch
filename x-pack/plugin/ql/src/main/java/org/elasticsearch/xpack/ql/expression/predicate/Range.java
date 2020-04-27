@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Binar
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.Locale;
@@ -118,7 +119,7 @@ public class Range extends ScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return DataTypes.BOOLEAN;
     }
 
     @Override
@@ -128,7 +129,7 @@ public class Range extends ScalarFunction {
         ScriptTemplate upperScript = asScript(upper);
         
 
-        String template = formatTemplate(format(Locale.ROOT, "{sql}.and({sql}.%s(%s, %s), {sql}.%s(%s, %s))",
+        String template = formatTemplate(format(Locale.ROOT, "{ql}.and({ql}.%s(%s, %s), {ql}.%s(%s, %s))",
                         includeLower() ? "gte" : "gt",
                         valueScript.template(),
                         lowerScript.template(),
@@ -144,7 +145,7 @@ public class Range extends ScalarFunction {
                 .script(upperScript.params())
                 .build();
 
-        return new ScriptTemplate(template, params, DataType.BOOLEAN);
+        return new ScriptTemplate(template, params, DataTypes.BOOLEAN);
     }
 
     @Override

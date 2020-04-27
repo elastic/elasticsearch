@@ -25,7 +25,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Strings;
@@ -40,7 +40,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -233,7 +233,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareUpdateSettings("test2").setSettings(Settings.builder()
             .put(SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name",
+            .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name",
                 internalCluster().getDataNodeInstance(Node.class).settings().get(Node.NODE_NAME_SETTING.getKey()))));
 
         ensureGreen();

@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest.GrantType;
@@ -41,14 +42,17 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
     private final ThreadPool threadPool;
     private final TokenService tokenService;
     private final AuthenticationService authenticationService;
+    private final SecurityContext securityContext;
 
     @Inject
     public TransportCreateTokenAction(ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
-                                      TokenService tokenService, AuthenticationService authenticationService) {
+                                      TokenService tokenService, AuthenticationService authenticationService,
+                                      SecurityContext securityContext) {
         super(CreateTokenAction.NAME, transportService, actionFilters, CreateTokenRequest::new);
         this.threadPool = threadPool;
         this.tokenService = tokenService;
         this.authenticationService = authenticationService;
+        this.securityContext = securityContext;
     }
 
     @Override
@@ -61,7 +65,7 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
                 authenticateAndCreateToken(type, request, listener);
                 break;
             case CLIENT_CREDENTIALS:
-                Authentication authentication = Authentication.getAuthentication(threadPool.getThreadContext());
+                Authentication authentication = securityContext.getAuthentication();
                 createToken(type, request, authentication, authentication, false, listener);
                 break;
             default:
@@ -72,7 +76,7 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
     }
 
     private void authenticateAndCreateToken(GrantType grantType, CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {
-        Authentication originatingAuthentication = Authentication.getAuthentication(threadPool.getThreadContext());
+        Authentication originatingAuthentication = securityContext.getAuthentication();
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
             final AuthenticationToken authToken = extractAuthenticationToken(grantType, request, listener);
             if (authToken == null) {

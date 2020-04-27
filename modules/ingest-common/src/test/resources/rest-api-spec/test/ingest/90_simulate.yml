@@ -284,26 +284,30 @@ teardown:
   - length: { docs.0.processor_results.0.doc._source: 2 }
   - match: { docs.0.processor_results.0.doc._source.foo.bar.0.item: "HELLO" }
   - match: { docs.0.processor_results.0.doc._source.field2.value: "_value" }
-  - length: { docs.0.processor_results.0.doc._ingest: 1 }
+  - length: { docs.0.processor_results.0.doc._ingest: 2 }
   - is_true: docs.0.processor_results.0.doc._ingest.timestamp
+  - is_true: docs.0.processor_results.0.doc._ingest.pipeline
   - length: { docs.0.processor_results.1.doc._source: 3 }
   - match: { docs.0.processor_results.1.doc._source.foo.bar.0.item: "HELLO" }
   - match: { docs.0.processor_results.1.doc._source.field2.value: "_value" }
   - match: { docs.0.processor_results.1.doc._source.field3: "third_val" }
-  - length: { docs.0.processor_results.1.doc._ingest: 1 }
+  - length: { docs.0.processor_results.1.doc._ingest: 2 }
   - is_true: docs.0.processor_results.1.doc._ingest.timestamp
+  - is_true: docs.0.processor_results.1.doc._ingest.pipeline
   - length: { docs.0.processor_results.2.doc._source: 3 }
   - match: { docs.0.processor_results.2.doc._source.foo.bar.0.item: "HELLO" }
   - match: { docs.0.processor_results.2.doc._source.field2.value: "_VALUE" }
   - match: { docs.0.processor_results.2.doc._source.field3: "third_val" }
-  - length: { docs.0.processor_results.2.doc._ingest: 1 }
+  - length: { docs.0.processor_results.2.doc._ingest: 2 }
   - is_true: docs.0.processor_results.2.doc._ingest.timestamp
+  - is_true: docs.0.processor_results.2.doc._ingest.pipeline
   - length: { docs.0.processor_results.3.doc._source: 3 }
   - match: { docs.0.processor_results.3.doc._source.foo.bar.0.item: "hello" }
   - match: { docs.0.processor_results.3.doc._source.field2.value: "_VALUE" }
   - match: { docs.0.processor_results.3.doc._source.field3: "third_val" }
-  - length: { docs.0.processor_results.3.doc._ingest: 1 }
+  - length: { docs.0.processor_results.3.doc._ingest: 2 }
   - is_true: docs.0.processor_results.3.doc._ingest.timestamp
+  - is_true: docs.0.processor_results.3.doc._ingest.pipeline
 
 ---
 "Test simulate with exception thrown":
@@ -393,12 +397,14 @@ teardown:
   - match: { docs.1.processor_results.0.doc._index: "index" }
   - match: { docs.1.processor_results.0.doc._source.foo: 5 }
   - match: { docs.1.processor_results.0.doc._source.bar: "hello" }
-  - length: { docs.1.processor_results.0.doc._ingest: 1 }
+  - length: { docs.1.processor_results.0.doc._ingest: 2 }
   - is_true: docs.1.processor_results.0.doc._ingest.timestamp
+  - is_true: docs.1.processor_results.0.doc._ingest.pipeline
   - match: { docs.1.processor_results.1.doc._source.foo: 5 }
   - match: { docs.1.processor_results.1.doc._source.bar: "HELLO" }
-  - length: { docs.1.processor_results.1.doc._ingest: 1 }
+  - length: { docs.1.processor_results.1.doc._ingest: 2 }
   - is_true: docs.1.processor_results.1.doc._ingest.timestamp
+  - is_true: docs.1.processor_results.1.doc._ingest.pipeline
 
 ---
 "Test verbose simulate with on_failure":

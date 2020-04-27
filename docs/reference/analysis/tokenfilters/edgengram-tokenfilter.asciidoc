@@ -13,7 +13,7 @@ For example, you can use the `edge_ngram` token filter to change `quick` to
 When not customized, the filter creates 1-character edge n-grams by default.
 
 This filter uses Lucene's
-https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/ngram/EdgeNGramTokenFilter.html[EdgeNGramTokenFilter].
+{lucene-analysis-docs}/ngram/EdgeNGramTokenFilter.html[EdgeNGramTokenFilter].
 
 [NOTE]
 ====
@@ -49,7 +49,7 @@ The filter produces the following tokens:
 
 [source,text]
 --------------------------------------------------
-[ t, th, q, ui, b, br, f, fo, j, ju ]
+[ t, th, q, qu, b, br, f, fo, j, ju ]
 --------------------------------------------------
 
 /////////////////////

@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
 
@@ -48,6 +49,6 @@ abstract class NamedDateTimeFunction extends BaseDateTimeFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return DataTypes.KEYWORD;
     }
 }

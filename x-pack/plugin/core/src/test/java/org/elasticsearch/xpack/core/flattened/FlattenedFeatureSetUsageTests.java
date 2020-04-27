@@ -5,12 +5,18 @@
  */
 package org.elasticsearch.xpack.core.flattened;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 
 public class FlattenedFeatureSetUsageTests extends AbstractWireSerializingTestCase<FlattenedFeatureSetUsage> {
+
+    public void testFlattenedIsRemovedInNextMajor() {
+        assertTrue("FlattenedFeatureSetUsageTests is no longer needed and should be removed in 9.x",
+            Version.CURRENT.major <= Version.V_8_0_0.major);
+    }
 
     @Override
     protected FlattenedFeatureSetUsage createTestInstance() {

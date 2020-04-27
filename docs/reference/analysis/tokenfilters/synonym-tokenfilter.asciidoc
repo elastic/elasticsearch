@@ -78,7 +78,7 @@ PUT /test_index
 --------------------------------------------------
 
 With the above request the word `bar` gets skipped but a mapping `foo => baz` is still added. However, if the mapping
-being added was "foo, baz => bar" nothing would get added to the synonym list. This is because the target word for the
+being added was `foo, baz => bar` nothing would get added to the synonym list. This is because the target word for the
 mapping is itself eliminated because it was a stop word. Similarly, if the mapping was "bar, foo, baz" and `expand` was
 set to `false` no mapping would get added as when `expand=false` the target mapping is the first word. However, if
 `expand=true` then the mappings added would be equivalent to `foo, baz => foo, baz` i.e, all mappings other than the

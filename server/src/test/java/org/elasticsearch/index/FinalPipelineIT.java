@@ -29,6 +29,7 @@ import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -44,6 +45,7 @@ import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -55,6 +57,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -242,7 +245,9 @@ public class FinalPipelineIT extends ESIntegTestCase {
             final NamedXContentRegistry xContentRegistry,
             final Environment environment,
             final NodeEnvironment nodeEnvironment,
-            final NamedWriteableRegistry namedWriteableRegistry) {
+            final NamedWriteableRegistry namedWriteableRegistry,
+            final IndexNameExpressionResolver expressionResolver,
+            final Supplier<RepositoriesService> repositoriesServiceSupplier) {
             return List.of();
         }
 

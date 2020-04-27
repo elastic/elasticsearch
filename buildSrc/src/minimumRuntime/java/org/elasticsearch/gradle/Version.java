@@ -29,11 +29,9 @@ public final class Version implements Comparable<Version> {
         RELAXED
     }
 
-    private static final Pattern pattern =
-            Pattern.compile("(\\d)+\\.(\\d+)\\.(\\d+)(-alpha\\d+|-beta\\d+|-rc\\d+)?(-SNAPSHOT)?");
+    private static final Pattern pattern = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)(-alpha\\d+|-beta\\d+|-rc\\d+)?(-SNAPSHOT)?");
 
-    private static final Pattern relaxedPattern =
-        Pattern.compile("(\\d)+\\.(\\d+)\\.(\\d+)(-[a-zA-Z0-9_]+)*?");
+    private static final Pattern relaxedPattern = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)(-[a-zA-Z0-9_]+)*?");
 
     public Version(int major, int minor, int revision) {
         Objects.requireNonNull(major, "major version can't be null");
@@ -62,19 +60,13 @@ public final class Version implements Comparable<Version> {
         Objects.requireNonNull(s);
         Matcher matcher = mode == Mode.STRICT ? pattern.matcher(s) : relaxedPattern.matcher(s);
         if (matcher.matches() == false) {
-            String expected = mode == Mode.STRICT == true
+            String expected = mode == Mode.STRICT
                 ? "major.minor.revision[-(alpha|beta|rc)Number][-SNAPSHOT]"
                 : "major.minor.revision[-extra]";
-            throw new IllegalArgumentException(
-                "Invalid version format: '" + s + "'. Should be " + expected
-            );
+            throw new IllegalArgumentException("Invalid version format: '" + s + "'. Should be " + expected);
         }
 
-        return new Version(
-                Integer.parseInt(matcher.group(1)),
-                parseSuffixNumber(matcher.group(2)),
-                parseSuffixNumber(matcher.group(3))
-        );
+        return new Version(Integer.parseInt(matcher.group(1)), parseSuffixNumber(matcher.group(2)), parseSuffixNumber(matcher.group(3)));
     }
 
     @Override
@@ -116,12 +108,14 @@ public final class Version implements Comparable<Version> {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         Version version = (Version) o;
-        return major == version.major &&
-                minor == version.minor &&
-                revision == version.revision;
+        return major == version.major && minor == version.minor && revision == version.revision;
     }
 
     @Override

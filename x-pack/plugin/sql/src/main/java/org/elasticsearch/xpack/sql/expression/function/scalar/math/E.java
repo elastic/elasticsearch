@@ -12,15 +12,15 @@ import org.elasticsearch.xpack.ql.expression.gen.script.Params;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 
 public class E extends MathFunction {
 
-    private static final ScriptTemplate TEMPLATE = new ScriptTemplate("Math.E", Params.EMPTY, DataType.DOUBLE);
+    private static final ScriptTemplate TEMPLATE = new ScriptTemplate("Math.E", Params.EMPTY, DataTypes.DOUBLE);
 
     public E(Source source) {
-        super(source, new Literal(source, Math.E, DataType.DOUBLE));
+        super(source, new Literal(source, Math.E, DataTypes.DOUBLE));
     }
 
     @Override

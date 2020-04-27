@@ -42,7 +42,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -216,8 +216,8 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         client().admin().indices().prepareUpdateSettings("source").setSettings(prepareShrinkSettings).get();
         ensureGreen(TimeValue.timeValueSeconds(120)); // needs more than the default to relocate many shards
 
-        final IndexMetaData indexMetaData = indexMetaData(client(), "source");
-        final long beforeShrinkPrimaryTerm = IntStream.range(0, numberOfShards).mapToLong(indexMetaData::primaryTerm).max().getAsLong();
+        final IndexMetadata indexMetadata = indexMetadata(client(), "source");
+        final long beforeShrinkPrimaryTerm = IntStream.range(0, numberOfShards).mapToLong(indexMetadata::primaryTerm).max().getAsLong();
 
         // now merge source into target
         final Settings shrinkSettings =
@@ -226,15 +226,15 @@ public class ShrinkIndexIT extends ESIntegTestCase {
 
         ensureGreen(TimeValue.timeValueSeconds(120));
 
-        final IndexMetaData afterShrinkIndexMetaData = indexMetaData(client(), "target");
+        final IndexMetadata afterShrinkIndexMetadata = indexMetadata(client(), "target");
         for (int shardId = 0; shardId < numberOfTargetShards; shardId++) {
-            assertThat(afterShrinkIndexMetaData.primaryTerm(shardId), equalTo(beforeShrinkPrimaryTerm + 1));
+            assertThat(afterShrinkIndexMetadata.primaryTerm(shardId), equalTo(beforeShrinkPrimaryTerm + 1));
         }
     }
 
-    private static IndexMetaData indexMetaData(final Client client, final String index) {
+    private static IndexMetadata indexMetadata(final Client client, final String index) {
         final ClusterStateResponse clusterStateResponse = client.admin().cluster().state(new ClusterStateRequest()).actionGet();
-        return clusterStateResponse.getState().metaData().index(index);
+        return clusterStateResponse.getState().metadata().index(index);
     }
 
     public void testCreateShrinkIndex() {
@@ -520,7 +520,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             .setSettings(Settings.builder().put("index.number_of_replicas", 0).build()).get());
         ensureGreen();
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
-        IndexMetaData target = clusterStateResponse.getState().getMetaData().index("target");
+        IndexMetadata target = clusterStateResponse.getState().getMetadata().index("target");
         client().admin().indices().prepareForceMerge("target").setMaxNumSegments(1).setFlush(false).get();
         IndicesSegmentResponse targetSegStats = client().admin().indices().prepareSegments("target").get();
         ShardSegments segmentsStats = targetSegStats.getIndices().get("target").getShards().get(0).getShards()[0];
@@ -563,20 +563,20 @@ public class ShrinkIndexIT extends ESIntegTestCase {
 
         final int shardCount = between(2, 5);
         prepareCreate("original").setSettings(Settings.builder().put(indexSettings())
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, shardCount)).get();
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount)).get();
         client().admin().indices().prepareFlush("original").get();
         ensureGreen();
         client().admin().indices().prepareUpdateSettings("original")
             .setSettings(Settings.builder()
-                .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), shrinkNode)
-                .put(IndexMetaData.SETTING_BLOCKS_WRITE, true)).get();
+                .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), shrinkNode)
+                .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)).get();
         ensureGreen();
 
         assertAcked(client().admin().indices().prepareResizeIndex("original", "shrunk").setSettings(Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .putNull(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey())
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .putNull(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey())
             .build()).setResizeType(ResizeType.SHRINK).get());
         ensureGreen();
 
@@ -589,9 +589,9 @@ public class ShrinkIndexIT extends ESIntegTestCase {
 
         logger.info("--> executing split");
         assertAcked(client().admin().indices().prepareResizeIndex("shrunk", "splitagain").setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, shardCount)
-                .putNull(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey())
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount)
+                .putNull(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey())
                 .build()).setResizeType(ResizeType.SPLIT));
         ensureGreen("splitagain");
     }

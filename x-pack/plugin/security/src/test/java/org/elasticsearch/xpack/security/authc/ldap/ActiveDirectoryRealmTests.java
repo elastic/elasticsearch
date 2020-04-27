@@ -35,11 +35,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapLoadBalancingSettings;
-import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetaDataResolverSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetadataResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings;
@@ -149,7 +150,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
     @After
     public void stop() throws InterruptedException {
-        resourceWatcherService.stop();
+        resourceWatcherService.close();
         terminate(threadPool);
         for (int i = 0; i < numberOfLdapServers; i++) {
             directoryServers[i].shutDown(true);
@@ -166,7 +167,8 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
      * the RealmConfig
      */
     private RealmConfig setupRealm(RealmConfig.RealmIdentifier realmIdentifier, Settings localSettings) {
-        final Settings mergedSettings = Settings.builder().put(globalSettings).put(localSettings).build();
+        final Settings mergedSettings = Settings.builder().put(globalSettings).put(localSettings)
+            .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), "0").build();
         final Environment env = TestEnvironment.newEnvironment(mergedSettings);
         this.sslService = new SSLService(env);
         return new RealmConfig(
@@ -369,12 +371,12 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
     /**
      * This tests template role mappings (see
      * {@link TemplateRoleName}) with an LDAP realm, using a additional
-     * metadata field (see {@link LdapMetaDataResolverSettings#ADDITIONAL_META_DATA_SETTING}).
+     * metadata field (see {@link LdapMetadataResolverSettings#ADDITIONAL_METADATA_SETTING}).
      */
     public void testRealmWithTemplatedRoleMapping() throws Exception {
         final RealmConfig.RealmIdentifier realmId = realmId("testRealmWithTemplatedRoleMapping");
         Settings settings = settings(realmId, Settings.builder()
-                .put(getFullSettingKey(realmId, LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING), "departmentNumber")
+                .put(getFullSettingKey(realmId, LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING), "departmentNumber")
                 .build());
         RealmConfig config = setupRealm(realmId, settings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);

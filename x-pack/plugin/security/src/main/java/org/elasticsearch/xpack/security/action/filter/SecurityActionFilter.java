@@ -79,7 +79,7 @@ public class SecurityActionFilter implements ActionFilter {
             throw LicenseUtils.newComplianceException(XPackField.SECURITY);
         }
 
-        if (licenseState.isAuthAllowed()) {
+        if (licenseState.isSecurityEnabled()) {
             final ActionListener<Response> contextPreservingListener =
                     ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
             ActionListener<Void> authenticatedListener = ActionListener.wrap(
@@ -111,7 +111,7 @@ public class SecurityActionFilter implements ActionFilter {
                 listener.onFailure(e);
             }
         } else if (SECURITY_ACTION_MATCHER.test(action)) {
-            if (licenseState.isSecurityDisabledByLicenseDefaults()) {
+            if (licenseState.isSecurityEnabled() == false) {
                 listener.onFailure(new ElasticsearchException("Security must be explicitly enabled when using a [" +
                         licenseState.getOperationMode().description() + "] license. " +
                         "Enable security by setting [xpack.security.enabled] to [true] in the elasticsearch.yml file " +
@@ -156,7 +156,7 @@ public class SecurityActionFilter implements ActionFilter {
                 ActionListener.wrap((authc) -> {
                     if (authc != null) {
                         authorizeRequest(authc, securityAction, request, listener);
-                    } else if (licenseState.isAuthAllowed() == false) {
+                    } else if (licenseState.isSecurityEnabled() == false) {
                         listener.onResponse(null);
                     } else {
                         listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));

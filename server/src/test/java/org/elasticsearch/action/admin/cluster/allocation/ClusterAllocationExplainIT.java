@@ -24,7 +24,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -62,8 +62,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -395,7 +396,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         internalCluster().startNodes(2);
 
         logger.info("--> creating an index with 1 primary, 0 replicas, with allocation filtering so the primary can't be assigned");
-        prepareIndex(IndexMetaData.State.OPEN, 1, 0,
+        prepareIndex(IndexMetadata.State.OPEN, 1, 0,
             Settings.builder().put("index.routing.allocation.include._name", "non_existent_node").build(),
             ActiveShardCount.NONE);
 
@@ -980,7 +981,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             }
             for (Decision d : result.getCanAllocateDecision().getDecisions()) {
                 if (d.type() == Decision.Type.NO) {
-                    assertThat(d.label(), isOneOf("filter", "same_shard"));
+                    assertThat(d.label(), is(oneOf("filter", "same_shard")));
                 }
                 assertNotNull(d.getExplanation());
             }
@@ -1022,7 +1023,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         Settings replicaDataPathSettings = internalCluster().dataPathSettings(replicaNode);
         final String primaryNode = internalCluster().startNode();
 
-        prepareIndex(IndexMetaData.State.OPEN, 1, 1,
+        prepareIndex(IndexMetadata.State.OPEN, 1, 1,
             Settings.builder()
                 .put("index.routing.allocation.include._name", primaryNode)
                 .put("index.routing.allocation.exclude._name", masterNode)
@@ -1039,8 +1040,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> stop node with the replica shard");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
 
-        final IndexMetaData.State indexState = randomIndexState();
-        if (indexState == IndexMetaData.State.OPEN) {
+        final IndexMetadata.State indexState = randomIndexState();
+        if (indexState == IndexMetadata.State.OPEN) {
             logger.info("--> index more data, now the replica is stale");
             indexData();
         } else {
@@ -1167,7 +1168,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         prepareIndex(randomIndexState(), numPrimaries, numReplicas, Settings.EMPTY, ActiveShardCount.ALL);
     }
 
-    private void prepareIndex(final IndexMetaData.State state, final int numPrimaries, final int numReplicas,
+    private void prepareIndex(final IndexMetadata.State state, final int numPrimaries, final int numReplicas,
                               final Settings settings, final ActiveShardCount activeShardCount) {
 
         logger.info("--> creating a {} index with {} primary, {} replicas", state, numPrimaries, numReplicas);
@@ -1182,7 +1183,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         if (activeShardCount != ActiveShardCount.NONE) {
             indexData();
         }
-        if (state == IndexMetaData.State.CLOSE) {
+        if (state == IndexMetadata.State.CLOSE) {
             assertAcked(client().admin().indices().prepareClose("idx"));
 
             final ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth("idx")
@@ -1194,8 +1195,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         }
     }
 
-    private static IndexMetaData.State randomIndexState() {
-        return randomFrom(IndexMetaData.State.values());
+    private static IndexMetadata.State randomIndexState() {
+        return randomFrom(IndexMetadata.State.values());
     }
 
     private void indexData() {
@@ -1253,10 +1254,10 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                     assertNotEquals("delayed", parser.currentName()); // we should never display "delayed" from unassigned info
                     if (parser.currentName().equals("last_allocation_status")) {
                         parser.nextToken();
-                        assertThat(parser.text(), isOneOf(AllocationDecision.NO.toString(),
+                        assertThat(parser.text(), is(oneOf(AllocationDecision.NO.toString(),
                             AllocationDecision.NO_VALID_SHARD_COPY.toString(),
                             AllocationDecision.AWAITING_INFO.toString(),
-                            AllocationDecision.NO_ATTEMPT.toString()));
+                            AllocationDecision.NO_ATTEMPT.toString())));
                     }
                 }
             }

@@ -155,7 +155,7 @@ public class QueryStringWithAnalyzersTests extends ESSingleNodeTestCase {
                 .putList("analysis.filter.custom_synonym.synonyms", "car, auto")
                 .build();
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-                .startObject("doc")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("field1")
                            .field("type", "text")

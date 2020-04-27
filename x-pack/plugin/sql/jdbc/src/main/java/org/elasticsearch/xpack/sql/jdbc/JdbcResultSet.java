@@ -79,7 +79,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         if (columnIndex < 1 || columnIndex > cursor.columnSize()) {
             throw new SQLException("Invalid column index [" + columnIndex + "]");
         }
-        if (wasLast == true || rowNumber < 1) {
+        if (wasLast || rowNumber < 1) {
             throw new SQLException("No row available");
         }
         Object object = null;
@@ -259,11 +259,11 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     private Long dateTimeAsMillis(int columnIndex) throws SQLException {
         Object val = column(columnIndex);
         EsType type = columnType(columnIndex);
-        
+
         if (val == null) {
             return null;
         }
-        
+
         try {
             // TODO: the B6 appendix of the jdbc spec does mention CHAR, VARCHAR, LONGVARCHAR, DATE, TIMESTAMP as supported
             // jdbc types that should be handled by getDate and getTime methods. From all of those we support VARCHAR and

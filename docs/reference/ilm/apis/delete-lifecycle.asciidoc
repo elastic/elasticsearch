@@ -6,7 +6,7 @@
 <titleabbrev>Delete policy</titleabbrev>
 ++++
 
-Deletes a lifecycle policy.
+Deletes an index lifecycle policy.
 
 [[ilm-delete-lifecycle-request]]
 ==== {api-request-title}

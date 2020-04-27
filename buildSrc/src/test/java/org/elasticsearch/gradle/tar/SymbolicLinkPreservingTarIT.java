@@ -74,8 +74,8 @@ public class SymbolicLinkPreservingTarIT extends GradleIntegrationTestCase {
         InputStream apply(FileInputStream fis) throws IOException;
     }
 
-    private void assertTar(
-        final String extension, final FileInputStreamWrapper wrapper, boolean preserveFileTimestamps) throws IOException {
+    private void assertTar(final String extension, final FileInputStreamWrapper wrapper, boolean preserveFileTimestamps)
+        throws IOException {
         try (TarArchiveInputStream tar = new TarArchiveInputStream(wrapper.apply(new FileInputStream(getOutputFile(extension))))) {
             TarArchiveEntry entry = tar.getNextTarEntry();
             boolean realFolderEntry = false;
@@ -93,27 +93,18 @@ public class SymbolicLinkPreservingTarIT extends GradleIntegrationTestCase {
                     fileEntry = true;
                 } else if (entry.getName().equals("real-folder/link-to-file")) {
                     assertTrue(entry.isSymbolicLink());
-                    assertThat(
-                        entry.getLinkName(),
-                        anyOf(equalTo("./file"), equalTo(".\\file"))
-                    );
+                    assertThat(entry.getLinkName(), anyOf(equalTo("./file"), equalTo(".\\file")));
                     linkToFileEntry = true;
                 } else if (entry.getName().equals("link-in-folder/")) {
                     assertTrue(entry.isDirectory());
                     linkInFolderEntry = true;
                 } else if (entry.getName().equals("link-in-folder/link-to-file")) {
                     assertTrue(entry.isSymbolicLink());
-                    assertThat(
-                        entry.getLinkName(),
-                        anyOf(equalTo("../real-folder/file"), equalTo("..\\real-folder\\file"))
-                    );
+                    assertThat(entry.getLinkName(), anyOf(equalTo("../real-folder/file"), equalTo("..\\real-folder\\file")));
                     linkInFolderLinkToFileEntry = true;
                 } else if (entry.getName().equals("link-to-real-folder")) {
                     assertTrue(entry.isSymbolicLink());
-                    assertThat(
-                        entry.getLinkName(),
-                        anyOf(equalTo("./real-folder"), equalTo(".\\real-folder"))
-                    );
+                    assertThat(entry.getLinkName(), anyOf(equalTo("./real-folder"), equalTo(".\\real-folder")));
                     linkToRealFolderEntry = true;
                 } else {
                     throw new GradleException("unexpected entry [" + entry.getName() + "]");
@@ -135,12 +126,14 @@ public class SymbolicLinkPreservingTarIT extends GradleIntegrationTestCase {
     }
 
     private void runBuild(final String task, final boolean preserveFileTimestamps) {
-        final GradleRunner runner = GradleRunner.create().withProjectDir(getProjectDir())
+        final GradleRunner runner = GradleRunner.create()
+            .withProjectDir(getProjectDir())
             .withArguments(
                 task,
                 "-Dtests.symbolic_link_preserving_tar_source=" + temporaryFolder.getRoot().toString(),
                 "-Dtests.symbolic_link_preserving_tar_preserve_file_timestamps=" + preserveFileTimestamps,
-                "-i")
+                "-i"
+            )
             .withPluginClasspath();
 
         runner.build();

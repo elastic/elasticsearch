@@ -19,7 +19,7 @@ package org.elasticsearch.script.expression;
  * under the License.
  */
 
-import org.apache.lucene.queries.function.ValueSource;
+import org.apache.lucene.search.DoubleValuesSource;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
 /**
@@ -28,18 +28,18 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 final class GeoField {
     // no instance
     private GeoField() {}
-    
+
     // supported variables
     static final String EMPTY_VARIABLE        = "empty";
     static final String LAT_VARIABLE          = "lat";
     static final String LON_VARIABLE          = "lon";
-    
+
     // supported methods
     static final String ISEMPTY_METHOD        = "isEmpty";
     static final String GETLAT_METHOD         = "getLat";
     static final String GETLON_METHOD         = "getLon";
-    
-    static ValueSource getVariable(IndexFieldData<?> fieldData, String fieldName, String variable) {
+
+    static DoubleValuesSource getVariable(IndexFieldData<?> fieldData, String fieldName, String variable) {
         switch (variable) {
             case EMPTY_VARIABLE:
                 return new GeoEmptyValueSource(fieldData);
@@ -51,8 +51,8 @@ final class GeoField {
                 throw new IllegalArgumentException("Member variable [" + variable + "] does not exist for geo field [" + fieldName + "].");
         }
     }
-    
-    static ValueSource getMethod(IndexFieldData<?> fieldData, String fieldName, String method) {
+
+    static DoubleValuesSource getMethod(IndexFieldData<?> fieldData, String fieldName, String method) {
         switch (method) {
             case ISEMPTY_METHOD:
                 return new GeoEmptyValueSource(fieldData);

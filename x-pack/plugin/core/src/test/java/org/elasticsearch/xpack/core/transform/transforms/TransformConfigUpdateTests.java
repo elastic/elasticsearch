@@ -12,8 +12,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.action.AbstractWireSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 
 import java.io.IOException;
@@ -21,20 +22,22 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests.randomTransformConfig;
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
+import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests.randomTransformConfig;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TransformConfigUpdateTests extends AbstractSerializingTransformTestCase<TransformConfigUpdate> {
+public class TransformConfigUpdateTests extends AbstractWireSerializingTransformTestCase<TransformConfigUpdate> {
 
-    public static TransformConfigUpdate randomDataFrameTransformConfigUpdate() {
+    public static TransformConfigUpdate randomTransformConfigUpdate() {
         return new TransformConfigUpdate(
             randomBoolean() ? null : randomSourceConfig(),
             randomBoolean() ? null : randomDestConfig(),
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomBoolean() ? null : randomSyncConfig(),
-            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000));
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000)
+        );
     }
 
     public static SyncConfig randomSyncConfig() {
@@ -42,13 +45,8 @@ public class TransformConfigUpdateTests extends AbstractSerializingTransformTest
     }
 
     @Override
-    protected TransformConfigUpdate doParseInstance(XContentParser parser) throws IOException {
-        return TransformConfigUpdate.fromXContent(parser);
-    }
-
-    @Override
     protected TransformConfigUpdate createTestInstance() {
-        return randomDataFrameTransformConfigUpdate();
+        return randomTransformConfigUpdate();
     }
 
     @Override
@@ -61,24 +59,29 @@ public class TransformConfigUpdateTests extends AbstractSerializingTransformTest
             TransformConfig config = randomTransformConfig();
             TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null);
             assertTrue("null update is not noop", update.isNoop(config));
-            update = new TransformConfigUpdate(config.getSource(),
+            update = new TransformConfigUpdate(
+                config.getSource(),
                 config.getDestination(),
                 config.getFrequency(),
                 config.getSyncConfig(),
-                config.getDescription());
+                config.getDescription()
+            );
             assertTrue("equal update is not noop", update.isNoop(config));
 
-            update = new TransformConfigUpdate(config.getSource(),
+            update = new TransformConfigUpdate(
+                config.getSource(),
                 config.getDestination(),
                 config.getFrequency(),
                 config.getSyncConfig(),
-                "this is a new description");
+                "this is a new description"
+            );
             assertFalse("true update is noop", update.isNoop(config));
         }
     }
 
     public void testApply() {
-        TransformConfig config = new TransformConfig("time-transform",
+        TransformConfig config = new TransformConfig(
+            "time-transform",
             randomSourceConfig(),
             randomDestConfig(),
             TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
@@ -87,7 +90,8 @@ public class TransformConfigUpdateTests extends AbstractSerializingTransformTest
             PivotConfigTests.randomPivotConfig(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             randomBoolean() ? null : Instant.now(),
-            randomBoolean() ? null : Version.V_7_2_0.toString());
+            randomBoolean() ? null : Version.V_7_2_0.toString()
+        );
         TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null);
 
         assertThat(config, equalTo(update.apply(config)));
@@ -112,7 +116,8 @@ public class TransformConfigUpdateTests extends AbstractSerializingTransformTest
     }
 
     public void testApplyWithSyncChange() {
-        TransformConfig batchConfig = new TransformConfig("batch-transform",
+        TransformConfig batchConfig = new TransformConfig(
+            "batch-transform",
             randomSourceConfig(),
             randomDestConfig(),
             TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
@@ -121,19 +126,19 @@ public class TransformConfigUpdateTests extends AbstractSerializingTransformTest
             PivotConfigTests.randomPivotConfig(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             randomBoolean() ? null : Instant.now(),
-            randomBoolean() ? null : Version.CURRENT.toString());
+            randomBoolean() ? null : Version.CURRENT.toString()
+        );
 
-        TransformConfigUpdate update = new TransformConfigUpdate(null,
-            null,
-            null,
-            TimeSyncConfigTests.randomTimeSyncConfig(),
-            null);
+        TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, TimeSyncConfigTests.randomTimeSyncConfig(), null);
 
         ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, () -> update.apply(batchConfig));
-        assertThat(ex.getMessage(),
-            equalTo("Cannot change the current sync configuration of transform [batch-transform] from [null] to [time]"));
+        assertThat(
+            ex.getMessage(),
+            equalTo("Cannot change the current sync configuration of transform [batch-transform] from [null] to [time]")
+        );
 
-        TransformConfig timeSyncedConfig = new TransformConfig("time-transform",
+        TransformConfig timeSyncedConfig = new TransformConfig(
+            "time-transform",
             randomSourceConfig(),
             randomDestConfig(),
             TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
@@ -142,17 +147,48 @@ public class TransformConfigUpdateTests extends AbstractSerializingTransformTest
             PivotConfigTests.randomPivotConfig(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             randomBoolean() ? null : Instant.now(),
-            randomBoolean() ? null : Version.CURRENT.toString());
+            randomBoolean() ? null : Version.CURRENT.toString()
+        );
 
-        TransformConfigUpdate fooSyncUpdate = new TransformConfigUpdate(null,
-            null,
-            null,
-            new FooSync(),
-            null);
+        TransformConfigUpdate fooSyncUpdate = new TransformConfigUpdate(null, null, null, new FooSync(), null);
         ex = expectThrows(ElasticsearchStatusException.class, () -> fooSyncUpdate.apply(timeSyncedConfig));
-        assertThat(ex.getMessage(),
-            equalTo("Cannot change the current sync configuration of transform [time-transform] from [time] to [foo]"));
+        assertThat(
+            ex.getMessage(),
+            equalTo("Cannot change the current sync configuration of transform [time-transform] from [time] to [foo]")
+        );
 
+    }
+
+    public void testFromXContent() throws IOException {
+        xContentTester(
+            this::createParser,
+            TransformConfigUpdateTests::randomTransformConfigUpdate,
+            this::toXContent,
+            TransformConfigUpdate::fromXContent
+        ).supportsUnknownFields(false).assertEqualsConsumer(this::assertEqualInstances).test();
+    }
+
+    private void toXContent(TransformConfigUpdate update, XContentBuilder builder) throws IOException {
+        builder.startObject();
+        if (update.getSource() != null) {
+            builder.field(TransformField.SOURCE.getPreferredName(), update.getSource());
+        }
+        if (update.getDestination() != null) {
+            builder.field(TransformField.DESTINATION.getPreferredName(), update.getDestination());
+        }
+        if (update.getFrequency() != null) {
+            builder.field(TransformField.FREQUENCY.getPreferredName(), update.getFrequency().getStringRep());
+        }
+        if (update.getSyncConfig() != null) {
+            builder.startObject(TransformField.SYNC.getPreferredName());
+            builder.field(update.getSyncConfig().getWriteableName(), update.getSyncConfig());
+            builder.endObject();
+        }
+        if (update.getDescription() != null) {
+            builder.field(TransformField.DESCRIPTION.getPreferredName(), update.getDescription());
+        }
+
+        builder.endObject();
     }
 
     static class FooSync implements SyncConfig {
@@ -178,8 +214,12 @@ public class TransformConfigUpdateTests extends AbstractSerializingTransformTest
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        public String getField() {
+            return "foo";
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

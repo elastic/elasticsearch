@@ -24,7 +24,6 @@ import java.io.InputStream;
 
 public class OpenJdkDownloadPluginIT extends JdkDownloadPluginIT {
 
-    @Override
     public String oldJdkVersion() {
         return "1+99";
     }
@@ -40,7 +39,8 @@ public class OpenJdkDownloadPluginIT extends JdkDownloadPluginIT {
     }
 
     @Override
-    protected String urlPath(final boolean isOld, final String platform, final String extension) {
+    protected String urlPath(final String version, final String platform, final String extension) {
+        final boolean isOld = version.equals(oldJdkVersion());
         final String versionPath = isOld ? "jdk1/99" : "jdk12.0.1/123456789123456789123456789abcde/99";
         final String filename = "openjdk-" + (isOld ? "1" : "12.0.1") + "_" + platform + "-x64_bin." + extension;
         return "/java/GA/" + versionPath + "/GPL/" + filename;
@@ -51,6 +51,18 @@ public class OpenJdkDownloadPluginIT extends JdkDownloadPluginIT {
         try (InputStream stream = JdkDownloadPluginIT.class.getResourceAsStream("fake_openjdk_" + platform + "." + extension)) {
             return stream.readAllBytes();
         }
+    }
+
+    public final void testLinuxExtractionOldVersion() throws IOException {
+        assertExtraction("getLinuxJdk", "linux", "bin/java", jdkVendor(), oldJdkVersion());
+    }
+
+    public final void testDarwinExtractionOldVersion() throws IOException {
+        assertExtraction("getDarwinJdk", "osx", "Contents/Home/bin/java", jdkVendor(), oldJdkVersion());
+    }
+
+    public final void testWindowsExtractionOldVersion() throws IOException {
+        assertExtraction("getWindowsJdk", "windows", "bin/java", jdkVendor(), oldJdkVersion());
     }
 
 }

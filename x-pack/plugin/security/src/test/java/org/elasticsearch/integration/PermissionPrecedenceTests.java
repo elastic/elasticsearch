@@ -10,7 +10,7 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResp
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -87,7 +87,7 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
 
         GetIndexTemplatesResponse getResponse = client.admin().indices().prepareGetTemplates("template1")
                 .get();
-        List<IndexTemplateMetaData> templates = getResponse.getIndexTemplates();
+        List<IndexTemplateMetadata> templates = getResponse.getIndexTemplates();
         assertThat(templates, hasSize(1));
 
         // now lets try with "user"

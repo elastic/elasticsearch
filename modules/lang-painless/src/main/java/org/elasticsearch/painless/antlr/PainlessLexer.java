@@ -1,17 +1,13 @@
 // ANTLR GENERATED CODE: DO NOT EDIT
 package org.elasticsearch.painless.antlr;
-
-import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.Lexer;
-import org.antlr.v4.runtime.RuleContext;
-import org.antlr.v4.runtime.RuntimeMetaData;
-import org.antlr.v4.runtime.Vocabulary;
-import org.antlr.v4.runtime.VocabularyImpl;
-import org.antlr.v4.runtime.atn.ATN;
-import org.antlr.v4.runtime.atn.ATNDeserializer;
-import org.antlr.v4.runtime.atn.LexerATNSimulator;
-import org.antlr.v4.runtime.atn.PredictionContextCache;
+import org.antlr.v4.runtime.CharStream;
+import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.TokenStream;
+import org.antlr.v4.runtime.*;
+import org.antlr.v4.runtime.atn.*;
 import org.antlr.v4.runtime.dfa.DFA;
+import org.antlr.v4.runtime.misc.*;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 abstract class PainlessLexer extends Lexer {

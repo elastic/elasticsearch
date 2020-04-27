@@ -11,10 +11,12 @@ See also <<release-highlights>> and <<es-release-notes>>.
 
 coming[8.0.0]
 
+* <<breaking_80_aggregations_changes>>
 * <<breaking_80_analysis_changes>>
 * <<breaking_80_allocation_changes>>
 * <<breaking_80_breaker_changes>>
 * <<breaking_80_discovery_changes>>
+* <<breaking_80_cluster_changes>>
 * <<breaking_80_mappings_changes>>
 * <<breaking_80_packaging_changes>>
 * <<breaking_80_rollup_changes>>
@@ -63,10 +65,12 @@ is replaced with a new endpoint that does not contain `_xpack`. As an example,
 
 // end::notable-breaking-changes[]
 
+include::migrate_8_0/aggregations.asciidoc[]
 include::migrate_8_0/analysis.asciidoc[]
 include::migrate_8_0/allocation.asciidoc[]
 include::migrate_8_0/breaker.asciidoc[]
 include::migrate_8_0/discovery.asciidoc[]
+include::migrate_8_0/cluster.asciidoc[]
 include::migrate_8_0/mappings.asciidoc[]
 include::migrate_8_0/packaging.asciidoc[]
 include::migrate_8_0/rollup.asciidoc[]
@@ -81,5 +85,6 @@ include::migrate_8_0/http.asciidoc[]
 include::migrate_8_0/reindex.asciidoc[]
 include::migrate_8_0/search.asciidoc[]
 include::migrate_8_0/settings.asciidoc[]
+include::migrate_8_0/threadpool.asciidoc[]
 include::migrate_8_0/indices.asciidoc[]
 include::migrate_8_0/api.asciidoc[]

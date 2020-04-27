@@ -1,0 +1,24 @@
+{
+  "searchable_snapshots.repository_stats": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/searchable-snapshots-repository-stats.html"
+    },
+    "stability": "experimental",
+    "url": {
+      "paths": [
+        {
+          "path": "/_snapshot/{repository}/_stats",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "repository": {
+              "type": "string",
+              "description": "The repository for which to get the stats for"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

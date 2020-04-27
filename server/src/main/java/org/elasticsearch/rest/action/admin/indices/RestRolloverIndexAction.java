@@ -23,17 +23,21 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestRolloverIndexAction extends BaseRestHandler {
-    
-    public RestRolloverIndexAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.POST, "/{index}/_rollover", this);
-        controller.registerHandler(RestRequest.Method.POST, "/{index}/_rollover/{new_index}", this);
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(POST, "/{index}/_rollover"),
+            new Route(POST, "/{index}/_rollover/{new_index}"));
     }
 
     @Override
@@ -50,6 +54,7 @@ public class RestRolloverIndexAction extends BaseRestHandler {
         rolloverIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", rolloverIndexRequest.masterNodeTimeout()));
         rolloverIndexRequest.getCreateIndexRequest().waitForActiveShards(
                 ActiveShardCount.parseString(request.param("wait_for_active_shards")));
+        rolloverIndexRequest.getCreateIndexRequest().preferV2Templates(RestCreateIndexAction.preferV2Templates(request));
         return channel -> client.admin().indices().rolloverIndex(rolloverIndexRequest, new RestToXContentListener<>(channel));
     }
 }

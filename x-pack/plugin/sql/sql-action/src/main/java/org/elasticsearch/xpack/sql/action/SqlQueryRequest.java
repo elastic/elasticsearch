@@ -72,7 +72,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
+        ActionRequestValidationException validationException = super.validate();
         if ((false == Strings.hasText(query())) && Strings.hasText(cursor) == false) {
             validationException = addValidationError("one of [query] or [cursor] is required", validationException);
         }
@@ -188,6 +188,8 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     }
 
     public static SqlQueryRequest fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+        SqlQueryRequest request = PARSER.apply(parser,  null);
+        validateParams(request.params(), request.mode());
+        return request;
     }
 }

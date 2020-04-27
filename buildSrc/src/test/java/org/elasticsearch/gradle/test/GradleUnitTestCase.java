@@ -7,12 +7,6 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.junit.runner.RunWith;
 
 @RunWith(RandomizedRunner.class)
-@TestMethodProviders({
-    JUnit4MethodProvider.class,
-    JUnit3MethodProvider.class
-})
-@ThreadLeakFilters(defaultFilters = true, filters = {
-    GradleThreadsFilter.class
-})
-public abstract class GradleUnitTestCase extends BaseTestCase  {
-}
+@TestMethodProviders({ JUnit4MethodProvider.class, JUnit3MethodProvider.class })
+@ThreadLeakFilters(defaultFilters = true, filters = { GradleThreadsFilter.class })
+public abstract class GradleUnitTestCase extends BaseTestCase {}

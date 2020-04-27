@@ -20,7 +20,7 @@
 package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,11 +38,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_METADATA_BLOCK;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_METADATA_BLOCK;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
@@ -150,12 +150,12 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings()
             .setFields("alias", "field1").get();
 
-        FieldMappingMetaData aliasMapping = response.fieldMappings("test", "alias");
+        FieldMappingMetadata aliasMapping = response.fieldMappings("test", "alias");
         assertThat(aliasMapping.fullName(), equalTo("alias"));
         assertThat(aliasMapping.sourceAsMap(), hasKey("alias"));
         assertThat((Map<String, Object>) aliasMapping.sourceAsMap().get("alias"), hasEntry("type", "alias"));
 
-        FieldMappingMetaData field1Mapping = response.fieldMappings("test", "field1");
+        FieldMappingMetadata field1Mapping = response.fieldMappings("test", "field1");
         assertThat(field1Mapping.fullName(), equalTo("field1"));
         assertThat(field1Mapping.sourceAsMap(), hasKey("field1"));
     }

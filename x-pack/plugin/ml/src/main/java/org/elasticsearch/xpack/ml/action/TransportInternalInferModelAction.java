@@ -62,7 +62,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
                     ex -> true);
                 request.getObjectsToInfer().forEach(stringObjectMap ->
                     typedChainTaskExecutor.add(chainedTask ->
-                        model.infer(stringObjectMap, request.getConfig(), chainedTask)));
+                        model.infer(stringObjectMap, request.getUpdate(), chainedTask)));
 
                 typedChainTaskExecutor.execute(ActionListener.wrap(
                     inferenceResultsInterfaces ->
@@ -79,8 +79,8 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         } else {
             trainedModelProvider.getTrainedModel(request.getModelId(), false, ActionListener.wrap(
                 trainedModelConfig -> {
-                    responseBuilder.setLicensed(trainedModelConfig.isAvailableWithLicense(licenseState));
-                    if (trainedModelConfig.isAvailableWithLicense(licenseState) || request.isPreviouslyLicensed()) {
+                    responseBuilder.setLicensed(licenseState.isAllowedByLicense(trainedModelConfig.getLicenseLevel()));
+                    if (licenseState.isAllowedByLicense(trainedModelConfig.getLicenseLevel()) || request.isPreviouslyLicensed()) {
                         this.modelLoadingService.getModel(request.getModelId(), getModelListener);
                     } else {
                         listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));

@@ -69,3 +69,7 @@ GET /_search
     }
 }
 ----
+
+===== Allow expensive queries
+Script queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
+is set to false.

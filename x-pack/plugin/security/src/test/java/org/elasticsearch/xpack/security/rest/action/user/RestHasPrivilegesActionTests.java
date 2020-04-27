@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -39,7 +38,7 @@ public class RestHasPrivilegesActionTests extends ESTestCase {
     public void testBodyConsumed() throws Exception {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final RestHasPrivilegesAction action =
-            new RestHasPrivilegesAction(Settings.EMPTY, mock(RestController.class), mock(SecurityContext.class), licenseState);
+            new RestHasPrivilegesAction(Settings.EMPTY, mock(SecurityContext.class), licenseState);
         try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder().startObject().endObject()) {
             final RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
                 .withPath("/_security/user/_has_privileges/")
@@ -52,8 +51,8 @@ public class RestHasPrivilegesActionTests extends ESTestCase {
 
     public void testBasicLicense() throws Exception {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        final RestHasPrivilegesAction action = new RestHasPrivilegesAction(Settings.EMPTY, mock(RestController.class),
-            mock(SecurityContext.class), licenseState);
+        final RestHasPrivilegesAction action =
+            new RestHasPrivilegesAction(Settings.EMPTY, mock(SecurityContext.class), licenseState);
         when(licenseState.isSecurityAvailable()).thenReturn(false);
         try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder().startObject().endObject()) {
             final RestRequest request = new FakeRestRequest.Builder(xContentRegistry())

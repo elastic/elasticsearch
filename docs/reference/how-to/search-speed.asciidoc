@@ -501,6 +501,36 @@ conjunctions faster at the cost of slightly slower indexing. Read more about it
 in the <<index-modules-index-sorting-conjunctions,index sorting documentation>>.
 
 [float]
+=== Use routing to trade latency for throughput
+
+By default, documents get randomly assigned to a shard. This has the side-effect
+of giving all shards similar content and in particular, a similar dictionary of
+terms. Now imagine that you are indexing a catalog of products where each
+product belongs to exactly one category, and that you
+<<mapping-routing-field,route>> documents using this `category` field. Each
+category will exist on exactly one shard. The side-effect is that many searches
+will have most of their hits on one shard while other shards will have very few
+hits, possibly even no hits at all. For instance a query on `pizza` likely only
+has hits in the `Food` category, so the shard that has all documents from the
+`Food` category will have all hits while other shards will return an empty
+response instantly since `pizza` doesn't exist in their terms dictionary.
+
+Given that the latency of a search is the latency of the slowest shard, this
+approach generally increases latency, since one shard does most of the work.
+However, this approach often also reduces the total amount of work that needs
+to be performed, which improves throughput. This is especially true for
+multi-term queries like <<query-dsl-fuzzy-query,`fuzzy`>> or
+<<query-dsl-regexp-query,`regexp`>> queries since each shard would have a
+smaller terms dictionary on average.
+
+One downside of this approach is that it will cause the search load to not be
+spread evenly across all nodes if some categories are searched more often than
+other categories. One way to mitigate this issue is to move the hot categories
+to their own index and increase their
+<<dynamic-index-settings,number of replicas>> to make sure all nodes can be
+used.
+
+[float]
 [[preference-cache-optimization]]
 === Use `preference` to optimize cache utilization
 

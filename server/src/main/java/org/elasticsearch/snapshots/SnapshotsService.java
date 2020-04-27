@@ -30,6 +30,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -484,7 +485,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             // Remove global state from the cluster state
             Metadata.Builder builder = Metadata.builder();
             for (IndexId index : snapshot.indices()) {
-                builder.put(metadata.index(index.getName()), false);
+                final IndexMetadata indexMetadata = metadata.index(index.getName());
+                if (indexMetadata == null) {
+                    assert snapshot.partial() : "Index [" + index + "] was deleted during a snapshot but snapshot was not partial.";
+                } else {
+                    builder.put(indexMetadata, false);
+                }
             }
             metadata = builder.build();
         }
@@ -984,12 +990,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * If the snapshot is not running or multiple snapshot names are given, moves to trying to find a matching {@link Snapshot}s for the
      * given names in the repository and deletes them by invoking {@link #deleteCompletedSnapshots}.
      *
-     * @param repositoryName  repositoryName
-     * @param snapshotNames   snapshotNames
+     * @param request         delete snapshot request
      * @param listener        listener
      */
-    public void deleteSnapshots(final String repositoryName, final Collection<String> snapshotNames, final ActionListener<Void> listener) {
-        logger.info("deleting snapshots {} from repository [{}]", snapshotNames, repositoryName);
+    public void deleteSnapshots(final DeleteSnapshotRequest request, final ActionListener<Void> listener) {
+
+        final String[] snapshotNames = request.snapshots();
+        final String repositoryName = request.repository();
+        logger.info(() -> new ParameterizedMessage("deleting snapshots [{}] from repository [{}]",
+                Strings.arrayToCommaDelimitedString(snapshotNames), repositoryName));
 
         clusterService.submitStateUpdateTask("delete snapshot", new ClusterStateUpdateTask(Priority.NORMAL) {
 
@@ -999,15 +1008,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                if (snapshotNames.size() > 1 && currentState.nodes().getMinNodeVersion().before(MULTI_DELETE_VERSION)) {
+                if (snapshotNames.length > 1 && currentState.nodes().getMinNodeVersion().before(MULTI_DELETE_VERSION)) {
                     throw new IllegalArgumentException("Deleting multiple snapshots in a single request is only supported in version [ "
                             + MULTI_DELETE_VERSION + "] but cluster contained node of version [" + currentState.nodes().getMinNodeVersion()
                             + "]");
                 }
                 final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
                 final SnapshotsInProgress.Entry snapshotEntry;
-                if (snapshotNames.size() == 1) {
-                    final String snapshotName = snapshotNames.iterator().next();
+                if (snapshotNames.length == 1) {
+                    final String snapshotName = snapshotNames[0];
                     if (Regex.isSimpleMatchPattern(snapshotName)) {
                         snapshotEntry = null;
                     } else {
@@ -1115,10 +1124,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                 ));
             }
+
+            @Override
+            public TimeValue timeout() {
+                return request.masterNodeTimeout();
+            }
         });
     }
 
-    private static List<SnapshotId> matchingSnapshotIds(RepositoryData repositoryData, Collection<String> snapshotsOrPatterns,
+    private static List<SnapshotId> matchingSnapshotIds(RepositoryData repositoryData, String[] snapshotsOrPatterns,
                                                         String repositoryName) {
         final Map<String, SnapshotId> allSnapshotIds = repositoryData.getSnapshotIds().stream().collect(
                 Collectors.toMap(SnapshotId::getName, Function.identity()));

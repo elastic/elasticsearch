@@ -5,20 +5,6 @@
  */
 package org.elasticsearch.xpack.analytics.stringstats;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
-import static java.util.Collections.singleton;
-import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
-import static java.util.stream.Collectors.toList;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Consumer;
-import java.util.function.Function;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
@@ -46,7 +32,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
@@ -55,6 +40,20 @@ import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Function;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static java.util.Collections.singleton;
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
+import static java.util.stream.Collectors.toList;
 
 public class StringStatsAggregatorTests extends AggregatorTestCase {
 
@@ -75,37 +74,6 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
 
         AggregationBuilder aggregationBuilder = new StringStatsAggregationBuilder("_name").field("text");
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
-    }
-
-    /* TODO: This should just use the base test case in AggregatorTestCase.  The main incompatibility is around returning a null
-             InternalAggregation instance when no docs are found, I think.  --Tozzi
-     */
-    @Override
-    protected <T extends AggregationBuilder, V extends InternalAggregation> void testCase(
-            T aggregationBuilder,
-            Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-            Consumer<V> verify,
-            MappedFieldType fieldType) throws IOException {
-
-        Directory directory = newDirectory();
-        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-        buildIndex.accept(indexWriter);
-        indexWriter.close();
-
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-        StringStatsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        aggregator.preCollection();
-        indexSearcher.search(query, aggregator);
-        aggregator.postCollection();
-
-        @SuppressWarnings("unchecked")
-        V aggregation = (V) aggregator.buildAggregation(0L);
-        verify.accept(aggregation);
-
-        indexReader.close();
-        directory.close();
     }
 
     public void testNoDocs() throws IOException {
@@ -135,7 +103,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
             assertTrue(stats.getDistribution().isEmpty());
             assertEquals(0.0, stats.getEntropy(), 0);
 
-        }, null);
+        }, (MappedFieldType) null);
     }
 
     public void testUnmappedWithMissingField() throws IOException {
@@ -156,7 +124,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
             assertEquals(0.25, stats.getDistribution().get("b"), 0);
             assertEquals(0.25, stats.getDistribution().get("c"), 0);
             assertEquals(1.5, stats.getEntropy(), 0);
-        }, null);
+        },  (MappedFieldType)  null);
     }
 
     public void testMissing() throws IOException {

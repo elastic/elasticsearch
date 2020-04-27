@@ -11,8 +11,13 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.search.ClearReaderAction;
+import org.elasticsearch.action.search.ClearReaderRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.OpenReaderRequest;
+import org.elasticsearch.action.search.OpenReaderResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportOpenReaderAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
@@ -672,7 +677,8 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testScroll() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder().put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
+                .setSettings(Settings.builder()
+                    .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
                 .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
 
@@ -719,6 +725,51 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                     client().prepareClearScroll().addScrollId(scrollId).get();
                 }
             }
+        }
+    }
+
+    static String openReaders(String userName, TimeValue keepAlive, String... indices) {
+        OpenReaderRequest request = new OpenReaderRequest(indices, OpenReaderRequest.DEFAULT_INDICES_OPTIONS, keepAlive, null, null);
+        final OpenReaderResponse response = client()
+            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue(userName, USERS_PASSWD)))
+            .execute(TransportOpenReaderAction.INSTANCE, request).actionGet();
+        return response.getReaderId();
+    }
+
+    public void testReaderId() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .setSettings(Settings.builder().put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
+            .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
+        );
+
+        final int numDocs = scaledRandomIntBetween(2, 10);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test").setId(String.valueOf(i))
+                .setSource("field1", "value1", "field2", "value2", "field3", "value3")
+                .get();
+        }
+        refresh("test");
+
+        String readerId = openReaders("user1", TimeValue.timeValueMinutes(1), "test");
+        SearchResponse response = null;
+        try {
+            for (int from = 0; from < numDocs; from++) {
+                response = client()
+                    .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                    .prepareSearch()
+                    .setReader(readerId, TimeValue.timeValueMinutes(1L))
+                    .setSize(1)
+                    .setFrom(from)
+                    .setQuery(constantScoreQuery(termQuery("field1", "value1")))
+                    .setFetchSource(true)
+                    .get();
+                assertThat(response.getHits().getTotalHits().value, is((long) numDocs));
+                assertThat(response.getHits().getHits().length, is(1));
+                assertThat(response.getHits().getAt(0).getSourceAsMap().size(), is(1));
+                assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
+            }
+        } finally {
+            client().execute(ClearReaderAction.INSTANCE, new ClearReaderRequest(readerId)).actionGet();
         }
     }
 

@@ -25,7 +25,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.ReaderContext;
-import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.HashMap;
@@ -158,15 +157,15 @@ public final class ShardSearchStats implements SearchOperationListener {
     }
 
     @Override
-    public void onNewScrollContext(ScrollContext scrollContext) {
+    public void onNewScrollContext(ReaderContext readerContext) {
         totalStats.scrollCurrent.inc();
     }
 
     @Override
-    public void onFreeScrollContext(ScrollContext scrollContext) {
+    public void onFreeScrollContext(ReaderContext readerContext) {
         totalStats.scrollCurrent.dec();
         assert totalStats.scrollCurrent.count() >= 0;
-        totalStats.scrollMetric.inc(TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - scrollContext.getStartTimeInNano()));
+        totalStats.scrollMetric.inc(TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - readerContext.getStartTimeInNano()));
     }
 
     static final class StatsHolder {

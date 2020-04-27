@@ -28,7 +28,9 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -47,7 +49,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class ReaderContext extends AbstractRefCounted implements Releasable {
     private final SearchContextId id;
     private final IndexShard indexShard;
-    private final Engine.Searcher engineSearcher;
+    protected final Engine.SearcherSupplier searcherSupplier;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final boolean singleSession;
 
@@ -57,11 +59,19 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
 
     private final List<Releasable> onCloses = new CopyOnWriteArrayList<>();
 
-    public ReaderContext(long id, IndexShard indexShard, Engine.Searcher engineSearcher, long keepAliveInMillis, boolean singleSession) {
+    private final long startTimeInNano = System.nanoTime();
+
+    private Map<String, Object> context;
+
+    public ReaderContext(long id,
+                         IndexShard indexShard,
+                         Engine.SearcherSupplier searcherSupplier,
+                         long keepAliveInMillis,
+                         boolean singleSession) {
         super("reader_context");
         this.id = new SearchContextId(UUIDs.base64UUID(), id);
         this.indexShard = indexShard;
-        this.engineSearcher = engineSearcher;
+        this.searcherSupplier = searcherSupplier;
         this.singleSession = singleSession;
         this.keepAlive = new AtomicLong(keepAliveInMillis);
         this.lastAccessTime = new AtomicLong(nowInMillis());
@@ -75,14 +85,12 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
     public final void close() {
         if (closed.compareAndSet(false, true)) {
             decRef();
-        } else {
-            assert false : "ReaderContext was closed already";
         }
     }
 
     @Override
     protected void closeInternal() {
-        Releasables.close(Releasables.wrap(onCloses), engineSearcher);
+        Releasables.close(Releasables.wrap(onCloses), searcherSupplier);
     }
 
     public void addOnClose(Releasable releasable) {
@@ -93,16 +101,13 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
         return id;
     }
 
+
     public IndexShard indexShard() {
         return indexShard;
     }
 
-    public Engine.Searcher engineSearcher() {
-        return engineSearcher;
-    }
-
-    public String source() {
-        return engineSearcher.source();
+    public Engine.Searcher acquireSearcher(String source) {
+        return searcherSupplier.acquireSearcher(source);
     }
 
     public void keepAlive(long keepAlive) {
@@ -162,5 +167,28 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
      */
     public boolean singleSession() {
         return singleSession;
+    }
+
+    /**
+     * Returns the object or <code>null</code> if the given key does not have a
+     * value in the context
+     */
+    @SuppressWarnings("unchecked") // (T)object
+    public <T> T getFromContext(String key) {
+        return context != null ? (T) context.get(key) : null;
+    }
+
+    /**
+     * Puts the object into the context
+     */
+    public void putInContext(String key, Object value) {
+        if (context == null) {
+            context = new HashMap<>();
+        }
+        context.put(key, value);
+    }
+
+    public long getStartTimeInNano() {
+        return startTimeInNano;
     }
 }

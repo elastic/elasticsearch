@@ -83,6 +83,7 @@ import java.util.function.LongSupplier;
 final class DefaultSearchContext extends SearchContext {
 
     private final ReaderContext readerContext;
+    private final Engine.Searcher engineSearcher;
     private final ShardSearchRequest request;
     private final SearchShardTarget shardTarget;
     private final LongSupplier relativeTimeSupplier;
@@ -171,7 +172,7 @@ final class DefaultSearchContext extends SearchContext {
         this.indexShard = indexShard;
         this.indexService = indexService;
         this.clusterService = clusterService;
-        final Engine.Searcher engineSearcher = readerContext.engineSearcher();
+        this.engineSearcher = readerContext.acquireSearcher("search");
         this.searcher = new ContextIndexSearcher(engineSearcher.getIndexReader(), engineSearcher.getSimilarity(),
             engineSearcher.getQueryCache(), engineSearcher.getQueryCachingPolicy(), lowLevelCancellation);
         this.relativeTimeSupplier = relativeTimeSupplier;
@@ -184,6 +185,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public void doClose() {
+        engineSearcher.close();
         readerContext.decRef();
     }
 
@@ -304,7 +306,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public String source() {
-        return readerContext.source();
+        return "search";
     }
 
     @Override

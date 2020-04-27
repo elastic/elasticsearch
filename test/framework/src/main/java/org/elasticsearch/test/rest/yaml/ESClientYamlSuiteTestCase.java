@@ -117,7 +117,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     @BeforeClass
     public static void initializeUseDefaultNumberOfShards() {
-        useDefaultNumberOfShards = usually();
+        useDefaultNumberOfShards = false;
     }
 
     @Before

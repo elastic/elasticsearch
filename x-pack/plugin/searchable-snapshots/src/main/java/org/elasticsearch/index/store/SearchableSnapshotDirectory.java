@@ -9,7 +9,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.BaseDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -18,7 +17,9 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SingleInstanceLockFactory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
@@ -27,7 +28,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.SizeBlockingQueue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -367,63 +367,65 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             final Executor executor = threadPool.executor(SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME);
             logger.debug("{} warming shard cache for [{}] files", shardId, cacheFiles.size());
 
-            final BlockingQueue<CheckedRunnable<Exception>> queue = new SizeBlockingQueue<>(new LinkedBlockingQueue<>(), Integer.MAX_VALUE);
+            final BlockingQueue<ActionRunnable<Void>> queue = new SizeBlockingQueue<>(new LinkedBlockingQueue<>(), Integer.MAX_VALUE);
             for (BlobStoreIndexShardSnapshot.FileInfo cacheFile : cacheFiles) {
                 final String fileName = cacheFile.physicalName();
+
+                IndexInput input = null;
+                boolean enqueued = false;
                 try {
-                    final IndexInput input = openInput(fileName, CachedBlobContainerIndexInput.CACHE_WARMING_CONTEXT);
+                    input = openInput(fileName, CachedBlobContainerIndexInput.CACHE_WARMING_CONTEXT);
                     assert input instanceof CachedBlobContainerIndexInput : "expected cached index input but got " + input.getClass();
 
-                    final long numberOfParts = cacheFile.numberOfParts();
+                    final int numberOfParts = Math.toIntExact(cacheFile.numberOfParts());
                     if (queue.remainingCapacity() >= numberOfParts) {
-                        final CountDown countDown = new CountDown(Math.toIntExact(numberOfParts));
-                        for (long p = 0; p < numberOfParts; p++) {
-                            final int part = Math.toIntExact(p);
-                            queue.add(() -> {
-                                try {
-                                    ensureOpen();
+                        final CachedBlobContainerIndexInput cachedIndexInput = (CachedBlobContainerIndexInput) input;
+                        final GroupedActionListener<Void> listener = new GroupedActionListener<>(
+                            ActionListener.wrap(() -> IOUtils.closeWhileHandlingException(cachedIndexInput)),
+                            numberOfParts
+                        );
+                        for (int p = 0; p < numberOfParts; p++) {
+                            final int part = p;
+                            queue.add(ActionRunnable.run(listener, () -> {
+                                ensureOpen();
 
-                                    logger.trace("warming cache for [{}] part [{}/{}]", fileName, part, numberOfParts);
-                                    final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
+                                logger.trace("warming cache for [{}] part [{}/{}]", fileName, part, numberOfParts);
+                                final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
+                                final int bytesRead = cachedIndexInput.prefetchPart(part); // TODO does not include any rate limitation
+                                assert bytesRead == cacheFile.partBytes(part);
 
-                                    final CachedBlobContainerIndexInput cachedIndexInput = (CachedBlobContainerIndexInput) input.clone();
-                                    final int bytesRead = cachedIndexInput.prefetchPart(part); // TODO does not include any rate limitation
-                                    assert bytesRead == cacheFile.partBytes(part);
-
-                                    logger.trace(
-                                        () -> new ParameterizedMessage(
-                                            "part [{}/{}] of [{}] warmed in [{}] ms",
-                                            part,
-                                            numberOfParts,
-                                            fileName,
-                                            TimeValue.timeValueNanos(statsCurrentTimeNanosSupplier.getAsLong() - startTimeInNanos).millis()
-                                        )
-                                    );
-                                } catch (Exception e) {
-                                    logger.trace(
-                                        () -> new ParameterizedMessage(
-                                            "failed to warm cache for [{}] part [{}/{}]",
-                                            fileName,
-                                            part,
-                                            numberOfParts
-                                        ),
-                                        e
-                                    );
-                                    if (e instanceof AlreadyClosedException
-                                        || (e.getCause() != null && e.getCause() instanceof AlreadyClosedException)) {
-                                        return; // don't rethrow in case of cache eviction or directory closing
-                                    }
-                                    throw e;
-                                } finally {
-                                    if (countDown.countDown()) {
-                                        IOUtils.closeWhileHandlingException(input);
-                                    }
-                                }
-                            });
+                                logger.trace(
+                                    () -> new ParameterizedMessage(
+                                        "part [{}/{}] of [{}] warmed in [{}] ms",
+                                        part,
+                                        numberOfParts,
+                                        fileName,
+                                        TimeValue.timeValueNanos(statsCurrentTimeNanosSupplier.getAsLong() - startTimeInNanos).millis()
+                                    )
+                                );
+                            }));
+                        }
+                        enqueued = true;
+                    }
+                } catch (Exception e) {
+                    logger.warn(
+                        () -> new ParameterizedMessage("unable to open file [{}], cancelling prewarming for shard [{}]", fileName, shardId),
+                        e
+                    );
+                    if (queue.size() > 0) {
+                        try {
+                            ActionRunnable<Void> warmer;
+                            while ((warmer = queue.poll(0L, TimeUnit.MILLISECONDS)) != null) {
+                                warmer.onFailure(new IOException("Shard cache prewarming cancelled"));
+                            }
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
                         }
                     }
-                } catch (IOException e) {
-                    logger.trace(() -> new ParameterizedMessage("unable to schedule cache prewarming for [{}]", fileName), e);
+                } finally {
+                    if (enqueued == false) {
+                        IOUtils.closeWhileHandlingException(input);
+                    }
                 }
             }
 
@@ -435,25 +437,31 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         }
     }
 
-    private void executeNextWarmer(final Executor executor, final BlockingQueue<CheckedRunnable<Exception>> queue) {
-        executor.execute(new AbstractRunnable() {
-            @Override
-            protected void doRun() throws Exception {
-                final CheckedRunnable<Exception> warmer = queue.poll(0L, TimeUnit.MILLISECONDS);
-                if (warmer != null) {
-                    try {
+    private void executeNextWarmer(final Executor executor, final BlockingQueue<ActionRunnable<Void>> queue) {
+        try {
+            final ActionRunnable<?> warmer = queue.poll(0L, TimeUnit.MILLISECONDS);
+            if (warmer != null) {
+                executor.execute(new AbstractRunnable() {
+                    @Override
+                    protected void doRun() {
                         warmer.run();
-                    } finally {
                         executeNextWarmer(executor, queue);
                     }
-                }
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.warn("failed to warm cache", e);
+                    @Override
+                    public void onRejection(Exception e) {
+                        warmer.onRejection(e);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("failed to schedule next file part to prewarm in cache", e);
+                    }
+                });
             }
-        });
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     public static Directory create(

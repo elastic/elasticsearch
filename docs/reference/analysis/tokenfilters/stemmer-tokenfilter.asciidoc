@@ -12,7 +12,7 @@ When not customized, the filter uses the
 http://snowball.tartarus.org/algorithms/porter/stemmer.html[porter stemming
 algorithm] for English.
 
-[[analysis-stemmer-graph-tokenfilter-analyze-ex]]
+[[analysis-stemmer-tokenfilter-analyze-ex]]
 ==== Example
 
 The following analyze API request uses the `stemmer` filter's default porter

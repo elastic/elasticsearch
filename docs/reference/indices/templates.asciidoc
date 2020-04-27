@@ -5,7 +5,7 @@
 ++++
 
 This documentation is about V1 (version 1) index templates, are deprecated and will be replaced by
-V2 templates. For V2 templates please see the <<indices-templates-v1,V1 template documentation>>.
+V2 templates. For information about  V2 templates, see <<indices-templates>>.
 
 [NOTE]
 ====

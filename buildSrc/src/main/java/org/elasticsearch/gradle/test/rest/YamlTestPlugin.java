@@ -26,9 +26,9 @@ import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.plugins.JavaBasePlugin;
-import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.bundling.Zip;
@@ -50,12 +50,14 @@ public class YamlTestPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
 
-        // can not simply apply it since it is groovy and this is in Java, so consumers will need to apply the build plugin first
-        if (project.getPluginManager().hasPlugin("elasticsearch.build") == false) {
-            throw new InvalidUserDataException("elasticsearch.build plugin must be applied before the YAML test plugin");
+        if (project.getPluginManager().hasPlugin("elasticsearch.build") == false
+            && project.getPluginManager().hasPlugin("elasticsearch.standalone-rest-test") == false) {
+            throw new InvalidUserDataException(
+                "elasticsearch.build or elasticsearch.standalone-rest-test plugin " + "must be applied before the YAML test plugin"
+            );
         }
 
-        project.getPluginManager().apply(JavaPlugin.class); // for the Java based runner
+        // project.getPluginManager().apply(JavaPlugin.class); // for the Java based runner
         project.getPluginManager().apply(TestClustersPlugin.class); // to spin up the external cluster
         project.getPluginManager().apply(RestResourcesPlugin.class); // to copy around the yaml tests and json spec
 
@@ -74,7 +76,10 @@ public class YamlTestPlugin implements Plugin<Project> {
 
         // ensure correct dependency and execution order
         project.getTasks().getByName("check").dependsOn(yamlTestTask);
-        yamlTestTask.mustRunAfter(project.getTasks().getByName("test"));
+        Task testTask = project.getTasks().findByName("test");
+        if (testTask != null) {
+            yamlTestTask.mustRunAfter(testTask);
+        }
         yamlTestTask.mustRunAfter(project.getTasks().getByName("precommit"));
 
         // setup the runner

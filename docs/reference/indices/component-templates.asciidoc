@@ -6,7 +6,7 @@
 
 Component templates are building blocks that specify mappings, settings, or alias configuration, but
 don't apply to a set of indices themselves. To be used a component template must be specified in the
-`composed_of` of an <<index-templates,index template>>.
+`composed_of` of an <<indices-templates,index template>>.
 
 [source,console]
 --------------------------------------------------
@@ -60,7 +60,7 @@ Use the PUT component template API to create or update a component template.
 Component templates define <<index-modules-settings,settings>>, <<mapping,mappings>>, and
 <<indices-aliases,aliases>> that you can automatically apply when creating new indices. On their own
 component templates are not matched or applied to an index, instead they are used in the
-`composed_of` definition of an <<index-templates-v2,index template>> to make up the final index
+`composed_of` definition of an <<indices-templates,index template>> to make up the final index
 configuration.
 // end::component-template-def[]
 
@@ -212,7 +212,7 @@ actual index name that the template gets applied to, during index creation.
 
 Component templates on their own don't apply or interact with indices at all. In order for them to
 be effective, they must be used as part of index template's `composed_of` field to take effect. See
-the <<index-templates-v2,index templates>> documentation for more information.
+the <<indices-templates,index templates>> documentation for more information.
 
 [[component-templates-version]]
 ===== Component template versioning

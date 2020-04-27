@@ -1,4 +1,4 @@
-[[index-templates]]
+[[indices-templates]]
 === Index template API
 ++++
 <titleabbrev>Index template</titleabbrev>

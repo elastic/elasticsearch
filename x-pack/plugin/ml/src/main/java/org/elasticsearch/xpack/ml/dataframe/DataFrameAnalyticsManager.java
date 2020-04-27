@@ -81,6 +81,11 @@ public class DataFrameAnalyticsManager {
         // With config in hand, determine action to take
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
             config -> {
+                // At this point we have the config at hand and we can reset the progress tracker
+                // to use the analyses phases. We preserve reindexing progress as if reindexing was
+                // finished it will not be reset.
+                task.getStatsHolder().resetProgressTrackerPreservingReindexingProgress(config.getAnalysis().getProgressPhases());
+
                 switch(currentState) {
                     // If we are STARTED, it means the job was started because the start API was called.
                     // We should determine the job's starting state based on its previous progress.
@@ -217,7 +222,6 @@ public class DataFrameAnalyticsManager {
                     return;
                 }
                 task.setReindexingTaskId(null);
-                task.setReindexingFinished();
                 auditor.info(
                     config.getId(),
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_REINDEXING, config.getDest().getIndex(),
@@ -296,6 +300,7 @@ public class DataFrameAnalyticsManager {
             task.markAsCompleted();
             return;
         }
+
         final ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, task.getParentTaskId());
         // Update state to ANALYZING and start process
         ActionListener<DataFrameDataExtractorFactory> dataExtractorFactoryListener = ActionListener.wrap(
@@ -327,8 +332,8 @@ public class DataFrameAnalyticsManager {
 
         ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(
             refreshResponse -> {
-                // Ensure we mark reindexing is finished for the case we are recovering a task that had finished reindexing
-                task.setReindexingFinished();
+                // Now we can ensure reindexing progress is complete
+                task.getStatsHolder().getProgressTracker().updateReindexingProgress(100);
 
                 // TODO This could fail with errors. In that case we get stuck with the copied index.
                 // We could delete the index in case of failure or we could try building the factory before reindexing

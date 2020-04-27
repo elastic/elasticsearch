@@ -34,6 +34,8 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.usage.UsageService.OTHER_SUBTYPE;
+
 public final class AutoDateHistogramAggregatorFactory
         extends ValuesSourceAggregatorFactory {
 
@@ -82,5 +84,11 @@ public final class AutoDateHistogramAggregatorFactory
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
         return createAggregator(null, searchContext, parent, metadata);
+    }
+
+    @Override
+    public String getStatsSubtype() {
+        // AutoDateHistogramAggregatorFactory doesn't register itself with ValuesSourceRegistry
+        return OTHER_SUBTYPE;
     }
 }

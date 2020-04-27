@@ -85,12 +85,8 @@ The API returns the following response:
         "search_action": 19, <3>
         "nodes_info_action": 36
       },
-      "aggregations" : {
-        "terms" : {
-          "bytes" : 1, <4>
-          "ip" : 3,
-          "numeric" : 5 <5>
-        }
+      "aggregations": {
+        ...
       }
     }
   }

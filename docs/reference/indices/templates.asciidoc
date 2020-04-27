@@ -4,8 +4,8 @@
 <titleabbrev>Put index template</titleabbrev>
 ++++
 
-This documentation is about V1 (version 1) index templates, are deprecated and will be replaced by
-V2 templates. For information about  V2 templates, see <<indices-templates>>.
+This documentation is about V1 (version 1) index templates, which are deprecated and will be
+replaced by V2 templates. For information about V2 templates, see <<indices-templates>>.
 
 [NOTE]
 ====

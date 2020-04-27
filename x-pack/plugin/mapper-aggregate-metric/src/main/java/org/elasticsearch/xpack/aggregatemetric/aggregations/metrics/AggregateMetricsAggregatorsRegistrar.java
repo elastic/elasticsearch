@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMet
 
 public class AggregateMetricsAggregatorsRegistrar {
 
-    public static void registerSumAggregator(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(
+    public static void registerSumAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
             SumAggregationBuilder.NAME,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
             (MetricAggregatorSupplier) (name, valuesSource, formatter, context, parent, metadata) -> new AggregateMetricBackedSumAggregator(
@@ -32,8 +32,8 @@ public class AggregateMetricsAggregatorsRegistrar {
         );
     }
 
-    public static void registerAvgAggregator(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(
+    public static void registerAvgAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
             AvgAggregationBuilder.NAME,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
             (MetricAggregatorSupplier) (name, valuesSource, formatter, context, parent, metadata) -> new AggregateMetricBackedAvgAggregator(
@@ -47,8 +47,8 @@ public class AggregateMetricsAggregatorsRegistrar {
         );
     }
 
-    public static void registerMinAggregator(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(
+    public static void registerMinAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
             MinAggregationBuilder.NAME,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
             (MinMaxAggregatorSupplier) (
@@ -68,8 +68,8 @@ public class AggregateMetricsAggregatorsRegistrar {
         );
     }
 
-    public static void registerMaxAggregator(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(
+    public static void registerMaxAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
             MaxAggregationBuilder.NAME,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
             (MinMaxAggregatorSupplier) (name, config, valuesSource, context, parent, metadata) -> new AggregateMetricBackedMaxAggregator(

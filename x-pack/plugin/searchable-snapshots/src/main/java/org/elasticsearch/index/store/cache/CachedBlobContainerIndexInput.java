@@ -221,8 +221,9 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 final long startTimeNanos = stats.currentTimeNanos();
                 try (InputStream input = openInputStream(rangeStart, rangeLength)) {
                     while (remaining > 0L) {
+                        assert totalBytesRead + remaining == rangeLength;
                         final int bytesRead = readSafe(input, copyBuffer, rangeStart, rangeEnd, remaining, cacheFileReference);
-                        final long readStart = rangeStart + rangeLength - remaining;
+                        final long readStart = rangeStart + totalBytesRead;
                         cacheFile.fetchRange(readStart, readStart + bytesRead, (start, end) -> {
                             logger.trace(
                                 "prefetchPart: range [{}-{}] of file [{}] is now available in cache",

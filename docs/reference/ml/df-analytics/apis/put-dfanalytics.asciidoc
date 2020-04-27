@@ -187,10 +187,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=outlier-fraction]
   
 `standardization_enabled`::::
 (Optional, boolean) 
-If `true`, the following operation is performed on the columns before computing 
-outlier scores: (x_i - mean(x_i)) / sd(x_i). Defaults to `true`. For more 
-information about this concept, see 
-{wikipedia}/Feature_scaling#Standardization_(Z-score_Normalization)[Wikipedia].
+include::{docdir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
 //End outlier_detection
 =====
 //Begin regression

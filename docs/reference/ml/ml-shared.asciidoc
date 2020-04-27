@@ -1206,6 +1206,13 @@ number of data points. If your data contains many sparse buckets, consider using
 a longer `bucket_span`.
 end::sparse-bucket-count[]
 
+tag::standardization-enabled[]
+If `true`, the following operation is performed on the columns before computing 
+outlier scores: (x_i - mean(x_i)) / sd(x_i). Defaults to `true`. For more 
+information about this concept, see 
+{wikipedia}/Feature_scaling#Standardization_(Z-score_Normalization)[Wikipedia].
+end::standardization-enabled[]
+
 tag::state-anomaly-job[]
 The status of the {anomaly-job}, which can be one of the following values:
 +

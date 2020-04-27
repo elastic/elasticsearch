@@ -240,8 +240,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=outlier-fraction]
 
 `standardization_enabled`::::
 (boolean)
-If true, then the following operation is performed on the columns before 
-computing {olscores}: (x_i - mean(x_i)) / sd(x_i).
+include::{docdir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
 =======
 //End parameters
 
@@ -291,7 +290,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-downsample-factor]
 
 `eta`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-eta]
+include::{docdir}/ml/ml-shared.asciidoc[tag=eta]
 
 `eta_growth_rate_per_tree`::::
 (double)
@@ -299,15 +298,15 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-eta-growth]
 
 `feature_bag_fraction`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-feature-bag-fraction]
+include::{docdir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
 
 `gamma`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-gamma]
+include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
 
 `lambda`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-lambda]
+include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
 
 `max_attempts_to_add_tree`::::
 (integer)
@@ -319,7 +318,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-max-optimization-rounds]
 
 `max_trees`::::
 (integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-max-trees]
+include::{docdir}/ml/ml-shared.asciidoc[tag=max-trees]
 
 `num_folds`::::
 (integer)

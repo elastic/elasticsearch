@@ -123,6 +123,6 @@ class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory {
 
     @Override
     public String getStatsSubtype() {
-        return configs.get(A_FIELD.getPreferredName()).scriptValueType().name();
+        return configs.get(A_FIELD.getPreferredName()).valueSourceType().typeName();
     }
 }

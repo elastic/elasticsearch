@@ -26,11 +26,14 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.usage.UsageService.OTHER_SUBTYPE;
 
 public class BinaryRangeAggregatorFactory
         extends ValuesSourceAggregatorFactory {
@@ -68,4 +71,9 @@ public class BinaryRangeAggregatorFactory
                 ranges, keyed, searchContext, parent, metadata);
     }
 
+    @Override
+    public String getStatsSubtype() {
+        // IPRange doesn't register itself correctly
+        return OTHER_SUBTYPE;
+    }
 }

@@ -146,8 +146,7 @@ public class AutoDateHistogramAggregationBuilder
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        // TODO: This should probably be DATE, but we're not failing tests with BYTES, so needs more tests?
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.DATE;
     }
 
     @Override

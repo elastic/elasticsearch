@@ -15,17 +15,28 @@ TIP: If you use a terms aggregation and the cardinality of a term is high, the
 aggregation might not be effective and you might want to just use the default
 search and scroll behavior.
 
+[discrete]
+[[aggs-limits-dfeeds]]
+==== Requirements and limitations
+
 There are some limitations to using aggregations in {dfeeds}. Your aggregation
 must include a `date_histogram` aggregation, which in turn must contain a `max`
 aggregation on the time field. This requirement ensures that the aggregated data
 is a time series and the timestamp of each bucket is the time of the last record
 in the bucket.
 
+IMPORTANT: The name of the aggregation and the name of the field that the agg 
+operates on need to match, otherwise the aggregation doesn't work. For example, 
+if you use a `max` aggregation on a time field called `responsetime`, the name 
+of the aggregation must be also `responsetime`.
+
 You must also consider the interval of the date histogram aggregation carefully.
 The bucket span of your {anomaly-job} must be divisible by the value of the
 `calendar_interval` or `fixed_interval` in your aggregation (with no remainder).
 If you specify a `frequency` for your {dfeed}, it must also be divisible by this
-interval.
+interval. {anomaly-jobs-cap} cannot use date histograms with an interval 
+measured in months because the length of the month is not fixed. {dfeeds-cap} 
+tolerate weeks or smaller units.
 
 TIP: As a rule of thumb, if your detectors use <<ml-metric-functions,metric>> or
 <<ml-sum-functions,sum>> analytical functions, set the date histogram
@@ -33,6 +44,11 @@ aggregation interval to a tenth of the bucket span. This suggestion creates
 finer, more granular time buckets, which are ideal for this type of analysis. If
 your detectors use <<ml-count-functions,count>> or <<ml-rare-functions,rare>>
 functions, set the interval to the same value as the bucket span.
+
+
+[discrete]
+[[aggs-include-jobs]]
+==== Including aggregations in {anomaly-jobs}
 
 When you create or update an {anomaly-job}, you can include the names of
 aggregations, for example:
@@ -85,13 +101,13 @@ PUT _ml/datafeeds/datafeed-farequote
         "time": {  <1>
           "max": {"field": "time"}
         },
-        "airline": {  <1>
+        "airline": {  <2>
           "terms": {
             "field": "airline",
             "size": 100
           },
           "aggregations": {
-            "responsetime": {  <1>
+            "responsetime": {  <3>
               "avg": {
                 "field": "responsetime"
               }
@@ -107,15 +123,23 @@ PUT _ml/datafeeds/datafeed-farequote
 
 <1> In this example, the aggregations have names that match the fields that they
 operate on. That is to say, the `max` aggregation is named `time` and its
-field is also `time`. The same is true for the aggregations with the names
-`airline` and `responsetime`. 
+field also needs to be `time`.
+<2> Likewise, the `term` aggregation is named `airline` and its field is also 
+named `airline`.
+<3> Likewise, the `avg` aggregation is named `responsetime` and its field is 
+also named `responsetime`.
 
-IMPORTANT: Your {dfeed} can contain multiple aggregations, but only the ones
-with names that match values in the job configuration are fed to the job.
+Your {dfeed} can contain multiple aggregations, but only the ones with names 
+that match values in the job configuration are fed to the job.
 
-{dfeeds-cap} support complex nested aggregations, this example uses the `derivative`
-pipeline aggregation to find the first order derivative of the counter
-`system.network.out.bytes` for each value of the field `beat.name`.
+
+[discrete]
+[[aggs-dfeeds]]
+==== Nested aggregations in {dfeeds}
+
+{dfeeds-cap} support complex nested aggregations. This example uses the 
+`derivative` pipeline aggregation to find the first order derivative of the 
+counter `system.network.out.bytes` for each value of the field `beat.name`.
 
 [source,js]
 ----------------------------------
@@ -153,6 +177,11 @@ pipeline aggregation to find the first order derivative of the counter
 }
 ----------------------------------
 // NOTCONSOLE
+
+
+[discrete]
+[[aggs-single-dfeeds]]
+==== Single bucket aggregations in {dfeeds}
 
 {dfeeds-cap} not only supports multi-bucket aggregations, but also single bucket
 aggregations. The following shows two `filter` aggregations, each gathering the
@@ -201,6 +230,11 @@ number of unique entries for the `error` field.
 ----------------------------------
 // NOTCONSOLE
 
+
+[discrete]
+[[aggs-define-dfeeds]]
+==== Defining aggregations in {dfeeds}
+
 When you define an aggregation in a {dfeed}, it must have the following form:
 
 [source,js]
@@ -239,7 +273,7 @@ When you define an aggregation in a {dfeed}, it must have the following form:
 The top level aggregation must be either a
 {ref}/search-aggregations-bucket.html[bucket aggregation] containing as single
 sub-aggregation that is a `date_histogram` or the top level aggregation is the
-required `date_histogram`. There must be exactly one `date_histogram`
+required `date_histogram`. There must be exactly one `date_histogram` 
 aggregation. For more information, see
 {ref}/search-aggregations-bucket-datehistogram-aggregation.html[Date histogram aggregation].
 
@@ -248,9 +282,9 @@ NOTE: The `time_zone` parameter in the date histogram aggregation must be set to
 
 Each histogram bucket has a key, which is the bucket start time. This key cannot
 be used for aggregations in {dfeeds}, however, because they need to know the
-time of the latest record within a bucket. Otherwise, when you restart a {dfeed},
-it continues from the start time of the histogram bucket and possibly fetches
-the same data twice. The max aggregation for the time field is therefore
+time of the latest record within a bucket. Otherwise, when you restart a 
+{dfeed}, it continues from the start time of the histogram bucket and possibly 
+fetches the same data twice. The max aggregation for the time field is therefore
 necessary to provide the time of the latest record within a bucket.
 
 You can optionally specify a terms aggregation, which creates buckets for
@@ -280,8 +314,7 @@ GET .../_search {
 By default, {es} limits the maximum number of terms returned to 10000. For high
 cardinality fields, the query might not run. It might return errors related to
 circuit breaking exceptions that indicate that the data is too large. In such
-cases, do not use aggregations in your {dfeed}. For more
-information, see
+cases, do not use aggregations in your {dfeed}. For more information, see
 {ref}/search-aggregations-bucket-terms-aggregation.html[Terms aggregation].
 
 You can also optionally specify multiple sub-aggregations. The sub-aggregations

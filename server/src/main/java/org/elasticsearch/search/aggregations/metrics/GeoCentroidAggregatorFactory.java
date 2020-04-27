@@ -69,8 +69,8 @@ class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory {
         return ((GeoCentroidAggregatorSupplier) aggregatorSupplier).build(name, searchContext, parent, valuesSource, metadata);
     }
 
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(GeoCentroidAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(GeoCentroidAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
             (GeoCentroidAggregatorSupplier) (name, context, parent, valuesSource, metadata) ->
                 new GeoCentroidAggregator(name, context, parent, (ValuesSource.GeoPoint) valuesSource, metadata));
     }

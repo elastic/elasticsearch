@@ -249,7 +249,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         // this is only setable internally not a registered setting!!
     public static final String PREFER_V2_TEMPLATES_FLAG = "prefer_v2_templates";
     public static final String SETTING_PREFER_V2_TEMPLATES = "index." + PREFER_V2_TEMPLATES_FLAG;
-    public static final Setting<Boolean> PREFER_V2_TEMPLATES_SETTING = Setting.boolSetting(SETTING_PREFER_V2_TEMPLATES, false,
+    public static final Setting<Boolean> PREFER_V2_TEMPLATES_SETTING = Setting.boolSetting(SETTING_PREFER_V2_TEMPLATES, true,
         Property.Dynamic, Property.IndexScope);
 
     /**

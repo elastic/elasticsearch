@@ -9,7 +9,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -38,7 +37,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedResponse> {
+public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedResponse> {
 
     public static final StartDataFrameAnalyticsAction INSTANCE = new StartDataFrameAnalyticsAction();
     public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/start";
@@ -46,7 +45,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(20, TimeUnit.SECONDS);
 
     private StartDataFrameAnalyticsAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, NodeAcknowledgedResponse::new);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -146,7 +145,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, NodeAcknowledgedResponse> {
 
         RequestBuilder(ElasticsearchClient client, StartDataFrameAnalyticsAction action) {
             super(client, action, new Request());

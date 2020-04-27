@@ -24,7 +24,7 @@ import org.elasticsearch.action.ActionType;
 public class SimulateIndexTemplateAction extends ActionType<SimulateIndexTemplateResponse> {
 
     public static final SimulateIndexTemplateAction INSTANCE = new SimulateIndexTemplateAction();
-    public static final String NAME = "indices:admin/index_template/simulate_index/post";
+    public static final String NAME = "indices:admin/index_template/simulate_index";
 
     private SimulateIndexTemplateAction() {
         super(NAME, SimulateIndexTemplateResponse::new);

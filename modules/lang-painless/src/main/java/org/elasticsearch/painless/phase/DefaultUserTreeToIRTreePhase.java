@@ -48,6 +48,9 @@ import org.elasticsearch.painless.ir.DotSubShortcutNode;
 import org.elasticsearch.painless.ir.ElvisNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.FieldNode;
+import org.elasticsearch.painless.ir.FlipArrayIndex;
+import org.elasticsearch.painless.ir.FlipCollectionIndex;
+import org.elasticsearch.painless.ir.FlipDefIndex;
 import org.elasticsearch.painless.ir.ForEachLoopNode;
 import org.elasticsearch.painless.ir.ForEachSubArrayNode;
 import org.elasticsearch.painless.ir.ForEachSubIterableNode;
@@ -1280,21 +1283,21 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 irDotSubNode.setField(scriptScope.getDecoration(userDotNode, StandardPainlessField.class).getStandardPainlessField());
                 irExpressionNode = irDotSubNode;
             } else if (scriptScope.getCondition(userDotNode, Shortcut.class)) {
-                DotSubShortcutNode irDotSubShortcutNode = new DotSubShortcutNode();
-                irDotSubShortcutNode.setLocation(userDotNode.getLocation());
-                irDotSubShortcutNode.setExpressionType(scriptScope.getDecoration(userDotNode, ValueType.class).getValueType());
+                DotSubShortcutNode dotSubShortcutNode = new DotSubShortcutNode();
+                dotSubShortcutNode.setLocation(userDotNode.getLocation());
+                dotSubShortcutNode.setExpressionType(scriptScope.getDecoration(userDotNode, ValueType.class).getValueType());
 
                 if (scriptScope.hasDecoration(userDotNode, GetterPainlessMethod.class)) {
-                    irDotSubShortcutNode.setGetter(
+                    dotSubShortcutNode.setGetter(
                             scriptScope.getDecoration(userDotNode, GetterPainlessMethod.class).getGetterPainlessMethod());
                 }
 
                 if (scriptScope.hasDecoration(userDotNode, SetterPainlessMethod.class)) {
-                    irDotSubShortcutNode.setSetter(
+                    dotSubShortcutNode.setSetter(
                             scriptScope.getDecoration(userDotNode, SetterPainlessMethod.class).getSetterPainlessMethod());
                 }
 
-                irExpressionNode = irDotSubShortcutNode;
+                irExpressionNode = dotSubShortcutNode;
             } else if (scriptScope.getCondition(userDotNode, MapShortcut.class)) {
                 ConstantNode irConstantNode = new ConstantNode();
                 irConstantNode.setLocation(userDotNode.getLocation());
@@ -1302,7 +1305,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 irConstantNode.setConstant(userDotNode.getIndex());
 
                 MapSubShortcutNode irMapSubShortcutNode = new MapSubShortcutNode();
-                irMapSubShortcutNode.setChildNode(irConstantNode);
+                irMapSubShortcutNode.setIndexNode(irConstantNode);
                 irMapSubShortcutNode.setLocation(userDotNode.getLocation());
                 irMapSubShortcutNode.setExpressionType(scriptScope.getDecoration(userDotNode, ValueType.class).getValueType());
 
@@ -1324,7 +1327,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 irConstantNode.setConstant(scriptScope.getDecoration(userDotNode, StandardConstant.class).getStandardConstant());
 
                 ListSubShortcutNode irListSubShortcutNode = new ListSubShortcutNode();
-                irListSubShortcutNode.setChildNode(irConstantNode);
+                irListSubShortcutNode.setIndexNode(irConstantNode);
                 irListSubShortcutNode.setLocation(userDotNode.getLocation());
                 irListSubShortcutNode.setExpressionType(scriptScope.getDecoration(userDotNode, ValueType.class).getValueType());
 
@@ -1369,20 +1372,31 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         Class<?> prefixValueType = scriptScope.getDecoration(userBraceNode.getPrefixNode(), ValueType.class).getValueType();
 
         if (prefixValueType.isArray()) {
+            FlipArrayIndex irFlipArrayIndex = new FlipArrayIndex();
+            irFlipArrayIndex.setLocation(userBraceNode.getIndexNode().getLocation());
+            irFlipArrayIndex.setExpressionType(int.class);
+            irFlipArrayIndex.setIndexNode(injectCast(userBraceNode.getIndexNode(), scriptScope));
+
             BraceSubNode irBraceSubNode = new BraceSubNode();
-            irBraceSubNode.setChildNode(injectCast(userBraceNode.getIndexNode(), scriptScope));
+            irBraceSubNode.setIndexNode(irFlipArrayIndex);
             irBraceSubNode.setLocation(userBraceNode.getLocation());
             irBraceSubNode.setExpressionType(scriptScope.getDecoration(userBraceNode, ValueType.class).getValueType());
             irExpressionNode = irBraceSubNode;
         } else if (prefixValueType == def.class) {
+            ;
+            FlipDefIndex irFlipDefIndex = new FlipDefIndex();
+            irFlipDefIndex.setLocation(userBraceNode.getIndexNode().getLocation());
+            irFlipDefIndex.setExpressionType(scriptScope.getDecoration(userBraceNode.getIndexNode(), ValueType.class).getValueType());
+            irFlipDefIndex.setIndexNode((ExpressionNode)visit(userBraceNode.getIndexNode(), scriptScope));
+
             BraceSubDefNode irBraceSubDefNode = new BraceSubDefNode();
-            irBraceSubDefNode.setChildNode((ExpressionNode)visit(userBraceNode.getIndexNode(), scriptScope));
+            irBraceSubDefNode.setIndexNode(irFlipDefIndex);
             irBraceSubDefNode.setLocation(userBraceNode.getLocation());
             irBraceSubDefNode.setExpressionType(scriptScope.getDecoration(userBraceNode, ValueType.class).getValueType());
             irExpressionNode = irBraceSubDefNode;
         } else if (scriptScope.getCondition(userBraceNode, MapShortcut.class)) {
             MapSubShortcutNode irMapSubShortcutNode = new MapSubShortcutNode();
-            irMapSubShortcutNode.setChildNode(injectCast(userBraceNode.getIndexNode(), scriptScope));
+            irMapSubShortcutNode.setIndexNode(injectCast(userBraceNode.getIndexNode(), scriptScope));
             irMapSubShortcutNode.setLocation(userBraceNode.getLocation());
             irMapSubShortcutNode.setExpressionType(scriptScope.getDecoration(userBraceNode, ValueType.class).getValueType());
 
@@ -1398,8 +1412,13 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
             irExpressionNode = irMapSubShortcutNode;
         } else if (scriptScope.getCondition(userBraceNode, ListShortcut.class)) {
+            FlipCollectionIndex irFlipCollectionIndex = new FlipCollectionIndex();
+            irFlipCollectionIndex.setLocation(userBraceNode.getIndexNode().getLocation());
+            irFlipCollectionIndex.setExpressionType(int.class);
+            irFlipCollectionIndex.setIndexNode(injectCast(userBraceNode.getIndexNode(), scriptScope));
+
             ListSubShortcutNode irListSubShortcutNode = new ListSubShortcutNode();
-            irListSubShortcutNode.setChildNode(injectCast(userBraceNode.getIndexNode(), scriptScope));
+            irListSubShortcutNode.setIndexNode(irFlipCollectionIndex);
             irListSubShortcutNode.setLocation(userBraceNode.getLocation());
             irListSubShortcutNode.setExpressionType(scriptScope.getDecoration(userBraceNode, ValueType.class).getValueType());
 

@@ -235,7 +235,8 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
             } catch (final NumberFormatException e) {
                 try {
                     final double doubleValue = Double.parseDouble(s);
-                    DeprecationLoggerHolder.deprecationLogger.deprecated(
+                    DeprecationLoggerHolder.deprecationLogger.deprecatedAndMaybeLog(
+                            "fractional_byte_values",
                             "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [{}] found for setting [{}]",
                             initialInput, settingName);
                     return new ByteSizeValue((long) (doubleValue * unit.toBytes(1)));

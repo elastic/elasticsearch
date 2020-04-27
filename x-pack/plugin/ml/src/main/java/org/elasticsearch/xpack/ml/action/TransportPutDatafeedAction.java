@@ -106,7 +106,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                                    ActionListener<PutDatafeedAction.Response> listener) {
         // If security is enabled only create the datafeed if the user requesting creation has
         // permission to read the indices the datafeed is going to read from
-        if (licenseState.isAuthAllowed()) {
+        if (licenseState.isSecurityEnabled()) {
             useSecondaryAuthIfAvailable(securityContext, () -> {
                 final String[] indices = request.getDatafeed().getIndices().toArray(new String[0]);
 

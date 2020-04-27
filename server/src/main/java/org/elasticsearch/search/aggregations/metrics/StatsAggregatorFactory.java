@@ -49,8 +49,8 @@ class StatsAggregatorFactory extends ValuesSourceAggregatorFactory {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(StatsAggregationBuilder.NAME,
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(StatsAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             new MetricAggregatorSupplier() {
                 @Override

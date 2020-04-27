@@ -42,7 +42,7 @@ dependencies {
   testCompile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 }
 
-forbiddenApisTest {
+tasks.named('forbiddenApisTest').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
@@ -58,7 +58,7 @@ tasks.dependenciesInfo.enabled = false
 tasks.thirdPartyAudit.ignoreMissingClasses()
 
 tasks.register('destructivePackagingTest') {
-  dependsOn 'destructiveDistroTest' 
+  dependsOn 'destructiveDistroTest'
 }
 
 processTestResources {

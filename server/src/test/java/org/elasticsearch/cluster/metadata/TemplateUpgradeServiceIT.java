@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -40,6 +41,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -71,12 +73,13 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
                                                    ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                    NamedXContentRegistry xContentRegistry, Environment environment,
                                                    NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                                   IndexNameExpressionResolver expressionResolver) {
+                                                   IndexNameExpressionResolver expressionResolver,
+                                                   Supplier<RepositoriesService> repositoriesServiceSupplier) {
             clusterService.getClusterSettings().addSettingsUpdateConsumer(UPDATE_TEMPLATE_DUMMY_SETTING, integer -> {
                 logger.debug("the template dummy setting was updated to {}", integer);
             });
             return super.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService, xContentRegistry,
-                environment, nodeEnvironment, namedWriteableRegistry, expressionResolver);
+                environment, nodeEnvironment, namedWriteableRegistry, expressionResolver, repositoriesServiceSupplier);
         }
 
         @Override

@@ -190,6 +190,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
+    public void keystorePassword(String password) {
+        nodes.all(each -> each.keystorePassword(password));
+    }
+
+    @Override
     public void cliSetup(String binTool, CharSequence... args) {
         nodes.all(each -> each.cliSetup(binTool, args));
     }

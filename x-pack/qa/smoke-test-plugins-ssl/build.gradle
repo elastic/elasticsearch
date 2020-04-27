@@ -55,7 +55,6 @@ testClusters.integTest {
   setting 'xpack.security.http.ssl.certificate_authorities', 'testnode.crt'
   keystore 'xpack.security.http.ssl.secure_key_passphrase', 'testnode'
 
-  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   // copy keystores, keys and certificates into config/
   extraConfigFile nodeKeystore.name, nodeKeystore

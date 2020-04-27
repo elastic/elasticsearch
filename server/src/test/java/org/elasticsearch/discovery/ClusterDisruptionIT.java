@@ -76,10 +76,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isIn;
-import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.oneOf;
 
 /**
  * Tests various cluster operations (e.g., indexing) during disruptions.
@@ -171,7 +171,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                                 }
 
                                 IndexResponse response = indexRequestBuilder.get(timeout);
-                                assertThat(response.getResult(), isOneOf(CREATED, UPDATED));
+                                assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
                                 ackedDocs.put(id, node);
                                 logger.trace("[{}] indexed id [{}] through node [{}], response [{}]", name, id, node, response);
                             } catch (ElasticsearchException e) {
@@ -478,7 +478,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                     try {
                         IndexResponse response = client().prepareIndex(index).setId(id)
                             .setSource(Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON).get();
-                        assertThat(response.getResult(), isOneOf(CREATED, UPDATED));
+                        assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
                         logger.info("--> index id={} seq_no={}", response.getId(), response.getSeqNo());
                         ackedDocs.add(response.getId());
                     } catch (ElasticsearchException ignore) {
@@ -504,7 +504,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
             IndexShard shard = indicesService.getShardOrNull(shardRouting.shardId());
             Set<String> docs = IndexShardTestCase.getShardDocUIDs(shard);
             assertThat("shard [" + shard.routingEntry() + "] docIds [" + docs + "] vs " + " acked docIds [" + ackedDocs + "]",
-                ackedDocs, everyItem(isIn(docs)));
+                ackedDocs, everyItem(is(in(docs))));
         }
     }
 

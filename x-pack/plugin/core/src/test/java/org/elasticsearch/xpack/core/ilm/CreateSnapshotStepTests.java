@@ -69,13 +69,13 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
             ilmCustom.put("snapshot_repository", repository);
             indexMetadataBuilder.putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom);
 
-            IndexMetadata indexMetaData = indexMetadataBuilder.build();
+            IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
             ClusterState clusterState =
-                ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetaData, true).build()).build();
+                ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
 
             CreateSnapshotStep createSnapshotStep = createRandomInstance();
-            createSnapshotStep.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
+            createSnapshotStep.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
                 @Override
                 public void onResponse(boolean complete) {
                     fail("expecting a failure as the index doesn't have any snapshot name in its ILM execution state");
@@ -94,13 +94,13 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
             IndexMetadata.Builder indexMetadataBuilder =
                 IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                     .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
-            IndexMetadata indexMetaData = indexMetadataBuilder.build();
+            IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
             ClusterState clusterState =
-                ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetaData, true).build()).build();
+                ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
 
             CreateSnapshotStep createSnapshotStep = createRandomInstance();
-            createSnapshotStep.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
+            createSnapshotStep.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
                 @Override
                 public void onResponse(boolean complete) {
                     fail("expecting a failure as the index doesn't have any snapshot name in its ILM execution state");
@@ -129,14 +129,14 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
             IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                 .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
-        IndexMetadata indexMetaData = indexMetadataBuilder.build();
+        IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
         ClusterState clusterState =
-            ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetaData, true).build()).build();
+            ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
 
         try (NoOpClient client = getCreateSnapshotRequestAssertingClient(repository, snapshotName, indexName)) {
             CreateSnapshotStep step = new CreateSnapshotStep(randomStepKey(), randomStepKey(), client);
-            step.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
+            step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
                 @Override
                 public void onResponse(boolean complete) {
                 }

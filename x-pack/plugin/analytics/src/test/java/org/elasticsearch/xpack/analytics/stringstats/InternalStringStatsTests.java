@@ -8,13 +8,14 @@ package org.elasticsearch.xpack.analytics.stringstats;
 
 import org.elasticsearch.client.analytics.ParsedStringStats;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -22,12 +23,20 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class InternalStringStatsTests extends InternalAggregationTestCase<InternalStringStats> {
+
+    @Override
+    protected SearchPlugin registerPlugin() {
+        return new AnalyticsPlugin();
+    }
+
     @Override
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
         List<NamedXContentRegistry.Entry> result = new ArrayList<>(super.getNamedXContents());
@@ -38,21 +47,32 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
 
     @Override
     protected InternalStringStats createTestInstance(String name, Map<String, Object> metadata) {
-        if (randomBoolean()) {
-            return new InternalStringStats(name, 0, 0, 0, 0, emptyMap(), randomBoolean(), DocValueFormat.RAW, metadata);
-        }
+        return createTestInstance(name, metadata, Long.MAX_VALUE, Long.MAX_VALUE);
+    }
+
+    @Override
+    protected List<InternalStringStats> randomResultsToReduce(String name, int size) {
         /*
-         * Pick random count and length that are *much* less than
+         * Pick random count and length that are less than
          * Long.MAX_VALUE because reduction adds them together and sometimes
          * serializes them and that serialization would fail if the sum has
          * wrapped to a negative number.
          */
-        long count = randomLongBetween(1, Integer.MAX_VALUE);
-        long totalLength = randomLongBetween(0, count * 10);
+        return Stream.generate(() -> createTestInstance(name, null, Long.MAX_VALUE / size, Long.MAX_VALUE / size))
+            .limit(size)
+            .collect(toList());
+    }
+
+    private InternalStringStats createTestInstance(String name, Map<String, Object> metadata, long maxCount, long maxTotalLength) {
+        if (randomBoolean()) {
+            return new InternalStringStats(name, 0, 0, 0, 0, emptyMap(), randomBoolean(), DocValueFormat.RAW, metadata);
+        }
+        long count = randomLongBetween(1, maxCount);
+        long totalLength = randomLongBetween(0, maxTotalLength);
         return new InternalStringStats(name, count, totalLength,
                 between(0, Integer.MAX_VALUE), between(0, Integer.MAX_VALUE), randomCharOccurrences(),
                 randomBoolean(), DocValueFormat.RAW, metadata);
-    };
+    }
 
     @Override
     protected InternalStringStats mutateInstance(InternalStringStats instance) throws IOException {
@@ -88,11 +108,6 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
          }
         return new InternalStringStats(name, count, totalLength, minLength, maxLength, charOccurrences, showDistribution,
                 DocValueFormat.RAW, instance.getMetadata());
-    }
-
-    @Override
-    protected Reader<InternalStringStats> instanceReader() {
-        return InternalStringStats::new;
     }
 
     @Override

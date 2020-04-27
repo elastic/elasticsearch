@@ -7,8 +7,9 @@ These are the settings available for configuring Index Lifecycle Management
 ==== Cluster level settings
 
 `xpack.ilm.enabled`::
-Whether ILM is enabled or disabled, setting this to `false` disables any
-ILM REST API endpoints and functionality. Defaults to `true`.
+deprecated:[7.8.0,Basic License features should always be enabled] +
+Whether ILM is enabled or disabled, setting this to `false` disables any ILM
+REST API endpoints and functionality. Defaults to `true`.
 
 `indices.lifecycle.poll_interval`::
 (<<time-units, time units>>) How often {ilm} checks for indices that meet policy

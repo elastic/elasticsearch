@@ -32,6 +32,11 @@ AVG(numeric_field) <1>
 include-tagged::{sql-specs}/docs/docs.csv-spec[aggAvg]
 --------------------------------------------------
 
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggAvgScalars]
+--------------------------------------------------
+
 [[sql-functions-aggs-count]]
 ==== `COUNT`
 
@@ -82,6 +87,10 @@ COUNT(ALL field_name) <1>
 include-tagged::{sql-specs}/docs/docs.csv-spec[aggCountAll]
 --------------------------------------------------
 
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggCountAllScalars]
+--------------------------------------------------
 
 [[sql-functions-aggs-count-distinct]]
 ==== `COUNT(DISTINCT)`
@@ -103,6 +112,11 @@ COUNT(DISTINCT field_name) <1>
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[aggCountDistinct]
+--------------------------------------------------
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggCountDistinctScalars]
 --------------------------------------------------
 
 [[sql-functions-aggs-first]]
@@ -192,6 +206,11 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[firstWithTwoArgsAndGroupBy]
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[firstValueWithTwoArgsAndGroupBy]
+--------------------------------------------------------------------------
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[firstValueWithTwoArgsAndGroupByScalars]
 --------------------------------------------------------------------------
 
 [NOTE]
@@ -289,6 +308,11 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[lastWithTwoArgsAndGroupBy]
 include-tagged::{sql-specs}/docs/docs.csv-spec[lastValueWithTwoArgsAndGroupBy]
 -------------------------------------------------------------------------
 
+["source","sql",subs="attributes,macros"]
+-------------------------------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[lastValueWithTwoArgsAndGroupByScalars]
+-------------------------------------------------------------------------
+
 [NOTE]
 `LAST` cannot be used in `HAVING` clause.
 [NOTE]
@@ -315,6 +339,11 @@ MAX(field_name) <1>
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[aggMax]
+--------------------------------------------------
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggMaxScalars]
 --------------------------------------------------
 
 [NOTE]
@@ -369,6 +398,11 @@ SUM(field_name) <1>
 include-tagged::{sql-specs}/docs/docs.csv-spec[aggSum]
 --------------------------------------------------
 
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggSumScalars]
+--------------------------------------------------
+
 [[sql-functions-aggs-statistics]]
 [float]
 === Statistics
@@ -397,6 +431,16 @@ https://en.wikipedia.org/wiki/Kurtosis[Quantify] the shape of the distribution o
 include-tagged::{sql-specs}/docs/docs.csv-spec[aggKurtosis]
 --------------------------------------------------
 
+[NOTE]
+====
+`KURTOSIS` cannot be used on top of scalar functions or operators but only directly on a field. So, for example,
+the following is not allowed and an error is returned:
+[source, sql]
+---------------------------------------
+ SELECT KURTOSIS(salary / 12.0), gender FROM emp GROUP BY gender
+---------------------------------------
+====
+
 [[sql-functions-aggs-mad]]
 ==== `MAD`
 
@@ -419,6 +463,11 @@ https://en.wikipedia.org/wiki/Median_absolute_deviation[Measure] the variability
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[aggMad]
+--------------------------------------------------
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggMadScalars]
 --------------------------------------------------
 
 [[sql-functions-aggs-percentile]]
@@ -449,6 +498,11 @@ of input values in the field `field_name`.
 include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentile]
 --------------------------------------------------
 
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentileScalars]
+--------------------------------------------------
+
 [[sql-functions-aggs-percentile-rank]]
 ==== `PERCENTILE_RANK`
 
@@ -477,6 +531,11 @@ of input values in the field `field_name`.
 include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentileRank]
 --------------------------------------------------
 
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentileRankScalars]
+--------------------------------------------------
+
 [[sql-functions-aggs-skewness]]
 ==== `SKEWNESS`
 
@@ -500,6 +559,16 @@ https://en.wikipedia.org/wiki/Skewness[Quantify] the asymmetric distribution of 
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[aggSkewness]
 --------------------------------------------------
+
+[NOTE]
+====
+`SKEWNESS` cannot be used on top of scalar functions but only directly on a field. So, for example, the following is
+not allowed and an error is returned:
+[source, sql]
+---------------------------------------
+ SELECT SKEWNESS(ROUND(salary / 12.0, 2), gender FROM emp GROUP BY gender
+---------------------------------------
+====
 
 [[sql-functions-aggs-stddev-pop]]
 ==== `STDDEV_POP`
@@ -525,6 +594,11 @@ Returns the https://en.wikipedia.org/wiki/Standard_deviations[population standar
 include-tagged::{sql-specs}/docs/docs.csv-spec[aggStddevPop]
 --------------------------------------------------
 
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggStddevPopScalars]
+--------------------------------------------------
+
 [[sql-functions-aggs-sum-squares]]
 ==== `SUM_OF_SQUARES`
 
@@ -542,11 +616,16 @@ SUM_OF_SQUARES(field_name) <1>
 
 *Description*:
 
-Returns the https://en.wikipedia.org/wiki/Total_sum_of_squares[sum of squares] of input values in the field `field_name`.
+Returns the sum of squares of input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[aggSumOfSquares]
+--------------------------------------------------
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggSumOfSquaresScalars]
 --------------------------------------------------
 
 [[sql-functions-aggs-var-pop]]
@@ -571,4 +650,10 @@ Returns the https://en.wikipedia.org/wiki/Variance[population variance] of input
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[aggVarPop]
+--------------------------------------------------
+
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggVarPopScalars]
 --------------------------------------------------

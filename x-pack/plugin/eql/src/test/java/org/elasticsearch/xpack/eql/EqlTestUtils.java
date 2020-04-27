@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.eql;
 
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
 import org.elasticsearch.xpack.eql.session.Configuration;
@@ -27,7 +28,7 @@ public final class EqlTestUtils {
 
     public static final Configuration TEST_CFG = new Configuration(new String[]{"none"}, org.elasticsearch.xpack.ql.util.DateUtils.UTC,
             "nobody", "cluster", null, TimeValue.timeValueSeconds(30), -1, false, "",
-            new EqlSearchTask(-1, "", EqlSearchAction.NAME, () -> "", null, Collections.emptyMap()));
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()), () -> false);
 
     public static Configuration randomConfiguration() {
         return new Configuration(new String[]{randomAlphaOfLength(16)},
@@ -39,7 +40,8 @@ public final class EqlTestUtils {
             randomIntBetween(5, 100),
             randomBoolean(),
             randomAlphaOfLength(16),
-            randomTask());
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
+            () -> false);
     }
 
     public static EqlSearchTask randomTask() {

@@ -204,7 +204,6 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -1326,7 +1325,7 @@ public class InternalEngineTests extends EngineTestCase {
                     Translog.Operation op = ops.get(seqno);
                     if (op != null) {
                         assertThat(op, instanceOf(Translog.Index.class));
-                        assertThat(msg, ((Translog.Index) op).id(), isIn(liveDocs));
+                        assertThat(msg, ((Translog.Index) op).id(), is(in(liveDocs)));
                         assertEquals(msg, ((Translog.Index) op).source(), B_1);
                     }
                 } else {
@@ -1413,7 +1412,7 @@ public class InternalEngineTests extends EngineTestCase {
                     Translog.Operation op = ops.get(seqno);
                     if (op != null) {
                         assertThat(op, instanceOf(Translog.Index.class));
-                        assertThat(msg, ((Translog.Index) op).id(), isIn(liveDocs));
+                        assertThat(msg, ((Translog.Index) op).id(), is(in(liveDocs)));
                     }
                 } else {
                     Translog.Operation op = ops.get(seqno);

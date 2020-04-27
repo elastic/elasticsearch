@@ -28,21 +28,21 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 /**
  * Implements a field who's value is null if the prefix is null rather than throwing an NPE.
  */
-public class PSubNullSafeField extends AStoreable {
+public class PSubNullSafeField extends AExpression {
 
-    protected final AStoreable guarded;
+    protected final AExpression guarded;
 
-    public PSubNullSafeField(Location location, AStoreable guarded) {
+    public PSubNullSafeField(Location location, AExpression guarded) {
         super(location);
         this.guarded = guarded;
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         Output output = new Output();
 
         if (input.write) {
-            throw createError(new IllegalArgumentException("Can't write to null safe reference"));
+            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to a null safe operation [?.]"));
         }
 
         Input guardedInput = new Input();
@@ -64,10 +64,5 @@ public class PSubNullSafeField extends AStoreable {
         output.expressionNode = nullSafeSubNode;
 
         return output;
-    }
-
-    @Override
-    boolean isDefOptimized() {
-        return false;
     }
 }

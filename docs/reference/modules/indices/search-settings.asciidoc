@@ -1,5 +1,5 @@
 [[search-settings]]
-=== Search Settings
+=== Search settings
 
 The following _expert_ setting can be set to manage global search limits.
 

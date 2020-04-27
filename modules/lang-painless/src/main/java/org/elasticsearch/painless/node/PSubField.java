@@ -24,7 +24,6 @@ import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DotSubNode;
 import org.elasticsearch.painless.lookup.PainlessField;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.lang.reflect.Modifier;
@@ -33,7 +32,7 @@ import java.util.Objects;
 /**
  * Represents a field load/store.
  */
-public class PSubField extends AStoreable {
+public class PSubField extends AExpression {
 
     protected final PainlessField field;
 
@@ -44,12 +43,12 @@ public class PSubField extends AStoreable {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         Output output = new Output();
 
          if (input.write && Modifier.isFinal(field.javaField.getModifiers())) {
-             throw createError(new IllegalArgumentException("Cannot write to read-only field [" + field.javaField.getName() + "] " +
-                     "for type [" + PainlessLookupUtility.typeToCanonicalTypeName(field.javaField.getDeclaringClass()) + "]."));
+             throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to read-only field [" + field.javaField.getName() + "]"));
          }
 
          output.actual = field.typeParameter;
@@ -63,10 +62,5 @@ public class PSubField extends AStoreable {
         output.expressionNode = dotSubNode;
 
         return output;
-    }
-
-    @Override
-    boolean isDefOptimized() {
-        return false;
     }
 }

@@ -21,7 +21,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.geo.GeoPlugin;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.get.GetResult;
@@ -63,7 +62,7 @@ public abstract class ShapeQueryBuilderTests extends AbstractQueryTestCase<Shape
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(SpatialPlugin.class, GeoPlugin.class);
+        return Arrays.asList(SpatialPlugin.class);
     }
 
     protected String fieldName() {

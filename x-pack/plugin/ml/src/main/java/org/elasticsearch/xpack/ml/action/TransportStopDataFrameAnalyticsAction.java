@@ -53,8 +53,6 @@ import java.util.stream.Stream;
 
 /**
  * Stops the persistent task for running data frame analytics.
- *
- * TODO Add to the upgrade mode action
  */
 public class TransportStopDataFrameAnalyticsAction
     extends TransportTasksAction<DataFrameAnalyticsTask, StopDataFrameAnalyticsAction.Request,

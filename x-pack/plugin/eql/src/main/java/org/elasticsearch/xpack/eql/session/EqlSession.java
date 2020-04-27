@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.eql.session;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.eql.analysis.Analyzer;
@@ -37,7 +38,7 @@ public class EqlSession {
     public EqlSession(Client client, Configuration cfg, IndexResolver indexResolver, PreAnalyzer preAnalyzer, Analyzer analyzer,
             Optimizer optimizer, Planner planner, PlanExecutor planExecutor) {
 
-        this.client = client;
+        this.client = new ParentTaskAssigningClient(client, cfg.getTaskId());
         this.configuration = cfg;
         this.indexResolver = indexResolver;
         this.preAnalyzer = preAnalyzer;

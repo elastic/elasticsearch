@@ -40,6 +40,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -128,24 +129,27 @@ public interface Repository extends LifecycleComponent {
      * @param clusterMetadata       cluster metadata
      * @param userMetadata          user metadata
      * @param repositoryMetaVersion version of the updated repository metadata to write
+     * @param stateTransformer      a function that filters the last cluster state update that the snapshot finalization will execute and
+     *                              is used to remove any state tracked for the in-progress snapshot from the cluster state
      * @param listener              listener to be invoked with the new {@link RepositoryData} and the snapshot's {@link SnapshotInfo}
      *                              completion of the snapshot
      */
     void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                           int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                           boolean includeGlobalState, Metadata clusterMetadata, Map<String, Object> userMetadata,
-                          Version repositoryMetaVersion, ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener);
+                          Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateTransformer,
+                          ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener);
 
     /**
-     * Deletes snapshot
+     * Deletes snapshots
      *
-     * @param snapshotId            snapshot id
+     * @param snapshotIds           snapshot ids
      * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot deletion began
      * @param repositoryMetaVersion version of the updated repository metadata to write
      * @param listener              completion listener
      */
-    void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version repositoryMetaVersion, ActionListener<Void> listener);
-
+    void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
+                         ActionListener<Void> listener);
     /**
      * Returns snapshot throttle time in nanoseconds
      */
@@ -156,6 +160,12 @@ public interface Repository extends LifecycleComponent {
      */
     long getRestoreThrottleTimeInNanos();
 
+    /**
+     * Returns stats on the repository usage
+     */
+    default RepositoryStats stats() {
+        return RepositoryStats.EMPTY_STATS;
+    }
 
     /**
      * Verifies repository on the master node and returns the verification token.

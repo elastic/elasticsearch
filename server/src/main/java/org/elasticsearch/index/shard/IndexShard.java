@@ -46,6 +46,9 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
+import org.elasticsearch.index.bulk.stats.BulkOperationListener;
+import org.elasticsearch.index.bulk.stats.BulkStats;
+import org.elasticsearch.index.bulk.stats.ShardBulkStats;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -208,6 +211,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final SearchOperationListener searchOperationListener;
 
+    private final ShardBulkStats bulkOperationListener;
     private final GlobalCheckpointListeners globalCheckpointListeners;
     private final ReplicationTracker replicationTracker;
 
@@ -268,6 +272,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final AtomicLong lastSearcherAccess = new AtomicLong();
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
+    private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
 
     public IndexShard(
@@ -310,6 +315,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final List<IndexingOperationListener> listenersList = new ArrayList<>(listeners);
         listenersList.add(internalIndexingStats);
         this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(listenersList, logger);
+        this.bulkOperationListener = new ShardBulkStats();
         this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
         final List<SearchOperationListener> searchListenersList = new ArrayList<>(searchOperationListener);
@@ -366,6 +372,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
+        this.refreshPendingLocationListener = new RefreshPendingLocationListener();
     }
 
     public ThreadPool getThreadPool() {
@@ -397,6 +404,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public SearchOperationListener getSearchOperationListener() {
         return this.searchOperationListener;
+    }
+
+    public BulkOperationListener getBulkOperationListener() {
+        return this.bulkOperationListener;
     }
 
     public ShardIndexWarmerService warmerService() {
@@ -1026,6 +1037,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public CompletionStats completionStats(String... fields) {
         readAllowed();
         return getEngine().completionStats(fields);
+    }
+
+    public BulkStats bulkStats() {
+        return bulkOperationListener.stats();
     }
 
     /**
@@ -2673,7 +2688,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 similarityService.similarity(mapperService), codecService, shardEventListener,
                 indexCache != null ? indexCache.query() : null, cachingPolicy, translogConfig,
                 IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
-                Collections.singletonList(refreshListeners),
+                List.of(refreshListeners, refreshPendingLocationListener),
                 Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
                 indexSort, circuitBreakerService, globalCheckpointSupplier, replicationTracker::getRetentionLeases,
                 () -> getOperationPrimaryTerm(), tombstoneDocSupplier());
@@ -3173,7 +3188,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Returns true if this shards is search idle
      */
-    final boolean isSearchIdle() {
+    public final boolean isSearchIdle() {
         return (threadPool.relativeTimeInMillis() - lastSearcherAccess.get()) >= indexSettings.getSearchIdleAfter().getMillis();
     }
 
@@ -3184,15 +3199,44 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return lastSearcherAccess.get();
     }
 
+    /**
+     * Returns true if this shard has some scheduled refresh that is pending because of search-idle.
+     */
+    public final boolean hasRefreshPending() {
+        return pendingRefreshLocation.get() != null;
+    }
+
     private void setRefreshPending(Engine engine) {
-        Translog.Location lastWriteLocation = engine.getTranslogLastWriteLocation();
-        Translog.Location location;
-        do {
-            location = this.pendingRefreshLocation.get();
-            if (location != null && lastWriteLocation.compareTo(location) <= 0) {
-                break;
+        final Translog.Location lastWriteLocation = engine.getTranslogLastWriteLocation();
+        pendingRefreshLocation.updateAndGet(curr -> {
+            if (curr == null || curr.compareTo(lastWriteLocation) <= 0) {
+                return lastWriteLocation;
+            } else {
+                return curr;
             }
-        } while (pendingRefreshLocation.compareAndSet(location, lastWriteLocation) == false);
+        });
+    }
+
+    private class RefreshPendingLocationListener implements ReferenceManager.RefreshListener {
+        Translog.Location lastWriteLocation;
+
+        @Override
+        public void beforeRefresh() {
+            lastWriteLocation = getEngine().getTranslogLastWriteLocation();
+        }
+
+        @Override
+        public void afterRefresh(boolean didRefresh) {
+            if (didRefresh) {
+                pendingRefreshLocation.updateAndGet(pendingLocation -> {
+                    if (pendingLocation == null || pendingLocation.compareTo(lastWriteLocation) <= 0) {
+                        return null;
+                    } else {
+                        return pendingLocation;
+                    }
+                });
+            }
+        }
     }
 
     /**
@@ -3312,7 +3356,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // we must create both new read-only engine and new read-write engine under engineMutex to ensure snapshotStoreMetadata,
             // acquireXXXCommit and close works.
             final Engine readOnlyEngine =
-                new ReadOnlyEngine(newEngineConfig(replicationTracker), seqNoStats, translogStats, false, Function.identity()) {
+                new ReadOnlyEngine(newEngineConfig(replicationTracker), seqNoStats, translogStats, false, Function.identity(), true) {
                     @Override
                     public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) {
                         synchronized (engineMutex) {

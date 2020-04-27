@@ -159,6 +159,7 @@ public class NativePrivilegeStore {
                     cacheStatus.v2().values().stream().flatMap(Collection::stream).collect(Collectors.toUnmodifiableSet());
                 listener.onResponse(filterDescriptorsForNames(cachedDescriptors, names));
             } else {
+                final long invalidationCounter = numInvalidation.get();
                 // Always fetch all privileges of an application for caching purpose
                 getPrivilegesWithoutCaching(cacheStatus.v1(), Collections.emptySet(), ActionListener.wrap(fetchedDescriptors -> {
                     final Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors = fetchedDescriptors.stream()
@@ -166,14 +167,19 @@ public class NativePrivilegeStore {
                     final Set<String> allApplicationNames =
                         Stream.concat(cacheStatus.v2().keySet().stream(), mapOfFetchedDescriptors.keySet().stream())
                             .collect(Collectors.toUnmodifiableSet());
-                    if (allApplicationNames.equals(applicationNamesCacheKey) == false) {
-                        try (ReleasableLock ignored = applicationNamesCacheHelper.acquireUpdateLock()) {
-                            applicationNamesCache.computeIfAbsent(applicationNamesCacheKey, (k) -> allApplicationNames);
+                    // Avoid caching potential stale results.
+                    // TODO: But it is still possible that cache gets invalidated immediately after the if check
+                    if (invalidationCounter == numInvalidation.get()) {
+                        // Do not cache the names if expansion has no effect
+                        if (allApplicationNames.equals(applicationNamesCacheKey) == false) {
+                            try (ReleasableLock ignored = applicationNamesCacheHelper.acquireUpdateLock()) {
+                                applicationNamesCache.computeIfAbsent(applicationNamesCacheKey, (k) -> allApplicationNames);
+                            }
                         }
-                    }
-                    try (ReleasableLock ignored = descriptorsCacheHelper.acquireUpdateLock()) {
-                        for (Map.Entry<String, Set<ApplicationPrivilegeDescriptor>> entry : mapOfFetchedDescriptors.entrySet()) {
-                            descriptorsCache.computeIfAbsent(entry.getKey(), (k) -> entry.getValue());
+                        try (ReleasableLock ignored = descriptorsCacheHelper.acquireUpdateLock()) {
+                            for (Map.Entry<String, Set<ApplicationPrivilegeDescriptor>> entry : mapOfFetchedDescriptors.entrySet()) {
+                                descriptorsCache.computeIfAbsent(entry.getKey(), (k) -> entry.getValue());
+                            }
                         }
                     }
                     final Set<ApplicationPrivilegeDescriptor> allDescriptors =

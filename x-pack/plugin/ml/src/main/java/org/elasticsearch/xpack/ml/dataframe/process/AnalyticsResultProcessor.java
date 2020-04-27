@@ -18,8 +18,8 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
-import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStats;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStats;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
@@ -152,11 +153,11 @@ public class AnalyticsResultProcessor {
     }
 
     private void updateResultsProgress(int progress) {
-        statsHolder.getProgressTracker().writingResultsPercent.set(Math.min(progress, MAX_PROGRESS_BEFORE_COMPLETION));
+        statsHolder.getProgressTracker().updateWritingResultsProgress(Math.min(progress, MAX_PROGRESS_BEFORE_COMPLETION));
     }
 
     private void completeResultsProgress() {
-        statsHolder.getProgressTracker().writingResultsPercent.set(100);
+        statsHolder.getProgressTracker().updateWritingResultsProgress(100);
     }
 
     private void processResult(AnalyticsResult result, DataFrameRowsJoiner resultsJoiner) {
@@ -164,10 +165,11 @@ public class AnalyticsResultProcessor {
         if (rowResults != null) {
             resultsJoiner.processRowResults(rowResults);
         }
-        Integer progressPercent = result.getProgressPercent();
-        if (progressPercent != null) {
-            LOGGER.debug("[{}] Analyzing progress updated to [{}]", analytics.getId(), progressPercent);
-            statsHolder.getProgressTracker().analyzingPercent.set(progressPercent);
+        PhaseProgress phaseProgress = result.getPhaseProgress();
+        if (phaseProgress != null) {
+            LOGGER.debug("[{}] progress for phase [{}] updated to [{}]", analytics.getId(), phaseProgress.getPhase(),
+                phaseProgress.getProgressPercent());
+            statsHolder.getProgressTracker().updatePhase(phaseProgress);
         }
         TrainedModelDefinition.Builder inferenceModelBuilder = result.getInferenceModelBuilder();
         if (inferenceModelBuilder != null) {

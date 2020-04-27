@@ -69,7 +69,7 @@ public class TemplatePreferenceIT extends ESSingleNodeTestCase {
 
     public void testCreateIndexPreference() throws Exception {
         client().admin().indices().prepareCreate(INDEX).get();
-        assertUsedV1();
+        assertUsedV2();
 
         client().admin().indices().create(new CreateIndexRequest(INDEX).preferV2Templates(false)).get();
         assertUsedV1();
@@ -80,7 +80,7 @@ public class TemplatePreferenceIT extends ESSingleNodeTestCase {
 
     public void testIndexingRequestPreference() throws Exception {
         client().index(new IndexRequest(INDEX).source("foo", "bar")).get();
-        assertUsedV1();
+        assertUsedV2();
 
         client().index(new IndexRequest(INDEX).source("foo", "bar").preferV2Templates(false)).get();
         assertUsedV1();
@@ -89,7 +89,7 @@ public class TemplatePreferenceIT extends ESSingleNodeTestCase {
         assertUsedV2();
 
         client().update(new UpdateRequest(INDEX, "1").doc("foo", "bar").docAsUpsert(true)).get();
-        assertUsedV1();
+        assertUsedV2();
 
         client().update(new UpdateRequest(INDEX, "1").doc("foo", "bar").docAsUpsert(true).preferV2Templates(false)).get();
         assertUsedV1();
@@ -98,7 +98,7 @@ public class TemplatePreferenceIT extends ESSingleNodeTestCase {
         assertUsedV2();
 
         client().bulk(new BulkRequest(INDEX).add(new IndexRequest(INDEX).source("foo", "bar"))).get();
-        assertUsedV1();
+        assertUsedV2();
 
         client().bulk(new BulkRequest(INDEX).add(new IndexRequest(INDEX).source("foo", "bar")).preferV2Templates(false)).get();
         assertUsedV1();
@@ -115,8 +115,8 @@ public class TemplatePreferenceIT extends ESSingleNodeTestCase {
 
             client().admin().indices().prepareRolloverIndex("alias").get();
             GetSettingsResponse resp = client().admin().indices().prepareGetSettings().setIndices(INDEX + "-000002").get();
-            assertThat("expected index to use V1 template and have priority of 15",
-                resp.getSetting(INDEX + "-000002", "index.priority"), equalTo("15"));
+            assertThat("expected index to use V2 template and have priority of 23",
+                resp.getSetting(INDEX + "-000002", "index.priority"), equalTo("23"));
             client().admin().indices().prepareDelete(INDEX + "*").get();
         }
 

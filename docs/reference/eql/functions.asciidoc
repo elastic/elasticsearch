@@ -63,7 +63,7 @@ add(<addend>, <addend>)
 *Parameters:*
 
 `<addend>`::
-(Required, integer or float)
+(Required, integer or float or `null`)
 Addend to add. If `null`, the function returns `null`.
 +
 Two addends are required. No more than two addends can be provided.
@@ -330,14 +330,14 @@ divide(<dividend>, <divisor>)
 *Parameters*
 
 `<dividend>`::
-(Required, integer or float)
+(Required, integer or float or `null`)
 Dividend to divide. If `null`, the function returns `null`.
 +
 If using a field as the argument, this parameter supports only
 <<number,`numeric`>> field datatypes.
 
 `<divisor>`::
-(Required, integer or float)
+(Required, integer or float or `null`)
 Divisor to divide by. If `null`, the function returns `null`. This value cannot
 be zero (`0`).
 +
@@ -627,7 +627,7 @@ modulo(<dividend>, <divisor>)
 *Parameters*
 
 `<dividend>`::
-(Required, integer or float)
+(Required, integer or float or `null`)
 Dividend to divide. If `null`, the function returns `null`. Floating point
 numbers return `0`.
 +
@@ -635,7 +635,7 @@ If using a field as the argument, this parameter supports only
 <<number,`numeric`>> field datatypes.
 
 `<divisor>`::
-(Required, integer or float)
+(Required, integer or float or `null`)
 Divisor to divide by. If `null`, the function returns `null`. Floating point
 numbers return `0`. This value cannot be zero (`0`).
 +
@@ -686,7 +686,7 @@ multiply(<factor, <factor>)
 `<factor>`::
 +
 --
-(Required, integer or float)
+(Required, integer or float or `null`)
 Factor to multiply.  If `null`, the function returns `null`.
 
 Two factors are required. No more than two factors can be provided.
@@ -970,14 +970,14 @@ subtract(<minuend>, <subtrahend>)
 *Parameters*
 
 `<minuend>`::
-(Required, integer or float)
+(Required, integer or float or `null`)
 Minuend to subtract from.
 +
 If using a field as the argument, this parameter supports only
 <<number,`numeric`>> field datatypes.
 
 `<subtrahend>`::
-(Optional, integer or float)
+(Optional, integer or float or `null`)
 Subtrahend to subtract. If `null`, the function returns `null`.
 +
 If using a field as the argument, this parameter supports only

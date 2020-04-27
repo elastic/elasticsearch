@@ -333,7 +333,7 @@ public class MetadataIndexTemplateService {
     }
 
     public ClusterState addIndexTemplateV2(final ClusterState currentState, final boolean create,
-                                    final String name, final IndexTemplateV2 template) throws Exception {
+                                           final String name, final IndexTemplateV2 template) throws Exception {
         if (create && currentState.metadata().templatesV2().containsKey(name)) {
             throw new IllegalArgumentException("index template [" + name + "] already exists");
         }

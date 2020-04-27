@@ -503,9 +503,9 @@ public class MetadataCreateIndexService {
     }
 
     public static Map<String, Object> resolveV2Mappings(final String requestMappings,
-                                                 final ClusterState currentState,
-                                                 final String templateName,
-                                                 final NamedXContentRegistry xContentRegistry) throws Exception {
+                                                        final ClusterState currentState,
+                                                        final String templateName,
+                                                        final NamedXContentRegistry xContentRegistry) throws Exception {
         final Map<String, Object> mappings = Collections.unmodifiableMap(parseV2Mappings(requestMappings,
             MetadataIndexTemplateService.resolveMappings(currentState, templateName), xContentRegistry));
         return mappings;

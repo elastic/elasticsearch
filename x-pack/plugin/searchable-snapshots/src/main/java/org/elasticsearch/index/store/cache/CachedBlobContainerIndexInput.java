@@ -226,7 +226,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                         final long readStart = rangeStart + totalBytesRead;
                         cacheFile.fetchRange(readStart, readStart + bytesRead, (start, end) -> {
                             logger.trace(
-                                "prefetchPart: range [{}-{}] of file [{}] is now available in cache",
+                                "prefetchPart: range [{}-{}] of file [{}] is available in cache",
                                 start,
                                 end,
                                 fileInfo.physicalName()

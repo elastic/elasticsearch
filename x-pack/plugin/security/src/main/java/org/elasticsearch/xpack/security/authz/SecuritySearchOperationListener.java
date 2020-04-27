@@ -51,16 +51,6 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
     }
 
     /**
-     * Adds the {@link Authentication} to the {@link ReaderContext}
-     */
-    @Override
-    public void onNewScrollContext(ReaderContext readerContext) {
-        if (licenseState.isSecurityEnabled()) {
-            readerContext.putInContext(AuthenticationField.AUTHENTICATION_KEY, securityContext.getAuthentication());
-        }
-    }
-
-    /**
      * compares the {@link Authentication} object from the reader context with the current
      * authentication context
      */

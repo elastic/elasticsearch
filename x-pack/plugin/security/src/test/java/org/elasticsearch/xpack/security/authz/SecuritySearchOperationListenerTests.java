@@ -67,8 +67,9 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             AuditTrailService auditTrailService = mock(AuditTrailService.class);
             SearchContext searchContext = mock(SearchContext.class);
 
-            SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, licenseState, auditTrailService);
-            listener.onNewScrollContext(readerContext);
+            SecuritySearchOperationListener listener =
+                new SecuritySearchOperationListener(securityContext, licenseState, auditTrailService);
+            listener.onNewReaderContext(readerContext);
             listener.validateSearchContext(readerContext, searchContext, Empty.INSTANCE);
             verify(licenseState, times(2)).isSecurityEnabled();
             verifyZeroInteractions(auditTrailService, searchContext);
@@ -85,8 +86,9 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             Authentication authentication = new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null);
             authentication.writeToContext(threadContext);
 
-            SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, licenseState, auditTrailService);
-            listener.onNewScrollContext(readerContext);
+            SecuritySearchOperationListener listener =
+                new SecuritySearchOperationListener(securityContext, licenseState, auditTrailService);
+            listener.onNewReaderContext(readerContext);
 
             Authentication contextAuth = readerContext.getFromContext(AuthenticationField.AUTHENTICATION_KEY);
             assertEquals(authentication, contextAuth);
@@ -109,9 +111,11 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
             final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
             AuditTrail auditTrail = mock(AuditTrail.class);
-            AuditTrailService auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
+            AuditTrailService auditTrailService =
+                new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
 
-            SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, licenseState, auditTrailService);
+            SecuritySearchOperationListener listener =
+                new SecuritySearchOperationListener(securityContext, licenseState, auditTrailService);
             try (StoredContext ignore = threadContext.newStoredContext(false)) {
                 Authentication authentication = new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null);
                 authentication.writeToContext(threadContext);
@@ -123,7 +127,8 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             try (StoredContext ignore = threadContext.newStoredContext(false)) {
                 final String nodeName = randomAlphaOfLengthBetween(1, 8);
                 final String realmName = randomAlphaOfLengthBetween(1, 16);
-                Authentication authentication = new Authentication(new User("test", "role"), new RealmRef(realmName, "file", nodeName), null);
+                Authentication authentication =
+                    new Authentication(new User("test", "role"), new RealmRef(realmName, "file", nodeName), null);
                 authentication.writeToContext(threadContext);
                 listener.validateSearchContext(readerContext, testSearchContext, Empty.INSTANCE);
                 verify(licenseState, times(2)).isSecurityEnabled();
@@ -134,7 +139,8 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 final String nodeName = randomBoolean() ? "node" : randomAlphaOfLengthBetween(1, 8);
                 final String realmName = randomBoolean() ? "realm" : randomAlphaOfLengthBetween(1, 16);
                 final String type = randomAlphaOfLengthBetween(5, 16);
-                Authentication authentication = new Authentication(new User("test", "role"), new RealmRef(realmName, type, nodeName), null);
+                Authentication authentication =
+                    new Authentication(new User("test", "role"), new RealmRef(realmName, type, nodeName), null);
                 authentication.writeToContext(threadContext);
                 threadContext.putTransient(ORIGINATING_ACTION_KEY, "action");
                 threadContext.putTransient(AUTHORIZATION_INFO_KEY,

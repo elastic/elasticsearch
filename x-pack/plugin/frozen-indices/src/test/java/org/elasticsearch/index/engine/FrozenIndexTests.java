@@ -111,8 +111,8 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             for (int i = 0; i < 2; i++) {
                 shard = indexService.getShard(i);
                 engine = IndexShardTestCase.getEngine(shard);
-                // TODO: scrolls keep the reader open
-                // assertFalse(((FrozenEngine) engine).isReaderOpen());
+                // scrolls keep the reader open
+                assertTrue(((FrozenEngine) engine).isReaderOpen());
             }
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1)).get();
         } while (searchResponse.getHits().getHits().length > 0);

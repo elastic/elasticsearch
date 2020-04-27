@@ -21,12 +21,18 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collections;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class TransportSearchIT extends ESIntegTestCase {
 
@@ -68,5 +74,34 @@ public class TransportSearchIT extends ESIntegTestCase {
                     .setTransientSettings(Collections.singletonMap(
                             TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), null)));
         }
+    }
+
+    public void testSearchIdle() throws Exception {
+        int numOfReplicas = randomIntBetween(0, 1);
+        internalCluster().ensureAtLeastNumDataNodes(numOfReplicas + 1);
+        final Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMillis(randomIntBetween(50, 500)));
+        assertAcked(prepareCreate("test").setSettings(settings)
+            .setMapping("{\"properties\":{\"created_date\":{\"type\": \"date\", \"format\": \"yyyy-MM-dd\"}}}"));
+        ensureGreen("test");
+        assertBusy(() -> {
+            for (String node : internalCluster().nodesInclude("test")) {
+                final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+                for (IndexShard indexShard : indicesService.indexServiceSafe(resolveIndex("test"))) {
+                    assertTrue(indexShard.isSearchIdle());
+                }
+            }
+        });
+        client().prepareIndex("test").setId("1").setSource("created_date", "2020-01-01").get();
+        client().prepareIndex("test").setId("2").setSource("created_date", "2020-01-02").get();
+        client().prepareIndex("test").setId("3").setSource("created_date", "2020-01-03").get();
+        assertBusy(() -> {
+            SearchResponse resp = client().prepareSearch("test")
+                .setQuery(new RangeQueryBuilder("created_date").gte("2020-01-02").lte("2020-01-03"))
+                .setPreFilterShardSize(randomIntBetween(1, 3)).get();
+            assertThat(resp.getHits().getTotalHits().value, equalTo(2L));
+        });
     }
 }

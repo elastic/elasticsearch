@@ -129,6 +129,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequ
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -1276,8 +1277,14 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         int numberOfFilesBeforeDeletion = numberOfFiles(repo);
 
         logger.info("--> delete all snapshots except the first one and last one");
-        for (int i = 1; i < numberOfSnapshots - 1; i++) {
-            client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-" + i).get();
+
+        if (randomBoolean()) {
+            for (int i = 1; i < numberOfSnapshots - 1; i++) {
+                client.admin().cluster().prepareDeleteSnapshot("test-repo", new String[]{"test-snap-" + i}).get();
+            }
+        } else {
+            client.admin().cluster().prepareDeleteSnapshot(
+                "test-repo", IntStream.range(1, numberOfSnapshots - 1).mapToObj(i -> "test-snap-" + i).toArray(String[]::new)).get();
         }
 
         int numberOfFilesAfterDeletion = numberOfFiles(repo);
@@ -3783,8 +3790,41 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertHitCount(client().prepareSearch("restored-3").setSize(0).get(), expectedCount);
     }
 
-    private void verifySnapshotInfo(final GetSnapshotsResponse response,
-                                    final Map<String, List<String>> indicesPerSnapshot) {
+    public void testBulkDeleteWithOverlappingPatterns() {
+        final int numberOfSnapshots = between(5, 15);
+        Path repo = randomRepoPath();
+        logger.info("-->  creating repository at {}", repo.toAbsolutePath());
+        assertAcked(client().admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(Settings.builder()
+                        .put("location", repo)
+                        .put("compress", false)
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+
+        final String[] indices = {"test-idx-1", "test-idx-2", "test-idx-3"};
+        createIndex(indices);
+        ensureGreen();
+
+        logger.info("--> creating {} snapshots ", numberOfSnapshots);
+        for (int i = 0; i < numberOfSnapshots; i++) {
+            for (int j = 0; j < 10; j++) {
+                indexDoc(randomFrom(indices), Integer.toString(i * 10 + j), "foo", "bar" + i * 10 + j);
+            }
+            refresh();
+            logger.info("--> snapshot {}", i);
+            CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-" + i)
+                    .setWaitForCompletion(true).get();
+            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
+                    equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        }
+
+        logger.info("--> deleting all snapshots");
+        client().admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-*", "*").get();
+        final GetSnapshotsResponse getSnapshotsResponse = client().admin().cluster().prepareGetSnapshots("test-repo").get();
+        assertThat(getSnapshotsResponse.getSnapshots("test-repo"), empty());
+    }
+
+    private void verifySnapshotInfo(final GetSnapshotsResponse response, final Map<String, List<String>> indicesPerSnapshot) {
         for (SnapshotInfo snapshotInfo : response.getSnapshots("test-repo")) {
             final List<String> expected = snapshotInfo.indices();
             assertEquals(expected, indicesPerSnapshot.get(snapshotInfo.snapshotId().getName()));

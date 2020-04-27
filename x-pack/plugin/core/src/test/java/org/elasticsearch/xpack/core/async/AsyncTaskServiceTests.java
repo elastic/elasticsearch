@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.search;
+package org.elasticsearch.xpack.core.async;
 
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -23,30 +23,19 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.xpack.search.AsyncSearchResponseTests.assertEqualResponses;
-import static org.elasticsearch.xpack.search.AsyncSearchResponseTests.randomAsyncSearchResponse;
-import static org.elasticsearch.xpack.search.AsyncSearchResponseTests.randomSearchResponse;
-import static org.elasticsearch.xpack.search.GetAsyncSearchRequestTests.randomSearchId;
-
 // TODO: test CRUD operations
-public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
-    private AsyncSearchIndexService indexService;
+public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
+    private AsyncTaskIndexService<AsyncSearchResponse> indexService;
+
+    public String index = ".async-search";
 
     @Before
     public void setup() {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         TransportService transportService = getInstanceFromNode(TransportService.class);
-        indexService = new AsyncSearchIndexService(clusterService, transportService.getThreadPool().getThreadContext(),
-            client(), writableRegistry());
-    }
-
-    public void testEncodeSearchResponse() throws IOException {
-        for (int i = 0; i < 10; i++) {
-            AsyncSearchResponse response = randomAsyncSearchResponse(randomSearchId(), randomSearchResponse());
-            String encoded = indexService.encodeResponse(response);
-            AsyncSearchResponse same = indexService.decodeResponse(encoded, response.getExpirationTime());
-            assertEqualResponses(response, same);
-        }
+        indexService = new AsyncTaskIndexService<>(index, clusterService,
+            transportService.getThreadPool().getThreadContext(),
+            client(), "test_origin", AsyncSearchResponse::new, writableRegistry());
     }
 
     public void testEnsuredAuthenticatedUserIsSame() throws IOException {
@@ -111,8 +100,8 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
         indexService.createIndexIfNecessary(future);
         future.get();
         GetIndexResponse getIndexResponse = client().admin().indices().getIndex(
-            new GetIndexRequest().indices(AsyncSearchIndexService.INDEX)).actionGet();
-        Settings settings = getIndexResponse.getSettings().get(AsyncSearchIndexService.INDEX);
+            new GetIndexRequest().indices(index)).actionGet();
+        Settings settings = getIndexResponse.getSettings().get(index);
         assertEquals("1", settings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS));
         assertEquals("0-1", settings.get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS));
     }

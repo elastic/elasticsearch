@@ -191,13 +191,15 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertBusy(() -> {
             if (deleteTriggered.compareAndSet(false, true)) {
                 // invalidate a invalid token... doesn't matter that it is bad... we just want this action to trigger the deletion
-                InvalidateTokenResponse invalidateResponseTwo = securityClient.prepareInvalidateToken("fooobar")
-                    .setType(randomFrom(InvalidateTokenRequest.Type.values()))
-                    .execute()
-                    .actionGet();
-                assertThat(invalidateResponseTwo.getResult().getInvalidatedTokens(), equalTo(0));
-                assertThat(invalidateResponseTwo.getResult().getPreviouslyInvalidatedTokens(), equalTo(0));
-                assertThat(invalidateResponseTwo.getResult().getErrors().size(), equalTo(0));
+                try {
+                    securityClient.prepareInvalidateToken("fooobar")
+                        .setType(randomFrom(InvalidateTokenRequest.Type.values()))
+                        .execute()
+                        .actionGet();
+                } catch (ElasticsearchSecurityException e) {
+                    assertEquals("token malformed", e.getMessage());
+                    assertThat(e.status(), equalTo(RestStatus.UNAUTHORIZED));
+                }
             }
             client.admin().indices().prepareRefresh(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS).get();
             SearchResponse searchResponse = client.prepareSearch(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS)

@@ -23,14 +23,10 @@ import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -141,7 +137,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, card -> {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
-        }, null);
+        }, (MappedFieldType) null);
     }
 
     public void testUnmappedMissingNumber() throws IOException {
@@ -155,7 +151,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, card -> {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
-        }, null);
+        }, (MappedFieldType) null);
     }
 
     public void testUnmappedMissingGeoPoint() throws IOException {
@@ -169,7 +165,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, card -> {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
-        }, null);
+        }, (MappedFieldType) null);
     }
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
@@ -181,25 +177,9 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
 
-    private void testCase(CardinalityAggregationBuilder aggregationBuilder, Query query,
+    protected void testCase(CardinalityAggregationBuilder aggregationBuilder, Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalCardinality> verify,
                           MappedFieldType fieldType) throws IOException {
-        Directory directory = newDirectory();
-        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-        buildIndex.accept(indexWriter);
-        indexWriter.close();
-
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-        CardinalityAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher,
-            fieldType);
-        aggregator.preCollection();
-        indexSearcher.search(query, aggregator);
-        aggregator.postCollection();
-        verify.accept((InternalCardinality) aggregator.buildAggregation(0L));
-
-        indexReader.close();
-        directory.close();
+        super.testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
 }

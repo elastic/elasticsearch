@@ -59,7 +59,6 @@ import org.elasticsearch.search.lookup.LeafDocLookup;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -194,15 +193,16 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     private void verifySummationOfDoubles(double[] values, double expected, double delta) throws IOException {
-        testCase(new MatchAllDocsQuery(),
+        this.<SumAggregationBuilder, InternalSum>testCase(
             sum("_name").field(FIELD_NAME),
+            new MatchAllDocsQuery(),
             iw -> {
                 for (double value : values) {
                     iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, NumericUtils.doubleToSortableLong(value))));
                 }
             },
             result -> assertEquals(expected, result.getValue(), delta),
-            singleton(defaultFieldType(NumberType.DOUBLE))
+            defaultFieldType(NumberType.DOUBLE)
         );
     }
 
@@ -322,16 +322,16 @@ public class SumAggregatorTests extends AggregatorTestCase {
         }
         final long finalSum = sum;
 
-        testCase(new MatchAllDocsQuery(),
-            sum("_name")
-                .field(aggField.name())
-                .missing(missingValue),
+        AggregationBuilder aggregationBuilder = sum("_name").field(aggField.name()).missing(missingValue);
+
+        this.<AggregationBuilder, InternalSum>testCase(
+            aggregationBuilder,
+            new MatchAllDocsQuery(),
             writer -> writer.addDocuments(docs),
             internalSum -> {
                 assertEquals(finalSum, internalSum.getValue(), 0d);
                 assertTrue(AggregationInspectionHelper.hasValue(internalSum));
-            },
-            List.of(aggField, irrelevantField)
+            }, aggField, irrelevantField
         );
     }
 
@@ -368,38 +368,20 @@ public class SumAggregatorTests extends AggregatorTestCase {
         }
         final long finalSum = sum;
 
-        testCase(new MatchAllDocsQuery(),
+        this.<SumAggregationBuilder, InternalSum>testCase(
             builder,
+            new MatchAllDocsQuery(),
             writer -> writer.addDocuments(docs),
             internalSum -> verify.apply(finalSum, docs, internalSum),
-            singleton(fieldType)
+            fieldType
         );
     }
 
     private void testCase(Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> indexer,
                           Consumer<InternalSum> verify) throws IOException {
-        testCase(query, sum("_name").field(FIELD_NAME), indexer, verify, singleton(defaultFieldType()));
-    }
-
-    private void testCase(Query query,
-                          SumAggregationBuilder aggregationBuilder,
-                          CheckedConsumer<RandomIndexWriter, IOException> indexer,
-                          Consumer<InternalSum> verify,
-                          Collection<MappedFieldType> fieldTypes) throws IOException {
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                indexer.accept(indexWriter);
-            }
-
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-                final MappedFieldType[] fieldTypesArray = fieldTypes.toArray(new MappedFieldType[0]);
-                final InternalSum internalSum = search(indexSearcher, query, aggregationBuilder, fieldTypesArray);
-                verify.accept(internalSum);
-            }
-        }
+        this.<SumAggregationBuilder, InternalSum>testCase( sum("_name").field(FIELD_NAME), query,
+            indexer, verify, defaultFieldType());
     }
 
     @Override

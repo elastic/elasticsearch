@@ -22,15 +22,11 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -42,7 +38,6 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -187,7 +182,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         }, agg -> {
             assertEquals(Double.NaN,  agg.getMedianAbsoluteDeviation(),0);
             assertFalse(AggregationInspectionHelper.hasValue(agg));
-        }, null);
+        }, (MappedFieldType)  null);
     }
 
     public void testUnmappedMissing() throws IOException {
@@ -202,7 +197,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         }, agg -> {
             assertEquals(0, agg.getMedianAbsoluteDeviation(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(agg));
-        }, null);
+        },(MappedFieldType)  null);
     }
 
     public void testValueScript() throws IOException {
@@ -267,20 +262,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
     private void testCase(MedianAbsoluteDeviationAggregationBuilder aggregationBuilder, Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> indexer,
                           Consumer<InternalMedianAbsoluteDeviation> verify, MappedFieldType fieldType) throws IOException {
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                indexer.accept(indexWriter);
-            }
-
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-                Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-                aggregator.preCollection();
-                indexSearcher.search(query, aggregator);
-                aggregator.postCollection();
-                verify.accept((InternalMedianAbsoluteDeviation) aggregator.buildAggregation(0L));
-            }
-        }
+        super.testCase(aggregationBuilder, query, indexer, verify, fieldType);
     }
 
     public static class IsCloseToRelative extends TypeSafeMatcher<Double> {

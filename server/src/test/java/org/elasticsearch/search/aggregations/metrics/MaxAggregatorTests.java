@@ -233,34 +233,33 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
     public void testUnmappedField() throws IOException {
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number");
-        testCase(aggregationBuilder, new DocValuesFieldExistsQuery("number"), iw -> {
+        this.<AggregationBuilder, InternalMax>testCase(aggregationBuilder, new DocValuesFieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, max -> {
             assertEquals(max.getValue(), Double.NEGATIVE_INFINITY, 0);
             assertFalse(AggregationInspectionHelper.hasValue(max));
-        }, null);
+        }, (MappedFieldType) null);
     }
 
     public void testUnmappedWithMissingField() throws IOException {
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number").missing(19L);
 
-        testCase(aggregationBuilder, new DocValuesFieldExistsQuery("number"), iw -> {
+        this.<AggregationBuilder, InternalMax>testCase(aggregationBuilder, new DocValuesFieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, max -> {
             assertEquals(max.getValue(), 19.0, 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
-        }, null);
+        }, (MappedFieldType) null);
     }
 
     public void testMissingFieldOptimization() throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
         fieldType.setName("number");
 
-        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number").missing(19L);
-
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        AggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number").missing(19L);
+        this.<AggregationBuilder, InternalMax>testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(Arrays.asList(new IntPoint("number", 7), new SortedNumericDocValuesField("number", 7)));
             iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
             iw.addDocument(emptyList());
@@ -274,11 +273,11 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
         fieldType.setName("number");
 
-        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name")
+        AggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name")
             .field("number")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SCRIPT_NAME, Collections.emptyMap()));
 
-        testCase(aggregationBuilder, new DocValuesFieldExistsQuery("number"), iw -> {
+        this.<AggregationBuilder, InternalMax>testCase(aggregationBuilder, new DocValuesFieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, max -> {
@@ -292,28 +291,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
                           Consumer<InternalMax> verify) throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
         fieldType.setName("number");
-        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number");
+        AggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number");
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
-    }
-
-    private void testCase(MaxAggregationBuilder aggregationBuilder, Query query,
-                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<InternalMax> verify, MappedFieldType fieldType) throws IOException {
-        Directory directory = newDirectory();
-        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-        buildIndex.accept(indexWriter);
-        indexWriter.close();
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-        MaxAggregator aggregator = createAggregator(query, aggregationBuilder, indexSearcher, createIndexSettings(), fieldType);
-        aggregator.preCollection();
-        indexSearcher.search(query, aggregator);
-        aggregator.postCollection();
-        verify.accept((InternalMax) aggregator.buildAggregation(0L));
-
-        indexReader.close();
-        directory.close();
     }
 
     public void testMaxShortcutRandom() throws Exception {
@@ -442,7 +421,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             .format("0000.0")
             .field("value");
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        this.<AggregationBuilder, InternalMax>testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
@@ -544,7 +523,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             .field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        this.<AggregationBuilder, InternalMax>testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
@@ -565,7 +544,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             .field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, params));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        this.<AggregationBuilder, InternalMax>testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
@@ -600,7 +579,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             .field("values")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        this.<AggregationBuilder, InternalMax>testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
@@ -623,7 +602,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             .field("values")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, params));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        this.<AggregationBuilder, InternalMax>testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
@@ -644,7 +623,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_FIELD_SCRIPT, Collections.emptyMap()));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        this.<AggregationBuilder, InternalMax>testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
@@ -666,7 +645,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SUM_FIELD_PARAMS_SCRIPT, params));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        this.<AggregationBuilder, InternalMax>testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
@@ -684,7 +663,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SUM_VALUES_FIELD_SCRIPT, Collections.emptyMap()));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        this.<AggregationBuilder, InternalMax>testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
@@ -709,7 +688,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SUM_FIELD_PARAMS_SCRIPT, params));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        this.<AggregationBuilder, InternalMax>testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();

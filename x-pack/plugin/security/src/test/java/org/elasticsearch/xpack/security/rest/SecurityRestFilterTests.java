@@ -171,8 +171,8 @@ public class SecurityRestFilterTests extends ESTestCase {
         testProcessAuthenticationFailed(new ElasticsearchException("dummy"), RestStatus.INTERNAL_SERVER_ERROR, true, true, true);
     }
 
-    private void testProcessAuthenticationFailed(Exception authnException, RestStatus expectedRestStatus, boolean errorTrace, boolean detailedErrorsEnabled,
-                                                 boolean traceExists) throws Exception {
+    private void testProcessAuthenticationFailed(Exception authnException, RestStatus expectedRestStatus, boolean errorTrace,
+                                                 boolean detailedErrorsEnabled, boolean traceExists) throws Exception {
         RestRequest request;
         if (errorTrace != !ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT || randomBoolean()) {
             request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)

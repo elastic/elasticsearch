@@ -177,7 +177,8 @@ public class SecurityTests extends ESTestCase {
         boolean showUnauthorizedStackTraces = randomBoolean();
         Settings settings;
         if (showUnauthorizedStackTraces || randomBoolean()) {
-            settings = Settings.builder().put(SecurityRestFilter.SHOW_UNAUTHORIZED_ERROR_TRACE_ENABLED.getKey(), showUnauthorizedStackTraces).build();
+            settings = Settings.builder().put(SecurityRestFilter.SHOW_UNAUTHORIZED_ERROR_TRACE_ENABLED.getKey(),
+                    showUnauthorizedStackTraces).build();
         } else {
             settings = Settings.builder().build();
         }

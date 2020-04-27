@@ -95,7 +95,7 @@ public class BytesRestResponse extends RestResponse {
 
     public BytesRestResponse(RestChannel channel, RestStatus status, Exception e) throws IOException {
         ToXContent.Params params = paramsFromRequest(channel.request());
-        if (false == params.paramAsBoolean("error_trace", !REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) && e != null) {
+        if (false == params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) && e != null) {
             Supplier<?> messageSupplier = () -> new ParameterizedMessage("path: {}, params: {}",
                     channel.request().rawPath(), channel.request().params());
             if (status.getStatus() < 500) {

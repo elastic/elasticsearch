@@ -420,6 +420,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                             }
                         } catch (InterruptedException ie) {
                             Thread.currentThread().interrupt();
+                            logger.warn(() -> new ParameterizedMessage("{} shard cache warming has been interrupted", shardId), ie);
                         }
                     }
                 } finally {
@@ -461,6 +462,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            logger.warn(() -> new ParameterizedMessage("{} cache warming worker has been interrupted", shardId), e);
         }
     }
 

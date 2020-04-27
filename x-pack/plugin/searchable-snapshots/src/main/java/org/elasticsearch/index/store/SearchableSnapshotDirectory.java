@@ -406,6 +406,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                             }));
                         }
                         enqueued = true;
+                    } else {
+                        logger.warn("{} too many files ({}) to warm in cache, skipping file [{}]", shardId, queue.size(), fileName);
                     }
                 } catch (Exception e) {
                     logger.warn(

@@ -52,15 +52,11 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.EnumSet;
-import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -75,7 +71,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
     }
 
     String openReaders(TimeValue keepAlive, String... indices) {
-        OpenReaderRequest request = new OpenReaderRequest(indices, IndicesOptions.LENIENT_EXPAND_OPEN.STRICT_EXPAND_OPEN_FORBID_CLOSED,
+        OpenReaderRequest request = new OpenReaderRequest(indices, IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED,
             keepAlive, null, null);
         final OpenReaderResponse response = client()
             .execute(TransportOpenReaderAction.INSTANCE, request).actionGet();

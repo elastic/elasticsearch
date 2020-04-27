@@ -63,7 +63,11 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
 
     private Map<String, Object> context;
 
-    public ReaderContext(long id, IndexShard indexShard, Engine.SearcherSupplier searcherSupplier, long keepAliveInMillis, boolean singleSession) {
+    public ReaderContext(long id,
+                         IndexShard indexShard,
+                         Engine.SearcherSupplier searcherSupplier,
+                         long keepAliveInMillis,
+                         boolean singleSession) {
         super("reader_context");
         this.id = new SearchContextId(UUIDs.base64UUID(), id);
         this.indexShard = indexShard;

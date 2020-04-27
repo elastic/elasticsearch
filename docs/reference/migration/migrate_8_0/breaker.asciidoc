@@ -1,6 +1,6 @@
 [float]
 [[breaking_80_breaker_changes]]
-=== Packaging changes
+=== Circuit breaker changes
 
 //tag::notable-breaking-changes[]
 [float]

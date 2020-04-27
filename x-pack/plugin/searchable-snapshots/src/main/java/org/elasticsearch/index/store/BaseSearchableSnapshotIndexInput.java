@@ -12,6 +12,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -135,6 +136,9 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
             || threadName.contains('[' + ThreadPool.Names.GENERIC + ']')
             || threadName.contains('[' + ThreadPool.Names.SEARCH + ']')
             || threadName.contains('[' + ThreadPool.Names.SEARCH_THROTTLED + ']')
+
+            // Cache prewarming runs on a dedicated thread pool.
+            || threadName.contains('[' + SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME + ']')
 
             // Today processExistingRecoveries considers all shards and constructs a shard store snapshot on this thread, this needs
             // addressing. TODO NORELEASE

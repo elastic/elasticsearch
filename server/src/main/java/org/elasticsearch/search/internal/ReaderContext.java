@@ -49,7 +49,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class ReaderContext extends AbstractRefCounted implements Releasable {
     private final SearchContextId id;
     private final IndexShard indexShard;
-    protected final Engine.SearcherSupplier reader;
+    protected final Engine.SearcherSupplier searcherSupplier;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final boolean singleSession;
 
@@ -63,11 +63,11 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
 
     private Map<String, Object> context;
 
-    public ReaderContext(long id, IndexShard indexShard, Engine.SearcherSupplier reader, long keepAliveInMillis, boolean singleSession) {
+    public ReaderContext(long id, IndexShard indexShard, Engine.SearcherSupplier searcherSupplier, long keepAliveInMillis, boolean singleSession) {
         super("reader_context");
         this.id = new SearchContextId(UUIDs.base64UUID(), id);
         this.indexShard = indexShard;
-        this.reader = reader;
+        this.searcherSupplier = searcherSupplier;
         this.singleSession = singleSession;
         this.keepAlive = new AtomicLong(keepAliveInMillis);
         this.lastAccessTime = new AtomicLong(nowInMillis());
@@ -86,7 +86,7 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
 
     @Override
     protected void closeInternal() {
-        Releasables.close(Releasables.wrap(onCloses), reader);
+        Releasables.close(Releasables.wrap(onCloses), searcherSupplier);
     }
 
     public void addOnClose(Releasable releasable) {
@@ -103,7 +103,7 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
     }
 
     public Engine.Searcher acquireSearcher(String source) {
-        return reader.acquireSearcher(source);
+        return searcherSupplier.acquireSearcher(source);
     }
 
     public void keepAlive(long keepAlive) {

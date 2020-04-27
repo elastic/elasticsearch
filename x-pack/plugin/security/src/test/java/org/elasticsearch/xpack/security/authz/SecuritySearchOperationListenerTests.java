@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.search.Scroll;
@@ -19,7 +20,7 @@ import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContextId;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequest.Empty;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Authoriza
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.util.Collections;
@@ -48,130 +50,139 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
-public class SecuritySearchOperationListenerTests extends ESTestCase {
+public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
+    private IndexShard shard;
+
+    @Before
+    private void setupShard() {
+        shard = createIndex("index").getShard(0);
+    }
 
     public void testUnlicensed() {
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(false);
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        AuditTrailService auditTrailService = mock(AuditTrailService.class);
-        SearchContext searchContext = mock(SearchContext.class);
-        ReaderContext readerContext = new ReaderContext(0L, null, null, Long.MAX_VALUE, false);
+        try (ReaderContext readerContext = new ReaderContext(0L, shard, shard.acquireSearcherSupplier(), Long.MAX_VALUE, false)) {
+            XPackLicenseState licenseState = mock(XPackLicenseState.class);
+            when(licenseState.isSecurityEnabled()).thenReturn(false);
+            ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+            final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+            AuditTrailService auditTrailService = mock(AuditTrailService.class);
+            SearchContext searchContext = mock(SearchContext.class);
 
-        SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, licenseState, auditTrailService);
-        listener.onNewScrollContext(readerContext);
-        listener.validateSearchContext(readerContext, searchContext, Empty.INSTANCE);
-        verify(licenseState, times(2)).isSecurityEnabled();
-        verifyZeroInteractions(auditTrailService, searchContext);
+            SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, licenseState, auditTrailService);
+            listener.onNewScrollContext(readerContext);
+            listener.validateSearchContext(readerContext, searchContext, Empty.INSTANCE);
+            verify(licenseState, times(2)).isSecurityEnabled();
+            verifyZeroInteractions(auditTrailService, searchContext);
+        }
     }
 
     public void testOnNewContextSetsAuthentication() throws Exception {
-        ReaderContext readerContext = new ReaderContext(0L, null, null, Long.MAX_VALUE, false);
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        AuditTrailService auditTrailService = mock(AuditTrailService.class);
-        Authentication authentication = new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null);
-        authentication.writeToContext(threadContext);
+        try (ReaderContext readerContext = new ReaderContext(0L, shard, shard.acquireSearcherSupplier(), Long.MAX_VALUE, false)) {
+            XPackLicenseState licenseState = mock(XPackLicenseState.class);
+            when(licenseState.isSecurityEnabled()).thenReturn(true);
+            ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+            final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+            AuditTrailService auditTrailService = mock(AuditTrailService.class);
+            Authentication authentication = new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null);
+            authentication.writeToContext(threadContext);
 
-        SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, licenseState, auditTrailService);
-        listener.onNewScrollContext(readerContext);
+            SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, licenseState, auditTrailService);
+            listener.onNewScrollContext(readerContext);
 
-        Authentication contextAuth = readerContext.getFromContext(AuthenticationField.AUTHENTICATION_KEY);
-        assertEquals(authentication, contextAuth);
+            Authentication contextAuth = readerContext.getFromContext(AuthenticationField.AUTHENTICATION_KEY);
+            assertEquals(authentication, contextAuth);
 
-        verify(licenseState).isSecurityEnabled();
-        verifyZeroInteractions(auditTrailService);
+            verify(licenseState).isSecurityEnabled();
+            verifyZeroInteractions(auditTrailService);
+        }
     }
 
     public void testValidateSearchContext() throws Exception {
-        ReaderContext readerContext = new ReaderContext(0L, null, null, Long.MAX_VALUE, false);
-        ScrollContext scrollContext = new ScrollContext();
-        TestSearchContext testSearchContext = new TestSearchContext(null, null, null, scrollContext);
-        readerContext.putInContext(AuthenticationField.AUTHENTICATION_KEY,
+        try (ReaderContext readerContext = new ReaderContext(0L, shard, shard.acquireSearcherSupplier(), Long.MAX_VALUE, false)) {
+            ScrollContext scrollContext = new ScrollContext();
+            TestSearchContext testSearchContext = new TestSearchContext(null, null, null, scrollContext);
+            readerContext.putInContext(AuthenticationField.AUTHENTICATION_KEY,
                 new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null));
-        testSearchContext.scrollContext().scroll = new Scroll(TimeValue.timeValueSeconds(2L));
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isAllowed(Feature.SECURITY_AUDITING)).thenReturn(true);
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        AuditTrail auditTrail = mock(AuditTrail.class);
-        AuditTrailService auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
+            testSearchContext.scrollContext().scroll = new Scroll(TimeValue.timeValueSeconds(2L));
+            XPackLicenseState licenseState = mock(XPackLicenseState.class);
+            when(licenseState.isSecurityEnabled()).thenReturn(true);
+            when(licenseState.isAllowed(Feature.SECURITY_AUDITING)).thenReturn(true);
+            ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+            final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+            AuditTrail auditTrail = mock(AuditTrail.class);
+            AuditTrailService auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
 
-        SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, licenseState, auditTrailService);
-        try (StoredContext ignore = threadContext.newStoredContext(false)) {
-            Authentication authentication = new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null);
-            authentication.writeToContext(threadContext);
-            listener.validateSearchContext(readerContext, testSearchContext, Empty.INSTANCE);
-            verify(licenseState).isSecurityEnabled();
-            verifyZeroInteractions(auditTrail);
-        }
+            SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, licenseState, auditTrailService);
+            try (StoredContext ignore = threadContext.newStoredContext(false)) {
+                Authentication authentication = new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null);
+                authentication.writeToContext(threadContext);
+                listener.validateSearchContext(readerContext, testSearchContext, Empty.INSTANCE);
+                verify(licenseState).isSecurityEnabled();
+                verifyZeroInteractions(auditTrail);
+            }
 
-        try (StoredContext ignore = threadContext.newStoredContext(false)) {
-            final String nodeName = randomAlphaOfLengthBetween(1, 8);
-            final String realmName = randomAlphaOfLengthBetween(1, 16);
-            Authentication authentication = new Authentication(new User("test", "role"), new RealmRef(realmName, "file", nodeName), null);
-            authentication.writeToContext(threadContext);
-            listener.validateSearchContext(readerContext, testSearchContext, Empty.INSTANCE);
-            verify(licenseState, times(2)).isSecurityEnabled();
-            verifyZeroInteractions(auditTrail);
-        }
+            try (StoredContext ignore = threadContext.newStoredContext(false)) {
+                final String nodeName = randomAlphaOfLengthBetween(1, 8);
+                final String realmName = randomAlphaOfLengthBetween(1, 16);
+                Authentication authentication = new Authentication(new User("test", "role"), new RealmRef(realmName, "file", nodeName), null);
+                authentication.writeToContext(threadContext);
+                listener.validateSearchContext(readerContext, testSearchContext, Empty.INSTANCE);
+                verify(licenseState, times(2)).isSecurityEnabled();
+                verifyZeroInteractions(auditTrail);
+            }
 
-        try (StoredContext ignore = threadContext.newStoredContext(false)) {
-            final String nodeName = randomBoolean() ? "node" : randomAlphaOfLengthBetween(1, 8);
-            final String realmName = randomBoolean() ? "realm" : randomAlphaOfLengthBetween(1, 16);
-            final String type = randomAlphaOfLengthBetween(5, 16);
-            Authentication authentication = new Authentication(new User("test", "role"), new RealmRef(realmName, type, nodeName), null);
-            authentication.writeToContext(threadContext);
-            threadContext.putTransient(ORIGINATING_ACTION_KEY, "action");
-            threadContext.putTransient(AUTHORIZATION_INFO_KEY,
-                (AuthorizationInfo) () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, authentication.getUser().roles()));
-            final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
-            SearchContextMissingException expected = expectThrows(SearchContextMissingException.class,
-                () -> listener.validateSearchContext(readerContext, testSearchContext, request));
-            assertEquals(testSearchContext.id(), expected.contextId());
-            verify(licenseState, Mockito.atLeast(3)).isSecurityEnabled();
-            verify(auditTrail).accessDenied(eq(null), eq(authentication), eq("action"), eq(request),
-                authzInfoRoles(authentication.getUser().roles()));
-        }
+            try (StoredContext ignore = threadContext.newStoredContext(false)) {
+                final String nodeName = randomBoolean() ? "node" : randomAlphaOfLengthBetween(1, 8);
+                final String realmName = randomBoolean() ? "realm" : randomAlphaOfLengthBetween(1, 16);
+                final String type = randomAlphaOfLengthBetween(5, 16);
+                Authentication authentication = new Authentication(new User("test", "role"), new RealmRef(realmName, type, nodeName), null);
+                authentication.writeToContext(threadContext);
+                threadContext.putTransient(ORIGINATING_ACTION_KEY, "action");
+                threadContext.putTransient(AUTHORIZATION_INFO_KEY,
+                    (AuthorizationInfo) () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, authentication.getUser().roles()));
+                final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
+                SearchContextMissingException expected = expectThrows(SearchContextMissingException.class,
+                    () -> listener.validateSearchContext(readerContext, testSearchContext, request));
+                assertEquals(testSearchContext.id(), expected.contextId());
+                verify(licenseState, Mockito.atLeast(3)).isSecurityEnabled();
+                verify(auditTrail).accessDenied(eq(null), eq(authentication), eq("action"), eq(request),
+                    authzInfoRoles(authentication.getUser().roles()));
+            }
 
-        // another user running as the original user
-        try (StoredContext ignore = threadContext.newStoredContext(false)) {
-            final String nodeName = randomBoolean() ? "node" : randomAlphaOfLengthBetween(1, 8);
-            final String realmName = randomBoolean() ? "realm" : randomAlphaOfLengthBetween(1, 16);
-            final String type = randomAlphaOfLengthBetween(5, 16);
-            User user = new User(new User("test", "role"), new User("authenticated", "runas"));
-            Authentication authentication = new Authentication(user, new RealmRef(realmName, type, nodeName),
+            // another user running as the original user
+            try (StoredContext ignore = threadContext.newStoredContext(false)) {
+                final String nodeName = randomBoolean() ? "node" : randomAlphaOfLengthBetween(1, 8);
+                final String realmName = randomBoolean() ? "realm" : randomAlphaOfLengthBetween(1, 16);
+                final String type = randomAlphaOfLengthBetween(5, 16);
+                User user = new User(new User("test", "role"), new User("authenticated", "runas"));
+                Authentication authentication = new Authentication(user, new RealmRef(realmName, type, nodeName),
                     new RealmRef(randomAlphaOfLengthBetween(1, 16), "file", nodeName));
-            authentication.writeToContext(threadContext);
-            threadContext.putTransient(ORIGINATING_ACTION_KEY, "action");
-            final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
-            listener.validateSearchContext(readerContext, testSearchContext, request);
-            verify(licenseState, Mockito.atLeast(4)).isSecurityEnabled();
-            verifyNoMoreInteractions(auditTrail);
-        }
+                authentication.writeToContext(threadContext);
+                threadContext.putTransient(ORIGINATING_ACTION_KEY, "action");
+                final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
+                listener.validateSearchContext(readerContext, testSearchContext, request);
+                verify(licenseState, Mockito.atLeast(4)).isSecurityEnabled();
+                verifyNoMoreInteractions(auditTrail);
+            }
 
-        // the user that authenticated for the run as request
-        try (StoredContext ignore = threadContext.newStoredContext(false)) {
-            final String nodeName = randomBoolean() ? "node" : randomAlphaOfLengthBetween(1, 8);
-            final String realmName = randomBoolean() ? "realm" : randomAlphaOfLengthBetween(1, 16);
-            final String type = randomAlphaOfLengthBetween(5, 16);
-            Authentication authentication =
+            // the user that authenticated for the run as request
+            try (StoredContext ignore = threadContext.newStoredContext(false)) {
+                final String nodeName = randomBoolean() ? "node" : randomAlphaOfLengthBetween(1, 8);
+                final String realmName = randomBoolean() ? "realm" : randomAlphaOfLengthBetween(1, 16);
+                final String type = randomAlphaOfLengthBetween(5, 16);
+                Authentication authentication =
                     new Authentication(new User("authenticated", "runas"), new RealmRef(realmName, type, nodeName), null);
-            authentication.writeToContext(threadContext);
-            threadContext.putTransient(ORIGINATING_ACTION_KEY, "action");
-            threadContext.putTransient(AUTHORIZATION_INFO_KEY,
-                (AuthorizationInfo) () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, authentication.getUser().roles()));
-            final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
-            SearchContextMissingException expected = expectThrows(SearchContextMissingException.class,
-                () -> listener.validateSearchContext(readerContext, testSearchContext, request));
-            assertEquals(testSearchContext.id(), expected.contextId());
-            verify(licenseState, Mockito.atLeast(5)).isSecurityEnabled();
-            verify(auditTrail).accessDenied(eq(null), eq(authentication), eq("action"), eq(request),
-                authzInfoRoles(authentication.getUser().roles()));
+                authentication.writeToContext(threadContext);
+                threadContext.putTransient(ORIGINATING_ACTION_KEY, "action");
+                threadContext.putTransient(AUTHORIZATION_INFO_KEY,
+                    (AuthorizationInfo) () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, authentication.getUser().roles()));
+                final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
+                SearchContextMissingException expected = expectThrows(SearchContextMissingException.class,
+                    () -> listener.validateSearchContext(readerContext, testSearchContext, request));
+                assertEquals(testSearchContext.id(), expected.contextId());
+                verify(licenseState, Mockito.atLeast(5)).isSecurityEnabled();
+                verify(auditTrail).accessDenied(eq(null), eq(authentication), eq("action"), eq(request),
+                    authzInfoRoles(authentication.getUser().roles()));
+            }
         }
     }
 

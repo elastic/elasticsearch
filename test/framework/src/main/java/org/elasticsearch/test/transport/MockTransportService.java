@@ -416,6 +416,15 @@ public final class MockTransportService extends TransportService {
     }
 
     /**
+     * Adds a new handling behavior that is used when the defined request is received.
+     *
+     */
+    public <R extends TransportRequest> void addRequestHandlingBehavior(String actionName,
+                                                                        StubbableTransport.RequestHandlingBehavior<R> handlingBehavior) {
+        transport().addRequestHandlingBehavior(actionName, handlingBehavior);
+    }
+
+    /**
      * Adds a new send behavior that is used for communication with the given delegate service.
      *
      * @return {@code true} if no other send behavior was registered for any of the addresses bound by delegate service.

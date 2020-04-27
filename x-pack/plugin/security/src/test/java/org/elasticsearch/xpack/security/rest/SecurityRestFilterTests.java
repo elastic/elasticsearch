@@ -178,7 +178,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
                     .withParams(Map.of("error_trace", Boolean.toString(errorTrace))).build();
         } else {
-            // sometimes do not fill in default value
+            // sometimes do not fill in the default value
             request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
         }
         doAnswer((i) -> {

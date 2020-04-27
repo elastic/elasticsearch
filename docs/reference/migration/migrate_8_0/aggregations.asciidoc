@@ -11,7 +11,7 @@
 ==== Duplicate values no longer supported in percentiles aggregation
 
 If you specify the `percents` parameter with the
-<<search-aggregations-metrics-percentile-aggregation,percentiles aggregation>>,
+{ref}/search-aggregations-metrics-percentile-aggregation.html[percentiles aggregation],
 its values must be unique. Otherwise, an exception occurs.
 
 // end::notable-breaking-changes[]

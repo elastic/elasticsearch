@@ -61,7 +61,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
     }
 
     @Override
-    public List<Consumer<ValuesSourceRegistry>> getBareAggregatorRegistrar() {
+    public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
         return List.of(SpatialPlugin::registerGeoShapeBoundsAggregator);
     }
 
@@ -70,8 +70,8 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
         return Map.of(CircleProcessor.TYPE, new CircleProcessor.Factory());
     }
 
-    public static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(GeoBoundsAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
+    public static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(GeoBoundsAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (GeoBoundsAggregatorSupplier) (name, aggregationContext, parent, valuesSource, wrapLongitude, metadata)
                 -> new GeoShapeBoundsAggregator(name, aggregationContext, parent, (GeoShapeValuesSource) valuesSource,
                 wrapLongitude, metadata));

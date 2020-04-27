@@ -20,6 +20,7 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
@@ -32,7 +33,6 @@ import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
-import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,9 +44,9 @@ import static org.hamcrest.Matchers.startsWith;
 public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
     static final double GEOHASH_TOLERANCE = 1E-5D;
 
-    @BeforeClass()
-    public static void registerAggregator() {
-        SpatialPlugin.registerGeoShapeBoundsAggregator(valuesSourceRegistry);
+    @Override
+    protected List<SearchPlugin> getSearchPlugins() {
+        return List.of(new SpatialPlugin());
     }
 
     public void testEmpty() throws Exception {

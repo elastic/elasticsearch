@@ -44,7 +44,6 @@ public class RestCreateIndexActionV7Tests extends RestActionTestCase {
     @Before
     public void setUpAction() {
         controller().registerHandler(restHandler);
-
     }
 
     public void testTypeInMapping() throws IOException {

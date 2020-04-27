@@ -61,7 +61,7 @@ public class RestCreateIndexActionV7 extends RestCreateIndexAction {
     }
 
     // default scope for testing
-    CreateIndexRequest prepareV7Request(RestRequest request) {
+    CreateIndexRequest prepareRequest(RestRequest request) {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
 
         if (request.hasContent()) {
@@ -79,7 +79,7 @@ public class RestCreateIndexActionV7 extends RestCreateIndexAction {
         return createIndexRequest;
     }
 
-    static Map<String, Object> prepareMappingsV7(Map<String, Object> source, RestRequest request) {
+    static Map<String, Object> prepareMappings(Map<String, Object> source, RestRequest request) {
         final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, false);
 
         @SuppressWarnings("unchecked")

@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.BaseDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -17,8 +18,10 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SingleInstanceLockFactory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -424,6 +427,12 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                             Thread.currentThread().interrupt();
                             logger.warn(() -> new ParameterizedMessage("{} shard cache warming has been interrupted", shardId), ie);
                         }
+                    }
+                    if (e instanceof AlreadyClosedException
+                        || (e.getCause() != null && e.getCause() instanceof AlreadyClosedException)) {
+                        break;
+                    } else {
+                        throw new ElasticsearchException("Exception when warming cache for shard " + shardId, e);
                     }
                 } finally {
                     if (enqueued == false) {

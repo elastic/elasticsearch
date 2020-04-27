@@ -115,8 +115,7 @@ class BuildPlugin implements Plugin<Project> {
                     "Gradle ${minimumGradleVersion}+ is required to use elasticsearch.build plugin"
             )
         }
-        project.pluginManager.apply('java')
-        configureConfigurations(project)
+        project.pluginManager.apply('elasticsearch.java')
         configureJars(project)
         configureJarManifest(project)
 
@@ -127,12 +126,9 @@ class BuildPlugin implements Plugin<Project> {
 
         configureRepositories(project)
         project.extensions.getByType(ExtraPropertiesExtension).set('versions', VersionProperties.versions)
-        configureInputNormalization(project)
-        configureCompile(project)
         configureJavadoc(project)
         configureSourcesJar(project)
         configurePomGeneration(project)
-        configureTestTasks(project)
         configurePrecommit(project)
         configureDependenciesInfo(project)
         configureFips140(project)
@@ -356,72 +352,6 @@ class BuildPlugin implements Plugin<Project> {
         scmNode.appendNode('url', BuildParams.gitOrigin)
     }
 
-    /**
-     * Apply runtime classpath input normalization so that changes in JAR manifests don't break build cacheability
-     */
-    static void configureInputNormalization(Project project) {
-        project.normalization.runtimeClasspath.ignore('META-INF/MANIFEST.MF')
-    }
-
-    /** Adds compiler settings to the project */
-    static void configureCompile(Project project) {
-        ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
-        ext.set('compactProfile', 'full')
-
-        project.extensions.getByType(JavaPluginExtension).sourceCompatibility = BuildParams.minimumRuntimeVersion
-        project.extensions.getByType(JavaPluginExtension).targetCompatibility = BuildParams.minimumRuntimeVersion
-
-        project.afterEvaluate {
-            project.tasks.withType(JavaCompile).configureEach({ JavaCompile compileTask ->
-                final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(compileTask.targetCompatibility)
-                // we only fork if the Gradle JDK is not the same as the compiler JDK
-                if (BuildParams.compilerJavaHome.canonicalPath == Jvm.current().javaHome.canonicalPath) {
-                    compileTask.options.fork = false
-                } else {
-                    compileTask.options.fork = true
-                    compileTask.options.forkOptions.javaHome = BuildParams.compilerJavaHome
-                }
-                /*
-                 * -path because gradle will send in paths that don't always exist.
-                 * -missing because we have tons of missing @returns and @param.
-                 * -serial because we don't use java serialization.
-                 */
-                // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
-                // fail on all javac warnings
-                compileTask.options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial,-options,-deprecation,-try' << '-Xdoclint:all' << '-Xdoclint:-missing'
-
-                // either disable annotation processor completely (default) or allow to enable them if an annotation processor is explicitly defined
-                if (compileTask.options.compilerArgs.contains("-processor") == false) {
-                    compileTask.options.compilerArgs << '-proc:none'
-                }
-
-                compileTask.options.encoding = 'UTF-8'
-                compileTask.options.incremental = true
-
-                // TODO: use native Gradle support for --release when available (cf. https://github.com/gradle/gradle/issues/2510)
-                compileTask.options.compilerArgs << '--release' << targetCompatibilityVersion.majorVersion
-            } as Action<JavaCompile>)
-            // also apply release flag to groovy, which is used in build-tools
-            project.tasks.withType(GroovyCompile).configureEach({ GroovyCompile compileTask ->
-                // we only fork if the Gradle JDK is not the same as the compiler JDK
-                if (BuildParams.compilerJavaHome.canonicalPath == Jvm.current().javaHome.canonicalPath) {
-                    compileTask.options.fork = false
-                } else {
-                    compileTask.options.fork = true
-                    compileTask.options.forkOptions.javaHome = BuildParams.compilerJavaHome
-                    compileTask.options.compilerArgs << '--release' << JavaVersion.toVersion(compileTask.targetCompatibility).majorVersion
-                }
-            } as Action<GroovyCompile>)
-        }
-
-        project.pluginManager.withPlugin('com.github.johnrengelman.shadow') {
-            // Ensure that when we are compiling against the "original" JAR that we also include any "shadow" dependencies on the compile classpath
-            project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME).dependencies.all { Dependency dependency ->
-                project.configurations.getByName(JavaPlugin.API_ELEMENTS_CONFIGURATION_NAME).dependencies.add(dependency)
-            }
-        }
-    }
-
     static void configureJavadoc(Project project) {
         // remove compiled classes from the Javadoc classpath: http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
         final List<File> classes = new ArrayList<>()
@@ -551,145 +481,6 @@ class BuildPlugin implements Plugin<Project> {
             manifestPlugin.add('X-Compile-Elasticsearch-Version') { VersionProperties.elasticsearch }
             manifestPlugin.add('X-Compile-Lucene-Version') { VersionProperties.lucene }
             manifestPlugin.add('X-Compile-Elasticsearch-Snapshot') { VersionProperties.isElasticsearchSnapshot() }
-        }
-    }
-
-    static void configureTestTasks(Project project) {
-        // Default test task should run only unit tests
-        maybeConfigure(project.tasks, 'test', Test) { Test task ->
-            task.include '**/*Tests.class'
-        }
-
-        // none of this stuff is applicable to the `:buildSrc` project tests
-        if (project.path != ':build-tools') {
-            File heapdumpDir = new File(project.buildDir, 'heapdump')
-
-            project.tasks.withType(Test).configureEach { Test test ->
-                File testOutputDir = new File(test.reports.junitXml.getDestination(), "output")
-
-                ErrorReportingTestListener listener = new ErrorReportingTestListener(test.testLogging, testOutputDir)
-                test.extensions.add(ErrorReportingTestListener, 'errorReportingTestListener', listener)
-                test.addTestOutputListener(listener)
-                test.addTestListener(listener)
-
-                /*
-                 * We use lazy-evaluated strings in order to configure system properties whose value will not be known until
-                 * execution time (e.g. cluster port numbers). Adding these via the normal DSL doesn't work as these get treated
-                 * as task inputs and therefore Gradle attempts to snapshot them before/after task execution. This fails due
-                 * to the GStrings containing references to non-serializable objects.
-                 *
-                 * We bypass this by instead passing this system properties vi a CommandLineArgumentProvider. This has the added
-                 * side-effect that these properties are NOT treated as inputs, therefore they don't influence things like the
-                 * build cache key or up to date checking.
-                 */
-                SystemPropertyCommandLineArgumentProvider nonInputProperties = new SystemPropertyCommandLineArgumentProvider()
-
-                test.doFirst {
-                    project.mkdir(testOutputDir)
-                    project.mkdir(heapdumpDir)
-                    project.mkdir(test.workingDir)
-                    project.mkdir(test.workingDir.toPath().resolve('temp'))
-
-                    //TODO remove once jvm.options are added to test system properties
-                    test.systemProperty ('java.locale.providers','SPI,COMPAT')
-                }
-                if (inFipsJvm()) {
-                    project.dependencies.add('testRuntimeOnly', "org.bouncycastle:bc-fips:1.0.1")
-                    project.dependencies.add('testRuntimeOnly', "org.bouncycastle:bctls-fips:1.0.9")
-                }
-                test.jvmArgumentProviders.add(nonInputProperties)
-                test.extensions.add('nonInputProperties', nonInputProperties)
-
-                test.workingDir = project.file("${project.buildDir}/testrun/${test.name}")
-                test.maxParallelForks = System.getProperty('tests.jvms', BuildParams.defaultParallel.toString()) as Integer
-
-                test.exclude '**/*$*.class'
-
-                test.jvmArgs "-Xmx${System.getProperty('tests.heap.size', '512m')}",
-                        "-Xms${System.getProperty('tests.heap.size', '512m')}",
-                        '--illegal-access=warn',
-                        '-XX:+HeapDumpOnOutOfMemoryError'
-
-                test.jvmArgumentProviders.add({ ["-XX:HeapDumpPath=$heapdumpDir"] } as CommandLineArgumentProvider)
-
-                if (System.getProperty('tests.jvm.argline')) {
-                    test.jvmArgs System.getProperty('tests.jvm.argline').split(" ")
-                }
-
-                if (Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))) {
-                    test.jvmArgs '-ea', '-esa'
-                }
-
-                test.systemProperties 'java.awt.headless': 'true',
-                        'tests.gradle': 'true',
-                        'tests.artifact': project.name,
-                        'tests.task': test.path,
-                        'tests.security.manager': 'true',
-                        'jna.nosys': 'true'
-
-                // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability experimentation
-                if (System.getProperty('ignore.tests.seed') != null) {
-                    nonInputProperties.systemProperty('tests.seed', BuildParams.testSeed)
-                } else {
-                    test.systemProperty('tests.seed', BuildParams.testSeed)
-                }
-
-                // don't track these as inputs since they contain absolute paths and break cache relocatability
-                nonInputProperties.systemProperty('gradle.dist.lib', new File(project.class.location.toURI()).parent)
-                nonInputProperties.systemProperty('gradle.worker.jar', "${project.gradle.getGradleUserHomeDir()}/caches/${project.gradle.gradleVersion}/workerMain/gradle-worker.jar")
-                nonInputProperties.systemProperty('gradle.user.home', project.gradle.getGradleUserHomeDir())
-                // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
-                nonInputProperties.systemProperty('java.io.tmpdir', test.workingDir.toPath().resolve('temp'))
-
-                nonInputProperties.systemProperty('compiler.java', BuildParams.compilerJavaVersion.majorVersion)
-                nonInputProperties.systemProperty('runtime.java', BuildParams.runtimeJavaVersion.majorVersion)
-
-                // TODO: remove setting logging level via system property
-                test.systemProperty 'tests.logger.level', 'WARN'
-                System.getProperties().each { key, value ->
-                    if ((key.toString().startsWith('tests.') || key.toString().startsWith('es.'))) {
-                        test.systemProperty key.toString(), value
-                    }
-                }
-
-                // TODO: remove this once ctx isn't added to update script params in 7.0
-                test.systemProperty 'es.scripting.update.ctx_in_params', 'false'
-
-                // TODO: remove this property in 8.0
-                test.systemProperty 'es.search.rewrite_sort', 'true'
-
-                // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
-                test.systemProperty 'es.transport.cname_in_publish_address', 'true'
-
-                // Set netty system properties to the properties we configure in jvm.options
-                test.systemProperty('io.netty.noUnsafe', 'true')
-                test.systemProperty('io.netty.noKeySetOptimization', 'true')
-                test.systemProperty('io.netty.recycler.maxCapacityPerThread', '0')
-
-                test.testLogging { TestLoggingContainer logging ->
-                    logging.showExceptions = true
-                    logging.showCauses = true
-                    logging.exceptionFormat = 'full'
-                }
-
-                if (OS.current().equals(OS.WINDOWS) && System.getProperty('tests.timeoutSuite') == null) {
-                    // override the suite timeout to 30 mins for windows, because it has the most inefficient filesystem known to man
-                    test.systemProperty 'tests.timeoutSuite', '1800000!'
-                }
-
-                /*
-                 *  If this project builds a shadow JAR than any unit tests should test against that artifact instead of
-                 *  compiled class output and dependency jars. This better emulates the runtime environment of consumers.
-                 */
-                project.pluginManager.withPlugin('com.github.johnrengelman.shadow') {
-                    // Remove output class files and any other dependencies from the test classpath, since the shadow JAR includes these
-                    test.classpath -= project.extensions.getByType(SourceSetContainer).getByName(SourceSet.MAIN_SOURCE_SET_NAME).runtimeClasspath
-                    // Add any "shadow" dependencies. These are dependencies that are *not* bundled into the shadow JAR
-                    test.classpath += project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME)
-                    // Add the shadow JAR artifact itself
-                    test.classpath += project.files(project.tasks.named('shadowJar'))
-                }
-            }
         }
     }
 

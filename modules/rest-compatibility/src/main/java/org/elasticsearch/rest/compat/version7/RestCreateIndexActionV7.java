@@ -56,7 +56,7 @@ public class RestCreateIndexActionV7 extends RestCreateIndexAction {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        CreateIndexRequest createIndexRequest = prepareV7Request(request);
+        CreateIndexRequest createIndexRequest = prepareRequest(request);
         return channel -> client.admin().indices().create(createIndexRequest, new RestToXContentListener<>(channel));
     }
 
@@ -68,7 +68,7 @@ public class RestCreateIndexActionV7 extends RestCreateIndexAction {
             Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false, request.getXContentType()).v2();
 
             request.param(INCLUDE_TYPE_NAME_PARAMETER);// just consume, it is always replaced with _doc
-            sourceAsMap = prepareMappingsV7(sourceAsMap, request);
+            sourceAsMap = prepareMappings(sourceAsMap, request);
 
             createIndexRequest.source(sourceAsMap, LoggingDeprecationHandler.INSTANCE);
         }

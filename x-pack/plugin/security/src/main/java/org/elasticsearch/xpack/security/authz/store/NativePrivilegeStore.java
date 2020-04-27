@@ -31,8 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -121,19 +119,20 @@ public class NativePrivilegeStore {
         descriptorsCache = builder.build();
         descriptorsCacheHelper = new CacheIteratorHelper<>(descriptorsCache);
 
-        CacheBuilder<Set<String>, Set<String>> nameCacheBuilder = CacheBuilder.builder();
+        CacheBuilder<Set<String>, Set<String>> applicationNamesCacheBuilder = CacheBuilder.builder();
         final int nameCacheSize = APPLICATION_NAME_CACHE_SIZE_SETTING.get(settings);
         if (nameCacheSize >= 0) {
-            nameCacheBuilder.setMaximumWeight(nameCacheSize);
-            nameCacheBuilder.weigher((k, v) -> k.size() + v.size());
+            applicationNamesCacheBuilder.setMaximumWeight(nameCacheSize);
+            applicationNamesCacheBuilder.weigher((k, v) -> k.size() + v.size());
         }
-        applicationNamesCache = nameCacheBuilder.build();
+        applicationNamesCache = applicationNamesCacheBuilder.build();
         applicationNamesCacheHelper = new CacheIteratorHelper<>(applicationNamesCache);
     }
 
     public void getPrivileges(Collection<String> applications, Collection<String> names,
                               ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
 
+        // TODO: We should have a way to express true Zero applications
         final Set<String> applicationNamesCacheKey = (isEmpty(applications) || applications.contains("*")) ?
             Collections.singleton("*") : Set.copyOf(applications);
 
@@ -142,6 +141,7 @@ public class NativePrivilegeStore {
         Set<String> concreteApplicationNames = applicationNamesCache.get(applicationNamesCacheKey);
 
         if (concreteApplicationNames != null && concreteApplicationNames.size() == 0) {
+            logger.debug("returning empty application privileges as application names result in empty list");
             listener.onResponse(Collections.emptySet());
 
         } else {
@@ -152,32 +152,39 @@ public class NativePrivilegeStore {
                 cacheStatus = cacheStatusForApplicationNames(concreteApplicationNames);
             }
 
-            if (cacheStatus.v1().size() == 0) {
-                // everything is found in cache
+            if (cacheStatus.v1().isEmpty()) {
+                logger.debug("All application privileges found in cache");
                 final Set<ApplicationPrivilegeDescriptor> cachedDescriptors =
                     cacheStatus.v2().values().stream().flatMap(Collection::stream).collect(Collectors.toUnmodifiableSet());
                 listener.onResponse(filterDescriptorsForNames(cachedDescriptors, names));
             } else {
                 final long invalidationCounter = numInvalidation.get();
                 // Always fetch all privileges of an application for caching purpose
-                getPrivilegesWithoutCaching(cacheStatus.v1(), Collections.emptySet(), ActionListener.wrap(fetchedDescriptors -> {
+                logger.debug("Fetching application privilege documents for: {}", cacheStatus.v1());
+                innerGetPrivileges(cacheStatus.v1(), ActionListener.wrap(fetchedDescriptors -> {
                     final Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors = fetchedDescriptors.stream()
                         .collect(Collectors.groupingBy(ApplicationPrivilegeDescriptor::getApplication, Collectors.toUnmodifiableSet()));
                     final Set<String> allApplicationNames =
                         Stream.concat(cacheStatus.v2().keySet().stream(), mapOfFetchedDescriptors.keySet().stream())
                             .collect(Collectors.toUnmodifiableSet());
                     // Avoid caching potential stale results.
-                    // TODO: But it is still possible that cache gets invalidated immediately after the if check
+                    // TODO: It is still possible that cache gets invalidated immediately after the if check
                     if (invalidationCounter == numInvalidation.get()) {
                         // Do not cache the names if expansion has no effect
                         if (allApplicationNames.equals(applicationNamesCacheKey) == false) {
                             try (ReleasableLock ignored = applicationNamesCacheHelper.acquireUpdateLock()) {
-                                applicationNamesCache.computeIfAbsent(applicationNamesCacheKey, (k) -> allApplicationNames);
+                                applicationNamesCache.computeIfAbsent(applicationNamesCacheKey, (k) -> {
+                                    logger.debug("Caching application names query: {} = {}", k, allApplicationNames);
+                                    return allApplicationNames;
+                                });
                             }
                         }
                         try (ReleasableLock ignored = descriptorsCacheHelper.acquireUpdateLock()) {
                             for (Map.Entry<String, Set<ApplicationPrivilegeDescriptor>> entry : mapOfFetchedDescriptors.entrySet()) {
-                                descriptorsCache.computeIfAbsent(entry.getKey(), (k) -> entry.getValue());
+                                descriptorsCache.computeIfAbsent(entry.getKey(), (k) -> {
+                                    logger.debug("Caching descriptors for application: {}", k);
+                                    return entry.getValue();
+                                });
                             }
                         }
                     }
@@ -190,41 +197,23 @@ public class NativePrivilegeStore {
         }
     }
 
-    public void getPrivilegesWithoutCaching(Collection<String> applications, Collection<String> names,
+    private void innerGetPrivileges(Collection<String> applications,
         ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
+        assert Objects.requireNonNull(applications).isEmpty() == false;
 
         final SecurityIndexManager frozenSecurityIndex = securityIndexManager.freeze();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
         } else if (frozenSecurityIndex.isAvailable() == false) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
-        } else if (isSinglePrivilegeMatch(applications, names)) {
-            getPrivilege(Objects.requireNonNull(Iterables.get(applications, 0)), Objects.requireNonNull(Iterables.get(names, 0)),
-                ActionListener.wrap(privilege ->
-                        listener.onResponse(privilege == null ? Collections.emptyList() : Collections.singletonList(privilege)),
-                    listener::onFailure));
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                final QueryBuilder query;
+
                 final TermQueryBuilder typeQuery = QueryBuilders
                     .termQuery(ApplicationPrivilegeDescriptor.Fields.TYPE.getPreferredName(), DOC_TYPE_VALUE);
-                if (isEmpty(applications) && isEmpty(names)) {
-                    query = typeQuery;
-                } else if (isEmpty(names)) {
-                    query = QueryBuilders.boolQuery().filter(typeQuery).filter(getApplicationNameQuery(applications));
-                } else if (isEmpty(applications)) {
-                    query = QueryBuilders.boolQuery().filter(typeQuery)
-                        .filter(getPrivilegeNameQuery(names));
-                } else if (hasWildcard(applications)) {
-                    query = QueryBuilders.boolQuery().filter(typeQuery)
-                        .filter(getApplicationNameQuery(applications))
-                        .filter(getPrivilegeNameQuery(names));
-                } else {
-                    final String[] docIds = applications.stream()
-                        .flatMap(a -> names.stream().map(n -> toDocId(a, n)))
-                        .toArray(String[]::new);
-                    query = QueryBuilders.boolQuery().filter(typeQuery).filter(QueryBuilders.idsQuery().addIds(docIds));
-                }
+                final QueryBuilder query = QueryBuilders.boolQuery().filter(typeQuery)
+                    .filter(getApplicationNameQuery(applications));
+
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
                     SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
@@ -234,7 +223,8 @@ public class NativePrivilegeStore {
                         .setFetchSource(true)
                         .request();
                     logger.trace(() ->
-                        new ParameterizedMessage("Searching for privileges [{}] with query [{}]", names, Strings.toString(query)));
+                        new ParameterizedMessage("Searching for [{}] privileges with query [{}]",
+                            applications, Strings.toString(query)));
                     request.indicesOptions().ignoreUnavailable();
                     ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener),
                         hit -> buildPrivilege(hit.getId(), hit.getSourceRef()));
@@ -244,14 +234,15 @@ public class NativePrivilegeStore {
     }
 
     public void invalidate(Collection<String> updatedApplicationNames) {
+        logger.debug("Invalidating application privileges caches for: {}", updatedApplicationNames);
         numInvalidation.incrementAndGet();
-        final Set<String> uniqueUpdatedApplicationNames = Set.copyOf(updatedApplicationNames);
         // Always completely invalidate application names cache due to wildcard
         applicationNamesCache.invalidateAll();
         descriptorsCacheHelper.removeKeysIf(updatedApplicationNames::contains);
     }
 
     public void invalidateAll() {
+        logger.debug("Invalidating all application privileges caches");
         numInvalidation.incrementAndGet();
         applicationNamesCache.invalidateAll();
         descriptorsCache.invalidateAll();
@@ -275,6 +266,9 @@ public class NativePrivilegeStore {
                 }
             }
         }
+        if (cachedDescriptors.isEmpty() == false) {
+            logger.debug("Application privileges found in cache: {}", cachedDescriptors.keySet());
+        }
         return Tuple.tuple(uncachedApplicationNames, cachedDescriptors);
     }
 
@@ -288,8 +282,8 @@ public class NativePrivilegeStore {
         return descriptors.stream().filter(d -> uniqueNameSuffix.contains(d.getName())).collect(Collectors.toUnmodifiableSet());
     }
 
-    private boolean isSinglePrivilegeMatch(Collection<String> applications, Collection<String> names) {
-        return applications != null && applications.size() == 1 && hasWildcard(applications) == false && names != null && names.size() == 1;
+    private boolean isSinglePrivilegeMatch(Collection<String> applications) {
+        return applications != null && applications.size() == 1 && hasWildcard(applications) == false;
     }
 
     private boolean hasWildcard(Collection<String> applications) {

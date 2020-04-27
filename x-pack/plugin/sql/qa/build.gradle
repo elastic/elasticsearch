@@ -104,6 +104,9 @@ subprojects {
     testRuntime "org.jline:jline-style:${jlineVersion}"
 
     testRuntime "org.elasticsearch:jna:${versions.jna}"
+
+    // spatial dependency
+    testRuntime project(path: xpackModule('spatial'))
   }
 
   if (project.name != 'security') {

@@ -5,58 +5,91 @@
 ++++
 
 This section discusses the changes that you need to be aware of when migrating
-your application to Elasticsearch 7.8.
+your application to {es} 7.8.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
 coming[7.8.0]
+
+* <<breaking_78_mappings_changes>>
+* <<breaking_78_settings_changes>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
 
-//end::notable-breaking-changes[]
-
-[discrete]
-[[breaking_78_api_changes]]
-=== API changes
-
-[discrete]
-==== Deprecation of `local` parameter for get field mapping API
-
-The `local` parameter is a no-op and field mappings are always retrieved locally.
-As of 7.8, this parameter is deprecated and will be removed in next major version.
-
 [discrete]
 [[breaking_78_mappings_changes]]
 === Mappings changes
 
-[discrete]
 [[prevent-enabled-setting-change]]
-==== `enabled` setting cannot be changed on root mapper
+.The `enabled` mapping parameter cannot be changed for a root mapping.
+[%collapsible]
+====
+*Details* +
+Mapping requests that attempt to change the {ref}/enabled.html[`enabled`]
+mapping parameter for a root mapping will fail and return an error.
 
-Previously, Elasticsearch accepted mapping updates that tried to change the
-`enabled` setting on the root mapping. The update was not applied, but the
-request didn't throw an error. As of 7.8, requests that attempt to change
-`enabled` on the root mapping will fail.
+Previously, {es} accepted mapping requests that attempted to change the
+`enabled` parameter of the root mapping. Theses changes were not applied, but
+such requests didn't return an error.
 
-[discrete]
+*Impact* +
+To avoid errors, do not submit mapping requests that change the
+{ref}/enabled.html[`enabled`] mapping parameter.
+====
+
 [[prevent-include-in-root-change]]
-==== `include_in_root` and `include_in_parent` cannot be changed
+.The `include_in_parent` and `include_in_root` mapping parameters cannot be changed for `nested` fields.
+[%collapsible]
+====
+*Details* +
+Mapping requests that attempt to change the
+{ref}/nested.html#nested-include-in-parent-parm[`include_in_parent`] or
+{ref}/nested.html#nested-include-in-root-parm[`include_in_root`] mapping
+parameter for a `nested` field will fail and return an error.
 
-Elasticsearch previously accepted mapping updates that changed the
-`include_in_root` and `include_in_parent` settings. The update was not
-applied, but the request didn't throw an error. As of 7.8, requests that
-attempt to change these settings will fail.
+Previously, {es} accepted mapping requests that attempted to change the
+`include_in_parent` or `include_in_root` parameter. Theses changes were not
+applied, but such requests didn't return an error.
+
+*Impact* +
+To avoid errors, do not submit mapping requests that change the
+{ref}/nested.html#nested-include-in-parent-parm[`include_in_parent`] or
+{ref}/nested.html#nested-include-in-root-parm[`include_in_root`] mapping
+parameter.
+====
+
+.The get field mapping API's `local` query parameter is deprecated.
+[%collapsible]
+====
+*Details* +
+The {ref}/indices-get-field-mapping.html[get field mapping API]'s `local` query
+parameter is deprecated and will be removed in {es} 8.0.0.
+
+The `local` parameter is a no-op. The API always retrieves field mappings
+locally.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the `local` parameter.
+====
 
 [discrete]
 [[breaking_78_settings_changes]]
 === Settings changes
 
-[discrete]
 [[deprecate-node-local-storage]]
-==== `node.local_storage` is deprecated
+.The `node.local_storage` setting is deprecated.
+[%collapsible]
+====
+*Details* +
+The `node.local_storage` setting is deprecated. In {es} 8.0.0, all nodes require
+local storage.
 
-In Elasticsearch 7.8.0, the setting `node.local_storage` was deprecated and
-beginning in Elasticsearch 8.0.0 all nodes will require local storage.
+*Impact* +
+To avoid deprecation warnings, discontinue use of the `node.local_storage`
+setting.
+====
+
+//end::notable-breaking-changes[]

@@ -167,7 +167,7 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
             }
 
             @Override
-            public void onFetchFailure(int shardIndex, Exception exc) {
+            public void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
                 assertThat(shardIndex, lessThan(shardsListener.get().size()));
                 numFetchFailures.incrementAndGet();
             }

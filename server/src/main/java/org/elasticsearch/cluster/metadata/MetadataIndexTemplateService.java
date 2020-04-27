@@ -341,6 +341,7 @@ public class MetadataIndexTemplateService {
 
         Map<String, List<String>> overlaps = findConflictingV2Templates(currentState, name, template.indexPatterns(), true,
             template.priority());
+        overlaps.remove(name);
         if (overlaps.size() > 0) {
             String error = String.format(Locale.ROOT, "index template [%s] has index patterns %s matching patterns from " +
                     "existing templates [%s] with patterns (%s) that have the same priority [%d], multiple index templates may not " +
@@ -367,7 +368,7 @@ public class MetadataIndexTemplateService {
                     .collect(Collectors.joining(",")),
                 name);
             logger.warn(warning);
-            deprecationLogger.deprecated(warning);
+            deprecationLogger.deprecatedAndMaybeLog("index_template_pattern_overlap", warning);
         }
 
         IndexTemplateV2 finalIndexTemplate = template;
@@ -592,7 +593,7 @@ public class MetadataIndexTemplateService {
                         .collect(Collectors.joining(",")),
                     request.name);
                 logger.warn(warning);
-                deprecationLogger.deprecated(warning);
+                deprecationLogger.deprecatedAndMaybeLog("index_template_pattern_overlap", warning);
             } else {
                 // Otherwise, this is a hard error, the user should use V2 index templates instead
                 String error = String.format(Locale.ROOT, "template [%s] has index patterns %s matching patterns" +
@@ -767,8 +768,6 @@ public class MetadataIndexTemplateService {
         Optional.ofNullable(template.template())
             .map(Template::mappings)
             .ifPresent(mappings::add);
-        // When actually merging mappings, the highest precedence ones should go first, so reverse the list
-        Collections.reverse(mappings);
         return Collections.unmodifiableList(mappings);
     }
 

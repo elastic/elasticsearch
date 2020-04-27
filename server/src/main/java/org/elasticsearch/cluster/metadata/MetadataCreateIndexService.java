@@ -186,7 +186,8 @@ public class MetadataCreateIndexService {
                 .filter(descriptor -> descriptor.matchesIndexPattern(index))
                 .collect(toList());
             if (matchingDescriptors.isEmpty() && (isHidden == null || isHidden == Boolean.FALSE)) {
-                DEPRECATION_LOGGER.deprecated("index name [{}] starts with a dot '.', in the next major version, index names " +
+                DEPRECATION_LOGGER.deprecatedAndMaybeLog("index_name_starts_with_dot",
+                    "index name [{}] starts with a dot '.', in the next major version, index names " +
                     "starting with a dot are reserved for hidden indices and system indices", index);
             } else if (matchingDescriptors.size() > 1) {
                 // This should be prevented by erroring on overlapping patterns at startup time, but is here just in case.
@@ -457,7 +458,7 @@ public class MetadataCreateIndexService {
         logger.info("applying create index request using v1 templates {}",
             templates.stream().map(IndexTemplateMetadata::name).collect(Collectors.toList()));
 
-        final Map<String, Map<String, Object>> mappings = Collections.unmodifiableMap(parseMappings(request.mappings(),
+        final Map<String, Map<String, Object>> mappings = Collections.unmodifiableMap(parseV1Mappings(request.mappings(),
             templates.stream().map(IndexTemplateMetadata::getMappings)
                 // Converts the ImmutableOpenMap into a non-terrible HashMap
                 .map(iom -> {
@@ -494,11 +495,15 @@ public class MetadataCreateIndexService {
                                                                                     throws Exception {
         logger.info("applying create index request using v2 template [{}]", templateName);
 
-        final Map<String, Map<String, Object>> mappings = Collections.unmodifiableMap(parseMappings(request.mappings(),
-            MetadataIndexTemplateService.resolveMappings(currentState, templateName).stream()
-                .map(compressedMapping -> Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, compressedMapping))
-                .collect(toList()),
-            xContentRegistry));
+        final String sourceMappings;
+        if (request.mappings().size() > 0) {
+            assert request.mappings().size() == 1 : "expected request metadata mappings to have 1 type but it had: " + request.mappings();
+            sourceMappings = request.mappings().values().iterator().next();
+        } else {
+            sourceMappings = "{}";
+        }
+        final Map<String, Map<String, Object>> mappings = resolveV2Mappings(sourceMappings,
+            currentState, templateName, xContentRegistry);
 
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request,
@@ -515,6 +520,15 @@ public class MetadataCreateIndexService {
                 // shard id and the current timestamp
                 xContentRegistry, indexService.newQueryShardContext(0, null, () -> 0L, null)),
             Collections.singletonList(templateName), metadataTransformer);
+    }
+
+    static Map<String, Map<String, Object>> resolveV2Mappings(final String requestMappings,
+                                                              final ClusterState currentState,
+                                                              final String templateName,
+                                                              final NamedXContentRegistry xContentRegistry) throws Exception {
+        final Map<String, Map<String, Object>> mappings = Collections.unmodifiableMap(parseV2Mappings(requestMappings,
+            MetadataIndexTemplateService.resolveMappings(currentState, templateName), xContentRegistry));
+        return mappings;
     }
 
     private ClusterState applyCreateIndexRequestWithExistingMetadata(final ClusterState currentState,
@@ -551,14 +565,77 @@ public class MetadataCreateIndexService {
     }
 
     /**
-     * Parses the provided mappings json and the inheritable mappings from the templates (if any) into a map.
+     * Parses the provided mappings json and the inheritable mappings from the templates (if any)
+     * into a map.
      *
-     * The template mappings are applied in the order they are encountered in the list (clients should make sure the lower index, closer
-     * to the head of the list, templates have the highest {@link IndexTemplateMetadata#order()})
+     * The template mappings are applied in the order they are encountered in the list, with the
+     * caveat that mapping fields are only merged at the top-level, meaning that field settings are
+     * not merged, instead they replace any previous field definition.
      */
-    static Map<String, Map<String, Object>> parseMappings(Map<String, String> requestMappings,
-                                                          List<Map<String, CompressedXContent>> templateMappings,
-                                                          NamedXContentRegistry xContentRegistry) throws Exception {
+    @SuppressWarnings("unchecked")
+    static Map<String, Map<String, Object>> parseV2Mappings(String mappingsJson, List<CompressedXContent> templateMappings,
+                                                            NamedXContentRegistry xContentRegistry) throws Exception {
+        Map<String, Object> requestMappings = MapperService.parseMapping(xContentRegistry, mappingsJson);
+        // apply templates, merging the mappings into the request mapping if exists
+        Map<String, Object> properties = new HashMap<>();
+        Map<String, Object> nonProperties = new HashMap<>();
+        for (CompressedXContent mapping : templateMappings) {
+            if (mapping != null) {
+                Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mapping.string());
+                if (templateMapping.isEmpty()) {
+                    // Someone provided an empty '{}' for mappings, which is okay, but to avoid
+                    // tripping the below assertion, we can safely ignore it
+                    continue;
+                }
+                assert templateMapping.size() == 1 : "expected exactly one mapping value, got: " + templateMapping;
+                if (templateMapping.get(MapperService.SINGLE_MAPPING_NAME) instanceof Map == false) {
+                    throw new IllegalStateException("invalid mapping definition, expected a single map underneath [" +
+                        MapperService.SINGLE_MAPPING_NAME + "] but it was: [" + templateMapping + "]");
+                }
+
+                Map<String, Object> innerTemplateMapping = (Map<String, Object>) templateMapping.get(MapperService.SINGLE_MAPPING_NAME);
+                Map<String, Object> innerTemplateNonProperties = new HashMap<>(innerTemplateMapping);
+                Map<String, Object> maybeProperties = (Map<String, Object>) innerTemplateNonProperties.remove("properties");
+
+                XContentHelper.mergeDefaults(innerTemplateNonProperties, nonProperties);
+                nonProperties = innerTemplateNonProperties;
+
+                if (maybeProperties != null) {
+                    properties.putAll(maybeProperties);
+                }
+            }
+        }
+
+        if (requestMappings.get(MapperService.SINGLE_MAPPING_NAME) != null) {
+            Map<String, Object> innerRequestMappings = (Map<String, Object>) requestMappings.get(MapperService.SINGLE_MAPPING_NAME);
+            Map<String, Object> innerRequestNonProperties = new HashMap<>(innerRequestMappings);
+            Map<String, Object> maybeRequestProperties = (Map<String, Object>) innerRequestNonProperties.remove("properties");
+
+            XContentHelper.mergeDefaults(innerRequestNonProperties, nonProperties);
+            nonProperties = innerRequestNonProperties;
+
+            if (maybeRequestProperties != null) {
+                properties.putAll(maybeRequestProperties);
+            }
+        }
+
+        Map<String, Object> finalMappings = new HashMap<>(nonProperties);
+        finalMappings.put("properties", properties);
+        return Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, finalMappings);
+    }
+
+    /**
+     * Parses the provided mappings json and the inheritable mappings from the templates (if any)
+     * into a map.
+     *
+     * The template mappings are applied in the order they are encountered in the list (clients
+     * should make sure the lower index, closer to the head of the list, templates have the highest
+     * {@link IndexTemplateMetadata#order()}). This merging makes no distinction between field
+     * definitions, as may result in an invalid field definition
+     */
+    static Map<String, Map<String, Object>> parseV1Mappings(Map<String, String> requestMappings,
+                                                            List<Map<String, CompressedXContent>> templateMappings,
+                                                            NamedXContentRegistry xContentRegistry) throws Exception {
         Map<String, Map<String, Object>> mappings = new HashMap<>();
         for (Map.Entry<String, String> entry : requestMappings.entrySet()) {
             Map<String, Object> mapping = MapperService.parseMapping(xContentRegistry, entry.getValue());

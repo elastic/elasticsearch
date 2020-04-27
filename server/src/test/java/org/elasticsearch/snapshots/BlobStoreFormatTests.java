@@ -39,6 +39,7 @@ import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
 import org.elasticsearch.snapshots.mockstore.BlobContainerWrapper;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -54,7 +55,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
+public class BlobStoreFormatTests extends ESTestCase {
 
     public static final String BLOB_CODEC = "blob";
 
@@ -232,7 +233,7 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
     }
 
     protected BlobStore createTestBlobStore() throws IOException {
-        return new FsBlobStore(Settings.EMPTY, randomRepoPath(), false);
+        return new FsBlobStore(Settings.EMPTY, createTempDir(), false);
     }
 
     protected void randomCorruption(BlobContainer blobContainer, String blobName) throws IOException {
@@ -259,5 +260,4 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
             }
         }
     }
-
 }

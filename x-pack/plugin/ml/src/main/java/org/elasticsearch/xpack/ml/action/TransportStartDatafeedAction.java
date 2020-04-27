@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -42,6 +41,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
@@ -78,7 +78,7 @@ import java.util.function.Predicate;
  In case of instability persistent tasks checks may fail and that is ok, in that case all bets are off.
  The start datafeed api is a low through put api, so the fact that we redirect to elected master node shouldn't be an issue.
  */
-public class TransportStartDatafeedAction extends TransportMasterNodeAction<StartDatafeedAction.Request, AcknowledgedResponse> {
+public class TransportStartDatafeedAction extends TransportMasterNodeAction<StartDatafeedAction.Request, NodeAcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportStartDatafeedAction.class);
 
@@ -147,13 +147,13 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     }
 
     @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
+    protected NodeAcknowledgedResponse read(StreamInput in) throws IOException {
+        return new NodeAcknowledgedResponse(in);
     }
 
     @Override
     protected void masterOperation(StartDatafeedAction.Request request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) {
+                                   ActionListener<NodeAcknowledgedResponse> listener) {
         StartDatafeedAction.DatafeedParams params = request.getParams();
         if (licenseState.isMachineLearningAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
@@ -282,7 +282,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     }
 
     private void waitForDatafeedStarted(String taskId, StartDatafeedAction.DatafeedParams params,
-                                        ActionListener<AcknowledgedResponse> listener) {
+                                        ActionListener<NodeAcknowledgedResponse> listener) {
         DatafeedPredicate predicate = new DatafeedPredicate();
         persistentTasksService.waitForPersistentTaskCondition(taskId, predicate, params.getTimeout(),
                 new PersistentTasksService.WaitForPersistentTaskListener<StartDatafeedAction.DatafeedParams>() {
@@ -294,7 +294,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                             // what would have happened if the error had been detected in the "fast fail" validation
                             cancelDatafeedStart(persistentTask, predicate.exception, listener);
                         } else {
-                            listener.onResponse(new AcknowledgedResponse(true));
+                            listener.onResponse(new NodeAcknowledgedResponse(true, predicate.node));
                         }
                     }
 
@@ -312,7 +312,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     }
 
     private void cancelDatafeedStart(PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask,
-                                     Exception exception, ActionListener<AcknowledgedResponse> listener) {
+                                     Exception exception, ActionListener<NodeAcknowledgedResponse> listener) {
         persistentTasksService.sendRemoveRequest(persistentTask.getId(),
                 new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
                     @Override
@@ -493,6 +493,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private static class DatafeedPredicate implements Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> {
 
         private volatile Exception exception;
+        private volatile String node = "";
 
         @Override
         public boolean test(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
@@ -513,7 +514,11 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 }
             }
             DatafeedState datafeedState = (DatafeedState) persistentTask.getState();
-            return datafeedState == DatafeedState.STARTED;
+            if (datafeedState == DatafeedState.STARTED) {
+                node = persistentTask.getExecutorNode();
+                return true;
+            }
+            return false;
         }
     }
 }

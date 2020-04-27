@@ -40,7 +40,7 @@ import java.util.Objects;
 public class SimulateIndexTemplateResponse extends ActionResponse implements ToXContentObject {
 
     private static final ParseField TEMPLATE = new ParseField("template");
-    private static final ParseField OVERLAPPING_V1_TEMPLATES = new ParseField("overlapping_v1_templates");
+    private static final ParseField OVERLAPPING = new ParseField("overlapping");
 
     @Nullable
     // the resolved settings, mappings and aliases for the matched templates, if any
@@ -48,11 +48,11 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
 
     @Nullable
     // a map of v1 template names and their index patterns that would overlap when matching the given index name
-    private Map<String, List<String>> overlappingV1Templates;
+    private Map<String, List<String>> overlappingTemplates;
 
-    public SimulateIndexTemplateResponse(@Nullable Template resolvedTemplate, @Nullable Map<String, List<String>> overlappingV1Templates) {
+    public SimulateIndexTemplateResponse(@Nullable Template resolvedTemplate, @Nullable Map<String, List<String>> overlappingTemplates) {
         this.resolvedTemplate = resolvedTemplate;
-        this.overlappingV1Templates = overlappingV1Templates;
+        this.overlappingTemplates = overlappingTemplates;
     }
 
     public SimulateIndexTemplateResponse(StreamInput in) throws IOException {
@@ -60,23 +60,23 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         resolvedTemplate = in.readOptionalWriteable(Template::new);
         if (in.readBoolean()) {
             int conflictingV1TemplatesCount = in.readInt();
-            overlappingV1Templates = new HashMap<>(conflictingV1TemplatesCount, 1L);
+            overlappingTemplates = new HashMap<>(conflictingV1TemplatesCount, 1L);
             for (int i = 0; i < conflictingV1TemplatesCount; i++) {
                 String templateName = in.readString();
-                overlappingV1Templates.put(templateName, in.readStringList());
+                overlappingTemplates.put(templateName, in.readStringList());
             }
         } else {
-            this.overlappingV1Templates = null;
+            this.overlappingTemplates = null;
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(resolvedTemplate);
-        if (overlappingV1Templates != null) {
+        if (overlappingTemplates != null) {
             out.writeBoolean(true);
-            out.writeInt(overlappingV1Templates.size());
-            for (Map.Entry<String, List<String>> entry : overlappingV1Templates.entrySet()) {
+            out.writeInt(overlappingTemplates.size());
+            for (Map.Entry<String, List<String>> entry : overlappingTemplates.entrySet()) {
                 out.writeString(entry.getKey());
                 out.writeStringCollection(entry.getValue());
             }
@@ -91,8 +91,8 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         if (this.resolvedTemplate != null) {
             builder.field(TEMPLATE.getPreferredName(), this.resolvedTemplate);
         }
-        if (this.overlappingV1Templates != null) {
-            builder.field(OVERLAPPING_V1_TEMPLATES.getPreferredName(), overlappingV1Templates);
+        if (this.overlappingTemplates != null) {
+            builder.field(OVERLAPPING.getPreferredName(), overlappingTemplates);
         }
         builder.endObject();
         return builder;
@@ -108,17 +108,17 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         }
         SimulateIndexTemplateResponse that = (SimulateIndexTemplateResponse) o;
         return Objects.equals(resolvedTemplate, that.resolvedTemplate)
-            && Objects.deepEquals(overlappingV1Templates, that.overlappingV1Templates);
+            && Objects.deepEquals(overlappingTemplates, that.overlappingTemplates);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(resolvedTemplate, overlappingV1Templates);
+        return Objects.hash(resolvedTemplate, overlappingTemplates);
     }
 
     @Override
     public String toString() {
         return "SimulateIndexTemplateResponse{" + "resolved template=" + resolvedTemplate + ", overlapping v1 templates="
-            + String.join("|", overlappingV1Templates.keySet()) + "}";
+            + String.join("|", overlappingTemplates.keySet()) + "}";
     }
 }

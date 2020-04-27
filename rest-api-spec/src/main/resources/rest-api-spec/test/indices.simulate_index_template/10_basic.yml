@@ -28,7 +28,7 @@
   - match: {template.settings.index.number_of_shards: "1"}
   - match: {template.settings.index.number_of_replicas: "0"}
   - match: {template.mappings._doc.properties.field.type: "keyword"}
-  - match: {overlapping_v1_templates: {}}
+  - match: {overlapping: {}}
 
 ---
 "Simulate index template specifying a new template":
@@ -67,7 +67,7 @@
               test_alias: {}
 
   - match: {template.settings.index.blocks.write: "true"}
-  - match: {overlapping_v1_templates: {}}
+  - match: {overlapping: {}}
   - length: {template.aliases: 1}
   - is_true: template.aliases.test_alias
 
@@ -141,4 +141,4 @@
   - match: {template.settings.index.number_of_shards: "1"}
   - match: {template.settings.index.number_of_replicas: "0"}
   - match: {template.mappings._doc.properties.field.type: "keyword"}
-  - match: {overlapping_v1_templates: {v1_template: ["t*", "t1*"]}}
+  - match: {overlapping: {v1_template: ["t*", "t1*"]}}

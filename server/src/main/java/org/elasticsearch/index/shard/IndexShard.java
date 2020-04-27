@@ -3222,12 +3222,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         @Override
         public void beforeRefresh() {
-            lastWriteLocation = getEngine().getTranslogLastWriteLocation();
+            try {
+                lastWriteLocation = getEngine().getTranslogLastWriteLocation();
+            } catch (AlreadyClosedException exc) {
+                // shard is closed - no location is fine
+                lastWriteLocation = null;
+            }
         }
 
         @Override
         public void afterRefresh(boolean didRefresh) {
-            if (didRefresh) {
+            if (didRefresh && lastWriteLocation != null) {
                 pendingRefreshLocation.updateAndGet(pendingLocation -> {
                     if (pendingLocation == null || pendingLocation.compareTo(lastWriteLocation) <= 0) {
                         return null;

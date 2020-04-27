@@ -90,6 +90,12 @@ public interface RestHandler {
         return Collections.emptyList();
     }
 
+    /**
+     * Returns a version a handler is compatible with.
+     * This version is then used to math a handler with a request that specified a version.
+     * If no version is specified, handler is assumed to be compatible with <code>Version.CURRENT</code>
+     * @return a version
+     */
     default Version compatibleWithVersion(){
         return Version.CURRENT;
     }

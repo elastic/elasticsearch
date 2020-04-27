@@ -75,13 +75,8 @@ final class MethodHandlers {
     RestHandler getHandler(RestRequest.Method method, Version version) {
         Map<Version, RestHandler> versionToHandlers = methodHandlers.get(method);
 
-        if (versionToHandlers == null) {
-            return null;
-        }
-        if (versionToHandlers.containsKey(version)) {
-            return versionToHandlers.get(version);
-        }
-        return versionToHandlers.get(Version.CURRENT);
+        final RestHandler handler = versionToHandlers.get(version);
+        return handler != null || version.equals(Version.CURRENT) ? handler : versionToHandlers.get(Version.CURRENT);
     }
 
     /**

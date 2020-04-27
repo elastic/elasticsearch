@@ -173,7 +173,7 @@ public class TestingConventionsTasks extends DefaultTask {
             ).getAsFileTree();
 
             final Map<String, Set<File>> classFilesPerTask = getClassFilesPerEnabledTask();
-            
+
             final Map<String, Set<Class<?>>> testClassesPerTask = classFilesPerTask.entrySet()
                 .stream()
                 .collect(

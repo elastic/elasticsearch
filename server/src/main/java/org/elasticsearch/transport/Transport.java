@@ -22,10 +22,10 @@ package org.elasticsearch.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 
@@ -253,13 +253,13 @@ public interface Transport extends LifecycleComponent {
             if (requestHandlers.containsKey(reg.getAction())) {
                 throw new IllegalArgumentException("transport handlers for action " + reg.getAction() + " is already registered");
             }
-            requestHandlers = Maps.copyMapWithAddedEntry(requestHandlers, reg.getAction(), reg);
+            requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
         }
 
         // TODO: Only visible for testing. Perhaps move StubbableTransport from
         //  org.elasticsearch.test.transport to org.elasticsearch.transport
         public synchronized <Request extends TransportRequest> void forceRegister(RequestHandlerRegistry<Request> reg) {
-            requestHandlers = Maps.copyMapWithAddedOrReplacedEntry(requestHandlers, reg.getAction(), reg);
+            requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
         }
 
         @SuppressWarnings("unchecked")

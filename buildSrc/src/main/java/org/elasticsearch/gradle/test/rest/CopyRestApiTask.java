@@ -20,7 +20,7 @@ package org.elasticsearch.gradle.test.rest;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.info.BuildParams;
-import org.elasticsearch.gradle.util.GradleUtils;
+import org.elasticsearch.gradle.util.Util;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
@@ -41,6 +41,8 @@ import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -109,13 +111,8 @@ public class CopyRestApiTask extends DefaultTask {
 
     @OutputDirectory
     public File getOutputDir() {
-        //TODO: remove this null check after all is converted!
-        if(getTestSourceSet() == null){
-            return null;
-        }else {
-            return new File(getTestSourceSet().getOutput().getResourcesDir(), REST_API_PREFIX);
-        }
-
+        assert Util.getSingleTestSourceSet(getProject()).isPresent();
+        return new File(Util.getSingleTestSourceSet(getProject()).get().getOutput().getResourcesDir(), REST_API_PREFIX);
     }
 
     @TaskAction
@@ -137,7 +134,8 @@ public class CopyRestApiTask extends DefaultTask {
             );
             project.copy(c -> {
                 c.from(project.zipTree(coreConfig.getSingleFile()));
-                c.into(getTestSourceSet().getOutput().getResourcesDir()); // this ends up as the same dir as outputDir
+                // this ends up as the same dir as outputDir
+                c.into(Objects.requireNonNull(Util.getSingleTestSourceSet(getProject()).orElseThrow().getOutput().getResourcesDir()));
                 if (includeCore.get().isEmpty()) {
                     c.include(REST_API_PREFIX + "/**");
                 } else {
@@ -184,33 +182,26 @@ public class CopyRestApiTask extends DefaultTask {
     }
 
     private File getTestSourceResourceDir() {
-        SourceSet testSources = getTestSourceSet();
-        if (testSources == null) {
+        Optional<SourceSet> testSourceSet = Util.getSingleTestSourceSet(getProject());
+        if(testSourceSet.isPresent()){
+            SourceSet testSources = testSourceSet.get();
+            Set<File> resourceDir = testSources.getResources()
+                .getSrcDirs()
+                .stream()
+                .filter(f -> f.isDirectory() && f.getParentFile().getName().equals("test") && f.getName().equals("resources"))
+                .collect(Collectors.toSet());
+            assert resourceDir.size() <= 1;
+            if (resourceDir.size() == 0) {
+                return null;
+            }
+            return resourceDir.iterator().next();
+        } else{
             return null;
         }
-        Set<File> resourceDir = testSources.getResources()
-            .getSrcDirs()
-            .stream()
-            .filter(f -> f.isDirectory() && f.getParentFile().getName().equals("test") && f.getName().equals("resources"))
-            .collect(Collectors.toSet());
-        assert resourceDir.size() <= 1;
-        if (resourceDir.size() == 0) {
-            return null;
-        }
-        return resourceDir.iterator().next();
     }
 
     private File getTestOutputResourceDir() {
-        SourceSet testSources = getTestSourceSet();
-        if (testSources == null) {
-            return null;
-        }
-        return testSources.getOutput().getResourcesDir();
-    }
-
-    private SourceSet getTestSourceSet() {
-        // prefer, but not require yamlTest source sets
-        SourceSet restTestSourceSet = GradleUtils.getJavaSourceSets(getProject()).findByName("yamlTest");
-        return restTestSourceSet != null ? restTestSourceSet : GradleUtils.getJavaSourceSets(getProject()).findByName("test");
+        Optional<SourceSet> testSourceSet = Util.getSingleTestSourceSet(getProject());
+        return testSourceSet.map(sourceSet -> sourceSet.getOutput().getResourcesDir()).orElse(null);
     }
 }

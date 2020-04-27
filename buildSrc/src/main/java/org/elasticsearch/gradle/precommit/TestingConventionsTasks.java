@@ -20,9 +20,11 @@ package org.elasticsearch.gradle.precommit;
 
 import groovy.lang.Closure;
 import org.elasticsearch.gradle.util.GradleUtils;
+import org.elasticsearch.gradle.util.Util;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Task;
+import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.tasks.Input;
@@ -81,8 +83,8 @@ public class TestingConventionsTasks extends DefaultTask {
     @Input
     public Map<String, File> getTestClassNames() {
         if (testClassNames == null) {
-            testClassNames = GradleUtils.getJavaSourceSets(getProject())
-                .getByName("test")
+            //add standard test source sets class files
+            testClassNames = Util.getJavaTestSourceSet(getProject()).get()
                 .getOutput()
                 .getClassesDirs()
                 .getFiles()
@@ -90,6 +92,19 @@ public class TestingConventionsTasks extends DefaultTask {
                 .filter(File::exists)
                 .flatMap(testRoot -> walkPathAndLoadClasses(testRoot).entrySet().stream())
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+            //add yaml test source sets if they exist
+            if (Util.getYamlTestSourceSet(getProject()).isPresent()) {
+                Map<String, File> yamlTestClassNames = Util.getYamlTestSourceSet(getProject()).get()
+                    .getOutput()
+                    .getClassesDirs()
+                    .getFiles()
+                    .stream()
+                    .filter(File::exists)
+                    .flatMap(testRoot -> walkPathAndLoadClasses(testRoot).entrySet().stream())
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                testClassNames.putAll(yamlTestClassNames);
+            }
         }
         return testClassNames;
     }
@@ -156,6 +171,18 @@ public class TestingConventionsTasks extends DefaultTask {
             ).getAsFileTree();
 
             final Map<String, Set<File>> classFilesPerTask = getClassFilesPerEnabledTask();
+
+            final Map<String, Set<Class<?>>> x = classFilesPerTask.entrySet()
+                .stream()
+                .collect(
+                    Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> entry.getValue()
+                            .stream()
+                            .map(classes::get)
+                            .collect(Collectors.toSet())
+                    )
+                );
 
             final Map<String, Set<Class<?>>> testClassesPerTask = classFilesPerTask.entrySet()
                 .stream()
@@ -349,8 +376,11 @@ public class TestingConventionsTasks extends DefaultTask {
         // the classes these don't influence the checks done by this task.
         // A side effect is that we could mark as up-to-date with missing dependencies, but these will be found when
         // running the tests.
+        Configuration yamlTestRuntime = getProject().getConfigurations().findByName("yamlTestRuntime");
+        Configuration testRuntime = getProject().getConfigurations().getByName("testRuntime");
         return getProject().files(
-            getProject().getConfigurations().getByName("testRuntime").resolve(),
+            testRuntime.resolve(),
+            yamlTestRuntime != null ? yamlTestRuntime.resolve() : null,
             GradleUtils.getJavaSourceSets(getProject())
                 .stream()
                 .flatMap(sourceSet -> sourceSet.getOutput().getClassesDirs().getFiles().stream())

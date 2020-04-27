@@ -52,7 +52,7 @@ public class YamlTestPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
 
-        //can not simply apply it since it is groovy and this is in Java, so
+        //can not simply apply it since it is groovy and this is in Java, so consumers will need to apply the build plugin first
         if (project.getPluginManager().hasPlugin("elasticsearch.build") == false) {
             throw new InvalidUserDataException("elasticsearch.build plugin must be applied before the YAML test plugin");
         }

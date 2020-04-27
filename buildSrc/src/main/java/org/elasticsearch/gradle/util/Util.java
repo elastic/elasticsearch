@@ -102,7 +102,7 @@ public class Util {
      */
     @Nullable
     public static FileTree getJavaTestSourceResources(Project project, Action<? super PatternFilterable> filter) {
-        final Optional<FileTree> testFileTree = getJavaTestSourceSet(project).map(SourceSet::getResources).map(FileTree::getAsFileTree);
+        final Optional<FileTree> testFileTree = getSingleTestSourceSet(project).map(SourceSet::getResources).map(FileTree::getAsFileTree);
         return testFileTree.map(files -> files.matching(filter)).orElse(null);
     }
 
@@ -113,7 +113,7 @@ public class Util {
      */
     @Nullable
     public static FileTree getJavaTestAndMainSourceResources(Project project, Action<? super PatternFilterable> filter) {
-        final Optional<FileTree> testFileTree = getJavaTestSourceSet(project).map(SourceSet::getResources).map(FileTree::getAsFileTree);
+        final Optional<FileTree> testFileTree = getSingleTestSourceSet(project).map(SourceSet::getResources).map(FileTree::getAsFileTree);
         final Optional<FileTree> mainFileTree = getJavaMainSourceSet(project).map(SourceSet::getResources).map(FileTree::getAsFileTree);
         if (testFileTree.isPresent() && mainFileTree.isPresent()) {
             return testFileTree.get().plus(mainFileTree.get()).matching(filter);
@@ -126,13 +126,36 @@ public class Util {
     }
 
     /**
+     * Returns the source set for either the YamlTests or the standard test source set. Preference goes to YamlTest source set if it exists.
+     *
      * @param project The project to look for test Java resources.
+     * @return An Optional that contains the Java test SourceSet if it exists.
+     */
+    public static Optional<SourceSet> getSingleTestSourceSet(Project project) {
+        if(getYamlTestSourceSet(project).isPresent()){
+            return getYamlTestSourceSet(project);
+        }else{
+            return getJavaTestSourceSet(project);
+        }
+    }
+    /**
+     * @param project The project to look for test Java sources.
      * @return An Optional that contains the Java test SourceSet if it exists.
      */
     public static Optional<SourceSet> getJavaTestSourceSet(Project project) {
         return project.getConvention().findPlugin(JavaPluginConvention.class) == null
             ? Optional.empty()
             : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(SourceSet.TEST_SOURCE_SET_NAME));
+    }
+
+    /**
+     * @param project The project to look for yaml test sources.
+     * @return An Optional that contains the yaml test SourceSet if it exists.
+     */
+    public static Optional<SourceSet> getYamlTestSourceSet(Project project) {
+        return project.getConvention().findPlugin(JavaPluginConvention.class) == null
+            ? Optional.empty()
+            : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName("yamlTest"));
     }
 
     /**

@@ -108,7 +108,7 @@ public class UsageService {
 
     public void incAggregationUsage(String aggregationName, String valuesSourceType) {
         Map<String, LongAdder> valuesSourceMap = aggs.get(aggregationName);
-        // Not all aggs register their usage at the moment
+        // Not all aggs register their usage at the moment we also don't register them in test context
         if (valuesSourceMap != null) {
             valuesSourceMap.get(valuesSourceType).increment();
         }

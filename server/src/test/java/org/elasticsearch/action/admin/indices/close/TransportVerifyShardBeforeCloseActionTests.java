@@ -276,7 +276,10 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         TransportVerifyShardBeforeCloseAction.ShardRequest,
         PrimaryResult>
             createPrimary(final ShardRouting primary, final ReplicationGroup replicationGroup) {
+                final PendingReplicationActions replicationActions = new PendingReplicationActions(primary.shardId(), threadPool);
+                replicationActions.accept(replicationGroup);
                 return new ReplicationOperation.Primary<>() {
+
                     @Override
                     public ShardRouting routingEntry() {
                         return primary;
@@ -284,7 +287,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
 
                     @Override
                     public PendingReplicationActions getPendingReplicationActions() {
-                        return new PendingReplicationActions(primary.shardId(), threadPool);
+                        return replicationActions;
                     }
 
                     @Override

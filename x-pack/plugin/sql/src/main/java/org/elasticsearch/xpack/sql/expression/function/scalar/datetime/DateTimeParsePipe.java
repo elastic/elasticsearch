@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.time.ZoneId;
 
 public class DateTimeParsePipe extends BinaryDateTimePipe {
-
-    final private DateTimeParseExtractor dateTimeParseExtractor;
+    
+    private final DateTimeParseExtractor dateTimeParseExtractor;
 
     public DateTimeParsePipe(Source source, Expression expression, Pipe left, Pipe right, DateTimeParseExtractor dateTimeParseExtractor) {
         super(source, expression, left, right, null);

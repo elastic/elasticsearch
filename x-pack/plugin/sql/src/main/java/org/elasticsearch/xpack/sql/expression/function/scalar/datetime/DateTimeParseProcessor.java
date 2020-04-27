@@ -6,12 +6,18 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 
 import java.io.IOException;
-import java.time.*;
+import java.time.DateTimeException;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetTime;
+import java.time.ZonedDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
@@ -23,8 +29,10 @@ import static org.elasticsearch.xpack.ql.util.DateUtils.UTC;
 public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
 
     public enum DateTimeParseExtractor {
-        DATE_TIME((timestampStr, pattern) -> DateTimeFormatter.ofPattern(pattern, Locale.ROOT).parseBest(timestampStr, ZonedDateTime::from, LocalDateTime::from)),
-        TIME((timestampStr, pattern) -> DateTimeFormatter.ofPattern(pattern, Locale.ROOT).parseBest(timestampStr, OffsetTime::from, LocalTime::from));
+        DATE_TIME((timestampStr, pattern) -> DateTimeFormatter.ofPattern(pattern, Locale.ROOT)
+                .parseBest(timestampStr, ZonedDateTime::from, LocalDateTime::from)),
+        TIME((timestampStr, pattern) -> DateTimeFormatter.ofPattern(pattern, Locale.ROOT)
+                .parseBest(timestampStr, OffsetTime::from, LocalTime::from));
 
         private final BiFunction<String, String, TemporalAccessor> apply;
 
@@ -47,14 +55,14 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
                 return null;
             }
             try {
-            TemporalAccessor ta = apply.apply((String)timestamp, (String) pattern);
-            if (ta instanceof LocalDateTime) {
-                return ZonedDateTime.ofInstant((LocalDateTime) ta, ZoneOffset.UTC, UTC);
-            } else if (ta instanceof LocalTime) {
-                return OffsetTime.of((LocalTime) ta, ZoneOffset.UTC);
-            } else {
-                return ta;
-            }
+                TemporalAccessor ta = apply.apply((String) timestamp, (String) pattern);
+                if (ta instanceof LocalDateTime) {
+                    return ZonedDateTime.ofInstant((LocalDateTime) ta, ZoneOffset.UTC, UTC);
+                } else if (ta instanceof LocalTime) {
+                    return OffsetTime.of((LocalTime) ta, ZoneOffset.UTC);
+                } else {
+                    return ta;
+                }
             } catch (IllegalArgumentException | DateTimeException e) {
                 String msg = e.getMessage();
                 if (msg.contains("Unable to convert parsed text using any of the specified queries")) {
@@ -69,8 +77,8 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
             }
         }
     }
-
-    final private DateTimeParseExtractor extractor;
+    
+    private final DateTimeParseExtractor extractor;
 
     public static final String NAME = "dtparse";
 
@@ -83,7 +91,12 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
         super(in);
         this.extractor = in.readEnum(DateTimeParseExtractor.class);
     }
-
+    
+    @Override
+    public void doWrite(StreamOutput out) throws IOException {
+        out.writeEnum(extractor);
+    }
+    
     @Override
     public String getWriteableName() {
         return NAME;
@@ -96,7 +109,7 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
 
     @Override
     public int hashCode() {
-        return Objects.hash(left(), right());
+        return Objects.hash(extractor, left(), right());
     }
 
     @Override
@@ -110,6 +123,16 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
         }
 
         DateTimeParseProcessor other = (DateTimeParseProcessor) obj;
-        return Objects.equals(left(), other.left()) && Objects.equals(right(), other.right());
+        return Objects.equals(extractor, other.extractor)
+            && Objects.equals(left(), other.left()) && Objects.equals(right(), other.right());
+    }
+
+    @Override
+    public String toString(){
+        return extractor.toString();
+    }
+    
+    public DateTimeParseExtractor extractor() {
+        return extractor;
     }
 }

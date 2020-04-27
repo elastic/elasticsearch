@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.template.post;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -26,8 +27,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.AliasValidator;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateV2;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -39,35 +44,47 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.Closeable;
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.resolveV2Mappings;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
+import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 public class TransportSimulateIndexTemplateAction
     extends TransportMasterNodeReadAction<SimulateIndexTemplateRequest, SimulateIndexTemplateResponse> {
 
     private final MetadataIndexTemplateService indexTemplateService;
     private final NamedXContentRegistry xContentRegistry;
+    private final IndicesService indicesService;
+    private AliasValidator aliasValidator;
 
     @Inject
     public TransportSimulateIndexTemplateAction(TransportService transportService, ClusterService clusterService,
                                                 ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
                                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                NamedXContentRegistry xContentRegistry) {
+                                                NamedXContentRegistry xContentRegistry, IndicesService indicesService) {
         super(SimulateIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
             SimulateIndexTemplateRequest::new, indexNameExpressionResolver);
         this.indexTemplateService = indexTemplateService;
         this.xContentRegistry = xContentRegistry;
+        this.indicesService = indicesService;
+        this.aliasValidator = new AliasValidator();
     }
 
     @Override
@@ -107,22 +124,46 @@ public class TransportSimulateIndexTemplateAction
 
         List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(simulateOnClusterState.metadata(),
             matchingTemplate);
-        Map<String, AliasMetadata> aliases = new HashMap<>();
-        for (Map<String, AliasMetadata> alias : resolvedAliases) {
-            for (Map.Entry<String, AliasMetadata> aliasEntry : alias.entrySet()) {
-                if (aliases.containsKey(aliasEntry.getKey()) == false) {
-                    aliases.put(aliasEntry.getKey(), aliasEntry.getValue());
-                }
+
+        // create the index with dummy settings in the cluster state so we can parse and validate the aliases
+        Settings dummySettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(settings)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .build();
+        final IndexMetadata indexMetadata = IndexMetadata.builder(request.getIndexName()).settings(dummySettings).build();
+
+        simulateOnClusterState = ClusterState.builder(simulateOnClusterState)
+            .metadata(Metadata.builder(simulateOnClusterState.metadata())
+                .put(indexMetadata, true)
+                .build())
+            .build();
+
+        IndexService tempIndexService = indicesService.createIndex(indexMetadata, Collections.emptyList(), false);
+        final Index index = tempIndexService.index();
+        try (Closeable dummy = () -> tempIndexService.close("temp", false)) {
+            List<AliasMetadata> aliases = MetadataCreateIndexService.resolveAndValidateAliases(request.getIndexName(), Set.of(),
+                resolvedAliases, simulateOnClusterState.metadata(), aliasValidator, xContentRegistry,
+                // the context is only used for validation so it's fine to pass fake values for the
+                // shard id and the current timestamp
+                tempIndexService.newQueryShardContext(0, null, () -> 0L, null));
+
+            IndexTemplateV2 templateV2 = simulateOnClusterState.metadata().templatesV2().get(matchingTemplate);
+            assert templateV2 != null : "the matched template must exist";
+
+            Map<String, List<String>> conflictingV1Templates =
+                MetadataIndexTemplateService.findConflictingV1Templates(simulateOnClusterState
+                    , matchingTemplate, templateV2.indexPatterns());
+            Template template = new Template(settings, mappingsJson == null ? null : new CompressedXContent(mappingsJson),
+                aliases.stream().collect(Collectors.toMap(AliasMetadata::getAlias, Function.identity())));
+            listener.onResponse(new SimulateIndexTemplateResponse(template, conflictingV1Templates));
+        } finally {
+            if (index != null) {
+                indicesService.removeIndex(index, NO_LONGER_ASSIGNED, "created to validate template aliases");
             }
         }
-
-        IndexTemplateV2 templateV2 = simulateOnClusterState.metadata().templatesV2().get(matchingTemplate);
-        assert templateV2 != null : "the matched template must exist";
-
-        Map<String, List<String>> conflictingV1Templates = MetadataIndexTemplateService.findConflictingV1Templates(simulateOnClusterState
-            , matchingTemplate, templateV2.indexPatterns());
-        Template template = new Template(settings, mappingsJson == null ? null : new CompressedXContent(mappingsJson), aliases);
-        listener.onResponse(new SimulateIndexTemplateResponse(template, conflictingV1Templates));
     }
 
     @Override

@@ -63,9 +63,13 @@
           template:
             settings:
               index.blocks.write: true
+            aliases:
+              test_alias: {}
 
   - match: {template.settings.index.blocks.write: "true"}
   - match: {overlapping_v1_templates: {}}
+  - length: {template.aliases: 1}
+  - is_true: template.aliases.test_alias
 
 ---
 "Simulate index template with index not matching any template":

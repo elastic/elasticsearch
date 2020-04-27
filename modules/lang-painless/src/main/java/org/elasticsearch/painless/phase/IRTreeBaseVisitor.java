@@ -42,8 +42,12 @@ import org.elasticsearch.painless.ir.DotSubArrayLengthNode;
 import org.elasticsearch.painless.ir.DotSubDefNode;
 import org.elasticsearch.painless.ir.DotSubNode;
 import org.elasticsearch.painless.ir.DotSubShortcutNode;
+import org.elasticsearch.painless.ir.DupNode;
 import org.elasticsearch.painless.ir.ElvisNode;
 import org.elasticsearch.painless.ir.FieldNode;
+import org.elasticsearch.painless.ir.FlipArrayIndexNode;
+import org.elasticsearch.painless.ir.FlipCollectionIndexNode;
+import org.elasticsearch.painless.ir.FlipDefIndexNode;
 import org.elasticsearch.painless.ir.ForEachLoopNode;
 import org.elasticsearch.painless.ir.ForEachSubArrayNode;
 import org.elasticsearch.painless.ir.ForEachSubIterableNode;
@@ -355,6 +359,26 @@ public class IRTreeBaseVisitor<Input, Output> implements IRTreeVisitor<Input, Ou
 
     @Override
     public Output visitInvokeCallMember(InvokeCallMemberNode irInvokeCallMemberNode, Input input) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Output visitFlipArrayIndex(FlipArrayIndexNode irFlipArrayIndexNode, Input input) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Output visitFlipCollectionIndex(FlipCollectionIndexNode irFlipCollectionIndexNode, Input input) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Output visitFlipDefIndex(FlipDefIndexNode irFlipDefIndexNode, Input input) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Output visitDup(DupNode dupNode, Input input) {
         throw new UnsupportedOperationException();
     }
 }

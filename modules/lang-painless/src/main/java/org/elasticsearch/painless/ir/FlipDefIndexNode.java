@@ -20,24 +20,29 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 
-public class FlipArrayIndex extends IndexNode {
+public class FlipDefIndexNode extends IndexNode {
+
+    /* ---- begin visitor ---- */
+
+    @Override
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitFlipDefIndex(this, input);
+    }
+
+    /* ---- end visitor ---- */
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        getIndexNode().write(classWriter, methodWriter, writeScope);
-
-        Label noFlip = new Label();
         methodWriter.dup();
-        methodWriter.ifZCmp(Opcodes.IFGE, noFlip);
-        methodWriter.swap();
-        methodWriter.dupX1();
-        methodWriter.arrayLength();
-        methodWriter.visitInsn(Opcodes.IADD);
-        methodWriter.mark(noFlip);
+        getIndexNode().write(classWriter, methodWriter, writeScope);
+        Type methodType = Type.getMethodType(MethodWriter.getType(
+                getIndexNode().getExpressionType()), Type.getType(Object.class), MethodWriter.getType(getIndexNode().getExpressionType()));
+        methodWriter.invokeDefCall("normalizeIndex", methodType, DefBootstrap.INDEX_NORMALIZE);
     }
 }

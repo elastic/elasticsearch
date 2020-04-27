@@ -42,8 +42,12 @@ import org.elasticsearch.painless.ir.DotSubArrayLengthNode;
 import org.elasticsearch.painless.ir.DotSubDefNode;
 import org.elasticsearch.painless.ir.DotSubNode;
 import org.elasticsearch.painless.ir.DotSubShortcutNode;
+import org.elasticsearch.painless.ir.DupNode;
 import org.elasticsearch.painless.ir.ElvisNode;
 import org.elasticsearch.painless.ir.FieldNode;
+import org.elasticsearch.painless.ir.FlipArrayIndexNode;
+import org.elasticsearch.painless.ir.FlipCollectionIndexNode;
+import org.elasticsearch.painless.ir.FlipDefIndexNode;
 import org.elasticsearch.painless.ir.ForEachLoopNode;
 import org.elasticsearch.painless.ir.ForEachSubArrayNode;
 import org.elasticsearch.painless.ir.ForEachSubIterableNode;
@@ -136,4 +140,8 @@ public interface IRTreeVisitor<Input, Output> {
     Output visitInvokeCallDef(InvokeCallDefNode irInvokeCallDefNode, Input input);
     Output visitInvokeCall(InvokeCallNode irInvokeCallNode, Input input);
     Output visitInvokeCallMember(InvokeCallMemberNode irInvokeCallMemberNode, Input input);
+    Output visitFlipArrayIndex(FlipArrayIndexNode irFlipArrayIndexNode, Input input);
+    Output visitFlipCollectionIndex(FlipCollectionIndexNode irFlipCollectionIndexNode, Input input);
+    Output visitFlipDefIndex(FlipDefIndexNode irFlipDefIndexNode, Input input);
+    Output visitDup(DupNode dupNode, Input input);
 }

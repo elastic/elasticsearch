@@ -2755,6 +2755,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                         new TargetType(setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0)));
                 checkedVisit(userIndexNode, semanticScope);
                 decorateWithCast(userIndexNode, semanticScope);
+
                 valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
 
                 if (getter != null) {
@@ -2799,6 +2800,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 semanticScope.putDecoration(userIndexNode, new TargetType(int.class));
                 checkedVisit(userIndexNode, semanticScope);
                 decorateWithCast(userIndexNode, semanticScope);
+
                 valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
 
                 if (getter != null) {

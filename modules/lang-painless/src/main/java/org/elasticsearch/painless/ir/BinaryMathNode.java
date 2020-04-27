@@ -21,7 +21,6 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.WriterConstants;
@@ -89,11 +88,6 @@ public class BinaryMathNode extends BinaryNode {
 
     public boolean getOriginallyExplicit() {
         return originallyExplicit;
-    }
-
-    @Override
-    public void setLocation(Location location) {
-        super.setLocation(location);
     }
 
     /* ---- end node data, begin visitor ---- */

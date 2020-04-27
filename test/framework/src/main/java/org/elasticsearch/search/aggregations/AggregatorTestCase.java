@@ -499,7 +499,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
             InternalAggregationTestCase.assertMultiBucketConsumer(agg, shardBucketConsumer);
         }
         if (aggs.isEmpty()) {
-            return null;
+            root.preCollection();
+            root.postCollection();
+            return (A) root.buildAggregation(0L);
         } else {
             if (randomBoolean() && aggs.size() > 1) {
                 // sometimes do an incremental reduce
@@ -539,10 +541,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
         InternalAggregationTestCase.assertMultiBucketConsumer(agg, bucketConsumer);
     }
 
-    protected <T extends AggregationBuilder,
-               V extends InternalAggregation> void testCase(T aggregationBuilder, Query query,
-                                                            CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                                                            Consumer<V> verify, MappedFieldType fieldType) throws IOException {
+    protected <T extends AggregationBuilder, V extends InternalAggregation> void testCase(
+        T aggregationBuilder,
+        Query query,
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        Consumer<V> verify,
+        MappedFieldType... fieldTypes) throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
             buildIndex.accept(indexWriter);
@@ -551,9 +555,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
+                V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldTypes);
                 verify.accept(agg);
-
             }
         }
     }

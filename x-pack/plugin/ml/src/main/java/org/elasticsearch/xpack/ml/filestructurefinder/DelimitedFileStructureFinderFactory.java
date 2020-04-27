@@ -14,7 +14,8 @@ import java.util.Locale;
 
 public class DelimitedFileStructureFinderFactory implements FileStructureFinderFactory {
 
-    static final double DEFAULT_BAD_ROWS_PERCENTAGE = 0.10d;
+    static final double DELIMITER_OVERRIDDEN_ALLOWED_FRACTION_OF_BAD_LINES = 0.10d;
+    static final double FORMAT_OVERRIDDEN_ALLOWED_FRACTION_OF_BAD_LINES = 0.05d;
     private final CsvPreference csvPreference;
     private final int minFieldsPerRow;
     private final boolean trimFields;

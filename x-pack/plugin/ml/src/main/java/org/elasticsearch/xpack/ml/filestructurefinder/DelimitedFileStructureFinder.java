@@ -35,7 +35,6 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
     private static final String REGEX_NEEDS_ESCAPE_PATTERN = "([\\\\|()\\[\\]{}^$.+*?])";
     private static final int MAX_LEVENSHTEIN_COMPARISONS = 100;
     private static final int LONG_FIELD_THRESHOLD = 100;
-
     private final List<String> sampleMessages;
     private final FileStructure structure;
 
@@ -536,25 +535,27 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
                         --fieldsInThisRow;
                     }
 
+                    // TODO: might be good one day to gather a distribution of the most common field counts
+                    // But, this would require iterating (or at least sampling) all the lines.
                     if (fieldsInThisRow != fieldsInFirstRow) {
-                        illFormattedRows.add(fieldsInFirstRow);
+                        illFormattedRows.add(numberOfRows - 1);
+                        // We should only allow a certain percentage of ill formatted rows
+                        // as it may effects our sample sizing and down stream processing
+                        if (illFormattedRows.size() > Math.ceil(allowedFractionOfBadLines * numberOfRows)) {
+                            explanation.add(new ParameterizedMessage(
+                                "Not {} because {} or more rows did not have the same number of fields as the first row ({}). Bad rows {}",
+                                formatName,
+                                illFormattedRows.size(),
+                                fieldsInFirstRow,
+                                illFormattedRows).getFormattedMessage());
+                            return false;
+                        }
                         continue;
                     }
 
                     fieldsInLastRow = fieldsInThisRow;
                 }
 
-                // We should only allow a certain percentage of ill formatted rows
-                // as it may effects our sample sizing and down stream processing
-                if (illFormattedRows.size() > (allowedFractionOfBadLines * numberOfRows) ) {
-                    explanation.add(new ParameterizedMessage(
-                        "Not {} because more than {} rows did not have the same number of fields as the first row({}). Bad rows {}",
-                        formatName,
-                        illFormattedRows.size(),
-                        fieldsInFirstRow,
-                        illFormattedRows).getFormattedMessage());
-                    return false;
-                }
                 if (fieldsInLastRow > fieldsInFirstRow) {
                     explanation.add("Not " + formatName + " because last row has more fields than first row: [" + fieldsInFirstRow +
                         "] and [" + fieldsInLastRow + "]");

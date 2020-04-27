@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
@@ -476,15 +477,15 @@ public final class FileStructureFinderManager {
         List<FileStructureFinderFactory> factories;
         double allowedFractionOfBadLines = 0.0;
         if (delimiter != null) {
-            allowedFractionOfBadLines = DelimitedFileStructureFinderFactory.DEFAULT_BAD_ROWS_PERCENTAGE;
+            allowedFractionOfBadLines = DelimitedFileStructureFinderFactory.DELIMITER_OVERRIDDEN_ALLOWED_FRACTION_OF_BAD_LINES;
 
             // If a precise delimiter is specified, we only need one structure finder
             // factory, and we'll tolerate as little as one column in the input
             factories = Collections.singletonList(new DelimitedFileStructureFinderFactory(delimiter, (quote == null) ? '"' : quote, 1,
                 (shouldTrimFields == null) ? (delimiter == '|') : shouldTrimFields));
 
-        } else if (quote != null || shouldTrimFields != null) {
-            allowedFractionOfBadLines = DelimitedFileStructureFinderFactory.DEFAULT_BAD_ROWS_PERCENTAGE;
+        } else if (quote != null || shouldTrimFields != null || FileStructure.Format.DELIMITED.equals(overrides.getFormat())) {
+            allowedFractionOfBadLines = DelimitedFileStructureFinderFactory.FORMAT_OVERRIDDEN_ALLOWED_FRACTION_OF_BAD_LINES;
 
             // The delimiter is not specified, but some other aspect of delimited files is,
             // so clone our default delimited factories altering the overridden values

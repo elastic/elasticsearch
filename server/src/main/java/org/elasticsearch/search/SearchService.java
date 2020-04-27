@@ -372,7 +372,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         rewriteAndFetchShardRequest(shard, request, new ActionListener<ShardSearchRequest>() {
             @Override
             public void onResponse(ShardSearchRequest orig) {
-                ReaderContext readerContext = createOrGetReaderContext(orig, keepStatesInContext);
+                final ReaderContext readerContext = createOrGetReaderContext(orig, keepStatesInContext);
                 try {
                     if (orig.canReturnNullResponseIfMatchNoDocs()) {
                         assert orig.shouldCreatePersistentReader() == false;
@@ -410,6 +410,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 } catch (Exception exc) {
                     try (readerContext) {
                         removeReaderContext(readerContext.id().getId());
+                    } finally {
                         listener.onFailure(exc);
                     }
                 }

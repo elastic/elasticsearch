@@ -38,7 +38,6 @@ import org.elasticsearch.painless.ir.DeclarationBlockNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
 import org.elasticsearch.painless.ir.DoWhileLoopNode;
-import org.elasticsearch.painless.ir.DotSubArrayLengthNode;
 import org.elasticsearch.painless.ir.DotSubDefNode;
 import org.elasticsearch.painless.ir.DotSubNode;
 import org.elasticsearch.painless.ir.DotSubShortcutNode;
@@ -61,6 +60,7 @@ import org.elasticsearch.painless.ir.InvokeCallMemberNode;
 import org.elasticsearch.painless.ir.InvokeCallNode;
 import org.elasticsearch.painless.ir.ListInitializationNode;
 import org.elasticsearch.painless.ir.ListSubShortcutNode;
+import org.elasticsearch.painless.ir.LoadDotArrayLengthNode;
 import org.elasticsearch.painless.ir.LoadFieldMemberNode;
 import org.elasticsearch.painless.ir.MapInitializationNode;
 import org.elasticsearch.painless.ir.MapSubShortcutNode;
@@ -298,7 +298,7 @@ public class IRTreeBaseVisitor<Input, Output> implements IRTreeVisitor<Input, Ou
     }
 
     @Override
-    public Output visitDotSubArrayLength(DotSubArrayLengthNode irDotSubArrayLengthNode, Input input) {
+    public Output visitLoadDotArrayLengthNode(LoadDotArrayLengthNode irLoadDotArrayLengthNode, Input input) {
         throw new UnsupportedOperationException();
     }
 

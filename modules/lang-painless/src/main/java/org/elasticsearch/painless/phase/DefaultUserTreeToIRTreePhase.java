@@ -41,7 +41,6 @@ import org.elasticsearch.painless.ir.DeclarationBlockNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
 import org.elasticsearch.painless.ir.DoWhileLoopNode;
-import org.elasticsearch.painless.ir.DotSubArrayLengthNode;
 import org.elasticsearch.painless.ir.DotSubDefNode;
 import org.elasticsearch.painless.ir.DotSubNode;
 import org.elasticsearch.painless.ir.DotSubShortcutNode;
@@ -65,6 +64,7 @@ import org.elasticsearch.painless.ir.InvokeCallMemberNode;
 import org.elasticsearch.painless.ir.InvokeCallNode;
 import org.elasticsearch.painless.ir.ListInitializationNode;
 import org.elasticsearch.painless.ir.ListSubShortcutNode;
+import org.elasticsearch.painless.ir.LoadDotArrayLengthNode;
 import org.elasticsearch.painless.ir.LoadFieldMemberNode;
 import org.elasticsearch.painless.ir.MapInitializationNode;
 import org.elasticsearch.painless.ir.MapSubShortcutNode;
@@ -1037,7 +1037,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             StoreFieldMemberNode irStoreFieldMemberNode = new StoreFieldMemberNode();
             irStoreFieldMemberNode.setLocation(userRegexNode.getLocation());
             irStoreFieldMemberNode.setExpressionType(void.class);
-            irStoreFieldMemberNode.setFieldType(Pattern.class);
+            irStoreFieldMemberNode.setStoreType(Pattern.class);
             irStoreFieldMemberNode.setName(memberFieldName);
             irStoreFieldMemberNode.setStatic(true);
 
@@ -1266,10 +1266,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             ValueType prefixValueType = scriptScope.getDecoration(userDotNode.getPrefixNode(), ValueType.class);
 
             if (prefixValueType != null && prefixValueType.getValueType().isArray()) {
-                DotSubArrayLengthNode irDotSubArrayLengthNode = new DotSubArrayLengthNode();
-                irDotSubArrayLengthNode.setLocation(userDotNode.getLocation());
-                irDotSubArrayLengthNode.setExpressionType(int.class);
-                irExpressionNode = irDotSubArrayLengthNode;
+                LoadDotArrayLengthNode irLoadDotArrayLengthNode = new LoadDotArrayLengthNode();
+                irLoadDotArrayLengthNode.setLocation(userDotNode.getLocation());
+                irLoadDotArrayLengthNode.setExpressionType(int.class);
+                irExpressionNode = irLoadDotArrayLengthNode;
             } else if (prefixValueType != null && prefixValueType.getValueType() == def.class) {
                 DotSubDefNode irDotSubDefNode = new DotSubDefNode();
                 irDotSubDefNode.setLocation(userDotNode.getLocation());

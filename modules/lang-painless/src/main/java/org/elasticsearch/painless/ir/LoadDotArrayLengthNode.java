@@ -24,13 +24,13 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 
-public class DotSubArrayLengthNode extends ExpressionNode {
+public class LoadDotArrayLengthNode extends ExpressionNode {
 
     /* ---- begin visitor ---- */
 
     @Override
     public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitDotSubArrayLength(this, input);
+        return irTreeVisitor.visitLoadDotArrayLengthNode(this, input);
     }
 
     /* ---- end visitor ---- */

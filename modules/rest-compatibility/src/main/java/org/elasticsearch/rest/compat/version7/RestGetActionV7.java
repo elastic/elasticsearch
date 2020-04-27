@@ -23,7 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.CompatibleApiLogger;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.document.RestGetAction;
 

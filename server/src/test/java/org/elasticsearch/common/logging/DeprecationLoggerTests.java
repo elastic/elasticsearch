@@ -49,7 +49,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.common.logging.HeaderWarning.WARNING_HEADER_PATTERN;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -66,7 +65,7 @@ import static org.mockito.Mockito.when;
  */
 public class DeprecationLoggerTests extends ESTestCase {
 
-    private static final RegexMatcher warningValueMatcher = matches(WARNING_HEADER_PATTERN.pattern());
+    private static final RegexMatcher warningValueMatcher = matches(DeprecationLogger.WARNING_HEADER_PATTERN.pattern());
 
     private final DeprecationLogger logger = new DeprecationLogger(LogManager.getLogger(getClass()));
 
@@ -165,7 +164,7 @@ public class DeprecationLoggerTests extends ESTestCase {
         final String unexpected = "testCannotRemoveThreadContext";
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        DeprecationLogger.setThreadContext(threadContext);
+        AbstractHeaderWarningLogger.setThreadContext(threadContext);
         logger.deprecatedAndMaybeLog("testCanRemoveThreadContext_key1", expected);
 
         {
@@ -177,7 +176,7 @@ public class DeprecationLoggerTests extends ESTestCase {
             assertThat(responses.get(0), containsString(expected));
         }
 
-        DeprecationLogger.removeThreadContext(threadContext);
+        AbstractHeaderWarningLogger.removeThreadContext(threadContext);
         logger.deprecatedAndMaybeLog("testCanRemoveThreadContext_key2", unexpected);
 
         {
@@ -201,13 +200,13 @@ public class DeprecationLoggerTests extends ESTestCase {
 
     public void testFailsWhenDoubleSettingSameThreadContext() throws IOException {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        DeprecationLogger.setThreadContext(threadContext);
+        AbstractHeaderWarningLogger.setThreadContext(threadContext);
 
         try {
-            expectThrows(IllegalStateException.class, () -> DeprecationLogger.setThreadContext(threadContext));
+            expectThrows(IllegalStateException.class, () -> AbstractHeaderWarningLogger.setThreadContext(threadContext));
         } finally {
             // cleanup after ourselves
-            DeprecationLogger.removeThreadContext(threadContext);
+            AbstractHeaderWarningLogger.removeThreadContext(threadContext);
         }
     }
 
@@ -219,14 +218,14 @@ public class DeprecationLoggerTests extends ESTestCase {
     public void testWarningValueFromWarningHeader() {
         final String s = randomAlphaOfLength(16);
         final String first = DeprecationLogger.formatWarning(s);
-        assertThat(HeaderWarning.extractWarningValueFromWarningHeader(first, false), equalTo(s));
+        assertThat(DeprecationLogger.extractWarningValueFromWarningHeader(first, false), equalTo(s));
 
         final String withPos = "[context][1:11] Blah blah blah";
         final String formatted = DeprecationLogger.formatWarning(withPos);
-        assertThat(HeaderWarning.extractWarningValueFromWarningHeader(formatted, true), equalTo("Blah blah blah"));
+        assertThat(DeprecationLogger.extractWarningValueFromWarningHeader(formatted, true), equalTo("Blah blah blah"));
 
         final String withNegativePos = "[context][-1:-1] Blah blah blah";
-        assertThat(HeaderWarning.extractWarningValueFromWarningHeader(DeprecationLogger.formatWarning(withNegativePos), true),
+        assertThat(DeprecationLogger.extractWarningValueFromWarningHeader(DeprecationLogger.formatWarning(withNegativePos), true),
             equalTo("Blah blah blah"));
     }
 

@@ -119,14 +119,6 @@ public class VerifierTests extends ESTestCase {
 
     // Test the known EQL functions that are not supported
     public void testFunctionVerificationUnknown() {
-        assertEquals("1:15: Unknown function [add]",
-                error("process where add(serial_event_id, 0) == 1"));
-        assertEquals("1:15: Unknown function [subtract], did you mean [substring]?",
-                error("process where subtract(serial_event_id, -5) == 6"));
-        assertEquals("1:15: Unknown function [multiply]",
-                error("process where multiply(6, serial_event_id) == 30"));
-        assertEquals("1:15: Unknown function [divide]",
-                error("process where divide(30, 4.0) == 7.5"));
         assertEquals("1:34: Unknown function [number]",
                 error("process where serial_event_id == number('5')"));
         assertEquals("1:15: Unknown function [concat]",

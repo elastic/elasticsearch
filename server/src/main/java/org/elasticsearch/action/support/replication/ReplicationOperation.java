@@ -79,6 +79,7 @@ public class ReplicationOperation<
     private final Primary<Request, ReplicaRequest, PrimaryResultT> primary;
     private final Replicas<ReplicaRequest> replicasProxy;
     private final AtomicBoolean finished = new AtomicBoolean();
+    private final TimeValue initialRetryBackoffBound;
     private final long primaryTerm;
 
     // exposed for tests
@@ -92,6 +93,14 @@ public class ReplicationOperation<
                                 ActionListener<PrimaryResultT> listener,
                                 Replicas<ReplicaRequest> replicas,
                                 Logger logger, ThreadPool threadPool, String opType, long primaryTerm) {
+        this(request, primary, listener, replicas, logger, threadPool, opType, primaryTerm, TimeValue.timeValueMillis(50));
+
+    }
+
+    public ReplicationOperation(Request request, Primary<Request, ReplicaRequest, PrimaryResultT> primary,
+                                ActionListener<PrimaryResultT> listener,
+                                Replicas<ReplicaRequest> replicas,
+                                Logger logger, ThreadPool threadPool, String opType, long primaryTerm, TimeValue initialRetryBackoffBound) {
         this.replicasProxy = replicas;
         this.primary = primary;
         this.resultListener = listener;
@@ -100,6 +109,7 @@ public class ReplicationOperation<
         this.request = request;
         this.opType = opType;
         this.primaryTerm = primaryTerm;
+        this.initialRetryBackoffBound = initialRetryBackoffBound;
     }
 
     public void execute() throws Exception {
@@ -231,7 +241,7 @@ public class ReplicationOperation<
         };
 
         final String allocationId = shard.allocationId().getId();
-        final RetryableAction<ReplicaResponse> replicationAction = new RetryableAction<>(logger, threadPool, TimeValue.timeValueMillis(50),
+        final RetryableAction<ReplicaResponse> replicationAction = new RetryableAction<>(logger, threadPool, initialRetryBackoffBound,
             replicaRequest.timeout(), replicationListener) {
 
             @Override

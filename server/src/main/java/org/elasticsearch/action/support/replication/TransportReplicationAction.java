@@ -50,6 +50,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -95,6 +96,10 @@ public abstract class TransportReplicationAction<
             Response extends ReplicationResponse
         > extends TransportAction<Request, Response> {
 
+    public static final Setting<TimeValue> REPLICATION_INITIAL_RETRY_BACKOFF_BOUND =
+        Setting.timeSetting("indices.replication.initial_retry_backoff_bound", TimeValue.timeValueMillis(50), TimeValue.timeValueMillis(10),
+            Setting.Property.NodeScope);
+
     protected final ThreadPool threadPool;
     protected final TransportService transportService;
     protected final ClusterService clusterService;
@@ -108,6 +113,7 @@ public abstract class TransportReplicationAction<
     protected final String transportPrimaryAction;
 
     private final boolean syncGlobalCheckpointAfterOperation;
+    private final TimeValue initialRetryBackoffBound;
 
     protected TransportReplicationAction(Settings settings, String actionName, TransportService transportService,
                                          ClusterService clusterService, IndicesService indicesService,
@@ -135,6 +141,8 @@ public abstract class TransportReplicationAction<
 
         this.transportPrimaryAction = actionName + "[p]";
         this.transportReplicaAction = actionName + "[r]";
+
+        this.initialRetryBackoffBound = REPLICATION_INITIAL_RETRY_BACKOFF_BOUND.get(settings);
 
         transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, requestReader, this::handleOperationRequest);
 
@@ -370,7 +378,8 @@ public abstract class TransportReplicationAction<
 
                     new ReplicationOperation<>(primaryRequest.getRequest(), primaryShardReference,
                         ActionListener.map(responseListener, result -> result.finalResponseIfSuccessful),
-                        newReplicasProxy(), logger, threadPool, actionName, primaryRequest.getPrimaryTerm()).execute();
+                        newReplicasProxy(), logger, threadPool, actionName, primaryRequest.getPrimaryTerm(), initialRetryBackoffBound)
+                        .execute();
                 }
             } catch (Exception e) {
                 handleException(primaryShardReference, e);

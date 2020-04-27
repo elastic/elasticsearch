@@ -19,10 +19,12 @@
 
 package org.elasticsearch.gradle.test.rest;
 
+import org.elasticsearch.gradle.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.elasticsearch.gradle.test.RestIntegTestTask;
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
+import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -42,15 +44,22 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+/**
+ * Apply this plugin to run the YAML based REST tests. This will adda
+ */
 public class YamlTestPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+
+        //can not simply apply it since it is groovy and this is in Java, so
+        if (project.getPluginManager().hasPlugin("elasticsearch.build") == false) {
+            throw new InvalidUserDataException("elasticsearch.build plugin must be applied before the YAML test plugin");
+        }
+
         project.getPluginManager().apply(JavaPlugin.class); //for the Java based runner
         project.getPluginManager().apply(TestClustersPlugin.class); //to spin up the external cluster
         project.getPluginManager().apply(RestResourcesPlugin.class); //to copy around the yaml tests and json spec
-
-        //todo: configure javaplugin to have java a test sources, not main sources ....maybe that is just an intellij thing ?
 
         //create source set
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
@@ -70,10 +79,7 @@ public class YamlTestPlugin implements Plugin<Project> {
         //ensure correct dependency and execution order
         project.getTasks().getByName("check").dependsOn(yamlTestTask);
         yamlTestTask.mustRunAfter(project.getTasks().getByName("test"));
-        Task preCommitTask = project.getTasks().findByName("precommit");
-        if (preCommitTask != null) {
-            yamlTestTask.mustRunAfter(preCommitTask);
-        }
+        yamlTestTask.mustRunAfter(project.getTasks().getByName("precommit"));
 
         //setup the runner
         RestTestRunnerTask runner = (RestTestRunnerTask) project.getTasks().getByName(yamlTestTask.getName() + "Runner");

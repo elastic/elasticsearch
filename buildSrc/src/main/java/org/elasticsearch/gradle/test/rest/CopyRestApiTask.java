@@ -109,7 +109,13 @@ public class CopyRestApiTask extends DefaultTask {
 
     @OutputDirectory
     public File getOutputDir() {
-        return new File(getTestSourceSet().getOutput().getResourcesDir(), REST_API_PREFIX);
+        //TODO: remove this null check after all is converted!
+        if(getTestSourceSet() == null){
+            return null;
+        }else {
+            return new File(getTestSourceSet().getOutput().getResourcesDir(), REST_API_PREFIX);
+        }
+
     }
 
     @TaskAction
@@ -203,6 +209,8 @@ public class CopyRestApiTask extends DefaultTask {
     }
 
     private SourceSet getTestSourceSet() {
-        return GradleUtils.getJavaSourceSets(getProject()).findByName("test");
+        // prefer, but not require yamlTest source sets
+        SourceSet restTestSourceSet = GradleUtils.getJavaSourceSets(getProject()).findByName("yamlTest");
+        return restTestSourceSet != null ? restTestSourceSet : GradleUtils.getJavaSourceSets(getProject()).findByName("test");
     }
 }

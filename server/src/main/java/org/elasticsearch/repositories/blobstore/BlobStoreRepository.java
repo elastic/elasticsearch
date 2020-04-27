@@ -258,9 +258,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * <ul>
      *     <li>All repositories that are read-only, i.e. for which {@link #isReadOnly()} returns {@code true} because there are no
      *     guarantees that another cluster is not writing to the repository at the same time</li>
-     *     <li>The node finds itself in a mixed-version cluster containing nodes older than
-     *     {@link RepositoryMetadata#REPO_GEN_IN_CS_VERSION} where the master node does not update the value of
-     *     {@link RepositoryMetadata#generation()} when writing a new {@code index-N} blob</li>
      *     <li>The value of {@link RepositoryMetadata#generation()} for this repository is {@link RepositoryData#UNKNOWN_REPO_GEN}
      *     indicating that no consistent repository generation is tracked in the cluster state yet.</li>
      *     <li>The {@link #uncleanStart} flag is set to {@code true}</li>
@@ -336,9 +333,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public void updateState(ClusterState state) {
         metadata = getRepoMetadata(state);
         uncleanStart = uncleanStart && metadata.generation() != metadata.pendingGeneration();
-        bestEffortConsistency = uncleanStart || isReadOnly()
-            || state.nodes().getMinNodeVersion().before(RepositoryMetadata.REPO_GEN_IN_CS_VERSION)
-            || metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN;
+        bestEffortConsistency = uncleanStart || isReadOnly() || metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN;
         if (isReadOnly()) {
             // No need to waste cycles, no operations can run against a read-only repository
             return;

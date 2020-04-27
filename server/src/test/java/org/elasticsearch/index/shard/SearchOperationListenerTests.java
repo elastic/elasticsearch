@@ -19,7 +19,6 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.search.internal.ReaderContext;
-import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
@@ -275,8 +274,8 @@ public class SearchOperationListenerTests extends ESTestCase {
         if (throwingListeners == 0) {
             compositeListener.validateSearchContext(mock(ReaderContext.class), ctx, Empty.INSTANCE);
         } else {
-            RuntimeException expected =
-                expectThrows(RuntimeException.class, () -> compositeListener.validateSearchContext(mock(ReaderContext.class), ctx, Empty.INSTANCE));
+            RuntimeException expected = expectThrows(RuntimeException.class,
+                () -> compositeListener.validateSearchContext(mock(ReaderContext.class), ctx, Empty.INSTANCE));
             assertNull(expected.getMessage());
             assertEquals(throwingListeners - 1, expected.getSuppressed().length);
             if (throwingListeners > 1) {

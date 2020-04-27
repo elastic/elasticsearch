@@ -130,8 +130,8 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
             threadContext.putTransient(AUTHORIZATION_INFO_KEY,
                 (AuthorizationInfo) () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, authentication.getUser().roles()));
             final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
-            SearchContextMissingException expected =
-                    expectThrows(SearchContextMissingException.class, () -> listener.validateSearchContext(readerContext, testSearchContext, request));
+            SearchContextMissingException expected = expectThrows(SearchContextMissingException.class,
+                () -> listener.validateSearchContext(readerContext, testSearchContext, request));
             assertEquals(testSearchContext.id(), expected.contextId());
             verify(licenseState, Mockito.atLeast(3)).isSecurityEnabled();
             verify(auditTrail).accessDenied(eq(null), eq(authentication), eq("action"), eq(request),
@@ -166,8 +166,8 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
             threadContext.putTransient(AUTHORIZATION_INFO_KEY,
                 (AuthorizationInfo) () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, authentication.getUser().roles()));
             final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
-            SearchContextMissingException expected =
-                    expectThrows(SearchContextMissingException.class, () -> listener.validateSearchContext(readerContext, testSearchContext, request));
+            SearchContextMissingException expected = expectThrows(SearchContextMissingException.class,
+                () -> listener.validateSearchContext(readerContext, testSearchContext, request));
             assertEquals(testSearchContext.id(), expected.contextId());
             verify(licenseState, Mockito.atLeast(5)).isSecurityEnabled();
             verify(auditTrail).accessDenied(eq(null), eq(authentication), eq("action"), eq(request),

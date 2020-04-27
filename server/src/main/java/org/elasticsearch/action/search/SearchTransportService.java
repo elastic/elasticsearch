@@ -374,9 +374,9 @@ public class SearchTransportService {
         transportService.registerRequestHandler(SHARD_OPEN_READER_NAME, ThreadPool.Names.SAME,
             TransportOpenReaderAction.ShardOpenReaderRequest::new,
             (request, channel, task) -> {
-                searchService.openReaderContext(request.searchShardTarget.getShardId(), request.keepAlive,
+                searchService.openReaderContext(request.getShardId(), request.keepAlive,
                     ActionListener.map(new ChannelActionListener<>(channel, SHARD_OPEN_READER_NAME, request),
-                        contextId -> new TransportOpenReaderAction.ShardOpenReaderResponse(contextId, request.searchShardTarget)));
+                        contextId -> new TransportOpenReaderAction.ShardOpenReaderResponse(contextId)));
             });
         TransportActionProxy.registerProxyAction(
             transportService, SHARD_OPEN_READER_NAME, TransportOpenReaderAction.ShardOpenReaderResponse::new);

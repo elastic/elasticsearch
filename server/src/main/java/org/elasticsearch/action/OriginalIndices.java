@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -58,20 +57,13 @@ public final class OriginalIndices implements IndicesRequest {
     }
 
     public static OriginalIndices readOriginalIndices(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_8_0_0) && in.readBoolean() == false) {
-            return OriginalIndices.NONE;
-        }
         return new OriginalIndices(in.readStringArray(), IndicesOptions.readIndicesOptions(in));
     }
 
     public static void writeOriginalIndices(OriginalIndices originalIndices, StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeBoolean(originalIndices != OriginalIndices.NONE);
-        }
-        if (originalIndices != OriginalIndices.NONE) {
-            out.writeStringArrayNullable(originalIndices.indices);
-            originalIndices.indicesOptions.writeIndicesOptions(out);
-        }
+        assert originalIndices != NONE;
+        out.writeStringArrayNullable(originalIndices.indices);
+        originalIndices.indicesOptions.writeIndicesOptions(out);
     }
 
     @Override

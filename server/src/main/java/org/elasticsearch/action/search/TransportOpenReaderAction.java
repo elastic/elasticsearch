@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -93,42 +95,49 @@ public class TransportOpenReaderAction extends HandledTransportAction<OpenReader
     }
 
     static final class ShardOpenReaderRequest extends TransportRequest implements IndicesRequest {
-        final SearchShardTarget searchShardTarget;
+        final ShardId shardId;
+        final OriginalIndices originalIndices;
         final TimeValue keepAlive;
 
-        ShardOpenReaderRequest(SearchShardTarget searchShardTarget, TimeValue keepAlive) {
-            this.searchShardTarget = searchShardTarget;
+        ShardOpenReaderRequest(ShardId shardId, OriginalIndices originalIndices, TimeValue keepAlive) {
+            this.shardId = shardId;
+            this.originalIndices = originalIndices;
             this.keepAlive = keepAlive;
         }
 
         ShardOpenReaderRequest(StreamInput in) throws IOException {
             super(in);
-            searchShardTarget = new SearchShardTarget(in);
+            shardId = new ShardId(in);
+            originalIndices = OriginalIndices.readOriginalIndices(in);
             keepAlive = in.readTimeValue();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            searchShardTarget.writeTo(out);
+            shardId.writeTo(out);
+            OriginalIndices.writeOriginalIndices(originalIndices, out);
             out.writeTimeValue(keepAlive);
+        }
+
+        public ShardId getShardId() {
+            return shardId;
         }
 
         @Override
         public String[] indices() {
-            return searchShardTarget.getOriginalIndices().indices();
+            return originalIndices.indices();
         }
 
         @Override
         public IndicesOptions indicesOptions() {
-            return searchShardTarget.getOriginalIndices().indicesOptions();
+            return originalIndices.indicesOptions();
         }
     }
 
     static final class ShardOpenReaderResponse extends SearchPhaseResult {
-        ShardOpenReaderResponse(SearchContextId contextId, SearchShardTarget searchShardTarget) {
+        ShardOpenReaderResponse(SearchContextId contextId) {
             this.contextId = contextId;
-            setSearchShardTarget(searchShardTarget);
         }
 
         ShardOpenReaderResponse(StreamInput in) throws IOException {
@@ -163,7 +172,8 @@ public class TransportOpenReaderAction extends HandledTransportAction<OpenReader
                                            SearchActionListener<SearchPhaseResult> listener) {
             final Transport.Connection connection = getConnection(shardIt.getClusterAlias(), shard.currentNodeId());
             final SearchShardTarget searchShardTarget = shardIt.newSearchShardTarget(shard.currentNodeId());
-            final ShardOpenReaderRequest shardRequest = new ShardOpenReaderRequest(searchShardTarget, openReaderRequest.keepAlive());
+            final ShardOpenReaderRequest shardRequest = new ShardOpenReaderRequest(searchShardTarget.getShardId(),
+                searchShardTarget.getOriginalIndices(), openReaderRequest.keepAlive());
             getSearchTransport().sendShardOpenReader(connection, getTask(), shardRequest, ActionListener.map(listener, r -> r));
         }
 

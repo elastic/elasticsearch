@@ -512,7 +512,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         runAsync(request.contextId(), () -> {
             final ReaderContext readerContext = findReaderContext(request.contextId());
             readerContext.setAggregatedDfs(request.dfs());
-            try (SearchContext searchContext = createContext(readerContext, readerContext.getShardSearchRequest(request.shardSearchRequest()), task, true);
+            try (SearchContext searchContext =
+                     createContext(readerContext, readerContext.getShardSearchRequest(request.shardSearchRequest()), task, true);
                  SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)) {
                 readerContext.indexShard().getSearchOperationListener().validateSearchContext(readerContext, searchContext, request);
                 searchContext.searcher().setAggregatedDfs(request.dfs());
@@ -581,7 +582,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(request.getRescoreDocIds()));
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(request.getAggregatedDfs()));
                 searchContext.docIdsToLoad(request.docIds(), 0, request.docIdsSize());
-                try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext, true, System.nanoTime())) {
+                try (SearchOperationListenerExecutor executor =
+                         new SearchOperationListenerExecutor(searchContext, true, System.nanoTime())) {
                     fetchPhase.execute(searchContext);
                     if (readerContext.singleSession()) {
                         freeReaderContext(request.contextId());
@@ -693,25 +695,25 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard shard = indexService.getShard(shardId.id());
         final SearchOperationListener searchOperationListener = shard.getSearchOperationListener();
-        shard.awaitShardSearchActive(ignored ->
-            runAsync(shard, () -> {
-                Releasable releasable = null;
-                try {
-                    final Engine.SearcherSupplier reader = shard.acquireSearcherSupplier();
-                    releasable = reader;
-                    final ReaderContext readerContext = new ReaderContext(
-                        idGenerator.incrementAndGet(), shard, reader, keepAlive.millis(), false);
-                    releasable = readerContext;
-                    searchOperationListener.onNewReaderContext(readerContext);
-                    readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(readerContext));
-                    putReaderContext(readerContext);
-                    releasable = null;
-                    return readerContext.id();
-                } finally {
-                    Releasables.close(releasable);
-                }
-            }, listener)
-        );
+        shard.awaitShardSearchActive(ignored -> {
+            Releasable releasable = null;
+            try {
+                final Engine.SearcherSupplier reader = shard.acquireSearcherSupplier();
+                releasable = reader;
+                final ReaderContext readerContext = new ReaderContext(
+                    idGenerator.incrementAndGet(), shard, reader, keepAlive.millis(), false);
+                releasable = readerContext;
+                searchOperationListener.onNewReaderContext(readerContext);
+                readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(readerContext));
+                putReaderContext(readerContext);
+                releasable = null;
+                listener.onResponse(readerContext.id());
+            } catch (Exception exc) {
+                listener.onFailure(exc);
+            } finally {
+                Releasables.close(releasable);
+            }
+        });
     }
 
     final SearchContext createContext(ReaderContext reader,

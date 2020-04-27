@@ -102,5 +102,4 @@ The API returns the following response:
 <2> Timestamp for when the usage information recording was started. This is
 equivalent to the time that the node was started.
 <3> Search action has been called 19 times for this node.
-<4> Terms aggregation on a keyword field has been called 1 time on this node.
-<5> Terms aggregation on a numeric field has been called 5 time on this node.
+

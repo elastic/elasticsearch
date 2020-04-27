@@ -10,21 +10,27 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.geo.GeoPlugin;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregatorSupplier;
+import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
-import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeBoundsAggregator;
+import org.elasticsearch.xpack.spatial.aggregations.metrics.GeoShapeCentroidAggregator;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.ingest.CircleProcessor;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeBoundsAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
@@ -38,6 +44,11 @@ import java.util.function.Consumer;
 import static java.util.Collections.singletonList;
 
 public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlugin, SearchPlugin, IngestPlugin {
+
+    // to be overriden by tests
+    protected XPackLicenseState getLicenseState() {
+        return XPackPlugin.getSharedLicenseState();
+    }
 
     @Override
     public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -62,7 +73,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
 
     @Override
     public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
-        return List.of(SpatialPlugin::registerGeoShapeBoundsAggregator);
+        return List.of(this::registerGeoShapeBoundsAggregator, this::registerGeoShapeCentroidAggregator);
     }
 
     @Override
@@ -70,10 +81,21 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
         return Map.of(CircleProcessor.TYPE, new CircleProcessor.Factory());
     }
 
-    public static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {
+    public void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(GeoBoundsAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (GeoBoundsAggregatorSupplier) (name, aggregationContext, parent, valuesSource, wrapLongitude, metadata)
                 -> new GeoShapeBoundsAggregator(name, aggregationContext, parent, (GeoShapeValuesSource) valuesSource,
                 wrapLongitude, metadata));
+    }
+
+    public void registerGeoShapeCentroidAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(GeoCentroidAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
+            (GeoCentroidAggregatorSupplier) (name, aggregationContext, parent, valuesSource, metadata)
+                -> {
+            if (getLicenseState().isAllowed(XPackLicenseState.Feature.SPATIAL_GEO_CENTROID)) {
+                return new GeoShapeCentroidAggregator(name, aggregationContext, parent, (GeoShapeValuesSource) valuesSource, metadata);
+            }
+                throw LicenseUtils.newComplianceException("geo_centroid aggregation on geo_shape fields");
+            });
     }
 }

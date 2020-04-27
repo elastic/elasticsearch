@@ -112,10 +112,6 @@ testClusters.integTest {
 }
 
 validateRestSpec {
-  ignore 'searchable_snapshots.mount.json'
-  ignore 'searchable_snapshots.clear_cache.json'
-  ignore 'searchable_snapshots.stats.json'
-  ignore 'searchable_snapshots.repository_stats.json'
   ignore 'autoscaling.delete_autoscaling_policy.json'
   ignore 'autoscaling.get_autoscaling_policy.json'
   ignore 'autoscaling.put_autoscaling_policy.json'

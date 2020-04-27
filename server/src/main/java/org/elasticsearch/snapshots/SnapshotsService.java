@@ -484,7 +484,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             // Remove global state from the cluster state
             Metadata.Builder builder = Metadata.builder();
             for (IndexId index : snapshot.indices()) {
-                builder.put(metadata.index(index.getName()), false);
+                final IndexMetadata indexMetadata = metadata.index(index.getName());
+                if (indexMetadata == null) {
+                    assert snapshot.partial() : "Index [" + index + "] was deleted during a snapshot but snapshot was not partial.";
+                } else {
+                    builder.put(indexMetadata, false);
+                }
             }
             metadata = builder.build();
         }

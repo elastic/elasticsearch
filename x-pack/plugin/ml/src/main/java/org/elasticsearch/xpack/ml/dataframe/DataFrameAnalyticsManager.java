@@ -229,7 +229,7 @@ public class DataFrameAnalyticsManager {
                 startAnalytics(task, config);
             },
             error -> {
-                if (ExceptionsHelper.unwrapCause(error) instanceof TaskCancelledException && task.isStopping()) {
+                if (task.isStopping() && isTaskCancelledException(error)) {
                     LOGGER.debug(new ParameterizedMessage("[{}] Caught task cancelled exception while task is stopping",
                         config.getId()), error);
                     task.markAsCompleted();
@@ -292,6 +292,11 @@ public class DataFrameAnalyticsManager {
 
         ClientHelper.executeWithHeadersAsync(config.getHeaders(), ML_ORIGIN, parentTaskClient, GetIndexAction.INSTANCE,
                 new GetIndexRequest().indices(config.getDest().getIndex()), destIndexListener);
+    }
+
+    private static boolean isTaskCancelledException(Exception error) {
+        return ExceptionsHelper.unwrapCause(error) instanceof TaskCancelledException
+            || ExceptionsHelper.unwrapCause(error.getCause()) instanceof TaskCancelledException;
     }
 
     private void startAnalytics(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {

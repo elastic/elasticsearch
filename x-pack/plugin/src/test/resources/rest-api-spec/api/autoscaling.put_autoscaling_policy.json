@@ -2,7 +2,7 @@
   "autoscaling.put_autoscaling_policy":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/autoscaling-put-autoscaling-policy.html",
-      "description": "Create a new autoscaling policy."
+      "description": "Creates a new autoscaling policy."
     },
     "stability":"experimental",
     "url":{

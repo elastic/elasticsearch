@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -62,6 +63,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
@@ -105,6 +107,7 @@ public class NativePrivilegeStore {
     private final CacheIteratorHelper<String, Set<ApplicationPrivilegeDescriptor>> descriptorsCacheHelper;
     private final Cache<Set<String>, Set<String>> applicationNamesCache;
     private final CacheIteratorHelper<Set<String>, Set<String>> applicationNamesCacheHelper;
+    private final AtomicLong numInvalidation = new AtomicLong();
 
     public NativePrivilegeStore(Settings settings, Client client, SecurityIndexManager securityIndexManager) {
         this.settings = settings;
@@ -160,11 +163,13 @@ public class NativePrivilegeStore {
                 getPrivilegesWithoutCaching(cacheStatus.v1(), Collections.emptySet(), ActionListener.wrap(fetchedDescriptors -> {
                     final Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors = fetchedDescriptors.stream()
                         .collect(Collectors.groupingBy(ApplicationPrivilegeDescriptor::getApplication, Collectors.toUnmodifiableSet()));
-                    try (ReleasableLock ignored = applicationNamesCacheHelper.acquireUpdateLock()) {
-                        final Set<String> allApplicationNames =
-                            Stream.concat(cacheStatus.v2().keySet().stream(), mapOfFetchedDescriptors.keySet().stream())
-                                .collect(Collectors.toUnmodifiableSet());
-                        applicationNamesCache.computeIfAbsent(applicationNamesCacheKey, (k) -> allApplicationNames);
+                    final Set<String> allApplicationNames =
+                        Stream.concat(cacheStatus.v2().keySet().stream(), mapOfFetchedDescriptors.keySet().stream())
+                            .collect(Collectors.toUnmodifiableSet());
+                    if (allApplicationNames.equals(applicationNamesCacheKey) == false) {
+                        try (ReleasableLock ignored = applicationNamesCacheHelper.acquireUpdateLock()) {
+                            applicationNamesCache.computeIfAbsent(applicationNamesCacheKey, (k) -> allApplicationNames);
+                        }
                     }
                     try (ReleasableLock ignored = descriptorsCacheHelper.acquireUpdateLock()) {
                         for (Map.Entry<String, Set<ApplicationPrivilegeDescriptor>> entry : mapOfFetchedDescriptors.entrySet()) {
@@ -178,6 +183,18 @@ public class NativePrivilegeStore {
                 }, listener::onFailure));
             }
         }
+    }
+
+    public void invalidate(Set<String> updatedApplicationNames) {
+        numInvalidation.incrementAndGet();
+        applicationNamesCacheHelper.removeValuesIf(names -> Sets.intersection(names, updatedApplicationNames).isEmpty() == false);
+        descriptorsCacheHelper.removeKeysIf(updatedApplicationNames::contains);
+    }
+
+    public void invalidateAll() {
+        numInvalidation.incrementAndGet();
+        applicationNamesCache.invalidateAll();
+        descriptorsCache.invalidateAll();
     }
 
     public void getPrivilegesWithoutCaching(Collection<String> applications, Collection<String> names,

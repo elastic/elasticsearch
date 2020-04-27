@@ -10,6 +10,7 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 
 import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Predicate;
@@ -51,6 +52,19 @@ public class CacheIteratorHelper<K, V> {
             while (iterator.hasNext()) {
                 K key = iterator.next();
                 if (removeIf.test(key)) {
+                    iterator.remove();
+                }
+            }
+        }
+    }
+
+    public void removeValuesIf(Predicate<V> removeIf) {
+        // the cache cannot be modified while doing this operation per the terms of the cache iterator
+        try (ReleasableLock ignored = this.acquireForIterator()) {
+            Iterator<K> iterator = cache.keys().iterator();
+            while (iterator.hasNext()) {
+                K key = iterator.next();
+                if (removeIf.test(cache.get(key))) {
                     iterator.remove();
                 }
             }

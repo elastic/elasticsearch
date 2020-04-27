@@ -24,13 +24,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
@@ -47,9 +48,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.mockito.Mockito.mock;
 
@@ -123,15 +126,15 @@ public class RepositoriesServiceTests extends ESTestCase {
         private boolean isClosed;
         private boolean isStarted;
 
-        private final RepositoryMetaData metaData;
+        private final RepositoryMetadata metadata;
 
-        private TestRepository(RepositoryMetaData metaData) {
-            this.metaData = metaData;
+        private TestRepository(RepositoryMetadata metadata) {
+            this.metadata = metadata;
         }
 
         @Override
-        public RepositoryMetaData getMetadata() {
-            return metaData;
+        public RepositoryMetadata getMetadata() {
+            return metadata;
         }
 
         @Override
@@ -140,12 +143,12 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public MetaData getSnapshotGlobalMetaData(SnapshotId snapshotId) {
+        public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
             return null;
         }
 
         @Override
-        public IndexMetaData getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) {
+        public IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) {
             return null;
         }
 
@@ -157,14 +160,15 @@ public class RepositoriesServiceTests extends ESTestCase {
         @Override
         public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations indices, long startTime, String failure,
                                      int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                     boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata,
-                                     Version repositoryMetaVersion, ActionListener<SnapshotInfo> listener) {
+                                     boolean includeGlobalState, Metadata metadata, Map<String, Object> userMetadata,
+                                     Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateTransformer,
+                                     ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
             listener.onResponse(null);
         }
 
         @Override
-        public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version repositoryMetaVersion,
-                                   ActionListener<Void> listener) {
+        public void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
+                                    ActionListener<Void> listener) {
             listener.onResponse(null);
         }
 
@@ -200,8 +204,8 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         @Override
         public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                                  IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, Version repositoryMetaVersion,
-                                  Map<String, Object> userMetadata, ActionListener<String> listener) {
+                                  IndexCommit snapshotIndexCommit, String shardStateIdentifier, IndexShardSnapshotStatus snapshotStatus,
+                                  Version repositoryMetaVersion, Map<String, Object> userMetadata, ActionListener<String> listener) {
 
         }
 

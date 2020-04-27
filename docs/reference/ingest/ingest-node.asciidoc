@@ -798,7 +798,6 @@ See <<ingest-conditionals>> to learn more about the `if` field and conditional e
 
 See <<handling-failure-in-pipelines>> to learn more about the `on_failure` field and error handling in pipelines.
 
-The <<cluster-nodes-info,node info API>> can be used to figure out what processors are available in a cluster.
 The <<cluster-nodes-info,node info API>> will provide a per node list of what processors are available.
 
 Custom processors must be installed on all nodes. The put pipeline API will fail if a processor specified in a pipeline

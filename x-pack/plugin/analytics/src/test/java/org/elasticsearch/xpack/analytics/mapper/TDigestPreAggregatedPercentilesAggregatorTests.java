@@ -5,8 +5,14 @@
  */
 package org.elasticsearch.xpack.analytics.mapper;
 
-import com.tdunning.math.stats.Centroid;
-import com.tdunning.math.stats.TDigest;
+import static java.util.Collections.singleton;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.function.Consumer;
+
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -19,24 +25,48 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
+import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.function.Consumer;
-
-import static java.util.Collections.singleton;
+import com.tdunning.math.stats.Centroid;
+import com.tdunning.math.stats.TDigest;
 
 public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTestCase {
 
-   private BinaryDocValuesField getDocValue(String fieldName, double[] values) throws IOException {
+    @Override
+    protected List<SearchPlugin> getSearchPlugins() {
+        return List.of(new AnalyticsPlugin());
+    }
+
+    @Override
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        return new PercentilesAggregationBuilder("tdigest_percentiles")
+            .field(fieldName)
+            .percentilesConfig(new PercentilesConfig.TDigest());
+    }
+
+    @Override
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        // Note: this is the same list as Core, plus Analytics
+        return List.of(CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.BOOLEAN,
+            AnalyticsValuesSourceType.HISTOGRAM);
+    }
+
+    private BinaryDocValuesField getDocValue(String fieldName, double[] values) throws IOException {
        TDigest histogram = new TDigestState(100.0); //default
        for (double value : values) {
            histogram.add(value);
@@ -51,7 +81,7 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
            streamOutput.writeDouble(centroid.mean());
        }
        return new BinaryDocValuesField(fieldName, streamOutput.bytes().toBytesRef());
-   }
+    }
 
     public void testNoMatchingField() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {

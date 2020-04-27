@@ -36,12 +36,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -90,7 +91,7 @@ public final class RepositoryData {
     /**
      * The snapshots that each index belongs to.
      */
-    private final Map<IndexId, Set<SnapshotId>> indexSnapshots;
+    private final Map<IndexId, List<SnapshotId>> indexSnapshots;
 
     private final Map<String, Version> snapshotVersions;
 
@@ -105,7 +106,7 @@ public final class RepositoryData {
     private final ShardGenerations shardGenerations;
 
     public RepositoryData(long genId, Map<String, SnapshotId> snapshotIds, Map<String, SnapshotState> snapshotStates,
-                          Map<String, Version> snapshotVersions, Map<IndexId, Set<SnapshotId>> indexSnapshots,
+                          Map<String, Version> snapshotVersions, Map<IndexId, List<SnapshotId>> indexSnapshots,
                           ShardGenerations shardGenerations, IndexMetaDataGenerations indexMetaDataGenerations) {
         this.genId = genId;
         this.snapshotIds = Collections.unmodifiableMap(snapshotIds);
@@ -118,6 +119,8 @@ public final class RepositoryData {
         this.snapshotVersions = snapshotVersions;
         assert indices.values().containsAll(shardGenerations.indices()) : "ShardGenerations contained indices "
             + shardGenerations.indices() + " but snapshots only reference indices " + indices.values();
+        assert indexSnapshots.values().stream().noneMatch(snapshotIdList -> Set.copyOf(snapshotIdList).size() != snapshotIdList.size()) :
+                "Found duplicate snapshot ids per index in [" + indexSnapshots + "]";
     }
 
     protected RepositoryData copy() {
@@ -186,36 +189,46 @@ public final class RepositoryData {
      * Returns the list of {@link IndexId} that have their snapshots updated but not removed (because they are still referenced by other
      * snapshots) after removing the given snapshot from the repository.
      *
-     * @param snapshotId SnapshotId to remove
+     * @param snapshotIds SnapshotId to remove
      * @return List of indices that are changed but not removed
      */
-    public List<IndexId> indicesToUpdateAfterRemovingSnapshot(SnapshotId snapshotId) {
+    public List<IndexId> indicesToUpdateAfterRemovingSnapshot(Collection<SnapshotId> snapshotIds) {
         return indexSnapshots.entrySet().stream()
-            .filter(entry -> entry.getValue().size() > 1 && entry.getValue().contains(snapshotId))
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toList());
+            .filter(entry -> {
+                final Collection<SnapshotId> existingIds = entry.getValue();
+                if (snapshotIds.containsAll(existingIds)) {
+                    return existingIds.size() > snapshotIds.size();
+                }
+                for (SnapshotId snapshotId : snapshotIds) {
+                    if (entry.getValue().contains(snapshotId)) {
+                        return true;
+                    }
+                }
+                return false;
+            }).map(Map.Entry::getKey).collect(Collectors.toList());
     }
 
     /**
-     * Returns a map of {@link IndexId} to {@link String} containing all the {@link IndexId} and the
-     * {@link org.elasticsearch.cluster.metadata.IndexMetaData} blob name in it that can be removed after removing the given snapshot from
+     * Returns a map of {@link IndexId} to a collection of {@link String} containing all the {@link IndexId} and the
+     * {@link org.elasticsearch.cluster.metadata.IndexMetadata} blob name in it that can be removed after removing the given snapshot from
      * the repository.
      * NOTE: Does not return a mapping for {@link IndexId} values that will be removed completely from the repository.
      *
-     * @param snapshotId SnapshotId to remove
+     * @param snapshotIds SnapshotIds to remove
      * @return map of index to index metadata blob id to delete
      */
-    public Map<IndexId, String> indexMetaDataToRemoveAfterRemovingSnapshot(SnapshotId snapshotId) {
-        Collection<IndexId> indicesForSnapshot = indicesToUpdateAfterRemovingSnapshot(snapshotId);
+    public Map<IndexId, Collection<String>> indexMetaDataToRemoveAfterRemovingSnapshots(Collection<SnapshotId> snapshotIds) {
+        Collection<IndexId> indicesForSnapshot = indicesToUpdateAfterRemovingSnapshot(snapshotIds);
         final Set<String> allRemainingIdentifiers = indexMetaDataGenerations.lookup.entrySet().stream()
-            .filter(e -> e.getKey().equals(snapshotId) == false).flatMap(e -> e.getValue().values().stream())
-            .map(indexMetaDataGenerations::getIndexMetaBlobId).collect(Collectors.toSet());
-        final Map<IndexId, String> toRemove = new HashMap<>();
+                .filter(e -> snapshotIds.contains(e.getKey()) == false).flatMap(e -> e.getValue().values().stream())
+                .map(indexMetaDataGenerations::getIndexMetaBlobId).collect(Collectors.toSet());
+        final Map<IndexId, Collection<String>> toRemove = new HashMap<>();
         for (IndexId indexId : indicesForSnapshot) {
-            final String identifier = indexMetaDataGenerations.indexMetaBlobId(snapshotId, indexId);
-            if (allRemainingIdentifiers.contains(identifier) == false) {
-                final String prev = toRemove.put(indexId, identifier);
-                assert prev == null : "Saw double entry [" + prev + "][" + identifier + "]";
+            for (SnapshotId snapshotId : snapshotIds) {
+                final String identifier = indexMetaDataGenerations.indexMetaBlobId(snapshotId, indexId);
+                if (allRemainingIdentifiers.contains(identifier) == false) {
+                    toRemove.computeIfAbsent(indexId, k -> new HashSet<>()).add(identifier);
+                }
             }
         }
         return toRemove;
@@ -231,7 +244,7 @@ public final class RepositoryData {
      *                         generations indexed by the shard id they correspond to must be supplied.
      * @param indexMetaBlobs   Map of index metadata blob uuids
      * @param newIdentifiers   Map of new index metadata blob uuids keyed by the identifiers of the
-     *                         {@link org.elasticsearch.cluster.metadata.IndexMetaData} in them
+     *                         {@link org.elasticsearch.cluster.metadata.IndexMetadata} in them
      */
     public RepositoryData addSnapshot(final SnapshotId snapshotId,
                                       final SnapshotState snapshotState,
@@ -251,9 +264,17 @@ public final class RepositoryData {
         newSnapshotStates.put(snapshotId.getUUID(), snapshotState);
         Map<String, Version> newSnapshotVersions = new HashMap<>(snapshotVersions);
         newSnapshotVersions.put(snapshotId.getUUID(), version);
-        Map<IndexId, Set<SnapshotId>> allIndexSnapshots = new HashMap<>(indexSnapshots);
+        Map<IndexId, List<SnapshotId>> allIndexSnapshots = new HashMap<>(indexSnapshots);
         for (final IndexId indexId : shardGenerations.indices()) {
-            allIndexSnapshots.computeIfAbsent(indexId, k -> new LinkedHashSet<>()).add(snapshotId);
+            final List<SnapshotId> snapshotIds = allIndexSnapshots.get(indexId);
+            if (snapshotIds == null) {
+                allIndexSnapshots.put(indexId, List.of(snapshotId));
+            } else {
+                final List<SnapshotId> copy = new ArrayList<>(snapshotIds.size() + 1);
+                copy.addAll(snapshotIds);
+                copy.add(snapshotId);
+                allIndexSnapshots.put(indexId, Collections.unmodifiableList(copy));
+            }
         }
 
         final IndexMetaDataGenerations newIndexMetaGenerations;
@@ -289,55 +310,54 @@ public final class RepositoryData {
     }
 
     /**
-     * Remove a snapshot and remove any indices that no longer exist in the repository due to the deletion of the snapshot.
+     * Remove snapshots and remove any indices that no longer exist in the repository due to the deletion of the snapshots.
      *
-     * @param snapshotId              Snapshot Id
+     * @param snapshots               Snapshot ids to remove
      * @param updatedShardGenerations Shard generations that changed as a result of removing the snapshot.
      *                                The {@code String[]} passed for each {@link IndexId} contains the new shard generation id for each
      *                                changed shard indexed by its shardId
      */
-    public RepositoryData removeSnapshot(final SnapshotId snapshotId, final ShardGenerations updatedShardGenerations) {
-        Map<String, SnapshotId> newSnapshotIds = snapshotIds.values().stream()
-            .filter(id -> !snapshotId.equals(id))
+    public RepositoryData removeSnapshots(final Collection<SnapshotId> snapshots, final ShardGenerations updatedShardGenerations) {
+        Map<String, SnapshotId> newSnapshotIds = snapshotIds.values().stream().filter(Predicate.not(snapshots::contains))
             .collect(Collectors.toMap(SnapshotId::getUUID, Function.identity()));
-        if (newSnapshotIds.size() == snapshotIds.size()) {
-            throw new ResourceNotFoundException("Attempting to remove non-existent snapshot [{}] from repository data", snapshotId);
+        if (newSnapshotIds.size() != snapshotIds.size() - snapshots.size()) {
+            final Collection<SnapshotId> notFound = new HashSet<>(snapshots);
+            notFound.removeAll(snapshotIds.values());
+            throw new ResourceNotFoundException("Attempting to remove non-existent snapshots {} from repository data", notFound);
         }
         Map<String, SnapshotState> newSnapshotStates = new HashMap<>(snapshotStates);
-        newSnapshotStates.remove(snapshotId.getUUID());
         final Map<String, Version> newSnapshotVersions = new HashMap<>(snapshotVersions);
-        newSnapshotVersions.remove(snapshotId.getUUID());
-        Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
+        for (SnapshotId snapshotId : snapshots) {
+            newSnapshotStates.remove(snapshotId.getUUID());
+            newSnapshotVersions.remove(snapshotId.getUUID());
+        }
+        Map<IndexId, List<SnapshotId>> indexSnapshots = new HashMap<>();
         for (final IndexId indexId : indices.values()) {
-            Set<SnapshotId> set;
-            Set<SnapshotId> snapshotIds = this.indexSnapshots.get(indexId);
+            List<SnapshotId> snapshotIds = this.indexSnapshots.get(indexId);
             assert snapshotIds != null;
-            if (snapshotIds.contains(snapshotId)) {
-                if (snapshotIds.size() == 1) {
-                    // removing the snapshot will mean no more snapshots
-                    // have this index, so just skip over it
-                    continue;
-                }
-                set = new LinkedHashSet<>(snapshotIds);
-                set.remove(snapshotId);
+            List<SnapshotId> remaining = new ArrayList<>(snapshotIds);
+            if (remaining.removeAll(snapshots)) {
+                remaining = Collections.unmodifiableList(remaining);
             } else {
-                set = snapshotIds;
+                remaining = snapshotIds;
             }
-            indexSnapshots.put(indexId, set);
+            if (remaining.isEmpty() == false) {
+                indexSnapshots.put(indexId, remaining);
+            }
         }
 
         return new RepositoryData(genId, newSnapshotIds, newSnapshotStates, newSnapshotVersions, indexSnapshots,
             ShardGenerations.builder().putAll(shardGenerations).putAll(updatedShardGenerations)
                 .retainIndicesAndPruneDeletes(indexSnapshots.keySet()).build(),
-            indexMetaDataGenerations.withRemovedSnapshot(snapshotId)
+            indexMetaDataGenerations.withRemovedSnapshots(snapshots)
         );
     }
 
     /**
      * Returns an immutable collection of the snapshot ids for the snapshots that contain the given index.
      */
-    public Set<SnapshotId> getSnapshots(final IndexId indexId) {
-        Set<SnapshotId> snapshotIds = indexSnapshots.get(indexId);
+    public List<SnapshotId> getSnapshots(final IndexId indexId) {
+        List<SnapshotId> snapshotIds = indexSnapshots.get(indexId);
         if (snapshotIds == null) {
             throw new IllegalArgumentException("unknown snapshot index " + indexId);
         }
@@ -449,7 +469,7 @@ public final class RepositoryData {
             builder.startObject(indexId.getName());
             builder.field(INDEX_ID, indexId.getId());
             builder.startArray(SNAPSHOTS);
-            Set<SnapshotId> snapshotIds = indexSnapshots.get(indexId);
+            List<SnapshotId> snapshotIds = indexSnapshots.get(indexId);
             assert snapshotIds != null;
             for (final SnapshotId snapshotId : snapshotIds) {
                 builder.value(snapshotId.getUUID());
@@ -487,7 +507,7 @@ public final class RepositoryData {
         final Map<String, SnapshotId> snapshots = new HashMap<>();
         final Map<String, SnapshotState> snapshotStates = new HashMap<>();
         final Map<String, Version> snapshotVersions = new HashMap<>();
-        final Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
+        final Map<IndexId, List<SnapshotId>> indexSnapshots = new HashMap<>();
         final ShardGenerations.Builder shardGenerations = ShardGenerations.builder();
         final Map<String, String> indexMetaIdentifiers = new HashMap<>();
         final Map<SnapshotId, Map<String, String>> indexMetaLookup = new HashMap<>();
@@ -539,7 +559,7 @@ public final class RepositoryData {
                     }
                     while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                         final String indexName = parser.currentName();
-                        final Set<SnapshotId> snapshotIds = new LinkedHashSet<>();
+                        final List<SnapshotId> snapshotIds = new ArrayList<>();
                         final List<String> gens = new ArrayList<>();
 
                         IndexId indexId = null;
@@ -593,7 +613,7 @@ public final class RepositoryData {
                             }
                         }
                         assert indexId != null;
-                        indexSnapshots.put(indexId, snapshotIds);
+                        indexSnapshots.put(indexId, Collections.unmodifiableList(snapshotIds));
                         for (int i = 0; i < gens.size(); i++) {
                             shardGenerations.put(indexId, i, gens.get(i));
                         }

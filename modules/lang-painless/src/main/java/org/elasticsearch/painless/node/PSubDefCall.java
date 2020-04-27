@@ -28,88 +28,59 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
 /**
  * Represents a method call made on a def type. (Internal only.)
  */
-final class PSubDefCall extends AExpression {
+public class PSubDefCall extends AExpression {
 
-    private final String name;
-    private final List<AExpression> arguments;
-
-    private final StringBuilder recipe = new StringBuilder();
-    private final List<String> pointers = new ArrayList<>();
-    private final List<Class<?>> parameterTypes = new ArrayList<>();
+    protected final String name;
+    protected final List<AExpression> arguments;
 
     PSubDefCall(Location location, String name, List<AExpression> arguments) {
         super(location);
 
         this.name = Objects.requireNonNull(name);
-        this.arguments = Objects.requireNonNull(arguments);
+        this.arguments = Collections.unmodifiableList(Objects.requireNonNull(arguments));
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        List<Output> argumentOutputs = new ArrayList<>(arguments.size());
 
-        parameterTypes.add(Object.class);
-        int totalCaptures = 0;
-
-        for (int argument = 0; argument < arguments.size(); ++argument) {
-            AExpression expression = arguments.get(argument);
-
+        for (AExpression argument : arguments) {
             Input expressionInput = new Input();
             expressionInput.internal = true;
-            Output expressionOutput = expression.analyze(scriptRoot, scope, expressionInput);
+            Output expressionOutput = argument.analyze(classNode, scriptRoot, scope, expressionInput);
+            argumentOutputs.add(expressionOutput);
 
             if (expressionOutput.actual == void.class) {
                 throw createError(new IllegalArgumentException("Argument(s) cannot be of [void] type when calling method [" + name + "]."));
             }
 
-            expression.input.expected = expressionOutput.actual;
-            expression.cast();
-            parameterTypes.add(expressionOutput.actual);
-
-            if (expression instanceof ILambda) {
-                ILambda lambda = (ILambda) expression;
-                pointers.add(lambda.getPointer());
-                // encode this parameter as a deferred reference
-                char ch = (char) (argument + totalCaptures);
-                recipe.append(ch);
-                totalCaptures += lambda.getCaptureCount();
-                parameterTypes.addAll(lambda.getCaptures());
-            }
+            expressionInput.expected = expressionOutput.actual;
+            argument.cast(expressionInput, expressionOutput);
         }
 
+        Output output = new Output();
         // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
         output.actual = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
 
-        return output;
-    }
-
-    @Override
-    CallSubDefNode write(ClassNode classNode) {
         CallSubDefNode callSubDefNode = new CallSubDefNode();
 
-        for (AExpression argument : arguments) {
-            callSubDefNode.addArgumentNode(argument.cast(argument.write(classNode)));
+        for (int argument = 0; argument < arguments.size(); ++ argument) {
+            callSubDefNode.addArgumentNode(arguments.get(argument).cast(argumentOutputs.get(argument)));
         }
 
         callSubDefNode.setLocation(location);
         callSubDefNode.setExpressionType(output.actual);
         callSubDefNode.setName(name);
-        callSubDefNode.setRecipe(recipe.toString());
-        callSubDefNode.getPointers().addAll(pointers);
-        callSubDefNode.getTypeParameters().addAll(parameterTypes);
 
-        return callSubDefNode;
-    }
+        output.expressionNode = callSubDefNode;
 
-    @Override
-    public String toString() {
-        return singleLineToStringWithOptionalArgs(arguments, prefix, name);
+        return output;
     }
 }

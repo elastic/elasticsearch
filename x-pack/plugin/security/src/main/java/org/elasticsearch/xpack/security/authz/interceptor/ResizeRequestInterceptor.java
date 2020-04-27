@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -46,8 +47,8 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
             final ResizeRequest request = (ResizeRequest) requestInfo.getRequest();
             final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
             final AuditTrail auditTrail = auditTrailService.get();
-            if (frozenLicenseState.isAuthAllowed()) {
-                if (frozenLicenseState.isDocumentAndFieldLevelSecurityAllowed()) {
+            if (frozenLicenseState.isSecurityEnabled()) {
+                if (frozenLicenseState.isAllowed(Feature.SECURITY_DLS_FLS)) {
                     IndicesAccessControl indicesAccessControl =
                         threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
                     IndicesAccessControl.IndexAccessControl indexAccessControl =

@@ -10,8 +10,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
@@ -61,8 +61,8 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testAutoFollow() throws Exception {
         Settings leaderIndexSettings = Settings.builder()
-            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
 
         createLeaderIndex("logs-201812", leaderIndexSettings);
@@ -94,8 +94,8 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testCleanFollowedLeaderIndexUUIDs() throws Exception {
         Settings leaderIndexSettings = Settings.builder()
-            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
 
         putAutoFollowPatterns("my-pattern", new String[] {"logs-*"});
@@ -106,11 +106,11 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
             assertTrue(ESIntegTestCase.indexExists("copy-logs-201901", followerClient()));
 
-            MetaData metaData = getFollowerCluster().clusterService().state().metaData();
-            String leaderIndexUUID = metaData.index("copy-logs-201901")
+            Metadata metadata = getFollowerCluster().clusterService().state().metadata();
+            String leaderIndexUUID = metadata.index("copy-logs-201901")
                 .getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY)
                 .get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
-            AutoFollowMetadata autoFollowMetadata = metaData.custom(AutoFollowMetadata.TYPE);
+            AutoFollowMetadata autoFollowMetadata = metadata.custom(AutoFollowMetadata.TYPE);
             assertThat(autoFollowMetadata, notNullValue());
             List<String> followedLeaderIndixUUIDs = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("my-pattern");
             assertThat(followedLeaderIndixUUIDs.size(), equalTo(1));
@@ -122,7 +122,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         assertLongBusy(() -> {
             AutoFollowMetadata autoFollowMetadata = getFollowerCluster().clusterService().state()
-                .metaData()
+                .metadata()
                 .custom(AutoFollowMetadata.TYPE);
             assertThat(autoFollowMetadata, notNullValue());
             List<String> followedLeaderIndixUUIDs = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("my-pattern");
@@ -132,8 +132,8 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testAutoFollowManyIndices() throws Exception {
         Settings leaderIndexSettings = Settings.builder()
-            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
 
         putAutoFollowPatterns("my-pattern", new String[] {"logs-*"});
@@ -142,20 +142,20 @@ public class AutoFollowIT extends CcrIntegTestCase {
             createLeaderIndex("logs-" + i, leaderIndexSettings);
         }
         long expectedVal1 = numIndices;
-        MetaData[] metaData = new MetaData[1];
+        Metadata[] metadata = new Metadata[1];
         AutoFollowStats[] autoFollowStats = new AutoFollowStats[1];
         try {
             assertLongBusy(() -> {
-                metaData[0] = getFollowerCluster().clusterService().state().metaData();
+                metadata[0] = getFollowerCluster().clusterService().state().metadata();
                 autoFollowStats[0] = getAutoFollowStats();
 
-                assertThat(metaData[0].indices().size(), equalTo((int) expectedVal1));
-                AutoFollowMetadata autoFollowMetadata = metaData[0].custom(AutoFollowMetadata.TYPE);
+                assertThat(metadata[0].indices().size(), equalTo((int) expectedVal1));
+                AutoFollowMetadata autoFollowMetadata = metadata[0].custom(AutoFollowMetadata.TYPE);
                 assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("my-pattern"), hasSize((int) expectedVal1));
                 assertThat(autoFollowStats[0].getNumberOfSuccessfulFollowIndices(), equalTo(expectedVal1));
             });
         } catch (AssertionError ae) {
-            logger.warn("indices={}", Arrays.toString(metaData[0].indices().keys().toArray(String.class)));
+            logger.warn("indices={}", Arrays.toString(metadata[0].indices().keys().toArray(String.class)));
             logger.warn("auto follow stats={}", Strings.toString(autoFollowStats[0]));
             throw ae;
         }
@@ -165,16 +165,16 @@ public class AutoFollowIT extends CcrIntegTestCase {
         deleteAutoFollowPattern("my-pattern");
         try {
             assertLongBusy(() -> {
-                metaData[0] = getFollowerCluster().clusterService().state().metaData();
+                metadata[0] = getFollowerCluster().clusterService().state().metadata();
                 autoFollowStats[0] = getAutoFollowStats();
 
-                assertThat(metaData[0].indices().size(), equalTo((int )expectedVal1));
-                AutoFollowMetadata autoFollowMetadata = metaData[0].custom(AutoFollowMetadata.TYPE);
+                assertThat(metadata[0].indices().size(), equalTo((int )expectedVal1));
+                AutoFollowMetadata autoFollowMetadata = metadata[0].custom(AutoFollowMetadata.TYPE);
                 assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("my-pattern"), nullValue());
                 assertThat(autoFollowStats[0].getAutoFollowedClusters().size(), equalTo(0));
             });
         } catch (AssertionError ae) {
-            logger.warn("indices={}", Arrays.toString(metaData[0].indices().keys().toArray(String.class)));
+            logger.warn("indices={}", Arrays.toString(metadata[0].indices().keys().toArray(String.class)));
             logger.warn("auto follow stats={}", Strings.toString(autoFollowStats[0]));
             throw ae;
         }
@@ -189,15 +189,15 @@ public class AutoFollowIT extends CcrIntegTestCase {
         long expectedVal2 = numIndices;
 
         assertLongBusy(() -> {
-            metaData[0] = getFollowerCluster().clusterService().state().metaData();
+            metadata[0] = getFollowerCluster().clusterService().state().metadata();
             autoFollowStats[0] = getAutoFollowStats();
 
-            assertThat(metaData[0].indices().size(), equalTo((int) expectedVal2));
-            AutoFollowMetadata autoFollowMetadata = metaData[0].custom(AutoFollowMetadata.TYPE);
+            assertThat(metadata[0].indices().size(), equalTo((int) expectedVal2));
+            AutoFollowMetadata autoFollowMetadata = metadata[0].custom(AutoFollowMetadata.TYPE);
             // expectedVal2 + 1, because logs-does-not-count is also marked as auto followed.
             // (This is because indices created before a pattern exists are not auto followed and are just marked as such.)
             assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("my-pattern"), hasSize((int) expectedVal2 + 1));
-            long count = Arrays.stream(metaData[0].getConcreteAllIndices()).filter(s -> s.startsWith("copy-")).count();
+            long count = Arrays.stream(metadata[0].getConcreteAllIndices()).filter(s -> s.startsWith("copy-")).count();
             assertThat(count, equalTo(expectedVal2));
             // Ensure that there are no auto follow errors:
             // (added specifically to see that there are no leader indices auto followed multiple times)
@@ -207,8 +207,8 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testAutoFollowParameterAreDelegated() throws Exception {
         Settings leaderIndexSettings = Settings.builder()
-            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
 
         // Enabling auto following:
@@ -309,8 +309,8 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testConflictingPatterns() throws Exception {
         Settings leaderIndexSettings = Settings.builder()
-            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
 
         // Enabling auto following:
@@ -350,8 +350,8 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testPauseAndResumeAutoFollowPattern() throws Exception {
         final Settings leaderIndexSettings = Settings.builder()
-            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
 
         // index created in the remote cluster before the auto follow pattern exists won't be auto followed
@@ -410,8 +410,8 @@ public class AutoFollowIT extends CcrIntegTestCase {
         assertLongBusy(() -> {
             final Client client = followerClient();
             assertThat(getAutoFollowStats().getAutoFollowedClusters().size(), equalTo(1));
-            assertThat(client.admin().cluster().prepareState().clear().setIndices("copy-*").setMetaData(true).get()
-                .getState().getMetaData().getIndices().size(), equalTo(1 + nbIndicesCreatedWhilePaused));
+            assertThat(client.admin().cluster().prepareState().clear().setIndices("copy-*").setMetadata(true).get()
+                .getState().getMetadata().getIndices().size(), equalTo(1 + nbIndicesCreatedWhilePaused));
             for (int i = 0; i < nbIndicesCreatedWhilePaused; i++) {
                 assertTrue(ESIntegTestCase.indexExists("copy-test-index-created-while-pattern-is-paused-" + i, client));
             }
@@ -420,8 +420,8 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testPauseAndResumeWithMultipleAutoFollowPatterns() throws Exception {
         final Settings leaderIndexSettings = Settings.builder()
-            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
 
         final String[] prefixes = {"logs-", "users-", "docs-", "monitoring-", "data-", "system-", "events-", "files-"};
@@ -498,8 +498,8 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         // check that all leader indices have been correctly auto followed
         List<String> matchingPrefixes = Arrays.stream(prefixes).map(prefix -> prefix + "*").collect(Collectors.toList());
-        for (IndexMetaData leaderIndexMetaData : leaderClient().admin().cluster().prepareState().get().getState().metaData()) {
-            final String leaderIndex = leaderIndexMetaData.getIndex().getName();
+        for (IndexMetadata leaderIndexMetadata : leaderClient().admin().cluster().prepareState().get().getState().metadata()) {
+            final String leaderIndex = leaderIndexMetadata.getIndex().getName();
             if (Regex.simpleMatch(matchingPrefixes, leaderIndex)) {
                 String followingIndex = "copy-" + leaderIndex;
                 assertBusy(() -> assertThat("Following index [" + followingIndex + "] must exists",

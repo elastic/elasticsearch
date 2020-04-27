@@ -33,14 +33,12 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.support.Automatons;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
@@ -253,9 +251,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void authenticationSuccess(String requestId, String realm, User user, String action, TransportMessage message) {
+    public void authenticationSuccess(String requestId, String realm, User user, String action, TransportRequest transportRequest) {
         if (events.contains(AUTHENTICATION_SUCCESS)) {
-            final Optional<String[]> indices = indices(message);
+            final Optional<String[]> indices = indices(transportRequest);
             if (eventFilterPolicyRegistry.ignorePredicate()
                     .test(new AuditEventMetaInfo(Optional.of(user), Optional.of(realm), Optional.empty(), indices)) == false) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
@@ -263,10 +261,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(EVENT_ACTION_FIELD_NAME, "authentication_success")
                         .with(REALM_FIELD_NAME, realm)
                         .with(ACTION_FIELD_NAME, action)
-                        .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
+                        .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
                         .withRequestId(requestId)
                         .withPrincipal(user)
-                        .withRestOrTransportOrigin(message, threadContext)
+                        .withRestOrTransportOrigin(transportRequest, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
@@ -277,18 +275,18 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void anonymousAccessDenied(String requestId, String action, TransportMessage message) {
+    public void anonymousAccessDenied(String requestId, String action, TransportRequest transportRequest) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)) {
-            final Optional<String[]> indices = indices(message);
+            final Optional<String[]> indices = indices(transportRequest);
             if (eventFilterPolicyRegistry.ignorePredicate()
                     .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices)) == false) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "anonymous_access_denied")
                         .with(ACTION_FIELD_NAME, action)
-                        .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
+                        .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
                         .withRequestId(requestId)
-                        .withRestOrTransportOrigin(message, threadContext)
+                        .withRestOrTransportOrigin(transportRequest, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
@@ -317,9 +315,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void authenticationFailed(String requestId, AuthenticationToken token, String action, TransportMessage message) {
+    public void authenticationFailed(String requestId, AuthenticationToken token, String action, TransportRequest transportRequest) {
         if (events.contains(AUTHENTICATION_FAILED)) {
-            final Optional<String[]> indices = indices(message);
+            final Optional<String[]> indices = indices(transportRequest);
             if (eventFilterPolicyRegistry.ignorePredicate()
                     .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), indices)) == false) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
@@ -327,9 +325,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
                         .with(ACTION_FIELD_NAME, action)
                         .with(PRINCIPAL_FIELD_NAME, token.principal())
-                        .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
+                        .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
                         .withRequestId(requestId)
-                        .withRestOrTransportOrigin(message, threadContext)
+                        .withRestOrTransportOrigin(transportRequest, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
@@ -357,18 +355,18 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void authenticationFailed(String requestId, String action, TransportMessage message) {
+    public void authenticationFailed(String requestId, String action, TransportRequest transportRequest) {
         if (events.contains(AUTHENTICATION_FAILED)) {
-            final Optional<String[]> indices = indices(message);
+            final Optional<String[]> indices = indices(transportRequest);
             if (eventFilterPolicyRegistry.ignorePredicate()
                     .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices)) == false) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
                         .with(ACTION_FIELD_NAME, action)
-                        .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
+                        .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
                         .withRequestId(requestId)
-                        .withRestOrTransportOrigin(message, threadContext)
+                        .withRestOrTransportOrigin(transportRequest, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
@@ -398,9 +396,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void authenticationFailed(String requestId, String realm, AuthenticationToken token, String action, TransportMessage message) {
+    public void authenticationFailed(String requestId, String realm, AuthenticationToken token, String action,
+                                     TransportRequest transportRequest) {
         if (events.contains(REALM_AUTHENTICATION_FAILED)) {
-            final Optional<String[]> indices = indices(message);
+            final Optional<String[]> indices = indices(transportRequest);
             if (eventFilterPolicyRegistry.ignorePredicate()
                     .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), indices)) == false) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
@@ -409,9 +408,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(REALM_FIELD_NAME, realm)
                         .with(PRINCIPAL_FIELD_NAME, token.principal())
                         .with(ACTION_FIELD_NAME, action)
-                        .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
+                        .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
                         .withRequestId(requestId)
-                        .withRestOrTransportOrigin(message, threadContext)
+                        .withRestOrTransportOrigin(transportRequest, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
@@ -442,10 +441,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void accessGranted(String requestId, Authentication authentication, String action, TransportMessage msg,
+    public void accessGranted(String requestId, Authentication authentication, String action, TransportRequest msg,
                               AuthorizationInfo authorizationInfo) {
         final User user = authentication.getUser();
-        final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
+        final boolean isSystem = User.isInternal(user);
         if ((isSystem && events.contains(SYSTEM_ACCESS_GRANTED)) || ((isSystem == false) && events.contains(ACCESS_GRANTED))) {
             final Optional<String[]> indices = indices(msg);
             if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(user),
@@ -474,8 +473,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         assert eventType == ACCESS_DENIED || eventType == AuditLevel.ACCESS_GRANTED || eventType == SYSTEM_ACCESS_GRANTED;
         final String[] indices = index == null ? null : new String[] { index };
         final User user = authentication.getUser();
-        final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
-        if (isSystem && eventType == ACCESS_GRANTED) {
+        if (User.isInternal(user) && eventType == ACCESS_GRANTED) {
             eventType = SYSTEM_ACCESS_GRANTED;
         }
         if (events.contains(eventType)) {
@@ -509,20 +507,20 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void accessDenied(String requestId, Authentication authentication, String action, TransportMessage message,
+    public void accessDenied(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
                              AuthorizationInfo authorizationInfo) {
         if (events.contains(ACCESS_DENIED)) {
-            final Optional<String[]> indices = indices(message);
+            final Optional<String[]> indices = indices(transportRequest);
             if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
                     Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), indices)) == false) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "access_denied")
                         .with(ACTION_FIELD_NAME, action)
-                        .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
+                        .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
                         .withRequestId(requestId)
                         .withSubject(authentication)
-                        .withRestOrTransportOrigin(message, threadContext)
+                        .withRestOrTransportOrigin(transportRequest, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .with(authorizationInfo.asMap())
                         .withOpaqueId(threadContext)
@@ -551,18 +549,18 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void tamperedRequest(String requestId, String action, TransportMessage message) {
+    public void tamperedRequest(String requestId, String action, TransportRequest transportRequest) {
         if (events.contains(TAMPERED_REQUEST)) {
-            final Optional<String[]> indices = indices(message);
+            final Optional<String[]> indices = indices(transportRequest);
             if (eventFilterPolicyRegistry.ignorePredicate()
                     .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices)) == false) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "tampered_request")
                         .with(ACTION_FIELD_NAME, action)
-                        .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
+                        .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
                         .withRequestId(requestId)
-                        .withRestOrTransportOrigin(message, threadContext)
+                        .withRestOrTransportOrigin(transportRequest, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
@@ -573,18 +571,18 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void tamperedRequest(String requestId, User user, String action, TransportMessage message) {
+    public void tamperedRequest(String requestId, User user, String action, TransportRequest transportRequest) {
         if (events.contains(TAMPERED_REQUEST)) {
-            final Optional<String[]> indices = indices(message);
+            final Optional<String[]> indices = indices(transportRequest);
             if (eventFilterPolicyRegistry.ignorePredicate()
                     .test(new AuditEventMetaInfo(Optional.of(user), Optional.empty(), Optional.empty(), indices)) == false) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "tampered_request")
                         .with(ACTION_FIELD_NAME, action)
-                        .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
+                        .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
                         .withRequestId(requestId)
-                        .withRestOrTransportOrigin(message, threadContext)
+                        .withRestOrTransportOrigin(transportRequest, threadContext)
                         .withPrincipal(user)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
@@ -632,20 +630,20 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void runAsGranted(String requestId, Authentication authentication, String action, TransportMessage message,
+    public void runAsGranted(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
                              AuthorizationInfo authorizationInfo) {
         if (events.contains(RUN_AS_GRANTED)) {
-            final Optional<String[]> indices = indices(message);
+            final Optional<String[]> indices = indices(transportRequest);
             if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
                     Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), indices)) == false) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "run_as_granted")
                         .with(ACTION_FIELD_NAME, action)
-                        .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
+                        .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
                         .withRequestId(requestId)
                         .withRunAsSubject(authentication)
-                        .withRestOrTransportOrigin(message, threadContext)
+                        .withRestOrTransportOrigin(transportRequest, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .with(authorizationInfo.asMap())
                         .withOpaqueId(threadContext)
@@ -657,20 +655,20 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void runAsDenied(String requestId, Authentication authentication, String action, TransportMessage message,
+    public void runAsDenied(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
                             AuthorizationInfo authorizationInfo) {
         if (events.contains(RUN_AS_DENIED)) {
-            final Optional<String[]> indices = indices(message);
+            final Optional<String[]> indices = indices(transportRequest);
             if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
                     Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), indices)) == false) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "run_as_denied")
                         .with(ACTION_FIELD_NAME, action)
-                        .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
+                        .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
                         .withRequestId(requestId)
                         .withRunAsSubject(authentication)
-                        .withRestOrTransportOrigin(message, threadContext)
+                        .withRestOrTransportOrigin(transportRequest, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .with(authorizationInfo.asMap())
                         .withOpaqueId(threadContext)
@@ -749,14 +747,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        LogEntryBuilder withRestOrTransportOrigin(TransportMessage message, ThreadContext threadContext) {
+        LogEntryBuilder withRestOrTransportOrigin(TransportRequest transportRequest, ThreadContext threadContext) {
             assert LOCAL_ORIGIN_FIELD_VALUE.equals(logEntry.get(ORIGIN_TYPE_FIELD_NAME)); // this is the default
             final InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
             if (restAddress != null) {
                 logEntry.with(ORIGIN_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                         .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(restAddress));
             } else {
-                final TransportAddress address = message.remoteAddress();
+                final TransportAddress address = transportRequest.remoteAddress();
                 if (address != null) {
                     logEntry.with(ORIGIN_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                             .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address.address()));
@@ -870,11 +868,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
 
-    private static Optional<String[]> indices(TransportMessage message) {
-        if (message instanceof IndicesRequest) {
-            final String[] indices = ((IndicesRequest) message).indices();
+    private static Optional<String[]> indices(TransportRequest transportRequest) {
+        if (transportRequest instanceof IndicesRequest) {
+            final String[] indices = ((IndicesRequest) transportRequest).indices();
             if (indices != null) {
-                return Optional.of(((IndicesRequest) message).indices());
+                return Optional.of(((IndicesRequest) transportRequest).indices());
             }
         }
         return Optional.empty();
@@ -1014,7 +1012,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         private synchronized void set(String policyName, EventFilterPolicy eventFilterPolicy) {
-            policyMap = Maps.copyMayWithAddedOrReplacedEntry(policyMap, policyName, eventFilterPolicy);
+            policyMap = Maps.copyMapWithAddedOrReplacedEntry(policyMap, policyName, eventFilterPolicy);
             // precompute predicate
             predicate = buildIgnorePredicate(policyMap);
         }

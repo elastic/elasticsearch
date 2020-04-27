@@ -10,20 +10,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketMetricsParser;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 
 public class CumulativeCardinalityPipelineAggregationBuilder
@@ -85,19 +80,17 @@ public class CumulativeCardinalityPipelineAggregationBuilder
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
-        return new CumulativeCardinalityPipelineAggregator(name, bucketsPaths, formatter(), metaData);
+    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
+        return new CumulativeCardinalityPipelineAggregator(name, bucketsPaths, formatter(), metadata);
     }
 
     @Override
-    public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> aggFactories,
-                           Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
+    protected void validate(ValidationContext context) {
         if (bucketsPaths.length != 1) {
-            throw new IllegalStateException(BUCKETS_PATH.getPreferredName()
-                + " must contain a single entry for aggregation [" + name + "]");
+            context.addBucketPathValidationError("must contain a single entry for aggregation [" + name + "]");
         }
 
-        validateSequentiallyOrderedParentAggs(parent, NAME, name);
+        context.validateParentAggSequentiallyOrdered(NAME, name);
     }
 
     @Override
@@ -105,6 +98,7 @@ public class CumulativeCardinalityPipelineAggregationBuilder
         if (format != null) {
             builder.field(BucketMetricsParser.FORMAT.getPreferredName(), format);
         }
+        builder.field(BUCKETS_PATH_FIELD.getPreferredName(), bucketsPaths[0]);
         return builder;
     }
 
@@ -125,5 +119,10 @@ public class CumulativeCardinalityPipelineAggregationBuilder
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    protected boolean overrideBucketsPath() {
+        return true;
     }
 }

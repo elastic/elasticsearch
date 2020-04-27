@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -50,12 +50,12 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
         boolean available = licenseState.isIndexLifecycleAllowed();
-        MetaData metaData = state.metaData();
-        IndexLifecycleMetadata lifecycleMetadata = metaData.custom(IndexLifecycleMetadata.TYPE);
+        Metadata metadata = state.metadata();
+        IndexLifecycleMetadata lifecycleMetadata = metadata.custom(IndexLifecycleMetadata.TYPE);
         final IndexLifecycleFeatureSetUsage usage;
         if (enabled && lifecycleMetadata != null) {
             Map<String, Integer> policyUsage = new HashMap<>();
-            metaData.indices().forEach(entry -> {
+            metadata.indices().forEach(entry -> {
                 String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(entry.value.getSettings());
                 Integer indicesManaged = policyUsage.get(policyName);
                 if (indicesManaged == null) {

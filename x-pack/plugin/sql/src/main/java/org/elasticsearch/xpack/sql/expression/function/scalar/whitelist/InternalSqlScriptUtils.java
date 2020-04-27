@@ -9,12 +9,13 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor.UnaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAddProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiffProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePartProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFormatProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTruncProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
@@ -103,10 +104,6 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
 
     public static Object mul(Object left, Object right) {
         return SqlBinaryArithmeticOperation.MUL.apply(left, right);
-    }
-
-    public static Number neg(Number value) {
-        return UnaryArithmeticOperation.NEGATE.apply(value);
     }
 
     public static Object sub(Object left, Object right) {
@@ -281,12 +278,23 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         return (Integer) DateDiffProcessor.process(dateField, asDateTime(dateTime1), asDateTime(dateTime2) , ZoneId.of(tzId));
     }
 
-    public static ZonedDateTime dateTrunc(String truncateTo, Object dateTime, String tzId) {
-        return (ZonedDateTime) DateTruncProcessor.process(truncateTo, asDateTime(dateTime) , ZoneId.of(tzId));
+    public static Object dateTrunc(String truncateTo, Object dateTimeOrInterval, String tzId) {
+        if (dateTimeOrInterval instanceof IntervalDayTime || dateTimeOrInterval instanceof IntervalYearMonth) {
+           return DateTruncProcessor.process(truncateTo, dateTimeOrInterval, ZoneId.of(tzId));
+        }
+        return DateTruncProcessor.process(truncateTo, asDateTime(dateTimeOrInterval), ZoneId.of(tzId));
     }
 
     public static Integer datePart(String dateField, Object dateTime, String tzId) {
-        return (Integer) DatePartProcessor.process(dateField, asDateTime(dateTime) , ZoneId.of(tzId));
+        return (Integer) DatePartProcessor.process(dateField, asDateTime(dateTime), ZoneId.of(tzId));
+    }
+
+    public static String dateTimeFormat(Object dateTime, String pattern, String tzId) {
+        return (String) DateTimeFormatProcessor.process(asDateTime(dateTime), pattern, ZoneId.of(tzId));
+    }
+
+    public static Object dateTimeParse(String dateField, String pattern, String tzId) {
+        return DateTimeParseProcessor.process(dateField, pattern);
     }
 
     public static ZonedDateTime asDateTime(Object dateTime) {

@@ -32,7 +32,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -314,11 +314,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (indexService != null) {
                 indexSettings = indexService.getIndexSettings();
                 indicesService.removeIndex(index, DELETED, "index no longer part of the metadata");
-            } else if (previousState.metaData().hasIndex(index.getName())) {
+            } else if (previousState.metadata().hasIndex(index.getName())) {
                 // The deleted index was part of the previous cluster state, but not loaded on the local node
-                final IndexMetaData metaData = previousState.metaData().index(index);
-                indexSettings = new IndexSettings(metaData, settings);
-                indicesService.deleteUnassignedIndex("deleted index was not assigned to local node", metaData, state);
+                final IndexMetadata metadata = previousState.metadata().index(index);
+                indexSettings = new IndexSettings(metadata, settings);
+                indicesService.deleteUnassignedIndex("deleted index was not assigned to local node", metadata, state);
             } else {
                 // The previous cluster state's metadata also does not contain the index,
                 // which is what happens on node startup when an index was deleted while the
@@ -327,9 +327,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 // First, though, verify the precondition for applying this case by
                 // asserting that the previous cluster state is not initialized/recovered.
                 assert previousState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
-                final IndexMetaData metaData = indicesService.verifyIndexIsDeleted(index, event.state());
-                if (metaData != null) {
-                    indexSettings = new IndexSettings(metaData, settings);
+                final IndexMetadata metadata = indicesService.verifyIndexIsDeleted(index, event.state());
+                if (metadata != null) {
+                    indexSettings = new IndexSettings(metadata, settings);
                 } else {
                     indexSettings = null;
                 }
@@ -382,21 +382,21 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         for (AllocatedIndex<? extends Shard> indexService : indicesService) {
             final Index index = indexService.index();
-            final IndexMetaData indexMetaData = state.metaData().index(index);
-            final IndexMetaData existingMetaData = indexService.getIndexSettings().getIndexMetaData();
+            final IndexMetadata indexMetadata = state.metadata().index(index);
+            final IndexMetadata existingMetadata = indexService.getIndexSettings().getIndexMetadata();
 
             AllocatedIndices.IndexRemovalReason reason = null;
-            if (indexMetaData != null && indexMetaData.getState() != existingMetaData.getState()) {
-                reason = indexMetaData.getState() == IndexMetaData.State.CLOSE ? CLOSED : REOPENED;
+            if (indexMetadata != null && indexMetadata.getState() != existingMetadata.getState()) {
+                reason = indexMetadata.getState() == IndexMetadata.State.CLOSE ? CLOSED : REOPENED;
             } else if (indicesWithShards.contains(index) == false) {
                 // if the cluster change indicates a brand new cluster, we only want
                 // to remove the in-memory structures for the index and not delete the
                 // contents on disk because the index will later be re-imported as a
                 // dangling index
-                assert indexMetaData != null || event.isNewCluster() :
+                assert indexMetadata != null || event.isNewCluster() :
                     "index " + index + " does not exist in the cluster state, it should either " +
                         "have been deleted or the cluster must be new";
-                reason = indexMetaData != null && indexMetaData.getState() == IndexMetaData.State.CLOSE ? CLOSED : NO_LONGER_ASSIGNED;
+                reason = indexMetadata != null && indexMetadata.getState() == IndexMetadata.State.CLOSE ? CLOSED : NO_LONGER_ASSIGNED;
             }
 
             if (reason != null) {
@@ -490,16 +490,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         for (Map.Entry<Index, List<ShardRouting>> entry : indicesToCreate.entrySet()) {
             final Index index = entry.getKey();
-            final IndexMetaData indexMetaData = state.metaData().index(index);
+            final IndexMetadata indexMetadata = state.metadata().index(index);
             logger.debug("[{}] creating index", index);
 
             AllocatedIndex<? extends Shard> indexService = null;
             try {
-                indexService = indicesService.createIndex(indexMetaData, buildInIndexListener, true);
-                if (indexService.updateMapping(null, indexMetaData) && sendRefreshMapping) {
+                indexService = indicesService.createIndex(indexMetadata, buildInIndexListener, true);
+                if (indexService.updateMapping(null, indexMetadata) && sendRefreshMapping) {
                     nodeMappingRefreshAction.nodeMappingRefresh(state.nodes().getMasterNode(),
-                        new NodeMappingRefreshAction.NodeMappingRefreshRequest(indexMetaData.getIndex().getName(),
-                            indexMetaData.getIndexUUID(), state.nodes().getLocalNodeId())
+                        new NodeMappingRefreshAction.NodeMappingRefreshRequest(indexMetadata.getIndex().getName(),
+                            indexMetadata.getIndexUUID(), state.nodes().getLocalNodeId())
                     );
                 }
             } catch (Exception e) {
@@ -518,31 +518,31 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     private void updateIndices(ClusterChangedEvent event) {
-        if (!event.metaDataChanged()) {
+        if (!event.metadataChanged()) {
             return;
         }
         final ClusterState state = event.state();
         for (AllocatedIndex<? extends Shard> indexService : indicesService) {
             final Index index = indexService.index();
-            final IndexMetaData currentIndexMetaData = indexService.getIndexSettings().getIndexMetaData();
-            final IndexMetaData newIndexMetaData = state.metaData().index(index);
-            assert newIndexMetaData != null : "index " + index + " should have been removed by deleteIndices";
-            if (ClusterChangedEvent.indexMetaDataChanged(currentIndexMetaData, newIndexMetaData)) {
+            final IndexMetadata currentIndexMetadata = indexService.getIndexSettings().getIndexMetadata();
+            final IndexMetadata newIndexMetadata = state.metadata().index(index);
+            assert newIndexMetadata != null : "index " + index + " should have been removed by deleteIndices";
+            if (ClusterChangedEvent.indexMetadataChanged(currentIndexMetadata, newIndexMetadata)) {
                 String reason = null;
                 try {
                     reason = "metadata update failed";
                     try {
-                        indexService.updateMetaData(currentIndexMetaData, newIndexMetaData);
+                        indexService.updateMetadata(currentIndexMetadata, newIndexMetadata);
                     } catch (Exception e) {
                         assert false : e;
                         throw e;
                     }
 
                     reason = "mapping update failed";
-                    if (indexService.updateMapping(currentIndexMetaData, newIndexMetaData) && sendRefreshMapping) {
+                    if (indexService.updateMapping(currentIndexMetadata, newIndexMetadata) && sendRefreshMapping) {
                         nodeMappingRefreshAction.nodeMappingRefresh(state.nodes().getMasterNode(),
-                            new NodeMappingRefreshAction.NodeMappingRefreshRequest(newIndexMetaData.getIndex().getName(),
-                                newIndexMetaData.getIndexUUID(), state.nodes().getLocalNodeId())
+                            new NodeMappingRefreshAction.NodeMappingRefreshRequest(newIndexMetadata.getIndex().getName(),
+                                newIndexMetadata.getIndexUUID(), state.nodes().getLocalNodeId())
                         );
                     }
                 } catch (Exception e) {
@@ -600,7 +600,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
 
         try {
-            final long primaryTerm = state.metaData().index(shardRouting.index()).primaryTerm(shardRouting.id());
+            final long primaryTerm = state.metadata().index(shardRouting.index()).primaryTerm(shardRouting.id());
             logger.debug("{} creating shard with primary term [{}]", shardRouting.shardId(), primaryTerm);
             RecoveryState recoveryState = new RecoveryState(shardRouting, nodes.getLocalNode(), sourceNode);
             indicesService.createShard(
@@ -626,9 +626,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         final long primaryTerm;
         try {
-            final IndexMetaData indexMetaData = clusterState.metaData().index(shard.shardId().getIndex());
-            primaryTerm = indexMetaData.primaryTerm(shard.shardId().id());
-            final Set<String> inSyncIds = indexMetaData.inSyncAllocationIds(shard.shardId().id());
+            final IndexMetadata indexMetadata = clusterState.metadata().index(shard.shardId().getIndex());
+            primaryTerm = indexMetadata.primaryTerm(shard.shardId().id());
+            final Set<String> inSyncIds = indexMetadata.inSyncAllocationIds(shard.shardId().id());
             final IndexShardRoutingTable indexShardRoutingTable = routingTable.shardRoutingTable(shardRouting.shardId());
             shard.updateShardState(shardRouting, primaryTerm, primaryReplicaSyncer::resync, clusterState.version(),
                 inSyncIds, indexShardRoutingTable);
@@ -830,15 +830,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         /**
          * Updates the metadata of this index. Changes become visible through {@link #getIndexSettings()}.
          *
-         * @param currentIndexMetaData the current index metadata
-         * @param newIndexMetaData the new index metadata
+         * @param currentIndexMetadata the current index metadata
+         * @param newIndexMetadata the new index metadata
          */
-        void updateMetaData(IndexMetaData currentIndexMetaData, IndexMetaData newIndexMetaData);
+        void updateMetadata(IndexMetadata currentIndexMetadata, IndexMetadata newIndexMetadata);
 
         /**
          * Checks if index requires refresh from master.
          */
-        boolean updateMapping(IndexMetaData currentIndexMetaData, IndexMetaData newIndexMetaData) throws IOException;
+        boolean updateMapping(IndexMetadata currentIndexMetadata, IndexMetadata newIndexMetadata) throws IOException;
 
         /**
          * Returns shard with given id.
@@ -856,13 +856,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         /**
          * Creates a new {@link IndexService} for the given metadata.
          *
-         * @param indexMetaData          the index metadata to create the index for
+         * @param indexMetadata          the index metadata to create the index for
          * @param builtInIndexListener   a list of built-in lifecycle {@link IndexEventListener} that should should be used along side with
          *                               the per-index listeners
          * @param writeDanglingIndices   whether dangling indices information should be written
          * @throws ResourceAlreadyExistsException if the index already exists.
          */
-        U createIndex(IndexMetaData indexMetaData,
+        U createIndex(IndexMetadata indexMetadata,
                       List<IndexEventListener> builtInIndexListener,
                       boolean writeDanglingIndices) throws IOException;
 
@@ -872,16 +872,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * through index tombstones.
          * @param index {@code Index} to make sure its deleted from disk
          * @param clusterState {@code ClusterState} to ensure the index is not part of it
-         * @return IndexMetaData for the index loaded from disk
+         * @return IndexMetadata for the index loaded from disk
          */
-        IndexMetaData verifyIndexIsDeleted(Index index, ClusterState clusterState);
+        IndexMetadata verifyIndexIsDeleted(Index index, ClusterState clusterState);
 
 
         /**
          * Deletes an index that is not assigned to this node. This method cleans up all disk folders relating to the index
          * but does not deal with in-memory structures. For those call {@link #removeIndex(Index, IndexRemovalReason, String)}
          */
-        void deleteUnassignedIndex(String reason, IndexMetaData metaData, ClusterState clusterState);
+        void deleteUnassignedIndex(String reason, IndexMetadata metadata, ClusterState clusterState);
 
         /**
          * Removes the given index from this service and releases all associated resources. Persistent parts of the index

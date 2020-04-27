@@ -19,10 +19,11 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.snapshots.SnapshotId;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,10 +31,10 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * Tracks the blob uuids of blobs containing {@link IndexMetaData} for snapshots as well an identifier for each of these blobs.
- * Before writing a new {@link IndexMetaData} blob during snapshot finalization in
+ * Tracks the blob uuids of blobs containing {@link IndexMetadata} for snapshots as well an identifier for each of these blobs.
+ * Before writing a new {@link IndexMetadata} blob during snapshot finalization in
  * {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository#finalizeSnapshot} the identifier for an instance of
- * {@link IndexMetaData} should be computed and then used to check if it already exists in the repository via
+ * {@link IndexMetadata} should be computed and then used to check if it already exists in the repository via
  * {@link #getIndexMetaBlobId(String)}.
  */
 public final class IndexMetaDataGenerations {
@@ -64,10 +65,10 @@ public final class IndexMetaDataGenerations {
     }
 
     /**
-     * Gets the blob id by the identifier of {@link IndexMetaData} (computed via {@link #buildUniqueIdentifier}) or {@code null} if none is
-     * tracked for the identifier.
+     * Gets the blob id by the identifier of {@link org.elasticsearch.cluster.metadata.IndexMetadata}
+     * (computed via {@link #buildUniqueIdentifier}) or {@code null} if none is tracked for the identifier.
      *
-     * @param metaIdentifier identifier for {@link IndexMetaData}
+     * @param metaIdentifier identifier for {@link IndexMetadata}
      * @return blob id for the given metadata identifier or {@code null} if the identifier is not part of the repository yet
      */
     @Nullable
@@ -125,12 +126,12 @@ public final class IndexMetaDataGenerations {
     /**
      * Create a new instance with the given snapshot removed.
      *
-     * @param snapshotId SnapshotId
+     * @param snapshotIds SnapshotIds to remove
      * @return new instance without the given snapshot
      */
-    public IndexMetaDataGenerations withRemovedSnapshot(SnapshotId snapshotId) {
+    public IndexMetaDataGenerations withRemovedSnapshots(Collection<SnapshotId> snapshotIds) {
         final Map<SnapshotId, Map<IndexId, String>> updatedIndexMetaLookup = new HashMap<>(lookup);
-        updatedIndexMetaLookup.remove(snapshotId);
+        updatedIndexMetaLookup.keySet().removeAll(snapshotIds);
         final Map<String, String> updatedIndexMetaIdentifiers = new HashMap<>(identifiers);
         updatedIndexMetaIdentifiers.keySet().removeIf(
             k -> updatedIndexMetaLookup.values().stream().noneMatch(identifiers -> identifiers.containsValue(k)));
@@ -160,14 +161,14 @@ public final class IndexMetaDataGenerations {
     }
 
     /**
-     * Compute identifier for {@link IndexMetaData} from its index uuid as well as its settings-, mapping- and alias-version.
+     * Compute identifier for {@link IndexMetadata} from its index uuid as well as its settings-, mapping- and alias-version.
      * If an index did not see a change in its settings, mappings or aliases between two points in time then the identifier will not change
      * between them either.
      *
      * @param indexMetaData IndexMetaData
      * @return identifier string
      */
-    public static String buildUniqueIdentifier(IndexMetaData indexMetaData) {
+    public static String buildUniqueIdentifier(IndexMetadata indexMetaData) {
         return indexMetaData.getIndexUUID() + "-" + indexMetaData.getSettingsVersion() + "-"
             + indexMetaData.getMappingVersion() + "-" + indexMetaData.getAliasesVersion();
     }

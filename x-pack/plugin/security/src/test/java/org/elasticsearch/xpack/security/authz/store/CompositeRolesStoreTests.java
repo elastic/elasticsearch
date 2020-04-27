@@ -13,8 +13,8 @@ import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,6 +28,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.license.TestUtils.UpdatableLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -117,7 +118,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     public void testRolesWhenDlsFlsUnlicensed() throws IOException {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(false);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_DLS_FLS)).thenReturn(false);
         RoleDescriptor flsRole = new RoleDescriptor("fls", null, new IndicesPrivileges[] {
                 IndicesPrivileges.builder()
                         .grantedFields("*")
@@ -187,7 +189,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     public void testRolesWhenDlsFlsLicensed() throws IOException {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_DLS_FLS)).thenReturn(true);
         RoleDescriptor flsRole = new RoleDescriptor("fls", null, new IndicesPrivileges[] {
                 IndicesPrivileges.builder()
                         .grantedFields("*")
@@ -531,13 +534,13 @@ public class CompositeRolesStoreTests extends ESTestCase {
         CompositeRolesStore.buildRoleFromDescriptors(Sets.newHashSet(flsRole, addsL1Fields), cache, null, future);
         Role role = future.actionGet();
 
-        MetaData metaData = MetaData.builder()
-                .put(new IndexMetaData.Builder("test")
+        Metadata metadata = Metadata.builder()
+                .put(new IndexMetadata.Builder("test")
                         .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
                         .numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build();
         Map<String, IndicesAccessControl.IndexAccessControl> acls = role.indices().authorize("indices:data/read/search",
-            Collections.singleton("test"), metaData.getAliasAndIndexLookup(), cache);
+            Collections.singleton("test"), metadata.getIndicesLookup(), cache);
         assertFalse(acls.isEmpty());
         assertTrue(acls.get("test").getFieldPermissions().grantsAccessTo("L1.foo"));
         assertFalse(acls.get("test").getFieldPermissions().grantsAccessTo("L2.foo"));
@@ -790,7 +793,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     public SecurityIndexManager.State dummyIndexState(boolean isIndexUpToDate, ClusterHealthStatus healthStatus) {
         return new SecurityIndexManager.State(
-            Instant.now(), isIndexUpToDate, true, true, null, concreteSecurityIndexName, healthStatus, IndexMetaData.State.OPEN);
+            Instant.now(), isIndexUpToDate, true, true, null, concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN);
     }
 
     public void testCacheClearOnIndexHealthChange() {

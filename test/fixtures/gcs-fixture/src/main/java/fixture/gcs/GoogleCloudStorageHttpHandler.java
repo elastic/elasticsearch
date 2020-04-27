@@ -138,12 +138,19 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 BytesReference blob = blobs.get(exchange.getRequestURI().getPath().replace("/download/storage/v1/b/" + bucket + "/o/", ""));
                 if (blob != null) {
                     final String range = exchange.getRequestHeaders().getFirst("Range");
-                    Matcher matcher = RANGE_MATCHER.matcher(range);
-                    if (matcher.find() == false) {
-                        throw new AssertionError("Range bytes header does not match expected format: " + range);
+                    final int offset;
+                    final int end;
+                    if (range == null) {
+                        offset = 0;
+                        end = blob.length() - 1;
+                    } else {
+                        Matcher matcher = RANGE_MATCHER.matcher(range);
+                        if (matcher.find() == false) {
+                            throw new AssertionError("Range bytes header does not match expected format: " + range);
+                        }
+                        offset = Integer.parseInt(matcher.group(1));
+                        end = Integer.parseInt(matcher.group(2));
                     }
-                    final int offset = Integer.parseInt(matcher.group(1));
-                    final int end = Integer.parseInt(matcher.group(2));
                     BytesReference response = blob;
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     final int bufferedLength = response.length();

@@ -7,7 +7,9 @@ package org.elasticsearch.xpack.core.security;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
@@ -41,13 +43,27 @@ public class SecurityContext {
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
     }
 
+    /**
+     * Returns the current user information, or throws {@link org.elasticsearch.ElasticsearchSecurityException}
+     * if the current request has no authentication information.
+     */
+    public User requireUser() {
+        User user = getUser();
+        if (user == null) {
+            throw new ElasticsearchSecurityException("there is no user available in the current context");
+        }
+        return user;
+    }
+
     /** Returns the current user information, or null if the current request has no authentication info. */
+    @Nullable
     public User getUser() {
         Authentication authentication = getAuthentication();
         return authentication == null ? null : authentication.getUser();
     }
 
     /** Returns the authentication information, or null if the current request has no authentication info. */
+    @Nullable
     public Authentication getAuthentication() {
         try {
             return authenticationSerializer.readFromContext(threadContext);

@@ -94,4 +94,9 @@ public abstract class FilterStreamInput extends StreamInput {
     protected void ensureCanReadBytes(int length) throws EOFException {
         delegate.ensureCanReadBytes(length);
     }
+
+    @Override
+    public NamedWriteableRegistry namedWriteableRegistry() {
+        return delegate.namedWriteableRegistry();
+    }
 }

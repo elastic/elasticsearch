@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -24,6 +25,7 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.junit.Before;
@@ -72,6 +74,7 @@ public class TransformInfoTransportActionTests extends ESTestCase {
             licenseState
         );
         assertThat(featureSet.enabled(), is(enabled));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.TRANSFORM_ENABLED } );
     }
 
     public void testEnabledDefault() {
@@ -98,13 +101,15 @@ public class TransformInfoTransportActionTests extends ESTestCase {
             4,  // numInvocations
             5,  // indexTime
             6,  // searchTime
-            7,  // indexTotal
-            8,  // searchTotal
-            9,  // indexFailures
-            10, // searchFailures
-            11.0,  // exponential_avg_checkpoint_duration_ms
-            12.0,  // exponential_avg_documents_indexed
-            13.0   // exponential_avg_documents_processed
+            7,  // processingTime
+            8,  // indexTotal
+            9,  // searchTotal
+            10, // processingTotal
+            11, // indexFailures
+            12, // searchFailures
+            13.0,  // exponential_avg_checkpoint_duration_ms
+            14.0,  // exponential_avg_documents_indexed
+            15.0   // exponential_avg_documents_processed
         );
 
         int currentStat = 1;
@@ -156,5 +161,6 @@ public class TransformInfoTransportActionTests extends ESTestCase {
             assertEquals(null, XContentMapValues.extractValue("transforms", usageAsMap));
             assertEquals(null, XContentMapValues.extractValue("stats", usageAsMap));
         }
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.TRANSFORM_ENABLED } );
     }
 }

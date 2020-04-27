@@ -1,4 +1,3 @@
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -8,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *         http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -34,13 +33,17 @@ public class KibanaPluginTests extends ESTestCase {
 
     public void testKibanaIndexNames() {
         assertThat(new KibanaPlugin().getSettings(), contains(KibanaPlugin.KIBANA_INDEX_NAMES_SETTING));
-        assertThat(new KibanaPlugin().getSystemIndexDescriptors(Settings.EMPTY).stream()
-            .map(SystemIndexDescriptor::getIndexPattern).collect(Collectors.toUnmodifiableList()),
-            contains(".kibana*", ".reporting"));
+        assertThat(
+            new KibanaPlugin().getSystemIndexDescriptors(Settings.EMPTY)
+                .stream()
+                .map(SystemIndexDescriptor::getIndexPattern)
+                .collect(Collectors.toUnmodifiableList()),
+            contains(".kibana*", ".reporting")
+        );
         final List<String> names = List.of("." + randomAlphaOfLength(4), "." + randomAlphaOfLength(6));
         final List<String> namesFromDescriptors = new KibanaPlugin().getSystemIndexDescriptors(
-                Settings.builder().putList(KibanaPlugin.KIBANA_INDEX_NAMES_SETTING.getKey(), names).build()
-            ).stream().map(SystemIndexDescriptor::getIndexPattern).collect(Collectors.toUnmodifiableList());
+            Settings.builder().putList(KibanaPlugin.KIBANA_INDEX_NAMES_SETTING.getKey(), names).build()
+        ).stream().map(SystemIndexDescriptor::getIndexPattern).collect(Collectors.toUnmodifiableList());
         assertThat(namesFromDescriptors, is(names));
     }
 }

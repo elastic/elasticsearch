@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -110,12 +111,12 @@ public class Realms implements Iterable<Realm> {
     public List<Realm> getUnlicensedRealms() {
         final XPackLicenseState licenseStateSnapshot = licenseState.copyCurrentLicenseState();
         // If auth is not allowed, then everything is unlicensed
-        if (licenseStateSnapshot.isAuthAllowed() == false) {
+        if (licenseStateSnapshot.isSecurityEnabled() == false) {
             return Collections.unmodifiableList(realms);
         }
 
         // If all realms are allowed, then nothing is unlicensed
-        if (licenseStateSnapshot.areAllRealmsAllowed()) {
+        if (licenseStateSnapshot.isAllowed(Feature.SECURITY_ALL_REALMS)) {
             return Collections.emptyList();
         }
 
@@ -136,12 +137,12 @@ public class Realms implements Iterable<Realm> {
 
     public List<Realm> asList() {
         final XPackLicenseState licenseStateSnapshot = licenseState.copyCurrentLicenseState();
-        if (licenseStateSnapshot.isAuthAllowed() == false) {
+        if (licenseStateSnapshot.isSecurityEnabled() == false) {
             return Collections.emptyList();
         }
-        if (licenseStateSnapshot.areAllRealmsAllowed()) {
+        if (licenseStateSnapshot.isAllowed(Feature.SECURITY_ALL_REALMS)) {
             return realms;
-        } else if (licenseStateSnapshot.areStandardRealmsAllowed()) {
+        } else if (licenseStateSnapshot.isAllowed(Feature.SECURITY_STANDARD_REALMS)) {
             return standardRealmsOnly;
         } else {
             // native realms are basic licensed, and always allowed, even for an expired license
@@ -345,9 +346,9 @@ public class Realms implements Iterable<Realm> {
     }
 
     public static boolean isRealmTypeAvailable(XPackLicenseState licenseState, String type) {
-        if (licenseState.areAllRealmsAllowed()) {
+        if (licenseState.isAllowed(Feature.SECURITY_ALL_REALMS)) {
             return true;
-        } else if (licenseState.areStandardRealmsAllowed()) {
+        } else if (licenseState.isAllowed(Feature.SECURITY_STANDARD_REALMS)) {
             return InternalRealms.isStandardRealm(type) || ReservedRealm.TYPE.equals(type);
         } else {
             return FileRealmSettings.TYPE.equals(type) || NativeRealmSettings.TYPE.equals(type);

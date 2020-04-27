@@ -21,12 +21,12 @@ dependencyLicenses {
   ignoreSha 'elasticsearch-core'
 }
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   // does not depend on core, so only jdk and http signatures should be checked
   replaceSignatureFiles 'jdk-signatures'
 }
 
-forbiddenApisTest {
+tasks.named('forbiddenApisTest').configure {
   bundledSignatures -= 'jdk-non-portable'
   bundledSignatures += 'jdk-internal'
 }

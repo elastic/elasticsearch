@@ -38,12 +38,10 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCano
 /**
  * Represents a field load/store and defers to a child subnode.
  */
-public final class PField extends AStoreable {
+public class PField extends AExpression {
 
-    private final boolean nullSafe;
-    private final String value;
-
-    private AStoreable sub = null;
+    protected final boolean nullSafe;
+    protected final String value;
 
     public PField(Location location, AExpression prefix, boolean nullSafe, String value) {
         super(location, prefix);
@@ -53,24 +51,19 @@ public final class PField extends AStoreable {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, AExpression.Input input) {
-        AStoreable.Input storeableInput = new AStoreable.Input();
-        storeableInput.read = input.read;
-        storeableInput.expected = input.expected;
-        storeableInput.explicit = input.explicit;
-        storeableInput.internal = input.internal;
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.read == false && input.write == false) {
+            throw createError(new IllegalArgumentException("not a statement: result of dot operator [.] not used"));
+        }
 
-        return analyze(scriptRoot, scope, storeableInput);
-    }
+        Output output = new Output();
 
-    @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
-        this.input = input;
-        output = new Output();
+        Input prefixInput = new Input();
+        Output prefixOutput = prefix.analyze(classNode, scriptRoot, scope, prefixInput);
+        prefixInput.expected = prefixOutput.actual;
+        prefix.cast(prefixInput, prefixOutput);
 
-        Output prefixOutput = prefix.analyze(scriptRoot, scope, new Input());
-        prefix.input.expected = prefixOutput.actual;
-        prefix.cast();
+        AExpression sub = null;
 
         if (prefixOutput.actual.isArray()) {
             sub = new PSubArrayLength(location, PainlessLookupUtility.typeToCanonicalTypeName(prefixOutput.actual), value);
@@ -99,7 +92,7 @@ public final class PField extends AStoreable {
                             location, value, PainlessLookupUtility.typeToCanonicalTypeName(prefixOutput.actual), getter, setter);
                 } else {
                     EConstant index = new EConstant(location, value);
-                    index.analyze(scriptRoot, scope, new Input());
+                    index.analyze(classNode, scriptRoot, scope, new Input());
 
                     if (Map.class.isAssignableFrom(prefixOutput.actual)) {
                         sub = new PSubMapShortcut(location, prefixOutput.actual, index);
@@ -128,41 +121,20 @@ public final class PField extends AStoreable {
         subInput.read = input.read;
         subInput.expected = input.expected;
         subInput.explicit = input.explicit;
-        Output subOutput = sub.analyze(scriptRoot, scope, subInput);
+        Output subOutput = sub.analyze(classNode, scriptRoot, scope, subInput);
         output.actual = subOutput.actual;
+        output.isDefOptimized = subOutput.isDefOptimized;
 
-        return output;
-    }
-
-    @Override
-    DotNode write(ClassNode classNode) {
         DotNode dotNode = new DotNode();
 
-        dotNode.setLeftNode(prefix.cast(prefix.write(classNode)));
-        dotNode.setRightNode(sub.write(classNode));
+        dotNode.setLeftNode(prefix.cast(prefixOutput));
+        dotNode.setRightNode(subOutput.expressionNode);
 
         dotNode.setLocation(location);
         dotNode.setExpressionType(output.actual);
 
-        return dotNode;
-    }
+        output.expressionNode = dotNode;
 
-    @Override
-    boolean isDefOptimized() {
-        return sub.isDefOptimized();
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        sub.updateActual(actual);
-        this.output.actual = actual;
-    }
-
-    @Override
-    public String toString() {
-        if (nullSafe) {
-            return singleLineToString("nullSafe", prefix, value);
-        }
-        return singleLineToString(prefix, value);
+        return output;
     }
 }

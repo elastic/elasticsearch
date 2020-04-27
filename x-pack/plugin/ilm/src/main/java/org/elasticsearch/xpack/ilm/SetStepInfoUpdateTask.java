@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ilm;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -52,7 +52,7 @@ public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public ClusterState execute(ClusterState currentState) throws IOException {
-        IndexMetaData idxMeta = currentState.getMetaData().index(index);
+        IndexMetadata idxMeta = currentState.getMetadata().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
             return currentState;

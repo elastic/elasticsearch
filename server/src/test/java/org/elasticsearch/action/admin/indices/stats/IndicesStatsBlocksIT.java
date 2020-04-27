@@ -20,16 +20,16 @@
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class IndicesStatsBlocksIT extends ESIntegTestCase {
@@ -52,13 +52,13 @@ public class IndicesStatsBlocksIT extends ESIntegTestCase {
 
         // Request is blocked
         try {
-            enableIndexBlock("ro", IndexMetaData.SETTING_BLOCKS_METADATA);
+            enableIndexBlock("ro", IndexMetadata.SETTING_BLOCKS_METADATA);
             client().admin().indices().prepareStats("ro").execute().actionGet();
-            fail("Exists should fail when " + IndexMetaData.SETTING_BLOCKS_METADATA + " is true");
+            fail("Exists should fail when " + IndexMetadata.SETTING_BLOCKS_METADATA + " is true");
         } catch (ClusterBlockException e) {
             // Ok, a ClusterBlockException is expected
         } finally {
-            disableIndexBlock("ro", IndexMetaData.SETTING_BLOCKS_METADATA);
+            disableIndexBlock("ro", IndexMetadata.SETTING_BLOCKS_METADATA);
         }
     }
 }

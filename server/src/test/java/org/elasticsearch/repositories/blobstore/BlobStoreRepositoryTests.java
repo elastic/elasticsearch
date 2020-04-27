@@ -183,8 +183,8 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(expectedGeneration + 1L));
 
         // removing a snapshot and writing to a new index generational file
-        repositoryData = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).removeSnapshot(
-            repositoryData.getSnapshotIds().iterator().next(), ShardGenerations.EMPTY);
+        repositoryData = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).removeSnapshots(
+            Collections.singleton(repositoryData.getSnapshotIds().iterator().next()), ShardGenerations.EMPTY);
         writeIndexGen(repository, repositoryData, repositoryData.getGenId());
         assertEquals(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), repositoryData);
         assertThat(repository.latestIndexBlobId(), equalTo(expectedGeneration + 2L));
@@ -197,8 +197,8 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         // write to index generational file
         RepositoryData repositoryData = generateRandomRepoData();
         final long startingGeneration = repositoryData.getGenId();
-        final PlainActionFuture<Void> future1 = PlainActionFuture.newFuture();
-        repository.writeIndexGen(repositoryData, startingGeneration, Version.CURRENT, future1);
+        final PlainActionFuture<RepositoryData> future1 = PlainActionFuture.newFuture();
+        repository.writeIndexGen(repositoryData, startingGeneration, Version.CURRENT, Function.identity(),future1);
 
         // write repo data again to index generational file, errors because we already wrote to the
         // N+1 generation from which this repository data instance was created
@@ -220,10 +220,9 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                 .get());
     }
 
-    private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) {
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        repository.writeIndexGen(repositoryData, generation, Version.CURRENT, future);
-        future.actionGet();
+    private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) throws Exception {
+        PlainActionFuture.<RepositoryData, Exception>get(
+                f -> repository.writeIndexGen(repositoryData, generation, Version.CURRENT, Function.identity(), f));
     }
 
     private BlobStoreRepository setupRepo() {

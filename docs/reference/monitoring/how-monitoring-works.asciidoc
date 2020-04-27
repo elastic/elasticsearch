@@ -22,7 +22,7 @@ To learn how to collect monitoring data, see:
 * <<collecting-monitoring-data>>
 * <<configuring-metricbeat>>
 * {kibana-ref}/xpack-monitoring.html[Monitoring {kib}]
-* {logstash-ref}/monitoring-logstash.html[Monitoring {ls}]
+* {logstash-ref}/configuring-logstash.html[Monitoring {ls}]
 * Monitoring Beats:
 ** {auditbeat-ref}/monitoring.html[{auditbeat}]
 ** {filebeat-ref}/monitoring.html[{filebeat}]

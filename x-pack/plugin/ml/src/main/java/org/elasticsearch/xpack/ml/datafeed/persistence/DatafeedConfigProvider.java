@@ -42,7 +42,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -359,7 +359,7 @@ public class DatafeedConfigProvider {
      */
     public void expandDatafeedIds(String expression,
                                   boolean allowNoDatafeeds,
-                                  PersistentTasksCustomMetaData tasks,
+                                  PersistentTasksCustomMetadata tasks,
                                   boolean allowMissingConfigs,
                                   ActionListener<SortedSet<String>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
@@ -404,10 +404,10 @@ public class DatafeedConfigProvider {
     }
 
     /**
-     * The same logic as {@link #expandDatafeedIds(String, boolean, PersistentTasksCustomMetaData, boolean, ActionListener)} but
+     * The same logic as {@link #expandDatafeedIds(String, boolean, PersistentTasksCustomMetadata, boolean, ActionListener)} but
      * the full datafeed configuration is returned.
      *
-     * See {@link #expandDatafeedIds(String, boolean, PersistentTasksCustomMetaData, boolean, ActionListener)}
+     * See {@link #expandDatafeedIds(String, boolean, PersistentTasksCustomMetadata, boolean, ActionListener)}
      *
      * @param expression the expression to resolve
      * @param allowNoDatafeeds if {@code false}, an error is thrown when no name matches the {@code expression}.
@@ -491,8 +491,8 @@ public class DatafeedConfigProvider {
         return boolQueryBuilder;
     }
 
-    static Collection<String> matchingDatafeedIdsWithTasks(String[] datafeedIdPatterns, PersistentTasksCustomMetaData tasksMetaData) {
-        Set<String> startedDatafeedIds = MlTasks.startedDatafeedIds(tasksMetaData);
+    static Collection<String> matchingDatafeedIdsWithTasks(String[] datafeedIdPatterns, PersistentTasksCustomMetadata tasksMetadata) {
+        Set<String> startedDatafeedIds = MlTasks.startedDatafeedIds(tasksMetadata);
         if (startedDatafeedIds.isEmpty()) {
             return Collections.emptyList()  ;
         }

@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.io.IOException;
@@ -47,9 +46,9 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
     protected long docCountError;
 
     protected InternalMappedTerms(String name, BucketOrder order, int requiredSize, long minDocCount,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData, DocValueFormat format, int shardSize,
+            Map<String, Object> metadata, DocValueFormat format, int shardSize,
             boolean showTermDocCountError, long otherDocCount, List<B> buckets, long docCountError) {
-        super(name, order, requiredSize, minDocCount, pipelineAggregators, metaData);
+        super(name, order, requiredSize, minDocCount, metadata);
         this.format = format;
         this.shardSize = shardSize;
         this.showTermDocCountError = showTermDocCountError;

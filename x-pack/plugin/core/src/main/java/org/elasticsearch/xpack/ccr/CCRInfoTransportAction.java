@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ccr;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -76,6 +77,11 @@ public class CCRInfoTransportAction extends XPackInfoFeatureTransportAction {
             } else {
                 lastFollowTimeInMillis = null;
             }
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_7_0_0;
         }
 
         public int getNumberOfFollowerIndices() {

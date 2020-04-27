@@ -24,11 +24,10 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
@@ -73,9 +72,7 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
             client().prepareIndex("others").setSource("rank", 4),
             client().prepareIndex("others").setSource("rank", 5));
 
-        assertAcked(client().admin().cluster().preparePutRepository("repository")
-                                              .setType("coutingmock")
-                                              .setSettings(Settings.builder().put("location", randomRepoPath())));
+        createRepository("repository", CountingMockRepositoryPlugin.TYPE, randomRepoPath());
 
         // Creating a snapshot does not load any metadata
         CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("repository", "snap")
@@ -185,20 +182,20 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         final Map<String, AtomicInteger> globalMetadata = new ConcurrentHashMap<>();
         final Map<String, AtomicInteger> indicesMetadata = new ConcurrentHashMap<>();
 
-        public CountingMockRepository(final RepositoryMetaData metadata,
+        public CountingMockRepository(final RepositoryMetadata metadata,
                                       final Environment environment,
                                       final NamedXContentRegistry namedXContentRegistry, ClusterService clusterService) {
             super(metadata, environment, namedXContentRegistry, clusterService);
         }
 
         @Override
-        public MetaData getSnapshotGlobalMetaData(SnapshotId snapshotId) {
+        public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
             globalMetadata.computeIfAbsent(snapshotId.getName(), (s) -> new AtomicInteger(0)).incrementAndGet();
-            return super.getSnapshotGlobalMetaData(snapshotId);
+            return super.getSnapshotGlobalMetadata(snapshotId);
         }
 
         @Override
-        public IndexMetaData getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId,
+        public IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId,
                                                       IndexId indexId) throws IOException {
             indicesMetadata.computeIfAbsent(key(snapshotId.getName(), indexId.getName()), (s) -> new AtomicInteger(0)).incrementAndGet();
             return super.getSnapshotIndexMetaData(PlainActionFuture.get(this::getRepositoryData), snapshotId, indexId);
@@ -207,10 +204,13 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
 
     /** A plugin that uses CountingMockRepository as implementation of the Repository **/
     public static class CountingMockRepositoryPlugin extends MockRepository.Plugin {
+
+        public static final String TYPE = "countingmock";
+
         @Override
         public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
                                                                ClusterService clusterService) {
-            return Collections.singletonMap("coutingmock",
+            return Collections.singletonMap(TYPE,
                 metadata -> new CountingMockRepository(metadata, env, namedXContentRegistry, clusterService));
         }
     }

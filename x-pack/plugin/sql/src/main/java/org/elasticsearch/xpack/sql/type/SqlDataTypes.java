@@ -255,6 +255,10 @@ public class SqlDataTypes {
         return isDateBased(type) || isTimeBased(type);
     }
 
+    public static boolean isDateOrIntervalBased(DataType type) {
+        return isDateBased(type) || isInterval(type);
+    }
+
     public static boolean isGeo(DataType type) {
         return type == GEO_POINT || type == GEO_SHAPE || type == SHAPE;
     }
@@ -262,7 +266,6 @@ public class SqlDataTypes {
     public static String format(DataType type) {
         return isDateOrTimeBased(type) ? "epoch_millis" : null;
     }
-    
 
     public static boolean isFromDocValuesOnly(DataType dataType) {
         return dataType == KEYWORD // because of ignore_above. Extracting this from _source wouldn't make sense
@@ -271,7 +274,6 @@ public class SqlDataTypes {
                 || dataType == SCALED_FLOAT // because of scaling_factor
                 || dataType == CONSTANT_KEYWORD
                 || dataType == GEO_POINT
-                || dataType == GEO_SHAPE
                 || dataType == SHAPE;
     }
 
@@ -651,6 +653,12 @@ public class SqlDataTypes {
         if (t == DATETIME) {
             // ODBC SQL_CODE_TIMESTAMP
             return Integer.valueOf(3);
+        } else if (t == DATE) {
+            // ODBC SQL_CODE_DATE
+            return Integer.valueOf(1);
+        } else if (t == TIME) {
+            // ODBC SQL_CODE_TIME
+            return Integer.valueOf(2);
         }
         // ODBC null
         return 0;
@@ -673,7 +681,7 @@ public class SqlDataTypes {
         if (t.isInteger()) {
             return Short.valueOf((short) 0);
         }
-        if (isDateBased(t) || t.isRational()) {
+        if (t == DATETIME || t == TIME || t.isRational()) {
             return Short.valueOf((short) defaultPrecision(t));
         }
         return null;

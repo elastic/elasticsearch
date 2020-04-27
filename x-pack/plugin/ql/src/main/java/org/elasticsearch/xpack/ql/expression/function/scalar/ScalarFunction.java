@@ -123,7 +123,7 @@ public abstract class ScalarFunction extends Function {
     }
 
     protected ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript("doc[{}].value"),
+        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
                 paramsBuilder().variable(field.name()).build(),
                 dataType());
     }

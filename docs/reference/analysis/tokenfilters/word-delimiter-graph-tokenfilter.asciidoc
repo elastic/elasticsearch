@@ -429,7 +429,7 @@ PUT /my_index
 [[analysis-word-delimiter-graph-differences]]
 ==== Differences between `word_delimiter_graph` and `word_delimiter` 
 
-Both the  `word_delimiter_graph` and
+Both the `word_delimiter_graph` and
 <<analysis-word-delimiter-tokenfilter,`word_delimiter`>> filters produce tokens
 that span multiple positions when any of the following parameters are `true`:
 

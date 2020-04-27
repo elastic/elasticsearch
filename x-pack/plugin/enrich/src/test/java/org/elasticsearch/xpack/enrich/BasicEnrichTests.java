@@ -19,6 +19,7 @@ import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.geo.GeoPlugin;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -50,7 +52,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(LocalStateEnrich.class, ReindexPlugin.class, IngestCommonPlugin.class, MustachePlugin.class);
+        return Arrays.asList(LocalStateEnrich.class, ReindexPlugin.class, IngestCommonPlugin.class, MustachePlugin.class, GeoPlugin.class);
     }
 
     @Override

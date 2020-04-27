@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -304,12 +304,12 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         putDatafeedConfig(createDatafeedConfig("foo-2", "j2"), Collections.emptyMap());
         client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
 
-        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
         tasksBuilder.addTask(MlTasks.datafeedTaskId("foo-1"),
             MlTasks.DATAFEED_TASK_NAME, new StartDatafeedAction.DatafeedParams("foo-1", 0L),
-            new PersistentTasksCustomMetaData.Assignment("node-1", "test assignment"));
+            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment"));
 
-        PersistentTasksCustomMetaData tasks = tasksBuilder.build();
+        PersistentTasksCustomMetadata tasks = tasksBuilder.build();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         AtomicReference<SortedSet<String>> datafeedIdsHolder = new AtomicReference<>();
         // Test datafeed IDs only

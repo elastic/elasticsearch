@@ -1,7 +1,8 @@
 {
   "ml.stop_datafeed":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-stop-datafeed.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-stop-datafeed.html",
+      "description":"Stops one or more datafeeds."
     },
     "stability":"stable",
     "url":{

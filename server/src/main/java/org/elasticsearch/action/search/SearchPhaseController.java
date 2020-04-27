@@ -22,6 +22,8 @@ package org.elasticsearch.action.search;
 import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.FieldDoc;
@@ -35,6 +37,8 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.elasticsearch.common.collect.HppcMaps;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -67,15 +71,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public final class SearchPhaseController {
+    private static final Logger logger = LogManager.getLogger(SearchPhaseController.class);
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
+    private final NamedWriteableRegistry namedWriteableRegistry;
     private final Function<SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
 
-    public SearchPhaseController(
+    public SearchPhaseController(NamedWriteableRegistry namedWriteableRegistry,
             Function<SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder) {
+        this.namedWriteableRegistry = namedWriteableRegistry;
         this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
     }
 
@@ -429,7 +437,8 @@ public final class SearchPhaseController {
      * @see QuerySearchResult#consumeProfileResult()
      */
     private ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults,
-                                                List<InternalAggregations> bufferedAggs, List<TopDocs> bufferedTopDocs,
+                                                List<Supplier<InternalAggregations>> bufferedAggs,
+                                                List<TopDocs> bufferedTopDocs,
                                                 TopDocsStats topDocsStats, int numReducePhases, boolean isScrollRequest,
                                                 InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
                                                 boolean performFinalReduce) {
@@ -453,7 +462,7 @@ public final class SearchPhaseController {
         final boolean hasSuggest = firstResult.suggest() != null;
         final boolean hasProfileResults = firstResult.hasProfileResults();
         final boolean consumeAggs;
-        final List<InternalAggregations> aggregationsList;
+        final List<Supplier<InternalAggregations>> aggregationsList;
         if (bufferedAggs != null) {
             consumeAggs = false;
             // we already have results from intermediate reduces and just need to perform the final reduce
@@ -492,7 +501,7 @@ public final class SearchPhaseController {
                 }
             }
             if (consumeAggs) {
-                aggregationsList.add((InternalAggregations) result.consumeAggs());
+                aggregationsList.add(result.consumeAggs());
             }
             if (hasProfileResults) {
                 String key = result.getSearchShardTarget().toString();
@@ -508,8 +517,7 @@ public final class SearchPhaseController {
             reducedSuggest = new Suggest(Suggest.reduce(groupedSuggestions));
             reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
         }
-        final InternalAggregations aggregations = aggregationsList.isEmpty() ? null : InternalAggregations.topLevelReduce(aggregationsList,
-                    performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction());
+        final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, aggregationsList);
         final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
         final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, queryResults, bufferedTopDocs, topDocsStats, from, size,
             reducedCompletionSuggestions);
@@ -517,6 +525,24 @@ public final class SearchPhaseController {
         return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.getMaxScore(),
             topDocsStats.timedOut, topDocsStats.terminatedEarly, reducedSuggest, aggregations, shardResults, sortedTopDocs,
             firstResult.sortValueFormats(), numReducePhases, size, from, false);
+    }
+
+    private InternalAggregations reduceAggs(
+        InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
+        boolean performFinalReduce,
+        List<? extends Supplier<InternalAggregations>> aggregationsList
+    ) {
+        /*
+         * Parse the aggregations, clearing the list as we go so bits backing
+         * the DelayedWriteable can be collected immediately.
+         */
+        List<InternalAggregations> toReduce = new ArrayList<>(aggregationsList.size());
+        for (int i = 0; i < aggregationsList.size(); i++) {
+            toReduce.add(aggregationsList.get(i).get());
+            aggregationsList.set(i, null);
+        }
+        return aggregationsList.isEmpty() ? null : InternalAggregations.topLevelReduce(toReduce,
+            performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction());
     }
 
     /*
@@ -599,8 +625,9 @@ public final class SearchPhaseController {
      * iff the buffer is exhausted.
      */
     static final class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult> {
+        private final NamedWriteableRegistry namedWriteableRegistry;
         private final SearchShardTarget[] processedShards;
-        private final InternalAggregations[] aggsBuffer;
+        private final DelayableWriteable.Serialized<InternalAggregations>[] aggsBuffer;
         private final TopDocs[] topDocsBuffer;
         private final boolean hasAggs;
         private final boolean hasTopDocs;
@@ -613,6 +640,8 @@ public final class SearchPhaseController {
         private final int topNSize;
         private final InternalAggregation.ReduceContextBuilder aggReduceContextBuilder;
         private final boolean performFinalReduce;
+        private long aggsCurrentBufferSize;
+        private long aggsMaxBufferSize;
 
         /**
          * Creates a new {@link QueryPhaseResultConsumer}
@@ -623,12 +652,14 @@ public final class SearchPhaseController {
          * @param bufferSize the size of the reduce buffer. if the buffer size is smaller than the number of expected results
          *                   the buffer is used to incrementally reduce aggregation results before all shards responded.
          */
-        private QueryPhaseResultConsumer(SearchProgressListener progressListener, SearchPhaseController controller,
+        private QueryPhaseResultConsumer(NamedWriteableRegistry namedWriteableRegistry, SearchProgressListener progressListener,
+                                         SearchPhaseController controller,
                                          int expectedResultSize, int bufferSize, boolean hasTopDocs, boolean hasAggs,
                                          int trackTotalHitsUpTo, int topNSize,
                                          InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
                                          boolean performFinalReduce) {
             super(expectedResultSize);
+            this.namedWriteableRegistry = namedWriteableRegistry;
             if (expectedResultSize != 1 && bufferSize < 2) {
                 throw new IllegalArgumentException("buffer size must be >= 2 if there is more than one expected result");
             }
@@ -642,7 +673,9 @@ public final class SearchPhaseController {
             this.progressListener = progressListener;
             this.processedShards = new SearchShardTarget[expectedResultSize];
             // no need to buffer anything if we have less expected results. in this case we don't consume any results ahead of time.
-            this.aggsBuffer = new InternalAggregations[hasAggs ? bufferSize : 0];
+            @SuppressWarnings("unchecked")
+            DelayableWriteable.Serialized<InternalAggregations>[] aggsBuffer = new DelayableWriteable.Serialized[hasAggs ? bufferSize : 0];
+            this.aggsBuffer = aggsBuffer;
             this.topDocsBuffer = new TopDocs[hasTopDocs ? bufferSize : 0];
             this.hasTopDocs = hasTopDocs;
             this.hasAggs = hasAggs;
@@ -664,11 +697,21 @@ public final class SearchPhaseController {
         private synchronized void consumeInternal(QuerySearchResult querySearchResult) {
             if (querySearchResult.isNull() == false) {
                 if (index == bufferSize) {
+                    InternalAggregations reducedAggs = null;
                     if (hasAggs) {
-                        ReduceContext reduceContext = aggReduceContextBuilder.forPartialReduction();
-                        InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(Arrays.asList(aggsBuffer), reduceContext);
-                        Arrays.fill(aggsBuffer, null);
-                        aggsBuffer[0] = reducedAggs;
+                        List<InternalAggregations> aggs = new ArrayList<>(aggsBuffer.length);
+                        for (int i = 0; i < aggsBuffer.length; i++) {
+                            aggs.add(aggsBuffer[i].get());
+                            aggsBuffer[i] = null; // null the buffer so it can be GCed now.
+                        }
+                        reducedAggs = InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forPartialReduction());
+                        aggsBuffer[0] = DelayableWriteable.referencing(reducedAggs)
+                                .asSerialized(InternalAggregations::new, namedWriteableRegistry);
+                        long previousBufferSize = aggsCurrentBufferSize;
+                        aggsMaxBufferSize = Math.max(aggsMaxBufferSize, aggsCurrentBufferSize);
+                        aggsCurrentBufferSize = aggsBuffer[0].ramBytesUsed();
+                        logger.trace("aggs partial reduction [{}->{}] max [{}]",
+                                previousBufferSize, aggsCurrentBufferSize, aggsMaxBufferSize);
                     }
                     if (hasTopDocs) {
                         TopDocs reducedTopDocs = mergeTopDocs(Arrays.asList(topDocsBuffer),
@@ -681,12 +724,13 @@ public final class SearchPhaseController {
                     index = 1;
                     if (hasAggs || hasTopDocs) {
                         progressListener.notifyPartialReduce(SearchProgressListener.buildSearchShards(processedShards),
-                            topDocsStats.getTotalHits(), hasAggs ? aggsBuffer[0] : null, numReducePhases);
+                            topDocsStats.getTotalHits(), reducedAggs, numReducePhases);
                     }
                 }
                 final int i = index++;
                 if (hasAggs) {
-                    aggsBuffer[i] = (InternalAggregations) querySearchResult.consumeAggs();
+                    aggsBuffer[i] = querySearchResult.consumeAggs().asSerialized(InternalAggregations::new, namedWriteableRegistry);
+                    aggsCurrentBufferSize += aggsBuffer[i].ramBytesUsed();
                 }
                 if (hasTopDocs) {
                     final TopDocsAndMaxScore topDocs = querySearchResult.consumeTopDocs(); // can't be null
@@ -698,8 +742,8 @@ public final class SearchPhaseController {
             processedShards[querySearchResult.getShardIndex()] = querySearchResult.getSearchShardTarget();
         }
 
-        private synchronized List<InternalAggregations> getRemainingAggs() {
-            return hasAggs ? Arrays.asList(aggsBuffer).subList(0, index) : null;
+        private synchronized List<Supplier<InternalAggregations>> getRemainingAggs() {
+            return hasAggs ? Arrays.asList((Supplier<InternalAggregations>[]) aggsBuffer).subList(0, index) : null;
         }
 
         private synchronized List<TopDocs> getRemainingTopDocs() {
@@ -708,6 +752,8 @@ public final class SearchPhaseController {
 
         @Override
         public ReducedQueryPhase reduce() {
+            aggsMaxBufferSize = Math.max(aggsMaxBufferSize, aggsCurrentBufferSize);
+            logger.trace("aggs final reduction [{}] max [{}]", aggsCurrentBufferSize, aggsMaxBufferSize);
             ReducedQueryPhase reducePhase = controller.reducedQueryPhase(results.asList(), getRemainingAggs(), getRemainingTopDocs(),
                     topDocsStats, numReducePhases, false, aggReduceContextBuilder, performFinalReduce);
             progressListener.notifyFinalReduce(SearchProgressListener.buildSearchShards(results.asList()),
@@ -742,8 +788,8 @@ public final class SearchPhaseController {
             if (request.getBatchedReduceSize() < numShards) {
                 int topNSize = getTopDocsSize(request);
                 // only use this if there are aggs and if there are more shards than we should reduce at once
-                return new QueryPhaseResultConsumer(listener, this, numShards, request.getBatchedReduceSize(), hasTopDocs, hasAggs,
-                    trackTotalHitsUpTo, topNSize, aggReduceContextBuilder, request.isFinalReduce());
+                return new QueryPhaseResultConsumer(namedWriteableRegistry, listener, this, numShards, request.getBatchedReduceSize(),
+                    hasTopDocs, hasAggs, trackTotalHitsUpTo, topNSize, aggReduceContextBuilder, request.isFinalReduce());
             }
         }
         return new ArraySearchPhaseResults<SearchPhaseResult>(numShards) {

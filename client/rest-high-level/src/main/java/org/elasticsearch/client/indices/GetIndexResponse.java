@@ -20,8 +20,8 @@
 package org.elasticsearch.client.indices;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -43,15 +43,15 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class GetIndexResponse {
 
-    private Map<String, MappingMetaData> mappings;
-    private Map<String, List<AliasMetaData>> aliases;
+    private Map<String, MappingMetadata> mappings;
+    private Map<String, List<AliasMetadata>> aliases;
     private Map<String, Settings> settings;
     private Map<String, Settings> defaultSettings;
     private String[] indices;
 
     GetIndexResponse(String[] indices,
-                     Map<String, MappingMetaData> mappings,
-                     Map<String, List<AliasMetaData>> aliases,
+                     Map<String, MappingMetadata> mappings,
+                     Map<String, List<AliasMetadata>> aliases,
                      Map<String, Settings> settings,
                      Map<String, Settings> defaultSettings) {
         this.indices = indices;
@@ -75,11 +75,11 @@ public class GetIndexResponse {
         return indices;
     }
 
-    public Map<String, MappingMetaData> getMappings() {
+    public Map<String, MappingMetadata> getMappings() {
         return mappings;
     }
 
-    public Map<String, List<AliasMetaData>> getAliases() {
+    public Map<String, List<AliasMetadata>> getAliases() {
         return aliases;
     }
 
@@ -123,23 +123,23 @@ public class GetIndexResponse {
         }
     }
 
-    private static List<AliasMetaData> parseAliases(XContentParser parser) throws IOException {
-        List<AliasMetaData> indexAliases = new ArrayList<>();
+    private static List<AliasMetadata> parseAliases(XContentParser parser) throws IOException {
+        List<AliasMetadata> indexAliases = new ArrayList<>();
         // We start at START_OBJECT since parseIndexEntry ensures that
         while (parser.nextToken() != Token.END_OBJECT) {
             ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
-            indexAliases.add(AliasMetaData.Builder.fromXContent(parser));
+            indexAliases.add(AliasMetadata.Builder.fromXContent(parser));
         }
         return indexAliases;
     }
 
-    private static MappingMetaData parseMappings(XContentParser parser) throws IOException {
-        return new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, parser.map());
+    private static MappingMetadata parseMappings(XContentParser parser) throws IOException {
+        return new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, parser.map());
     }
 
     private static IndexEntry parseIndexEntry(XContentParser parser) throws IOException {
-        List<AliasMetaData> indexAliases = null;
-        MappingMetaData indexMappings = null;
+        List<AliasMetadata> indexAliases = null;
+        MappingMetadata indexMappings = null;
         Settings indexSettings = null;
         Settings indexDefaultSettings = null;
         // We start at START_OBJECT since fromXContent ensures that
@@ -172,11 +172,11 @@ public class GetIndexResponse {
 
     // This is just an internal container to make stuff easier for returning
     private static class IndexEntry {
-        List<AliasMetaData> indexAliases = new ArrayList<>();
-        MappingMetaData indexMappings;
+        List<AliasMetadata> indexAliases = new ArrayList<>();
+        MappingMetadata indexMappings;
         Settings indexSettings = Settings.EMPTY;
         Settings indexDefaultSettings = Settings.EMPTY;
-        IndexEntry(List<AliasMetaData> indexAliases, MappingMetaData indexMappings, Settings indexSettings, Settings indexDefaultSettings) {
+        IndexEntry(List<AliasMetadata> indexAliases, MappingMetadata indexMappings, Settings indexSettings, Settings indexDefaultSettings) {
             if (indexAliases != null) this.indexAliases = indexAliases;
             if (indexMappings != null) this.indexMappings = indexMappings;
             if (indexSettings != null) this.indexSettings = indexSettings;
@@ -185,8 +185,8 @@ public class GetIndexResponse {
     }
 
     public static GetIndexResponse fromXContent(XContentParser parser) throws IOException {
-        Map<String, List<AliasMetaData>> aliases = new HashMap<>();
-        Map<String, MappingMetaData> mappings = new HashMap<>();
+        Map<String, List<AliasMetadata>> aliases = new HashMap<>();
+        Map<String, MappingMetadata> mappings = new HashMap<>();
         Map<String, Settings> settings = new HashMap<>();
         Map<String, Settings> defaultSettings = new HashMap<>();
         List<String> indices = new ArrayList<>();
@@ -204,7 +204,7 @@ public class GetIndexResponse {
                 indices.add(indexName);
                 IndexEntry indexEntry = parseIndexEntry(parser);
                 // make the order deterministic
-                CollectionUtil.timSort(indexEntry.indexAliases, Comparator.comparing(AliasMetaData::alias));
+                CollectionUtil.timSort(indexEntry.indexAliases, Comparator.comparing(AliasMetadata::alias));
                 aliases.put(indexName, Collections.unmodifiableList(indexEntry.indexAliases));
                 mappings.put(indexName, indexEntry.indexMappings);
                 settings.put(indexName, indexEntry.indexSettings);

@@ -55,7 +55,6 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBuc
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
@@ -283,14 +282,14 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
 
     public void testSortByGeoDistancDescending() throws IOException {
         TopMetricsAggregationBuilder builder = simpleBuilder(new GeoDistanceSortBuilder("s", 35.7796, 78.6382).order(SortOrder.DESC));
-        InternalTopMetrics result = collectFromNewYorkAndLA(builder); 
+        InternalTopMetrics result = collectFromNewYorkAndLA(builder);
         assertThat(result.getSortOrder(), equalTo(SortOrder.DESC));
         assertThat(result.getTopMetrics(), equalTo(singletonList(top(1.2054632268631617E7, 3.0))));
     }
 
     public void testSortByGeoDistanceAscending() throws IOException {
         TopMetricsAggregationBuilder builder = simpleBuilder(new GeoDistanceSortBuilder("s", 35.7796, 78.6382).order(SortOrder.ASC));
-        InternalTopMetrics result = collectFromNewYorkAndLA(builder); 
+        InternalTopMetrics result = collectFromNewYorkAndLA(builder);
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
         assertThat(result.getTopMetrics(), equalTo(singletonList(top(1.1062351376961706E7, 2.0))));
     }
@@ -305,7 +304,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
 
     public void testInsideTerms() throws IOException {
         TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
-        TermsAggregationBuilder terms = new TermsAggregationBuilder("terms", ValueType.DOUBLE).field("c").subAggregation(builder);
+        TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").field("c").subAggregation(builder);
         Terms result = (Terms) collect(terms, new MatchAllDocsQuery(), writer -> {
                     writer.addDocument(Arrays.asList(doubleField("c", 1.0), doubleField("s", 1.0), doubleField("m", 2.0)));
                     writer.addDocument(Arrays.asList(doubleField("c", 1.0), doubleField("s", 2.0), doubleField("m", 3.0)));

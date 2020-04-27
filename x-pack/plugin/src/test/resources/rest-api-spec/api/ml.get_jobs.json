@@ -1,7 +1,8 @@
 {
   "ml.get_jobs":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job.html",
+      "description":"Retrieves configuration information for anomaly detection jobs."
     },
     "stability":"stable",
     "url":{

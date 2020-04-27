@@ -238,7 +238,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
                 iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo"))));
             }, range -> fail("Should have thrown exception"), fieldType));
-        assertEquals(e.getMessage(), "Expected numeric type on field [not_a_number], but got [keyword]");
+        assertEquals("Field [not_a_number] of type [keyword(indexed,tokenized)] is not supported for aggregation [range]", e.getMessage());
     }
 
     public void testBadMissingField() {

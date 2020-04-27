@@ -45,7 +45,7 @@
  *     <li>
  *          {@link org.elasticsearch.xpack.ilm.IndexLifecycleRunner#maybeRunAsyncAction(
  *                      org.elasticsearch.cluster.ClusterState,
- *                      org.elasticsearch.cluster.metadata.IndexMetaData,
+ *                      org.elasticsearch.cluster.metadata.IndexMetadata,
  *                      java.lang.String, org.elasticsearch.xpack.core.ilm.Step.StepKey
  *                  )}
  *          handles the execution of the async steps {@link org.elasticsearch.xpack.core.ilm.AsyncActionStep}.
@@ -53,7 +53,7 @@
  *     <li>
  *         {@link org.elasticsearch.xpack.ilm.IndexLifecycleRunner#runPolicyAfterStateChange(
  *                      java.lang.String,
- *                      org.elasticsearch.cluster.metadata.IndexMetaData
+ *                      org.elasticsearch.cluster.metadata.IndexMetadata
  *                  )}
  *         handles the execution of steps that wait or need to react to cluster state changes, like
  *         {@link org.elasticsearch.xpack.core.ilm.ClusterStateActionStep} and {@link org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep}
@@ -61,7 +61,7 @@
  *     <li>
  *        {@link org.elasticsearch.xpack.ilm.IndexLifecycleRunner#runPeriodicStep(
  *                      java.lang.String,
- *                      org.elasticsearch.cluster.metadata.IndexMetaData
+ *                      org.elasticsearch.cluster.metadata.IndexMetadata
  *                 )}
  *        handles the execution of async {@link org.elasticsearch.xpack.core.ilm.AsyncWaitStep}
  *     </li>

@@ -27,7 +27,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
@@ -814,7 +814,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
 
     public void testSpecialVersioning() {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        createIndex("test", Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build());
+        createIndex("test", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
         IndexResponse doc1 = client().prepareIndex("test").setId("1").setSource("field", "value1")
             .setVersion(0).setVersionType(VersionType.EXTERNAL).execute().actionGet();
         assertThat(doc1.getVersion(), equalTo(0L));
@@ -830,7 +830,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         assertThat(doc4.getVersion(), equalTo(4L));
         // Make sure that these versions are replicated correctly
         client().admin().indices().prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)).get();
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)).get();
         ensureGreen("test");
     }
 }

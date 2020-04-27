@@ -65,7 +65,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         authcService = mock(AuthenticationService.class);
         authzService = mock(AuthorizationService.class);
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isStatsAndHealthAllowed()).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);
         threadContext = new ThreadContext(Settings.EMPTY);
@@ -250,7 +250,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         ActionListener listener = mock(ActionListener.class);
         ActionFilterChain chain = mock(ActionFilterChain.class);
         Task task = mock(Task.class);
-        when(licenseState.isAuthAllowed()).thenReturn(false);
+        when(licenseState.isSecurityEnabled()).thenReturn(false);
         filter.apply(task, "_action", request, listener, chain);
         verifyZeroInteractions(authcService);
         verifyZeroInteractions(authzService);

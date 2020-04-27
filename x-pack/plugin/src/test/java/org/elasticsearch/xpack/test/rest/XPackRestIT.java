@@ -13,7 +13,7 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.plugins.MetaDataUpgrader;
+import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -77,7 +78,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
     }
 
     /**
-     * Waits for Machine Learning and Transform templates to be created by the {@link MetaDataUpgrader}
+     * Waits for Machine Learning and Transform templates to be created by the {@link MetadataUpgrader}
      */
     private void waitForTemplates() throws Exception {
         if (installTemplates()) {
@@ -229,11 +230,14 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                               CheckedFunction<ClientYamlTestResponse, Boolean, IOException> success,
                               Supplier<String> error) {
         try {
-            // The actual method call that sends the API requests returns a Future, but we immediately
-            // call .get() on it so there's no need for this method to do any other awaiting.
-            ClientYamlTestResponse response = callApi(apiName, params, bodies, getApiCallHeaders());
-            assertEquals(response.getStatusCode(), HttpStatus.SC_OK);
-            success.apply(response);
+            final AtomicReference<ClientYamlTestResponse> response = new AtomicReference<>();
+            assertBusy(() -> {
+                // The actual method call that sends the API requests returns a Future, but we immediately
+                // call .get() on it so there's no need for this method to do any other awaiting.
+                response.set(callApi(apiName, params, bodies, getApiCallHeaders()));
+                assertEquals(HttpStatus.SC_OK, response.get().getStatusCode());
+            });
+            success.apply(response.get());
         } catch (Exception e) {
             throw new IllegalStateException(error.get(), e);
         }

@@ -22,6 +22,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.IDP_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.DEPRECATION_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
@@ -115,6 +116,7 @@ public final class AuthorizationUtils {
             case ROLLUP_ORIGIN:
             case INDEX_LIFECYCLE_ORIGIN:
             case ENRICH_ORIGIN:
+            case IDP_ORIGIN:
             case TASKS_ORIGIN:   // TODO use a more limited user for tasks
                 securityContext.executeAsUser(XPackUser.INSTANCE, consumer, Version.CURRENT);
                 break;

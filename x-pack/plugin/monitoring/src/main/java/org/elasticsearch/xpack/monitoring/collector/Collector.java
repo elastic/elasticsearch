@@ -115,7 +115,7 @@ public abstract class Collector {
      * @return the cluster's UUID
      */
     protected static String clusterUuid(final ClusterState clusterState) {
-        return clusterState.metaData().clusterUUID();
+        return clusterState.metadata().clusterUUID();
     }
 
     /**

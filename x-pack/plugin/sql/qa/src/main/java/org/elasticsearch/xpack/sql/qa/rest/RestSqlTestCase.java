@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.qa.rest;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -715,7 +716,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         @SuppressWarnings("unchecked")
         Map<String, Object> termsScript = (Map<String, Object>) terms.get("script");
         assertEquals(3, termsScript.size());
-        assertEquals("InternalSqlScriptUtils.abs(InternalSqlScriptUtils.docValue(doc,params.v0))", termsScript.get("source"));
+        assertEquals("InternalSqlScriptUtils.abs(InternalQlScriptUtils.docValue(doc,params.v0))", termsScript.get("source"));
         assertEquals("painless", termsScript.get("lang"));
 
         @SuppressWarnings("unchecked")
@@ -764,7 +765,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         @SuppressWarnings("unchecked")
         Map<String, Object> filterScript = (Map<String, Object>) bucketSelector.get("script");
         assertEquals(3, filterScript.size());
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a0,params.v0))",
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a0,params.v0))",
             filterScript.get("source"));
         assertEquals("painless", filterScript.get("lang"));
         @SuppressWarnings("unchecked")

@@ -256,7 +256,7 @@ public class ClusterChangedEvent {
         if (metadataChanged() == false || isNewCluster()) {
             return Collections.emptyList();
         }
-        List<Index> deleted = null;
+        Set<Index> deleted = null;
         final Metadata previousMetadata = previousState.metadata();
         final Metadata currentMetadata = state.metadata();
 
@@ -265,7 +265,7 @@ public class ClusterChangedEvent {
             IndexMetadata current = currentMetadata.index(index.getIndex());
             if (current == null) {
                 if (deleted == null) {
-                    deleted = new ArrayList<>();
+                    deleted = new HashSet<>();
                 }
                 deleted.add(index.getIndex());
             }
@@ -276,15 +276,17 @@ public class ClusterChangedEvent {
         // each node should make sure to delete any related data.
         for (IndexGraveyard.Tombstone tombstone : currentMetadata.indexGraveyard().getTombstones()) {
             final Index index = tombstone.getIndex();
-            if (previousMetadata.hasIndex(index.getName()) == false && previousMetadata.indexGraveyard().containsIndex(index) == false) {
+            final boolean isNewTombstone = previousMetadata.hasIndex(index.getName()) == false
+                && previousMetadata.indexGraveyard().containsIndex(index) == false;
+            if (isNewTombstone) {
                 if (deleted == null) {
-                    deleted = new ArrayList<>();
+                    deleted = new HashSet<>();
                 }
                 deleted.add(index);
             }
         }
 
-        return deleted == null ? Collections.<Index>emptyList() : deleted;
+        return deleted == null ? Collections.<Index>emptyList() : new ArrayList<>(deleted);
     }
 
     private List<Index> indicesDeletedFromTombstones() {

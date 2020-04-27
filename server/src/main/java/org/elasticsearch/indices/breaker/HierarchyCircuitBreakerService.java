@@ -25,11 +25,13 @@ import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.plugins.CircuitBreakerPlugin;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
@@ -93,6 +95,23 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     public static final Setting<CircuitBreaker.Type> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_TYPE_SETTING =
         new Setting<>("network.breaker.inflight_requests.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
 
+    public static final Setting.AffixSetting<ByteSizeValue> CUSTOM_CIRCUIT_BREAKER_LIMIT_SETTING =
+        Setting.affixKeySetting("custom.breaker.wq  `",
+            "limit",
+            name -> Setting.memorySizeSetting(name, "100%", Property.Dynamic, Property.NodeScope));
+    public static final Setting.AffixSetting<Double> CUSTOM_CIRCUIT_BREAKER_OVERHEAD_SETTING =
+        Setting.affixKeySetting("custom.breaker.",
+            "overhead",
+            name -> Setting.doubleSetting(name, 2.0d, 0.0d, Property.Dynamic, Property.NodeScope));
+    public static final Setting<CircuitBreaker.Type> CUSTOM_CIRCUIT_BREAKER_TYPE =
+        Setting.affixKeySetting("custom.breaker.",
+            "type",
+            name -> new Setting<>(name, "memory", CircuitBreaker.Type::parseValue, Property.NodeScope));
+    public static final Setting<CircuitBreaker.Durability> CUSTOM_CIRCUIT_BREAKER_DURABILITY =
+        Setting.affixKeySetting("custom.breaker.",
+            "durability",
+            name -> new Setting<>(name, "transient", CircuitBreaker.Durability::parseValue, Property.NodeScope));
+
     private final boolean trackRealMemoryUsage;
     private volatile BreakerSettings parentSettings;
     private volatile BreakerSettings fielddataSettings;
@@ -148,6 +167,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         registerBreaker(this.inFlightRequestsSettings);
         registerBreaker(this.accountingSettings);
 
+
+
         clusterSettings.addSettingsUpdateConsumer(TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING, this::setTotalCircuitBreakerLimit,
             this::validateTotalCircuitBreakerLimit);
         clusterSettings.addSettingsUpdateConsumer(FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING, FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,
@@ -158,6 +179,22 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             this::setRequestBreakerLimit);
         clusterSettings.addSettingsUpdateConsumer(ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING, ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING,
             this::setAccountingBreakerLimit);
+        clusterSettings.addAffixUpdateConsumer(CUSTOM_CIRCUIT_BREAKER_LIMIT_SETTING, CUSTOM_CIRCUIT_BREAKER_OVERHEAD_SETTING,
+            this::setCustomBreakerLimit,
+            (s, t) -> {});
+    }
+
+    private void setCustomBreakerLimit(String name, Tuple<ByteSizeValue, Double> updatedValues) {
+        CircuitBreaker oldBreaker = breakers.get(name);
+        if (oldBreaker != null) {
+            BreakerSettings newBreakerSettings = new BreakerSettings(name,
+                updatedValues.v1().getBytes(),
+                updatedValues.v2(),
+                oldBreaker.getType(),
+                oldBreaker.getDurability());
+            registerBreaker(newBreakerSettings);
+            logger.info("Updated breaker settings {}: {}", name, newBreakerSettings);
+        }
     }
 
     private void setRequestBreakerLimit(ByteSizeValue newRequestMax, Double newRequestOverhead) {

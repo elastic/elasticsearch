@@ -87,7 +87,17 @@ public interface CircuitBreaker {
         // The condition that tripped the circuit breaker fixes itself eventually.
         TRANSIENT,
         // The condition that tripped the circuit breaker requires manual intervention.
-        PERMANENT
+        PERMANENT;
+        public static Durability parseValue(String value) {
+            switch(value.toLowerCase(Locale.ROOT)) {
+                case "transient":
+                    return TRANSIENT;
+                case "permanent":
+                    return PERMANENT;
+                default:
+                    throw new IllegalArgumentException("Unrecognized circuit breaker durability: " + value);
+            }
+        }
     }
 
     /**
@@ -139,4 +149,9 @@ public interface CircuitBreaker {
      * @return whether a tripped circuit breaker will reset itself (transient) or requires manual intervention (permanent).
      */
     Durability getDurability();
+
+    /**
+     * @return the type of the circuit breaker instance.
+     */
+    CircuitBreaker.Type getType();
 }

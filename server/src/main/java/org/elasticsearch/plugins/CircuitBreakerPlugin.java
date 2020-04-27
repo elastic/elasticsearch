@@ -30,7 +30,13 @@ import java.util.function.Consumer;
 /**
  * An extension point for {@link Plugin} implementations to add custom circuit breakers
  */
-public interface CircuitMemoryBreakerPlugin {
+public interface CircuitBreakerPlugin {
+
+    static final String CUSTOM_CIRCUIT_BREAKER_SETTING_PREFIX = "custom.breaker";
+    static final String LIMIT = "limit";
+    static final String OVERHEAD = "overhead";
+    static final String TYPE = "type";
+
 
     /**
      * Returns additional circuit breaker settings added by this plugin.

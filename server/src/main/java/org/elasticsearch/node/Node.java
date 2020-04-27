@@ -123,7 +123,7 @@ import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
-import org.elasticsearch.plugins.CircuitMemoryBreakerPlugin;
+import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -387,9 +387,9 @@ public class Node implements Closeable {
             SearchModule searchModule = new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class));
             CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
                 settingsModule.getClusterSettings());
-            pluginsService.filterPlugins(CircuitMemoryBreakerPlugin.class).forEach(circuitMemoryBreakerPlugin -> {
-                circuitMemoryBreakerPlugin.getCircuitBreakers().forEach(circuitBreakerService::registerBreaker);
-                circuitMemoryBreakerPlugin.addDynamicBreakerUpdates(settingsModule.getClusterSettings(),
+            pluginsService.filterPlugins(CircuitBreakerPlugin.class).forEach(circuitBreakerPlugin -> {
+                circuitBreakerPlugin.getCircuitBreakers().forEach(circuitBreakerService::registerBreaker);
+                circuitBreakerPlugin.addDynamicBreakerUpdates(settingsModule.getClusterSettings(),
                     circuitBreakerService::registerBreaker);
             });
             resourcesToClose.add(circuitBreakerService);

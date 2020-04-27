@@ -76,4 +76,9 @@ public class NoopCircuitBreaker implements CircuitBreaker {
     public Durability getDurability() {
         return Durability.PERMANENT;
     }
+
+    @Override
+    public Type getType() {
+        return Type.NOOP;
+    }
 }

@@ -242,4 +242,9 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     public Durability getDurability() {
         return this.durability;
     }
+
+    @Override
+    public Type getType() {
+        return Type.MEMORY;
+    }
 }

@@ -1088,9 +1088,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 if (runningSnapshot == null) {
-                    repositoriesService.repository(repositoryName).executeConsistentStateUpdate(repositoryData ->
-                            createDeleteStateUpdate(matchingSnapshotIds(repositoryData, snapshotNames, repositoryName), repositoryName,
-                                    repositoryData.getGenId(), Priority.NORMAL, listener), listener::onFailure);
+                    try {
+                        repositoriesService.repository(repositoryName).executeConsistentStateUpdate(repositoryData ->
+                                createDeleteStateUpdate(matchingSnapshotIds(repositoryData, snapshotNames, repositoryName), repositoryName,
+                                        repositoryData.getGenId(), Priority.NORMAL, listener), listener::onFailure);
+                    } catch (RepositoryMissingException e) {
+                        listener.onFailure(e);
+                    }
                     return;
                 }
                 logger.trace("adding snapshot completion listener to wait for deleted snapshot to finish");

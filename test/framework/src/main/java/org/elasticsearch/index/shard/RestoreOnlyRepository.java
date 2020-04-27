@@ -159,5 +159,6 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     @Override
     public void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
                                              Consumer<Exception> onFailure) {
+        throw new UnsupportedOperationException("Unsupported for restore-only repository");
     }
 }

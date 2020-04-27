@@ -173,13 +173,7 @@ public class TestingConventionsTasks extends DefaultTask {
             ).getAsFileTree();
 
             final Map<String, Set<File>> classFilesPerTask = getClassFilesPerEnabledTask();
-
-            final Map<String, Set<Class<?>>> x = classFilesPerTask.entrySet()
-                .stream()
-                .collect(
-                    Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().stream().map(classes::get).collect(Collectors.toSet()))
-                );
-
+            
             final Map<String, Set<Class<?>>> testClassesPerTask = classFilesPerTask.entrySet()
                 .stream()
                 .collect(

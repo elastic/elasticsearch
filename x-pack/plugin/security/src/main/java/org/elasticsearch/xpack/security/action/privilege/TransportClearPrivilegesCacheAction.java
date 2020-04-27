@@ -71,10 +71,10 @@ public class TransportClearPrivilegesCacheAction
 
     @Override
     protected ClearPrivilegesCacheResponse.Node nodeOperation(ClearPrivilegesCacheRequest.Node request, Task task) {
-        if (request.getNames() == null || request.getNames().length == 0) {
+        if (request.getApplicationNames() == null || request.getApplicationNames().length == 0) {
             privilegesStore.invalidateAll();
         } else {
-            privilegesStore.invalidate(Arrays.asList(request.getNames()));
+            privilegesStore.invalidate(Arrays.asList(request.getApplicationNames()));
         }
         rolesStore.invalidateAll();
         return new ClearPrivilegesCacheResponse.Node(clusterService.localNode());

@@ -40,7 +40,7 @@ public class RestClearPrivilegesAction extends SamlBaseRestHandler {
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         String[] applicationNames = request.paramAsStringArrayOrEmptyIfAll("application");
-        final ClearPrivilegesCacheRequest req = new ClearPrivilegesCacheRequest().names(applicationNames);
+        final ClearPrivilegesCacheRequest req = new ClearPrivilegesCacheRequest().applicationNames(applicationNames);
         return channel -> client.execute(ClearPrivilegesCacheAction.INSTANCE, req, new NodesResponseRestListener<>(channel));
     }
 

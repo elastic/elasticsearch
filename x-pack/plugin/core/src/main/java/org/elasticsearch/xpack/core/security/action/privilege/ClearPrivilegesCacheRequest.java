@@ -26,12 +26,12 @@ public class ClearPrivilegesCacheRequest extends BaseNodesRequest<ClearPrivilege
         applicationNames = in.readOptionalStringArray();
     }
 
-    public ClearPrivilegesCacheRequest names(String... applicationNames) {
+    public ClearPrivilegesCacheRequest applicationNames(String... applicationNames) {
         this.applicationNames = applicationNames;
         return this;
     }
 
-    public String[] names() {
+    public String[] applicationNames() {
         return applicationNames;
     }
 
@@ -42,25 +42,25 @@ public class ClearPrivilegesCacheRequest extends BaseNodesRequest<ClearPrivilege
     }
 
     public static class Node extends TransportRequest {
-        private String[] names;
+        private String[] applicationNames;
 
         public Node(StreamInput in) throws IOException {
             super(in);
-            names = in.readOptionalStringArray();
+            applicationNames = in.readOptionalStringArray();
         }
 
         public Node(ClearPrivilegesCacheRequest request) {
-            this.names = request.names();
+            this.applicationNames = request.applicationNames();
         }
 
-        public String[] getNames() {
-            return names;
+        public String[] getApplicationNames() {
+            return applicationNames;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalStringArray(names);
+            out.writeOptionalStringArray(applicationNames);
         }
     }
 }

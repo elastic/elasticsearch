@@ -226,6 +226,7 @@ public class NativePrivilegeStore {
                         new ParameterizedMessage("Searching for [{}] privileges with query [{}]",
                             applications, Strings.toString(query)));
                     request.indicesOptions().ignoreUnavailable();
+                    // TODO: not parsing source of cached entries?
                     ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener),
                         hit -> buildPrivilege(hit.getId(), hit.getSourceRef()));
                 }
@@ -238,7 +239,8 @@ public class NativePrivilegeStore {
         numInvalidation.incrementAndGet();
         // Always completely invalidate application names cache due to wildcard
         applicationNamesCache.invalidateAll();
-        descriptorsCacheHelper.removeKeysIf(updatedApplicationNames::contains);
+        final Set<String> uniqueNames = Set.copyOf(updatedApplicationNames);
+        descriptorsCacheHelper.removeKeysIf(uniqueNames::contains);
     }
 
     public void invalidateAll() {
@@ -378,7 +380,7 @@ public class NativePrivilegeStore {
                         .map(NativePrivilegeStore::nameFromDocId)
                         .collect(TUPLES_TO_MAP);
                     clearCaches(listener,
-                        privileges.stream().map(ApplicationPrivilegeDescriptor::getApplication).collect(Collectors.toList()),
+                        privileges.stream().map(ApplicationPrivilegeDescriptor::getApplication).collect(Collectors.toUnmodifiableSet()),
                         createdNames);
                 }, listener::onFailure), privileges.size());
             for (ApplicationPrivilegeDescriptor privilege : privileges) {
@@ -419,7 +421,7 @@ public class NativePrivilegeStore {
                             .map(r -> r.getId())
                             .map(NativePrivilegeStore::nameFromDocId)
                             .collect(TUPLES_TO_MAP);
-                        clearCaches(listener, Collections.singletonList(application), deletedNames);
+                        clearCaches(listener, Collections.singleton(application), deletedNames);
                     }, listener::onFailure), names.size());
                 for (String name : names) {
                     ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
@@ -431,9 +433,9 @@ public class NativePrivilegeStore {
         }
     }
 
-    private <T> void clearCaches(ActionListener<T> listener, List<String> applicationNames, T value) {
+    private <T> void clearCaches(ActionListener<T> listener, Set<String> applicationNames, T value) {
         // This currently clears _all_ roles, but could be improved to clear only those roles that reference the affected application
-        final ClearPrivilegesCacheRequest request = new ClearPrivilegesCacheRequest().names(applicationNames.toArray(String[]::new));
+        final ClearPrivilegesCacheRequest request = new ClearPrivilegesCacheRequest().applicationNames(applicationNames.toArray(String[]::new));
         executeAsyncWithOrigin(client, SECURITY_ORIGIN, ClearPrivilegesCacheAction.INSTANCE, request,
             new ActionListener<>() {
                 @Override

@@ -83,10 +83,12 @@ import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames
 public class NativePrivilegeStore {
 
     private static final Setting<Integer> DESCRIPTOR_CACHE_SIZE_SETTING =
-        Setting.intSetting("xpack.security.authz.store.privileges.cache.max_size", 10_000, Setting.Property.NodeScope);
+        Setting.intSetting("xpack.security.authz.store.privileges.cache.max_size",
+            10_000, Setting.Property.NodeScope);
 
     private static final Setting<Integer> APPLICATION_NAME_CACHE_SIZE_SETTING =
-        Setting.intSetting("xpack.security.authz.store.privileges.application_name.cache.max_size", 10_000, Setting.Property.NodeScope);
+        Setting.intSetting("xpack.security.authz.store.privileges.application_name.cache.max_size",
+            10_000, Setting.Property.NodeScope);
 
     private static final Collector<Tuple<String, String>, ?, Map<String, List<String>>> TUPLES_TO_MAP = Collectors.toMap(
         Tuple::v1,
@@ -135,25 +137,35 @@ public class NativePrivilegeStore {
 
         // Always fetch for the concrete application names even when the passed in application names do not
         // contain any wildcard. This serves as a negative lookup.
-        final Set<String> concreteApplicationNames = applicationNamesCache.get(applicationNamesCacheKey);
+        Set<String> concreteApplicationNames = applicationNamesCache.get(applicationNamesCacheKey);
 
         if (concreteApplicationNames != null && concreteApplicationNames.size() == 0) {
             listener.onResponse(Collections.emptySet());
 
-        } else if (concreteApplicationNames != null) {
-            final Tuple<Set<String>, Map<String, Set<ApplicationPrivilegeDescriptor>>> cacheStatus =
-                cacheStatusForApplicationNames(concreteApplicationNames);
+        } else {
+            final Tuple<Set<String>, Map<String, Set<ApplicationPrivilegeDescriptor>>> cacheStatus;
+            if (concreteApplicationNames == null) {
+                cacheStatus = cacheStatusForApplicationNames(applicationNamesCacheKey);
+            } else {
+                cacheStatus = cacheStatusForApplicationNames(concreteApplicationNames);
+            }
+
             if (cacheStatus.v1().size() == 0) {
                 // everything is found in cache
                 final Set<ApplicationPrivilegeDescriptor> cachedDescriptors =
                     cacheStatus.v2().values().stream().flatMap(Collection::stream).collect(Collectors.toUnmodifiableSet());
                 listener.onResponse(filterDescriptorsForNames(cachedDescriptors, names));
             } else {
-                // Some of the applications is not cached, need retrieval. Always fetch all privileges for an application
+                // Always fetch all privileges of an application for caching purpose
                 getPrivilegesWithoutCaching(cacheStatus.v1(), Collections.emptySet(), ActionListener.wrap(fetchedDescriptors -> {
-                    final Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors =
-                        fetchedDescriptors.stream().collect(
-                            Collectors.groupingBy(ApplicationPrivilegeDescriptor::getApplication, Collectors.toUnmodifiableSet()));
+                    final Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors = fetchedDescriptors.stream()
+                        .collect(Collectors.groupingBy(ApplicationPrivilegeDescriptor::getApplication, Collectors.toUnmodifiableSet()));
+                    try (ReleasableLock ignored = applicationNamesCacheHelper.acquireUpdateLock()) {
+                        final Set<String> allApplicationNames =
+                            Stream.concat(cacheStatus.v2().keySet().stream(), mapOfFetchedDescriptors.keySet().stream())
+                                .collect(Collectors.toUnmodifiableSet());
+                        applicationNamesCache.computeIfAbsent(applicationNamesCacheKey, (k) -> allApplicationNames);
+                    }
                     try (ReleasableLock ignored = descriptorsCacheHelper.acquireUpdateLock()) {
                         for (Map.Entry<String, Set<ApplicationPrivilegeDescriptor>> entry : mapOfFetchedDescriptors.entrySet()) {
                             descriptorsCache.computeIfAbsent(entry.getKey(), (k) -> entry.getValue());
@@ -165,23 +177,6 @@ public class NativePrivilegeStore {
                     listener.onResponse(filterDescriptorsForNames(allDescriptors, names));
                 }, listener::onFailure));
             }
-        } else {
-            // Always fetch all privileges of an application for caching purpose
-            getPrivilegesWithoutCaching(applications, Collections.emptySet(), ActionListener.wrap(fetchedDescriptors -> {
-                // Populate caches
-                final Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors =
-                    fetchedDescriptors.stream().collect(
-                        Collectors.groupingBy(ApplicationPrivilegeDescriptor::getApplication, Collectors.toUnmodifiableSet()));
-                try (ReleasableLock ignored = applicationNamesCacheHelper.acquireUpdateLock()) {
-                    applicationNamesCache.computeIfAbsent(applicationNamesCacheKey, (k) -> Set.copyOf(mapOfFetchedDescriptors.keySet()));
-                }
-                try (ReleasableLock ignored = descriptorsCacheHelper.acquireUpdateLock()) {
-                    for (Map.Entry<String, Set<ApplicationPrivilegeDescriptor>> entry : mapOfFetchedDescriptors.entrySet()) {
-                        descriptorsCache.computeIfAbsent(entry.getKey(), (k) -> entry.getValue());
-                    }
-                }
-                listener.onResponse(filterDescriptorsForNames(fetchedDescriptors, names));
-            }, listener::onFailure));
         }
     }
 
@@ -239,17 +234,21 @@ public class NativePrivilegeStore {
     }
 
     private Tuple<Set<String>, Map<String, Set<ApplicationPrivilegeDescriptor>>> cacheStatusForApplicationNames(
-        Set<String> concreteApplicationNames) {
+        Set<String> applicationNames) {
 
         final Set<String> uncachedApplicationNames = new HashSet<>();
         final Map<String, Set<ApplicationPrivilegeDescriptor>> cachedDescriptors = new HashMap<>();
 
-        for (String concreteApplicationName: concreteApplicationNames) {
-            final Set<ApplicationPrivilegeDescriptor> descriptors = descriptorsCache.get(concreteApplicationName);
-            if (descriptors == null) {
-                uncachedApplicationNames.add(concreteApplicationName);
+        for (String applicationName: applicationNames) {
+            if (applicationName.endsWith("*")) {
+                uncachedApplicationNames.add(applicationName);
             } else {
-                cachedDescriptors.put(concreteApplicationName, descriptors);
+                final Set<ApplicationPrivilegeDescriptor> descriptors = descriptorsCache.get(applicationName);
+                if (descriptors == null) {
+                    uncachedApplicationNames.add(applicationName);
+                } else {
+                    cachedDescriptors.put(applicationName, descriptors);
+                }
             }
         }
         return Tuple.tuple(uncachedApplicationNames, cachedDescriptors);
@@ -467,6 +466,16 @@ public class NativePrivilegeStore {
 
     private static String toDocId(String application, String name) {
         return DOC_TYPE_VALUE + "_" + application + ":" + name;
+    }
+
+    // Package private for tests
+    Cache<Set<String>, Set<String>> getApplicationNamesCache() {
+        return applicationNamesCache;
+    }
+
+    // Package private for tests
+    Cache<String, Set<ApplicationPrivilegeDescriptor>> getDescriptorsCache() {
+        return descriptorsCache;
     }
 
 }

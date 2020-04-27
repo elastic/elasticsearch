@@ -416,7 +416,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                         try {
                             ActionRunnable<Void> warmer;
                             while ((warmer = queue.poll(0L, TimeUnit.MILLISECONDS)) != null) {
-                                warmer.onFailure(new IOException("Shard cache prewarming cancelled"));
+                                warmer.onFailure(e);
                             }
                         } catch (InterruptedException ie) {
                             Thread.currentThread().interrupt();

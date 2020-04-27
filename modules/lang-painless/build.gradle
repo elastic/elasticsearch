@@ -194,6 +194,3 @@ task regen {
   }
 }
 
-validateRestSpec {
-  ignore 'scripts_painless_context.json'
-}

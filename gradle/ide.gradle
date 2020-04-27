@@ -72,11 +72,6 @@ if (System.getProperty('idea.active') == 'true') {
           }
         }
         runConfigurations {
-          'Debug Elasticsearch'(Remote) {
-            mode = 'listen'
-            host = 'localhost'
-            port = 5005
-          }
           defaults(JUnit) {
             vmParameters = '-ea -Djava.locale.providers=SPI,COMPAT'
           }

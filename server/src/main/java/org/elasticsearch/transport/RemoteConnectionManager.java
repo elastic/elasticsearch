@@ -110,14 +110,12 @@ public class RemoteConnectionManager implements ConnectionManager {
                 // Ignore. We will manually create an iterator of open nodes
             }
         }
-        if (delegate.size() != 0) {
-            Set<DiscoveryNode> allConnectionNodes = getAllConnectedNodes();
-            for (DiscoveryNode connectedNode : allConnectionNodes) {
-                try {
-                    return delegate.getConnection(connectedNode);
-                } catch (NodeNotConnectedException e) {
-                    // Ignore. We will try the next one until all are exhausted.
-                }
+        Set<DiscoveryNode> allConnectionNodes = getAllConnectedNodes();
+        for (DiscoveryNode connectedNode : allConnectionNodes) {
+            try {
+                return delegate.getConnection(connectedNode);
+            } catch (NodeNotConnectedException e) {
+                // Ignore. We will try the next one until all are exhausted.
             }
         }
         throw new NoSuchRemoteClusterException(clusterAlias);

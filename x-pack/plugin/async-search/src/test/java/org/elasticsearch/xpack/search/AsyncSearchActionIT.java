@@ -170,7 +170,6 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55792")
     public void testRestartAfterCompletion() throws Exception {
         final AsyncSearchResponse initial;
         try (SearchResponseIterator it =
@@ -208,7 +207,6 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         ensureTaskRemoval(response.getId());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55792")
     public void testCleanupOnFailure() throws Exception {
         final AsyncSearchResponse initial;
         try (SearchResponseIterator it =

@@ -69,7 +69,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
             () -> new DateTimeParse(Source.EMPTY, l("2020-04-07"), l("invalid")).makePipe().asProcessor().process(null)
         );
         assertEquals(
-            "Invalid date/time/datetime string [2020-04-07] or pattern [invalid] is received; Unknown pattern letter: i",
+            "Invalid time/datetime string [2020-04-07] or pattern [invalid] is received; Unknown pattern letter: i",
             siae.getMessage()
         );
 
@@ -78,7 +78,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
             () -> new DateTimeParse(Source.EMPTY, l("2020-04-07"), l("MM/dd")).makePipe().asProcessor().process(null)
         );
         assertEquals(
-            "Invalid date/time/datetime string [2020-04-07] or pattern [MM/dd] is received; " +
+            "Invalid time/datetime string [2020-04-07] or pattern [MM/dd] is received; " +
                     "Text '2020-04-07' could not be parsed at index 2",
             siae.getMessage()
         );
@@ -88,8 +88,8 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
             () -> new DateTimeParse(Source.EMPTY, l("07/05/2020"), l("dd/MM/uuuu")).makePipe().asProcessor().process(null)
         );
         assertEquals(
-            "Invalid date/time/datetime string [07/05/2020] or pattern [dd/MM/uuuu] is received; " +
-                    "Unable to convert parsed text into [datetime or date or time]",
+            "Invalid time/datetime string [07/05/2020] or pattern [dd/MM/uuuu] is received; " +
+                    "Unable to convert parsed text into [datetime or time]",
             siae.getMessage()
         );
 
@@ -98,8 +98,8 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
             () -> new DateTimeParse(Source.EMPTY, l("10:20:30.123456789"), l("HH:mm:ss.SSSSSSSSS")).makePipe().asProcessor().process(null)
         );
         assertEquals(
-            "Invalid date/time/datetime string [10:20:30.123456789] or pattern [HH:mm:ss.SSSSSSSSS] is received; "
-                + "Unable to convert parsed text into [datetime or date or time]",
+            "Invalid time/datetime string [10:20:30.123456789] or pattern [HH:mm:ss.SSSSSSSSS] is received; "
+                + "Unable to convert parsed text into [datetime or time]",
             siae.getMessage()
         );
     }

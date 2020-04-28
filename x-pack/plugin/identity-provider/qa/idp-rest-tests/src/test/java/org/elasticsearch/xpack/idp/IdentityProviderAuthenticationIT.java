@@ -47,10 +47,10 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
     @Before
     public void setupSecurityData() throws IOException {
         setUserPassword("kibana_system", new SecureString("kibana_system".toCharArray()));
-        createApplicationPrivileges("elastic-cloud", Map.ofEntries(
-            Map.entry("deployment_admin", Set.of("sso:admin")),
-            Map.entry("deployment_viewer", Set.of("sso:viewer"))
-        ));
+        createApplicationPrivileges("elastic-cloud", org.elasticsearch.common.collect.Map.of(
+            "deployment_admin", Set.of("sso:admin"),
+            "deployment_viewer", Set.of("sso:viewer"))
+        );
     }
 
     public void testRegistrationAndIdpInitiatedSso() throws Exception {

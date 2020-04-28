@@ -18,6 +18,9 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.mockstore.BlobContainerWrapper;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.EOFException;
@@ -29,12 +32,14 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 
 import static org.elasticsearch.index.store.cache.TestUtils.createCacheService;
 import static org.elasticsearch.index.store.cache.TestUtils.singleBlobContainer;
 import static org.elasticsearch.index.store.cache.TestUtils.singleSplitBlobContainer;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -42,6 +47,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
     public void testRandomReads() throws IOException {
+        final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilder());
         try (CacheService cacheService = createCacheService(random())) {
             cacheService.start();
 
@@ -68,9 +74,10 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     0L
                 );
 
+                final boolean prewarmEnabled = randomBoolean();
                 final BlobContainer singleBlobContainer = singleSplitBlobContainer(blobName, input, partSize);
                 final BlobContainer blobContainer;
-                if (input.length == partSize && input.length <= cacheService.getCacheSize()) {
+                if (input.length == partSize && input.length <= cacheService.getCacheSize() && prewarmEnabled == false) {
                     blobContainer = new CountingBlobContainer(singleBlobContainer, cacheService.getRangeSize());
                 } else {
                     blobContainer = singleBlobContainer;
@@ -84,11 +91,14 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                         snapshotId,
                         indexId,
                         shardId,
-                        Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true).build(),
+                        Settings.builder()
+                            .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
+                            .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), prewarmEnabled)
+                            .build(),
                         () -> 0L,
                         cacheService,
                         cacheDir,
-                        null
+                        threadPool
                     )
                 ) {
                     final boolean loaded = directory.loadSnapshot();
@@ -118,6 +128,8 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     );
                 }
             }
+        } finally {
+            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
     }
 

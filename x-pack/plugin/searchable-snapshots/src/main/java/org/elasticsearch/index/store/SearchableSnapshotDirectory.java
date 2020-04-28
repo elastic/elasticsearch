@@ -393,8 +393,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
                                 logger.trace("warming cache for [{}] part [{}/{}]", fileName, part, numberOfParts);
                                 final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
-                                final int bytesRead = cachedIndexInput.prefetchPart(part); // TODO does not include any rate limitation
-                                assert bytesRead == cacheFile.partBytes(part);
+                                cachedIndexInput.prefetchPart(part); // TODO does not include any rate limitation
 
                                 logger.trace(
                                     () -> new ParameterizedMessage(

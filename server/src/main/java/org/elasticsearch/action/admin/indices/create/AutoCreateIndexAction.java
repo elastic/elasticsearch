@@ -62,7 +62,8 @@ public final class AutoCreateIndexAction extends ActionType<AutoCreateAction.Res
         public TransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                MetadataCreateIndexService createIndexService) {
-            super(NAME, transportService, clusterService, threadPool, actionFilters, AutoCreateAction.Request::new, indexNameExpressionResolver);
+            super(NAME, transportService, clusterService, threadPool, actionFilters, AutoCreateAction.Request::new,
+                indexNameExpressionResolver);
             this.createIndexService = createIndexService;
         }
 

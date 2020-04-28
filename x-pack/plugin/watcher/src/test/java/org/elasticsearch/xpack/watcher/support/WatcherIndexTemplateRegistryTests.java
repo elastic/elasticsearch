@@ -133,7 +133,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         assertThat(req.settings().get("index.lifecycle.name"), equalTo("watch-history-ilm-policy"));
     }
 
-    public void testThatNonExistingTemplatesAreAddedEvenWithILMDisabled() {
+    public void testThatNonExistingTemplatesAreAddedEvenWithILMUsageDisabled() {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 

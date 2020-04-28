@@ -48,9 +48,9 @@ _hyperparameter optimization_ occurs. It determines a value for each of the
 undefined parameters.
 
 ////
-The starting point is calculated for data dependent parameters by examining the loss
-on the training data. Subject to the size constraint, this operation provides an
-upper bound on the improvement in validation loss.
+The starting point is calculated for data dependent parameters by examining the 
+loss on the training data. Subject to the size constraint, this operation 
+provides an upper bound on the improvement in validation loss.
 
 The optimization starts with random search, then 
 Bayesian optimization is performed that is targeting maximum expected 
@@ -152,9 +152,8 @@ categories, the API reports all category probabilities. Defaults to 2.
 `num_top_feature_importance_values`::::
 (Optional, integer)
 Advanced configuration option. Specifies the maximum number of
-{ml-docs}/dfa-classification.html#dfa-classification-feature-importance[feature
-importance] values per document to return. By default, it is zero and no feature importance
-calculation occurs.
+{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document to return. 
+By default, it is zero and no {feat-imp} calculation occurs.
 
 `prediction_field_name`::::
 (Optional, string) 
@@ -261,9 +260,8 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=max-trees]
 `num_top_feature_importance_values`::::
 (Optional, integer)
 Advanced configuration option. Specifies the maximum number of
-{ml-docs}/dfa-regression.html#dfa-regression-feature-importance[feature importance] 
-values per document to return. By default, it is zero and no feature importance
-calculation occurs.
+{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document to return. 
+By default, it is zero and no {feat-imp} calculation occurs.
 
 `prediction_field_name`::::
 (Optional, string)

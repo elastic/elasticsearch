@@ -254,6 +254,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                     test.systemProperty("java.locale.providers", "SPI,JRE");
                 } else {
                     test.systemProperty("java.locale.providers", "SPI,COMPAT");
+                    test.jvmArgs("--illegal-access=warn");
                 }
             });
 
@@ -272,7 +273,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             test.jvmArgs(
                 "-Xmx" + System.getProperty("tests.heap.size", "512m"),
                 "-Xms" + System.getProperty("tests.heap.size", "512m"),
-                "--illegal-access=warn",
                 "-XX:+HeapDumpOnOutOfMemoryError"
             );
 

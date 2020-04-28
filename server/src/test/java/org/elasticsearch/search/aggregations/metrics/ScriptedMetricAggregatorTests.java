@@ -432,6 +432,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         ScriptService scriptService =  new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
         ValuesSourceRegistry valuesSourceRegistry = mock(ValuesSourceRegistry.class);
         UsageService usageService = new UsageService();
+        usageService.registerAggregationUsage(ScriptedMetricAggregationBuilder.NAME);
         when(valuesSourceRegistry.getUsageService()).thenReturn(usageService);
         return new QueryShardContext(0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
             null, mapperService, null, scriptService, xContentRegistry(), writableRegistry(),

@@ -159,7 +159,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
         private final long startTime;
         private final CountDownLatch latch;
-        private volatile float maximumRequestsPerSecond;
+        private volatile float maxDocsPerSecond;
 
         // counters
         private volatile boolean started = false;
@@ -170,15 +170,15 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         private volatile int bulkOps = 0;
 
         protected MockIndexerFiveRuns(ThreadPool threadPool, String executorName, AtomicReference<IndexerState> initialState,
-                Integer initialPosition, float maximumRequestsPerSecond, CountDownLatch latch) {
+                Integer initialPosition, float maxDocsPerSecond, CountDownLatch latch) {
             super(threadPool, executorName, initialState, initialPosition, new MockJobStats());
             startTime = System.nanoTime();
             this.latch = latch;
-            this.maximumRequestsPerSecond = maximumRequestsPerSecond;
+            this.maxDocsPerSecond = maxDocsPerSecond;
         }
 
-        public void rethrottle(float maximumRequestsPerSecond) {
-            this.maximumRequestsPerSecond = maximumRequestsPerSecond;
+        public void rethrottle(float maxDocsPerSecond) {
+            this.maxDocsPerSecond = maxDocsPerSecond;
             rethrottle();
         }
 
@@ -188,8 +188,8 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected float getMaximumRequestsPerSecond() {
-            return maximumRequestsPerSecond;
+        protected float getMaxDocsPerSecond() {
+            return maxDocsPerSecond;
         }
 
         @Override
@@ -481,15 +481,15 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
     }
 
     public void testFiveRunsThrottled1000000() throws Exception {
-        // request per seconds is set high, so throttling does not kick in
+        // docs per seconds is set high, so throttling does not kick in
         doTestFiveRuns(1_000_000, Collections.emptyList());
     }
 
-    public void doTestFiveRuns(float requests_per_second, Collection<TimeValue> expectedDelays) throws Exception {
+    public void doTestFiveRuns(float docsPerSecond, Collection<TimeValue> expectedDelays) throws Exception {
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final MockThreadPool threadPool = new MockThreadPool(getTestName());
         try {
-            MockIndexerFiveRuns indexer = new MockIndexerFiveRuns (threadPool, ThreadPool.Names.GENERIC, state, 2, requests_per_second,
+            MockIndexerFiveRuns indexer = new MockIndexerFiveRuns (threadPool, ThreadPool.Names.GENERIC, state, 2, docsPerSecond,
                 null);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
@@ -519,8 +519,8 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
     }
 
     public void doTestFiveRunsRethrottle(
-        float requestsPerSecond,
-        float requestsPerSecondRethrottle,
+        float docsPerSecond,
+        float docsPerSecondRethrottle,
         Collection<TimeValue> expectedDelays
     ) throws Exception {
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
@@ -528,7 +528,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         final MockThreadPool threadPool = new MockThreadPool(getTestName());
         try {
             CountDownLatch latch = new CountDownLatch(1);
-            MockIndexerFiveRuns indexer = new MockIndexerFiveRuns (threadPool, ThreadPool.Names.GENERIC, state, 2, requestsPerSecond,
+            MockIndexerFiveRuns indexer = new MockIndexerFiveRuns (threadPool, ThreadPool.Names.GENERIC, state, 2, docsPerSecond,
                 latch);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
@@ -536,7 +536,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             // wait until the indexer starts waiting on the latch
             assertBusy(() -> assertTrue(indexer.waitingForLatchCountDown()));
             // rethrottle
-            indexer.rethrottle(requestsPerSecondRethrottle);
+            indexer.rethrottle(docsPerSecondRethrottle);
             latch.countDown();
             // let it finish
             assertBusy(() -> assertTrue(isFinished.get()));
@@ -548,34 +548,34 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
     }
 
     public void testCalculateThrottlingDelay() {
-        // negative requests per second, throttling turned off
+        // negative docs per second, throttling turned off
         assertThat(AsyncTwoPhaseIndexer.calculateThrottlingDelay(-100, 100, 1_000, 1_000), equalTo(TimeValue.ZERO));
 
-        // negative requests per second, throttling turned off
+        // negative docs per second, throttling turned off
         assertThat(AsyncTwoPhaseIndexer.calculateThrottlingDelay(0, 100, 1_000, 1_000), equalTo(TimeValue.ZERO));
 
-        // 100 requests/second with 100 requests -> 1s delay
+        // 100 docs/s with 100 docs -> 1s delay
         assertThat(AsyncTwoPhaseIndexer.calculateThrottlingDelay(100, 100, 1_000_000, 1_000_000), equalTo(TimeValue.timeValueSeconds(1)));
 
-        // 100 requests/second with 100 requests, 200ms passed -> 800ms delay
+        // 100 docs/s with 100 docs, 200ms passed -> 800ms delay
         assertThat(
             AsyncTwoPhaseIndexer.calculateThrottlingDelay(100, 100, 1_000_000_000L, 1_200_000_000L),
             equalTo(TimeValue.timeValueMillis(800))
         );
 
-        // 100 requests/second with 100 requests done, time passed -> no delay
+        // 100 docs/s with 100 docs done, time passed -> no delay
         assertThat(AsyncTwoPhaseIndexer.calculateThrottlingDelay(100, 100, 1_000_000_000L, 5_000_000_000L), equalTo(TimeValue.ZERO));
 
-        // 1_000_000 requests/second with 1 request done, time passed -> no delay
+        // 1_000_000 docs/s with 1 doc done, time passed -> no delay
         assertThat(AsyncTwoPhaseIndexer.calculateThrottlingDelay(1_000_000, 1, 1_000_000_000L, 1_000_000_000L), equalTo(TimeValue.ZERO));
 
-        // max: 1 requests/second with 1_000_000 requests done, time passed -> no delay
+        // max: 1 docs/s with 1_000_000 docs done, time passed -> no delay
         assertThat(
             AsyncTwoPhaseIndexer.calculateThrottlingDelay(1, 1_000_000, 1_000_000_000L, 1_000_000_000L),
             equalTo(TimeValue.timeValueHours(1))
         );
 
-        // min: 100 requests/second with 100 requests, 995ms passed -> no delay, because minimum not reached
+        // min: 100 docs/s with 100 docs, 995ms passed -> no delay, because minimum not reached
         assertThat(AsyncTwoPhaseIndexer.calculateThrottlingDelay(100, 100, 1_000_000_000L, 1_995_000_000L), equalTo(TimeValue.ZERO));
 
     }

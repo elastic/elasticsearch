@@ -381,8 +381,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                                 final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
 
                                 final CachedBlobContainerIndexInput cachedIndexInput = (CachedBlobContainerIndexInput) input.clone();
-                                final int bytesRead = cachedIndexInput.prefetchPart(part); // TODO does not include any rate limitation
-                                assert bytesRead == cacheFile.partBytes(part);
+                                cachedIndexInput.prefetchPart(part); // TODO does not include any rate limitation
 
                                 logger.trace(
                                     () -> new ParameterizedMessage(

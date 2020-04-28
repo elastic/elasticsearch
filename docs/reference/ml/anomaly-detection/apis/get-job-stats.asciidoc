@@ -214,6 +214,10 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-status]
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=dead-category-count]
 
+`failed_category_count`:::
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=failed-category-count]
+
 `frequent_category_count`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=frequent-category-count]
@@ -406,6 +410,7 @@ The API returns the following results:
         "frequent_category_count" : 0,
         "rare_category_count" : 0,
         "dead_category_count" : 0,
+        "failed_category_count" : 0,
         "categorization_status" : "ok",
         "log_time" : 1576017596000,
         "timestamp" : 1580410800000

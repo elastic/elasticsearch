@@ -27,8 +27,8 @@ import java.util.function.LongSupplier;
 
 /**
  * {@link ValuesSourceType} represents a collection of fields that share a common set of operations, for example all numeric fields.
- * Aggregations declare their support for a given ValuesSourceType (via {@link ValuesSourceRegistry#register}), and should then not need
- * to care about the fields which use that ValuesSourceType.
+ * Aggregations declare their support for a given ValuesSourceType (via {@link ValuesSourceRegistry.Builder#register}),
+ * and should then not need to care about the fields which use that ValuesSourceType.
  *
  * ValuesSourceTypes provide a set of methods to instantiate concrete {@link ValuesSource} instances, based on the actual source of the
  * data for the aggregations.  In general, aggregations should not call these methods, but rather rely on {@link ValuesSourceConfig} to have

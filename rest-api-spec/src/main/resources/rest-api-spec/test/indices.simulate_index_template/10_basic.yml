@@ -28,7 +28,7 @@
   - match: {template.settings.index.number_of_shards: "1"}
   - match: {template.settings.index.number_of_replicas: "0"}
   - match: {template.mappings._doc.properties.field.type: "keyword"}
-  - match: {overlapping: {}}
+  - match: {overlapping: []}
 
 ---
 "Simulate index template specifying a new template":

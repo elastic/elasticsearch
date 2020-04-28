@@ -68,6 +68,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
     public void testCreateConfigsGivenIncompleteCsv() throws Exception {
         String sample = "time,message\n" +
             "2018-05-17T13:41:23,hello\n" +
+            "badrow\n" + // REALLY bad row
             "2018-05-17T13:41:25,hello\n" +
             "2018-05-17T13:41:26,hello\n" +
             "2018-05-17T13:41:27,hello\n" +
@@ -76,8 +77,9 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
             "2018-05-17T13:41:30,hello\n" +
             "2018-05-17T13:41:31,hello\n" +
             "2018-05-17T13:41:32,hello\n" +
-            "badrow\n" +
+            "2018-05-17T13:41:35\n" + // Just missing the column
             "2018-05-17T13:41:33,hello again\n";
+        assertFalse(csvFactory.canCreateFromSample(explanation, sample, 0.05));
         assertTrue("assertion failed. Explanation " + explanation,
             csvFactory.canCreateFromSample(explanation, sample, 0.10));
 
@@ -102,8 +104,56 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertEquals(Arrays.asList("time", "message"), structure.getColumnNames());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
+        assertEquals(structure.getNumMessagesAnalyzed(), 10);
         assertTrue(structure.getHasHeaderRow());
         assertNull(structure.getMultilineStartPattern());
+        assertNull(structure.getShouldTrimFields());
+        assertNull(structure.getGrokPattern());
+    }
+
+    public void testCreateConfigsGivenIncompleteCsvWithMultiLinedRows() throws Exception {
+        String sample = "time,message\n" +
+            "2018-05-17T13:41:23,\"hello\nnew line\"\n" +
+            "\"badrow\n\n\n\n\"\n" + // REALLY bad row
+            "2018-05-17T13:41:25,\"hello\nnew line\"\n" +
+            "2018-05-17T13:41:26,\"hello\nnew line\"\n" +
+            "2018-05-17T13:41:27,\"hello\nnew line\"\n" +
+            "2018-05-17T13:41:28,\"hello\nnew line\"\n" +
+            "2018-05-17T13:41:29,\"hello\nnew line\"\n" +
+            "2018-05-17T13:41:30,\"hello\nnew line\"\n" +
+            "2018-05-17T13:41:31,\"hello\nnew line\"\n" +
+            "2018-05-17T13:41:32,\"hello\nnew line\"\n" +
+            "2018-05-17T13:41:35\n" + // Just missing the column
+            "2018-05-17T13:41:33,\"hello again\nnew line\"\n";
+        assertFalse(csvFactory.canCreateFromSample(explanation, sample, 0.05));
+        assertTrue("assertion failed. Explanation " + explanation,
+            csvFactory.canCreateFromSample(explanation, sample, 0.10));
+
+        String charset = randomFrom(POSSIBLE_CHARSETS);
+        Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
+        FileStructureFinder structureFinder = csvFactory.createFromSample(explanation, sample, charset, hasByteOrderMarker,
+            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+            FileStructureOverrides.builder().setQuote('"').build(),
+            NOOP_TIMEOUT_CHECKER);
+
+        FileStructure structure = structureFinder.getStructure();
+
+        assertEquals(FileStructure.Format.DELIMITED, structure.getFormat());
+        assertEquals(charset, structure.getCharset());
+        if (hasByteOrderMarker == null) {
+            assertNull(structure.getHasByteOrderMarker());
+        } else {
+            assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
+        }
+        assertEquals("^\"?time\"?,\"?message\"?", structure.getExcludeLinesPattern());
+        assertEquals("time", structure.getTimestampField());
+        assertEquals(Collections.singletonList("ISO8601"), structure.getJodaTimestampFormats());
+        assertEquals(Arrays.asList("time", "message"), structure.getColumnNames());
+        assertEquals(Character.valueOf(','), structure.getDelimiter());
+        assertEquals(Character.valueOf('"'), structure.getQuote());
+        assertEquals(structure.getNumMessagesAnalyzed(), 10);
+        assertTrue(structure.getHasHeaderRow());
+        assertEquals("^\"?\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", structure.getMultilineStartPattern());
         assertNull(structure.getShouldTrimFields());
         assertNull(structure.getGrokPattern());
     }

@@ -20,11 +20,11 @@ An index template is a way to tell {es} how to configure an index when it is cre
 configured prior to index creation and then when an index is created either manually or through
 indexing a document, the template settings are used as a basis for creating the index.
 
-There are two types of templates, index templates and <<component-templates,component templates>>.
-Component templates are reusable building blocks that configure mappings, settings, and aliases.
-You use component templates to construct index templates, they aren't directly applied to a set of indices. 
-Index templates can contain a collection of component templates, 
-as well as directly specify settings, mappings, and aliases.
+There are two types of templates, index templates and <<indices-component-template,component
+templates>>. Component templates are reusable building blocks that configure mappings, settings, and
+aliases. You use component templates to construct index templates, they aren't directly applied to a
+set of indices. Index templates can contain a collection of component templates, as well as directly
+specify settings, mappings, and aliases.
 
 If a new index matches more than one index template, the index template with the highest priority is used.
 
@@ -207,7 +207,7 @@ This is the template to be applied, may optionally include a `mappings`,
 (Optional, array of strings)
 An ordered list of component template names. Component templates will be merged in the order
 specified, meaning that the last component template specified has the highest precedence. See the
-<<component-templates,component template>> reference for information.
+<<indices-component-template,component template>> reference for information.
 
 `priority`::
 (Optional, integer)

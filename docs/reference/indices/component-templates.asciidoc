@@ -1,4 +1,4 @@
-[[component-templates]]
+[[indices-component-template]]
 === Component template API
 ++++
 <titleabbrev>Component template</titleabbrev>

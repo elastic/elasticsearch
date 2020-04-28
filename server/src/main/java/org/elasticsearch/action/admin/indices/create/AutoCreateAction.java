@@ -23,7 +23,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -59,7 +61,7 @@ public final class AutoCreateAction extends ActionType<AutoCreateAction.Response
         super(NAME, Response::new);
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest {
 
         private final Set<String> names;
         private final String cause;
@@ -90,6 +92,16 @@ public final class AutoCreateAction extends ActionType<AutoCreateAction.Response
             out.writeStringCollection(names);
             out.writeString(cause);
             out.writeOptionalBoolean(preferV2Templates);
+        }
+
+        @Override
+        public String[] indices() {
+            return names.toArray(new String[0]);
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
 
         public Set<String> getNames() {

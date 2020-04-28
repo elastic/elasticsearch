@@ -25,7 +25,7 @@ import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 
-public class StoreListShortcutNode extends StoreNode {
+public class StoreListShortcutNode extends StoreAccessNode {
 
     /* ---- begin tree structure ---- */
 

@@ -24,7 +24,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 
-public class StoreBraceNode extends StoreNode {
+public class StoreBraceNode extends StoreAccessNode {
 
     /* ---- begin tree structure ---- */
 

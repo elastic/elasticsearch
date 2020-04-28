@@ -26,7 +26,7 @@ import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 import org.objectweb.asm.Type;
 
-public class StoreBraceDefNode extends StoreNode {
+public class StoreBraceDefNode extends StoreAccessNode {
 
     /* ---- begin tree structure ---- */
 

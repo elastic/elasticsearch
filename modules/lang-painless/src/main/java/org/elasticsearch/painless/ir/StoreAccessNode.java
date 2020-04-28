@@ -19,26 +19,20 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+public abstract class StoreAccessNode extends StoreNode {
 
-public abstract class StoreNode extends UnaryNode {
+    /* ---- begin tree structure ---- */
 
-    /* ---- begin node data ---- */
+    private ExpressionNode accessNode;
 
-    private Class<?> storeType;
-
-    public void setStoreType(Class<?> storeType) {
-        this.storeType = storeType;
+    public void setAccessNode(ExpressionNode accessNode) {
+        this.accessNode = accessNode;
     }
 
-    public Class<?> getStoreType() {
-        return storeType;
+    public ExpressionNode getAccessNode() {
+        return accessNode;
     }
 
-    public String getStoreCanonicalTypeName() {
-        return PainlessLookupUtility.typeToCanonicalTypeName(storeType);
-    }
-
-    /* ---- end node data ---- */
+    /* ---- end tree structure --- */
 
 }

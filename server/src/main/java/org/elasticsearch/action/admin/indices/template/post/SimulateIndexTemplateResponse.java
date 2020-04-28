@@ -47,7 +47,7 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
     private Template resolvedTemplate;
 
     @Nullable
-    // a map of v1 template names and their index patterns that would overlap when matching the given index name
+    // a map of template names and their index patterns that would overlap when matching the given index name
     private Map<String, List<String>> overlappingTemplates;
 
     public SimulateIndexTemplateResponse(@Nullable Template resolvedTemplate, @Nullable Map<String, List<String>> overlappingTemplates) {
@@ -59,9 +59,9 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         super(in);
         resolvedTemplate = in.readOptionalWriteable(Template::new);
         if (in.readBoolean()) {
-            int conflictingV1TemplatesCount = in.readInt();
-            overlappingTemplates = new HashMap<>(conflictingV1TemplatesCount, 1L);
-            for (int i = 0; i < conflictingV1TemplatesCount; i++) {
+            int overlappingTemplatesCount = in.readInt();
+            overlappingTemplates = new HashMap<>(overlappingTemplatesCount, 1L);
+            for (int i = 0; i < overlappingTemplatesCount; i++) {
                 String templateName = in.readString();
                 overlappingTemplates.put(templateName, in.readStringList());
             }
@@ -118,7 +118,7 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
 
     @Override
     public String toString() {
-        return "SimulateIndexTemplateResponse{" + "resolved template=" + resolvedTemplate + ", overlapping v1 templates="
+        return "SimulateIndexTemplateResponse{" + "resolved template=" + resolvedTemplate + ", overlapping templates="
             + String.join("|", overlappingTemplates.keySet()) + "}";
     }
 }

@@ -152,8 +152,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
-import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
-import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
@@ -1370,7 +1368,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     repositoriesService,
                     mock(SearchService.class),
                     new SyncedFlushService(indicesService, clusterService, transportService, indexNameExpressionResolver),
-                    new PeerRecoverySourceService(transportService, indicesService, recoverySettings),
+                    new PeerRecoverySourceService(transportService, indicesService, recoverySettings, bigArrays),
                     snapshotShardsService,
                     new PrimaryReplicaSyncer(
                         transportService,

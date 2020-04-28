@@ -96,7 +96,7 @@ Defaults to `open`.
 
 `ignore_throttled`::
   (Optional, boolean) If `true`, concrete, expanded or aliased indices will be
-  ignored when throttled. Defaults to `false`.
+  ignored when frozen. Defaults to `false`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 

@@ -25,8 +25,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
-public class TransportClearPrivilegesCacheAction
-    extends TransportNodesAction<ClearPrivilegesCacheRequest, ClearPrivilegesCacheResponse, ClearPrivilegesCacheRequest.Node, ClearPrivilegesCacheResponse.Node> {
+public class TransportClearPrivilegesCacheAction extends TransportNodesAction<ClearPrivilegesCacheRequest, ClearPrivilegesCacheResponse,
+    ClearPrivilegesCacheRequest.Node, ClearPrivilegesCacheResponse.Node> {
 
     private final NativePrivilegeStore privilegesStore;
     private final CompositeRolesStore rolesStore;

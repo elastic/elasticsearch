@@ -435,7 +435,8 @@ public class NativePrivilegeStore {
 
     private <T> void clearCaches(ActionListener<T> listener, Set<String> applicationNames, T value) {
         // This currently clears _all_ roles, but could be improved to clear only those roles that reference the affected application
-        final ClearPrivilegesCacheRequest request = new ClearPrivilegesCacheRequest().applicationNames(applicationNames.toArray(String[]::new));
+        final ClearPrivilegesCacheRequest request = new ClearPrivilegesCacheRequest()
+            .applicationNames(applicationNames.toArray(String[]::new));
         executeAsyncWithOrigin(client, SECURITY_ORIGIN, ClearPrivilegesCacheAction.INSTANCE, request,
             new ActionListener<>() {
                 @Override

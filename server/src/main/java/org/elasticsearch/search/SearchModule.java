@@ -416,7 +416,9 @@ public class SearchModule {
                     .addResultReader(InternalDateRange::new)
                     .setAggregatorRegistrar(DateRangeAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(IpRangeAggregationBuilder.NAME, IpRangeAggregationBuilder::new,
-                IpRangeAggregationBuilder.PARSER).addResultReader(InternalBinaryRange::new), builder);
+                IpRangeAggregationBuilder.PARSER)
+                    .addResultReader(InternalBinaryRange::new)
+                    .setAggregatorRegistrar(IpRangeAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(HistogramAggregationBuilder.NAME, HistogramAggregationBuilder::new,
                 HistogramAggregationBuilder.PARSER)
                     .addResultReader(InternalHistogram::new)
@@ -426,7 +428,9 @@ public class SearchModule {
                     .addResultReader(InternalDateHistogram::new)
                     .setAggregatorRegistrar(DateHistogramAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(AutoDateHistogramAggregationBuilder.NAME, AutoDateHistogramAggregationBuilder::new,
-                AutoDateHistogramAggregationBuilder.PARSER).addResultReader(InternalAutoDateHistogram::new), builder);
+                AutoDateHistogramAggregationBuilder.PARSER)
+                    .addResultReader(InternalAutoDateHistogram::new)
+                    .setAggregatorRegistrar(AutoDateHistogramAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(GeoDistanceAggregationBuilder.NAME, GeoDistanceAggregationBuilder::new,
                 GeoDistanceAggregationBuilder::parse).addResultReader(InternalGeoDistance::new), builder);
         registerAggregation(new AggregationSpec(GeoHashGridAggregationBuilder.NAME, GeoHashGridAggregationBuilder::new,

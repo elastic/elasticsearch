@@ -24,7 +24,7 @@ import org.elasticsearch.test.ESTestCase;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.sameInstance;
-import static org.hamcrest.collection.IsArrayContainingInAnyOrder.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 
 public class ParseFieldTests extends ESTestCase {
     public void testParse() {

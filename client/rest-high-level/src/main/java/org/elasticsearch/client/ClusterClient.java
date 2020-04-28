@@ -26,8 +26,14 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.cluster.RemoteInfoRequest;
 import org.elasticsearch.client.cluster.RemoteInfoResponse;
+import org.elasticsearch.client.indices.ComponentTemplatesExistRequest;
+import org.elasticsearch.client.indices.DeleteComponentTemplateRequest;
+import org.elasticsearch.client.indices.GetComponentTemplatesRequest;
+import org.elasticsearch.client.indices.GetComponentTemplatesResponse;
+import org.elasticsearch.client.indices.PutComponentTemplateRequest;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -168,5 +174,114 @@ public final class ClusterClient {
                                        ActionListener<RemoteInfoResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, ClusterRequestConverters::remoteInfo, options,
                 RemoteInfoResponse::fromXContent, listener, singleton(RestStatus.REQUEST_TIMEOUT.getStatus()));
+    }
+
+    /**
+     * Delete a component template using the Component Templates API
+     *
+     * @param req the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse deleteComponentTemplate(DeleteComponentTemplateRequest req, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(req, ClusterRequestConverters::deleteComponentTemplate,
+            options, AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously delete a component template using the Component Templates API
+     *
+     * @param request  the request
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable deleteComponentTemplateAsync(DeleteComponentTemplateRequest request, RequestOptions options,
+                                                    ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, ClusterRequestConverters::deleteComponentTemplate,
+            options, AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Puts a component template using the Component Templates API.
+     *
+     * @param putComponentTemplateRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse putComponentTemplate(PutComponentTemplateRequest putComponentTemplateRequest,
+                                                     RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(putComponentTemplateRequest, ClusterRequestConverters::putComponentTemplate,
+            options, AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously puts a component template using the Component Templates API.
+     *
+     * @param putComponentTemplateRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable putComponentTemplateAsync(PutComponentTemplateRequest putComponentTemplateRequest,
+                                                 RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(putComponentTemplateRequest,
+            ClusterRequestConverters::putComponentTemplate, options, AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Gets component templates using the Components Templates API
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param getComponentTemplatesRequest the request
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetComponentTemplatesResponse getComponentTemplate(GetComponentTemplatesRequest getComponentTemplatesRequest,
+                                                              RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(getComponentTemplatesRequest,
+            ClusterRequestConverters::getComponentTemplates, options, GetComponentTemplatesResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously gets component templates using the Components Templates API
+     * @param getComponentTemplatesRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable getComponentTemplateAsync(GetComponentTemplatesRequest getComponentTemplatesRequest, RequestOptions options,
+                                                 ActionListener<GetComponentTemplatesResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(getComponentTemplatesRequest,
+            ClusterRequestConverters::getComponentTemplates, options, GetComponentTemplatesResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Uses the Component Templates API to determine if component templates exist
+     *
+     * @param componentTemplatesRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return true if any index templates in the request exist, false otherwise
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public boolean existsComponentTemplate(ComponentTemplatesExistRequest componentTemplatesRequest,
+                                           RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequest(componentTemplatesRequest,
+            ClusterRequestConverters::componentTemplatesExist, options, RestHighLevelClient::convertExistsResponse, emptySet());
+    }
+
+    /**
+     * Uses the Index Templates API to determine if index templates exist
+     * @param componentTemplatesRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion. The listener will be called with the value {@code true}
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable existsComponentTemplateAsync(ComponentTemplatesExistRequest componentTemplatesRequest,
+                                                    RequestOptions options,
+                                                    ActionListener<Boolean> listener) {
+
+        return restHighLevelClient.performRequestAsync(componentTemplatesRequest,
+            ClusterRequestConverters::componentTemplatesExist, options, RestHighLevelClient::convertExistsResponse, listener, emptySet());
     }
 }

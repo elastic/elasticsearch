@@ -8,30 +8,26 @@ package org.elasticsearch.xpack.aggregatemetric.aggregations.metrics;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSourceType;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.List;
@@ -49,14 +45,14 @@ public class AggregateMetricBackedAvgAggregatorTests extends AggregatorTestCase 
             iw.addDocument(
                 List.of(
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(20)),
-                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(2))
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), 2)
                 )
             );
 
             iw.addDocument(
                 List.of(
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(50)),
-                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), 5)
                 )
             );
         }, avg -> {
@@ -65,6 +61,7 @@ public class AggregateMetricBackedAvgAggregatorTests extends AggregatorTestCase 
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55824")
     public void testNoDocs() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
             // Intentionally not writing any docs
@@ -90,21 +87,21 @@ public class AggregateMetricBackedAvgAggregatorTests extends AggregatorTestCase 
                 List.of(
                     new StringField("match", "yes", Field.Store.NO),
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(10)),
-                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(1))
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), 1)
                 )
             );
             iw.addDocument(
                 List.of(
                     new StringField("match", "yes", Field.Store.NO),
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(50)),
-                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), 5)
                 )
             );
             iw.addDocument(
                 List.of(
                     new StringField("match", "no", Field.Store.NO),
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(40)),
-                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), 5)
                 )
             );
         }, avg -> {
@@ -138,33 +135,9 @@ public class AggregateMetricBackedAvgAggregatorTests extends AggregatorTestCase 
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
 
-    private void testCase(
-        AggregationBuilder aggregationBuilder,
-        Query query,
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        Consumer<InternalAvg> verify,
-        MappedFieldType fieldType
-    ) throws IOException {
-        try (Directory directory = newDirectory()) {
-            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-            buildIndex.accept(indexWriter);
-            indexWriter.close();
-
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-                Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-                aggregator.preCollection();
-                indexSearcher.search(query, aggregator);
-                aggregator.postCollection();
-                verify.accept((InternalAvg) aggregator.buildAggregation(0L));
-            }
-        }
-    }
-
-    @BeforeClass()
-    public static void registerBuilder() {
-        AggregateMetricsAggregatorsRegistrar.registerAvgAggregator(valuesSourceRegistry);
+    @Override
+    protected List<SearchPlugin> getSearchPlugins() {
+        return List.of(new AggregateMetricMapperPlugin());
     }
 
     @Override

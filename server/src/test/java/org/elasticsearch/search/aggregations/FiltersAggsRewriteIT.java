@@ -62,12 +62,12 @@ public class FiltersAggsRewriteIT extends ESSingleNodeTestCase {
                 new WrapperQueryBuilder(bytesReference)));
         Map<String, Object> metadata = new HashMap<>();
         metadata.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        builder.setMetaData(metadata);
+        builder.setMetadata(metadata);
         SearchResponse searchResponse = client().prepareSearch("test").setSize(0).addAggregation(builder).get();
         assertEquals(3, searchResponse.getHits().getTotalHits().value);
         InternalFilters filters = searchResponse.getAggregations().get("titles");
         assertEquals(1, filters.getBuckets().size());
         assertEquals(2, filters.getBuckets().get(0).getDocCount());
-        assertEquals(metadata, filters.getMetaData());
+        assertEquals(metadata, filters.getMetadata());
     }
 }

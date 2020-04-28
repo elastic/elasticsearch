@@ -30,7 +30,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class LegacyGeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<ShapeBuilder<?, ?, ?>, Shape> {
+public class LegacyGeoShapeIndexer implements AbstractShapeGeometryFieldMapper.Indexer<ShapeBuilder<?, ?, ?>, Shape> {
 
     private LegacyGeoShapeFieldMapper.GeoShapeFieldType fieldType;
 

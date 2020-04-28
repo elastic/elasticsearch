@@ -41,9 +41,8 @@ class AggregateMetricBackedValueCountAggregator extends NumericMetricsAggregator
                                               AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource,
                                               SearchContext aggregationContext,
                                               Aggregator parent,
-                                              List<PipelineAggregator> pipelineAggregators,
-                                              Map<String, Object> metaData) throws IOException {
-        super(name, aggregationContext, parent, pipelineAggregators, metaData);
+                                              Map<String, Object> metadata) throws IOException {
+        super(name, aggregationContext, parent, metadata);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             counts = context.bigArrays().newLongArray(1, true);
@@ -84,12 +83,12 @@ class AggregateMetricBackedValueCountAggregator extends NumericMetricsAggregator
         if (valuesSource == null || bucket >= counts.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalValueCount(name, counts.get(bucket), pipelineAggregators(), metaData());
+        return new InternalValueCount(name, counts.get(bucket), metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalValueCount(name, 0L, pipelineAggregators(), metaData());
+        return new InternalValueCount(name, 0L, metadata());
     }
 
     @Override

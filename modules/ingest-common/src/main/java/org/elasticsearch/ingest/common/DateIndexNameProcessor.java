@@ -102,7 +102,7 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
                     .append('}')
                 .append('>');
         String dynamicIndexName  = builder.toString();
-        ingestDocument.setFieldValue(IngestDocument.MetaData.INDEX.getFieldName(), dynamicIndexName);
+        ingestDocument.setFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), dynamicIndexName);
         return ingestDocument;
     }
 

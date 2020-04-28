@@ -21,63 +21,38 @@ import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMet
  */
 public class AggregateMetricsAggregatorsRegistrar {
 
-    /**
-     * Register the Sum aggregator
-     */
-    public static void registerSumAggregator(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(
+    public static void registerSumAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
             SumAggregationBuilder.NAME,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
-            (MetricAggregatorSupplier) (
+            (MetricAggregatorSupplier) (name, valuesSource, formatter, context, parent, metadata) -> new AggregateMetricBackedSumAggregator(
                 name,
-                valuesSource,
+                (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
                 formatter,
                 context,
                 parent,
-                pipelineAggregators,
-                metaData) -> new AggregateMetricBackedSumAggregator(
-                    name,
-                    (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
-                    formatter,
-                    context,
-                    parent,
-                    pipelineAggregators,
-                    metaData
-                )
+                metadata
+            )
         );
     }
 
-    /**
-     * Register the Average aggregator
-     */
-    public static void registerAvgAggregator(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(
+    public static void registerAvgAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
             AvgAggregationBuilder.NAME,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
-            (MetricAggregatorSupplier) (
+            (MetricAggregatorSupplier) (name, valuesSource, formatter, context, parent, metadata) -> new AggregateMetricBackedAvgAggregator(
                 name,
-                valuesSource,
+                (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
                 formatter,
                 context,
                 parent,
-                pipelineAggregators,
-                metaData) -> new AggregateMetricBackedAvgAggregator(
-                    name,
-                    (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
-                    formatter,
-                    context,
-                    parent,
-                    pipelineAggregators,
-                    metaData
-                )
+                metadata
+            )
         );
     }
 
-    /**
-     * Register the Min aggregator
-     */
-    public static void registerMinAggregator(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(
+    public static void registerMinAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
             MinAggregationBuilder.NAME,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
             (MinMaxAggregatorSupplier) (
@@ -86,50 +61,33 @@ public class AggregateMetricsAggregatorsRegistrar {
                 valuesSource,
                 context,
                 parent,
-                pipelineAggregators,
-                metaData) -> new AggregateMetricBackedMinAggregator(
+                metadata) -> new AggregateMetricBackedMinAggregator(
                     name,
                     valuesSourceConfig,
                     (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
                     context,
                     parent,
-                    pipelineAggregators,
-                    metaData
+                    metadata
                 )
         );
     }
 
-    /**
-     * Register the Max aggregator
-     */
-    public static void registerMaxAggregator(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(
+    public static void registerMaxAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
             MaxAggregationBuilder.NAME,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
-            (MinMaxAggregatorSupplier) (
+            (MinMaxAggregatorSupplier) (name, config, valuesSource, context, parent, metadata) -> new AggregateMetricBackedMaxAggregator(
                 name,
                 config,
-                valuesSource,
+                (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
                 context,
                 parent,
-                pipelineAggregators,
-                metaData) -> new AggregateMetricBackedMaxAggregator(
-                    name,
-                    config,
-                    (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
-                    context,
-                    parent,
-                    pipelineAggregators,
-                    metaData
-                )
+                metadata
+            )
         );
     }
-
-    /**
-     * Register the ValueCount aggregator
-     */
-    public static void registerValueCountAggregator(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(
+    public static void registerValueCountAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
             ValueCountAggregationBuilder.NAME,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
             (MetricAggregatorSupplier) (
@@ -138,14 +96,12 @@ public class AggregateMetricsAggregatorsRegistrar {
                 formatter,
                 context,
                 parent,
-                pipelineAggregators,
-                metaData) -> new AggregateMetricBackedValueCountAggregator(
+                metadata) -> new AggregateMetricBackedValueCountAggregator(
                     name,
                     (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
                     context,
                     parent,
-                    pipelineAggregators,
-                    metaData
+                    metadata
                 )
         );
     }

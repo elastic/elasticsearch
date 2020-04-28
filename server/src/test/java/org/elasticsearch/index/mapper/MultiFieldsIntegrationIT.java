@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -51,9 +51,9 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         );
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
-        MappingMetaData mappingMetaData = getMappingsResponse.mappings().get("my-index");
-        assertThat(mappingMetaData, not(nullValue()));
-        Map<String, Object> mappingSource = mappingMetaData.sourceAsMap();
+        MappingMetadata mappingMetadata = getMappingsResponse.mappings().get("my-index");
+        assertThat(mappingMetadata, not(nullValue()));
+        Map<String, Object> mappingSource = mappingMetadata.sourceAsMap();
         Map<String, Object> titleFields = ((Map<String, Object>) XContentMapValues.extractValue("properties.title.fields", mappingSource));
         assertThat(titleFields.size(), equalTo(1));
         assertThat(titleFields.get("not_analyzed"), notNullValue());
@@ -79,9 +79,9 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         );
 
         getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
-        mappingMetaData = getMappingsResponse.mappings().get("my-index");
-        assertThat(mappingMetaData, not(nullValue()));
-        mappingSource = mappingMetaData.sourceAsMap();
+        mappingMetadata = getMappingsResponse.mappings().get("my-index");
+        assertThat(mappingMetadata, not(nullValue()));
+        mappingSource = mappingMetadata.sourceAsMap();
         assertThat(((Map<String, Object>) XContentMapValues.extractValue("properties.title", mappingSource)).size(), equalTo(2));
         titleFields = ((Map<String, Object>) XContentMapValues.extractValue("properties.title.fields", mappingSource));
         assertThat(titleFields.size(), equalTo(2));
@@ -109,9 +109,9 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         );
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
-        MappingMetaData mappingMetaData = getMappingsResponse.mappings().get("my-index");
-        assertThat(mappingMetaData, not(nullValue()));
-        Map<String, Object> mappingSource = mappingMetaData.sourceAsMap();
+        MappingMetadata mappingMetadata = getMappingsResponse.mappings().get("my-index");
+        assertThat(mappingMetadata, not(nullValue()));
+        Map<String, Object> mappingSource = mappingMetadata.sourceAsMap();
         Map<String, Object> aField = ((Map<String, Object>) XContentMapValues.extractValue("properties.a", mappingSource));
         logger.info("Keys: {}", aField.keySet());
         assertThat(aField.size(), equalTo(2));
@@ -140,9 +140,9 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         );
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
-        MappingMetaData mappingMetaData = getMappingsResponse.mappings().get("my-index");
-        assertThat(mappingMetaData, not(nullValue()));
-        Map<String, Object> mappingSource = mappingMetaData.sourceAsMap();
+        MappingMetadata mappingMetadata = getMappingsResponse.mappings().get("my-index");
+        assertThat(mappingMetadata, not(nullValue()));
+        Map<String, Object> mappingSource = mappingMetadata.sourceAsMap();
         Map<String, Object> aField = ((Map<String, Object>) XContentMapValues.extractValue("properties.a", mappingSource));
         assertThat(aField.size(), equalTo(6));
         assertThat(aField.get("type").toString(), equalTo("completion"));
@@ -165,9 +165,9 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         );
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
-        MappingMetaData mappingMetaData = getMappingsResponse.mappings().get("my-index");
-        assertThat(mappingMetaData, not(nullValue()));
-        Map<String, Object> mappingSource = mappingMetaData.sourceAsMap();
+        MappingMetadata mappingMetadata = getMappingsResponse.mappings().get("my-index");
+        assertThat(mappingMetadata, not(nullValue()));
+        Map<String, Object> mappingSource = mappingMetadata.sourceAsMap();
         Map<String, Object> aField = ((Map<String, Object>) XContentMapValues.extractValue("properties.a", mappingSource));
         assertThat(aField.size(), equalTo(2));
         assertThat(aField.get("type").toString(), equalTo("ip"));

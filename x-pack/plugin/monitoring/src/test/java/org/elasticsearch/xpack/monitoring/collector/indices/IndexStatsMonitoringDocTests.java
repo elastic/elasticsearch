@@ -10,7 +10,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -66,7 +66,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
     private final int relocating = randomInt(activePrimaries);
 
     private IndexStats indexStats;
-    private IndexMetaData metaData;
+    private IndexMetadata metadata;
     private IndexRoutingTable routingTable;
     private ClusterIndexHealth indexHealth;
 
@@ -75,15 +75,15 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
     public void setUp() throws Exception {
         super.setUp();
         indexStats = mock(IndexStats.class);
-        metaData = mockIndexMetaData(index, primaries, replicas);
+        metadata = mockIndexMetadata(index, primaries, replicas);
         routingTable = mockIndexRoutingTable(index, primaries, replicas, activePrimaries, activeReplicas, initializing, relocating);
-        indexHealth = new ClusterIndexHealth(metaData, routingTable);
+        indexHealth = new ClusterIndexHealth(metadata, routingTable);
     }
 
     @Override
     protected IndexStatsMonitoringDoc createMonitoringDoc(String cluster, long timestamp, long interval, MonitoringDoc.Node node,
                                                           MonitoredSystem system, String type, String id) {
-        return new IndexStatsMonitoringDoc(cluster, timestamp, interval, node, indexStats, metaData, routingTable);
+        return new IndexStatsMonitoringDoc(cluster, timestamp, interval, node, indexStats, metadata, routingTable);
     }
 
     @Override
@@ -93,7 +93,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         assertThat(document.getId(), nullValue());
 
         assertThat(document.getIndexStats(), is(indexStats));
-        assertThat(document.getIndexMetaData(), is(metaData));
+        assertThat(document.getIndexMetadata(), is(metadata));
         assertThat(document.getIndexRoutingTable(), is(routingTable));
     }
 
@@ -103,10 +103,10 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
     }
 
     public void testConstructorIndexStatsCanBeNull() {
-        new IndexStatsMonitoringDoc(cluster, timestamp, interval, node, null, metaData, routingTable);
+        new IndexStatsMonitoringDoc(cluster, timestamp, interval, node, null, metadata, routingTable);
     }
 
-    public void testConstructorMetaDataMustNotBeNull() {
+    public void testConstructorMetadataMustNotBeNull() {
         final IndexStats indexStats = randomFrom(this.indexStats, null);
 
         expectThrows(NullPointerException.class,
@@ -117,7 +117,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         final IndexStats indexStats = randomFrom(this.indexStats, null);
 
         expectThrows(NullPointerException.class,
-                     () -> new IndexStatsMonitoringDoc(cluster, timestamp, interval, node, indexStats, metaData, null));
+                     () -> new IndexStatsMonitoringDoc(cluster, timestamp, interval, node, indexStats, metadata, null));
     }
 
     @Override
@@ -127,7 +127,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         when(indexStats.getPrimaries()).thenReturn(mockCommonStats());
 
         final IndexStatsMonitoringDoc document =
-                new IndexStatsMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, indexStats, metaData, routingTable);
+                new IndexStatsMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, indexStats, metadata, routingTable);
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
         final String expected = stripWhitespace(String.format(Locale.ROOT, "{"
@@ -196,6 +196,13 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
             + "        \"evictions\": 10,"
             + "        \"hit_count\": 11,"
             + "        \"miss_count\": 12"
+            + "      },"
+            + "      \"bulk\": {"
+            + "        \"total_operations\": 0,"
+            + "        \"total_time_in_millis\": 0,"
+            + "        \"total_size_in_bytes\": 0,"
+            + "        \"avg_time_in_millis\": 0,"
+            + "        \"avg_size_in_bytes\": 0"
             + "      }"
             + "    },"
             + "    \"primaries\": {"
@@ -249,6 +256,13 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
             + "        \"evictions\": 10,"
             + "        \"hit_count\": 11,"
             + "        \"miss_count\": 12"
+            + "      },"
+            + "      \"bulk\": {"
+            + "        \"total_operations\": 0,"
+            + "        \"total_time_in_millis\": 0,"
+            + "        \"total_size_in_bytes\": 0,"
+            + "        \"avg_time_in_millis\": 0,"
+            + "        \"avg_size_in_bytes\": 0"
             + "      }"
             + "    }"
             + "  }"
@@ -272,7 +286,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         }
 
         final IndexStatsMonitoringDoc document =
-                new IndexStatsMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, indexStats, metaData, routingTable);
+                new IndexStatsMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, indexStats, metadata, routingTable);
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
         final String expected = stripWhitespace(
@@ -304,7 +318,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
             .startObject()
             .field("index", index.getName())
             .field("uuid", index.getUUID())
-            .field("created", metaData.getCreationDate())
+            .field("created", metadata.getCreationDate())
             .field("status", indexHealth.getStatus().name().toLowerCase(Locale.ROOT));
         {
             builder.startObject("shards")
@@ -368,18 +382,18 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         return commonStats;
     }
 
-    private static IndexMetaData mockIndexMetaData(final Index index,
+    private static IndexMetadata mockIndexMetadata(final Index index,
                                                    final int primaries, final int replicas) {
         final Settings.Builder settings = Settings.builder();
 
-        settings.put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID());
-        settings.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, primaries);
-        settings.put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, replicas);
-        settings.put(IndexMetaData.SETTING_VERSION_CREATED, MonitoringTemplateUtils.LAST_UPDATED_VERSION);
-        settings.put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.CURRENT.id);
-        settings.put(IndexMetaData.SETTING_CREATION_DATE, (new Date()).getTime());
+        settings.put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
+        settings.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, primaries);
+        settings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
+        settings.put(IndexMetadata.SETTING_VERSION_CREATED, MonitoringTemplateUtils.LAST_UPDATED_VERSION);
+        settings.put(IndexMetadata.SETTING_VERSION_UPGRADED, Version.CURRENT.id);
+        settings.put(IndexMetadata.SETTING_CREATION_DATE, (new Date()).getTime());
 
-        return IndexMetaData.builder(index.getName()).settings(settings).build();
+        return IndexMetadata.builder(index.getName()).settings(settings).build();
     }
 
     private static IndexRoutingTable mockIndexRoutingTable(final Index index,

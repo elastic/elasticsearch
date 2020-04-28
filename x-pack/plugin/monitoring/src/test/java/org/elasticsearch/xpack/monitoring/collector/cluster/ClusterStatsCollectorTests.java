@@ -258,8 +258,8 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         assertThat(document.getClusterState().stateUUID(), equalTo(clusterState.stateUUID()));
 
         verify(clusterService, times(1)).getClusterName();
-        verify(clusterState, times(1)).metaData();
-        verify(metaData, times(1)).clusterUUID();
+        verify(clusterState, times(1)).metadata();
+        verify(metadata, times(1)).clusterUUID();
         verify(licenseService, times(1)).getLicense();
         verify(clusterAdminClient).prepareClusterStats();
         verify(client).execute(same(XPackUsageAction.INSTANCE), any(XPackUsageRequest.class));

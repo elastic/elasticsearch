@@ -21,13 +21,11 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSource;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
@@ -38,9 +36,8 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
     protected final double compression;
 
     BoxplotAggregator(String name, ValuesSource valuesSource, DocValueFormat formatter, double compression,
-                      SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                      Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+                      SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, metadata);
         this.valuesSource = valuesSource;
         this.format = formatter;
         this.compression = compression;
@@ -131,7 +128,7 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
         if (state == null) {
             return buildEmptyAggregation();
         } else {
-            return new InternalBoxplot(name, state, format, pipelineAggregators(), metaData());
+            return new InternalBoxplot(name, state, format, metadata());
         }
     }
 
@@ -144,7 +141,7 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalBoxplot(name, new TDigestState(compression), format, pipelineAggregators(), metaData());
+        return new InternalBoxplot(name, new TDigestState(compression), format, metadata());
     }
 
     @Override

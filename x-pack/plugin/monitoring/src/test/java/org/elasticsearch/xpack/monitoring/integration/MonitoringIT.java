@@ -65,11 +65,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.threadpool.ThreadPool.Names.WRITE;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -234,14 +234,14 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
         final String index = (String) document.get("_index");
         assertThat(index, containsString(".monitoring-" + expectedSystem.getSystem() + "-" + TEMPLATE_VERSION + "-"));
-        assertThat((String) document.get("_id"), not(isEmptyOrNullString()));
+        assertThat((String) document.get("_id"), is(not(emptyOrNullString())));
 
         final Map<String, Object> source = (Map<String, Object>) document.get("_source");
         assertThat(source, notNullValue());
-        assertThat((String) source.get("cluster_uuid"), not(isEmptyOrNullString()));
+        assertThat((String) source.get("cluster_uuid"), is(not(emptyOrNullString())));
 
         final String timestamp = (String) source.get("timestamp");
-        assertThat(timestamp, not(isEmptyOrNullString()));
+        assertThat(timestamp, is(not(emptyOrNullString())));
 
         assertThat(((Number) source.get("interval_ms")).longValue(), equalTo(interval.getMillis()));
 
@@ -274,7 +274,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         assertThat(sourceNode.get("transport_address"),equalTo(node.getAddress().toString()));
         assertThat(sourceNode.get("ip"), equalTo(node.getAddress().getAddress()));
         assertThat(sourceNode.get("name"), equalTo(node.getName()));
-        assertThat((String) sourceNode.get("timestamp"), not(isEmptyOrNullString()));
+        assertThat((String) sourceNode.get("timestamp"), is(not(emptyOrNullString())));
     }
 
     /**

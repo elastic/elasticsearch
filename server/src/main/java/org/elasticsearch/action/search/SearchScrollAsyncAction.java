@@ -236,7 +236,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
             final InternalSearchResponse internalResponse = searchPhaseController.merge(true, queryPhase, fetchResults.asList(),
                 fetchResults::get);
             // the scroll ID never changes we always return the same ID. This ID contains all the shards and their context ids
-            // such that we can talk to them abgain in the next roundtrip.
+            // such that we can talk to them again in the next roundtrip.
             String scrollId = null;
             if (request.scroll() != null) {
                 scrollId = request.scrollId();

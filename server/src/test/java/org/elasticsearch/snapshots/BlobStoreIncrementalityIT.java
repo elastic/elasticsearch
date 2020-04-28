@@ -29,7 +29,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -51,8 +51,8 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         final String primaryNode = internalCluster().startDataOnlyNode();
         final String indexName = "test-index";
         createIndex(indexName, Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0).build());
         ensureYellow(indexName);
         final String newPrimary = internalCluster().startDataOnlyNode();
@@ -78,10 +78,7 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
 
         final String snapshot1 = "snap-1";
         final String repo = "test-repo";
-        logger.info("--> creating repository");
-        assertThat(client().admin().cluster().preparePutRepository(repo)
-                .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).execute().actionGet().isAcknowledged(),
-            is(true));
+        createRepository(repo, "fs", randomRepoPath());
 
         logger.info("--> creating snapshot 1");
         client().admin().cluster().prepareCreateSnapshot(repo, snapshot1).setIndices(indexName).setWaitForCompletion(true).get();
@@ -138,7 +135,7 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startMasterOnlyNode();
         internalCluster().ensureAtLeastNumDataNodes(2);
         final String indexName = "test-index";
-        createIndex(indexName, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).build());
+        createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build());
         ensureGreen(indexName);
 
         logger.info("--> adding some documents to test index and flush in between to get at least two segments");
@@ -155,10 +152,7 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
 
         final String snapshot1 = "snap-1";
         final String repo = "test-repo";
-        logger.info("--> creating repository");
-        assertThat(client().admin().cluster().preparePutRepository(repo)
-                .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).execute().actionGet().isAcknowledged(),
-            is(true));
+        createRepository(repo, "fs", randomRepoPath());
 
         logger.info("--> creating snapshot 1");
         client().admin().cluster().prepareCreateSnapshot(repo, snapshot1).setIndices(indexName).setWaitForCompletion(true).get();

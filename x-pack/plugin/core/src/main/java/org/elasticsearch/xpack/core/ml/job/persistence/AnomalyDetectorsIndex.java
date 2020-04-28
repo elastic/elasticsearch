@@ -78,7 +78,8 @@ public final class AnomalyDetectorsIndex {
      * Creates the .ml-state-000001 index (if necessary)
      * Creates the .ml-state-write alias for the .ml-state-000001 index (if necessary)
      */
-    public static void createStateIndexAndAliasIfNecessary(Client client, ClusterState state, IndexNameExpressionResolver resolver,
+    public static void createStateIndexAndAliasIfNecessary(Client client, ClusterState state,
+                                                           IndexNameExpressionResolver resolver,
                                                            final ActionListener<Boolean> finalListener) {
         MlIndexAndAlias.createIndexAndAliasIfNecessary(
             client,

@@ -94,12 +94,12 @@ test_alias           | VIEW    | ALIAS
 showPattern
 SHOW TABLES LIKE 'test_%';
 
-name:s               | type:s      | kind :s
+name:s               | type:s | kind :s
 
-test_alias           | VIEW        | ALIAS
-test_alias_emp       | VIEW        | ALIAS
-test_emp             | BASE TABLE  | INDEX
-test_emp_copy        | BASE TABLE  | INDEX
+test_alias           | VIEW   | ALIAS
+test_alias_emp       | VIEW   | ALIAS
+test_emp             | TABLE  | INDEX
+test_emp_copy        | TABLE  | INDEX
 ;
 
 groupByOnAlias

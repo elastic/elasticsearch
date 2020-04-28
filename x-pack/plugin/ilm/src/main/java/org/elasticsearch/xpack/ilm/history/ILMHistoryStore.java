@@ -182,8 +182,8 @@ public class ILMHistoryStore implements Closeable {
     @SuppressWarnings("unchecked")
     static void ensureHistoryIndex(Client client, ClusterState state, ActionListener<Boolean> listener) {
         final String initialHistoryIndexName = ILM_HISTORY_INDEX_PREFIX + "000001";
-        final IndexAbstraction ilmHistory = state.metaData().getIndicesLookup().get(ILM_HISTORY_ALIAS);
-        final IndexAbstraction initialHistoryIndex = state.metaData().getIndicesLookup().get(initialHistoryIndexName);
+        final IndexAbstraction ilmHistory = state.metadata().getIndicesLookup().get(ILM_HISTORY_ALIAS);
+        final IndexAbstraction initialHistoryIndex = state.metadata().getIndicesLookup().get(initialHistoryIndexName);
 
         if (ilmHistory == null && initialHistoryIndex == null) {
             // No alias or index exists with the expected names, so create the index with appropriate alias
@@ -233,7 +233,7 @@ public class ILMHistoryStore implements Closeable {
         } else if (ilmHistory.getType() != IndexAbstraction.Type.ALIAS) {
             // This is not an alias, error out
             listener.onFailure(new IllegalStateException("ILM history alias [" + ILM_HISTORY_ALIAS +
-                "] already exists as concrete index"));
+                "] already exists as " + ilmHistory.getType().getDisplayName()));
         } else {
             logger.error("unexpected IndexOrAlias for [{}]: [{}]", ILM_HISTORY_ALIAS, ilmHistory);
             assert false : ILM_HISTORY_ALIAS + " cannot be both an alias and not an alias simultaneously";

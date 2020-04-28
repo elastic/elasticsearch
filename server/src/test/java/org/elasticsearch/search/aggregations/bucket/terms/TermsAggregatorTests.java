@@ -58,7 +58,12 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -98,8 +103,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static java.util.Collections.singleton;
 import static org.elasticsearch.index.mapper.SeqNoFieldMapper.PRIMARY_TERM_NAME;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.bucketScript;
@@ -110,6 +117,26 @@ import static org.hamcrest.Matchers.instanceOf;
 public class TermsAggregatorTests extends AggregatorTestCase {
 
     private boolean randomizeAggregatorImpl = true;
+
+    // Constants for a script that returns a string
+    private static final String STRING_SCRIPT_NAME = "string_script";
+    private static final String STRING_SCRIPT_OUTPUT = "Orange";
+
+    @Override
+    protected ScriptService getMockScriptService() {
+        Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+        Map<String, Function<Map<String, Object>, Object>> nonDeterministicScripts = new HashMap<>();
+
+        scripts.put(STRING_SCRIPT_NAME, value -> STRING_SCRIPT_OUTPUT);
+
+        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
+            scripts,
+            nonDeterministicScripts,
+            Collections.emptyMap());
+        Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
+
+        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+    }
 
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder,
             IndexSearcher indexSearcher, MappedFieldType... fieldTypes) throws IOException {
@@ -139,7 +166,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             CoreValuesSourceType.BOOLEAN);
     }
 
-    public void testGlobalOrdinalsExecutionHint() throws Exception {
+    public void testUsesGlobalOrdinalsByDefault() throws Exception {
         randomizeAggregatorImpl = false;
 
         Directory directory = newDirectory();
@@ -150,8 +177,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = new IndexSearcher(indexReader);
 
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(ValueType.STRING)
-            .field("string")
-            .collectMode(Aggregator.SubAggCollectionMode.BREADTH_FIRST);
+            .field("string");
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
         fieldType.setName("string");
         fieldType.setHasDocValues(true);
@@ -161,11 +187,29 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         GlobalOrdinalsStringTermsAggregator globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
         assertFalse(globalAgg.remapGlobalOrds());
 
+        // Infers depth_first because the maxOrd is 0 which is less than the size
         aggregationBuilder
             .subAggregation(AggregationBuilders.cardinality("card").field("string"));
         aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
         globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
+        assertThat(globalAgg.collectMode, equalTo(Aggregator.SubAggCollectionMode.DEPTH_FIRST));
+        assertTrue(globalAgg.remapGlobalOrds());
+
+        aggregationBuilder
+            .collectMode(Aggregator.SubAggCollectionMode.DEPTH_FIRST);
+        aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
+        globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
+        assertThat(globalAgg.collectMode, equalTo(Aggregator.SubAggCollectionMode.DEPTH_FIRST));
+        assertTrue(globalAgg.remapGlobalOrds());
+
+        aggregationBuilder
+            .collectMode(Aggregator.SubAggCollectionMode.BREADTH_FIRST);
+        aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
+        globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
+        assertThat(globalAgg.collectMode, equalTo(Aggregator.SubAggCollectionMode.BREADTH_FIRST));
         assertFalse(globalAgg.remapGlobalOrds());
 
         aggregationBuilder
@@ -1227,6 +1271,26 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             }
         }
     }
+
+    public void testNumberToStringValueScript() throws IOException {
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
+        fieldType.setName("number");
+
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("name")
+            .userValueTypeHint(ValueType.STRING)
+            .field("number")
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, STRING_SCRIPT_NAME, Collections.emptyMap()));
+
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            final int numDocs = 10;
+            for (int i = 0; i < numDocs; i++) {
+                iw.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
+            }
+        }, (Consumer<InternalTerms>) terms -> {
+            assertTrue(AggregationInspectionHelper.hasValue(terms));
+        }, fieldType);
+    }
+
 
     private void assertNestedTopHitsScore(InternalMultiBucketAggregation<?, ?> terms, boolean withScore) {
         assertThat(terms.getBuckets().size(), equalTo(9));

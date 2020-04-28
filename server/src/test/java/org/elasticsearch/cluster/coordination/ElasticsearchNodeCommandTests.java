@@ -20,8 +20,10 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -34,10 +36,12 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -61,44 +65,53 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
     }
 
     private void runLoadStateTest(boolean hasMissingCustoms, boolean preserveUnknownCustoms) throws IOException {
-        final MetaData latestMetaData = randomMeta();
+        final Metadata latestMetadata = randomMeta();
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        MetaData.FORMAT.toXContent(builder, latestMetaData);
+        Metadata.FORMAT.toXContent(builder, latestMetadata);
         builder.endObject();
 
-        MetaData loadedMetaData;
+        Metadata loadedMetadata;
         try (XContentParser parser = createParser(hasMissingCustoms ? ElasticsearchNodeCommand.namedXContentRegistry : xContentRegistry(),
             JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-            loadedMetaData = MetaData.fromXContent(parser);
+            loadedMetadata = Metadata.fromXContent(parser);
         }
-        assertThat(loadedMetaData.clusterUUID(), not(equalTo("_na_")));
-        assertThat(loadedMetaData.clusterUUID(), equalTo(latestMetaData.clusterUUID()));
+        assertThat(loadedMetadata.clusterUUID(), not(equalTo("_na_")));
+        assertThat(loadedMetadata.clusterUUID(), equalTo(latestMetadata.clusterUUID()));
+        assertThat(loadedMetadata.dataStreams(), equalTo(latestMetadata.dataStreams()));
 
         // make sure the index tombstones are the same too
         if (hasMissingCustoms) {
-            assertNotNull(loadedMetaData.custom(IndexGraveyard.TYPE));
-            assertThat(loadedMetaData.custom(IndexGraveyard.TYPE), instanceOf(ElasticsearchNodeCommand.UnknownMetaDataCustom.class));
+            assertNotNull(loadedMetadata.custom(IndexGraveyard.TYPE));
+            assertThat(loadedMetadata.custom(IndexGraveyard.TYPE), instanceOf(ElasticsearchNodeCommand.UnknownMetadataCustom.class));
 
             if (preserveUnknownCustoms) {
                 // check that we reserialize unknown metadata correctly again
                 final Path tempdir = createTempDir();
-                MetaData.FORMAT.write(loadedMetaData, tempdir);
-                final MetaData reloadedMetaData = MetaData.FORMAT.loadLatestState(logger, xContentRegistry(), tempdir);
-                assertThat(reloadedMetaData.indexGraveyard(), equalTo(latestMetaData.indexGraveyard()));
+                Metadata.FORMAT.write(loadedMetadata, tempdir);
+                final Metadata reloadedMetadata = Metadata.FORMAT.loadLatestState(logger, xContentRegistry(), tempdir);
+                assertThat(reloadedMetadata.indexGraveyard(), equalTo(latestMetadata.indexGraveyard()));
             }
         }  else {
-            assertThat(loadedMetaData.indexGraveyard(), equalTo(latestMetaData.indexGraveyard()));
+            assertThat(loadedMetadata.indexGraveyard(), equalTo(latestMetadata.indexGraveyard()));
         }
     }
 
-    private MetaData randomMeta() {
-        MetaData.Builder mdBuilder = MetaData.builder();
+    private Metadata randomMeta() {
+        Metadata.Builder mdBuilder = Metadata.builder();
         mdBuilder.generateClusterUuidIfNeeded();
         int numDelIndices = randomIntBetween(0, 5);
         final IndexGraveyard.Builder graveyard = IndexGraveyard.builder();
         for (int i = 0; i < numDelIndices; i++) {
             graveyard.addTombstone(new Index(randomAlphaOfLength(10) + "del-idx-" + i, UUIDs.randomBase64UUID()));
+        }
+        if (randomBoolean()) {
+            int numDataStreams = randomIntBetween(0, 5);
+            for (int i = 0; i < numDataStreams; i++) {
+                String dataStreamName = "name" + 1;
+                IndexMetadata backingIndex = createFirstBackingIndex(dataStreamName).build();
+                mdBuilder.put(new DataStream(dataStreamName, "ts", List.of(backingIndex.getIndex())));
+            }
         }
         mdBuilder.indexGraveyard(graveyard.build());
         return mdBuilder.build();
@@ -106,8 +119,10 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(Stream.of(ClusterModule.getNamedXWriteables().stream(), IndicesModule.getNamedXContents().stream())
+        return new NamedXContentRegistry(
+            Stream.of(ClusterModule.getNamedXWriteables().stream(), IndicesModule.getNamedXContents().stream())
             .flatMap(Function.identity())
-            .collect(Collectors.toList()));
+            .collect(Collectors.toList())
+        );
     }
 }

@@ -138,14 +138,14 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
 
     public void testFailsToStartIfDowngraded() {
         final IllegalStateException illegalStateException = expectThrowsOnRestart(dataPaths ->
-            PersistedClusterStateService.overrideVersion(NodeMetaDataTests.tooNewVersion(), dataPaths));
+            PersistedClusterStateService.overrideVersion(NodeMetadataTests.tooNewVersion(), dataPaths));
         assertThat(illegalStateException.getMessage(),
             allOf(startsWith("cannot downgrade a node from version ["), endsWith("] to version [" + Version.CURRENT + "]")));
     }
 
     public void testFailsToStartIfUpgradedTooFar() {
         final IllegalStateException illegalStateException = expectThrowsOnRestart(dataPaths ->
-            PersistedClusterStateService.overrideVersion(NodeMetaDataTests.tooOldVersion(), dataPaths));
+            PersistedClusterStateService.overrideVersion(NodeMetadataTests.tooOldVersion(), dataPaths));
         assertThat(illegalStateException.getMessage(),
             allOf(startsWith("cannot upgrade a node from version ["), endsWith("] directly to version [" + Version.CURRENT + "]")));
     }
@@ -240,7 +240,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(0)));
 
         IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
-            () -> PersistedClusterStateService.nodeMetaData(allDataPaths.stream().map(PathUtils::get).toArray(Path[]::new)));
+            () -> PersistedClusterStateService.nodeMetadata(allDataPaths.stream().map(PathUtils::get).toArray(Path[]::new)));
 
         assertThat(illegalStateException.getMessage(), containsString("unexpected node ID in metadata"));
 

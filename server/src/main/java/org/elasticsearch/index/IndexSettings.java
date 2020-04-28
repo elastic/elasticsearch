@@ -22,7 +22,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -331,9 +331,9 @@ public final class IndexSettings {
     private final String nodeName;
     private final Settings nodeSettings;
     private final int numberOfShards;
-    // volatile fields are updated via #updateIndexMetaData(IndexMetaData) under lock
+    // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
-    private volatile IndexMetaData indexMetaData;
+    private volatile IndexMetadata indexMetadata;
     private volatile List<String> defaultFields;
     private final boolean queryStringLenient;
     private final boolean queryStringAnalyzeWildcard;
@@ -441,30 +441,30 @@ public final class IndexSettings {
      * Creates a new {@link IndexSettings} instance. The given node settings will be merged with the settings in the metadata
      * while index level settings will overwrite node settings.
      *
-     * @param indexMetaData the index metadata this settings object is associated with
+     * @param indexMetadata the index metadata this settings object is associated with
      * @param nodeSettings the nodes settings this index is allocated on.
      */
-    public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings) {
-        this(indexMetaData, nodeSettings, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+    public IndexSettings(final IndexMetadata indexMetadata, final Settings nodeSettings) {
+        this(indexMetadata, nodeSettings, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
     }
 
     /**
      * Creates a new {@link IndexSettings} instance. The given node settings will be merged with the settings in the metadata
      * while index level settings will overwrite node settings.
      *
-     * @param indexMetaData the index metadata this settings object is associated with
+     * @param indexMetadata the index metadata this settings object is associated with
      * @param nodeSettings the nodes settings this index is allocated on.
      */
-    public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings, IndexScopedSettings indexScopedSettings) {
-        scopedSettings = indexScopedSettings.copy(nodeSettings, indexMetaData);
+    public IndexSettings(final IndexMetadata indexMetadata, final Settings nodeSettings, IndexScopedSettings indexScopedSettings) {
+        scopedSettings = indexScopedSettings.copy(nodeSettings, indexMetadata);
         this.nodeSettings = nodeSettings;
-        this.settings = Settings.builder().put(nodeSettings).put(indexMetaData.getSettings()).build();
-        this.index = indexMetaData.getIndex();
-        version = IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(settings);
+        this.settings = Settings.builder().put(nodeSettings).put(indexMetadata.getSettings()).build();
+        this.index = indexMetadata.getIndex();
+        version = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
         logger = Loggers.getLogger(getClass(), index);
         nodeName = Node.NODE_NAME_SETTING.get(settings);
-        this.indexMetaData = indexMetaData;
-        numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
+        this.indexMetadata = indexMetadata;
+        numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
 
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
@@ -607,7 +607,7 @@ public final class IndexSettings {
      * Returns the customDataPath for this index, if configured. <code>""</code> o.w.
      */
     public String customDataPath() {
-        return IndexMetaData.INDEX_DATA_PATH_SETTING.get(settings);
+        return IndexMetadata.INDEX_DATA_PATH_SETTING.get(settings);
     }
 
     /**
@@ -626,10 +626,10 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns the current IndexMetaData for this index
+     * Returns the current IndexMetadata for this index
      */
-    public IndexMetaData getIndexMetaData() {
-        return indexMetaData;
+    public IndexMetadata getIndexMetadata() {
+        return indexMetadata;
     }
 
     /**
@@ -640,7 +640,7 @@ public final class IndexSettings {
     /**
      * Returns the number of replicas this index has.
      */
-    public int getNumberOfReplicas() { return settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null); }
+    public int getNumberOfReplicas() { return settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, null); }
 
     /**
      * Returns the node settings. The settings returned from {@link #getSettings()} are a merged version of the
@@ -656,17 +656,17 @@ public final class IndexSettings {
      *
      * @return <code>true</code> iff any setting has been updated otherwise <code>false</code>.
      */
-    public synchronized boolean updateIndexMetaData(IndexMetaData indexMetaData) {
-        final Settings newSettings = indexMetaData.getSettings();
+    public synchronized boolean updateIndexMetadata(IndexMetadata indexMetadata) {
+        final Settings newSettings = indexMetadata.getSettings();
         if (version.equals(Version.indexCreated(newSettings)) == false) {
             throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " +
                 Version.indexCreated(newSettings));
         }
-        final String newUUID = newSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
+        final String newUUID = newSettings.get(IndexMetadata.SETTING_INDEX_UUID, IndexMetadata.INDEX_UUID_NA_VALUE);
         if (newUUID.equals(getUUID()) == false) {
             throw new IllegalArgumentException("uuid mismatch on settings update expected: " + getUUID() + " but was: " + newUUID);
         }
-        this.indexMetaData = indexMetaData;
+        this.indexMetadata = indexMetadata;
         final Settings newIndexSettings = Settings.builder().put(nodeSettings).put(newSettings).build();
         if (same(this.settings, newIndexSettings)) {
             // nothing to update, same settings

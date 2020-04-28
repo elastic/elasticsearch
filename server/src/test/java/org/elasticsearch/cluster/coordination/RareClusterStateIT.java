@@ -30,9 +30,9 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -83,8 +83,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
     public void testAssignmentWithJustAddedNodes() {
         internalCluster().startNode(Settings.builder().put(TransportSettings.CONNECT_TIMEOUT.getKey(), "1s"));
         final String index = "index";
-        prepareCreate(index).setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();
+        prepareCreate(index).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen(index);
 
         // close to have some unassigned started shards shards..
@@ -102,15 +102,15 @@ public class RareClusterStateIT extends ESIntegTestCase {
                         buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT)));
 
                 // open index
-                final IndexMetaData indexMetaData = IndexMetaData.builder(currentState.metaData()
-                    .index(index)).state(IndexMetaData.State.OPEN).build();
+                final IndexMetadata indexMetadata = IndexMetadata.builder(currentState.metadata()
+                    .index(index)).state(IndexMetadata.State.OPEN).build();
 
-                builder.metaData(MetaData.builder(currentState.metaData()).put(indexMetaData, true));
+                builder.metadata(Metadata.builder(currentState.metadata()).put(indexMetadata, true));
                 builder.blocks(ClusterBlocks.builder().blocks(currentState.blocks()).removeIndexBlocks(index));
                 ClusterState updatedState = builder.build();
 
                 RoutingTable.Builder routingTable = RoutingTable.builder(updatedState.routingTable());
-                routingTable.addAsRecovery(updatedState.metaData().index(index));
+                routingTable.addAsRecovery(updatedState.metadata().index(index));
                 updatedState = ClusterState.builder(updatedState).routingTable(routingTable.build()).build();
 
                 return allocationService.reroute(updatedState, "reroute");
@@ -160,7 +160,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
-        prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();
+        prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen("test");
 
         // block none master node.
@@ -173,8 +173,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
         logger.info("--> delete index and recreate it");
         executeAndCancelCommittedPublication(client().admin().indices().prepareDelete("test").setTimeout("0s"))
                 .get(10, TimeUnit.SECONDS);
-        executeAndCancelCommittedPublication(prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData
-                .SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "0")).setTimeout("0s"))
+        executeAndCancelCommittedPublication(prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata
+                .SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "0")).setTimeout("0s"))
                 .get(10, TimeUnit.SECONDS);
 
         logger.info("--> letting cluster proceed");
@@ -214,8 +214,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         // Don't allocate the shard on the master node
         assertAcked(prepareCreate("index").setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("index.routing.allocation.exclude._name", master)).get());
         ensureGreen();
 
@@ -245,7 +245,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         // ...and wait for mappings to be available on master
         assertBusy(() -> {
-            MappingMetaData typeMappings = client().admin().indices()
+            MappingMetadata typeMappings = client().admin().indices()
                 .prepareGetMappings("index").get().getMappings().get("index");
             assertNotNull(typeMappings);
             Object properties;
@@ -301,8 +301,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // Force allocation of the primary on the master node by first only allocating on the master
         // and then allowing all nodes so that the replica gets allocated on the other node
         prepareCreate("index").setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .put("index.routing.allocation.include._name", master)).get();
         client().admin().indices().prepareUpdateSettings("index").setSettings(Settings.builder()
                 .put("index.routing.allocation.include._name", "")).get();

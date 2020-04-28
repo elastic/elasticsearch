@@ -29,9 +29,9 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -95,12 +95,12 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
         final Index index1 = new Index("index1", randomBase64UUID());
         final Index index2 = new Index("index2", randomBase64UUID());
         final ClusterState clusterState = ClusterState.builder(new ClusterName(TransportMultiGetActionTests.class.getSimpleName()))
-            .metaData(new MetaData.Builder()
-                .put(new IndexMetaData.Builder(index1.getName())
+            .metadata(new Metadata.Builder()
+                .put(new IndexMetadata.Builder(index1.getName())
                         .settings(Settings.builder().put("index.version.created", Version.CURRENT)
                             .put("index.number_of_shards", 1)
                             .put("index.number_of_replicas", 1)
-                            .put(IndexMetaData.SETTING_INDEX_UUID, index1.getUUID()))
+                            .put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID()))
                         .putMapping(
                             XContentHelper.convertToJson(BytesReference.bytes(XContentFactory.jsonBuilder()
                                 .startObject()
@@ -110,11 +110,11 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
                                         .endObject()
                                     .endObject()
                                 .endObject()), true, XContentType.JSON)))
-                    .put(new IndexMetaData.Builder(index2.getName())
+                    .put(new IndexMetadata.Builder(index2.getName())
                         .settings(Settings.builder().put("index.version.created", Version.CURRENT)
                             .put("index.number_of_shards", 1)
                             .put("index.number_of_replicas", 1)
-                            .put(IndexMetaData.SETTING_INDEX_UUID, index1.getUUID()))
+                            .put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID()))
                         .putMapping(
                             XContentHelper.convertToJson(BytesReference.bytes(XContentFactory.jsonBuilder()
                                 .startObject()

@@ -23,7 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData.State;
+import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 
@@ -38,12 +38,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class WildcardExpressionResolverTests extends ESTestCase {
     public void testConvertWildcardsJustIndicesTests() {
-        MetaData.Builder mdBuilder = MetaData.builder()
+        Metadata.Builder mdBuilder = Metadata.builder()
                 .put(indexBuilder("testXXX"))
                 .put(indexBuilder("testXYY"))
                 .put(indexBuilder("testYYY"))
                 .put(indexBuilder("kuku"));
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
 
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
@@ -66,12 +66,12 @@ public class WildcardExpressionResolverTests extends ESTestCase {
     }
 
     public void testConvertWildcardsTests() {
-        MetaData.Builder mdBuilder = MetaData.builder()
-                .put(indexBuilder("testXXX").putAlias(AliasMetaData.builder("alias1")).putAlias(AliasMetaData.builder("alias2")))
-                .put(indexBuilder("testXYY").putAlias(AliasMetaData.builder("alias2")))
-                .put(indexBuilder("testYYY").putAlias(AliasMetaData.builder("alias3")))
+        Metadata.Builder mdBuilder = Metadata.builder()
+                .put(indexBuilder("testXXX").putAlias(AliasMetadata.builder("alias1")).putAlias(AliasMetadata.builder("alias2")))
+                .put(indexBuilder("testXYY").putAlias(AliasMetadata.builder("alias2")))
+                .put(indexBuilder("testYYY").putAlias(AliasMetadata.builder("alias3")))
                 .put(indexBuilder("kuku"));
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
 
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
@@ -86,14 +86,14 @@ public class WildcardExpressionResolverTests extends ESTestCase {
     }
 
     public void testConvertWildcardsOpenClosedIndicesTests() {
-        MetaData.Builder mdBuilder = MetaData.builder()
-                .put(indexBuilder("testXXX").state(IndexMetaData.State.OPEN))
-                .put(indexBuilder("testXXY").state(IndexMetaData.State.OPEN))
-                .put(indexBuilder("testXYY").state(IndexMetaData.State.CLOSE))
-                .put(indexBuilder("testYYY").state(IndexMetaData.State.OPEN))
-                .put(indexBuilder("testYYX").state(IndexMetaData.State.CLOSE))
-                .put(indexBuilder("kuku").state(IndexMetaData.State.OPEN));
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        Metadata.Builder mdBuilder = Metadata.builder()
+                .put(indexBuilder("testXXX").state(IndexMetadata.State.OPEN))
+                .put(indexBuilder("testXXY").state(IndexMetadata.State.OPEN))
+                .put(indexBuilder("testXYY").state(IndexMetadata.State.CLOSE))
+                .put(indexBuilder("testYYY").state(IndexMetadata.State.OPEN))
+                .put(indexBuilder("testYYX").state(IndexMetadata.State.CLOSE))
+                .put(indexBuilder("kuku").state(IndexMetadata.State.OPEN));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
 
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state,
@@ -108,7 +108,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
     // issue #13334
     public void testMultipleWildcards() {
-        MetaData.Builder mdBuilder = MetaData.builder()
+        Metadata.Builder mdBuilder = Metadata.builder()
                 .put(indexBuilder("testXXX"))
                 .put(indexBuilder("testXXY"))
                 .put(indexBuilder("testXYY"))
@@ -116,7 +116,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                 .put(indexBuilder("kuku"))
                 .put(indexBuilder("kukuYYY"));
 
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
 
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
@@ -131,11 +131,11 @@ public class WildcardExpressionResolverTests extends ESTestCase {
     }
 
     public void testAll() {
-        MetaData.Builder mdBuilder = MetaData.builder()
+        Metadata.Builder mdBuilder = Metadata.builder()
             .put(indexBuilder("testXXX"))
             .put(indexBuilder("testXYY"))
             .put(indexBuilder("testYYY"));
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
 
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
@@ -144,12 +144,12 @@ public class WildcardExpressionResolverTests extends ESTestCase {
     }
 
     public void testResolveAliases() {
-        MetaData.Builder mdBuilder = MetaData.builder()
+        Metadata.Builder mdBuilder = Metadata.builder()
                 .put(indexBuilder("foo_foo").state(State.OPEN))
                 .put(indexBuilder("bar_bar").state(State.OPEN))
-                .put(indexBuilder("foo_index").state(State.OPEN).putAlias(AliasMetaData.builder("foo_alias")))
-                .put(indexBuilder("bar_index").state(State.OPEN).putAlias(AliasMetaData.builder("foo_alias")));
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+                .put(indexBuilder("foo_index").state(State.OPEN).putAlias(AliasMetadata.builder("foo_alias")))
+                .put(indexBuilder("bar_index").state(State.OPEN).putAlias(AliasMetadata.builder("foo_alias")));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
         // when ignoreAliases option is not set, WildcardExpressionResolver resolves the provided
         // expressions against the defined indices and aliases
@@ -208,12 +208,12 @@ public class WildcardExpressionResolverTests extends ESTestCase {
     }
 
     public void testMatchesConcreteIndicesWildcardAndAliases() {
-        MetaData.Builder mdBuilder = MetaData.builder()
+        Metadata.Builder mdBuilder = Metadata.builder()
                 .put(indexBuilder("foo_foo").state(State.OPEN))
                 .put(indexBuilder("bar_bar").state(State.OPEN))
-                .put(indexBuilder("foo_index").state(State.OPEN).putAlias(AliasMetaData.builder("foo_alias")))
-                .put(indexBuilder("bar_index").state(State.OPEN).putAlias(AliasMetaData.builder("foo_alias")));
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+                .put(indexBuilder("foo_index").state(State.OPEN).putAlias(AliasMetadata.builder("foo_alias")))
+                .put(indexBuilder("bar_index").state(State.OPEN).putAlias(AliasMetadata.builder("foo_alias")));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         // when ignoreAliases option is not set, WildcardExpressionResolver resolves the provided
         // expressions against the defined indices and aliases
@@ -228,38 +228,38 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
         {
             Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(indicesAndAliasesContext,
-                    state.getMetaData(), "*").keySet();
+                    state.getMetadata(), "*").keySet();
             assertEquals(newHashSet("bar_bar", "foo_foo", "foo_index", "bar_index", "foo_alias"), matches);
         }
         {
             Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(onlyIndicesContext,
-                    state.getMetaData(), "*").keySet();
+                    state.getMetadata(), "*").keySet();
             assertEquals(newHashSet("bar_bar", "foo_foo", "foo_index", "bar_index"), matches);
         }
         {
             Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(indicesAndAliasesContext,
-                    state.getMetaData(), "foo*").keySet();
+                    state.getMetadata(), "foo*").keySet();
             assertEquals(newHashSet("foo_foo", "foo_index", "foo_alias"), matches);
         }
         {
             Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(onlyIndicesContext,
-                    state.getMetaData(), "foo*").keySet();
+                    state.getMetadata(), "foo*").keySet();
             assertEquals(newHashSet("foo_foo", "foo_index"), matches);
         }
         {
             Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(indicesAndAliasesContext,
-                    state.getMetaData(), "foo_alias").keySet();
+                    state.getMetadata(), "foo_alias").keySet();
             assertEquals(newHashSet("foo_alias"), matches);
         }
         {
             Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(onlyIndicesContext,
-                    state.getMetaData(), "foo_alias").keySet();
+                    state.getMetadata(), "foo_alias").keySet();
             assertEquals(newHashSet(), matches);
         }
     }
 
-    private static IndexMetaData.Builder indexBuilder(String index) {
-        return IndexMetaData.builder(index).settings(settings(Version.CURRENT)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+    private static IndexMetadata.Builder indexBuilder(String index) {
+        return IndexMetadata.builder(index).settings(settings(Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
     }
 }

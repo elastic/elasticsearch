@@ -1038,7 +1038,7 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    public void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
 
         XContentParser parser = context.parser();
         Object value;

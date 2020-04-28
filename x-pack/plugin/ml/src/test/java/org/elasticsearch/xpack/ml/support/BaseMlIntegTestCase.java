@@ -17,7 +17,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -323,20 +323,20 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     public static void deleteAllJobs(Logger logger, Client client) throws Exception {
         final QueryPage<Job> jobs =
-            client.execute(GetJobsAction.INSTANCE, new GetJobsAction.Request(MetaData.ALL)).actionGet().getResponse();
+            client.execute(GetJobsAction.INSTANCE, new GetJobsAction.Request(Metadata.ALL)).actionGet().getResponse();
 
         try {
-            CloseJobAction.Request closeRequest = new CloseJobAction.Request(MetaData.ALL);
+            CloseJobAction.Request closeRequest = new CloseJobAction.Request(Metadata.ALL);
             // This usually takes a lot less than 90 seconds, but has been observed to be very slow occasionally
             // in CI and a 90 second timeout will avoid the cost of investigating these intermittent failures.
             // See https://github.com/elastic/elasticsearch/issues/48511
             closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(90L));
-            logger.info("Closing jobs using [{}]", MetaData.ALL);
+            logger.info("Closing jobs using [{}]", Metadata.ALL);
             CloseJobAction.Response response = client.execute(CloseJobAction.INSTANCE, closeRequest).get();
             assertTrue(response.isClosed());
         } catch (Exception e1) {
             try {
-                CloseJobAction.Request closeRequest = new CloseJobAction.Request(MetaData.ALL);
+                CloseJobAction.Request closeRequest = new CloseJobAction.Request(Metadata.ALL);
                 closeRequest.setForce(true);
                 closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(30L));
                 CloseJobAction.Response response = client.execute(CloseJobAction.INSTANCE, closeRequest).get();

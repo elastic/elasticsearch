@@ -19,11 +19,13 @@
 
 package org.elasticsearch.common.io.stream;
 
-import java.io.IOException;
-import java.util.function.Supplier;
-
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
+
+import java.io.IOException;
+import java.util.function.Supplier;
 
 /**
  * A holder for {@link Writeable}s that can delays reading the underlying
@@ -43,12 +45,22 @@ public abstract class DelayableWriteable<T extends Writeable> implements Supplie
      * when {@link Supplier#get()} is called.
      */
     public static <T extends Writeable> DelayableWriteable<T> delayed(Writeable.Reader<T> reader, StreamInput in) throws IOException {
-        return new Delayed<>(reader, in);
+        return new Serialized<>(reader, in.getVersion(), in.namedWriteableRegistry(), in.readBytesReference());
     }
 
     private DelayableWriteable() {}
 
-    public abstract boolean isDelayed();
+    /**
+     * Returns a {@linkplain DelayableWriteable} that stores its contents
+     * in serialized form.
+     */
+    public abstract Serialized<T> asSerialized(Writeable.Reader<T> reader, NamedWriteableRegistry registry);
+
+    /**
+     * {@code true} if the {@linkplain Writeable} is being stored in
+     * serialized form, {@code false} otherwise.
+     */
+    abstract boolean isSerialized();
 
     private static class Referencing<T extends Writeable> extends DelayableWriteable<T> {
         private T reference;
@@ -59,11 +71,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Supplie
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            try (BytesStreamOutput buffer = new BytesStreamOutput()) {
-                buffer.setVersion(out.getVersion());
-                reference.writeTo(buffer);
-                out.writeBytesReference(buffer.bytes());
-            }
+            out.writeBytesReference(writeToBuffer(out.getVersion()).bytes());
         }
 
         @Override
@@ -72,27 +80,48 @@ public abstract class DelayableWriteable<T extends Writeable> implements Supplie
         }
 
         @Override
-        public boolean isDelayed() {
+        public Serialized<T> asSerialized(Reader<T> reader, NamedWriteableRegistry registry) {
+            try {
+                return new Serialized<T>(reader, Version.CURRENT, registry, writeToBuffer(Version.CURRENT).bytes());
+            } catch (IOException e) {
+                throw new RuntimeException("unexpected error expanding aggregations", e);
+            }
+        }
+
+        @Override
+        boolean isSerialized() {
             return false;
+        }
+
+        private BytesStreamOutput writeToBuffer(Version version) throws IOException {
+            try (BytesStreamOutput buffer = new BytesStreamOutput()) {
+                buffer.setVersion(version);
+                reference.writeTo(buffer);
+                return buffer;
+            }
         }
     }
 
-    private static class Delayed<T extends Writeable> extends DelayableWriteable<T> {
+    /**
+     * A {@link Writeable} stored in serialized form.
+     */
+    public static class Serialized<T extends Writeable> extends DelayableWriteable<T> implements Accountable {
         private final Writeable.Reader<T> reader;
-        private final Version remoteVersion;
-        private final BytesReference serialized;
+        private final Version serializedAtVersion;
         private final NamedWriteableRegistry registry;
+        private final BytesReference serialized;
 
-        Delayed(Writeable.Reader<T> reader, StreamInput in) throws IOException {
+        Serialized(Writeable.Reader<T> reader, Version serializedAtVersion,
+                NamedWriteableRegistry registry, BytesReference serialized) throws IOException {
             this.reader = reader;
-            remoteVersion = in.getVersion();
-            serialized = in.readBytesReference();
-            registry = in.namedWriteableRegistry();
+            this.serializedAtVersion = serializedAtVersion;
+            this.registry = registry;
+            this.serialized = serialized;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion() == remoteVersion) {
+            if (out.getVersion() == serializedAtVersion) {
                 /*
                  * If the version *does* line up we can just copy the bytes
                  * which is good because this is how shard request caching
@@ -116,7 +145,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Supplie
             try {
                 try (StreamInput in = registry == null ?
                         serialized.streamInput() : new NamedWriteableAwareStreamInput(serialized.streamInput(), registry)) {
-                    in.setVersion(remoteVersion);
+                    in.setVersion(serializedAtVersion);
                     return reader.read(in);
                 }
             } catch (IOException e) {
@@ -125,8 +154,18 @@ public abstract class DelayableWriteable<T extends Writeable> implements Supplie
         }
 
         @Override
-        public boolean isDelayed() {
+        public Serialized<T> asSerialized(Reader<T> reader, NamedWriteableRegistry registry) {
+            return this; // We're already serialized
+        }
+
+        @Override
+        boolean isSerialized() {
             return true;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return serialized.ramBytesUsed() + RamUsageEstimator.NUM_BYTES_OBJECT_REF * 3 + RamUsageEstimator.NUM_BYTES_OBJECT_HEADER;
         }
     }
 }

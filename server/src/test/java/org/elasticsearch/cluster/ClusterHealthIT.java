@@ -23,7 +23,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -155,7 +155,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
         }
 
         createIndex("index-3", Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 50)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 50)
             .build());
         assertAcked(client().admin().indices().prepareClose("index-3"));
 
@@ -227,7 +227,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareUpdateSettings("index-3")
             .setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas())
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas())
                 .build()));
         {
             ClusterHealthResponse response = client().admin().cluster().prepareHealth()

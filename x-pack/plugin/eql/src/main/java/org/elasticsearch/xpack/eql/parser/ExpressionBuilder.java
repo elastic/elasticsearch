@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ComparisonContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.DereferenceContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.FunctionExpressionContext;
+import org.elasticsearch.xpack.eql.parser.EqlBaseParser.JoinKeysContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.LogicalBinaryContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.LogicalNotContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.PredicateContext;
@@ -46,6 +47,8 @@ import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.List;
 
+import static java.util.Collections.emptyList;
+
 
 public class ExpressionBuilder extends IdentifierBuilder {
 
@@ -60,6 +63,11 @@ public class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Expression visitSingleExpression(EqlBaseParser.SingleExpressionContext ctx) {
         return expression(ctx.expression());
+    }
+
+    @Override
+    public List<Expression> visitJoinKeys(JoinKeysContext ctx) {
+        return ctx != null ? expressions(ctx.expression()) : emptyList();
     }
 
     @Override

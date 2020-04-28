@@ -114,8 +114,7 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             .execute().actionGet().getState().nodes().getMasterNode().getName(), equalTo(masterNodeName));
 
         logger.info("--> closing master node (1)");
-        client().execute(AddVotingConfigExclusionsAction.INSTANCE,
-                new AddVotingConfigExclusionsRequest(new String[]{masterNodeName})).get();
+        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(masterNodeName)).get();
         // removing the master from the voting configuration immediately triggers the master to step down
         assertBusy(() -> {
             assertThat(internalCluster().nonMasterClient().admin().cluster().prepareState()

@@ -56,7 +56,7 @@ public class NodeAndClusterIdStateListener implements ClusterStateObserver.Liste
     }
 
     private static String getClusterUUID(ClusterState state) {
-        return state.getMetaData().clusterUUID();
+        return state.getMetadata().clusterUUID();
     }
 
     private static String getNodeId(ClusterState state) {

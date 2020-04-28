@@ -256,8 +256,8 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         this(name, null, InternalGeoDistance.FACTORY);
     }
 
-    protected GeoDistanceAggregationBuilder(GeoDistanceAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    protected GeoDistanceAggregationBuilder(GeoDistanceAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.origin = clone.origin;
         this.distanceType = clone.distanceType;
         this.unit = clone.unit;
@@ -273,8 +273,8 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new GeoDistanceAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new GeoDistanceAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     GeoDistanceAggregationBuilder origin(GeoPoint origin) {
@@ -433,7 +433,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }
         return new GeoDistanceRangeAggregatorFactory(name, config, origin, ranges, unit, distanceType, keyed, queryShardContext, parent,
-                subFactoriesBuilder, metaData);
+                subFactoriesBuilder, metadata);
     }
 
     @Override

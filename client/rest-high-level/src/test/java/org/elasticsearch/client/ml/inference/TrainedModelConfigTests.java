@@ -19,6 +19,9 @@
 package org.elasticsearch.client.ml.inference;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.client.ml.inference.trainedmodel.ClassificationConfigTests;
+import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfigTests;
+import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -39,13 +42,14 @@ import java.util.stream.Stream;
 public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedModelConfig> {
 
     public static TrainedModelConfig createTestTrainedModelConfig() {
+        TargetType targetType = randomFrom(TargetType.values());
         return new TrainedModelConfig(
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             Version.CURRENT,
             randomBoolean() ? null : randomAlphaOfLength(100),
             Instant.ofEpochMilli(randomNonNegativeLong()),
-            randomBoolean() ? null : TrainedModelDefinitionTests.createRandomBuilder().build(),
+            randomBoolean() ? null : TrainedModelDefinitionTests.createRandomBuilder(targetType).build(),
             randomBoolean() ? null : randomAlphaOfLength(100),
             randomBoolean() ? null :
                 Stream.generate(() -> randomAlphaOfLength(10)).limit(randomIntBetween(0, 5)).collect(Collectors.toList()),
@@ -57,7 +61,10 @@ public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedMod
             randomBoolean() ? null :
                 Stream.generate(() -> randomAlphaOfLength(10))
                     .limit(randomIntBetween(1, 10))
-                    .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))));
+                    .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
+            targetType.equals(TargetType.CLASSIFICATION) ?
+                ClassificationConfigTests.randomClassificationConfig() :
+                RegressionConfigTests.randomRegressionConfig());
     }
 
     @Override

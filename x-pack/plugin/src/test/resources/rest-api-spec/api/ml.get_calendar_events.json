@@ -1,7 +1,8 @@
 {
   "ml.get_calendar_events":{
     "documentation":{
-      "url":null
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-calendar-event.html",
+      "description":"Retrieves information about the scheduled events in calendars."
     },
     "stability":"stable",
     "url":{

@@ -17,3 +17,10 @@ to determine the nodes returned by the API rather than the cluster state from
 the master, but this API requests information from each selected node
 regardless of the `?local` parameter which means this API does not run in a
 fully node-local fashion.
+
+[float]
+==== Deprecated `local` parameter removed from get field mapping API
+
+The `local` parameter for get field mapping API was deprecated in 7.8 and is
+removed in 8.0. This parameter is a no-op and field mappings are always retrieved
+locally.

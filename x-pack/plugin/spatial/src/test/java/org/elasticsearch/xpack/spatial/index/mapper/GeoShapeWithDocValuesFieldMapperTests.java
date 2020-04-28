@@ -32,7 +32,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
+import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.Mapper;
@@ -42,7 +42,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.spatial.SpatialPlugin;
+import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -62,7 +62,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends ESSingleNodeTestCase 
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class, SpatialPlugin.class, LocalStateCompositeXPackPlugin.class);
+        return pluginList(InternalSettingsPlugin.class, LocalStateCompositeXPackPlugin.class, LocalStateSpatialPlugin.class);
     }
 
     public void testDefaultConfiguration() throws IOException {
@@ -362,7 +362,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends ESSingleNodeTestCase 
             DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
             String serialized = toXContentString((GeoShapeWithDocValuesFieldMapper) defaultMapper.mappers().getMapper("location"));
             assertTrue(serialized, serialized.contains("\"orientation\":\"" +
-                AbstractGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
+                AbstractShapeGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
             assertTrue(serialized, serialized.contains("\"doc_values\":true"));
         }
     }
@@ -379,7 +379,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends ESSingleNodeTestCase 
         DocumentMapper mapper = parser.parse("type1", new CompressedXContent(mapping));
         String serialized = toXContentString((GeoShapeWithDocValuesFieldMapper) mapper.mappers().getMapper("location"));
         assertTrue(serialized, serialized.contains("\"orientation\":\"" +
-            AbstractGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
+            AbstractShapeGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
         assertTrue(serialized, serialized.contains("\"doc_values\":" + docValues));
     }
 

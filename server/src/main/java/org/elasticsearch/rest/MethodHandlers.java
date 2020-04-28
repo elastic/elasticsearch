@@ -32,7 +32,7 @@ import java.util.Set;
 final class MethodHandlers {
 
     private final String path;
-    private final Map<RestRequest.Method, Map<Version,RestHandler>> methodHandlers;
+    private final Map<RestRequest.Method, Map<Version, RestHandler>> methodHandlers;
 
     MethodHandlers(String path, RestHandler handler, Version version, RestRequest.Method... methods) {
         this.path = path;
@@ -50,7 +50,7 @@ final class MethodHandlers {
     MethodHandlers addMethods(RestHandler handler, Version version, RestRequest.Method... methods) {
         for (RestRequest.Method method : methods) {
             RestHandler existing = methodHandlers.computeIfAbsent(method, k -> new HashMap<>())
-                .put(version, handler);
+                .putIfAbsent(version, handler);
             if (existing != null) {
                 throw new IllegalArgumentException("Cannot replace existing handler for [" + path + "] for method: " + method);
             }
@@ -74,14 +74,11 @@ final class MethodHandlers {
     @Nullable
     RestHandler getHandler(RestRequest.Method method, Version version) {
         Map<Version, RestHandler> versionToHandlers = methodHandlers.get(method);
-
-        if(versionToHandlers == null){
-            return null;
+        if (versionToHandlers == null) {
+            return null; //method not found
         }
-        if (versionToHandlers.containsKey(version)) {
-            return versionToHandlers.get(version);
-        }
-        return versionToHandlers.get(Version.CURRENT);
+        final RestHandler handler = versionToHandlers.get(version);
+        return handler != null || version.equals(Version.CURRENT) ? handler : versionToHandlers.get(Version.CURRENT);
     }
 
     /**

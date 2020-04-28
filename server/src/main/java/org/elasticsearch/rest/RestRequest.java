@@ -70,12 +70,12 @@ public class RestRequest implements ToXContent.Params {
     private final Set<String> consumedParams = new HashSet<>();
     private final SetOnce<XContentType> xContentType = new SetOnce<>();
     private final HttpChannel httpChannel;
-
-    private HttpRequest httpRequest;
-
-    private boolean contentConsumed = false;
     private final long requestId;
     private final Version compatibleApiVersion;
+
+    private HttpRequest httpRequest;
+    private boolean contentConsumed = false;
+
 
     public boolean isContentConsumed() {
         return contentConsumed;

@@ -20,33 +20,25 @@ public class CcrMultiClusterLicenseIT extends ESCCRRestTestCase {
         if ("follow".equals(targetCluster)) {
             final Request request = new Request("PUT", "/follower/_ccr/follow");
             request.setJsonEntity("{\"remote_cluster\": \"leader_cluster\", \"leader_index\": \"leader\"}");
-            assertNonCompliantLicense(request);
+            assertNonCompliantLicense(request, "remote index [leader_cluster:leader] metadata");
         }
     }
 
-    public void testAutoFollow() throws Exception {
+    public void testAutoFollow() {
         if ("follow".equals(targetCluster)) {
             final Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
             request.setJsonEntity("{\"leader_index_patterns\":[\"*\"], \"remote_cluster\": \"leader_cluster\"}");
-            final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
-            final String expected = String.format(
-                Locale.ROOT,
-                "can not fetch remote cluster state as the remote cluster [%s] is not licensed for [ccr]; " +
-                    "the license mode [BASIC] on cluster [%s] does not enable [ccr]",
-                "leader_cluster",
-                "leader_cluster");
-            assertThat(e, hasToString(containsString(expected)));
+            assertNonCompliantLicense(request, "remote cluster state");
         }
     }
 
-    private static void assertNonCompliantLicense(final Request request) {
+    private static void assertNonCompliantLicense(final Request request, final String fetch) {
         final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         final String expected = String.format(
                 Locale.ROOT,
-                "can not fetch remote index [%s] metadata as the remote cluster [%s] is not licensed for [ccr]; " +
-                        "the license mode [BASIC] on cluster [%s] does not enable [ccr]",
-                "leader_cluster:leader",
-                "leader_cluster",
+                "can not fetch %s as the remote cluster [%s] is not licensed for [ccr]; " +
+                        "the license mode [BASIC] on cluster [%2$s] does not enable [ccr]",
+                fetch,
                 "leader_cluster");
         assertThat(e, hasToString(containsString(expected)));
     }

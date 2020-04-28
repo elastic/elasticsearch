@@ -55,6 +55,18 @@
                   type: keyword
 
   - do:
+      cluster.put_component_template:
+        name: ct
+        body:
+          template:
+            settings:
+              index.number_of_replicas: 2
+            mappings:
+              properties:
+                ct_field:
+                  type: keyword
+
+  - do:
       indices.simulate_index_template:
         name: test
         body:
@@ -65,8 +77,11 @@
               index.blocks.write: true
             aliases:
               test_alias: {}
+          composed_of: ["ct"]
 
   - match: {template.settings.index.blocks.write: "true"}
+  - match: {template.settings.index.number_of_replicas: "2"}
+  - match: {template.mappings._doc.properties.ct_field.type: "keyword"}
   - match: {overlapping.0.name: existing_test}
   - match: {overlapping.0.index_patterns: ["te*"]}
   - length: {template.aliases: 1}

@@ -96,6 +96,10 @@ public abstract class TransportReplicationAction<
             Response extends ReplicationResponse
         > extends TransportAction<Request, Response> {
 
+    /**
+     * The maximum bound for the first retry backoff for failed replication operations. The backoff bound
+     * will increase exponential if failures continue.
+     */
     public static final Setting<TimeValue> REPLICATION_INITIAL_RETRY_BACKOFF_BOUND =
         Setting.timeSetting("indices.replication.initial_retry_backoff_bound", TimeValue.timeValueMillis(50), TimeValue.timeValueMillis(10),
             Setting.Property.NodeScope);

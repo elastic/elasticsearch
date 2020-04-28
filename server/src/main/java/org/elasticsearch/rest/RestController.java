@@ -147,7 +147,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     protected void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
         assert Version.minimumRestCompatibilityVersion() == handler.compatibleWithVersion() ||
             Version.CURRENT == handler.compatibleWithVersion()
-            : "REST API compatibility is only supported for version "+Version.minimumRestCompatibilityVersion().major;
+            : "REST API compatibility is only supported for version " + Version.minimumRestCompatibilityVersion().major;
 
         if (handler instanceof BaseRestHandler) {
             usageService.addRestHandler((BaseRestHandler) handler);

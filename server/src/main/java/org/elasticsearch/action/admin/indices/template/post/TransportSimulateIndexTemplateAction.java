@@ -165,7 +165,8 @@ public class TransportSimulateIndexTemplateAction
             listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
         } finally {
             if (index != null) {
-                indicesService.removeIndex(index, NO_LONGER_ASSIGNED, "created to validate template aliases");
+                indicesService.removeIndex(index, NO_LONGER_ASSIGNED,
+                    "created as part of a simulation for an index name matching the index templates in the system");
             }
         }
     }

@@ -13,7 +13,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheAction;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheRequest;
-import org.elasticsearch.xpack.security.rest.action.saml.SamlBaseRestHandler;
+import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -21,7 +21,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestClearPrivilegesAction extends SamlBaseRestHandler {
+public class RestClearPrivilegesAction extends SecurityBaseRestHandler {
 
     public RestClearPrivilegesAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);

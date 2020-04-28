@@ -797,12 +797,15 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         MockTransportService redTransportService =
             (MockTransportService) internalCluster().getInstance(TransportService.class, redNodeName);
 
-        final SingleStartEnforcer validator = new SingleStartEnforcer(indexName);
+        AtomicBoolean recoveryStarted = new AtomicBoolean(false);
+
+        final SingleStartEnforcer validator = new SingleStartEnforcer(indexName, recoveryStarted);
         redTransportService.addSendBehavior(blueTransportService, (connection, requestId, action, request, options) -> {
             validator.accept(action, request);
             connection.sendRequest(requestId, action, request, options);
         });
-        redTransportService.addRequestHandlingBehavior(recoveryActionToBlock, new TransientReceiveRejected(recoveryActionToBlock));
+        TransientReceiveRejected handlingBehavior = new TransientReceiveRejected(recoveryActionToBlock, recoveryStarted);
+        redTransportService.addRequestHandlingBehavior(recoveryActionToBlock, handlingBehavior);
 
         try {
             logger.info("--> starting recovery from blue to red");
@@ -824,16 +827,19 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     private class TransientReceiveRejected implements StubbableTransport.RequestHandlingBehavior<TransportRequest> {
 
         private final String actionName;
+        private final AtomicBoolean recoveryStarted;
         private final AtomicInteger blocksRemaining;
 
-        private TransientReceiveRejected(String actionName) {
+        private TransientReceiveRejected(String actionName, AtomicBoolean recoveryStarted) {
             this.actionName = actionName;
+            this.recoveryStarted = recoveryStarted;
             this.blocksRemaining = new AtomicInteger(randomIntBetween(1, 3));
         }
 
         @Override
         public void messageReceived(TransportRequestHandler<TransportRequest> handler, TransportRequest request, TransportChannel channel,
                                     Task task) throws Exception {
+            recoveryStarted.set(true);
             if (blocksRemaining.getAndUpdate(i -> i == 0 ? 0 : i - 1) != 0) {
                 logger.info("--> preventing {} response by throwing exception", actionName);
                 if (randomBoolean()) {
@@ -848,11 +854,12 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
     private class SingleStartEnforcer implements BiConsumer<String, TransportRequest> {
 
-        private final AtomicBoolean recoveryStarted = new AtomicBoolean(false);
+        private final AtomicBoolean recoveryStarted;
         private final String indexName;
 
-        private SingleStartEnforcer(String indexName) {
+        private SingleStartEnforcer(String indexName, AtomicBoolean recoveryStarted) {
             this.indexName = indexName;
+            this.recoveryStarted = recoveryStarted;
         }
 
         @Override
@@ -863,7 +870,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 StartRecoveryRequest startRecoveryRequest = (StartRecoveryRequest) request;
                 ShardId shardId = startRecoveryRequest.shardId();
                 logger.info("--> attempting to send start_recovery request for shard: " + shardId);
-                if (indexName.equals(shardId.getIndexName()) && recoveryStarted.compareAndSet(false, true) == false) {
+                if (indexName.equals(shardId.getIndexName()) && recoveryStarted.get()) {
                     throw new IllegalStateException("Recovery cannot be started twice");
                 }
             }

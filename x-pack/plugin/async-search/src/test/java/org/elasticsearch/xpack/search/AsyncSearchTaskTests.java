@@ -181,7 +181,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
         }
         assertCompletionListeners(task, numShards+numSkippedShards, numSkippedShards, numFetchFailures, true);
         ((AsyncSearchTask.Listener)task.getProgressListener()).onResponse(
-            newSearchResponse(numShards+numSkippedShards, numShards, numSkippedShards));
+            newSearchResponse(numShards+numSkippedShards, numShards, numSkippedShards, failures));
         assertCompletionListeners(task, numShards+numSkippedShards,
             numSkippedShards, numFetchFailures, false);
     }

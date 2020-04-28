@@ -37,7 +37,7 @@ DELETE /_template/template_1
 
 Use the delete index template API to delete one or more index templates
 
-include::templates.asciidoc[tag=index-template-v1-def]
+include::templates.asciidoc[tag=index-template-def]
 
 
 [[delete-template-api-path-params]]

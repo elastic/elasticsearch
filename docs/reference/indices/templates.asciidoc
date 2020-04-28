@@ -66,12 +66,12 @@ DELETE _template/template_*
 Use the PUT index template API
 to create or update an index template.
 
-// tag::index-template-v1-def[]
+// tag::index-template-def[]
 Index templates define <<index-modules-settings,settings>> and <<mapping,mappings>>
 that you can automatically apply when creating new indices.
 {es} applies templates to new indices
 based on an index pattern that matches the index name.
-// end::index-template-v1-def[]
+// end::index-template-def[]
 
 Index templates are only applied during index creation.
 Changes to index templates do not affect existing indices.

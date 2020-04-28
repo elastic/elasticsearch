@@ -158,9 +158,8 @@ categories, the API reports all category probabilities. Defaults to 2.
 `num_top_feature_importance_values`::::
 (Optional, integer)
 Advanced configuration option. Specifies the maximum number of
-{ml-docs}/dfa-classification.html#dfa-classification-feature-importance[feature
-importance] values per document to return. By default, it is zero and no feature importance
-calculation occurs.
+{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document to return. 
+By default, it is zero and no {feat-imp} calculation occurs.
 
 `prediction_field_name`::::
 (Optional, string) 
@@ -268,9 +267,8 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=max-trees]
 `num_top_feature_importance_values`::::
 (Optional, integer)
 Advanced configuration option. Specifies the maximum number of
-{ml-docs}/dfa-regression.html#dfa-regression-feature-importance[feature importance] 
-values per document to return. By default, it is zero and no feature importance
-calculation occurs.
+{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document to return. 
+By default, it is zero and no {feat-imp} calculation occurs.
 
 `prediction_field_name`::::
 (Optional, string)

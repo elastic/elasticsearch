@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
 
@@ -24,7 +25,7 @@ public class AggProviderWireSerializationTests extends AbstractBWCWireSerializat
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList(), new UsageService());
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 
@@ -47,7 +48,7 @@ public class AggProviderWireSerializationTests extends AbstractBWCWireSerializat
         Map<String, Object> agg = Collections.singletonMap(randomAlphaOfLengthBetween(1, 10),
             Collections.singletonMap("avg", Collections.singletonMap("field", randomAlphaOfLengthBetween(1, 10))));
         try {
-            SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+            SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList(), new UsageService());
             AggregatorFactories.Builder aggs =
                 XContentObjectTransformer.aggregatorTransformer(new NamedXContentRegistry(searchModule.getNamedXContents()))
                     .fromMap(agg);

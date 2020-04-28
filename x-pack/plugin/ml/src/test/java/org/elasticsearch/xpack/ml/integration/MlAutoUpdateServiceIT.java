@@ -18,6 +18,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.MlAutoUpdateService;
@@ -118,7 +119,7 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
 
     @Override
     public NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
+        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList(), new UsageService()).getNamedXContents());
     }
 
 }

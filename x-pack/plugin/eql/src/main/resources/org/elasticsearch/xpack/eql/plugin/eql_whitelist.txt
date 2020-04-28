@@ -47,7 +47,12 @@ class org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQl
 #
 # Math
 #
+  Number add(Number, Number)
+  Number div(Number, Number)
+  Number mod(Number, Number)
+  Number mul(Number, Number)
   Number neg(Number)
+  Number sub(Number, Number)
 }
 
 class org.elasticsearch.xpack.eql.expression.function.scalar.whitelist.InternalEqlScriptUtils {

@@ -36,7 +36,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
                 "  cluster: [ ALL ]\n" +
                 "  indices:\n" +
                 "    - names: 'missing'\n" +
-                "      privileges: [ 'indices:admin/create', 'indices:admin/delete' ]\n" +
+                "      privileges: [ 'indices:admin/create', 'indices:admin/auto_create', 'indices:admin/auto_create_index', 'indices:admin/delete' ]\n" +
                 "    - names: ['/index.*/']\n" +
                 "      privileges: [ manage ]\n" +
                 "    - names: ['/test.*/']\n" +

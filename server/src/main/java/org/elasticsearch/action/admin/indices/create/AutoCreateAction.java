@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.create;
 
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -28,30 +27,30 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Proxy action for auto creating an indexable resource.
+ * Currently only auto creates indices by redirecting to {@link AutoCreateIndexAction}.
+ */
 public final class AutoCreateAction extends ActionType<AutoCreateAction.Response> {
 
     public static final AutoCreateAction INSTANCE = new AutoCreateAction();
@@ -186,14 +185,13 @@ public final class AutoCreateAction extends ActionType<AutoCreateAction.Response
 
     public static final class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
-        private final MetadataCreateIndexService createIndexService;
+        private final Client client;
 
         @Inject
         public TransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               MetadataCreateIndexService createIndexService) {
+                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Client client) {
             super(NAME, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
-            this.createIndexService = createIndexService;
+            this.client = client;
         }
 
         @Override
@@ -211,63 +209,14 @@ public final class AutoCreateAction extends ActionType<AutoCreateAction.Response
                                        Request request,
                                        ClusterState state,
                                        ActionListener<Response> listener) throws Exception {
-            // Should this be an AckedClusterStateUpdateTask and
-            // should we add ActiveShardsObserver.waitForActiveShards(...) here?
-            // (This api used from TransportBulkAction only and it currently ignores CreateIndexResponse, so
-            // I think there is no need to include acked and shard ackeds here)
-            clusterService.submitStateUpdateTask("auto create resources for [" + request.names + "]",
-                new ClusterStateUpdateTask(Priority.HIGH) {
-
-                    final Map<String, Exception> result = new HashMap<>();
-
-                    @Override
-                    public TimeValue timeout() {
-                        return request.masterNodeTimeout();
-                    }
-
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        listener.onFailure(e);
-                    }
-
-                    @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
-                        return autoCreate(request, result, currentState, createIndexService, indexNameExpressionResolver);
-                    }
-
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        listener.onResponse(new AutoCreateAction.Response(result));
-                    }
-                });
+            // For now always redirect to the auto create index action, because only indices get auto created.
+            client.execute(AutoCreateIndexAction.INSTANCE, request, listener);
         }
 
         @Override
         protected ClusterBlockException checkBlock(Request request, ClusterState state) {
             return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, request.names.toArray(new String[0]));
         }
-    }
-
-    static ClusterState autoCreate(Request request,
-                                   Map<String, Exception> result,
-                                   ClusterState currentState,
-                                   MetadataCreateIndexService createIndexService,
-                                   IndexNameExpressionResolver resolver) {
-        for (String indexName : request.names) {
-            indexName = resolver.resolveDateMathExpression(indexName);
-            CreateIndexClusterStateUpdateRequest req = new CreateIndexClusterStateUpdateRequest(request.cause,
-                indexName, indexName).masterNodeTimeout(request.masterNodeTimeout())
-                .preferV2Templates(request.preferV2Templates);
-            try {
-                currentState = createIndexService.applyCreateIndexRequest(currentState, req, false);
-                result.put(indexName, null);
-            } catch (ResourceAlreadyExistsException e) {
-                // ignore resource already exists exception.
-            } catch (Exception e) {
-                result.put(indexName, e);
-            }
-        }
-        return currentState;
     }
 
 }

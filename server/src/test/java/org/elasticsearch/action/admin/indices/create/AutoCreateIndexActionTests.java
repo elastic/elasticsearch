@@ -47,7 +47,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class AutoCreateActionTests extends ESTestCase {
+public class AutoCreateIndexActionTests extends ESTestCase {
 
     private MetadataCreateIndexService mcis;
     private IndexNameExpressionResolver resolver;
@@ -64,7 +64,7 @@ public class AutoCreateActionTests extends ESTestCase {
         expectApplyCreateIndexRequest(mcis, request, Set.of());
 
         Map<String, Exception> result = new HashMap<>();
-        cs = AutoCreateAction.autoCreate(request, result, cs, mcis, resolver);
+        cs = AutoCreateIndexAction.autoCreate(request, result, cs, mcis, resolver);
         assertThat(cs.metadata().indices().size(), equalTo(3));
         assertThat(cs.metadata().index("index1"), notNullValue());
         assertThat(cs.metadata().index("index2"), notNullValue());
@@ -94,7 +94,7 @@ public class AutoCreateActionTests extends ESTestCase {
         expectApplyCreateIndexRequest(mcis, request, Set.of());
 
         Map<String, Exception> result = new HashMap<>();
-        cs = AutoCreateAction.autoCreate(request, result, cs, mcis, resolver);
+        cs = AutoCreateIndexAction.autoCreate(request, result, cs, mcis, resolver);
         assertThat(cs.metadata().indices().size(), equalTo(3));
         assertThat(cs.metadata().index("index1"), notNullValue());
         assertThat(cs.metadata().index("index2"), notNullValue());
@@ -117,7 +117,7 @@ public class AutoCreateActionTests extends ESTestCase {
         expectApplyCreateIndexRequest(mcis, request, Set.of("index2"));
 
         Map<String, Exception> result = new HashMap<>();
-        cs = AutoCreateAction.autoCreate(request, result, cs, mcis, resolver);
+        cs = AutoCreateIndexAction.autoCreate(request, result, cs, mcis, resolver);
         assertThat(cs.metadata().indices().size(), equalTo(2));
         assertThat(cs.metadata().index("index1"), notNullValue());
         assertThat(cs.metadata().index("index2"), nullValue());

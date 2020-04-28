@@ -14,12 +14,14 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
+import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
 import org.elasticsearch.action.update.UpdateAction;
@@ -294,8 +296,15 @@ public class AuthorizationService {
         }
         //if we are creating an index we need to authorize potential aliases created at the same time
         if (IndexPrivilege.CREATE_INDEX_MATCHER.test(action)) {
-            assert request instanceof CreateIndexRequest;
-            Set<Alias> aliases = ((CreateIndexRequest) request).aliases();
+            final Set<Alias> aliases;
+            if (request instanceof CreateIndexRequest) {
+                aliases = ((CreateIndexRequest) request).aliases();
+            } else if (request instanceof AutoCreateAction.Request) {
+                aliases = Set.of();
+            } else {
+                aliases = Set.of();
+                assert false;
+            }
             if (aliases.isEmpty()) {
                 runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener);
             } else {

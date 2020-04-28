@@ -64,13 +64,23 @@ GET /_search
 the query string.
 
 Defaults to the `index.query.default_field` index setting, which has a default
-value of `*`. The `*` value extracts all fields that are eligible to term
-queries and filters the metadata fields. All extracted fields are then combined
-to build a query if no `prefix` is specified.
+value of `*`. The `*` value extracts all fields that are eligible for term
+queries and filters the metadata fields. All extracted fields are then
+combined to build a query if no `prefix` is specified.
 
-WARNING: There is a limit on the number of fields that can be queried at once.
+Searching across all eligible fields does not include <<nested,nested
+documents>>. Use a <<query-dsl-nested-query,`nested` query>> to search those
+documents.
+
+[[WARNING]]
+====
+For mappings with a large number of fields, searching across all eligible fields
+could be expensive.
+
+There is a limit on the number of fields that can be queried at once.
 It is defined by the `indices.query.bool.max_clause_count`
 <<search-settings,search setting>>, which defaults to 1024.
+====
 --
 
 `allow_leading_wildcard`::

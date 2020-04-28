@@ -80,13 +80,16 @@ setup:
             avg_agg:
               avg:
                 field: metric
+            value_count_agg:
+              value_count:
+                field: metric
 
   - match: { hits.total.value: 8 }
   - match: { aggregations.max_agg.value: 600}
   - match: { aggregations.min_agg.value: 10}
   - match: { aggregations.sum_agg.value: 7350}
   - match: { aggregations.avg_agg.value: 294}
-
+  - match: { aggregations.value_count_agg.value: 25}
 
 ---
 "Test mixed aggregations with query":
@@ -116,9 +119,13 @@ setup:
             avg_agg:
               avg:
                 field: metric
+            value_count_agg:
+              value_count:
+                field: metric
 
   - match: { hits.total.value: 3 }
   - match: { aggregations.max_agg.value: 400.11}
   - match: { aggregations.min_agg.value: 10.999}
   - match: { aggregations.sum_agg.value: 550}
   - match: { aggregations.avg_agg.value: 68.75}
+  - match: { aggregations.value_count_agg.value: 8}

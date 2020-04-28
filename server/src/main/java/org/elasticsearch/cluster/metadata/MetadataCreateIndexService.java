@@ -85,6 +85,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -573,7 +574,7 @@ public class MetadataCreateIndexService {
                 nonProperties = innerTemplateNonProperties;
 
                 if (maybeProperties != null) {
-                    properties.putAll(maybeProperties);
+                    properties = mergeIgnoringDots(properties, maybeProperties);
                 }
             }
         }
@@ -587,13 +588,59 @@ public class MetadataCreateIndexService {
             nonProperties = innerRequestNonProperties;
 
             if (maybeRequestProperties != null) {
-                properties.putAll(maybeRequestProperties);
+                properties = mergeIgnoringDots(properties, maybeRequestProperties);
             }
         }
 
         Map<String, Object> finalMappings = new HashMap<>(nonProperties);
         finalMappings.put("properties", properties);
         return Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, finalMappings);
+    }
+
+    /**
+     * Add the objects in the second map to the first, where the keys in the {@code second} map have
+     * higher predecence and overwrite the keys in the {@code first} map. In the event of a key with
+     * a dot in it (ie, "foo.bar"), the keys are treated as only the prefix counting towards
+     * equality. If the {@code second} map has a key such as "foo", all keys starting from "foo." in
+     * the {@code first} map are discarded.
+     */
+    static Map<String, Object> mergeIgnoringDots(Map<String, Object> first, Map<String, Object> second) {
+        Objects.requireNonNull(first, "merging requires two non-null maps but the first map was null");
+        Objects.requireNonNull(second, "merging requires two non-null maps but the second map was null");
+        Map<String, Object> results = new HashMap<>(first);
+        Set<String> firstKeys = first.keySet();
+        for (String secondKey : second.keySet()) {
+
+            // First, ensure that we remove any exact duplicate keys (field names), because the
+            // "second" map's values are going to take precedence
+            if (firstKeys.contains(secondKey)) {
+                results.remove(secondKey);
+            }
+
+            // If the "second" key has a dot, remove all keys that share the prefix, so if it were
+            // "foo.bar" this removes the "foo" key as well as all keys starting with "foo."
+            if (secondKey.indexOf(".") > 0) {
+                String secondKeyPrefix = secondKey.substring(0, secondKey.indexOf(".")).toLowerCase(Locale.ROOT);
+                for (String key : firstKeys) {
+                    String lowercaseKey = key.toLowerCase(Locale.ROOT);
+                    if (lowercaseKey.equals(secondKeyPrefix) || lowercaseKey.startsWith(secondKeyPrefix + ".")) {
+                        results.remove(key);
+                    }
+                }
+            } else {
+                // If the "second" key doesn't have a dot, remove all the keys that share the same
+                // exact prefix, for example, if the "second" key were "foo" this removes "foo.bar"
+                // "foo.baz.eggplant", etc
+                for (String key : firstKeys) {
+                    int dotIndex = key.indexOf(".");
+                    if (dotIndex == secondKey.length() && key.substring(0, dotIndex).toLowerCase(Locale.ROOT).equals(secondKey)) {
+                        results.remove(key);
+                    }
+                }
+            }
+            results.put(secondKey, second.get(secondKey));
+        }
+        return results;
     }
 
     /**

@@ -157,7 +157,7 @@ class BuildPlugin implements Plugin<Project> {
                 runtimeJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, runtimeJavaHome))
             }
 
-            String inFipsJvmScript = 'print(java.security.Security.getProviders()[0].name.toLowerCase().contains("fips"));'
+            String inFipsJvmScript = 'java.security.Security.getProviders()[0].name.toLowerCase().contains("fips")'
             boolean inFipsJvm = Boolean.parseBoolean(runScript(project, runtimeJavaHome, inFipsJvmScript))
 
             // Build debugging info

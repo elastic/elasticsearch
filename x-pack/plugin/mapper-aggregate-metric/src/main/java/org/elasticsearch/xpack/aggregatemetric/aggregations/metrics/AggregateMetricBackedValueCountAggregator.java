@@ -16,13 +16,11 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.InternalValueCount;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSource;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -37,11 +35,13 @@ class AggregateMetricBackedValueCountAggregator extends NumericMetricsAggregator
     // a count per bucket
     LongArray counts;
 
-    AggregateMetricBackedValueCountAggregator(String name,
-                                              AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource,
-                                              SearchContext aggregationContext,
-                                              Aggregator parent,
-                                              Map<String, Object> metadata) throws IOException {
+    AggregateMetricBackedValueCountAggregator(
+        String name,
+        AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource,
+        SearchContext aggregationContext,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, aggregationContext, parent, metadata);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
@@ -50,14 +50,15 @@ class AggregateMetricBackedValueCountAggregator extends NumericMetricsAggregator
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-                                                final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final BigArrays bigArrays = context.bigArrays();
-        final SortedNumericDoubleValues values = valuesSource.getAggregateMetricValues(ctx,
-            AggregateDoubleMetricFieldMapper.Metric.value_count);
+        final SortedNumericDoubleValues values = valuesSource.getAggregateMetricValues(
+            ctx,
+            AggregateDoubleMetricFieldMapper.Metric.value_count
+        );
 
         return new LeafBucketCollectorBase(sub, values) {
             @Override

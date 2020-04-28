@@ -39,7 +39,8 @@ class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(ValueCountAggregationBuilder.NAME, CoreValuesSourceType.ALL_CORE,
-            (MetricAggregatorSupplier) ValueCountAggregator::new);
+            (MetricAggregatorSupplier) (name, valuesSource, format, context, parent, metadata) ->
+                new ValueCountAggregator(name, valuesSource, context, parent, metadata));
     }
 
     ValueCountAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,

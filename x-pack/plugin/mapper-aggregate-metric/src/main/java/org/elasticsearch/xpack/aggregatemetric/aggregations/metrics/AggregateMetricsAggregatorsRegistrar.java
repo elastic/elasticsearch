@@ -86,6 +86,7 @@ public class AggregateMetricsAggregatorsRegistrar {
             )
         );
     }
+
     public static void registerValueCountAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(
             ValueCountAggregationBuilder.NAME,

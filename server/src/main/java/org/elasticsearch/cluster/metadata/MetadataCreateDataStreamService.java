@@ -72,6 +72,10 @@ public class MetadataCreateDataStreamService {
             });
     }
 
+    public ClusterState createDataStream(CreateDataSteamClusterStateUpdateRequest request, ClusterState state) throws Exception {
+        return createDataStream(metadataCreateIndexService, state, request);
+    }
+
     public static class CreateDataSteamClusterStateUpdateRequest {
 
         private final String name;

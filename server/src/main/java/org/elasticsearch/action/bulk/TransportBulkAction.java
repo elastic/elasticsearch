@@ -33,15 +33,14 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -54,12 +53,10 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -89,11 +86,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerArray;
-import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
-
-import static java.util.Collections.emptyMap;
 
 /**
  * Groups bulk request items by shard, optionally creating non-existent indices and
@@ -212,11 +206,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             // Attempt to create all the indices that we're going to need during the bulk before we start.
             // Step 1: collect all the indices in the request
             final Set<String> indices = bulkRequest.requests.stream()
-                    // delete requests should not attempt to create the index (if the index does not
-                    // exists), unless an external versioning is used
+                // delete requests should not attempt to create the index (if the index does not
+                // exists), unless an external versioning is used
                 .filter(request -> request.opType() != DocWriteRequest.OpType.DELETE
-                        || request.versionType() == VersionType.EXTERNAL
-                        || request.versionType() == VersionType.EXTERNAL_GTE)
+                    || request.versionType() == VersionType.EXTERNAL
+                    || request.versionType() == VersionType.EXTERNAL_GTE)
                 .map(DocWriteRequest::index)
                 .collect(Collectors.toSet());
             /* Step 2: filter that to indices that don't exist and we can create. At the same time build a map of indices we can't create
@@ -236,121 +230,98 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     autoCreateIndices.add(index);
                 }
             }
-            Map<String, IndexTemplateV2.DataStreamTemplate> autoCreateDataStreams =
-                resolveAutoCreateDataStreams(metadata, autoCreateIndices);
-            // Step 3: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.
-            if (autoCreateIndices.isEmpty() && autoCreateDataStreams.isEmpty()) {
-                executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated);
-            } else if (autoCreateIndices.isEmpty() && autoCreateDataStreams.isEmpty() == false) {
-                autoCreateDataStreams(task, bulkRequest, startTime, listener, responses, autoCreateDataStreams,
-                    indicesThatCannotBeCreated);
-            } else {
-                final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size());
-                for (String index : autoCreateIndices) {
-                    createIndex(index, bulkRequest.preferV2Templates(), bulkRequest.timeout(), new ActionListener<>() {
-                        @Override
-                        public void onResponse(CreateIndexResponse result) {
-                            if (counter.decrementAndGet() == 0) {
-                                if (autoCreateDataStreams.isEmpty()) {
-                                    threadPool.executor(ThreadPool.Names.WRITE).execute(
-                                        () -> executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated));
-                                } else {
-                                    autoCreateDataStreams(task, bulkRequest, startTime, listener, responses, autoCreateDataStreams,
-                                        indicesThatCannotBeCreated);
-                                }
-                            }
-                        }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            if (!(ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException)) {
+            if (autoCreateIndices.isEmpty()) {
+                executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated);
+            } else {
+                if (state.getNodes().getMinNodeVersion().onOrAfter(Version.V_8_0_0)) {
+                    autoCreate(autoCreateIndices, bulkRequest.preferV2Templates(), bulkRequest.timeout(), ActionListener.wrap(
+                        response -> {
+                            Exception suppressed = null;
+                            for (Map.Entry<String, Exception> entry : response.getFailureByNames().entrySet()) {
+                                Exception e = entry.getValue();
+                                if (e == null || ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
+                                    continue;
+                                }
+
                                 // fail all requests involving this index, if create didn't work
+                                String index = entry.getKey();
                                 for (int i = 0; i < bulkRequest.requests.size(); i++) {
                                     DocWriteRequest<?> request = bulkRequest.requests.get(i);
                                     if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
                                         bulkRequest.requests.set(i, null);
                                     }
                                 }
+                                if (suppressed == null) {
+                                    suppressed = e;
+                                } else {
+                                    suppressed.addSuppressed(e);
+                                }
                             }
-                            if (counter.decrementAndGet() == 0) {
-                                if (autoCreateDataStreams.isEmpty()) {
+
+                            final ActionListener<BulkResponse> finalListener;
+                            if (suppressed != null) {
+                                final Exception e = suppressed;
+                                finalListener = ActionListener.wrap(listener::onResponse, inner -> {
+                                    inner.addSuppressed(e);
+                                    listener.onFailure(inner);
+                                });
+                            } else {
+                                finalListener = listener;
+                            }
+                            threadPool.executor(ThreadPool.Names.WRITE).execute(
+                                () -> executeBulk(task, bulkRequest, startTime, finalListener, responses, indicesThatCannotBeCreated));
+                        },
+                        e -> {
+                            // major failure, set error on all bulk items and then return bulk response
+                            for (int i = 0; i < bulkRequest.requests.size(); i++) {
+                                DocWriteRequest<?> request = bulkRequest.requests.get(i);
+                                BulkItemResponse.Failure failure = new BulkItemResponse.Failure(request.index(), request.id(), e);
+                                responses.set(i, new BulkItemResponse(i, request.opType(), failure));
+                                bulkRequest.requests.set(i, null);
+                            }
+                            executeBulk(task, bulkRequest, startTime, ActionListener.wrap(listener::onResponse, inner -> {
+                                inner.addSuppressed(e);
+                                listener.onFailure(inner);
+                            }), responses, indicesThatCannotBeCreated);
+                        })
+                    );
+                } else {
+                    final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size());
+                    for (String index : autoCreateIndices) {
+                        createIndex(index, bulkRequest.preferV2Templates(), bulkRequest.timeout(), new ActionListener<>() {
+                            @Override
+                            public void onResponse(CreateIndexResponse result) {
+                                if (counter.decrementAndGet() == 0) {
+                                    threadPool.executor(ThreadPool.Names.WRITE).execute(
+                                        () -> executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated));
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                if (!(ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException)) {
+                                    // fail all requests involving this index, if create didn't work
+                                    for (int i = 0; i < bulkRequest.requests.size(); i++) {
+                                        DocWriteRequest<?> request = bulkRequest.requests.get(i);
+                                        if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
+                                            bulkRequest.requests.set(i, null);
+                                        }
+                                    }
+                                }
+                                if (counter.decrementAndGet() == 0) {
                                     executeBulk(task, bulkRequest, startTime, ActionListener.wrap(listener::onResponse, inner -> {
                                         inner.addSuppressed(e);
                                         listener.onFailure(inner);
                                     }), responses, indicesThatCannotBeCreated);
-                                } else {
-                                    autoCreateDataStreams(task, bulkRequest, startTime,
-                                        ActionListener.wrap(listener::onResponse, inner -> {
-                                            inner.addSuppressed(e);
-                                            listener.onFailure(inner);
-                                        }),
-                                        responses, autoCreateDataStreams, indicesThatCannotBeCreated);
                                 }
                             }
-                        }
-                    });
+                        });
+                    }
                 }
             }
         } else {
-            executeBulk(task, bulkRequest, startTime, listener, responses, emptyMap());
-        }
-    }
-
-    static Map<String, IndexTemplateV2.DataStreamTemplate> resolveAutoCreateDataStreams(Metadata metadata,
-                                                                                        Set<String> autoCreateIndices) {
-        Map<String, IndexTemplateV2.DataStreamTemplate> autoCreateDataStreams = new HashMap<>();
-        Iterator<String> autoCreateIndicesIterator = autoCreateIndices.iterator();
-        while (autoCreateIndicesIterator.hasNext()) {
-            String indexName = autoCreateIndicesIterator.next();
-            String v2Template = MetadataIndexTemplateService.findV2Template(metadata, indexName, false);
-            if (v2Template != null) {
-                IndexTemplateV2 indexTemplateV2 = metadata.templatesV2().get(v2Template);
-                if (indexTemplateV2.getDataStreamTemplate() != null) {
-                    autoCreateIndicesIterator.remove();
-                    autoCreateDataStreams.put(indexName, indexTemplateV2.getDataStreamTemplate());
-                }
-            }
-        }
-        return autoCreateDataStreams;
-    }
-
-    void autoCreateDataStreams(final Task task,
-                               final BulkRequest bulkRequest,
-                               final long startTimeNanos,
-                               final ActionListener<BulkResponse> listener,
-                               final AtomicArray<BulkItemResponse> responses,
-                               final Map<String, IndexTemplateV2.DataStreamTemplate> autoCreateDataStreams,
-                               final Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
-        final AtomicInteger counter = new AtomicInteger(autoCreateDataStreams.size());
-        for (Map.Entry<String, IndexTemplateV2.DataStreamTemplate> entry : autoCreateDataStreams.entrySet()) {
-            final String name = entry.getKey();
-
-            CreateDataStreamAction.Request request = new CreateDataStreamAction.Request(name);
-            request.setTimestampFieldName(entry.getValue().getTimestampField());
-            CheckedConsumer<AcknowledgedResponse, ? extends Exception> onResponse = response -> {
-                if (counter.decrementAndGet() == 0) {
-                    threadPool.executor(ThreadPool.Names.WRITE).execute(
-                        () -> executeBulk(task, bulkRequest, startTimeNanos, listener, responses, indicesThatCannotBeCreated));
-                }
-            };
-            Consumer<Exception> onFailure = e -> {
-                if (!(ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException)) {
-                    // fail all requests involving this index, if create didn't work
-                    for (int i = 0; i < bulkRequest.requests.size(); i++) {
-                        DocWriteRequest<?> item = bulkRequest.requests.get(i);
-                        if (item != null && setResponseFailureIfIndexMatches(responses, i, item, name, e)) {
-                            bulkRequest.requests.set(i, null);
-                        }
-                    }
-                }
-                if (counter.decrementAndGet() == 0) {
-                    executeBulk(task, bulkRequest, startTimeNanos, ActionListener.wrap(listener::onResponse, inner -> {
-                        inner.addSuppressed(e);
-                        listener.onFailure(inner);
-                    }), responses, indicesThatCannotBeCreated);
-                }
-            };
-            client.admin().indices().createDataStream(request, ActionListener.wrap(onResponse, onFailure));
+            executeBulk(task, bulkRequest, startTime, listener, responses, Map.of());
         }
     }
 
@@ -470,6 +441,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         createIndexRequest.masterNodeTimeout(timeout);
         createIndexRequest.preferV2Templates(preferV2Templates);
         client.admin().indices().create(createIndexRequest, listener);
+    }
+
+    void autoCreate(Set<String> names, Boolean preferV2Templates, TimeValue timeout, ActionListener<AutoCreateAction.Response> listener) {
+        AutoCreateAction.Request request = new AutoCreateAction.Request(names, preferV2Templates, timeout);
+        client.execute(AutoCreateAction.INSTANCE, request, listener);
     }
 
     private boolean setResponseFailureIfIndexMatches(AtomicArray<BulkItemResponse> responses, int idx, DocWriteRequest<?> request,

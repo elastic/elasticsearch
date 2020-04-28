@@ -21,6 +21,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -38,6 +39,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -111,7 +113,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         when(clusterService.state()).thenReturn(state);
         DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
         when(state.getNodes()).thenReturn(discoveryNodes);
-        when(discoveryNodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
+        when(discoveryNodes.getMinNodeVersion()).thenReturn(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
         DiscoveryNode localNode = mock(DiscoveryNode.class);
         when(clusterService.localNode()).thenReturn(localNode);
         when(localNode.isIngestNode()).thenReturn(randomBoolean());
@@ -141,6 +143,13 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
                              TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
                 // If we try to create an index just immediately assume it worked
                 listener.onResponse(new CreateIndexResponse(true, true, index) {});
+            }
+
+            @Override
+            void autoCreate(Set<String> names, Boolean preferV2Templates, TimeValue timeout,
+                            ActionListener<AutoCreateAction.Response> listener) {
+                // If we try to create an index just immediately assume it worked
+                listener.onResponse(new AutoCreateAction.Response(Map.of()));
             }
         };
         action.doExecute(null, bulkRequest, null);

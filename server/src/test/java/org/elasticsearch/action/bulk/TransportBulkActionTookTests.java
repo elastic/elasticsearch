@@ -21,6 +21,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -81,7 +83,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        clusterService = createClusterService(threadPool);
+        clusterService = createClusterService(threadPool, VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
     }
 
     @After

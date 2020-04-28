@@ -21,6 +21,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.bulk.TransportBulkActionTookTests.Resolver;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -32,8 +33,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2.DataStreamTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -43,6 +42,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -51,20 +51,13 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
-import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.anEmptyMap;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class TransportBulkActionTests extends ESTestCase {
@@ -97,13 +90,20 @@ public class TransportBulkActionTests extends ESTestCase {
             indexCreated = true;
             listener.onResponse(null);
         }
+
+        @Override
+        void autoCreate(Set<String> names, Boolean preferV2Templates, TimeValue timeout,
+                        ActionListener<AutoCreateAction.Response> listener) {
+            indexCreated = true;
+            listener.onResponse(new AutoCreateAction.Response(Map.of()));
+        }
     }
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool(getClass().getName());
-        clusterService = createClusterService(threadPool);
+        clusterService = createClusterService(threadPool, VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
         CapturingTransport capturingTransport = new CapturingTransport();
         transportService = capturingTransport.createTransportService(clusterService.getSettings(), threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
@@ -299,43 +299,4 @@ public class TransportBulkActionTests extends ESTestCase {
         }
     }
 
-    public void testResolveAutoCreateDataStreams() {
-        Metadata metadata;
-        {
-            Metadata.Builder mdBuilder = new Metadata.Builder();
-            DataStreamTemplate dataStreamTemplate = new DataStreamTemplate("@timestamp");
-            mdBuilder.put("1", new IndexTemplateV2(List.of("legacy-logs-*"), null, null, 10L, null, null, null));
-            mdBuilder.put("2", new IndexTemplateV2(List.of("logs-*"), null, null, 20L, null, null, dataStreamTemplate));
-            mdBuilder.put("3", new IndexTemplateV2(List.of("logs-foobar"), null, null, 30L, null, null, dataStreamTemplate));
-            metadata = mdBuilder.build();
-        }
-
-        Map<String, DataStreamTemplate> result = TransportBulkAction.resolveAutoCreateDataStreams(metadata, Set.of());
-        assertThat(result, anEmptyMap());
-
-        Set<String> autoCreateIndices = new HashSet<>(Set.of("logs-foobar", "logs-barbaz"));
-        result = TransportBulkAction.resolveAutoCreateDataStreams(metadata, autoCreateIndices);
-        assertThat(autoCreateIndices, empty());
-        assertThat(result, aMapWithSize(2));
-        assertThat(result, hasKey("logs-foobar"));
-        assertThat(result, hasKey("logs-barbaz"));
-
-        // An index that matches with a template without a data steam definition
-        autoCreateIndices = new HashSet<>(Set.of("logs-foobar", "logs-barbaz", "legacy-logs-foobaz"));
-        result = TransportBulkAction.resolveAutoCreateDataStreams(metadata, autoCreateIndices);
-        assertThat(autoCreateIndices, hasSize(1));
-        assertThat(autoCreateIndices, hasItem("legacy-logs-foobaz"));
-        assertThat(result, aMapWithSize(2));
-        assertThat(result, hasKey("logs-foobar"));
-        assertThat(result, hasKey("logs-barbaz"));
-
-        // An index that doesn't match with an index template
-        autoCreateIndices = new HashSet<>(Set.of("logs-foobar", "logs-barbaz", "my-index"));
-        result = TransportBulkAction.resolveAutoCreateDataStreams(metadata, autoCreateIndices);
-        assertThat(autoCreateIndices, hasSize(1));
-        assertThat(autoCreateIndices, hasItem("my-index"));
-        assertThat(result, aMapWithSize(2));
-        assertThat(result, hasKey("logs-foobar"));
-        assertThat(result, hasKey("logs-barbaz"));
-    }
 }

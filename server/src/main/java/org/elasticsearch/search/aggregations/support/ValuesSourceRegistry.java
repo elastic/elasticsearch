@@ -81,7 +81,6 @@ public class ValuesSourceRegistry {
         public void register(String aggregationName, List<ValuesSourceType> valuesSourceTypes, AggregatorSupplier aggregatorSupplier) {
             for (ValuesSourceType valuesSourceType : valuesSourceTypes) {
                 register(aggregationName, valuesSourceType, aggregatorSupplier);
-                registerUsage(aggregationName, valuesSourceType);
             }
         }
 

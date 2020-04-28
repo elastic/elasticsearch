@@ -53,7 +53,13 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         objectParser.declareField(ValuesSourceAggregationBuilder::missing, XContentParser::objectText,
             ParseField.CommonFields.MISSING, ObjectParser.ValueType.VALUE);
 
-        objectParser.declareField(ValuesSourceAggregationBuilder::userValueTypeHint, p -> ValueType.lenientParse(p.text()),
+        objectParser.declareField(ValuesSourceAggregationBuilder::userValueTypeHint, p -> {
+                ValueType type = ValueType.lenientParse(p.text());
+                if (type == null) {
+                    throw new IllegalArgumentException("Unknown value type [" + p.text() + "]");
+                }
+                return type;
+            },
             ValueType.VALUE_TYPE, ObjectParser.ValueType.STRING);
 
         if (formattable) {
@@ -65,6 +71,10 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
             objectParser.declareField(ValuesSourceAggregationBuilder::script,
                     (parser, context) -> Script.parse(parser),
                     Script.SCRIPT_PARSE_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
+            String[] fields = new String[]{ParseField.CommonFields.FIELD.getPreferredName(), Script.SCRIPT_PARSE_FIELD.getPreferredName()};
+            objectParser.declareRequiredFieldSet(fields);
+        } else {
+            objectParser.declareRequiredFieldSet(ParseField.CommonFields.FIELD.getPreferredName());
         }
 
         if (timezoneAware) {

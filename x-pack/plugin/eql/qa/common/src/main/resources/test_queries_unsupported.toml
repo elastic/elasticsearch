@@ -826,24 +826,12 @@ expected_event_ids = []
 description = "check built-in string functions"
 
 [[queries]]
-query = '''
-process where add(serial_event_id, 0) == 1 and add(0, 1) == serial_event_id'''
-expected_event_ids  = [1]
-description = "test built-in math functions"
+# This query give a different result with ES EQL implementation because it doesn't convert to float data types for division
+expected_event_ids = [82]
+query = "file where serial_event_id / 2 == 41"
 
 [[queries]]
-query = '''
-process where subtract(serial_event_id, -5) == 6'''
-expected_event_ids  = [1]
-description = "test built-in math functions"
-
-[[queries]]
-query = '''
-process where multiply(6, serial_event_id) == 30 and divide(30, 4.0) == 7.5'''
-expected_event_ids  = [5]
-description = "test built-in math functions"
-
-[[queries]]
+# Error: Line 1:42: Comparisons against variables are not (currently) supported; offender [serial_event_id] in [==]
 query = '''
 process where modulo(11, add(serial_event_id, 1)) == serial_event_id'''
 expected_event_ids  = [1, 2, 3, 5, 11]
@@ -1001,26 +989,6 @@ expected_event_ids  = [57]
 query = '''
 registry where arrayContains(bytes_written_string_list, "missing", "en-US")
 '''
-
-[[queries]]
-expected_event_ids = [82]
-query = "file where serial_event_id - 1 == 81"
-
-[[queries]]
-expected_event_ids = [82]
-query = "file where serial_event_id + 1 == 83"
-
-[[queries]]
-expected_event_ids = [82]
-query = "file where serial_event_id * 2 == 164"
-
-[[queries]]
-expected_event_ids = [82]
-query = "file where serial_event_id / 2 == 41"
-
-[[queries]]
-expected_event_ids = [82]
-query = "file where serial_event_id % 40 == 2"
 
 # The following two "between" queries behave slightly different with elasticsearch
 # due to comparison on keyword field would be case-sensitive and would need to be

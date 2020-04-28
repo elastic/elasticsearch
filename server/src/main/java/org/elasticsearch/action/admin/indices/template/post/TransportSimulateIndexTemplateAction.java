@@ -55,6 +55,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -155,8 +156,8 @@ public class TransportSimulateIndexTemplateAction
             IndexTemplateV2 templateV2 = simulateOnClusterState.metadata().templatesV2().get(matchingTemplate);
             assert templateV2 != null : "the matched template must exist";
 
-            Map<String, List<String>> overlapping = findConflictingV1Templates(simulateOnClusterState, matchingTemplate,
-                templateV2.indexPatterns());
+            Map<String, List<String>> overlapping = new HashMap<>();
+            overlapping.putAll(findConflictingV1Templates(simulateOnClusterState, matchingTemplate, templateV2.indexPatterns()));
             overlapping.putAll(findConflictingV2Templates(simulateOnClusterState, matchingTemplate, templateV2.indexPatterns()));
 
             Template template = new Template(settings, mappingsJson == null ? null : new CompressedXContent(mappingsJson),

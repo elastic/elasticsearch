@@ -81,8 +81,10 @@ results are returned as part of the <<search-api-response-body,`response`>> obje
 // TESTRESPONSE[s/"hits" : \[ \]\n\s\s\s\s\}/"hits" : \[\]},"aggregations":  $body.response.aggregations/]
 
 <1> Identifier of the async search that can be used to monitor its progress,
-retrieve its results, and/or delete it.
-<2> Whether the search failed or was successfully completed
+retrieve its results, and/or delete it
+<2> When the query is no longer running, indicates whether the search failed
+or was successfully completed on all shards. While the query is being
+executed, `is_partial` is always set to `true`
 <3> Whether the search is still being executed or it has completed
 <4> How many shards the search will be executed on, overall
 <5> How many shards have successfully completed the search
@@ -188,7 +190,9 @@ GET /_async_search/FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsd
 // TESTRESPONSE[s/"buckets" : \[\]/"buckets": $body.response.aggregations.sale_date.buckets/]
 // TESTRESPONSE[s/"num_reduce_phases" : 46,//]
 
-<1> Whether the search failed or was successfully completed
+<1> When the query is no longer running, indicates whether the search failed
+or was successfully completed on all shards. While the query is being
+executed, `is_partial` is always set to `true`
 <2> Whether the search is still being executed or it has completed
 <3> When the async search will expire
 <4> Indicates how many reductions of the results have been performed. If this

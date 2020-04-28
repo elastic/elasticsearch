@@ -32,7 +32,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 
 /**
  * {@link ValuesSourceRegistry} holds the mapping from {@link ValuesSourceType}s to {@link AggregatorSupplier}s.  DO NOT directly
@@ -42,40 +41,28 @@ import java.util.function.Predicate;
  */
 public class ValuesSourceRegistry {
     public static class Builder {
-        private Map<String, List<Map.Entry<Predicate<ValuesSourceType>, AggregatorSupplier>>> aggregatorRegistry = new HashMap<>();
-        /**
-         * Register a ValuesSource to Aggregator mapping.
-         *
-         * @param aggregationName The name of the family of aggregations, typically found via
-         *                        {@link ValuesSourceAggregationBuilder#getType()}
-         * @param appliesTo A predicate which accepts the resolved {@link ValuesSourceType} and decides if the given aggregator can be
-         *                  applied to that type.
-         * @param aggregatorSupplier An Aggregation-specific specialization of AggregatorSupplier which will construct the mapped aggregator
-         */
-        private void register(String aggregationName, Predicate<ValuesSourceType> appliesTo,
-                                          AggregatorSupplier aggregatorSupplier) {
-            if (aggregatorRegistry.containsKey(aggregationName) == false) {
-                aggregatorRegistry.put(aggregationName, new ArrayList<>());
-            }
-            aggregatorRegistry.get(aggregationName).add( new AbstractMap.SimpleEntry<>(appliesTo, aggregatorSupplier));
-        }
+        private Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry = new HashMap<>();
 
         /**
-         * Register a ValuesSource to Aggregator mapping.  This version provides a convenience method for mappings that only apply to a
-         * single {@link ValuesSourceType}, to allow passing in the type and auto-wrapping it in a predicate
+         * Register a ValuesSource to Aggregator mapping. This method registers mappings that only apply to a
+         * single {@link ValuesSourceType}
          * @param aggregationName The name of the family of aggregations, typically found via
          *                        {@link ValuesSourceAggregationBuilder#getType()}
          * @param valuesSourceType The ValuesSourceType this mapping applies to.
          * @param aggregatorSupplier An Aggregation-specific specialization of AggregatorSupplier which will construct the mapped aggregator
          *                           from the aggregation standard set of parameters
          */
-        public void register(String aggregationName, ValuesSourceType valuesSourceType, AggregatorSupplier aggregatorSupplier) {
-            register(aggregationName, (candidate) -> valuesSourceType.equals(candidate), aggregatorSupplier);
+        public void register(String aggregationName, ValuesSourceType valuesSourceType,
+                                          AggregatorSupplier aggregatorSupplier) {
+            if (aggregatorRegistry.containsKey(aggregationName) == false) {
+                aggregatorRegistry.put(aggregationName, new ArrayList<>());
+            }
+            aggregatorRegistry.get(aggregationName).add(new AbstractMap.SimpleEntry<>(valuesSourceType, aggregatorSupplier));
         }
 
         /**
-         * Register a ValuesSource to Aggregator mapping.  This version provides a convenience method for mappings that only apply to a
-         * known list of {@link ValuesSourceType}, to allow passing in the type and auto-wrapping it in a predicate
+         * Register a ValuesSource to Aggregator mapping. This version provides a convenience method for mappings that apply to a
+         * known list of {@link ValuesSourceType}
          *  @param aggregationName The name of the family of aggregations, typically found via
          *                         {@link ValuesSourceAggregationBuilder#getType()}
          * @param valuesSourceTypes The ValuesSourceTypes this mapping applies to.
@@ -83,30 +70,10 @@ public class ValuesSourceRegistry {
          *                           from the aggregation standard set of parameters
          */
         public void register(String aggregationName, List<ValuesSourceType> valuesSourceTypes, AggregatorSupplier aggregatorSupplier) {
-            register(aggregationName, (candidate) -> {
-                for (ValuesSourceType valuesSourceType : valuesSourceTypes) {
-                    if (valuesSourceType.equals(candidate)) {
-                        return true;
-                    }
-                }
-                return false;
-            }, aggregatorSupplier);
+            for (ValuesSourceType valuesSourceType : valuesSourceTypes) {
+                register(aggregationName, valuesSourceType, aggregatorSupplier);
+            }
         }
-
-        /**
-         * Register an aggregator that applies to any values source type.  This is a convenience method for aggregations that do not care at
-         * all about the types of their inputs.  Aggregations using this version of registration should not make any other registrations, as
-         * the aggregator registered using this function will be applied in all cases.
-         *
-         * @param aggregationName The name of the family of aggregations, typically found via
-         *                        {@link ValuesSourceAggregationBuilder#getType()}
-         * @param aggregatorSupplier An Aggregation-specific specialization of AggregatorSupplier which will construct the mapped aggregator
-         *                           from the aggregation standard set of parameters.
-         */
-        public void registerAny(String aggregationName, AggregatorSupplier aggregatorSupplier) {
-            register(aggregationName, (ignored) -> true, aggregatorSupplier);
-        }
-
 
         public ValuesSourceRegistry build() {
             return new ValuesSourceRegistry(aggregatorRegistry);
@@ -114,17 +81,17 @@ public class ValuesSourceRegistry {
     }
 
     /** Maps Aggregation names to (ValuesSourceType, Supplier) pairs, keyed by ValuesSourceType */
-    private Map<String, List<Map.Entry<Predicate<ValuesSourceType>, AggregatorSupplier>>> aggregatorRegistry;
-    public ValuesSourceRegistry(Map<String, List<Map.Entry<Predicate<ValuesSourceType>, AggregatorSupplier>>> aggregatorRegistry) {
+    private Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry;
+    public ValuesSourceRegistry(Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry) {
         /*
-         Make an immutatble copy of our input map.  Since this is write once, read many, we'll spend a bit of extra time to shape this
+         Make an immutatble copy of our input map. Since this is write once, read many, we'll spend a bit of extra time to shape this
          into a Map.of(), which is more read optimized than just using a hash map.
          */
         Map.Entry[] copiedEntries = new Map.Entry[aggregatorRegistry.size()];
         int i = 0;
-        for (Map.Entry<String, List<Map.Entry<Predicate<ValuesSourceType>, AggregatorSupplier>>> entry : aggregatorRegistry.entrySet()) {
+        for (Map.Entry<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> entry : aggregatorRegistry.entrySet()) {
             String aggName = entry.getKey();
-            List<Map.Entry<Predicate<ValuesSourceType>, AggregatorSupplier>> values = entry.getValue();
+            List<Map.Entry<ValuesSourceType, AggregatorSupplier>> values = entry.getValue();
             Map.Entry newEntry = Map.entry(aggName, List.of(values.toArray()));
             copiedEntries[i++] = newEntry;
         }
@@ -132,9 +99,9 @@ public class ValuesSourceRegistry {
     }
 
     private AggregatorSupplier findMatchingSuppier(ValuesSourceType valuesSourceType,
-                                                   List<Map.Entry<Predicate<ValuesSourceType>, AggregatorSupplier>> supportedTypes) {
-        for (Map.Entry<Predicate<ValuesSourceType>, AggregatorSupplier> candidate : supportedTypes) {
-            if (candidate.getKey().test(valuesSourceType)) {
+                                                   List<Map.Entry<ValuesSourceType, AggregatorSupplier>> supportedTypes) {
+        for (Map.Entry<ValuesSourceType, AggregatorSupplier> candidate : supportedTypes) {
+            if (candidate.getKey().equals(valuesSourceType)) {
                 return candidate.getValue();
             }
         }

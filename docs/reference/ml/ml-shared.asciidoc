@@ -603,6 +603,13 @@ If `true`, the output excludes interim results. By default, interim results are
 included.
 end::exclude-interim-results[]
 
+tag::failed-category-count[]
+The number of times that categorization wanted to create a new category but
+couldn't because the job had hit its `model_memory_limit`. This count does not
+track which specific categories failed to be created. Therefore you cannot use
+this value to determine the number of unique categories that were missed.
+end::failed-category-count[]
+
 tag::feature-bag-fraction[]
 Advanced configuration option. Defines the fraction of features that will be
 used when selecting a random bag for each candidate split. 
@@ -694,9 +701,8 @@ end::inference-config-classification-num-top-classes[]
 
 tag::inference-config-classification-num-top-feature-importance-values[]
 Specifies the maximum number of
-{ml-docs}/dfa-classification.html#dfa-classification-feature-importance[feature
-importance] values per document. By default, it is zero and no feature
-importance calculation occurs.
+{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document. By 
+default, it is zero and no {feat-imp} calculation occurs.
 end::inference-config-classification-num-top-feature-importance-values[]
 
 tag::inference-config-classification-top-classes-results-field[]
@@ -712,9 +718,8 @@ end::inference-config-classification-prediction-field-type[]
 
 tag::inference-config-regression-num-top-feature-importance-values[]
 Specifies the maximum number of
-{ml-docs}/dfa-regression.html#dfa-regression-feature-importance[feature
-importance] values per document. By default, it is zero and no feature importance
-calculation occurs.
+{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document. 
+By default, it is zero and no {feat-imp} calculation occurs.
 end::inference-config-regression-num-top-feature-importance-values[]
 
 tag::inference-config-results-field[]

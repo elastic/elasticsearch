@@ -1700,12 +1700,13 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
     public void testIgnoreThrottled() {
         Metadata.Builder mdBuilder = Metadata.builder()
-            .put(indexBuilder("test-index", Settings.builder().put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), true).build())
+            .put(indexBuilder("test-index", Settings.builder().put("index.frozen", true).build())
                 .state(State.OPEN)
                 .putAlias(AliasMetadata.builder("test-alias")))
-            .put(indexBuilder("index").state(State.OPEN)
+            .put(indexBuilder("index", Settings.builder().put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), true).build())
+                 .state(State.OPEN)
                 .putAlias(AliasMetadata.builder("test-alias2")))
-            .put(indexBuilder("index-closed", Settings.builder().put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), true).build())
+            .put(indexBuilder("index-closed", Settings.builder().put("index.frozen", true).build())
                 .state(State.CLOSE)
                 .putAlias(AliasMetadata.builder("test-alias-closed")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();

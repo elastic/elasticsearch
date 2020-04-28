@@ -1,0 +1,205 @@
+[[snapshots-restore-snapshot]]
+== Restore indices from a snapshot
+
+++++
+<titleabbrev>Restore a snapshot</titleabbrev>
+++++
+
+////
+[source,console]
+-----------------------------------
+PUT /_snapshot/my_backup
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+
+PUT /_snapshot/my_backup/snapshot_1?wait_for_completion=true
+-----------------------------------
+// TESTSETUP
+
+////
+
+A snapshot can be restored using the following command:
+
+[source,console]
+-----------------------------------
+POST /_snapshot/my_backup/snapshot_1/_restore
+-----------------------------------
+
+By default, all indices in the snapshot are restored, and the cluster state is
+*not* restored. It's possible to select indices that should be restored as well
+as to allow the global cluster state from being restored by using `indices` and
+`include_global_state` options in the restore request body. The list of indices
+supports <<multi-index,multi index syntax>>. The `rename_pattern`
+and `rename_replacement` options can be also used to rename indices on restore
+using regular expression that supports referencing the original text as
+explained
+http://docs.oracle.com/javase/6/docs/api/java/util/regex/Matcher.html#appendReplacement(java.lang.StringBuffer,%20java.lang.String)[here].
+Set `include_aliases` to `false` to prevent aliases from being restored together
+with associated indices
+
+[source,console]
+-----------------------------------
+POST /_snapshot/my_backup/snapshot_1/_restore
+{
+  "indices": "index_1,index_2",
+  "ignore_unavailable": true,
+  "include_global_state": true,
+  "rename_pattern": "index_(.+)",
+  "rename_replacement": "restored_index_$1"
+}
+-----------------------------------
+// TEST[continued]
+
+The restore operation can be performed on a functioning cluster. However, an
+existing index can be only restored if it's <<indices-open-close,closed>> and
+has the same number of shards as the index in the snapshot. The restore
+operation automatically opens restored indices if they were closed and creates
+new indices if they didn't exist in the cluster. If cluster state is restored
+with `include_global_state` (defaults to `false`), the restored templates that
+don't currently exist in the cluster are added and existing templates with the
+same name are replaced by the restored templates. The restored persistent
+settings are added to the existing persistent settings.
+
+[float]
+=== Partial restore
+
+By default, the entire restore operation will fail if one or more indices participating in the operation don't have
+snapshots of all shards available. It can occur if some shards failed to snapshot for example. It is still possible to
+restore such indices by setting `partial` to `true`. Please note, that only successfully snapshotted shards will be
+restored in this case and all missing shards will be recreated empty.
+
+
+[float]
+=== Changing index settings during restore
+
+Most of index settings can be overridden during the restore process. For example, the following command will restore
+the index `index_1` without creating any replicas while switching back to default refresh interval:
+
+[source,console]
+-----------------------------------
+POST /_snapshot/my_backup/snapshot_1/_restore
+{
+  "indices": "index_1",
+  "ignore_unavailable": true,
+  "index_settings": {
+    "index.number_of_replicas": 0
+  },
+  "ignore_index_settings": [
+    "index.refresh_interval"
+  ]
+}
+-----------------------------------
+// TEST[continued]
+
+Please note, that some settings such as `index.number_of_shards` cannot be changed during restore operation.
+
+[float]
+=== Restoring to a different cluster
+
+The information stored in a snapshot is not tied to a particular cluster or a cluster name. Therefore it's possible to
+restore a snapshot made from one cluster into another cluster. All that is required is registering the repository
+containing the snapshot in the new cluster and starting the restore process. The new cluster doesn't have to have the
+same size or topology.  However, the version of the new cluster should be the same or newer (only 1 major version newer) than the cluster that was used to create the snapshot.  For example, you can restore a 1.x snapshot to a 2.x cluster, but not a 1.x snapshot to a 5.x cluster.
+
+If the new cluster has a smaller size additional considerations should be made. First of all it's necessary to make sure
+that new cluster have enough capacity to store all indices in the snapshot. It's possible to change indices settings
+during restore to reduce the number of replicas, which can help with restoring snapshots into smaller cluster. It's also
+possible to select only subset of the indices using the `indices` parameter.
+
+If indices in the original cluster were assigned to particular nodes using
+<<shard-allocation-filtering,shard allocation filtering>>, the same rules will be enforced in the new cluster. Therefore
+if the new cluster doesn't contain nodes with appropriate attributes that a restored index can be allocated on, such
+index will not be successfully restored unless these index allocation settings are changed during restore operation.
+
+The restore operation also checks that restored persistent settings are compatible with the current cluster to avoid accidentally
+restoring incompatible settings. If you need to restore a snapshot with incompatible persistent settings, try restoring it without
+the global cluster state.
+
+[float]
+=== Snapshot status
+
+A list of currently running snapshots with their detailed status information can be obtained using the following command:
+
+[source,console]
+-----------------------------------
+GET /_snapshot/_status
+-----------------------------------
+// TEST[continued]
+
+In this format, the command will return information about all currently running snapshots. By specifying a repository name, it's possible
+to limit the results to a particular repository:
+
+[source,console]
+-----------------------------------
+GET /_snapshot/my_backup/_status
+-----------------------------------
+// TEST[continued]
+
+If both repository name and snapshot id are specified, this command will return detailed status information for the given snapshot even
+if it's not currently running:
+
+[source,console]
+-----------------------------------
+GET /_snapshot/my_backup/snapshot_1/_status
+-----------------------------------
+// TEST[continued]
+
+The output looks similar to the following:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "snapshots": [
+    {
+      "snapshot": "snapshot_1",
+      "repository": "my_backup",
+      "uuid": "XuBo4l4ISYiVg0nYUen9zg",
+      "state": "SUCCESS",
+      "include_global_state": true,
+      "shards_stats": {
+        "initializing": 0,
+        "started": 0,
+        "finalizing": 0,
+        "done": 5,
+        "failed": 0,
+        "total": 5
+      },
+      "stats": {
+        "incremental": {
+          "file_count": 8,
+          "size_in_bytes": 4704
+        },
+        "processed": {
+          "file_count": 7,
+          "size_in_bytes": 4254
+        },
+        "total": {
+          "file_count": 8,
+          "size_in_bytes": 4704
+        },
+        "start_time_in_millis": 1526280280355,
+        "time_in_millis": 358
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE[skip: No snapshot status to validate.]
+
+The output is composed of different sections. The `stats` sub-object provides details on the number and size of files that were
+snapshotted. As snapshots are incremental, copying only the Lucene segments that are not already in the repository,
+the `stats` object contains a `total` section for all the files that are referenced by the snapshot, as well as an `incremental` section
+for those files that actually needed to be copied over as part of the incremental snapshotting. In case of a snapshot that's still
+in progress, there's also a `processed` section that contains information about the files that are in the process of being copied.
+
+Multiple ids are also supported:
+
+[source,console]
+-----------------------------------
+GET /_snapshot/my_backup/snapshot_1,snapshot_2/_status
+-----------------------------------
+// TEST[skip: no snapshot_2 to get]

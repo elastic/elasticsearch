@@ -53,7 +53,7 @@ POST /products/_bulk?refresh
 
 Example:
 
-[source,console]
+[source,console,id=terms-aggregation-example]
 --------------------------------------------------
 GET /_search
 {
@@ -131,7 +131,7 @@ combined to give a final view. Consider the following scenario:
 A request is made to obtain the top 5 terms in the field product, ordered by descending document count from an index with
 3 shards. In this case each shard is asked to give its top 5 terms.
 
-[source,console]
+[source,console,id=terms-aggregation-doc-counts-example]
 --------------------------------------------------
 GET /_search
 {
@@ -260,7 +260,7 @@ could have the 4th highest document count.
 
 The second error value can be enabled by setting the `show_term_doc_count_error` parameter to true:
 
-[source,console]
+[source,console,id=terms-aggregation-doc-count-error-example]
 --------------------------------------------------
 GET /_search
 {
@@ -337,7 +337,7 @@ but at least the top buckets will be correctly picked.
 
 Ordering the buckets by their doc `_count` in an ascending manner:
 
-[source,console]
+[source,console,id=terms-aggregation-count-example]
 --------------------------------------------------
 GET /_search
 {
@@ -354,7 +354,7 @@ GET /_search
 
 Ordering the buckets alphabetically by their terms in an ascending manner:
 
-[source,console]
+[source,console,id=terms-aggregation-asc-example]
 --------------------------------------------------
 GET /_search
 {
@@ -373,7 +373,7 @@ deprecated[6.0.0, Use `_key` instead of `_term` to order buckets by their term]
 
 Ordering the buckets by single value metrics sub-aggregation (identified by the aggregation name):
 
-[source,console]
+[source,console,id=terms-aggregation-subaggregation-example]
 --------------------------------------------------
 GET /_search
 {
@@ -393,7 +393,7 @@ GET /_search
 
 Ordering the buckets by multi value metrics sub-aggregation (identified by the aggregation name):
 
-[source,console]
+[source,console,id=terms-aggregation-multivalue-subaggregation-example]
 --------------------------------------------------
 GET /_search
 {
@@ -439,7 +439,7 @@ METRIC              =  <the name of the metric (in case of multi-value metrics a
 PATH                =  <AGG_NAME> [ <AGG_SEPARATOR>, <AGG_NAME> ]* [ <METRIC_SEPARATOR>, <METRIC> ] ;
 --------------------------------------------------
 
-[source,console]
+[source,console,id=terms-aggregation-hierarchy-example]
 --------------------------------------------------
 GET /_search
 {
@@ -466,7 +466,7 @@ The above will sort the artist's countries buckets based on the average play cou
 
 Multiple criteria can be used to order the buckets by providing an array of order criteria such as the following:
 
-[source,console]
+[source,console,id=terms-aggregation-multicriteria-example]
 --------------------------------------------------
 GET /_search
 {
@@ -499,7 +499,7 @@ tie-breaker in ascending alphabetical order to prevent non-deterministic orderin
 
 It is possible to only return terms that match more than a configured number of hits using the `min_doc_count` option:
 
-[source,console]
+[source,console,id=terms-aggregation-min-doc-count-example]
 --------------------------------------------------
 GET /_search
 {
@@ -540,7 +540,7 @@ WARNING: When NOT sorting on `doc_count` descending, high values of `min_doc_cou
 
 Generating the terms using a script:
 
-[source,console]
+[source,console,id=terms-aggregation-script-example]
 --------------------------------------------------
 GET /_search
 {
@@ -561,7 +561,7 @@ This will interpret the `script` parameter as an `inline` script with the defaul
 
 //////////////////////////
 
-[source,console]
+[source,console,id=terms-aggregation-stored-example]
 --------------------------------------------------
 POST /_scripts/my_script
 {
@@ -596,7 +596,7 @@ GET /_search
 
 ==== Value Script
 
-[source,console]
+[source,console,id=terms-aggregation-value-script-example]
 --------------------------------------------------
 GET /_search
 {
@@ -622,7 +622,7 @@ It is possible to filter the values for which buckets will be created. This can 
 
 ===== Filtering Values with regular expressions
 
-[source,console]
+[source,console,id=terms-aggregation-regex-example]
 --------------------------------------------------
 GET /_search
 {
@@ -650,7 +650,7 @@ The syntax is the same as <<regexp-syntax,regexp queries>>.
 For matching based on exact values the `include` and `exclude` parameters can simply take an array of
 strings that represent the terms as they are found in the index:
 
-[source,console]
+[source,console,id=terms-aggregation-exact-example]
 --------------------------------------------------
 GET /_search
 {
@@ -679,7 +679,7 @@ This can be achieved by grouping the field's values into a number of partitions 
 only one partition in each request.
 Consider this request which is looking for accounts that have not logged any access recently:
 
-[source,console]
+[source,console,id=terms-aggregation-partitions-example]
 --------------------------------------------------
 GET /_search
 {
@@ -771,7 +771,7 @@ are expanded in one depth-first pass and only then any pruning occurs.
 In some scenarios this can be very wasteful and can hit memory constraints.
 An example problem scenario is querying a movie database for the 10 most popular actors and their 5 most common co-stars:
 
-[source,console]
+[source,console,id=terms-aggregation-collect-mode-example]
 --------------------------------------------------
 GET /_search
 {
@@ -802,7 +802,7 @@ mode as opposed to the `depth_first` mode.
 NOTE: The `breadth_first` is the default mode for fields with a cardinality bigger than the requested size or when the cardinality is unknown (numeric fields or scripts for instance).
 It is possible to override the default heuristic and to provide a collect mode directly in the request:
 
-[source,console]
+[source,console,id=terms-aggregation-breadth-first-example]
 --------------------------------------------------
 GET /_search
 {
@@ -853,7 +853,7 @@ so memory usage is linear to the number of values of the documents that are part
 is significantly faster. By default, `map` is only used when running an aggregation on scripts, since they don't have
 ordinals.
 
-[source,console]
+[source,console,id=terms-aggregation-execution-hint-example]
 --------------------------------------------------
 GET /_search
 {
@@ -878,7 +878,7 @@ The `missing` parameter defines how documents that are missing a value should be
 By default they will be ignored but it is also possible to treat them as if they
 had a value.
 
-[source,console]
+[source,console,id=terms-aggregation-missing-example]
 --------------------------------------------------
 GET /_search
 {

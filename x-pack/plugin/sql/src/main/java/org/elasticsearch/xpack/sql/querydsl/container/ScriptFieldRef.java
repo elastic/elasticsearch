@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 
 public class ScriptFieldRef extends FieldReference {
 
@@ -28,7 +28,7 @@ public class ScriptFieldRef extends FieldReference {
     }
 
     @Override
-    public void collectFields(SqlSourceBuilder sourceBuilder) {
+    public void collectFields(QlSourceBuilder sourceBuilder) {
         sourceBuilder.addScriptField(name, script.toPainless());
     }
 

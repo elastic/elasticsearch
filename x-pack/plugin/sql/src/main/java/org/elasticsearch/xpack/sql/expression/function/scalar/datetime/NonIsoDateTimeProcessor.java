@@ -10,7 +10,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.time.DayOfWeek;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
@@ -28,7 +27,7 @@ public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {
             return dayOfWeek == 8 ? 1 : dayOfWeek;
         }),
         WEEK_OF_YEAR(zdt -> {
-            return zdt.get(WeekFields.of(DayOfWeek.SUNDAY, 1).weekOfWeekBasedYear());
+            return zdt.get(WeekFields.SUNDAY_START.weekOfYear());
         });
 
         private final Function<ZonedDateTime, Integer> apply;

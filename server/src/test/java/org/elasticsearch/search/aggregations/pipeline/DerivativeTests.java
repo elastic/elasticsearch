@@ -19,15 +19,19 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.TestAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DerivativeTests extends BasePipelineAggregationTestCase<DerivativePipelineAggregationBuilder> {
 
@@ -51,16 +55,13 @@ public class DerivativeTests extends BasePipelineAggregationTestCase<DerivativeP
         }
         return factory;
     }
-    
+
     /**
      * The validation should verify the parent aggregation is allowed.
      */
     public void testValidate() throws IOException {
-        final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
-        aggBuilders.add(new DerivativePipelineAggregationBuilder("deriv", "der"));
-
-        final DerivativePipelineAggregationBuilder builder = new DerivativePipelineAggregationBuilder("name", "valid");
-        builder.validate(PipelineAggregationHelperTests.getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
+        assertThat(validate(PipelineAggregationHelperTests.getRandomSequentiallyOrderedParentAgg(),
+                new DerivativePipelineAggregationBuilder("name", "valid")), nullValue());
     }
 
     /**
@@ -71,12 +72,11 @@ public class DerivativeTests extends BasePipelineAggregationTestCase<DerivativeP
     public void testValidateException() throws IOException {
         final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
         aggBuilders.add(new DerivativePipelineAggregationBuilder("deriv", "der"));
-        TestAggregatorFactory parentFactory = TestAggregatorFactory.createInstance();
+        AggregationBuilder parent = mock(AggregationBuilder.class);
+        when(parent.getName()).thenReturn("name");
 
-        final DerivativePipelineAggregationBuilder builder = new DerivativePipelineAggregationBuilder("name", "invalid_agg>metric");
-        IllegalStateException ex = expectThrows(IllegalStateException.class,
-                () -> builder.validate(parentFactory, Collections.emptySet(), aggBuilders));
-        assertEquals("derivative aggregation [name] must have a histogram, date_histogram or auto_date_histogram as parent",
-                ex.getMessage());
+        assertThat(validate(parent, new DerivativePipelineAggregationBuilder("name", "invalid_agg>metric")), equalTo(
+                "Validation Failed: 1: derivative aggregation [name] must have a histogram, "
+                + "date_histogram or auto_date_histogram as parent;"));
     }
 }

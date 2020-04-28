@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonMap;
@@ -650,7 +651,8 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                                          * SQL drops them from the interface. So we might have access to them, but we
                                          * don't show them.
                                          */
-                                        indices.removeAll(RestrictedIndicesNames.RESTRICTED_NAMES);
+                                        indices = indices.stream().filter(
+                                                idx -> false == RestrictedIndicesNames.isRestricted(idx)).collect(Collectors.toList());
                                     }
                                 }
                                 // Use a sorted list for indices for consistent error reporting

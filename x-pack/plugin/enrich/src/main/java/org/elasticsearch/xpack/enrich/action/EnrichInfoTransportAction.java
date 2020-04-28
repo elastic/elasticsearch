@@ -21,8 +21,12 @@ public class EnrichInfoTransportAction extends XPackInfoFeatureTransportAction {
     private final XPackLicenseState licenseState;
 
     @Inject
-    public EnrichInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                     Settings settings, XPackLicenseState licenseState) {
+    public EnrichInfoTransportAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Settings settings,
+        XPackLicenseState licenseState
+    ) {
         super(XPackInfoFeatureAction.ENRICH.name(), transportService, actionFilters);
         this.enabled = XPackSettings.ENRICH_ENABLED_SETTING.get(settings);
         this.licenseState = licenseState;

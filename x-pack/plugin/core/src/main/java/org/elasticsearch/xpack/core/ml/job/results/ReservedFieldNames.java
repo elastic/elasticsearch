@@ -74,6 +74,7 @@ public final class ReservedFieldNames {
             AnomalyCause.FUNCTION_DESCRIPTION.getPreferredName(),
             AnomalyCause.TYPICAL.getPreferredName(),
             AnomalyCause.ACTUAL.getPreferredName(),
+            AnomalyCause.GEO_RESULTS.getPreferredName(),
             AnomalyCause.INFLUENCERS.getPreferredName(),
             AnomalyCause.FIELD_NAME.getPreferredName(),
 
@@ -88,6 +89,7 @@ public final class ReservedFieldNames {
             AnomalyRecord.FUNCTION_DESCRIPTION.getPreferredName(),
             AnomalyRecord.TYPICAL.getPreferredName(),
             AnomalyRecord.ACTUAL.getPreferredName(),
+            AnomalyRecord.GEO_RESULTS.getPreferredName(),
             AnomalyRecord.INFLUENCERS.getPreferredName(),
             AnomalyRecord.FIELD_NAME.getPreferredName(),
             AnomalyRecord.OVER_FIELD_NAME.getPreferredName(),
@@ -96,6 +98,9 @@ public final class ReservedFieldNames {
             AnomalyRecord.RECORD_SCORE.getPreferredName(),
             AnomalyRecord.INITIAL_RECORD_SCORE.getPreferredName(),
             AnomalyRecord.BUCKET_SPAN.getPreferredName(),
+
+            GeoResults.TYPICAL_POINT.getPreferredName(),
+            GeoResults.ACTUAL_POINT.getPreferredName(),
 
             Bucket.ANOMALY_SCORE.getPreferredName(),
             Bucket.BUCKET_INFLUENCERS.getPreferredName(),
@@ -113,6 +118,8 @@ public final class ReservedFieldNames {
             CategoryDefinition.REGEX.getPreferredName(),
             CategoryDefinition.MAX_MATCHING_LENGTH.getPreferredName(),
             CategoryDefinition.EXAMPLES.getPreferredName(),
+            CategoryDefinition.NUM_MATCHES.getPreferredName(),
+            CategoryDefinition.PREFERRED_TO_CATEGORIES.getPreferredName(),
 
             DataCounts.PROCESSED_RECORD_COUNT.getPreferredName(),
             DataCounts.PROCESSED_FIELD_COUNT.getPreferredName(),
@@ -228,6 +235,7 @@ public final class ReservedFieldNames {
             Job.MODEL_SNAPSHOT_ID.getPreferredName(),
             Job.MODEL_SNAPSHOT_MIN_VERSION.getPreferredName(),
             Job.RESULTS_INDEX_NAME.getPreferredName(),
+            Job.ALLOW_LAZY_OPEN.getPreferredName(),
 
             AnalysisConfig.BUCKET_SPAN.getPreferredName(),
             AnalysisConfig.CATEGORIZATION_FIELD_NAME.getPreferredName(),
@@ -280,6 +288,7 @@ public final class ReservedFieldNames {
             DatafeedConfig.CHUNKING_CONFIG.getPreferredName(),
             DatafeedConfig.HEADERS.getPreferredName(),
             DatafeedConfig.DELAYED_DATA_CHECK_CONFIG.getPreferredName(),
+            DatafeedConfig.INDICES_OPTIONS.getPreferredName(),
             DelayedDataCheckConfig.ENABLED.getPreferredName(),
             DelayedDataCheckConfig.CHECK_WINDOW.getPreferredName(),
 
@@ -298,6 +307,7 @@ public final class ReservedFieldNames {
             DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName(),
             DataFrameAnalyticsSource.INDEX.getPreferredName(),
             DataFrameAnalyticsSource.QUERY.getPreferredName(),
+            DataFrameAnalyticsSource._SOURCE.getPreferredName(),
             OutlierDetection.NAME.getPreferredName(),
             OutlierDetection.N_NEIGHBORS.getPreferredName(),
             OutlierDetection.METHOD.getPreferredName(),
@@ -309,13 +319,15 @@ public final class ReservedFieldNames {
             Classification.NAME.getPreferredName(),
             Classification.DEPENDENT_VARIABLE.getPreferredName(),
             Classification.PREDICTION_FIELD_NAME.getPreferredName(),
+            Classification.CLASS_ASSIGNMENT_OBJECTIVE.getPreferredName(),
             Classification.NUM_TOP_CLASSES.getPreferredName(),
             Classification.TRAINING_PERCENT.getPreferredName(),
             BoostedTreeParams.LAMBDA.getPreferredName(),
             BoostedTreeParams.GAMMA.getPreferredName(),
             BoostedTreeParams.ETA.getPreferredName(),
-            BoostedTreeParams.MAXIMUM_NUMBER_TREES.getPreferredName(),
+            BoostedTreeParams.MAX_TREES.getPreferredName(),
             BoostedTreeParams.FEATURE_BAG_FRACTION.getPreferredName(),
+            BoostedTreeParams.NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(),
 
             ElasticsearchMappings.CONFIG_TYPE,
 

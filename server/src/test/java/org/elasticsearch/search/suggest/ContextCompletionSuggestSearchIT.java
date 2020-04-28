@@ -58,7 +58,6 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
     private final String INDEX = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
-    private final String TYPE = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
     private final String FIELD = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
 
     @Override
@@ -500,7 +499,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
     public void testGeoField() throws Exception {
         XContentBuilder mapping = jsonBuilder();
         mapping.startObject();
-        mapping.startObject(TYPE);
+        mapping.startObject("_doc");
         mapping.startObject("properties");
         mapping.startObject("location");
         mapping.startObject("properties");
@@ -534,7 +533,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         mapping.endObject();
         mapping.endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
+        assertAcked(prepareCreate(INDEX).setMapping(mapping));
 
         XContentBuilder source1 = jsonBuilder()
                 .startObject()
@@ -624,7 +623,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
     private void createIndexAndMappingAndSettings(Settings settings, CompletionMappingBuilder completionMappingBuilder) throws IOException {
         XContentBuilder mapping = jsonBuilder().startObject()
-                .startObject(TYPE).startObject("properties")
+                .startObject("_doc").startObject("properties")
                 .startObject(FIELD)
                 .field("type", "completion")
                 .field("analyzer", completionMappingBuilder.indexAnalyzer)
@@ -671,7 +670,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareCreate(INDEX)
                 .setSettings(Settings.builder().put(indexSettings()).put(settings))
-                .addMapping(TYPE, mapping)
+                .setMapping(mapping)
                 .get());
     }
 }

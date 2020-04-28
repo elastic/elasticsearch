@@ -50,7 +50,7 @@ public class TransformCheckpoint implements Writeable, ToXContentObject {
     // checkpoint of the indexes (sequence id's)
     public static final ParseField INDICES = new ParseField("indices");
 
-    private static final String NAME = "data_frame_transform_checkpoint";
+    public static final String NAME = "data_frame_transform_checkpoint";
 
     private static final ConstructingObjectParser<TransformCheckpoint, Void> STRICT_PARSER = createParser(false);
     private static final ConstructingObjectParser<TransformCheckpoint, Void> LENIENT_PARSER = createParser(true);
@@ -62,20 +62,19 @@ public class TransformCheckpoint implements Writeable, ToXContentObject {
     private final long timeUpperBoundMillis;
 
     private static ConstructingObjectParser<TransformCheckpoint, Void> createParser(boolean lenient) {
-        ConstructingObjectParser<TransformCheckpoint, Void> parser = new ConstructingObjectParser<>(NAME,
-                lenient, args -> {
-                    String id = (String) args[0];
-                    long timestamp = (Long) args[1];
-                    long checkpoint = (Long) args[2];
+        ConstructingObjectParser<TransformCheckpoint, Void> parser = new ConstructingObjectParser<>(NAME, lenient, args -> {
+            String id = (String) args[0];
+            long timestamp = (Long) args[1];
+            long checkpoint = (Long) args[2];
 
-                    @SuppressWarnings("unchecked")
-                    Map<String, long[]> checkpoints = (Map<String, long[]>) args[3];
+            @SuppressWarnings("unchecked")
+            Map<String, long[]> checkpoints = (Map<String, long[]>) args[3];
 
-                    Long timeUpperBound = (Long) args[4];
+            Long timeUpperBound = (Long) args[4];
 
-                    // ignored, only for internal storage: String docType = (String) args[5];
-                    return new TransformCheckpoint(id, timestamp, checkpoint, checkpoints, timeUpperBound);
-                });
+            // ignored, only for internal storage: String docType = (String) args[5];
+            return new TransformCheckpoint(id, timestamp, checkpoint, checkpoints, timeUpperBound);
+        });
 
         parser.declareString(constructorArg(), TransformField.ID);
 
@@ -83,7 +82,7 @@ public class TransformCheckpoint implements Writeable, ToXContentObject {
         parser.declareLong(constructorArg(), TransformField.TIMESTAMP_MILLIS);
         parser.declareLong(constructorArg(), CHECKPOINT);
 
-        parser.declareObject(constructorArg(), (p,c) -> {
+        parser.declareObject(constructorArg(), (p, c) -> {
             Map<String, long[]> checkPointsByIndexName = new TreeMap<>();
             XContentParser.Token token = null;
             while ((token = p.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -108,8 +107,7 @@ public class TransformCheckpoint implements Writeable, ToXContentObject {
         return parser;
     }
 
-    public TransformCheckpoint(String transformId, long timestamp, long checkpoint, Map<String, long[]> checkpoints,
-            Long timeUpperBound) {
+    public TransformCheckpoint(String transformId, long timestamp, long checkpoint, Map<String, long[]> checkpoints, Long timeUpperBound) {
         this.transformId = Objects.requireNonNull(transformId);
         this.timestampMillis = timestamp;
         this.checkpoint = checkpoint;
@@ -126,7 +124,7 @@ public class TransformCheckpoint implements Writeable, ToXContentObject {
     }
 
     public boolean isEmpty() {
-        return indicesCheckpoints.isEmpty();
+        return this.equals(EMPTY);
     }
 
     /**
@@ -212,8 +210,10 @@ public class TransformCheckpoint implements Writeable, ToXContentObject {
         final TransformCheckpoint that = (TransformCheckpoint) other;
 
         // compare the timestamp, id, checkpoint and than call matches for the rest
-        return this.timestampMillis == that.timestampMillis && this.checkpoint == that.checkpoint
-                && this.timeUpperBoundMillis == that.timeUpperBoundMillis && matches(that);
+        return this.timestampMillis == that.timestampMillis
+            && this.checkpoint == that.checkpoint
+            && this.timeUpperBoundMillis == that.timeUpperBoundMillis
+            && matches(that);
     }
 
     /**
@@ -224,7 +224,7 @@ public class TransformCheckpoint implements Writeable, ToXContentObject {
      * @param that other checkpoint
      * @return true if checkpoints match
      */
-    public boolean matches (TransformCheckpoint that) {
+    public boolean matches(TransformCheckpoint that) {
         if (this == that) {
             return true;
         }
@@ -256,6 +256,10 @@ public class TransformCheckpoint implements Writeable, ToXContentObject {
         }
 
         return NAME + "-" + transformId + "-" + checkpoint;
+    }
+
+    public static boolean isNullOrEmpty(TransformCheckpoint checkpoint) {
+        return checkpoint == null || checkpoint.isEmpty();
     }
 
     /**
@@ -311,8 +315,11 @@ public class TransformCheckpoint implements Writeable, ToXContentObject {
             if (e.getValue() instanceof long[]) {
                 checkpoints.put(e.getKey(), (long[]) e.getValue());
             } else {
-                throw new ElasticsearchParseException("expecting the checkpoints for [{}] to be a long[], but found [{}] instead",
-                        e.getKey(), e.getValue().getClass());
+                throw new ElasticsearchParseException(
+                    "expecting the checkpoints for [{}] to be a long[], but found [{}] instead",
+                    e.getKey(),
+                    e.getValue().getClass()
+                );
             }
         }
         return checkpoints;

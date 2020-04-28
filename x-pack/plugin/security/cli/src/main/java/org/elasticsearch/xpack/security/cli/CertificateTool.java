@@ -142,6 +142,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         subcommands.put("csr", new SigningRequestCommand());
         subcommands.put("cert", new GenerateCertificateCommand());
         subcommands.put("ca", new CertificateAuthorityCommand());
+        subcommands.put("http", new HttpCertificateCommand());
     }
 
 
@@ -920,8 +921,8 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         }
     }
 
-    private static PEMEncryptor getEncrypter(char[] password) {
-        return new JcePEMEncryptorBuilder("DES-EDE3-CBC").setProvider(BC_PROV).build(password);
+    static PEMEncryptor getEncrypter(char[] password) {
+        return new JcePEMEncryptorBuilder("AES-128-CBC").setProvider(BC_PROV).build(password);
     }
 
     private static <T, E extends Exception> T withPassword(String description, char[] password, Terminal terminal,
@@ -1036,7 +1037,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         }
     }
 
-    private static GeneralNames getSubjectAlternativeNamesValue(List<String> ipAddresses, List<String> dnsNames, List<String> commonNames) {
+    static GeneralNames getSubjectAlternativeNamesValue(List<String> ipAddresses, List<String> dnsNames, List<String> commonNames) {
         Set<GeneralName> generalNameList = new HashSet<>();
         for (String ip : ipAddresses) {
             generalNameList.add(new GeneralName(GeneralName.iPAddress, ip));
@@ -1056,7 +1057,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         return new GeneralNames(generalNameList.toArray(new GeneralName[0]));
     }
 
-    private static boolean isAscii(char[] str) {
+    static boolean isAscii(char[] str) {
         return ASCII_ENCODER.canEncode(CharBuffer.wrap(str));
     }
 

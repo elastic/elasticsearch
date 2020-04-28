@@ -75,7 +75,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
                 .endObject()
            .endObject()
         .endObject();
-        createIndex("test", Settings.EMPTY, "_doc", mapping);
+        createIndex("test", Settings.EMPTY, mapping);
     }
 
     public void testMatchQuery() throws Exception {

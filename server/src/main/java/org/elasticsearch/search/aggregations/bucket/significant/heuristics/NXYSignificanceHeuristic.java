@@ -21,15 +21,17 @@
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
 
@@ -160,34 +162,24 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
                 backgroundIsSuperset);
     }
 
-    public abstract static class NXYParser implements SignificanceHeuristicParser {
-
-        @Override
-        public SignificanceHeuristic parse(XContentParser parser)
-                throws IOException, QueryShardException {
-            String givenName = parser.currentName();
-            boolean includeNegatives = false;
-            boolean backgroundIsSuperset = true;
-            XContentParser.Token token = parser.nextToken();
-            while (!token.equals(XContentParser.Token.END_OBJECT)) {
-                if (INCLUDE_NEGATIVES_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {
-                    parser.nextToken();
-                    includeNegatives = parser.booleanValue();
-                } else if (BACKGROUND_IS_SUPERSET.match(parser.currentName(), parser.getDeprecationHandler())) {
-                    parser.nextToken();
-                    backgroundIsSuperset = parser.booleanValue();
-                } else {
-                    throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. unknown field [{}]",
-                            givenName, parser.currentName());
-                }
-                token = parser.nextToken();
-            }
-            return newHeuristic(includeNegatives, backgroundIsSuperset);
-        }
-
-        protected abstract SignificanceHeuristic newHeuristic(boolean includeNegatives, boolean backgroundIsSuperset);
+    /**
+     * Set up and {@linkplain ConstructingObjectParser} to accept the standard arguments for an {@linkplain NXYSignificanceHeuristic}.
+     */
+    protected static void declareParseFields(ConstructingObjectParser<? extends NXYSignificanceHeuristic, ?> parser) {
+        parser.declareBoolean(optionalConstructorArg(), INCLUDE_NEGATIVES_FIELD);
+        parser.declareBoolean(optionalConstructorArg(), BACKGROUND_IS_SUPERSET);
     }
 
+    /**
+     * Adapt a standard two argument ctor into one that consumes a {@linkplain ConstructingObjectParser}'s fields.
+     */
+    protected static <T> Function<Object[], T> buildFromParsedArgs(BiFunction<Boolean, Boolean, T> ctor) {
+        return args -> {
+            boolean includeNegatives = args[0] == null ? false : (boolean) args[0];
+            boolean backgroundIsSuperset = args[1] == null ? true : (boolean) args[1];
+            return ctor.apply(includeNegatives, backgroundIsSuperset);
+        };
+    }
 
     protected abstract static class NXYBuilder implements SignificanceHeuristicBuilder {
         protected boolean includeNegatives = true;

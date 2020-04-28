@@ -54,19 +54,19 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
                 // pki1 does not allow delegation
-                .put("xpack.security.authc.realms.pki.pki1.order", "1")
+                .put("xpack.security.authc.realms.pki.pki1.order", "2")
                 .putList("xpack.security.authc.realms.pki.pki1.certificate_authorities",
                     getDataPath("/org/elasticsearch/xpack/security/action/pki_delegation/testRootCA.crt").toString())
                 .put("xpack.security.authc.realms.pki.pki1.files.role_mapping", getDataPath("role_mapping.yml"))
                 // pki2 allows delegation but has a non-matching username pattern
-                .put("xpack.security.authc.realms.pki.pki2.order", "2")
+                .put("xpack.security.authc.realms.pki.pki2.order", "3")
                 .putList("xpack.security.authc.realms.pki.pki2.certificate_authorities",
                     getDataPath("/org/elasticsearch/xpack/security/action/pki_delegation/testRootCA.crt").toString())
                 .put("xpack.security.authc.realms.pki.pki2.username_pattern", "CN=MISMATCH(.*?)(?:,|$)")
                 .put("xpack.security.authc.realms.pki.pki2.delegation.enabled", true)
                 .put("xpack.security.authc.realms.pki.pki2.files.role_mapping", getDataPath("role_mapping.yml"))
                 // pki3 allows delegation and the username pattern (default) matches
-                .put("xpack.security.authc.realms.pki.pki3.order", "3")
+                .put("xpack.security.authc.realms.pki.pki3.order", "4")
                 .putList("xpack.security.authc.realms.pki.pki3.certificate_authorities",
                     getDataPath("/org/elasticsearch/xpack/security/action/pki_delegation/testRootCA.crt").toString())
                 .put("xpack.security.authc.realms.pki.pki3.delegation.enabled", true)
@@ -83,7 +83,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
             "user_manage_security:" + usersPasswdHashed + "\n" +
             "user_delegate_pki:" + usersPasswdHashed + "\n" +
             "user_all:" + usersPasswdHashed + "\n" +
-            "kibana_system:" + usersPasswdHashed + "\n";
+            "my_kibana_system:" + usersPasswdHashed + "\n";
     }
 
     @Override
@@ -109,7 +109,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
                 "role_manage_security:user_manage_security\n" +
                 "role_delegate_pki:user_delegate_pki\n" +
                 "role_all:user_all\n" +
-                "kibana_system:kibana_system\n";
+                "kibana_system:my_kibana_system\n";
     }
 
     @Override
@@ -140,7 +140,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
         }
 
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            for (String delegateeUsername : Arrays.asList("user_all", "user_delegate_pki", "kibana_system")) {
+            for (String delegateeUsername : Arrays.asList("user_all", "user_delegate_pki", "my_kibana_system")) {
                 // delegate
                 RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
                 optionsBuilder.addHeader("Authorization",
@@ -177,7 +177,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
         }
 
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            String delegateeUsername = randomFrom("user_all", "user_delegate_pki", "kibana_system");
+            String delegateeUsername = randomFrom("user_all", "user_delegate_pki", "my_kibana_system");
             // delegate
             RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
             optionsBuilder.addHeader("Authorization",

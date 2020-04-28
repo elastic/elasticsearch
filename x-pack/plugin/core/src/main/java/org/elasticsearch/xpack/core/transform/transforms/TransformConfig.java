@@ -324,7 +324,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         if (params.paramAsBoolean(TransformField.FOR_INTERNAL_STORAGE, false)) {
             builder.field(TransformField.INDEX_DOC_TYPE.getPreferredName(), NAME);
         }
-        if (headers.isEmpty() == false && params.paramAsBoolean(TransformField.FOR_INTERNAL_STORAGE, false) == true) {
+        if (headers.isEmpty() == false && params.paramAsBoolean(TransformField.FOR_INTERNAL_STORAGE, false)) {
             builder.field(HEADERS.getPreferredName(), headers);
         }
         if (description != null) {

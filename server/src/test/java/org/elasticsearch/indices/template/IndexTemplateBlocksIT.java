@@ -38,7 +38,7 @@ public class IndexTemplateBlocksIT extends ESIntegTestCase {
         client().admin().indices().preparePutTemplate("template_blocks")
                 .setPatterns(Collections.singletonList("te*"))
                 .setOrder(0)
-                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("field1").field("type", "text").field("store", true).endObject()
                         .startObject("field2").field("type", "keyword").field("store", true).endObject()
                         .endObject().endObject().endObject())

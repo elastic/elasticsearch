@@ -23,9 +23,11 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.http.HttpHost;
+import org.apache.http.util.EntityUtils;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -43,6 +45,7 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -99,11 +102,62 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         return new ClientYamlDocsTestClient(restSpec, restClient, hosts, esVersion, masterVersion, this::getClientBuilderWithSniffedHosts);
     }
 
+    @Before
+    public void waitForRequirements() throws Exception {
+        if (isCcrTest()) {
+            ESRestTestCase.waitForActiveLicense(adminClient());
+        }
+    }
+
     @After
     public void cleanup() throws Exception {
         if (isMachineLearningTest() || isTransformTest()) {
             ESRestTestCase.waitForPendingTasks(adminClient());
         }
+
+        // check that there are no templates
+        Request request = new Request("GET", "_cat/templates");
+        request.addParameter("h", "name");
+        String templates = EntityUtils.toString(adminClient().performRequest(request).getEntity());
+        if (false == "".equals(templates)) {
+            for (String template : templates.split("\n")) {
+                if (isXPackTemplate(template)) continue;
+                if ("".equals(template)) {
+                    throw new IllegalStateException("empty template in templates list:\n" + templates);
+                }
+                throw new RuntimeException("Template " + template + " not cleared after test");
+            }
+        }
+    }
+
+    @Override
+    protected boolean preserveSLMPoliciesUponCompletion() {
+        return isSLMTest() == false;
+    }
+
+    @Override
+    protected boolean preserveILMPoliciesUponCompletion() {
+        return isILMTest() == false;
+    }
+
+    /**
+     * Tests are themselves responsible for cleaning up templates, which speeds up build.
+     */
+    @Override
+    protected boolean preserveTemplatesUponCompletion() {
+        return true;
+    }
+
+    protected boolean isSLMTest() {
+        String testName = getTestName();
+        return testName != null && (testName.contains("/slm/") || testName.contains("\\slm\\") || (testName.contains("\\slm/")) ||
+            // TODO: Remove after backport of https://github.com/elastic/elasticsearch/pull/48705 which moves SLM docs to correct folder
+            testName.contains("/ilm/") || testName.contains("\\ilm\\") || testName.contains("\\ilm/"));
+    }
+
+    protected boolean isILMTest() {
+        String testName = getTestName();
+        return testName != null && (testName.contains("/ilm/") || testName.contains("\\ilm\\") || testName.contains("\\ilm/"));
     }
 
     protected boolean isMachineLearningTest() {
@@ -116,6 +170,11 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         return testName != null && (testName.contains("/transform/") || testName.contains("\\transform\\"));
     }
 
+    protected boolean isCcrTest() {
+        String testName = getTestName();
+        return testName != null && testName.contains("/ccr/");
+    }
+
     /**
      * Compares the results of running two analyzers against many random
      * strings. The goal is to figure out if two anlayzers are "the same" by
@@ -125,7 +184,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
      * small number of tokens.
      */
     private static class CompareAnalyzers implements ExecutableSection {
-        private static ConstructingObjectParser<CompareAnalyzers, XContentLocation> PARSER =
+        private static final ConstructingObjectParser<CompareAnalyzers, XContentLocation> PARSER =
             new ConstructingObjectParser<>("test_analyzer", false, (a, location) -> {
                 String index = (String) a[0];
                 String first = (String) a[1];

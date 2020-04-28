@@ -42,8 +42,8 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
     }
 
     public void testHighlightingOnCustomString() throws Exception {
-        prepareCreate("test-idx").addMapping("type",
-            XContentFactory.jsonBuilder().startObject().startObject("type")
+        prepareCreate("test-idx").setMapping(
+            XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                 .startObject("field").field("type", FakeStringFieldMapper.CONTENT_TYPE).endObject()
                 .endObject()
@@ -89,8 +89,8 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
     }
 
     public void testExternalValues() throws Exception {
-        prepareCreate("test-idx").addMapping("type",
-                XContentFactory.jsonBuilder().startObject().startObject("type")
+        prepareCreate("test-idx").setMapping(
+                XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject(ExternalMetadataMapper.CONTENT_TYPE)
                 .endObject()
                 .startObject("properties")
@@ -133,7 +133,7 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
     }
 
     public void testExternalValuesWithMultifield() throws Exception {
-        prepareCreate("test-idx").addMapping("_doc",
+        prepareCreate("test-idx").setMapping(
                 XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("f")
                     .field("type", ExternalMapperPlugin.EXTERNAL_UPPER)

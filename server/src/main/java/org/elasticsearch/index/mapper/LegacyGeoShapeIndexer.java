@@ -30,7 +30,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class LegacyGeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<ShapeBuilder<?, ?, ?>, Shape> {
+public class LegacyGeoShapeIndexer implements AbstractShapeGeometryFieldMapper.Indexer<ShapeBuilder<?, ?, ?>, Shape> {
 
     private LegacyGeoShapeFieldMapper.GeoShapeFieldType fieldType;
 
@@ -51,7 +51,7 @@ public class LegacyGeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
 
     @Override
     public List<IndexableField>  indexShape(ParseContext context, Shape shape) {
-        if (fieldType.pointsOnly() == true) {
+        if (fieldType.pointsOnly()) {
             // index configured for pointsOnly
             if (shape instanceof XShapeCollection && XShapeCollection.class.cast(shape).pointsOnly()) {
                 // MULTIPOINT data: index each point separately

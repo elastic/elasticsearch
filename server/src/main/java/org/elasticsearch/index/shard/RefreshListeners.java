@@ -32,7 +32,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
@@ -48,7 +47,6 @@ import static java.util.Objects.requireNonNull;
 public final class RefreshListeners implements ReferenceManager.RefreshListener, Closeable {
     private final IntSupplier getMaxRefreshListeners;
     private final Runnable forceRefresh;
-    private final Executor listenerExecutor;
     private final Logger logger;
     private final ThreadContext threadContext;
     private final MeanMetric refreshMetric;
@@ -82,11 +80,15 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      */
     private volatile Translog.Location lastRefreshedLocation;
 
-    public RefreshListeners(IntSupplier getMaxRefreshListeners, Runnable forceRefresh, Executor listenerExecutor, Logger logger,
-                            ThreadContext threadContext, MeanMetric refreshMetric) {
+    public RefreshListeners(
+        final IntSupplier getMaxRefreshListeners,
+        final Runnable forceRefresh,
+        final Logger logger,
+        final ThreadContext threadContext,
+        final MeanMetric refreshMetric
+    ) {
         this.getMaxRefreshListeners = getMaxRefreshListeners;
         this.forceRefresh = forceRefresh;
-        this.listenerExecutor = listenerExecutor;
         this.logger = logger;
         this.threadContext = threadContext;
         this.refreshMetric = refreshMetric;
@@ -282,24 +284,22 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
                 }
             }
         }
-        // Lastly, fire the listeners that are ready on the listener thread pool
+        // Lastly, fire the listeners that are ready
         fireListeners(listenersToFire);
     }
 
     /**
      * Fire some listeners. Does nothing if the list of listeners is null.
      */
-    private void fireListeners(List<Tuple<Translog.Location, Consumer<Boolean>>> listenersToFire) {
+    private void fireListeners(final List<Tuple<Translog.Location, Consumer<Boolean>>> listenersToFire) {
         if (listenersToFire != null) {
-            listenerExecutor.execute(() -> {
-                for (Tuple<Translog.Location, Consumer<Boolean>> listener : listenersToFire) {
-                    try {
-                        listener.v2().accept(false);
-                    } catch (Exception e) {
-                        logger.warn("Error firing refresh listener", e);
-                    }
+            for (final Tuple<Translog.Location, Consumer<Boolean>> listener : listenersToFire) {
+                try {
+                    listener.v2().accept(false);
+                } catch (final Exception e) {
+                    logger.warn("error firing refresh listener", e);
                 }
-            });
+            }
         }
     }
 }

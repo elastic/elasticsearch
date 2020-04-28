@@ -12,7 +12,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -87,7 +87,7 @@ public class PolicyStepsRegistry {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void update(ClusterState clusterState) {
-        final IndexLifecycleMetadata meta = clusterState.metaData().custom(IndexLifecycleMetadata.TYPE);
+        final IndexLifecycleMetadata meta = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
 
         assert meta != null : "IndexLifecycleMetadata cannot be null when updating the policy steps registry";
 
@@ -181,21 +181,21 @@ public class PolicyStepsRegistry {
     }
 
     @Nullable
-    public Step getStep(final IndexMetaData indexMetaData, final Step.StepKey stepKey) {
+    public Step getStep(final IndexMetadata indexMetadata, final Step.StepKey stepKey) {
         if (ErrorStep.NAME.equals(stepKey.getName())) {
             return new ErrorStep(new Step.StepKey(stepKey.getPhase(), stepKey.getAction(), ErrorStep.NAME));
         }
 
         final String phase = stepKey.getPhase();
-        final String policyName = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
-        final Index index = indexMetaData.getIndex();
+        final String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        final Index index = indexMetadata.getIndex();
 
         if (policyName == null) {
             throw new IllegalArgumentException("failed to retrieve step " + stepKey + " as index [" + index.getName() + "] has no policy");
         }
 
         // parse phase steps from the phase definition in the index settings
-        final String phaseJson = Optional.ofNullable(LifecycleExecutionState.fromIndexMetadata(indexMetaData).getPhaseDefinition())
+        final String phaseJson = Optional.ofNullable(LifecycleExecutionState.fromIndexMetadata(indexMetadata).getPhaseDefinition())
             .orElse(InitializePolicyContextStep.INITIALIZATION_PHASE);
 
         final List<Step> phaseSteps;

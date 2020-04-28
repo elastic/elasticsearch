@@ -31,12 +31,10 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
@@ -56,10 +54,8 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
     DoubleArray compensationOfSqrs;
 
     ExtendedStatsAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat formatter,
-            SearchContext context, Aggregator parent, double sigma, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData)
-            throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+            SearchContext context, Aggregator parent, double sigma, Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, metadata);
         this.valuesSource = valuesSource;
         this.format = formatter;
         this.sigma = sigma;
@@ -90,6 +86,8 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
         }
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+        final CompensatedSum compensatedSum = new CompensatedSum(0, 0);
+        final CompensatedSum compensatedSumOfSqr = new CompensatedSum(0, 0);
         return new LeafBucketCollectorBase(sub, values) {
 
             @Override
@@ -117,34 +115,24 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
                     // which is more accurate than naive summation.
                     double sum = sums.get(bucket);
                     double compensation = compensations.get(bucket);
+                    compensatedSum.reset(sum, compensation);
+
                     double sumOfSqr = sumOfSqrs.get(bucket);
                     double compensationOfSqr = compensationOfSqrs.get(bucket);
+                    compensatedSumOfSqr.reset(sumOfSqr, compensationOfSqr);
+
                     for (int i = 0; i < valuesCount; i++) {
                         double value = values.nextValue();
-                        if (Double.isFinite(value) == false) {
-                            sum += value;
-                            sumOfSqr += value * value;
-                        } else {
-                            if (Double.isFinite(sum)) {
-                                double corrected = value - compensation;
-                                double newSum = sum + corrected;
-                                compensation = (newSum - sum) - corrected;
-                                sum = newSum;
-                            }
-                            if (Double.isFinite(sumOfSqr)) {
-                                double correctedOfSqr = value * value - compensationOfSqr;
-                                double newSumOfSqr = sumOfSqr + correctedOfSqr;
-                                compensationOfSqr = (newSumOfSqr - sumOfSqr) - correctedOfSqr;
-                                sumOfSqr = newSumOfSqr;
-                            }
-                        }
+                        compensatedSum.add(value);
+                        compensatedSumOfSqr.add(value * value);
                         min = Math.min(min, value);
                         max = Math.max(max, value);
                     }
-                    sums.set(bucket, sum);
-                    compensations.set(bucket, compensation);
-                    sumOfSqrs.set(bucket, sumOfSqr);
-                    compensationOfSqrs.set(bucket, compensationOfSqr);
+
+                    sums.set(bucket, compensatedSum.value());
+                    compensations.set(bucket, compensatedSum.delta());
+                    sumOfSqrs.set(bucket, compensatedSumOfSqr.value());
+                    compensationOfSqrs.set(bucket, compensatedSumOfSqr.delta());
                     mins.set(bucket, min);
                     maxes.set(bucket, max);
                 }
@@ -213,13 +201,12 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
         }
         return new InternalExtendedStats(name, counts.get(bucket), sums.get(bucket),
                 mins.get(bucket), maxes.get(bucket), sumOfSqrs.get(bucket), sigma, format,
-                pipelineAggregators(), metaData());
+                metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d,
-            sigma, format, pipelineAggregators(), metaData());
+        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, sigma, format, metadata());
     }
 
     @Override

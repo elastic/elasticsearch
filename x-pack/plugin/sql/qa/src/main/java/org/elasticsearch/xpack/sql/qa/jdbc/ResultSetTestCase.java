@@ -1275,6 +1275,54 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertTrue(results.getObject("test_boolean") instanceof Boolean);
         });
     }
+    
+    public void testGettingNullValues() throws Exception {
+        String query = "SELECT CAST(NULL AS BOOLEAN) b, CAST(NULL AS TINYINT) t, CAST(NULL AS SMALLINT) s, CAST(NULL AS INTEGER) i,"
+                + "CAST(NULL AS BIGINT) bi, CAST(NULL AS DOUBLE) d, CAST(NULL AS REAL) r, CAST(NULL AS FLOAT) f, CAST(NULL AS VARCHAR) v,"
+                + "CAST(NULL AS DATE) dt, CAST(NULL AS TIME) tm, CAST(NULL AS TIMESTAMP) ts";
+        doWithQuery(query, (results) -> {
+            results.next();
+            
+            assertNull(results.getObject("b"));
+            assertFalse(results.getBoolean("b"));
+            
+            assertNull(results.getObject("t"));
+            assertEquals(0, results.getByte("t"));
+            
+            assertNull(results.getObject("s"));
+            assertEquals(0, results.getShort("s"));
+            
+            assertNull(results.getObject("i"));
+            assertEquals(0, results.getInt("i"));
+            
+            assertNull(results.getObject("bi"));
+            assertEquals(0, results.getLong("bi"));
+            
+            assertNull(results.getObject("d"));
+            assertEquals(0.0d, results.getDouble("d"), 0d);
+            
+            assertNull(results.getObject("r"));
+            assertEquals(0.0f, results.getFloat("r"), 0f);
+            
+            assertNull(results.getObject("f"));
+            assertEquals(0.0f, results.getFloat("f"), 0f);
+            
+            assertNull(results.getObject("v"));
+            assertNull(results.getString("v"));
+            
+            assertNull(results.getObject("dt"));
+            assertNull(results.getDate("dt"));
+            assertNull(results.getDate("dt", randomCalendar()));
+            
+            assertNull(results.getObject("tm"));
+            assertNull(results.getTime("tm"));
+            assertNull(results.getTime("tm", randomCalendar()));
+            
+            assertNull(results.getObject("ts"));
+            assertNull(results.getTimestamp("ts"));
+            assertNull(results.getTimestamp("ts", randomCalendar()));
+        });
+    }
 
     /*
      * Checks StackOverflowError fix for https://github.com/elastic/elasticsearch/pull/31735
@@ -1840,5 +1888,9 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
 
     private ZoneId getZoneFromOffset(Long randomLongDate) {
         return ZoneId.of(ZoneId.of(timeZoneId).getRules().getOffset(Instant.ofEpochMilli(randomLongDate)).toString());
+    }
+    
+    private Calendar randomCalendar() {
+        return Calendar.getInstance(randomTimeZone(), Locale.ROOT);
     }
 }

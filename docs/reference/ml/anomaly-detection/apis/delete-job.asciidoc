@@ -18,6 +18,9 @@ Deletes an existing {anomaly-job}.
 
 * If {es} {security-features} are enabled, you must have `manage_ml` or `manage`
 cluster privileges to use this API. See <<security-privileges>>.
+* Before you can delete a job, you must delete the {dfeeds} that are associated
+with it. See <<ml-delete-datafeed>>.
+* Before you can delete a job, you must close it (unless you specify the `force` parameter). See <<ml-close-job>>.
 
 [[ml-delete-job-desc]]
 ==== {api-description-title}
@@ -29,10 +32,6 @@ delete the job directly from the `.ml-*` indices using the {es} delete document
 API. When {es} {security-features} are enabled, make sure no `write` privileges
 are granted to anyone over the `.ml-*` indices.
 
-Before you can delete a job, you must delete the {dfeeds} that are associated
-with it. See <<ml-delete-datafeed,Delete {dfeeds-cap}>>. Unless the `force`
-parameter is used the job must be closed before it can be deleted.
-
 It is not currently possible to delete multiple jobs using wildcards or a comma
 separated list.
 
@@ -40,7 +39,8 @@ separated list.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the {anomaly-job}.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-delete-job-query-parms]]
 ==== {api-query-parms-title}
@@ -55,8 +55,6 @@ separated list.
 
 [[ml-delete-job-example]]
 ==== {api-examples-title}
-
-The following example deletes the `total-requests` job:
 
 [source,console]
 --------------------------------------------------

@@ -15,7 +15,7 @@ public class VersionProperties {
         return elasticsearch;
     }
 
-    public static Version getElasticsearchVersion()  {
+    public static Version getElasticsearchVersion() {
         return Version.fromString(elasticsearch);
     }
 
@@ -25,7 +25,8 @@ public class VersionProperties {
 
     public static String getBundledJdk(final String platform) {
         switch (platform) {
-            case "darwin":
+            case "darwin": // fall trough
+            case "mac":
                 return bundledJdkDarwin;
             case "linux":
                 return bundledJdkLinux;

@@ -19,11 +19,11 @@
 package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.env.NodeMetaData;
+import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -42,6 +42,7 @@ public class PeerRecoveryRetentionLeaseCreationIT extends ESIntegTestCase {
         return false;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48701")
     public void testCanRecoverFromStoreWithoutPeerRecoveryRetentionLease() throws Exception {
         /*
          * In a full cluster restart from a version without peer-recovery retention leases, the leases on disk will not include a lease for
@@ -54,9 +55,9 @@ public class PeerRecoveryRetentionLeaseCreationIT extends ESIntegTestCase {
         final Path[] nodeDataPaths = internalCluster().getInstance(NodeEnvironment.class, dataNode).nodeDataPaths();
 
         assertAcked(prepareCreate("index").setSettings(Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .put(IndexMetaData.SETTING_VERSION_CREATED,
+            .put(IndexMetadata.SETTING_VERSION_CREATED,
                 VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT))));
         ensureGreen("index");
 
@@ -67,8 +68,8 @@ public class PeerRecoveryRetentionLeaseCreationIT extends ESIntegTestCase {
         internalCluster().restartNode(dataNode, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                final NodeMetaData nodeMetaData = new NodeMetaData(newNodeId, Version.CURRENT);
-                NodeMetaData.FORMAT.writeAndCleanup(nodeMetaData, nodeDataPaths);
+                final NodeMetadata nodeMetadata = new NodeMetadata(newNodeId, Version.CURRENT);
+                NodeMetadata.FORMAT.writeAndCleanup(nodeMetadata, nodeDataPaths);
                 return Settings.EMPTY;
             }
         });

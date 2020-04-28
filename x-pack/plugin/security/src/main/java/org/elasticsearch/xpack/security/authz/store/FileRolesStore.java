@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -175,7 +176,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         if (Files.exists(path)) {
             try {
                 List<String> roleSegments = roleSegments(path);
-                final boolean flsDlsLicensed = licenseState.isDocumentAndFieldLevelSecurityAllowed();
+                final boolean flsDlsLicensed = licenseState.isAllowed(Feature.SECURITY_DLS_FLS);
                 for (String segment : roleSegments) {
                     RoleDescriptor descriptor = parseRoleDescriptor(segment, path, logger, resolvePermission, settings, xContentRegistry);
                     if (descriptor != null) {
@@ -368,8 +369,6 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                 final Map<String, RoleDescriptor> previousPermissions = permissions;
                 try {
                     permissions = parseFile(file, logger, settings, licenseState, xContentRegistry);
-                    logger.info("updated roles (roles file [{}] {})", file.toAbsolutePath(),
-                        Files.exists(file) ? "changed" : "removed");
                 } catch (Exception e) {
                     logger.error(
                             (Supplier<?>) () -> new ParameterizedMessage(
@@ -383,7 +382,11 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                         .collect(Collectors.toSet());
                 final Set<String> addedRoles = Sets.difference(permissions.keySet(), previousPermissions.keySet());
                 final Set<String> changedRoles = Collections.unmodifiableSet(Sets.union(changedOrMissingRoles, addedRoles));
-                listeners.forEach(c -> c.accept(changedRoles));
+                if (changedRoles.isEmpty() == false) {
+                    logger.info("updated roles (roles file [{}] {})", file.toAbsolutePath(),
+                            Files.exists(file) ? "changed" : "removed");
+                    listeners.forEach(c -> c.accept(changedRoles));
+                }
             }
         }
     }

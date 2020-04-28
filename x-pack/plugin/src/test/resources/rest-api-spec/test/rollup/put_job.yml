@@ -76,6 +76,8 @@ setup:
             index_total: 0
             search_time_in_ms: 0
             search_total: 0
+            processing_time_in_ms: 0
+            processing_total: 0
           status:
             job_state: "stopped"
 
@@ -170,7 +172,7 @@ setup:
 "Try to include headers":
 
   - do:
-      catch: /unknown field \[headers\], parser not found/
+      catch: /unknown field \[headers\]/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       rollup.put_job:

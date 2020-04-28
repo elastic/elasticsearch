@@ -19,34 +19,26 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.FunctionRef;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.Scope.Variable;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
+import org.elasticsearch.painless.ir.TypedCaptureReferenceNode;
+import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
 import org.elasticsearch.painless.lookup.def;
-import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
- * Represents a capturing function reference.
+ * Represents a capturing function reference.  For member functions that require a this reference, ie not static.
  */
-public final class ECapturingFunctionRef extends AExpression implements ILambda {
-    private final String variable;
-    private final String call;
+public class ECapturingFunctionRef extends AExpression {
 
-    private FunctionRef ref;
-    private Variable captured;
-    private String defPointer;
+    protected final String variable;
+    protected final String call;
 
     public ECapturingFunctionRef(Location location, String variable, String call) {
         super(location);
@@ -56,70 +48,65 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        // Do nothing.
-    }
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to capturing function reference [" + variable + ":"  + call + "]"));
+        }
 
-    @Override
-    void extractVariables(Set<String> variables) {
-        variables.add(variable);
-    }
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException(
+                    "not a statement: capturing function reference [" + variable + ":"  + call + "] not used"));
+        }
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        captured = locals.getVariable(location, variable);
-        if (expected == null) {
-            if (captured.clazz == def.class) {
-                // dynamic implementation
-                defPointer = "D" + variable + "." + call + ",1";
+        Output output = new Output();
+
+        Variable captured = scope.getVariable(location, variable);
+        if (input.expected == null) {
+            String defReferenceEncoding;
+            if (captured.getType() == def.class) {
+                // unknown functional interface
+                defReferenceEncoding = "D" + variable + "." + call + ",1";
             } else {
-                // typed implementation
-                defPointer = "S" + PainlessLookupUtility.typeToCanonicalTypeName(captured.clazz) + "." + call + ",1";
+                // known functional interface
+                defReferenceEncoding = "S" + captured.getCanonicalTypeName() + "." + call + ",1";
             }
-            actual = String.class;
+            output.actual = String.class;
+
+            DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode();
+
+            defInterfaceReferenceNode.setLocation(location);
+            defInterfaceReferenceNode.setExpressionType(output.actual);
+            defInterfaceReferenceNode.addCapture(captured.getName());
+            defInterfaceReferenceNode.setDefReferenceEncoding(defReferenceEncoding);
+
+            output.expressionNode = defInterfaceReferenceNode;
         } else {
-            defPointer = null;
-            // static case
-            if (captured.clazz != def.class) {
-                ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(), location,
-                        expected, PainlessLookupUtility.typeToCanonicalTypeName(captured.clazz), call, 1);
+            output.actual = input.expected;
+            // known functional interface
+            if (captured.getType() != def.class) {
+                FunctionRef ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(), location,
+                        input.expected, captured.getCanonicalTypeName(), call, 1);
+
+                TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode();
+                typedInterfaceReferenceNode.setLocation(location);
+                typedInterfaceReferenceNode.setExpressionType(output.actual);
+                typedInterfaceReferenceNode.addCapture(captured.getName());
+                typedInterfaceReferenceNode.setReference(ref);
+
+                output.expressionNode = typedInterfaceReferenceNode;
+            // known functional interface, unknown receiver type
+            } else {
+                TypedCaptureReferenceNode typedCaptureReferenceNode = new TypedCaptureReferenceNode();
+                typedCaptureReferenceNode.setLocation(location);
+                typedCaptureReferenceNode.setExpressionType(output.actual);
+                typedCaptureReferenceNode.addCapture(captured.getName());
+                typedCaptureReferenceNode.setMethodName(call);
+
+                output.expressionNode = typedCaptureReferenceNode;
             }
-            actual = expected;
         }
-    }
 
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-        if (defPointer != null) {
-            // dynamic interface: push captured parameter on stack
-            // TODO: don't do this: its just to cutover :)
-            methodWriter.push((String)null);
-            methodWriter.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
-        } else if (ref == null) {
-            // typed interface, dynamic implementation
-            methodWriter.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
-            Type methodType = Type.getMethodType(MethodWriter.getType(expected), MethodWriter.getType(captured.clazz));
-            methodWriter.invokeDefCall(call, methodType, DefBootstrap.REFERENCE, PainlessLookupUtility.typeToCanonicalTypeName(expected));
-        } else {
-            // typed interface, typed implementation
-            methodWriter.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
-            methodWriter.invokeLambdaCall(ref);
-        }
-    }
-
-    @Override
-    public String getPointer() {
-        return defPointer;
-    }
-
-    @Override
-    public Type[] getCaptures() {
-        return new Type[] { MethodWriter.getType(captured.clazz) };
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(variable, call);
+        return output;
     }
 }

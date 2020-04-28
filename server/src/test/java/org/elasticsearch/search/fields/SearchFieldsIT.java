@@ -170,14 +170,14 @@ public class SearchFieldsIT extends ESIntegTestCase {
     public void testStoredFields() throws Exception {
         createIndex("test");
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                 .startObject("field1").field("type", "text").field("store", true).endObject()
                 .startObject("field2").field("type", "text").field("store", false).endObject()
                 .startObject("field3").field("type", "text").field("store", true).endObject()
                 .endObject().endObject().endObject());
 
-        client().admin().indices().preparePutMapping().setType("type1").setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
 
         client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
                 .field("field1", "value1")
@@ -263,11 +263,11 @@ public class SearchFieldsIT extends ESIntegTestCase {
     public void testScriptDocAndFields() throws Exception {
         createIndex("test");
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("num1").field("type", "double").field("store", true).endObject()
                 .endObject().endObject().endObject());
 
-        client().admin().indices().preparePutMapping().setType("type1").setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
 
         client().prepareIndex("test").setId("1")
                 .setSource(jsonBuilder().startObject()
@@ -355,11 +355,11 @@ public class SearchFieldsIT extends ESIntegTestCase {
     public void testScriptFieldWithNanos() throws Exception {
         createIndex("test");
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("doc").startObject("properties")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
             .startObject("date").field("type", "date_nanos").endObject()
             .endObject().endObject().endObject());
 
-        client().admin().indices().preparePutMapping().setType("doc").setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
         String date = "2019-01-31T10:00:00.123456789Z";
         indexRandom(true, false,
             client().prepareIndex("test").setId("1")
@@ -398,7 +398,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
     }
 
     public void testIdBasedScriptFields() throws Exception {
-        prepareCreate("test").addMapping("type1", "num1", "type=long").get();
+        prepareCreate("test").setMapping("num1", "type=long").get();
 
         int numDocs = randomIntBetween(1, 30);
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
@@ -440,7 +440,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
             assertThat(response.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
             Set<String> fields = new HashSet<>(response.getHits().getAt(i).getFields().keySet());
             assertThat(fields, equalTo(singleton("type")));
-            assertThat(response.getHits().getAt(i).getFields().get("type").getValue(), equalTo("type1"));
+            assertThat(response.getHits().getAt(i).getFields().get("type").getValue(), equalTo("_doc"));
         }
 
         response = client().prepareSearch()
@@ -459,7 +459,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
             assertThat(response.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
             Set<String> fields = new HashSet<>(response.getHits().getAt(i).getFields().keySet());
             assertThat(fields, equalTo(newHashSet("type", "id")));
-            assertThat(response.getHits().getAt(i).getFields().get("type").getValue(), equalTo("type1"));
+            assertThat(response.getHits().getAt(i).getFields().get("type").getValue(), equalTo("_doc"));
             assertThat(response.getHits().getAt(i).getFields().get("id").getValue(), equalTo(Integer.toString(i)));
         }
     }
@@ -553,7 +553,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         String mapping = Strings
                 .toString(XContentFactory.jsonBuilder()
                         .startObject()
-                            .startObject("type1")
+                            .startObject("_doc")
                                 .startObject("_source")
                                     .field("enabled", false)
                                 .endObject()
@@ -598,7 +598,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                             .endObject()
                         .endObject());
 
-        client().admin().indices().preparePutMapping().setType("type1").setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
 
         ZonedDateTime date = ZonedDateTime.of(2012, 3, 22, 0, 0, 0, 0, ZoneOffset.UTC);
         client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
@@ -646,7 +646,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchHit.getFields().get("binary_field").getValue(), equalTo(new BytesArray("testing text" .getBytes("UTF8"))));
     }
 
-    public void testSearchFieldsMetaData() throws Exception {
+    public void testSearchFieldsMetadata() throws Exception {
         client().prepareIndex("my-index").setId("1")
                 .setRouting("1")
                 .setSource(jsonBuilder().startObject().field("field1", "value").endObject())
@@ -677,9 +677,9 @@ public class SearchFieldsIT extends ESIntegTestCase {
     public void testGetFieldsComplexField() throws Exception {
         client().admin().indices().prepareCreate("my-index")
                 .setSettings(Settings.builder().put("index.refresh_interval", -1))
-                .addMapping("doc", jsonBuilder()
+                .setMapping(jsonBuilder()
                         .startObject()
-                            .startObject("doc")
+                            .startObject("_doc")
                                 .startObject("properties")
                                     .startObject("field1")
                                         .field("type", "object")
@@ -744,7 +744,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
     // see #8203
     public void testSingleValueFieldDatatField() throws ExecutionException, InterruptedException {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type", "test_field", "type=keyword").get());
+                .setMapping("test_field", "type=keyword").get());
         indexRandom(true, client().prepareIndex("test").setId("1").setSource("test_field", "foobar"));
         refresh();
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -761,7 +761,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         String mapping = Strings
                 .toString(XContentFactory.jsonBuilder()
                         .startObject()
-                            .startObject("type1")
+                            .startObject("_doc")
                                 .startObject("_source")
                                     .field("enabled", false)
                                 .endObject()
@@ -808,7 +808,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                             .endObject()
                         .endObject());
 
-        client().admin().indices().preparePutMapping().setType("type1").setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
 
         ZonedDateTime date = ZonedDateTime.of(2012, 3, 22, 0, 0, 0, 0, ZoneOffset.UTC);
         client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
@@ -890,42 +890,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("ip_field").getValue(), equalTo("::1"));
 
         builder = client().prepareSearch().setQuery(matchAllQuery())
-                .addDocValueField("text_field", "use_field_mapping")
-                .addDocValueField("keyword_field", "use_field_mapping")
-                .addDocValueField("byte_field", "use_field_mapping")
-                .addDocValueField("short_field", "use_field_mapping")
-                .addDocValueField("integer_field", "use_field_mapping")
-                .addDocValueField("long_field", "use_field_mapping")
-                .addDocValueField("float_field", "use_field_mapping")
-                .addDocValueField("double_field", "use_field_mapping")
-                .addDocValueField("date_field", "use_field_mapping")
-                .addDocValueField("boolean_field", "use_field_mapping")
-                .addDocValueField("binary_field", "use_field_mapping")
-                .addDocValueField("ip_field", "use_field_mapping");
-        searchResponse = builder.get();
-
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-        fields = new HashSet<>(searchResponse.getHits().getAt(0).getFields().keySet());
-        assertThat(fields, equalTo(newHashSet("byte_field", "short_field", "integer_field", "long_field",
-                "float_field", "double_field", "date_field", "boolean_field", "text_field", "keyword_field",
-                "binary_field", "ip_field")));
-
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("byte_field").getValue().toString(), equalTo("1"));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("short_field").getValue().toString(), equalTo("2"));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("integer_field").getValue(), equalTo((Object) 3L));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("long_field").getValue(), equalTo((Object) 4L));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("float_field").getValue(), equalTo((Object) 5.0));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("double_field").getValue(), equalTo((Object) 6.0d));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("date_field").getValue(),
-                equalTo(DateFormatter.forPattern("dateOptionalTime").format(date)));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("boolean_field").getValue(), equalTo((Object) true));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("text_field").getValue(), equalTo("foo"));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("binary_field").getValue(), equalTo("KmQ"));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("ip_field").getValue(), equalTo("::1"));
-
-        builder = client().prepareSearch().setQuery(matchAllQuery())
                 .addDocValueField("byte_field", "#.0")
                 .addDocValueField("short_field", "#.0")
                 .addDocValueField("integer_field", "#.0")
@@ -952,7 +916,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
     }
 
     public void testScriptFields() throws Exception {
-        assertAcked(prepareCreate("index").addMapping("type",
+        assertAcked(prepareCreate("index").setMapping(
                 "s", "type=keyword",
                 "l", "type=long",
                 "d", "type=double",
@@ -994,7 +958,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
     public void testDocValueFieldsWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("type")
+                .startObject("_doc")
                     .startObject("_source")
                         .field("enabled", false)
                     .endObject()
@@ -1018,7 +982,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                     .endObject()
                 .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen("test");
 
         DateTime date = new DateTime(1990, 12, 29, 0, 0, DateTimeZone.UTC);
@@ -1029,7 +993,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         SearchRequestBuilder builder = client().prepareSearch().setQuery(matchAllQuery())
                 .addDocValueField("text_field_alias")
-                .addDocValueField("date_field_alias", "use_field_mapping")
+                .addDocValueField("date_field_alias")
                 .addDocValueField("date_field");
         SearchResponse searchResponse = builder.get();
 
@@ -1057,7 +1021,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
     public void testWildcardDocValueFieldsWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type")
+            .startObject("_doc")
             .startObject("_source")
             .field("enabled", false)
             .endObject()
@@ -1081,7 +1045,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
             .endObject()
             .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen("test");
 
         DateTime date = new DateTime(1990, 12, 29, 0, 0, DateTimeZone.UTC);
@@ -1091,7 +1055,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         refresh("test");
 
         SearchRequestBuilder builder = client().prepareSearch().setQuery(matchAllQuery())
-            .addDocValueField("*alias", "use_field_mapping")
+            .addDocValueField("*alias")
             .addDocValueField("date_field");
         SearchResponse searchResponse = builder.get();
 
@@ -1120,7 +1084,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
     public void testStoredFieldsWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("type")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("field1")
                             .field("type", "text")
@@ -1141,7 +1105,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                     .endObject()
             .endObject()
         .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
 
         indexDoc("test", "1", "field1", "value1", "field2", "value2");
         refresh("test");
@@ -1164,7 +1128,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
     public void testWildcardStoredFieldsWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("type")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("field1")
                             .field("type", "text")
@@ -1185,7 +1149,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                     .endObject()
             .endObject()
         .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
 
         indexDoc("test", "1", "field1", "value1", "field2", "value2");
         refresh("test");

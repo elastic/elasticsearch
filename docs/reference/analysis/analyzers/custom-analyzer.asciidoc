@@ -1,5 +1,5 @@
 [[analysis-custom-analyzer]]
-=== Custom Analyzer
+=== Create a custom analyzer
 
 When the built-in analyzers do not fulfill your needs, you can create a
 `custom` analyzer which uses the appropriate combination of:

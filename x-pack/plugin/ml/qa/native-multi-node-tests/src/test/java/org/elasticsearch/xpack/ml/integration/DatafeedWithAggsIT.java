@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
@@ -65,7 +66,8 @@ public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
         datafeedBuilder.setIndices(Collections.singletonList(dataIndex));
 
         AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
-        aggs.addAggregator(AggregationBuilders.dateHistogram("time").field("time").interval(1000)
+        aggs.addAggregator(AggregationBuilders.dateHistogram("time").field("time")
+            .fixedInterval(new DateHistogramInterval("1000ms"))
             .subAggregation(AggregationBuilders.max("time").field("time")));
         datafeedBuilder.setParsedAggregations(aggs);
 
@@ -80,7 +82,7 @@ public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
 
         // Now let's index the data
         client().admin().indices().prepareCreate(dataIndex)
-            .addMapping("type", "time", "type=date")
+            .setMapping("time", "type=date")
             .get();
 
         // Index a doc per second from a minute ago to a minute later

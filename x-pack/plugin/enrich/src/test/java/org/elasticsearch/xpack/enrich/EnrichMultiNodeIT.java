@@ -51,7 +51,7 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
     private static final String PIPELINE_NAME = "my-pipeline";
     static final String SOURCE_INDEX_NAME = "users";
     static final String MATCH_FIELD = "email";
-    static final String[] DECORATE_FIELDS = new String[]{"address", "city", "country"};
+    static final String[] DECORATE_FIELDS = new String[] { "address", "city", "country" };
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -66,15 +66,21 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
 
         for (int i = 0; i < numPolicies; i++) {
             String policyName = POLICY_NAME + i;
-            EnrichPolicy enrichPolicy =
-                new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(SOURCE_INDEX_NAME), MATCH_FIELD, List.of(DECORATE_FIELDS));
+            EnrichPolicy enrichPolicy = new EnrichPolicy(
+                EnrichPolicy.MATCH_TYPE,
+                null,
+                List.of(SOURCE_INDEX_NAME),
+                MATCH_FIELD,
+                List.of(DECORATE_FIELDS)
+            );
             PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
             client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
             client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
 
-            EnrichPolicy.NamedPolicy result =
-                client().execute(GetEnrichPolicyAction.INSTANCE,
-                    new GetEnrichPolicyAction.Request(new String[]{policyName})).actionGet().getPolicies().get(0);
+            EnrichPolicy.NamedPolicy result = client().execute(
+                GetEnrichPolicyAction.INSTANCE,
+                new GetEnrichPolicyAction.Request(new String[] { policyName })
+            ).actionGet().getPolicies().get(0);
             assertThat(result, equalTo(new EnrichPolicy.NamedPolicy(policyName, enrichPolicy)));
             String enrichIndexPrefix = EnrichPolicy.getBaseName(policyName) + "*";
             refresh(enrichIndexPrefix);
@@ -83,8 +89,8 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocsInSourceIndex));
         }
 
-        GetEnrichPolicyAction.Response response =
-            client().execute(GetEnrichPolicyAction.INSTANCE, new GetEnrichPolicyAction.Request()).actionGet();
+        GetEnrichPolicyAction.Response response = client().execute(GetEnrichPolicyAction.INSTANCE, new GetEnrichPolicyAction.Request())
+            .actionGet();
         assertThat(response.getPolicies().size(), equalTo(numPolicies));
 
         for (int i = 0; i < numPolicies; i++) {
@@ -160,14 +166,11 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             }
         }
 
-        EnrichStatsAction.Response statsResponse =
-            client().execute(EnrichStatsAction.INSTANCE, new EnrichStatsAction.Request()).actionGet();
+        EnrichStatsAction.Response statsResponse = client().execute(EnrichStatsAction.INSTANCE, new EnrichStatsAction.Request())
+            .actionGet();
         assertThat(statsResponse.getCoordinatorStats().size(), equalTo(internalCluster().size()));
         String nodeId = internalCluster().getInstance(ClusterService.class, coordinatingNode).localNode().getId();
-        CoordinatorStats stats = statsResponse.getCoordinatorStats().stream()
-            .filter(s -> s.getNodeId().equals(nodeId))
-            .findAny()
-            .get();
+        CoordinatorStats stats = statsResponse.getCoordinatorStats().stream().filter(s -> s.getNodeId().equals(nodeId)).findAny().get();
         assertThat(stats.getNodeId(), equalTo(nodeId));
         assertThat(stats.getRemoteRequestsTotal(), greaterThanOrEqualTo(1L));
         assertThat(stats.getExecutedSearchesTotal(), equalTo((long) numDocs));
@@ -184,8 +187,18 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             IndexRequest indexRequest = new IndexRequest(SOURCE_INDEX_NAME);
             indexRequest.create(true);
             indexRequest.id(key);
-            indexRequest.source(Map.of(MATCH_FIELD, key, DECORATE_FIELDS[0], randomAlphaOfLength(4),
-                DECORATE_FIELDS[1], randomAlphaOfLength(4), DECORATE_FIELDS[2], randomAlphaOfLength(4)));
+            indexRequest.source(
+                Map.of(
+                    MATCH_FIELD,
+                    key,
+                    DECORATE_FIELDS[0],
+                    randomAlphaOfLength(4),
+                    DECORATE_FIELDS[1],
+                    randomAlphaOfLength(4),
+                    DECORATE_FIELDS[2],
+                    randomAlphaOfLength(4)
+                )
+            );
             client().index(indexRequest).actionGet();
         }
         client().admin().indices().refresh(new RefreshRequest(SOURCE_INDEX_NAME)).actionGet();
@@ -193,16 +206,24 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
     }
 
     private static void createAndExecutePolicy() {
-        EnrichPolicy enrichPolicy =
-            new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(SOURCE_INDEX_NAME), MATCH_FIELD, List.of(DECORATE_FIELDS));
+        EnrichPolicy enrichPolicy = new EnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            null,
+            List.of(SOURCE_INDEX_NAME),
+            MATCH_FIELD,
+            List.of(DECORATE_FIELDS)
+        );
         PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(POLICY_NAME, enrichPolicy);
         client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
         client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(POLICY_NAME)).actionGet();
     }
 
     private static void createPipeline() {
-        String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\"" + POLICY_NAME +
-            "\", \"field\": \"" + MATCH_FIELD + "\", \"target_field\": \"user\"}}]}";
+        String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\""
+            + POLICY_NAME
+            + "\", \"field\": \""
+            + MATCH_FIELD
+            + "\", \"target_field\": \"user\"}}]}";
         PutPipelineRequest request = new PutPipelineRequest(PIPELINE_NAME, new BytesArray(pipelineBody), XContentType.JSON);
         client().admin().cluster().putPipeline(request).actionGet();
     }

@@ -103,6 +103,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
         }
     }
 
+    @SuppressWarnings("rawtypes")
     private static class MergeSortQueue extends PriorityQueue<ShardRef> {
         // These are really FieldDoc instances:
         final ScoreDoc[][] shardHits;
@@ -137,6 +138,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
 
         // Returns true if first is < second
         @Override
+        @SuppressWarnings({"rawtypes", "unchecked"})
         public boolean lessThan(ShardRef first, ShardRef second) {
             assert first != second;
             final FieldDoc firstFD = (FieldDoc) shardHits[first.shardIndex][first.hitIndex];

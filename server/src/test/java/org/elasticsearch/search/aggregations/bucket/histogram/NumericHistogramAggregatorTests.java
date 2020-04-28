@@ -29,11 +29,16 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+
+import java.util.Arrays;
+import java.util.List;
+
 import static org.hamcrest.Matchers.containsString;
 
 public class NumericHistogramAggregatorTests extends AggregatorTestCase {
@@ -95,6 +100,50 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(2, histogram.getBuckets().get(2).getDocCount());
                 assertEquals(50d, histogram.getBuckets().get(3).getKey());
                 assertEquals(1, histogram.getBuckets().get(3).getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(histogram));
+            }
+        }
+    }
+
+    public void testDates() throws Exception {
+        List<String> dataset = Arrays.asList(
+            "2019-11-01T01:07:45",
+            "2019-11-02T03:43:34",
+            "2019-11-03T04:11:00",
+            "2019-11-04T05:11:31",
+            "2019-11-05T08:24:05",
+            "2019-11-06T13:09:32",
+            "2019-11-07T13:47:43",
+            "2019-11-08T16:14:34",
+            "2019-11-09T17:09:50",
+            "2019-11-10T22:55:46");
+
+        String fieldName = "date_field";
+        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(fieldName);
+        DateFieldMapper.DateFieldType fieldType = builder.fieldType();
+        fieldType.setName(fieldName);
+        fieldType.setHasDocValues(true);
+
+        try (Directory dir = newDirectory();
+             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), dir)) {
+            Document document = new Document();
+            for (String date : dataset) {
+                if (frequently()) {
+                    indexWriter.commit();
+                }
+
+                long instant = fieldType.parse(date);
+                document.add(new SortedNumericDocValuesField(fieldName, instant));
+                indexWriter.addDocument(document);
+                document.clear();
+            }
+
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
+                .field(fieldName)
+                .interval(1000 * 60 * 60 * 24);
+            try (IndexReader reader = indexWriter.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
         }

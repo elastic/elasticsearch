@@ -73,11 +73,12 @@ public class DocumentField implements Writeable, ToXContentFragment, Iterable<Ob
     /**
      * The first value of the hit.
      */
+    @SuppressWarnings("unchecked")
     public <V> V getValue() {
         if (values == null || values.isEmpty()) {
             return null;
         }
-        return (V)values.get(0);
+        return (V) values.get(0);
     }
 
     /**

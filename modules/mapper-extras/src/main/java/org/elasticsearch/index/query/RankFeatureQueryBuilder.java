@@ -260,7 +260,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
         }
     }
 
-    public static ConstructingObjectParser<RankFeatureQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<RankFeatureQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
             "feature", args -> {
                 final String field = (String) args[0];
                 final float boost = args[1] == null ? DEFAULT_BOOST : (Float) args[1];

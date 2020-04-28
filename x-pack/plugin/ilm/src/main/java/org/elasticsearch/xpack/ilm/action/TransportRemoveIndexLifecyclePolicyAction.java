@@ -24,7 +24,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.action.RemoveIndexLifecyclePolicyAction;
 import org.elasticsearch.xpack.core.ilm.action.RemoveIndexLifecyclePolicyAction.Request;
 import org.elasticsearch.xpack.core.ilm.action.RemoveIndexLifecyclePolicyAction.Response;
-import org.elasticsearch.xpack.ilm.IndexLifecycleRunner;
+import org.elasticsearch.xpack.ilm.IndexLifecycleTransition;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,7 +65,7 @@ public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNo
 
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
-                        return IndexLifecycleRunner.removePolicyForIndexes(indices, currentState, failedIndexes);
+                        return IndexLifecycleTransition.removePolicyForIndexes(indices, currentState, failedIndexes);
                     }
 
                     @Override

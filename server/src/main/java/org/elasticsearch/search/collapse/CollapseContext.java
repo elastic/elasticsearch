@@ -62,11 +62,11 @@ public class CollapseContext {
 
     public CollapsingTopDocsCollector<?> createTopDocs(Sort sort, int topN) {
         if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
-            return CollapsingTopDocsCollector.createKeyword(fieldType.name(), sort, topN);
+            return CollapsingTopDocsCollector.createKeyword(fieldName, fieldType, sort, topN);
         } else if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
-            return CollapsingTopDocsCollector.createNumeric(fieldType.name(), sort, topN);
+            return CollapsingTopDocsCollector.createNumeric(fieldName, fieldType, sort, topN);
         } else {
-            throw new IllegalStateException("unknown type for collapse field " + fieldType.name() +
+            throw new IllegalStateException("unknown type for collapse field " + fieldName +
                 ", only keywords and numbers are accepted");
         }
     }

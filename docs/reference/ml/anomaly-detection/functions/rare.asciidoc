@@ -21,7 +21,7 @@ number of times (frequency) rare values occur.
 looking for rare events. The functions model whether something happens in a
 bucket at least once. With longer bucket spans, it is more likely that
 entities will be seen in a bucket and therefore they appear less rare.
-Picking the ideal the bucket span depends on the characteristics of the data
+Picking the ideal bucket span depends on the characteristics of the data
 with shorter bucket spans typically being measured in minutes, not hours.
 * To model rare data, a learning period of at least 20 buckets is required
 for typical data.
@@ -46,8 +46,8 @@ This function supports the following properties:
 * `over_field_name` (optional)
 * `partition_field_name` (optional)
 
-For more information about those properties, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
+For more information about those properties, see the
+{ref}/ml-put-job.html#ml-put-job-request-body[create {anomaly-jobs} API].
 
 .Example 1: Analyzing status codes with the rare function
 [source,js]
@@ -105,8 +105,8 @@ This function supports the following properties:
 * `over_field_name` (required)
 * `partition_field_name` (optional)
 
-For more information about those properties, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
+For more information about those properties, see the
+{ref}/ml-put-job.html#ml-put-job-request-body[create {anomaly-jobs} API].
 
 .Example 3: Analyzing URI values in a population with the freq_rare function
 [source,js]

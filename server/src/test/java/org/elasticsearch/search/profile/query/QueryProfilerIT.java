@@ -42,9 +42,10 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.search.profile.query.RandomQueryGenerator.randomQueryBuilder;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.isEmptyOrNullString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 
@@ -54,7 +55,6 @@ public class QueryProfilerIT extends ESIntegTestCase {
      * This test simply checks to make sure nothing crashes.  Test indexes 100-150 documents,
      * constructs 20-100 random queries and tries to profile them
      */
-    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/LUCENE-8658")
     public void testProfileQuery() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -97,7 +97,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                     }
 
                     CollectorResult result = searchProfiles.getCollectorResult();
-                    assertThat(result.getName(), not(isEmptyOrNullString()));
+                    assertThat(result.getName(), is(not(emptyOrNullString())));
                     assertThat(result.getTime(), greaterThan(0L));
                 }
             }
@@ -120,6 +120,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
             docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource(
+                    "id", String.valueOf(i),
                     "field1", English.intToEnglish(i),
                     "field2", i
             );
@@ -137,14 +138,14 @@ public class QueryProfilerIT extends ESIntegTestCase {
         SearchRequestBuilder vanilla = client().prepareSearch("test")
             .setQuery(q)
             .setProfile(false)
-            .addSort("_id", SortOrder.ASC)
+            .addSort("id.keyword", SortOrder.ASC)
             .setSearchType(SearchType.QUERY_THEN_FETCH)
             .setRequestCache(false);
 
         SearchRequestBuilder profile = client().prepareSearch("test")
             .setQuery(q)
             .setProfile(true)
-            .addSort("_id", SortOrder.ASC)
+            .addSort("id.keyword", SortOrder.ASC)
             .setSearchType(SearchType.QUERY_THEN_FETCH)
             .setRequestCache(false);
 
@@ -234,7 +235,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
-                assertThat(result.getName(), not(isEmptyOrNullString()));
+                assertThat(result.getName(), is(not(emptyOrNullString())));
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }
@@ -299,7 +300,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
-                assertThat(result.getName(), not(isEmptyOrNullString()));
+                assertThat(result.getName(), is(not(emptyOrNullString())));
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }
@@ -349,7 +350,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
-                assertThat(result.getName(), not(isEmptyOrNullString()));
+                assertThat(result.getName(), is(not(emptyOrNullString())));
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }
@@ -401,7 +402,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
-                assertThat(result.getName(), not(isEmptyOrNullString()));
+                assertThat(result.getName(), is(not(emptyOrNullString())));
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }
@@ -448,7 +449,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
-                assertThat(result.getName(), not(isEmptyOrNullString()));
+                assertThat(result.getName(), is(not(emptyOrNullString())));
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }
@@ -495,7 +496,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
-                assertThat(result.getName(), not(isEmptyOrNullString()));
+                assertThat(result.getName(), is(not(emptyOrNullString())));
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }
@@ -541,7 +542,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
-                assertThat(result.getName(), not(isEmptyOrNullString()));
+                assertThat(result.getName(), is(not(emptyOrNullString())));
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }
@@ -595,7 +596,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
-                assertThat(result.getName(), not(isEmptyOrNullString()));
+                assertThat(result.getName(), is(not(emptyOrNullString())));
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }

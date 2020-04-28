@@ -72,13 +72,13 @@ TIP: The types of authentication realms that you can enable varies according to
 your subscription. For more information, see https://www.elastic.co/subscriptions.
  
 --
-** <<configuring-ad-realm,Active Directory realms>>
-** <<configuring-file-realm,File realms>>
-** <<configuring-kerberos-realm,Kerberos realms>>
-** <<configuring-ldap-realm,LDAP realms>>
-** <<configuring-native-realm,Native realms>>
-** <<configuring-pki-realm,PKI realms>>
-** <<configuring-saml-realm,SAML realms>>
+** <<active-directory-realm,Active Directory realms>>
+** <<file-realm,File realms>>
+** <<kerberos-realm,Kerberos realms>>
+** <<ldap-realm,LDAP realms>>
+** <<native-realm,Native realms>>
+** <<pki-realm,PKI realms>>
+** <<saml-realm,SAML realms>>
 
 . Set up roles and users to control access to {es}.
 +
@@ -127,7 +127,7 @@ information, see https://www.elastic.co/subscriptions.
 xpack.security.audit.enabled: true
 ----------------------------
 +
-For more information, see <<auditing>> and <<auditing-settings>>. 
+For more information, see <<enable-audit-logging>> and <<auditing-settings>>. 
 
 .. Restart {es}.
 
@@ -136,21 +136,6 @@ Events are logged to a dedicated `<clustername>_audit.json` file in
 --
 
 To walk through the configuration of {security-features} in {es}, {kib}, {ls}, and {metricbeat}, see <<security-getting-started>>.
-
-include::securing-communications/securing-elasticsearch.asciidoc[]
-
-include::securing-communications/configuring-tls-docker.asciidoc[]
-
-include::securing-communications/enabling-cipher-suites.asciidoc[]
-
-include::authentication/configuring-active-directory-realm.asciidoc[]
-include::authentication/configuring-file-realm.asciidoc[]
-include::authentication/configuring-ldap-realm.asciidoc[]
-include::authentication/configuring-native-realm.asciidoc[]
-include::authentication/configuring-pki-realm.asciidoc[]
-include::authentication/configuring-saml-realm.asciidoc[]
-
-include::authentication/configuring-kerberos-realm.asciidoc[]
 
 include::reference/files.asciidoc[]
 include::fips-140-compliance.asciidoc[]

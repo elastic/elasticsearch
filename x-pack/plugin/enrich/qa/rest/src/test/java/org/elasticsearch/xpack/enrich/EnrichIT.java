@@ -7,5 +7,4 @@ package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.test.enrich.CommonEnrichRestTestCase;
 
-public class EnrichIT extends CommonEnrichRestTestCase {
-}
+public class EnrichIT extends CommonEnrichRestTestCase {}

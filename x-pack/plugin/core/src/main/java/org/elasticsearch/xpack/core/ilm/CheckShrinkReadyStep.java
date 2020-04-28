@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -40,7 +40,7 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetaData idxMeta = clusterState.metaData().index(index);
+        IndexMetadata idxMeta = clusterState.metadata().index(index);
 
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
@@ -53,7 +53,7 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
         int expectedShardCount = idxMeta.getNumberOfShards();
 
         // The id of the node the shards should be on
-        final String idShardsShouldBeOn = idxMeta.getSettings().get(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id");
+        final String idShardsShouldBeOn = idxMeta.getSettings().get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id");
         if (idShardsShouldBeOn == null) {
             throw new IllegalStateException("Cannot check shrink allocation as there are no allocation rules by _id");
         }

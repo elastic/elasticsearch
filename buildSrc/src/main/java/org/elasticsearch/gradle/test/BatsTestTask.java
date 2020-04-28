@@ -110,9 +110,9 @@ public class BatsTestTask extends DefaultTask {
         List<Object> command = new ArrayList<>();
         command.add("bats");
         command.add("--tap");
-        command.addAll(testsDir.getAsFileTree().getFiles().stream()
-            .filter(f -> f.getName().endsWith(".bats"))
-            .sorted().collect(Collectors.toList()));
+        command.addAll(
+            testsDir.getAsFileTree().getFiles().stream().filter(f -> f.getName().endsWith(".bats")).sorted().collect(Collectors.toList())
+        );
         getProject().exec(spec -> {
             spec.setWorkingDir(distributionsDir.getAsFile());
             spec.environment(System.getenv());

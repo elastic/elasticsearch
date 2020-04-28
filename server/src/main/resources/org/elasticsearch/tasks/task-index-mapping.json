@@ -1,7 +1,7 @@
 {
-  "task" : {
+  "_doc" : {
     "_meta": {
-      "version": 2
+      "version": 3
     },
     "dynamic" : "strict",
     "properties" : {

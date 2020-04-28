@@ -32,7 +32,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -199,8 +199,45 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         assertThat(((Number) getResponse.getSource().get("field")).longValue(), equalTo(4L));
     }
 
+    public void testBulkUpdateWithScriptedUpsertAndDynamicMappingUpdate() throws Exception {
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+        ensureGreen();
+
+        final Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx._source.field += 1", Collections.emptyMap());
+
+        BulkResponse bulkResponse = client().prepareBulk()
+            .add(client().prepareUpdate().setIndex(indexOrAlias()).setId("1")
+                .setScript(script).setScriptedUpsert(true).setUpsert("field", 1))
+            .add(client().prepareUpdate().setIndex(indexOrAlias()).setId("2")
+                .setScript(script).setScriptedUpsert(true).setUpsert("field", 1))
+            .get();
+
+        logger.info(bulkResponse.buildFailureMessage());
+
+        assertThat(bulkResponse.hasFailures(), equalTo(false));
+        assertThat(bulkResponse.getItems().length, equalTo(2));
+        for (BulkItemResponse bulkItemResponse : bulkResponse) {
+            assertThat(bulkItemResponse.getIndex(), equalTo("test"));
+        }
+        assertThat(bulkResponse.getItems()[0].getResponse().getId(), equalTo("1"));
+        assertThat(bulkResponse.getItems()[0].getResponse().getVersion(), equalTo(1L));
+        assertThat(bulkResponse.getItems()[1].getResponse().getId(), equalTo("2"));
+        assertThat(bulkResponse.getItems()[1].getResponse().getVersion(), equalTo(1L));
+
+        GetResponse getResponse = client().prepareGet().setIndex("test").setId("1").execute()
+            .actionGet();
+        assertThat(getResponse.isExists(), equalTo(true));
+        assertThat(getResponse.getVersion(), equalTo(1L));
+        assertThat(((Number) getResponse.getSource().get("field")).longValue(), equalTo(2L));
+
+        getResponse = client().prepareGet().setIndex("test").setId("2").execute().actionGet();
+        assertThat(getResponse.isExists(), equalTo(true));
+        assertThat(getResponse.getVersion(), equalTo(1L));
+        assertThat(((Number) getResponse.getSource().get("field")).longValue(), equalTo(2L));
+    }
+
     public void testBulkWithCAS() throws Exception {
-        createIndex("test", Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).build());
+        createIndex("test", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build());
         ensureGreen();
         BulkResponse bulkResponse = client().prepareBulk()
                 .add(client().prepareIndex("test").setId("1").setCreate(true).setSource("field", "1"))
@@ -627,7 +664,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
     public void testNoopUpdate() {
         String indexName = "test";
-        createIndex(indexName, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build());
+        createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build());
         internalCluster().ensureAtLeastNumDataNodes(2);
         ensureGreen(indexName);
         IndexResponse doc = index(indexName, "1", Map.of("user", "xyz"));

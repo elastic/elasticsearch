@@ -10,7 +10,6 @@ setup:
         body:
           settings:
             number_of_replicas: 0
-            # we need to have 1 shard to get request failure in test "Dense vectors should error with sparse vector functions"
             number_of_shards: 1
           mappings:
             properties:
@@ -56,6 +55,7 @@ setup:
         Content-Type: application/json
       search:
         rest_total_hits_as_int: true
+        index: test-index
         body:
           query:
             script_score:
@@ -75,6 +75,7 @@ setup:
         Content-Type: application/json
       search:
         rest_total_hits_as_int: true
+        index: test-index
         body:
           query:
             script_score:
@@ -105,6 +106,7 @@ setup:
       catch: bad_request
       search:
         rest_total_hits_as_int: true
+        index: test-index
         body:
           query:
             script_score:
@@ -119,6 +121,7 @@ setup:
       catch: bad_request
       search:
         rest_total_hits_as_int: true
+        index: test-index
         body:
           query:
             script_score:
@@ -155,6 +158,7 @@ setup:
       Content-Type: application/json
     search:
       rest_total_hits_as_int: true
+      index: test-index
       body:
         query:
           script_score:
@@ -171,6 +175,7 @@ setup:
       Content-Type: application/json
     search:
       rest_total_hits_as_int: true
+      index: test-index
       body:
         query:
           script_score:
@@ -184,31 +189,3 @@ setup:
 - match: {hits.hits.0._id: "1"}
 - match: {hits.hits.1._id: "2"}
 - match: {hits.hits.1._score: 0.0}
-
----
-"Dense vectors should error with sparse vector functions":
-
-- do:
-    index:
-      index: test-index
-      id: 1
-      body:
-        my_dense_vector: [10, 2, 0.15]
-
-- do:
-    indices.refresh: {}
-
-- do:
-    catch: bad_request
-    headers:
-      Content-Type: application/json
-    search:
-      body:
-        query:
-          script_score:
-            query: {match_all: {} }
-            script:
-              source: "dotProductSparse(params.query_vector, 'my_dense_vector')"
-              params:
-                query_vector: {"2": 0.5, "10" : 111.3, "3": 44}
-- match: { error.root_cause.0.type: "script_exception" }

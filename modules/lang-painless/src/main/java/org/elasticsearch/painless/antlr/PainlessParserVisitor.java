@@ -181,25 +181,53 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
   T visitTrap(PainlessParser.TrapContext ctx);
   /**
    * Visit a parse tree produced by the {@code single}
-   * labeled alternative in {@link PainlessParser#expression}.
+   * labeled alternative in {@link PainlessParser#noncondexpression}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitSingle(PainlessParser.SingleContext ctx);
   /**
    * Visit a parse tree produced by the {@code comp}
-   * labeled alternative in {@link PainlessParser#expression}.
+   * labeled alternative in {@link PainlessParser#noncondexpression}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitComp(PainlessParser.CompContext ctx);
   /**
    * Visit a parse tree produced by the {@code bool}
-   * labeled alternative in {@link PainlessParser#expression}.
+   * labeled alternative in {@link PainlessParser#noncondexpression}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitBool(PainlessParser.BoolContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code binary}
+   * labeled alternative in {@link PainlessParser#noncondexpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitBinary(PainlessParser.BinaryContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code elvis}
+   * labeled alternative in {@link PainlessParser#noncondexpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitElvis(PainlessParser.ElvisContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code instanceof}
+   * labeled alternative in {@link PainlessParser#noncondexpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitInstanceof(PainlessParser.InstanceofContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code nonconditional}
+   * labeled alternative in {@link PainlessParser#expression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitNonconditional(PainlessParser.NonconditionalContext ctx);
   /**
    * Visit a parse tree produced by the {@code conditional}
    * labeled alternative in {@link PainlessParser#expression}.
@@ -214,27 +242,6 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitAssignment(PainlessParser.AssignmentContext ctx);
-  /**
-   * Visit a parse tree produced by the {@code binary}
-   * labeled alternative in {@link PainlessParser#expression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitBinary(PainlessParser.BinaryContext ctx);
-  /**
-   * Visit a parse tree produced by the {@code elvis}
-   * labeled alternative in {@link PainlessParser#expression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitElvis(PainlessParser.ElvisContext ctx);
-  /**
-   * Visit a parse tree produced by the {@code instanceof}
-   * labeled alternative in {@link PainlessParser#expression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitInstanceof(PainlessParser.InstanceofContext ctx);
   /**
    * Visit a parse tree produced by the {@code pre}
    * labeled alternative in {@link PainlessParser#unary}.

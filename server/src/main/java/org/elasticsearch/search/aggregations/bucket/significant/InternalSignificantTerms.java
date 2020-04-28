@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -105,6 +104,9 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             return subsetSize;
         }
 
+        // TODO we should refactor to remove this, since buckets should be immutable after they are generated.
+        // This can lead to confusing bugs if the bucket is re-created (via createBucket() or similar) without
+        // the score
         void updateScore(SignificanceHeuristic significanceHeuristic) {
             score = significanceHeuristic.getScore(subsetDf, subsetSize, supersetDf, supersetSize);
         }
@@ -163,9 +165,8 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     protected final int requiredSize;
     protected final long minDocCount;
 
-    protected InternalSignificantTerms(String name, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    protected InternalSignificantTerms(String name, int requiredSize, long minDocCount, Map<String, Object> metadata) {
+        super(name, metadata);
         this.requiredSize = requiredSize;
         this.minDocCount = minDocCount;
     }
@@ -191,7 +192,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     public abstract List<B> getBuckets();
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long globalSubsetSize = 0;
         long globalSupersetSize = 0;
         // Compute the overall result set size and the corpus size using the

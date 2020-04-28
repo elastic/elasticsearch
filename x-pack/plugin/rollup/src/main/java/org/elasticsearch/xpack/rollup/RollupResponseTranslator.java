@@ -34,6 +34,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation.SingleValue;
 import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
@@ -272,6 +273,8 @@ public class RollupResponseTranslator {
         // which means we can use aggregation's reduce method to combine, just as if
         // it was a result from another shard
         InternalAggregations currentTree = new InternalAggregations(Collections.emptyList());
+        InternalAggregation.ReduceContext finalReduceContext = InternalAggregation.ReduceContext.forFinalReduction(
+                reduceContext.bigArrays(), reduceContext.scriptService(), b -> {}, PipelineTree.EMPTY);
         for (SearchResponse rolledResponse : rolledResponses) {
             List<InternalAggregation> unrolledAggs = new ArrayList<>(rolledResponse.getAggregations().asList().size());
             for (Aggregation agg : rolledResponse.getAggregations()) {
@@ -289,14 +292,14 @@ public class RollupResponseTranslator {
             // Iteratively merge in each new set of unrolled aggs, so that we can identify/fix overlapping doc_counts
             // in the next round of unrolling
             InternalAggregations finalUnrolledAggs = new InternalAggregations(unrolledAggs);
-            currentTree = InternalAggregations.reduce(Arrays.asList(currentTree, finalUnrolledAggs),
-                    new InternalAggregation.ReduceContext(reduceContext.bigArrays(), reduceContext.scriptService(), true));
+            currentTree = InternalAggregations.reduce(Arrays.asList(currentTree, finalUnrolledAggs), finalReduceContext);
         }
 
         // Add in the live aggregations if they exist
         if (liveAggs.asList().size() != 0) {
-            currentTree = InternalAggregations.reduce(Arrays.asList(currentTree, liveAggs),
-                    new InternalAggregation.ReduceContext(reduceContext.bigArrays(), reduceContext.scriptService(), true));
+            // TODO it looks like this passes the "final" reduce context more than once.
+            // Once here and once in the for above. That is bound to cause trouble.
+            currentTree = InternalAggregations.reduce(Arrays.asList(currentTree, liveAggs), finalReduceContext);
         }
 
         return mergeFinalResponse(liveResponse, rolledResponses, currentTree);
@@ -393,7 +396,7 @@ public class RollupResponseTranslator {
      * Unrolls Multibucket aggregations (e.g. terms, histograms, etc).  This overload signature should be
      * called by other internal methods in this class, rather than directly calling the per-type methods.
      */
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     private static InternalAggregation unrollMultiBucket(InternalMultiBucketAggregation rolled, InternalMultiBucketAggregation original,
                                                          InternalMultiBucketAggregation currentTree) {
 
@@ -446,7 +449,7 @@ public class RollupResponseTranslator {
      * @param source The rolled aggregation that we wish to unroll
      * @param bucketFactory A Trifunction which generates new buckets for the given type of multibucket
      */
-    private static <A  extends InternalMultiBucketAggregation,
+    private static <A  extends InternalMultiBucketAggregation<A, B>,
                     B extends InternalBucket,
                     T extends InternalMultiBucketAggregation<A, B>>
     InternalAggregation unrollMultiBucket(T source, T original, T currentTree,
@@ -538,7 +541,7 @@ public class RollupResponseTranslator {
             if (count != -1) {
                 // Note: Avgs have a slightly different name to prevent collision with empty bucket defaults
                 return new InternalAvg(metric.getName().replace("." + RollupField.VALUE, ""), metric.value(), count, DocValueFormat.RAW,
-                        metric.pipelineAggregators(), metric.getMetaData());
+                        metric.getMetadata());
             }
             return metric;
         } else {

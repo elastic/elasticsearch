@@ -33,6 +33,7 @@ import org.apache.lucene.analysis.de.GermanAnalyzer;
 import org.apache.lucene.analysis.el.GreekAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.es.SpanishAnalyzer;
+import org.apache.lucene.analysis.et.EstonianAnalyzer;
 import org.apache.lucene.analysis.eu.BasqueAnalyzer;
 import org.apache.lucene.analysis.fa.PersianAnalyzer;
 import org.apache.lucene.analysis.fi.FinnishAnalyzer;
@@ -124,6 +125,7 @@ public class Analysis {
             entry("_danish_", DanishAnalyzer.getDefaultStopSet()),
             entry("_dutch_", DutchAnalyzer.getDefaultStopSet()),
             entry("_english_", EnglishAnalyzer.getDefaultStopSet()),
+            entry("_estonian_", EstonianAnalyzer.getDefaultStopSet()),
             entry("_finnish_", FinnishAnalyzer.getDefaultStopSet()),
             entry("_french_", FrenchAnalyzer.getDefaultStopSet()),
             entry("_galician_", GalicianAnalyzer.getDefaultStopSet()),

@@ -467,6 +467,35 @@
     - match:  { tokens.0.token: book }
 
 ---
+"estonian":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                analyzer:
+                  my_analyzer:
+                    type: estonian
+
+    - do:
+        indices.analyze:
+          body:
+            text:     teadaolevalt
+            analyzer: estonian
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: teadaole }
+
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:     teadaolevalt
+            analyzer: my_analyzer
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: teadaole }
+
+---
 "finnish":
     - do:
         indices.create:

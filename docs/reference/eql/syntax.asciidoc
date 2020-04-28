@@ -1,0 +1,356 @@
+[role="xpack"]
+[testenv="basic"]
+[[eql-syntax]]
+== EQL syntax reference
+++++
+<titleabbrev>Syntax reference</titleabbrev>
+++++
+
+experimental::[]
+
+[IMPORTANT]
+====
+{es} supports a subset of EQL syntax. See <<eql-limitations>>.
+====
+
+[discrete]
+[[eql-basic-syntax]]
+=== Basic syntax
+
+EQL queries require an event category and a matching condition. The `where`
+keyword connects them.
+
+[source,eql]
+----
+event_category where condition
+----
+
+For example, the following EQL query matches `process` events with a
+`process.name` field value of `svchost.exe`:
+
+[source,eql]
+----
+process where process.name == "svchost.exe"
+----
+
+[discrete]
+[[eql-syntax-event-categories]]
+==== Event categories
+
+In {es}, an event category is a valid, indexed value of the
+<<eql-required-fields,event category field>>. You can set the event category
+field using the `event_category_field` parameter of the EQL search API.
+
+[discrete]
+[[eql-syntax-match-any-event-category]]
+===== Match any event category
+
+To match events of any category, use the `any` keyword. You can also use the
+`any` keyword to search for documents without a event category field.
+
+For example, the following EQL query matches any documents with a
+`network.protocol` field value of `http`:
+
+[source,eql]
+----
+any where network.protocol == "http"
+----
+
+[discrete]
+[[eql-syntax-conditions]]
+==== Conditions
+
+A condition consists of one or more criteria an event must match.
+You can specify and combine these criteria using the following operators:
+
+[discrete]
+[[eql-syntax-comparison-operators]]
+===== Comparison operators
+
+[source,eql]
+----
+<   <=   ==   !=   >=   >
+----
+
+[IMPORTANT]
+====
+Avoid using the equal operator (`==`) to perform exact matching on `text` field
+values.
+
+By default, {es} changes the values of <<text,`text`>> fields as part of
+<<analysis, analysis>>. This can make finding exact matches for `text` field
+values difficult.
+
+To search `text` fields, consider using a <<eql-search-filter-query-dsl,query
+DSL filter>> that contains a <<query-dsl-match-query,`match`>> query.
+====
+
+.*Definitions*
+[%collapsible]
+====
+`<` (less than)::
+Returns `true` if the value to the left of the operator is less than the value
+to the right. Otherwise returns `false`.
+
+`<=` (less than or equal) ::
+Returns `true` if the value to the left of the operator is less than or equal to
+the value to the right. Otherwise returns `false`.
+
+`==` (equal)::
+Returns `true` if the values to the left and right of the operator are equal.
+Otherwise returns `false`.
+
+`!=` (not equal)::
+Returns `true` if the values to the left and right of the operator are not
+equal. Otherwise returns `false`.
+
+`>=` (greater than or equal) ::
+Returns `true` if the value to the left of the operator is greater than or equal
+to the value to the right. Otherwise returns `false`.
+
+`>` (greater than)::
+Returns `true` if the value to the left of the operator is greater than the
+value to the right. Otherwise returns `false`.
+====
+
+[discrete]
+[[eql-syntax-logical-operators]]
+===== Logical operators
+
+[source,eql]
+----
+and  or  not
+----
+
+.*Definitions*
+[%collapsible]
+====
+`and`::
+Returns `true` only if the condition to the left and right _both_ return `true`.
+Otherwise returns `false.
+
+`or`::
+Returns `true` if one of the conditions to the left or right `true`.
+Otherwise returns `false.
+
+`not`::
+Returns `true` if the condition to the right is `false`.
+====
+
+[discrete]
+[[eql-syntax-lookup-operators]]
+===== Lookup operators
+
+[source,eql]
+----
+user.name in ("Administrator", "SYSTEM", "NETWORK SERVICE")
+user.name not in ("Administrator", "SYSTEM", "NETWORK SERVICE")
+----
+
+.*Definitions*
+[%collapsible]
+====
+`in`::
+Returns `true` if the value is contained in the provided list.
+
+`not in`::
+Returns `true` if the value is not contained in the provided list.
+====
+
+[discrete]
+[[eql-syntax-math-operators]]
+===== Math operators
+
+[source,eql]
+----
++  -  *  /  %
+----
+
+.*Definitions*
+[%collapsible]
+====
+`+` (add)::
+Adds the values to the left and right of the operator.
+
+`-` (Subtract)::
+Subtracts the value to the right of the operator from the value to the left.
+
+`*` (Subtract)::
+Multiplies the values to the left and right of the operator.
+
+`/` (Divide)::
+Divides the value to the left of the operator by the value to the right.
+
+`%` (modulo)::
+Divides the value to the left of the operator by the value to the right. Returns only the remainder.
+====
+
+[discrete]
+[[eql-syntax-strings]]
+==== Strings
+
+Strings are enclosed with double quotes (`"`) or single quotes (`'`).
+
+[source,eql]
+----
+"hello world"
+"hello world with 'substring'"
+----
+
+[discrete]
+[[eql-syntax-wildcards]]
+===== Wildcards
+
+You can use the wildcard operator (`*`) within a string to match specific
+patterns. You can use wildcards with the `==` (equal) or `!=` (not equal)
+operators:
+
+[source,eql]
+----
+field == "example*wildcard"
+field != "example*wildcard"
+----
+
+[discrete]
+[[eql-syntax-match-any-condition]]
+===== Match any condition
+
+To match events solely on event category, use the `where true` condition.
+
+For example, the following EQL query matches any `file` events:
+
+[source,eql]
+----
+file where true
+----
+
+To match any event, you can combine the `any` keyword with the `where true`
+condition:
+
+[source,eql]
+----
+any where true
+----
+
+[discrete]
+[[eql-syntax-escaped-characters]]
+===== Escaped characters
+
+When used within a string, special characters, such as a carriage return or
+double quote (`"`), must be escaped with a preceding backslash (`\`).
+
+[source,eql]
+----
+"example \t of \n escaped \r characters"
+----
+
+.*Escape sequences*
+[%collapsible]
+====
+[options="header"]
+|====
+| Escape sequence | Literal character
+|`\n`             | A newline (linefeed) character
+|`\r`             | A carriage return character
+|`\t`             | A tab character
+|`\\`             | A backslash (`\`) character
+|`\"`             | A double quote (`"`) character
+|`\'`             | A single quote (`'`) character
+|====
+====
+
+[discrete]
+[[eql-syntax-raw-strings]]
+===== Raw strings
+
+Raw strings are preceded by a question mark (`?`) and treat backslashes (`\`) as
+literal characters.
+
+[source,eql]
+----
+?"String with a literal 'blackslash' \ character included"
+----
+
+You can escape single quotes (`'`) and double quotes (`"`) with a backslash, but
+the backslash remains in the resulting string.
+
+[source,eql]
+----
+?"\""
+----
+
+[NOTE]
+====
+Raw strings cannot contain only a single backslash. Additionally, raw strings
+cannot end in an odd number of backslashes.
+====
+
+[discrete]
+[[eql-syntax-non-alpha-field-names]]
+==== Non-alphanumeric field names
+
+Field names containing non-alphanumeric characters, such as underscores (`_`),
+dots (`.`), hyphens (`-`), or spaces, must be escaped using backticks (+++`+++).
+
+[source,eql]
+----
+`my_field`
+`my.field`
+`my-field`
+`my field`
+----
+
+[discrete]
+[[eql-functions]]
+=== Functions
+
+{es} supports several of EQL's built-in functions. You can use these functions
+to convert data types, perform math, manipulate strings, and more.
+
+For a list of supported functions, see <<eql-function-ref>>.
+
+[TIP]
+====
+Using functions in EQL queries can result in slower search speeds. If you
+often use functions to transform indexed data, you can speed up search by making
+these changes during indexing instead. However, that often means slower index
+speeds.
+
+.*Example*
+[%collapsible]
+=====
+An index contains the `file.path` field. `file.path` contains the full path to a
+file, including the file extension.
+
+When running EQL searches, users often use the `endsWith` function with the
+`file.path` field to match file extensions:
+
+[source,eql]
+----
+file where endsWith(file.path,".exe") or endsWith(file.path,".dll")
+----
+
+While this works, it can be repetitive to write and can slow search speeds. To
+speed up search, you can do the following instead:
+
+. <<indices-put-mapping,Add a new field>>, `file.extension`, to the index. The
+  `file.extension` field will contain only the file extension from the
+  `file.path` field.
+. Use an <<ingest,ingest pipeline>> containing the <<grok-processor,`grok`>>
+  processor or another preprocessor tool to extract the file extension from the
+  `file.path` field before indexing.
+. Index the extracted file extension to the `file.extension` field.
+
+These changes may slow indexing but allow for faster searches. Users
+can use the `file.extension` field instead of multiple `endsWith` function
+calls:
+
+[source,eql]
+----
+file where file.extension in ("exe", "dll")
+----
+=====
+
+We recommend testing and benchmarking any indexing changes before deploying them
+in production. See <<tune-for-indexing-speed>> and <<tune-for-search-speed>>.
+====

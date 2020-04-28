@@ -50,7 +50,7 @@ Paths are relative from the position of the pipeline aggregation; they are not a
 aggregation tree. For example, this derivative is embedded inside a date_histogram and refers to a "sibling"
 metric `"the_sum"`:
 
-[source,console]
+[source,console,id=buckets-path-example]
 --------------------------------------------------
 POST /_search
 {
@@ -80,7 +80,7 @@ POST /_search
 instead of embedded "inside" them.  For example, the `max_bucket` aggregation uses the `buckets_path` to specify
 a metric embedded inside a sibling aggregation:
 
-[source,console]
+[source,console,id=buckets-path-sibling-example]
 --------------------------------------------------
 POST /_search
 {
@@ -115,7 +115,7 @@ If a Sibling pipeline agg references a multi-bucket aggregation, such as a `term
 select specific keys from the multi-bucket.  For example, a `bucket_script` could select two specific buckets (via
 their bucket keys) to perform the calculation:
 
-[source,console]
+[source,console,id=buckets-path-specific-bucket-example]
 --------------------------------------------------
 POST /_search
 {
@@ -164,7 +164,7 @@ Instead of pathing to a metric, `buckets_path` can use a special `"_count"` path
 the pipeline aggregation to use the document count as its input.  For example, a derivative can be calculated
 on the document count of each bucket, instead of a specific metric:
 
-[source,console]
+[source,console,id=buckets-path-count-example]
 --------------------------------------------------
 POST /_search
 {
@@ -187,10 +187,10 @@ POST /_search
 <1> By using `_count` instead of a metric name, we can calculate the derivative of document counts in the histogram
 
 The `buckets_path` can also use `"_bucket_count"` and path to a multi-bucket aggregation to use the number of buckets
-returned by that aggregation in the pipeline aggregation instead of a metric. for example a `bucket_selector` can be
+returned by that aggregation in the pipeline aggregation instead of a metric. For example, a `bucket_selector` can be
 used here to filter out buckets which contain no buckets for an inner terms aggregation:
 
-[source,console]
+[source,console,id=buckets-path-bucket-count-example]
 --------------------------------------------------
 POST /sales/_search
 {

@@ -20,12 +20,6 @@ PUT /twitter/_mapping
 ----
 // TEST[setup:twitter]
 
-NOTE: Before 7.0.0, the 'mappings' definition used to include a type name.
-Although specifying types in requests is now deprecated, a type can still be
-provided if the request parameter `include_type_name` is set. For more details,
-please see <<removal-of-types>>.
-
-
 [[put-mapping-api-request]]
 ==== {api-request-title}
 
@@ -47,12 +41,12 @@ To update the mapping of all indices, omit this parameter or use a value of
 ==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `false`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=include-type-name]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 

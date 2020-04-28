@@ -10,8 +10,8 @@ setup:
 ---
 "Translog stats on frozen indices":
   - skip:
-      version: " - 7.9.99"
-      reason:  "start ignoring translog retention policy with soft-deletes enabled in 8.0"
+      version: " - 7.3.99"
+      reason:  "start ignoring translog retention policy with soft-deletes enabled in 7.4"
 
   - do:
       index:

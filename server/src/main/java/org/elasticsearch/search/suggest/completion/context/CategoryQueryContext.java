@@ -95,7 +95,7 @@ public final class CategoryQueryContext implements ToXContentObject {
         return result;
     }
 
-    private static ObjectParser<Builder, Void> CATEGORY_PARSER = new ObjectParser<>(NAME, null);
+    private static final ObjectParser<Builder, Void> CATEGORY_PARSER = new ObjectParser<>(NAME);
     static {
         CATEGORY_PARSER.declareField(Builder::setCategory, XContentParser::text, new ParseField(CONTEXT_VALUE),
                 ObjectParser.ValueType.VALUE);

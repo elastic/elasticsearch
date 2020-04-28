@@ -45,7 +45,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
 (Optional, enum) Set to `create` to only index the document
 if it does not already exist (_put if absent_). If a document with the specified
 `_id` already exists, the indexing operation will fail. Same as using the
-`<index>/_create` endpoint. Valid values: `index`, `create`. Default: `index`.
+`<index>/_create` endpoint. Valid values: `index`, `create`.
+If document id is specified, it defaults to `index`. Otherwise, it defaults to `create`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=pipeline]
 
@@ -127,7 +128,7 @@ exist. To update an existing document, you must use the `_doc` resource.
 
 If the specified index does not already exist, by default the index operation
 automatically creates it and applies any configured
-<<indices-templates,index templates>>. If no mapping exists, the index opration
+<<indices-templates,index templates>>. If no mapping exists, the index operation
 creates a dynamic mapping.  By default,  new fields and objects are
 automatically added to the mapping if needed. For more information about field
 mapping, see <<mapping,mapping>> and the <<indices-put-mapping,put mapping>> API.

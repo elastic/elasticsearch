@@ -33,16 +33,18 @@
 ################################################################
 
 ## GC configuration
--XX:+UseConcMarkSweepGC
--XX:CMSInitiatingOccupancyFraction=75
--XX:+UseCMSInitiatingOccupancyOnly
+8-13:-XX:+UseConcMarkSweepGC
+8-13:-XX:CMSInitiatingOccupancyFraction=75
+8-13:-XX:+UseCMSInitiatingOccupancyOnly
 
-## G1GC Configuration; to use G1GC uncomment the lines below
-# -XX:-UseConcMarkSweepGC
-# -XX:-UseCMSInitiatingOccupancyOnly
-# -XX:+UseG1GC
-# -XX:G1ReservePercent=25
-# -XX:InitiatingHeapOccupancyPercent=30
+## G1GC Configuration
+# to use G1GC, uncomment the next two lines and update the version on the
+# following three lines to your version of the JDK
+# 8-13:-XX:-UseConcMarkSweepGC
+# 8-13:-XX:-UseCMSInitiatingOccupancyOnly
+14-:-XX:+UseG1GC
+14-:-XX:G1ReservePercent=25
+14-:-XX:InitiatingHeapOccupancyPercent=30
 
 ## JVM temporary directory
 -Djava.io.tmpdir=${ES_TMPDIR}

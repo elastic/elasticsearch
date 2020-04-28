@@ -150,7 +150,7 @@ public abstract class AggregationScript implements ScorerAware {
     /**
      * A factory to construct stateful {@link AggregationScript} factories for a specific index.
      */
-    public interface Factory {
+    public interface Factory extends ScriptFactory {
         LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup);
     }
 }

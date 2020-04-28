@@ -75,36 +75,3 @@ update, or bulk request. This setting accepts the following parameters:
   operations, to prevent recoveries from taking too long. Once the maximum size
   has been reached a flush will happen, generating a new Lucene commit point.
   Defaults to `512mb`.
-
-[float]
-[[index-modules-translog-retention]]
-==== Translog retention
-
-If an index is not using <<index-modules-history-retention,soft deletes>> to
-retain historical operations then {es} recovers each replica shard by replaying
-operations from the primary's translog. This means it is important for the
-primary to preserve extra operations in its translog in case it needs to
-rebuild a replica. Moreover it is important for each replica to preserve extra
-operations in its translog in case it is promoted to primary and then needs to
-rebuild its own replicas in turn. The following settings control how much
-translog is retained for peer recoveries.
-
-`index.translog.retention.size`::
-
-  This controls the total size of translog files to keep for each shard.
-  Keeping more translog files increases the chance of performing an operation
-  based sync when recovering a replica. If the translog files are not
-  sufficient, replica recovery will fall back to a file based sync. Defaults to
-  `512mb`. This setting is ignored, and should not be set, if soft deletes are
-  enabled. Soft deletes are enabled by default in indices created in {es}
-  versions 7.0.0 and later.
-
-`index.translog.retention.age`::
-
-  This controls the maximum duration for which translog files are kept by each
-  shard. Keeping more translog files increases the chance of performing an
-  operation based sync when recovering replicas. If the translog files are not
-  sufficient, replica recovery will fall back to a file based sync. Defaults to
-  `12h`. This setting is ignored, and should not be set, if soft deletes are
-  enabled. Soft deletes are enabled by default in indices created in {es}
-  versions 7.0.0 and later.

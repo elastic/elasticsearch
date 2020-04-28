@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchHit;
@@ -37,9 +36,9 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -52,7 +51,6 @@ public class SearchSliceIT extends ESIntegTestCase {
     private void setupIndex(int numDocs, int numberOfShards) throws IOException, ExecutionException, InterruptedException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().
             startObject()
-                .startObject("type")
                     .startObject("properties")
                         .startObject("invalid_random_kw")
                             .field("type", "keyword")
@@ -67,11 +65,10 @@ public class SearchSliceIT extends ESIntegTestCase {
                             .field("doc_values", "false")
                         .endObject()
                     .endObject()
-                .endObject()
             .endObject());
         assertAcked(client().admin().indices().prepareCreate("test")
             .setSettings(Settings.builder().put("number_of_shards", numberOfShards).put("index.max_slices_per_scroll", 10000))
-            .addMapping("type", mapping, XContentType.JSON));
+            .setMapping(mapping));
         ensureGreen();
 
         List<IndexRequestBuilder> requests = new ArrayList<>();

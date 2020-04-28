@@ -101,8 +101,8 @@ public class GetTaskRequest implements Validatable {
         }
         GetTaskRequest other = (GetTaskRequest) obj;
         return Objects.equals(nodeId, other.nodeId) &&
-                taskId == other.taskId && 
-                waitForCompletion == other.waitForCompletion && 
+                taskId == other.taskId &&
+                waitForCompletion == other.waitForCompletion &&
                 Objects.equals(timeout, other.timeout);
     }
 }

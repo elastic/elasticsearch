@@ -121,9 +121,9 @@ public class EquivalenceIT extends ESIntegTestCase {
         }
 
         prepareCreate("idx")
-                .addMapping("type", jsonBuilder()
+                .setMapping(jsonBuilder()
                         .startObject()
-                            .startObject("type")
+                            .startObject("_doc")
                                 .startObject("properties")
                                     .startObject("values")
                                         .field("type", "double")
@@ -226,9 +226,9 @@ public class EquivalenceIT extends ESIntegTestCase {
         final IntHashSet valuesSet = new IntHashSet();
         cluster().wipeIndices("idx");
         prepareCreate("idx")
-                .addMapping("type", jsonBuilder()
+                .setMapping(jsonBuilder()
                         .startObject()
-                            .startObject("type")
+                            .startObject("_doc")
                                 .startObject("properties")
                                     .startObject("num")
                                         .field("type", "double")
@@ -351,9 +351,9 @@ public class EquivalenceIT extends ESIntegTestCase {
     // Duel between histograms and scripted terms
     public void testDuelTermsHistogram() throws Exception {
         prepareCreate("idx")
-                .addMapping("type", jsonBuilder()
+                .setMapping(jsonBuilder()
                         .startObject()
-                            .startObject("type")
+                            .startObject("_doc")
                                 .startObject("properties")
                                     .startObject("num")
                                         .field("type", "double")
@@ -422,9 +422,9 @@ public class EquivalenceIT extends ESIntegTestCase {
     public void testLargeNumbersOfPercentileBuckets() throws Exception {
         // test high numbers of percentile buckets to make sure paging and release work correctly
         prepareCreate("idx")
-                .addMapping("type", jsonBuilder()
+                .setMapping(jsonBuilder()
                         .startObject()
-                            .startObject("type")
+                            .startObject("_doc")
                                 .startObject("properties")
                                     .startObject("double_value")
                                         .field("type", "double")

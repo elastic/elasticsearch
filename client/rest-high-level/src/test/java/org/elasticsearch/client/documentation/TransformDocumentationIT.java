@@ -134,6 +134,7 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
             .setIndex("pivot-destination")
             .setPipeline("my-pipeline").build();
         // end::put-transform-dest-config
+        destConfig = DestConfig.builder().setIndex("pivot-destination").build();
         // tag::put-transform-group-config
         GroupConfig groupConfig = GroupConfig.builder()
             .groupBy("reviewer", // <1>

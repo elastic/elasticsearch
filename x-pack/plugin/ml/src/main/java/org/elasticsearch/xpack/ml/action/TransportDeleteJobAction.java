@@ -28,7 +28,7 @@ import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
@@ -45,7 +45,7 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
@@ -204,7 +204,17 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                 auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DELETING, taskId));
                 markJobAsDeletingIfNotUsed(request.getJobId(), markAsDeletingListener);
             },
-            e -> finalListener.onFailure(e));
+            e -> {
+                if (request.isForce()
+                    && MlTasks.getJobTask(request.getJobId(), state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE)) != null) {
+                    logger.info(
+                        "[{}] config is missing but task exists. Attempting to delete tasks and stop process",
+                        request.getJobId());
+                    forceDeleteJob(parentTaskClient, request, finalListener);
+                } else {
+                    finalListener.onFailure(e);
+                }
+            });
 
         // First check that the job exists, because we don't want to audit
         // the beginning of its deletion if it didn't exist in the first place
@@ -259,7 +269,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
 
         // Step 2. Remove the job from any calendars
         CheckedConsumer<Boolean, Exception> removeFromCalendarsHandler = response -> jobResultsProvider.removeJobFromCalendars(jobId,
-                ActionListener.wrap(deleteJobStateHandler::accept, listener::onFailure ));
+                ActionListener.wrap(deleteJobStateHandler::accept, listener::onFailure));
 
 
         // Step 1. Delete the physical storage
@@ -340,7 +350,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                     }
                 },
                 failure -> {
-                    if (failure.getClass() == IndexNotFoundException.class) { // assume the index is already deleted
+                    if (ExceptionsHelper.unwrapCause(failure) instanceof IndexNotFoundException) { // assume the index is already deleted
                         deleteByQueryExecutor.onResponse(false); // skip DBQ && Alias
                     } else {
                         failureHandler.accept(failure);
@@ -388,9 +398,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
 
         // Step 4. Get the job as the initial result index name is required
         ActionListener<Boolean> deleteCategorizerStateHandler = ActionListener.wrap(
-                response -> {
-                    jobConfigProvider.getJob(jobId, getJobHandler);
-                },
+                response -> jobConfigProvider.getJob(jobId, getJobHandler),
                 failureHandler
         );
 
@@ -481,7 +489,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
 
         // first find the concrete indices associated with the aliases
         GetAliasesRequest aliasesRequest = new GetAliasesRequest().aliases(readAliasName, writeAliasName)
-                .indicesOptions(IndicesOptions.lenientExpandOpen());
+                .indicesOptions(IndicesOptions.lenientExpandOpenHidden());
         executeAsyncWithOrigin(parentTaskClient.threadPool().getThreadContext(), ML_ORIGIN, aliasesRequest,
                 ActionListener.<GetAliasesResponse>wrap(
                         getAliasesResponse -> {
@@ -494,9 +502,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                                 return;
                             }
                             executeAsyncWithOrigin(parentTaskClient.threadPool().getThreadContext(), ML_ORIGIN, removeRequest,
-                                    ActionListener.<AcknowledgedResponse>wrap(
-                                            finishedHandler::onResponse,
-                                            finishedHandler::onFailure),
+                                    finishedHandler,
                                     parentTaskClient.admin().indices()::aliases);
                         },
                         finishedHandler::onFailure), parentTaskClient.admin().indices()::getAliases);
@@ -505,9 +511,9 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     private IndicesAliasesRequest buildRemoveAliasesRequest(GetAliasesResponse getAliasesResponse) {
         Set<String> aliases = new HashSet<>();
         List<String> indices = new ArrayList<>();
-        for (ObjectObjectCursor<String, List<AliasMetaData>> entry : getAliasesResponse.getAliases()) {
+        for (ObjectObjectCursor<String, List<AliasMetadata>> entry : getAliasesResponse.getAliases()) {
             // The response includes _all_ indices, but only those associated with
-            // the aliases we asked about will have associated AliasMetaData
+            // the aliases we asked about will have associated AliasMetadata
             if (entry.value.isEmpty() == false) {
                 indices.add(entry.key);
                 entry.value.forEach(metadata -> aliases.add(metadata.getAlias()));
@@ -571,16 +577,16 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
 
     private void removePersistentTask(String jobId, ClusterState currentState,
                                       ActionListener<Boolean> listener) {
-        PersistentTasksCustomMetaData tasks = currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata tasks = currentState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
 
-        PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
+        PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
         if (jobTask == null) {
             listener.onResponse(null);
         } else {
             persistentTasksService.sendRemoveRequest(jobTask.getId(),
-                    new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
+                    new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
                         @Override
-                        public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> task) {
+                        public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
                             listener.onResponse(Boolean.TRUE);
                         }
 
@@ -593,8 +599,8 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     }
 
     private void checkJobIsNotOpen(String jobId, ClusterState state) {
-        PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-        PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
+        PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
         if (jobTask != null) {
             JobTaskState jobTaskState = (JobTaskState) jobTask.getState();
             throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] because the job is "

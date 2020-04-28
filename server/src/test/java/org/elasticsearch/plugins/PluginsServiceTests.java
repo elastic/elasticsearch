@@ -93,10 +93,11 @@ public class PluginsServiceTests extends ESTestCase {
         Settings newSettings = service.updatedSettings();
         assertEquals("test", newSettings.get("my.setting")); // previous settings still exist
         assertEquals("1", newSettings.get("foo.bar")); // added setting exists
+        // does not override pre existing settings
         assertEquals(
             IndexModule.Type.SIMPLEFS.getSettingsKey(),
             newSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
-        ); // does not override pre existing settings
+        );
     }
 
     public void testAdditionalSettingsClash() {

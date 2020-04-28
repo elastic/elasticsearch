@@ -53,7 +53,7 @@ public class ParsedAdjacencyMatrix extends ParsedMultiBucketAggregation<ParsedAd
         return bucketMap.get(key);
     }
 
-    private static ObjectParser<ParsedAdjacencyMatrix, Void> PARSER =
+    private static final ObjectParser<ParsedAdjacencyMatrix, Void> PARSER =
             new ObjectParser<>(ParsedAdjacencyMatrix.class.getSimpleName(), true, ParsedAdjacencyMatrix::new);
     static {
         declareMultiBucketAggregationFields(PARSER,

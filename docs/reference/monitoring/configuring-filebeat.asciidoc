@@ -117,7 +117,7 @@ If {security-features} are enabled, you must provide a valid user ID and
 password so that {filebeat} can connect to {kib}: 
 
 .. Create a user on the monitoring cluster that has the 
-<<built-in-roles,`kibana_user` built-in role>> or equivalent
+<<built-in-roles,`kibana_admin` built-in role>> or equivalent
 privileges.
 
 .. Add the `username` and `password` settings to the {es} output information in 

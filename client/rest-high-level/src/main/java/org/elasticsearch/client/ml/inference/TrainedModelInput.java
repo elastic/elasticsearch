@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -46,6 +47,10 @@ public class TrainedModelInput implements ToXContentObject {
 
     public TrainedModelInput(List<String> fieldNames) {
         this.fieldNames = fieldNames;
+    }
+
+    public TrainedModelInput(String... fieldNames) {
+        this(Arrays.asList(fieldNames));
     }
 
     public static TrainedModelInput fromXContent(XContentParser parser) throws IOException {

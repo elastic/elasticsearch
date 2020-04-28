@@ -14,14 +14,18 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -59,8 +63,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
 
     public void testPinnedPromotions() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type1",
-                        jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field1")
                                 .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())
                 .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", randomIntBetween(2, 5))));
 
@@ -142,9 +145,34 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
 
     }
 
+    /**
+     * Test scoring the entire set of documents, which uses a slightly different logic when creating scorers.
+     */
+    public void testExhaustiveScoring() throws Exception {
+        assertAcked(prepareCreate("test")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
+                        .startObject("field1").field("analyzer", "whitespace").field("type", "text").endObject()
+                        .startObject("field2").field("analyzer", "whitespace").field("type", "text").endObject()
+                                .endObject().endObject().endObject())
+                .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1)));
+
+        client().prepareIndex("test").setId("1").setSource("field1", "foo").get();
+        client().prepareIndex("test").setId("2").setSource("field1", "foo", "field2", "foo").get();
+
+        refresh();
+
+        QueryStringQueryBuilder organicQuery = QueryBuilders.queryStringQuery("foo");
+        PinnedQueryBuilder pqb = new PinnedQueryBuilder(organicQuery, "2");
+        SearchResponse searchResponse = client().prepareSearch().setQuery(pqb).setTrackTotalHits(true)
+                .setSearchType(DFS_QUERY_THEN_FETCH).get();
+
+        long numHits = searchResponse.getHits().getTotalHits().value;
+        assertThat(numHits, equalTo(2L));
+    }    
+    
     public void testExplain() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field1")
                         .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject()));
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource("field1", "the quick brown fox").get();
@@ -171,5 +199,29 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
 
 
     }
+    
+    public void testHighlight() throws Exception {
+        // Issue raised in https://github.com/elastic/elasticsearch/issues/53699
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field1")
+                        .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject()));
+        ensureGreen();
+        client().prepareIndex("test").setId("1").setSource("field1", "the quick brown fox").get();
+        refresh();
 
+        PinnedQueryBuilder pqb = new PinnedQueryBuilder(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR), "2");
+        
+        HighlightBuilder testHighlighter = new HighlightBuilder();
+        testHighlighter.field("field1");
+
+        SearchResponse searchResponse = client().prepareSearch().setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(pqb)
+                .highlighter(testHighlighter)
+                .setExplain(true).get();
+        assertHitCount(searchResponse, 1);
+        Map<String, HighlightField> highlights = searchResponse.getHits().getHits()[0].getHighlightFields();
+        assertThat(highlights.size(), equalTo(1));
+        HighlightField highlight = highlights.get("field1");
+        assertThat(highlight.fragments()[0].toString(), equalTo("<em>the</em> <em>quick</em> <em>brown</em> fox"));
+    }  
 }
+

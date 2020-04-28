@@ -7,10 +7,10 @@ package org.elasticsearch.xpack.security.support;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
@@ -19,10 +19,10 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -38,6 +38,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -61,16 +62,16 @@ import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.TEMPLATE_VERSION_PATTERN;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.TEMPLATE_VERSION_VARIABLE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class SecurityIndexManagerTests extends ESTestCase {
 
@@ -331,7 +332,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     public void testProcessClosedIndexState() throws Exception {
         // Index initially exists
         final ClusterState.Builder indexAvailable = createClusterState(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7,
-            RestrictedIndicesNames.SECURITY_MAIN_ALIAS, TEMPLATE_NAME, IndexMetaData.State.OPEN);
+            RestrictedIndicesNames.SECURITY_MAIN_ALIAS, TEMPLATE_NAME, IndexMetadata.State.OPEN);
         markShardsAvailable(indexAvailable);
 
         manager.clusterChanged(event(indexAvailable));
@@ -340,7 +341,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
         // Now close it
         final ClusterState.Builder indexClosed = createClusterState(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7,
-            RestrictedIndicesNames.SECURITY_MAIN_ALIAS, TEMPLATE_NAME, IndexMetaData.State.CLOSE);
+            RestrictedIndicesNames.SECURITY_MAIN_ALIAS, TEMPLATE_NAME, IndexMetadata.State.CLOSE);
         if (randomBoolean()) {
             // In old/mixed cluster versions closed indices have no routing table
             indexClosed.routingTable(RoutingTable.EMPTY_ROUTING_TABLE);
@@ -368,29 +369,29 @@ public class SecurityIndexManagerTests extends ESTestCase {
     }
 
     public static ClusterState.Builder createClusterState(String indexName, String aliasName, String templateName) throws IOException {
-        return createClusterState(indexName, aliasName, templateName, IndexMetaData.State.OPEN);
+        return createClusterState(indexName, aliasName, templateName, IndexMetadata.State.OPEN);
     }
 
     public static ClusterState.Builder createClusterState(String indexName, String aliasName, String templateName,
-                                                          IndexMetaData.State state) throws IOException {
+                                                          IndexMetadata.State state) throws IOException {
         return createClusterState(indexName, aliasName, templateName, templateName, SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT, state);
     }
 
     public static ClusterState.Builder createClusterState(String indexName, String aliasName, String templateName, int format)
             throws IOException {
-        return createClusterState(indexName, aliasName, templateName, templateName, format, IndexMetaData.State.OPEN);
+        return createClusterState(indexName, aliasName, templateName, templateName, format, IndexMetadata.State.OPEN);
     }
 
     private static ClusterState.Builder createClusterState(String indexName, String aliasName, String templateName, String buildMappingFrom,
-                                                           int format, IndexMetaData.State state) throws IOException {
-        IndexTemplateMetaData.Builder templateBuilder = getIndexTemplateMetaData(templateName);
-        IndexMetaData.Builder indexMeta = getIndexMetadata(indexName, aliasName, buildMappingFrom, format, state);
+                                                           int format, IndexMetadata.State state) throws IOException {
+        IndexTemplateMetadata.Builder templateBuilder = getIndexTemplateMetadata(templateName);
+        IndexMetadata.Builder indexMeta = getIndexMetadata(indexName, aliasName, buildMappingFrom, format, state);
 
-        MetaData.Builder metaDataBuilder = new MetaData.Builder();
-        metaDataBuilder.put(templateBuilder);
-        metaDataBuilder.put(indexMeta);
+        Metadata.Builder metadataBuilder = new Metadata.Builder();
+        metadataBuilder.put(templateBuilder);
+        metadataBuilder.put(indexMeta);
 
-        return ClusterState.builder(state()).metaData(metaDataBuilder.build());
+        return ClusterState.builder(state()).metadata(metadataBuilder.build());
     }
 
     private void markShardsAvailable(ClusterState.Builder clusterStateBuilder) {
@@ -401,41 +402,40 @@ public class SecurityIndexManagerTests extends ESTestCase {
         final DiscoveryNodes nodes = DiscoveryNodes.builder().masterNodeId("1").localNodeId("1").build();
         return ClusterState.builder(CLUSTER_NAME)
                 .nodes(nodes)
-                .metaData(MetaData.builder().generateClusterUuidIfNeeded())
+                .metadata(Metadata.builder().generateClusterUuidIfNeeded())
                 .build();
     }
 
-    private static IndexMetaData.Builder getIndexMetadata(String indexName, String aliasName, String templateName, int format,
-                                                          IndexMetaData.State state)
-            throws IOException {
-        IndexMetaData.Builder indexMetaData = IndexMetaData.builder(indexName);
-        indexMetaData.settings(Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), format)
+    private static IndexMetadata.Builder getIndexMetadata(String indexName, String aliasName, String templateName, int format,
+                                                          IndexMetadata.State state) {
+        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
+        indexMetadata.settings(Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), format)
                 .build());
-        indexMetaData.putAlias(AliasMetaData.builder(aliasName).build());
-        indexMetaData.state(state);
-        final Map<String, String> mappings = getTemplateMappings(templateName);
-        for (Map.Entry<String, String> entry : mappings.entrySet()) {
-            indexMetaData.putMapping(entry.getKey(), entry.getValue());
+        indexMetadata.putAlias(AliasMetadata.builder(aliasName).build());
+        indexMetadata.state(state);
+        final String mappings = getTemplateMappings(templateName);
+        if (mappings != null) {
+            indexMetadata.putMapping(mappings);
         }
 
-        return indexMetaData;
+        return indexMetadata;
     }
 
-    private static IndexTemplateMetaData.Builder getIndexTemplateMetaData(String templateName) throws IOException {
-        final Map<String, String> mappings = getTemplateMappings(templateName);
-        IndexTemplateMetaData.Builder templateBuilder = IndexTemplateMetaData.builder(TEMPLATE_NAME)
+    private static IndexTemplateMetadata.Builder getIndexTemplateMetadata(String templateName) throws IOException {
+        final String mappings = getTemplateMappings(templateName);
+        IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder(TEMPLATE_NAME)
                 .patterns(Arrays.asList(generateRandomStringArray(10, 100, false, false)));
-        for (Map.Entry<String, String> entry : mappings.entrySet()) {
-            templateBuilder.putMapping(entry.getKey(), entry.getValue());
+        if (mappings != null) {
+            templateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, mappings);
         }
         return templateBuilder;
     }
 
-    private static Map<String, String> getTemplateMappings(String templateName) {
+    private static String getTemplateMappings(String templateName) {
         String template = loadTemplate(templateName);
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(template, XContentType.JSON);
@@ -444,7 +444,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
     private static String loadTemplate(String templateName) {
         final String resource = "/" + templateName + ".json";
-        return TemplateUtils.loadTemplate(resource, Version.CURRENT.toString(), TEMPLATE_VERSION_PATTERN);
+        return TemplateUtils.loadTemplate(resource, Version.CURRENT.toString(), TEMPLATE_VERSION_VARIABLE);
     }
 
     public void testMissingVersionMappingThrowsError() throws IOException {
@@ -489,10 +489,10 @@ public class SecurityIndexManagerTests extends ESTestCase {
         final ClusterName clusterName = new ClusterName("test-cluster");
         final ClusterState.Builder clusterStateBuilder = ClusterState.builder(clusterName);
         String mappingString = "/" + SECURITY_MAIN_TEMPLATE_7 + ".json";
-        IndexTemplateMetaData.Builder templateMeta = getIndexTemplateMetaData(SECURITY_MAIN_TEMPLATE_7, mappingString);
-        MetaData.Builder builder = new MetaData.Builder(clusterStateBuilder.build().getMetaData());
+        IndexTemplateMetadata.Builder templateMeta = getIndexTemplateMetadata(SECURITY_MAIN_TEMPLATE_7, mappingString);
+        Metadata.Builder builder = new Metadata.Builder(clusterStateBuilder.build().getMetadata());
         builder.put(templateMeta);
-        clusterStateBuilder.metaData(builder);
+        clusterStateBuilder.metadata(builder);
         manager.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
             , EMPTY_CLUSTER_STATE));
         assertThat(actions.size(), equalTo(0));
@@ -501,75 +501,75 @@ public class SecurityIndexManagerTests extends ESTestCase {
     private ClusterState.Builder createClusterStateWithTemplate(String securityTemplateString) throws IOException {
         // add the correct mapping no matter what the template
         ClusterState clusterState = createClusterStateWithIndex("/" + SECURITY_MAIN_TEMPLATE_7 + ".json").build();
-        final MetaData.Builder metaDataBuilder = new MetaData.Builder(clusterState.metaData());
-        metaDataBuilder.put(getIndexTemplateMetaData(SECURITY_MAIN_TEMPLATE_7, securityTemplateString));
-        return ClusterState.builder(clusterState).metaData(metaDataBuilder);
+        final Metadata.Builder metadataBuilder = new Metadata.Builder(clusterState.metadata());
+        metadataBuilder.put(getIndexTemplateMetadata(SECURITY_MAIN_TEMPLATE_7, securityTemplateString));
+        return ClusterState.builder(clusterState).metadata(metadataBuilder);
     }
 
     private ClusterState.Builder createClusterStateWithMapping(String securityTemplateString) throws IOException {
         final ClusterState clusterState = createClusterStateWithIndex(securityTemplateString).build();
-        final String indexName = clusterState.metaData().getAliasAndIndexLookup()
+        final String indexName = clusterState.metadata().getIndicesLookup()
             .get(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).getIndices().get(0).getIndex().getName();
         return ClusterState.builder(clusterState).routingTable(SecurityTestUtils.buildIndexRoutingTable(indexName));
     }
 
     private ClusterState.Builder createClusterStateWithMappingAndTemplate(String securityTemplateString) throws IOException {
         ClusterState.Builder clusterStateBuilder = createClusterStateWithMapping(securityTemplateString);
-        MetaData.Builder metaDataBuilder = new MetaData.Builder(clusterStateBuilder.build().metaData());
+        Metadata.Builder metadataBuilder = new Metadata.Builder(clusterStateBuilder.build().metadata());
         String securityMappingString = "/" + SECURITY_MAIN_TEMPLATE_7 + ".json";
-        IndexTemplateMetaData.Builder securityTemplateMeta = getIndexTemplateMetaData(SECURITY_MAIN_TEMPLATE_7, securityMappingString);
-        metaDataBuilder.put(securityTemplateMeta);
-        return clusterStateBuilder.metaData(metaDataBuilder);
+        IndexTemplateMetadata.Builder securityTemplateMeta = getIndexTemplateMetadata(SECURITY_MAIN_TEMPLATE_7, securityMappingString);
+        metadataBuilder.put(securityTemplateMeta);
+        return clusterStateBuilder.metadata(metadataBuilder);
     }
 
-    private static IndexMetaData.Builder createIndexMetadata(String indexName, String templateString) throws IOException {
+    private static IndexMetadata.Builder createIndexMetadata(String indexName, String templateString) throws IOException {
         String template = TemplateUtils.loadTemplate(templateString, Version.CURRENT.toString(),
-            SecurityIndexManager.TEMPLATE_VERSION_PATTERN);
+            SecurityIndexManager.TEMPLATE_VERSION_VARIABLE);
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(template, XContentType.JSON);
-        IndexMetaData.Builder indexMetaData = IndexMetaData.builder(indexName);
-        indexMetaData.settings(Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
+        indexMetadata.settings(Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build());
 
-        for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
-            indexMetaData.putMapping(entry.getKey(), entry.getValue());
+        if (request.mappings() != null) {
+            indexMetadata.putMapping(request.mappings());
         }
-        return indexMetaData;
+        return indexMetadata;
     }
 
     private ClusterState.Builder createClusterStateWithIndex(String securityTemplate) throws IOException {
-        final MetaData.Builder metaDataBuilder = new MetaData.Builder();
+        final Metadata.Builder metadataBuilder = new Metadata.Builder();
         final boolean withAlias = randomBoolean();
         final String securityIndexName = RestrictedIndicesNames.SECURITY_MAIN_ALIAS
                 + (withAlias ? "-" + randomAlphaOfLength(5) : "");
-        metaDataBuilder.put(createIndexMetadata(securityIndexName, securityTemplate));
+        metadataBuilder.put(createIndexMetadata(securityIndexName, securityTemplate));
 
         ClusterState.Builder clusterStateBuilder = ClusterState.builder(state());
         if (withAlias) {
             // try with .security index as an alias
-            clusterStateBuilder.metaData(SecurityTestUtils.addAliasToMetaData(metaDataBuilder.build(), securityIndexName));
+            clusterStateBuilder.metadata(SecurityTestUtils.addAliasToMetadata(metadataBuilder.build(), securityIndexName));
         } else {
             // try with .security index as a concrete index
-            clusterStateBuilder.metaData(metaDataBuilder);
+            clusterStateBuilder.metadata(metadataBuilder);
         }
 
         clusterStateBuilder.routingTable(SecurityTestUtils.buildIndexRoutingTable(securityIndexName));
         return clusterStateBuilder;
     }
 
-    private static IndexTemplateMetaData.Builder getIndexTemplateMetaData(String templateName, String templateString) throws IOException {
+    private static IndexTemplateMetadata.Builder getIndexTemplateMetadata(String templateName, String templateString) throws IOException {
 
         String template = TemplateUtils.loadTemplate(templateString, Version.CURRENT.toString(),
-            SecurityIndexManager.TEMPLATE_VERSION_PATTERN);
+            SecurityIndexManager.TEMPLATE_VERSION_VARIABLE);
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(template, XContentType.JSON);
-        IndexTemplateMetaData.Builder templateBuilder = IndexTemplateMetaData.builder(templateName)
+        IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder(templateName)
             .patterns(Arrays.asList(generateRandomStringArray(10, 100, false, false)));
-        for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
-            templateBuilder.putMapping(entry.getKey(), entry.getValue());
+        if (request.mappings() != null) {
+            templateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, request.mappings());
         }
         return templateBuilder;
     }

@@ -17,6 +17,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -287,7 +288,8 @@ public class FileRolesStoreTests extends ESTestCase {
         List<String> events = CapturingLogger.output(logger.getName(), Level.WARN);
         events.clear();
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(false);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_DLS_FLS)).thenReturn(false);
         Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, licenseState, xContentRegistry());
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(9));
@@ -332,7 +334,7 @@ public class FileRolesStoreTests extends ESTestCase {
             }
 
             Settings.Builder builder = Settings.builder()
-                    .put("resource.reload.interval.high", "500ms")
+                    .put("resource.reload.interval.high", "100ms")
                     .put("path.home", home);
             Settings settings = builder.build();
             Environment env = TestEnvironment.newEnvironment(settings);
@@ -352,7 +354,18 @@ public class FileRolesStoreTests extends ESTestCase {
             assertThat(descriptors, notNullValue());
             assertTrue(descriptors.isEmpty());
 
-            watcherService.start();
+            try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
+                writer.append("\n");
+            }
+
+            watcherService.notifyNow(ResourceWatcherService.Frequency.HIGH);
+            if (latch.getCount() != 1) {
+                fail("Listener should not be called as roles are not changed.");
+            }
+
+            descriptors = store.roleDescriptors(Collections.singleton("role1"));
+            assertThat(descriptors, notNullValue());
+            assertEquals(1, descriptors.size());
 
             try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
                 writer.newLine();
@@ -425,7 +438,7 @@ public class FileRolesStoreTests extends ESTestCase {
             assertEquals(1, descriptors.size());
         } finally {
             if (watcherService != null) {
-                watcherService.stop();
+                watcherService.close();
             }
             terminate(threadPool);
         }

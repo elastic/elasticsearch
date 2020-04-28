@@ -9,7 +9,7 @@ setlocal enableextensions
 
 call "%~dp0elasticsearch-env.bat" || exit /b 1
 
-call "%~dp0x-pack-env.bat" || exit /b 1
+call "%ES_HOME%/bin/x-pack-env.bat" || exit /b 1
 
 set CLI_JAR=%ES_HOME%/bin/*
 

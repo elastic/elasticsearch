@@ -19,12 +19,13 @@
 package org.elasticsearch.snapshots.mockstore;
 
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Map;
 
 public class BlobContainerWrapper implements BlobContainer {
@@ -45,6 +46,16 @@ public class BlobContainerWrapper implements BlobContainer {
     }
 
     @Override
+    public InputStream readBlob(String blobName, long position, long length) throws IOException {
+        return delegate.readBlob(blobName, position, length);
+    }
+
+    @Override
+    public long readBlobPreferredLength() {
+        return delegate.readBlobPreferredLength();
+    }
+
+    @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         delegate.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
     }
@@ -56,22 +67,17 @@ public class BlobContainerWrapper implements BlobContainer {
     }
 
     @Override
-    public void deleteBlob(String blobName) throws IOException {
-        delegate.deleteBlob(blobName);
-    }
-
-    @Override
     public DeleteResult delete() throws IOException {
         return delegate.delete();
     }
 
     @Override
-    public void deleteBlobIgnoringIfNotExists(final String blobName) throws IOException {
-        delegate.deleteBlobIgnoringIfNotExists(blobName);
+    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
+        delegate.deleteBlobsIgnoringIfNotExists(blobNames);
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobs() throws IOException {
+    public Map<String, BlobMetadata> listBlobs() throws IOException {
         return delegate.listBlobs();
     }
 
@@ -81,7 +87,7 @@ public class BlobContainerWrapper implements BlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
+    public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException {
         return delegate.listBlobsByPrefix(blobNamePrefix);
     }
 }

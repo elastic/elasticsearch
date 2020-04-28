@@ -69,10 +69,9 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         client().admin()
                 .indices()
                 .prepareCreate("test")
-                .addMapping(
-                        "type1",
+                .setMapping(
                         jsonBuilder()
-                                .startObject().startObject("type1")
+                                .startObject().startObject("_doc")
                                 .startObject("properties")
                                 .startObject("test")
                                 .field("type", "text").field("term_vector", "yes")
@@ -126,7 +125,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
             DocumentField hitField = hitContext.hit().getFields().get(NAME);
             if (hitField == null) {
                 hitField = new DocumentField(NAME, new ArrayList<>(1));
-                hitContext.hit().getFields().put(NAME, hitField);
+                hitContext.hit().setField(NAME, hitField);
             }
             TermVectorsRequest termVectorsRequest = new TermVectorsRequest(context.indexShard().shardId().getIndex().getName(),
                     hitContext.hit().getId());

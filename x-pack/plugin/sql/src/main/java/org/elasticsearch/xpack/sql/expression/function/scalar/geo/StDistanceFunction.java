@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.geo;
 
-import org.elasticsearch.xpack.sql.expression.predicate.PredicateBiFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.PredicateBiFunction;
 
 class StDistanceFunction  implements PredicateBiFunction<Object, Object, Double> {
 

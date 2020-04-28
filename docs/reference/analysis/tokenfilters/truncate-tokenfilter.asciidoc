@@ -1,8 +1,148 @@
 [[analysis-truncate-tokenfilter]]
-=== Truncate Token Filter
+=== Truncate token filter
+++++
+<titleabbrev>Truncate</titleabbrev>
+++++
 
-The `truncate` token filter can be used to truncate tokens into a
-specific length.
+Truncates tokens that exceed a specified character limit. This limit defaults to
+`10` but can be customized using the `length` parameter.
 
-It accepts a `length` parameter which control the number of characters
-to truncate to, defaults to `10`.
+For example, you can use the `truncate` filter to shorten all tokens to
+`3` characters or fewer, changing `jumping fox` to `jum fox`.
+
+This filter uses Lucene's
+{lucene-analysis-docs}/miscellaneous/TruncateTokenFilter.html[TruncateTokenFilter].
+
+[[analysis-truncate-tokenfilter-analyze-ex]]
+==== Example
+
+The following <<indices-analyze,analyze API>> request uses the `truncate` filter
+to shorten tokens that exceed 10 characters in
+`the quinquennial extravaganza carried on`:
+
+[source,console]
+--------------------------------------------------
+GET _analyze
+{
+  "tokenizer" : "whitespace",
+  "filter" : ["truncate"],
+  "text" : "the quinquennial extravaganza carried on"
+}
+--------------------------------------------------
+
+The filter produces the following tokens:
+
+[source,text]
+--------------------------------------------------
+[ the, quinquenni, extravagan, carried, on ]
+--------------------------------------------------
+
+/////////////////////
+[source,console-result]
+--------------------------------------------------
+{
+  "tokens" : [
+    {
+      "token" : "the",
+      "start_offset" : 0,
+      "end_offset" : 3,
+      "type" : "word",
+      "position" : 0
+    },
+    {
+      "token" : "quinquenni",
+      "start_offset" : 4,
+      "end_offset" : 16,
+      "type" : "word",
+      "position" : 1
+    },
+    {
+      "token" : "extravagan",
+      "start_offset" : 17,
+      "end_offset" : 29,
+      "type" : "word",
+      "position" : 2
+    },
+    {
+      "token" : "carried",
+      "start_offset" : 30,
+      "end_offset" : 37,
+      "type" : "word",
+      "position" : 3
+    },
+    {
+      "token" : "on",
+      "start_offset" : 38,
+      "end_offset" : 40,
+      "type" : "word",
+      "position" : 4
+    }
+  ]
+}
+--------------------------------------------------
+/////////////////////
+
+[[analysis-truncate-tokenfilter-analyzer-ex]]
+==== Add to an analyzer
+
+The following <<indices-create-index,create index API>> request uses the
+`truncate` filter to configure a new 
+<<analysis-custom-analyzer,custom analyzer>>.
+
+[source,console]
+--------------------------------------------------
+PUT custom_truncate_example
+{
+  "settings" : {
+    "analysis" : {
+      "analyzer" : {
+        "standard_truncate" : {
+        "tokenizer" : "standard",
+        "filter" : ["truncate"]
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+[[analysis-truncate-tokenfilter-configure-parms]]
+==== Configurable parameters
+
+`length`::
+(Optional, integer)
+Character limit for each token. Tokens exceeding this limit are truncated.
+Defaults to `10`.
+
+[[analysis-truncate-tokenfilter-customize]]
+==== Customize
+
+To customize the `truncate` filter, duplicate it to create the basis
+for a new custom token filter. You can modify the filter using its configurable
+parameters.
+
+For example, the following request creates a custom `truncate` filter,
+`5_char_trunc`, that shortens tokens to a `length` of `5` or fewer characters:
+
+[source,console]
+--------------------------------------------------
+PUT 5_char_words_example
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "lowercase_5_char": {
+          "tokenizer": "lowercase",
+          "filter": [ "5_char_trunc" ]
+        }
+      },
+      "filter": {
+        "5_char_trunc": {
+          "type": "truncate",
+          "length": 5
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------

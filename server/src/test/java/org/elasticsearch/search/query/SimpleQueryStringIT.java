@@ -22,6 +22,7 @@ package org.elasticsearch.search.query;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -36,7 +37,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.SimpleQueryStringBuilder;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.SimpleQueryStringFlag;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -212,9 +213,9 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
     public void testNestedFieldSimpleQueryString() throws IOException {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", jsonBuilder()
+                .setMapping(jsonBuilder()
                         .startObject()
-                        .startObject("type1")
+                        .startObject("_doc")
                         .startObject("properties")
                         .startObject("body").field("type", "text")
                         .startObject("fields")
@@ -336,18 +337,16 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
     public void testSimpleQueryStringAnalyzeWildcard() throws ExecutionException, InterruptedException, IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("location")
                 .field("type", "text")
                 .field("analyzer", "standard")
                 .endObject()
                 .endObject()
-                .endObject()
                 .endObject());
 
         CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test1")
-            .addMapping("type1", mapping, XContentType.JSON);
+            .setMapping(mapping);
         mappingRequest.get();
         indexRandom(true, client().prepareIndex("test1").setId("1").setSource("location", "Köln"));
         refresh();
@@ -386,19 +385,17 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         // https://github.com/elastic/elasticsearch/issues/18202
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("body")
                 .field("type", "text")
                 .field("analyzer", "stop")
                 .endObject()
                 .endObject()
-                .endObject()
                 .endObject());
 
         CreateIndexRequestBuilder mappingRequest = client().admin().indices()
                 .prepareCreate("test1")
-                .addMapping("type1", mapping, XContentType.JSON);
+                .setMapping(mapping);
         mappingRequest.get();
         indexRandom(true, client().prepareIndex("test1").setId("1").setSource("body", "Some Text"));
         refresh();
@@ -573,7 +570,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
     public void testLimitOnExpandedFields() throws Exception {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.startObject("type1");
+        builder.startObject("_doc");
         builder.startObject("properties");
         for (int i = 0; i < CLUSTER_MAX_CLAUSE_COUNT + 1; i++) {
             builder.startObject("field" + i).field("type", "text").endObject();
@@ -585,21 +582,25 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertAcked(prepareCreate("toomanyfields")
                 .setSettings(Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
                         CLUSTER_MAX_CLAUSE_COUNT + 100))
-                .addMapping("type1", builder));
+                .setMapping(builder));
 
         client().prepareIndex("toomanyfields").setId("1").setSource("field1", "foo bar baz").get();
         refresh();
 
-        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> {
-                SimpleQueryStringBuilder qb = simpleQueryStringQuery("bar");
-                if (randomBoolean()) {
-                    qb.field("*");
-                }
-                client().prepareSearch("toomanyfields").setQuery(qb).get();
-                });
-        assertThat(e.getDetailedMessage(),
-            containsString("field expansion matches too many fields, limit: " + CLUSTER_MAX_CLAUSE_COUNT + ", got: "
-                        + (CLUSTER_MAX_CLAUSE_COUNT + 1)));
+        doAssertLimitExceededException("*", CLUSTER_MAX_CLAUSE_COUNT + 1);
+        doAssertLimitExceededException("field*", CLUSTER_MAX_CLAUSE_COUNT + 1);
+    }
+
+    private void doAssertLimitExceededException(String field, int exceedingFieldCount) {
+        Exception e = expectThrows(Exception.class, () -> {
+            QueryStringQueryBuilder qb = queryStringQuery("bar");
+            qb.field(field);
+            client().prepareSearch("toomanyfields").setQuery(qb).get();
+        });
+        assertThat(
+            ExceptionsHelper.unwrap(e, IllegalArgumentException.class).getMessage(),
+            containsString("field expansion matches too many fields, limit: " + CLUSTER_MAX_CLAUSE_COUNT + ", got: " + exceedingFieldCount)
+        );
     }
 
     public void testFieldAlias() throws Exception {

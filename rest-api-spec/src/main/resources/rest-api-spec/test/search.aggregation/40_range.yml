@@ -222,6 +222,58 @@ setup:
   - match: { aggregations.ip_range.buckets.2.key: "192.169.0.0-*" }
 
 ---
+"IP Range avg_bucket":
+  - skip:
+      version: " - 7.7.99"
+      reason: Fixed in 7.8.0
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+            - '{"index": {}}'
+            - '{"ip": "::1", "v": 1}'
+            - '{"index": {}}'
+            - '{"ip": "192.168.0.1", "v": 2}'
+            - '{"index": {}}'
+            - '{"ip": "192.168.0.7", "v": 3}'
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            range:
+              ip_range:
+                field: ip
+                ranges:
+                  - to: 192.168.0.0
+                  - from: 192.168.0.0
+                    to: 192.169.0.0
+                  - from: 192.169.0.0
+              aggs:
+                v:
+                  sum:
+                    field: v
+            range_avg_v:
+              avg_bucket:
+                buckets_path: range.v
+
+  - match: { hits.total.value: 3 }
+  - length: { aggregations.range.buckets: 3 }
+  - match: { aggregations.range.buckets.0.key: "*-192.168.0.0" }
+  - match: { aggregations.range.buckets.0.doc_count: 1 }
+  - match: { aggregations.range.buckets.0.v.value: 1 }
+  - match: { aggregations.range.buckets.1.key: "192.168.0.0-192.169.0.0" }
+  - match: { aggregations.range.buckets.1.doc_count: 2 }
+  - match: { aggregations.range.buckets.1.v.value: 5 }
+  - match: { aggregations.range.buckets.2.key: "192.169.0.0-*" }
+  - match: { aggregations.range.buckets.2.doc_count: 0 }
+  - match: { aggregations.range.buckets.2.v.value: 0 }
+  - match: { aggregations.range_avg_v.value: 3 }
+
+---
 "Date range":
   - do:
       index:

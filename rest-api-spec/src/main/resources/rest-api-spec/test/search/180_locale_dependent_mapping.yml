@@ -1,8 +1,5 @@
 ---
 "Test Index and Search locale dependent mappings / dates":
-  - skip:
-      version: " - 6.1.99"
-      reason: JDK9 only supports this with a special sysproperty added in 6.2.0
   - do:
       indices.create:
           index: test_index

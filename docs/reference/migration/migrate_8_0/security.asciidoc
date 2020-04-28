@@ -6,6 +6,29 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+[float]
+==== The realm `order` setting is required
+
+The `xpack.security.authc.realms.{type}.{name}.order` setting is now required and must be
+specified for each explicitly configured realm. Each value must be unique.
+The cluster will fail to start if the requirements are not met.
+
+For example, the following configuration is invalid:
+[source,yaml]
+--------------------------------------------------
+xpack.security.authc.realms.kerberos.kerb1:
+  keytab.path: es.keytab
+  remove_realm_name: false
+--------------------------------------------------
+
+And must be configured as:
+[source,yaml]
+--------------------------------------------------
+xpack.security.authc.realms.kerberos.kerb1:
+  order: 0
+  keytab.path: es.keytab
+  remove_realm_name: false
+--------------------------------------------------
 
 // end::notable-breaking-changes[]
 
@@ -41,3 +64,108 @@ realm directly.
 The `transport.profiles.*.xpack.security.type` setting has been removed since
 the Transport Client has been removed and therefore all client traffic now uses
 the HTTP transport. Transport profiles using this setting should be removed.
+
+[float]
+[[ssl-validation-changes]]
+==== SSL/TLS configuration validation
+
+[float]
+===== The `xpack.security.transport.ssl.enabled` setting may be required
+
+It is now an error to configure any SSL settings for
+`xpack.security.transport.ssl` without also configuring
+`xpack.security.transport.ssl.enabled`.
+
+For example, the following configuration is invalid:
+[source,yaml]
+--------------------------------------------------
+xpack.security.transport.ssl.keystore.path: elastic-certificates.p12
+xpack.security.transport.ssl.truststore.path: elastic-certificates.p12
+--------------------------------------------------
+
+And must be configured as:
+[source,yaml]
+--------------------------------------------------
+xpack.security.transport.ssl.enabled: true <1>
+xpack.security.transport.ssl.keystore.path: elastic-certificates.p12
+xpack.security.transport.ssl.truststore.path: elastic-certificates.p12
+--------------------------------------------------
+<1> or `false`.
+
+[float]
+===== The `xpack.security.http.ssl.enabled` setting may be required
+
+It is now an error to configure any SSL settings for
+`xpack.security.http.ssl` without also configuring
+`xpack.security.http.ssl.enabled`.
+
+For example, the following configuration is invalid:
+[source,yaml]
+--------------------------------------------------
+xpack.security.http.ssl.certificate: elasticsearch.crt
+xpack.security.http.ssl.key: elasticsearch.key
+xpack.security.http.ssl.certificate_authorities: [ "corporate-ca.crt" ]
+--------------------------------------------------
+
+And must be configured as either:
+[source,yaml]
+--------------------------------------------------
+xpack.security.http.ssl.enabled: true <1>
+xpack.security.http.ssl.certificate: elasticsearch.crt
+xpack.security.http.ssl.key: elasticsearch.key
+xpack.security.http.ssl.certificate_authorities: [ "corporate-ca.crt" ]
+--------------------------------------------------
+<1> or `false`.
+
+[float]
+===== The `xpack.security.transport.ssl` Certificate and Key may be required
+
+It is now an error to enable SSL for the transport interface without also configuring
+a certificate and key through use of the `xpack.security.transport.ssl.keystore.path`
+setting or the `xpack.security.transport.ssl.certificate` and
+`xpack.security.transport.ssl.key` settings.
+
+[float]
+===== The `xpack.security.http.ssl` Certificate and Key may be required
+
+It is now an error to enable SSL for the HTTP (Rest) server without also configuring
+a certificate and key through use of the `xpack.security.http.ssl.keystore.path`
+setting or the `xpack.security.http.ssl.certificate` and
+`xpack.security.http.ssl.key` settings.
+
+
+[float]
+[[builtin-users-changes]]
+==== Changes to built-in users
+
+[float]
+===== The `kibana` user has been removed in favor of the `kibana_system` user
+
+The `kibana` user was historically used to authenticate {kib} to {es}.
+The name of this user was confusing, and was often mistakenly used to login to {kib}.
+This has been renamed to `kibana_system` in order to reduce confusion, and to better
+align with other built-in system accounts.
+
+If your `kibana.yml` used to contain:
+[source,yaml]
+--------------------------------------------------
+elasticsearch.username: kibana
+--------------------------------------------------
+
+then you should update to use the new `kibana_system` user instead:
+[source,yaml]
+--------------------------------------------------
+elasticsearch.username: kibana_system
+--------------------------------------------------
+
+
+[float]
+[[builtin-roles-changes]]
+==== Changes to built-in roles
+
+[float]
+===== The `kibana_user` role has been removed in favor of the `kibana_admin` role
+
+Users who were previously assigned the `kibana_user` role should instead be assigned
+the `kibana_admin` role. This role grants the same set of privileges as `kibana_user`, but has been
+renamed to better reflect its intended use.

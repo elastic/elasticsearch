@@ -38,13 +38,12 @@ required. For more information, see <<encrypting-data>>.
 added:[6.3.0,Default changed to `true`.]
 deprecated:[7.0.0,Watcher history indices are now managed by the `watch-history-ilm-policy` ILM policy]
 +
-Set to `true` (default) to enable the cleaner service. If this setting is
-`true`, the `xpack.monitoring.enabled` setting must also be set to `true` with
-a local exporter enabled. The cleaner service removes previous versions of
-{watcher} indices (for example, `.watcher-history*`) when it determines that
-they are old. The duration of {watcher} indices is determined by the
-`xpack.monitoring.history.duration` setting, which defaults to 7 days. For
-more information about that setting, see <<monitoring-settings>>.
+Set to `true` (default) to enable the cleaner service. The cleaner service
+removes previous versions of {watcher} indices (for example,
+`.watcher-history*`) when it determines that they are old. The duration of
+{watcher} indices is determined by the `xpack.monitoring.history.duration`
+setting, which defaults to 7 days. For more information about that setting,
+see <<monitoring-settings>>.
 
 `xpack.http.proxy.host`::
 Specifies the address of the proxy server to use to connect to HTTP services.

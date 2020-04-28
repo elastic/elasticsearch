@@ -21,6 +21,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
+
 public class ConfusionMatrix extends AbstractConfusionMatrixMetric {
 
     public static final ParseField NAME = new ParseField("confusion_matrix");
@@ -37,7 +39,7 @@ public class ConfusionMatrix extends AbstractConfusionMatrixMetric {
     }
 
     public ConfusionMatrix(List<Double> at) {
-        super(at.stream().mapToDouble(Double::doubleValue).toArray());
+        super(at);
     }
 
     public ConfusionMatrix(StreamInput in) throws IOException {
@@ -46,7 +48,7 @@ public class ConfusionMatrix extends AbstractConfusionMatrixMetric {
 
     @Override
     public String getWriteableName() {
-        return NAME.getPreferredName();
+        return registeredMetricName(BinarySoftClassification.NAME, NAME);
     }
 
     @Override
@@ -68,28 +70,29 @@ public class ConfusionMatrix extends AbstractConfusionMatrixMetric {
     }
 
     @Override
-    protected List<AggregationBuilder> aggsAt(String labelField, List<ClassInfo> classInfos, double threshold) {
+    protected List<AggregationBuilder> aggsAt(String actualField, String predictedProbabilityField) {
         List<AggregationBuilder> aggs = new ArrayList<>();
-        for (ClassInfo classInfo : classInfos) {
-            aggs.add(buildAgg(classInfo, threshold, Condition.TP));
-            aggs.add(buildAgg(classInfo, threshold, Condition.FP));
-            aggs.add(buildAgg(classInfo, threshold, Condition.TN));
-            aggs.add(buildAgg(classInfo, threshold, Condition.FN));
+        for (int i = 0; i < thresholds.length; i++) {
+            double threshold = thresholds[i];
+            aggs.add(buildAgg(actualField, predictedProbabilityField, threshold, Condition.TP));
+            aggs.add(buildAgg(actualField, predictedProbabilityField, threshold, Condition.FP));
+            aggs.add(buildAgg(actualField, predictedProbabilityField, threshold, Condition.TN));
+            aggs.add(buildAgg(actualField, predictedProbabilityField, threshold, Condition.FN));
         }
         return aggs;
     }
 
     @Override
-    public EvaluationMetricResult evaluate(ClassInfo classInfo, Aggregations aggs) {
+    public EvaluationMetricResult evaluate(Aggregations aggs) {
         long[] tp = new long[thresholds.length];
         long[] fp = new long[thresholds.length];
         long[] tn = new long[thresholds.length];
         long[] fn = new long[thresholds.length];
         for (int i = 0; i < thresholds.length; i++) {
-            Filter tpAgg = aggs.get(aggName(classInfo, thresholds[i], Condition.TP));
-            Filter fpAgg = aggs.get(aggName(classInfo, thresholds[i], Condition.FP));
-            Filter tnAgg = aggs.get(aggName(classInfo, thresholds[i], Condition.TN));
-            Filter fnAgg = aggs.get(aggName(classInfo, thresholds[i], Condition.FN));
+            Filter tpAgg = aggs.get(aggName(thresholds[i], Condition.TP));
+            Filter fpAgg = aggs.get(aggName(thresholds[i], Condition.FP));
+            Filter tnAgg = aggs.get(aggName(thresholds[i], Condition.TN));
+            Filter fnAgg = aggs.get(aggName(thresholds[i], Condition.FN));
             tp[i] = tpAgg.getDocCount();
             fp[i] = fpAgg.getDocCount();
             tn[i] = tnAgg.getDocCount();
@@ -128,7 +131,7 @@ public class ConfusionMatrix extends AbstractConfusionMatrixMetric {
 
         @Override
         public String getWriteableName() {
-            return NAME.getPreferredName();
+            return registeredMetricName(BinarySoftClassification.NAME, NAME);
         }
 
         @Override

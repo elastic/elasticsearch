@@ -9,10 +9,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 
 import java.util.Locale;
@@ -31,40 +32,49 @@ public class RolloverStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState,
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
+    public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState,
                               ClusterStateObserver observer, Listener listener) {
-        boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetaData.getSettings());
+        boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetadata.getSettings());
         if (indexingComplete) {
-            logger.trace(indexMetaData.getIndex() + " has lifecycle complete set, skipping " + RolloverStep.NAME);
+            logger.trace(indexMetadata.getIndex() + " has lifecycle complete set, skipping " + RolloverStep.NAME);
             listener.onResponse(true);
             return;
         }
 
-        String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetaData.getSettings());
+        String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetadata.getSettings());
 
         if (Strings.isNullOrEmpty(rolloverAlias)) {
             listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
                 "setting [%s] for index [%s] is empty or not defined", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
-                indexMetaData.getIndex().getName())));
+                indexMetadata.getIndex().getName())));
             return;
         }
 
-        if (indexMetaData.getRolloverInfos().get(rolloverAlias) != null) {
+        if (indexMetadata.getRolloverInfos().get(rolloverAlias) != null) {
             logger.info("index [{}] was already rolled over for alias [{}], not attempting to roll over again",
-                indexMetaData.getIndex().getName(), rolloverAlias);
+                indexMetadata.getIndex().getName(), rolloverAlias);
             listener.onResponse(true);
             return;
         }
 
-        if (indexMetaData.getAliases().containsKey(rolloverAlias) == false) {
+        if (indexMetadata.getAliases().containsKey(rolloverAlias) == false) {
             listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
                 "%s [%s] does not point to index [%s]", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias,
-                indexMetaData.getIndex().getName())));
+                indexMetadata.getIndex().getName())));
             return;
         }
 
         // Calling rollover with no conditions will always roll over the index
-        RolloverRequest rolloverRequest = new RolloverRequest(rolloverAlias, null);
+        RolloverRequest rolloverRequest = new RolloverRequest(rolloverAlias, null)
+            .masterNodeTimeout(getMasterTimeout(currentClusterState));
+        // We don't wait for active shards when we perform the rollover because the
+        // {@link org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep} step will do so
+        rolloverRequest.setWaitForActiveShards(ActiveShardCount.NONE);
         getClient().admin().indices().rolloverIndex(rolloverRequest,
             ActionListener.wrap(response -> {
                 assert response.isRolledOver() : "the only way this rollover call should fail is with an exception";

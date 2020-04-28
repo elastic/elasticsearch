@@ -7,12 +7,9 @@ package org.elasticsearch.xpack.ml.extractor;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.core.ml.job.config.Detector;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -21,26 +18,21 @@ import java.util.HashSet;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ExtractedFieldsTests extends ESTestCase {
 
     public void testAllTypesOfFields() {
-        ExtractedField docValue1 = ExtractedField.newField("doc1", Collections.singleton("keyword"),
-            ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedField docValue2 = ExtractedField.newField("doc2", Collections.singleton("ip"),
-            ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedField scriptField1 = ExtractedField.newField("scripted1", Collections.emptySet(),
-            ExtractedField.ExtractionMethod.SCRIPT_FIELD);
-        ExtractedField scriptField2 = ExtractedField.newField("scripted2", Collections.emptySet(),
-            ExtractedField.ExtractionMethod.SCRIPT_FIELD);
-        ExtractedField sourceField1 = ExtractedField.newField("src1", Collections.singleton("text"),
-            ExtractedField.ExtractionMethod.SOURCE);
-        ExtractedField sourceField2 = ExtractedField.newField("src2", Collections.singleton("text"),
-            ExtractedField.ExtractionMethod.SOURCE);
+        ExtractedField docValue1 = new DocValueField("doc1", Collections.singleton("keyword"));
+        ExtractedField docValue2 = new DocValueField("doc2", Collections.singleton("ip"));
+        ExtractedField scriptField1 = new ScriptField("scripted1");
+        ExtractedField scriptField2 = new ScriptField("scripted2");
+        ExtractedField sourceField1 = new SourceField("src1", Collections.singleton("text"));
+        ExtractedField sourceField2 = new SourceField("src2", Collections.singleton("text"));
         ExtractedFields extractedFields = new ExtractedFields(Arrays.asList(
-                docValue1, docValue2, scriptField1, scriptField2, sourceField1, sourceField2));
+                docValue1, docValue2, scriptField1, scriptField2, sourceField1, sourceField2), Collections.emptyMap());
 
         assertThat(extractedFields.getAllFields().size(), equalTo(6));
         assertThat(extractedFields.getDocValueFields().stream().map(ExtractedField::getName).toArray(String[]::new),
@@ -62,7 +54,7 @@ public class ExtractedFieldsTests extends ESTestCase {
         when(fieldCapabilitiesResponse.getField("airline")).thenReturn(airlineCaps);
 
         ExtractedFields extractedFields = ExtractedFields.build(Arrays.asList("time", "value", "airline", "airport"),
-            new HashSet<>(Collections.singletonList("airport")), fieldCapabilitiesResponse);
+            new HashSet<>(Collections.singletonList("airport")), fieldCapabilitiesResponse, Collections.emptyMap());
 
         assertThat(extractedFields.getDocValueFields().size(), equalTo(2));
         assertThat(extractedFields.getDocValueFields().get(0).getName(), equalTo("time"));
@@ -74,16 +66,6 @@ public class ExtractedFieldsTests extends ESTestCase {
     }
 
     public void testBuildGivenMultiFields() {
-        Job.Builder jobBuilder = new Job.Builder("foo");
-        jobBuilder.setDataDescription(new DataDescription.Builder());
-        Detector.Builder detector = new Detector.Builder("count", null);
-        detector.setByFieldName("airline.text");
-        detector.setOverFieldName("airport.keyword");
-        jobBuilder.setAnalysisConfig(new AnalysisConfig.Builder(Collections.singletonList(detector.build())));
-
-        DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("feed", jobBuilder.getId());
-        datafeedBuilder.setIndices(Collections.singletonList("foo"));
-
         Map<String, FieldCapabilities> text = new HashMap<>();
         text.put("text", createFieldCaps(false));
         Map<String, FieldCapabilities> keyword = new HashMap<>();
@@ -95,7 +77,7 @@ public class ExtractedFieldsTests extends ESTestCase {
         when(fieldCapabilitiesResponse.getField("airport.keyword")).thenReturn(keyword);
 
         ExtractedFields extractedFields = ExtractedFields.build(Arrays.asList("airline.text", "airport.keyword"),
-                Collections.emptySet(), fieldCapabilitiesResponse);
+                Collections.emptySet(), fieldCapabilitiesResponse, Collections.emptyMap());
 
         assertThat(extractedFields.getDocValueFields().size(), equalTo(1));
         assertThat(extractedFields.getDocValueFields().get(0).getName(), equalTo("airport.keyword"));
@@ -103,17 +85,41 @@ public class ExtractedFieldsTests extends ESTestCase {
         assertThat(extractedFields.getSourceFields()[0], equalTo("airline"));
         assertThat(extractedFields.getAllFields().size(), equalTo(2));
 
-        assertThat(extractedFields.getAllFields().stream().filter(f -> f.getName().equals("airport.keyword")).findFirst().get().getAlias(),
-                equalTo("airport.keyword"));
-        assertThat(extractedFields.getAllFields().stream().filter(f -> f.getName().equals("airline")).findFirst().get().getAlias(),
-                equalTo("airline.text"));
+        ExtractedField airlineField = extractedFields.getAllFields().get(0);
+        assertThat(airlineField.isMultiField(), is(true));
+        assertThat(airlineField.getName(), equalTo("airline.text"));
+        assertThat(airlineField.getSearchField(), equalTo("airline"));
+        assertThat(airlineField.getParentField(), equalTo("airline"));
+
+        ExtractedField airportField = extractedFields.getAllFields().get(1);
+        assertThat(airportField.isMultiField(), is(true));
+        assertThat(airportField.getName(), equalTo("airport.keyword"));
+        assertThat(airportField.getSearchField(), equalTo("airport.keyword"));
+        assertThat(airportField.getParentField(), equalTo("airport"));
+    }
+
+    public void testApplyBooleanMapping() {
+        DocValueField aBool = new DocValueField("a_bool", Collections.singleton("boolean"));
+
+        ExtractedField mapped = ExtractedFields.applyBooleanMapping(aBool);
+
+        SearchHit hitTrue = new SearchHitBuilder(42).addField("a_bool", true).build();
+        SearchHit hitFalse = new SearchHitBuilder(42).addField("a_bool", false).build();
+
+        assertThat(mapped.value(hitTrue), equalTo(new Integer[] { 1 }));
+        assertThat(mapped.value(hitFalse), equalTo(new Integer[] { 0 }));
+
+        assertThat(mapped.getName(), equalTo(aBool.getName()));
+        assertThat(mapped.getMethod(), equalTo(aBool.getMethod()));
+        assertThat(mapped.supportsFromSource(), is(false));
+        expectThrows(UnsupportedOperationException.class, () -> mapped.newFromSource());
     }
 
     public void testBuildGivenFieldWithoutMappings() {
         FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ExtractedFields.build(
-                Collections.singletonList("value"), Collections.emptySet(), fieldCapabilitiesResponse));
+                Collections.singletonList("value"), Collections.emptySet(), fieldCapabilitiesResponse, Collections.emptyMap()));
         assertThat(e.getMessage(), equalTo("cannot retrieve field [value] because it has no mappings"));
     }
 

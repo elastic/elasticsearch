@@ -277,9 +277,9 @@ public final class Grok {
     private static Map<String, String> loadBuiltinPatterns() throws IOException {
         // Code for loading built-in grok patterns packaged with the jar file:
         String[] PATTERN_NAMES = new String[] {
-            "aws", "bacula", "bro", "exim", "firewalls", "grok-patterns", "haproxy",
-            "java", "junos", "linux-syslog", "mcollective-patterns", "mongodb", "nagios",
-            "postgresql", "rails", "redis", "ruby"
+            "aws", "bacula", "bind", "bro", "exim", "firewalls", "grok-patterns", "haproxy",
+            "java", "junos", "linux-syslog", "maven", "mcollective-patterns", "mongodb", "nagios",
+            "postgresql", "rails", "redis", "ruby", "squid"
         };
         Map<String, String> builtinPatterns = new HashMap<>();
         for (String pattern : PATTERN_NAMES) {

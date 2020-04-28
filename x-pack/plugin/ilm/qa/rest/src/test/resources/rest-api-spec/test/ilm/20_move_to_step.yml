@@ -73,17 +73,17 @@ teardown:
             action: "complete"
             name: "complete"
           next_step:
-            phase: "warm"
-            action: "forcemerge"
-            name: "forcemerge"
+            phase: "completed"
+            action: "completed"
+            name: "completed"
 
   - do:
         ilm.explain_lifecycle:
           index: "my_index"
   - match: { indices.my_index.policy: "my_moveable_timeseries_lifecycle" }
-  - match: { indices.my_index.step: "forcemerge" }
-  - match: { indices.my_index.action: "forcemerge" }
-  - match: { indices.my_index.phase: "warm" }
+  - match: { indices.my_index.step: "completed" }
+  - match: { indices.my_index.action: "completed" }
+  - match: { indices.my_index.phase: "completed" }
 
 ---
 "Test Invalid Move To Step With Incorrect Current Step":
@@ -102,7 +102,7 @@ teardown:
             action: "forcemerge"
             name: "forcemerge"
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "index [my_index] is not on current step [{\"phase\":\"warm\",\"action\":\"forcemerge\",\"name\":\"forcemerge\"}]" }
+  - match: { error.root_cause.0.reason: "index [my_index] is not on current step [{\"phase\":\"warm\",\"action\":\"forcemerge\",\"name\":\"forcemerge\"}], currently: [{\"phase\":\"new\",\"action\":\"complete\",\"name\":\"complete\"}]" }
 
 
   - do:

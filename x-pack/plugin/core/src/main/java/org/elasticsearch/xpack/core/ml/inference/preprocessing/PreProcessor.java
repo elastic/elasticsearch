@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
@@ -14,7 +15,7 @@ import java.util.Map;
  * Describes a pre-processor for a defined machine learning model
  * This processor should take a set of fields and return the modified set of fields.
  */
-public interface PreProcessor extends NamedXContentObject, NamedWriteable {
+public interface PreProcessor extends NamedXContentObject, NamedWriteable, Accountable {
 
     /**
      * Process the given fields and their values and return the modified map.
@@ -23,4 +24,9 @@ public interface PreProcessor extends NamedXContentObject, NamedWriteable {
      * @param fields The fields and their values to process
      */
     void process(Map<String, Object> fields);
+
+    /**
+     * @return Reverse lookup map to match resulting features to their original feature name
+     */
+    Map<String, String> reverseLookup();
 }

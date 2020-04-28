@@ -1,5 +1,8 @@
 [[analysis-kstem-tokenfilter]]
-=== KStem Token Filter
+=== KStem token filter
+++++
+<titleabbrev>KStem</titleabbrev>
+++++
 
 The `kstem` token filter is a high performance filter for english. All
 terms must already be lowercased (use `lowercase` filter) for this

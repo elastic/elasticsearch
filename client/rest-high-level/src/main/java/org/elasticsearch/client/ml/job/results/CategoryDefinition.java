@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -42,6 +43,8 @@ public class CategoryDefinition implements ToXContentObject {
     public static final ParseField MAX_MATCHING_LENGTH = new ParseField("max_matching_length");
     public static final ParseField EXAMPLES = new ParseField("examples");
     public static final ParseField GROK_PATTERN = new ParseField("grok_pattern");
+    public static final ParseField NUM_MATCHES = new ParseField("num_matches");
+    public static final ParseField PREFERRED_TO_CATEGORIES = new ParseField("preferred_to_categories");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("categories");
@@ -57,6 +60,8 @@ public class CategoryDefinition implements ToXContentObject {
         PARSER.declareLong(CategoryDefinition::setMaxMatchingLength, MAX_MATCHING_LENGTH);
         PARSER.declareStringArray(CategoryDefinition::setExamples, EXAMPLES);
         PARSER.declareString(CategoryDefinition::setGrokPattern, GROK_PATTERN);
+        PARSER.declareLong(CategoryDefinition::setNumMatches, NUM_MATCHES);
+        PARSER.declareLongArray(CategoryDefinition::setPreferredToCategories, PREFERRED_TO_CATEGORIES);
     }
 
     private final String jobId;
@@ -66,6 +71,8 @@ public class CategoryDefinition implements ToXContentObject {
     private long maxMatchingLength = 0L;
     private final Set<String> examples = new TreeSet<>();
     private String grokPattern;
+    private long numMatches = 0L;
+    private List<Long> preferredToCategories;
 
     CategoryDefinition(String jobId) {
         this.jobId = jobId;
@@ -128,6 +135,22 @@ public class CategoryDefinition implements ToXContentObject {
         this.grokPattern = grokPattern;
     }
 
+    public long getNumMatches() {
+        return numMatches;
+    }
+
+    public void setNumMatches(long numMatches) {
+        this.numMatches = numMatches;
+    }
+
+    public List<Long> getPreferredToCategories() {
+        return preferredToCategories;
+    }
+
+    public void setPreferredToCategories(List<Long> preferredToCategories) {
+        this.preferredToCategories = Collections.unmodifiableList(preferredToCategories);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -139,6 +162,10 @@ public class CategoryDefinition implements ToXContentObject {
         builder.field(EXAMPLES.getPreferredName(), examples);
         if (grokPattern != null) {
             builder.field(GROK_PATTERN.getPreferredName(), grokPattern);
+        }
+        builder.field(NUM_MATCHES.getPreferredName(), numMatches);
+        if (preferredToCategories != null && (preferredToCategories.isEmpty() == false)) {
+            builder.field(PREFERRED_TO_CATEGORIES.getPreferredName(), preferredToCategories);
         }
         builder.endObject();
         return builder;
@@ -154,16 +181,18 @@ public class CategoryDefinition implements ToXContentObject {
         }
         CategoryDefinition that = (CategoryDefinition) other;
         return Objects.equals(this.jobId, that.jobId)
-                && Objects.equals(this.categoryId, that.categoryId)
-                && Objects.equals(this.terms, that.terms)
-                && Objects.equals(this.regex, that.regex)
-                && Objects.equals(this.maxMatchingLength, that.maxMatchingLength)
-                && Objects.equals(this.examples, that.examples)
-                && Objects.equals(this.grokPattern, that.grokPattern);
+            && Objects.equals(this.categoryId, that.categoryId)
+            && Objects.equals(this.terms, that.terms)
+            && Objects.equals(this.regex, that.regex)
+            && Objects.equals(this.maxMatchingLength, that.maxMatchingLength)
+            && Objects.equals(this.examples, that.examples)
+            && Objects.equals(this.preferredToCategories, that.preferredToCategories)
+            && Objects.equals(this.numMatches, that.numMatches)
+            && Objects.equals(this.grokPattern, that.grokPattern);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, categoryId, terms, regex, maxMatchingLength, examples, grokPattern);
+        return Objects.hash(jobId, categoryId, terms, regex, maxMatchingLength, examples, preferredToCategories, numMatches, grokPattern);
     }
 }

@@ -35,6 +35,7 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -44,11 +45,12 @@ import org.elasticsearch.index.translog.Translog;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.Set;
 
 /**
  * Internal class that mocks a single doc read from the transaction log as a leaf reader.
  */
-final class TranslogLeafReader extends LeafReader {
+public final class TranslogLeafReader extends LeafReader {
 
     private final Translog.Index operation;
     private static final FieldInfo FAKE_SOURCE_FIELD
@@ -60,6 +62,7 @@ final class TranslogLeafReader extends LeafReader {
     private static final FieldInfo FAKE_ID_FIELD
         = new FieldInfo(IdFieldMapper.NAME, 3, false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(),
         0, 0, 0, false);
+    public static Set<String> ALL_FIELD_NAMES = Sets.newHashSet(FAKE_SOURCE_FIELD.name, FAKE_ROUTING_FIELD.name, FAKE_ID_FIELD.name);
 
     TranslogLeafReader(Translog.Index operation) {
         this.operation = operation;
@@ -161,7 +164,7 @@ final class TranslogLeafReader extends LeafReader {
             BytesRef bytesRef = Uid.encodeId(operation.id());
             final byte[] id = new byte[bytesRef.length];
             System.arraycopy(bytesRef.bytes, bytesRef.offset, id, 0, bytesRef.length);
-            visitor.stringField(FAKE_ID_FIELD, id);
+            visitor.binaryField(FAKE_ID_FIELD, id);
         }
     }
 

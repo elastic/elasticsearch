@@ -23,7 +23,9 @@ import org.apache.lucene.document.DoubleRange;
 import org.apache.lucene.document.FloatRange;
 import org.apache.lucene.document.InetAddressRange;
 import org.apache.lucene.document.IntRange;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.LongRange;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.PointRangeQuery;
@@ -54,7 +56,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
+        mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(
             INTEGER_RANGE_FIELD_NAME, "type=integer_range",
             LONG_RANGE_FIELD_NAME, "type=long_range",
             FLOAT_RANGE_FIELD_NAME, "type=float_range",
@@ -102,14 +104,29 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
         RangeFieldMapper.RangeFieldType type = (RangeFieldMapper.RangeFieldType) context.fieldMapper(DATE_RANGE_FIELD_NAME);
         DateMathParser parser = type.dateMathParser;
         Query query = new QueryStringQueryBuilder(DATE_RANGE_FIELD_NAME + ":[2010-01-01 TO 2018-01-01]").toQuery(createShardContext());
+        String lowerBoundExact = "2010-01-01T00:00:00.000";
+        String upperBoundExact = "2018-01-01T23:59:59.999";
         Query range = LongRange.newIntersectsQuery(DATE_RANGE_FIELD_NAME,
-            new long[]{ parser.parse("2010-01-01", () -> 0).toEpochMilli()},
-            new long[]{ parser.parse("2018-01-01", () -> 0).toEpochMilli()});
+            new long[]{ parser.parse(lowerBoundExact, () -> 0).toEpochMilli()},
+            new long[]{ parser.parse(upperBoundExact, () -> 0).toEpochMilli()});
         Query dv = RangeType.DATE.dvRangeQuery(DATE_RANGE_FIELD_NAME,
             BinaryDocValuesRangeQuery.QueryType.INTERSECTS,
-            parser.parse("2010-01-01", () -> 0).toEpochMilli(),
-            parser.parse("2018-01-01", () -> 0).toEpochMilli(), true, true);
+            parser.parse(lowerBoundExact, () -> 0).toEpochMilli(),
+            parser.parse(upperBoundExact, () -> 0).toEpochMilli(), true, true);
         assertEquals(new IndexOrDocValuesQuery(range, dv), query);
+
+        // also make sure the produced bounds are the same as on a regular `date` field
+        DateFieldMapper.DateFieldType dateType = (DateFieldMapper.DateFieldType) context.fieldMapper(DATE_FIELD_NAME);
+        parser = dateType.dateMathParser;
+        Query queryOnDateField = new QueryStringQueryBuilder(DATE_FIELD_NAME + ":[2010-01-01 TO 2018-01-01]").toQuery(createShardContext());
+        Query controlQuery = LongPoint.newRangeQuery(DATE_FIELD_NAME,
+                new long[]{ parser.parse(lowerBoundExact, () -> 0).toEpochMilli()},
+                new long[]{ parser.parse(upperBoundExact, () -> 0).toEpochMilli()});
+
+        Query controlDv = SortedNumericDocValuesField.newSlowRangeQuery(DATE_FIELD_NAME,
+                parser.parse(lowerBoundExact, () -> 0).toEpochMilli(),
+                parser.parse(upperBoundExact, () -> 0).toEpochMilli());
+        assertEquals(new IndexOrDocValuesQuery(controlQuery, controlDv), queryOnDateField);
     }
 
     public void testIPRangeQuery() throws Exception {

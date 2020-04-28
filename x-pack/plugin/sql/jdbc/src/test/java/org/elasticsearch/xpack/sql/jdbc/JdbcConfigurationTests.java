@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.client.SslConfig;
@@ -74,6 +73,23 @@ public class JdbcConfigurationTests extends ESTestCase {
         assertThat(ci.baseUri().toString(), is("http://a:1/"));
         assertThat(ci.debug(), is(true));
         assertThat(ci.debugOut(), is("jdbc.out"));
+    }
+
+    public void testDebugFlushAlways() throws Exception {
+        JdbcConfiguration ci = ci("jdbc:es://a:1/?debug=true&debug.flushAlways=false");
+        assertThat(ci.baseUri().toString(), is("http://a:1/"));
+        assertThat(ci.debug(), is(true));
+        assertThat(ci.flushAlways(), is(false));
+
+        ci = ci("jdbc:es://a:1/?debug=true&debug.flushAlways=true");
+        assertThat(ci.baseUri().toString(), is("http://a:1/"));
+        assertThat(ci.debug(), is(true));
+        assertThat(ci.flushAlways(), is(true));
+
+        ci = ci("jdbc:es://a:1/?debug=true");
+        assertThat(ci.baseUri().toString(), is("http://a:1/"));
+        assertThat(ci.debug(), is(true));
+        assertThat(ci.flushAlways(), is(false));
     }
 
     public void testTypeInParam() throws Exception {
@@ -258,8 +274,8 @@ public class JdbcConfigurationTests extends ESTestCase {
     }
 
     @SuppressForbidden(reason = "JDBC drivers allows logging to Sys.out")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41557")
     public void testDriverConfigurationWithSSLInURL() {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/41557", Constants.WINDOWS);
         Map<String, String> urlPropMap = sslProperties();
         String sslUrlProps = urlPropMap.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("&"));
 

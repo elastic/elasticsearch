@@ -10,26 +10,29 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestPostStartTrialLicense extends BaseRestHandler {
 
-    RestPostStartTrialLicense(RestController controller) {
-        controller.registerHandler(POST, "/_license/start_trial", this);
+    RestPostStartTrialLicense() {}
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(POST, "/_license/start_trial"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         PostStartTrialRequest startTrialRequest = new PostStartTrialRequest();
-        startTrialRequest.setType(request.param("type", "trial"));
+        startTrialRequest.setType(request.param("type", License.LicenseType.TRIAL.getTypeName()));
         startTrialRequest.acknowledge(request.paramAsBoolean("acknowledge", false));
         return channel -> client.execute(PostStartTrialAction.INSTANCE, startTrialRequest,
                 new RestBuilderListener<>(channel) {

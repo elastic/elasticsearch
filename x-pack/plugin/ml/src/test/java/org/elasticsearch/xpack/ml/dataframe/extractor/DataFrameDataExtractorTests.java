@@ -27,8 +27,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetectionTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
+import org.elasticsearch.xpack.ml.extractor.DocValueField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
+import org.elasticsearch.xpack.ml.extractor.SourceField;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -78,8 +80,8 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         indices = Arrays.asList("index-1", "index-2");
         query = QueryBuilders.matchAllQuery();
         extractedFields = new ExtractedFields(Arrays.asList(
-            ExtractedField.newField("field_1", Collections.singleton("keyword"), ExtractedField.ExtractionMethod.DOC_VALUE),
-            ExtractedField.newField("field_2", Collections.singleton("keyword"), ExtractedField.ExtractionMethod.DOC_VALUE)));
+            new DocValueField("field_1", Collections.singleton("keyword")),
+            new DocValueField("field_2", Collections.singleton("keyword"))), Collections.emptyMap());
         scrollSize = 1000;
         headers = Collections.emptyMap();
 
@@ -294,9 +296,10 @@ public class DataFrameDataExtractorTests extends ESTestCase {
     }
 
     public void testIncludeSourceIsFalseAndAtLeastOneSourceField() throws IOException {
+        // Explicit cast of ExtractedField args necessary for Eclipse due to https://bugs.eclipse.org/bugs/show_bug.cgi?id=530915
         extractedFields = new ExtractedFields(Arrays.asList(
-            ExtractedField.newField("field_1", Collections.singleton("keyword"), ExtractedField.ExtractionMethod.DOC_VALUE),
-            ExtractedField.newField("field_2", Collections.singleton("text"), ExtractedField.ExtractionMethod.SOURCE)));
+            (ExtractedField) new DocValueField("field_1", Collections.singleton("keyword")),
+            (ExtractedField) new SourceField("field_2", Collections.singleton("text"))), Collections.emptyMap());
 
         TestExtractor dataExtractor = createExtractor(false, false);
 
@@ -321,7 +324,79 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         assertThat(searchRequest, containsString("\"_source\":{\"includes\":[\"field_2\"],\"excludes\":[]}"));
     }
 
-    public void testMissingValues_GivenShouldNotInclude() throws IOException {
+    public void testCollectDataSummary_GivenAnalysisSupportsMissingFields() {
+        TestExtractor dataExtractor = createExtractor(true, true);
+
+        // First and only batch
+        SearchResponse response = createSearchResponse(Arrays.asList(1_1, 1_2), Arrays.asList(2_1, 2_2));
+        dataExtractor.setNextResponse(response);
+
+        DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
+
+        assertThat(dataSummary.rows, equalTo(2L));
+        assertThat(dataSummary.cols, equalTo(2));
+
+        assertThat(dataExtractor.capturedSearchRequests.size(), equalTo(1));
+        String searchRequest = dataExtractor.capturedSearchRequests.get(0).request().toString().replaceAll("\\s", "");
+        assertThat(searchRequest, containsString("\"query\":{\"match_all\":{\"boost\":1.0}}"));
+    }
+
+    public void testCollectDataSummary_GivenAnalysisDoesNotSupportMissingFields() {
+        TestExtractor dataExtractor = createExtractor(true, false);
+
+        // First and only batch
+        SearchResponse response = createSearchResponse(Arrays.asList(1_1, 1_2), Arrays.asList(2_1, 2_2));
+        dataExtractor.setNextResponse(response);
+
+        DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
+
+        assertThat(dataSummary.rows, equalTo(2L));
+        assertThat(dataSummary.cols, equalTo(2));
+
+        assertThat(dataExtractor.capturedSearchRequests.size(), equalTo(1));
+        String searchRequest = dataExtractor.capturedSearchRequests.get(0).request().toString().replaceAll("\\s", "");
+        assertThat(searchRequest, containsString(
+            "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},{\"bool\":{\"filter\":" +
+                "[{\"exists\":{\"field\":\"field_1\",\"boost\":1.0}},{\"exists\":{\"field\":\"field_2\",\"boost\":1.0}}]," +
+                "\"boost\":1.0}}],\"boost\":1.0}"));
+    }
+
+    public void testMissingValues_GivenSupported() throws IOException {
+        TestExtractor dataExtractor = createExtractor(true, true);
+
+        // First and only batch
+        SearchResponse response1 = createSearchResponse(Arrays.asList(1_1, null, 1_3), Arrays.asList(2_1, 2_2, 2_3));
+        dataExtractor.setNextResponse(response1);
+
+        // Empty
+        SearchResponse lastAndEmptyResponse = createEmptySearchResponse();
+        dataExtractor.setNextResponse(lastAndEmptyResponse);
+
+        assertThat(dataExtractor.hasNext(), is(true));
+
+        // First batch
+        Optional<List<DataFrameDataExtractor.Row>> rows = dataExtractor.next();
+        assertThat(rows.isPresent(), is(true));
+        assertThat(rows.get().size(), equalTo(3));
+
+        assertThat(rows.get().get(0).getValues(), equalTo(new String[] {"11", "21"}));
+        assertThat(rows.get().get(1).getValues()[0], equalTo(DataFrameDataExtractor.NULL_VALUE));
+        assertThat(rows.get().get(1).getValues()[1], equalTo("22"));
+        assertThat(rows.get().get(2).getValues(), equalTo(new String[] {"13", "23"}));
+
+        assertThat(rows.get().get(0).shouldSkip(), is(false));
+        assertThat(rows.get().get(1).shouldSkip(), is(false));
+        assertThat(rows.get().get(2).shouldSkip(), is(false));
+
+        assertThat(dataExtractor.hasNext(), is(true));
+
+        // Third batch should return empty
+        rows = dataExtractor.next();
+        assertThat(rows.isEmpty(), is(true));
+        assertThat(dataExtractor.hasNext(), is(false));
+    }
+
+    public void testMissingValues_GivenNotSupported() throws IOException {
         TestExtractor dataExtractor = createExtractor(true, false);
 
         // First and only batch
@@ -355,51 +430,18 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         assertThat(dataExtractor.hasNext(), is(false));
     }
 
-    public void testMissingValues_GivenShouldInclude() throws IOException {
-        TestExtractor dataExtractor = createExtractor(true, true);
-
-        // First and only batch
-        SearchResponse response1 = createSearchResponse(Arrays.asList(1_1, null, 1_3), Arrays.asList(2_1, 2_2, 2_3));
-        dataExtractor.setNextResponse(response1);
-
-        // Empty
-        SearchResponse lastAndEmptyResponse = createEmptySearchResponse();
-        dataExtractor.setNextResponse(lastAndEmptyResponse);
-
-        assertThat(dataExtractor.hasNext(), is(true));
-
-        // First batch
-        Optional<List<DataFrameDataExtractor.Row>> rows = dataExtractor.next();
-        assertThat(rows.isPresent(), is(true));
-        assertThat(rows.get().size(), equalTo(3));
-
-        assertThat(rows.get().get(0).getValues(), equalTo(new String[] {"11", "21"}));
-        assertThat(rows.get().get(1).getValues(), equalTo(new String[] {"", "22"}));
-        assertThat(rows.get().get(2).getValues(), equalTo(new String[] {"13", "23"}));
-
-        assertThat(rows.get().get(0).shouldSkip(), is(false));
-        assertThat(rows.get().get(1).shouldSkip(), is(false));
-        assertThat(rows.get().get(2).shouldSkip(), is(false));
-
-        assertThat(dataExtractor.hasNext(), is(true));
-
-        // Third batch should return empty
-        rows = dataExtractor.next();
-        assertThat(rows.isEmpty(), is(true));
-        assertThat(dataExtractor.hasNext(), is(false));
-    }
-
     public void testGetCategoricalFields() {
+        // Explicit cast of ExtractedField args necessary for Eclipse due to https://bugs.eclipse.org/bugs/show_bug.cgi?id=530915
         extractedFields = new ExtractedFields(Arrays.asList(
-            ExtractedField.newField("field_boolean", Collections.singleton("boolean"), ExtractedField.ExtractionMethod.DOC_VALUE),
-            ExtractedField.newField("field_float", Collections.singleton("float"), ExtractedField.ExtractionMethod.DOC_VALUE),
-            ExtractedField.newField("field_double", Collections.singleton("double"), ExtractedField.ExtractionMethod.DOC_VALUE),
-            ExtractedField.newField("field_byte", Collections.singleton("byte"), ExtractedField.ExtractionMethod.DOC_VALUE),
-            ExtractedField.newField("field_short", Collections.singleton("short"), ExtractedField.ExtractionMethod.DOC_VALUE),
-            ExtractedField.newField("field_integer", Collections.singleton("integer"), ExtractedField.ExtractionMethod.DOC_VALUE),
-            ExtractedField.newField("field_long", Collections.singleton("long"), ExtractedField.ExtractionMethod.DOC_VALUE),
-            ExtractedField.newField("field_keyword", Collections.singleton("keyword"), ExtractedField.ExtractionMethod.DOC_VALUE),
-            ExtractedField.newField("field_text", Collections.singleton("text"), ExtractedField.ExtractionMethod.SOURCE)));
+            (ExtractedField) new DocValueField("field_boolean", Collections.singleton("boolean")),
+            (ExtractedField) new DocValueField("field_float", Collections.singleton("float")),
+            (ExtractedField) new DocValueField("field_double", Collections.singleton("double")),
+            (ExtractedField) new DocValueField("field_byte", Collections.singleton("byte")),
+            (ExtractedField) new DocValueField("field_short", Collections.singleton("short")),
+            (ExtractedField) new DocValueField("field_integer", Collections.singleton("integer")),
+            (ExtractedField) new DocValueField("field_long", Collections.singleton("long")),
+            (ExtractedField) new DocValueField("field_keyword", Collections.singleton("keyword")),
+            (ExtractedField) new SourceField("field_text", Collections.singleton("text"))), Collections.emptyMap());
         TestExtractor dataExtractor = createExtractor(true, true);
 
         assertThat(dataExtractor.getCategoricalFields(OutlierDetectionTests.createRandom()), empty());
@@ -419,9 +461,9 @@ public class DataFrameDataExtractorTests extends ESTestCase {
             containsInAnyOrder("field_keyword", "field_text", "field_boolean"));
     }
 
-    private TestExtractor createExtractor(boolean includeSource, boolean includeRowsWithMissingValues) {
+    private TestExtractor createExtractor(boolean includeSource, boolean supportsRowsWithMissingValues) {
         DataFrameDataExtractorContext context = new DataFrameDataExtractorContext(
-            JOB_ID, extractedFields, indices, query, scrollSize, headers, includeSource, includeRowsWithMissingValues);
+            JOB_ID, extractedFields, indices, query, scrollSize, headers, includeSource, supportsRowsWithMissingValues);
         return new TestExtractor(client, context);
     }
 

@@ -44,7 +44,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
                 .path("/")
                 .build();
 
-        try (HttpClient httpClient = new HttpClient(Settings.EMPTY, new SSLService(environment.settings(), environment),
+        try (HttpClient httpClient = new HttpClient(Settings.EMPTY, new SSLService(environment),
             null, mockClusterService())) {
             long start = System.nanoTime();
 
@@ -67,7 +67,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
                 .build();
 
         try (HttpClient httpClient = new HttpClient(Settings.builder()
-            .put("xpack.http.default_read_timeout", "3s").build(), new SSLService(environment.settings(), environment),
+            .put("xpack.http.default_read_timeout", "3s").build(), new SSLService(environment),
             null, mockClusterService())) {
 
             long start = System.nanoTime();
@@ -91,7 +91,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
                 .build();
 
         try (HttpClient httpClient = new HttpClient(Settings.builder()
-            .put("xpack.http.default_read_timeout", "10s").build(), new SSLService(environment.settings(), environment),
+            .put("xpack.http.default_read_timeout", "10s").build(), new SSLService(environment),
             null, mockClusterService())) {
 
             long start = System.nanoTime();

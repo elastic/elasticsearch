@@ -31,8 +31,9 @@ NOTE: If you configure the local cluster as another remote in {es}, the
 `logstash_reader` role on your local cluster also needs to grant the
 `read_cross_cluster` privilege.
 
-. Assign your {kib} users the `kibana_user` role and your `logstash_reader`
-role.
+. Assign your {kib} users a role that grants
+{kibana-ref}/xpack-security-authorization.html[access to {kib}]
+as well as your `logstash_reader` role.
 
 . On the remote cluster, create a `logstash_reader` role that grants the
 `read_cross_cluster` privilege and `read` and `view_index_metadata` privileges

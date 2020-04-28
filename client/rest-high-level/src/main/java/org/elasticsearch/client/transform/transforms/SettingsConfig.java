@@ -33,10 +33,10 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public class SettingsConfig implements ToXContentObject {
 
     private static final ParseField MAX_PAGE_SEARCH_SIZE = new ParseField("max_page_search_size");
-    private static final ParseField REQUESTS_PER_SECOND = new ParseField("requests_per_second");
+    private static final ParseField DOCS_PER_SECOND = new ParseField("docs_per_second");
 
     private final Integer maxPageSearchSize;
-    private final Float requestsPerSecond;
+    private final Float docsPerSecond;
 
     private static final ConstructingObjectParser<SettingsConfig, Void> PARSER = new ConstructingObjectParser<>(
         "settings_config",
@@ -46,16 +46,16 @@ public class SettingsConfig implements ToXContentObject {
 
     static {
         PARSER.declareInt(optionalConstructorArg(), MAX_PAGE_SEARCH_SIZE);
-        PARSER.declareFloat(optionalConstructorArg(), REQUESTS_PER_SECOND);
+        PARSER.declareFloat(optionalConstructorArg(), DOCS_PER_SECOND);
     }
 
     public static SettingsConfig fromXContent(final XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    SettingsConfig(Integer maxPageSearchSize, Float requestsPerSecond) {
+    SettingsConfig(Integer maxPageSearchSize, Float docsPerSecond) {
         this.maxPageSearchSize = maxPageSearchSize;
-        this.requestsPerSecond = requestsPerSecond;
+        this.docsPerSecond = docsPerSecond;
     }
 
     @Override
@@ -64,8 +64,8 @@ public class SettingsConfig implements ToXContentObject {
         if (maxPageSearchSize != null) {
             builder.field(MAX_PAGE_SEARCH_SIZE.getPreferredName(), maxPageSearchSize);
         }
-        if (requestsPerSecond != null) {
-            builder.field(REQUESTS_PER_SECOND.getPreferredName(), requestsPerSecond);
+        if (docsPerSecond != null) {
+            builder.field(DOCS_PER_SECOND.getPreferredName(), docsPerSecond);
         }
         builder.endObject();
         return builder;
@@ -75,8 +75,8 @@ public class SettingsConfig implements ToXContentObject {
         return maxPageSearchSize;
     }
 
-    public Float getRequestsPerSecond() {
-        return requestsPerSecond;
+    public Float getDocsPerSecond() {
+        return docsPerSecond;
     }
 
     @Override
@@ -89,12 +89,12 @@ public class SettingsConfig implements ToXContentObject {
         }
 
         SettingsConfig that = (SettingsConfig) other;
-        return Objects.equals(maxPageSearchSize, that.maxPageSearchSize) && Objects.equals(requestsPerSecond, that.requestsPerSecond);
+        return Objects.equals(maxPageSearchSize, that.maxPageSearchSize) && Objects.equals(docsPerSecond, that.docsPerSecond);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxPageSearchSize, requestsPerSecond);
+        return Objects.hash(maxPageSearchSize, docsPerSecond);
     }
 
     public static Builder builder() {
@@ -103,7 +103,7 @@ public class SettingsConfig implements ToXContentObject {
 
     public static class Builder {
         private Integer maxPageSearchSize;
-        private Float requestsPerSecond;
+        private Float docsPerSecond;
 
         /**
          * Sets the paging maximum paging maxPageSearchSize that transform can use when
@@ -120,21 +120,21 @@ public class SettingsConfig implements ToXContentObject {
         }
 
         /**
-         * Sets the requests per second that transform can use when pulling the data from the source index.
+         * Sets the docs per second that transform can use when pulling the data from the source index.
          *
          * This setting throttles transform by issuing queries less often, however processing still happens in
          * batches. A value of 0 disables throttling (default).
          *
-         * @param requestsPerSecond Integer value
+         * @param docsPerSecond Integer value
          * @return the {@link Builder} with requestsPerSecond set.
          */
-        public Builder setRequestsPerSecond(Float requestsPerSecond) {
-            this.requestsPerSecond = requestsPerSecond;
+        public Builder setRequestsPerSecond(Float docsPerSecond) {
+            this.docsPerSecond = docsPerSecond;
             return this;
         }
 
         public SettingsConfig build() {
-            return new SettingsConfig(maxPageSearchSize, requestsPerSecond);
+            return new SettingsConfig(maxPageSearchSize, docsPerSecond);
         }
     }
 }

@@ -42,7 +42,7 @@ public class SettingsConfigTests extends AbstractResponseTestCase<
         SettingsConfig clientInstance
     ) {
         assertEquals(serverTestInstance.getMaxPageSearchSize(), clientInstance.getMaxPageSearchSize());
-        assertEquals(serverTestInstance.getRequestsPerSecond(), clientInstance.getRequestsPerSecond());
+        assertEquals(serverTestInstance.getDocsPerSecond(), clientInstance.getDocsPerSecond());
     }
 
     @Override

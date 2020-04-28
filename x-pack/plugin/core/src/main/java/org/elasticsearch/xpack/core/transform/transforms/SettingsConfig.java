@@ -32,33 +32,33 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             args -> new SettingsConfig((Integer) args[0], (Float) args[1])
         );
         parser.declareInt(optionalConstructorArg(), TransformField.MAX_PAGE_SEARCH_SIZE);
-        parser.declareFloat(optionalConstructorArg(), TransformField.REQUESTS_PER_SECOND);
+        parser.declareFloat(optionalConstructorArg(), TransformField.DOCS_PER_SECOND);
         return parser;
     }
 
     private final Integer maxPageSearchSize;
-    private final Float requestsPerSecond;
+    private final Float docsPerSecond;
 
     public SettingsConfig() {
         this(null, null);
     }
 
-    public SettingsConfig(Integer maxPageSearchSize, Float requestsPerSecond) {
+    public SettingsConfig(Integer maxPageSearchSize, Float docsPerSecond) {
         this.maxPageSearchSize = maxPageSearchSize;
-        this.requestsPerSecond = requestsPerSecond;
+        this.docsPerSecond = docsPerSecond;
     }
 
     public SettingsConfig(final StreamInput in) throws IOException {
         this.maxPageSearchSize = in.readOptionalInt();
-        this.requestsPerSecond = in.readOptionalFloat();
+        this.docsPerSecond = in.readOptionalFloat();
     }
 
     public Integer getMaxPageSearchSize() {
         return maxPageSearchSize;
     }
 
-    public Float getRequestsPerSecond() {
-        return requestsPerSecond;
+    public Float getDocsPerSecond() {
+        return docsPerSecond;
     }
 
     public boolean isValid() {
@@ -68,7 +68,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalInt(maxPageSearchSize);
-        out.writeOptionalFloat(requestsPerSecond);
+        out.writeOptionalFloat(docsPerSecond);
     }
 
     @Override
@@ -77,8 +77,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         if (maxPageSearchSize != null) {
             builder.field(TransformField.MAX_PAGE_SEARCH_SIZE.getPreferredName(), maxPageSearchSize);
         }
-        if (requestsPerSecond != null) {
-            builder.field(TransformField.REQUESTS_PER_SECOND.getPreferredName(), requestsPerSecond);
+        if (docsPerSecond != null) {
+            builder.field(TransformField.DOCS_PER_SECOND.getPreferredName(), docsPerSecond);
         }
         builder.endObject();
         return builder;
@@ -94,12 +94,12 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         }
 
         SettingsConfig that = (SettingsConfig) other;
-        return Objects.equals(maxPageSearchSize, that.maxPageSearchSize) && Objects.equals(requestsPerSecond, that.requestsPerSecond);
+        return Objects.equals(maxPageSearchSize, that.maxPageSearchSize) && Objects.equals(docsPerSecond, that.docsPerSecond);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxPageSearchSize, requestsPerSecond);
+        return Objects.hash(maxPageSearchSize, docsPerSecond);
     }
 
     public static SettingsConfig fromXContent(final XContentParser parser, boolean lenient) throws IOException {

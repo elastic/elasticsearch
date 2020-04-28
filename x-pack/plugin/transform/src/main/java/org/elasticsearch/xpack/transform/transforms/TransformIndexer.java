@@ -85,7 +85,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     protected final TransformConfigManager transformsConfigManager;
     private final CheckpointProvider checkpointProvider;
     private final TransformProgressGatherer progressGatherer;
-    private volatile float requestsPerSecond = -1;
+    private volatile float docsPerSecond = -1;
 
     protected final TransformAuditor auditor;
     protected final TransformContext context;
@@ -147,8 +147,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // give runState a default
         this.runState = RunState.APPLY_BUCKET_RESULTS;
 
-        if (transformConfig.getSettings() != null && transformConfig.getSettings().getRequestsPerSecond() != null) {
-            requestsPerSecond = transformConfig.getSettings().getRequestsPerSecond();
+        if (transformConfig.getSettings() != null && transformConfig.getSettings().getDocsPerSecond() != null) {
+            docsPerSecond = transformConfig.getSettings().getDocsPerSecond();
         }
     }
 
@@ -162,8 +162,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     @Override
-    protected float getMaximumRequestsPerSecond() {
-        return requestsPerSecond;
+    protected float getMaxDocsPerSecond() {
+        return docsPerSecond;
     }
 
     public TransformConfig getConfig() {
@@ -467,7 +467,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         auditor.info(transformConfig.getId(), "Transform settings have been updated.");
         logger.info("[{}] transform settings have been updated.");
 
-        requestsPerSecond = newSettings.getRequestsPerSecond() != null ? newSettings.getRequestsPerSecond() : -1;
+        docsPerSecond = newSettings.getDocsPerSecond() != null ? newSettings.getDocsPerSecond() : -1;
         if (newSettings.getMaxPageSearchSize() != null) {
             pageSize = newSettings.getMaxPageSearchSize();
         }

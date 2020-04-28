@@ -10,6 +10,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.NotProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor.UnaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.InProcessor;
@@ -119,7 +120,27 @@ public class InternalQlScriptUtils {
     //
     // Math
     //
+    public static Number add(Number left, Number right) {
+        return (Number) DefaultBinaryArithmeticOperation.ADD.apply(left, right);
+    }
+
+    public static Number div(Number left, Number right) {
+        return (Number) DefaultBinaryArithmeticOperation.DIV.apply(left, right);
+    }
+
+    public static Number mod(Number left, Number right) {
+        return (Number) DefaultBinaryArithmeticOperation.MOD.apply(left, right);
+    }
+
+    public static Number mul(Number left, Number right) {
+        return (Number) DefaultBinaryArithmeticOperation.MUL.apply(left, right);
+    }
+
     public static Number neg(Number value) {
         return UnaryArithmeticOperation.NEGATE.apply(value);
+    }
+
+    public static Number sub(Number left, Number right) {
+        return (Number) DefaultBinaryArithmeticOperation.SUB.apply(left, right);
     }
 }

@@ -213,6 +213,11 @@ public class Regression implements DataFrameAnalysis {
         return jobId + STATE_DOC_ID_SUFFIX;
     }
 
+    @Override
+    public List<String> getProgressPhases() {
+        return Collections.singletonList("analyzing");
+    }
+
     public static String extractJobIdFromStateDoc(String stateDocId) {
         int suffixIndex = stateDocId.lastIndexOf(STATE_DOC_ID_SUFFIX);
         return suffixIndex <= 0 ? null : stateDocId.substring(0, suffixIndex);

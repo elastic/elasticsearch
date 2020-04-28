@@ -245,7 +245,6 @@ public abstract class AbstractGeometryFieldMapper extends FieldMapper {
     @Override
     public void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-        AbstractGeometryFieldType ft = (AbstractGeometryFieldType)fieldType();
         if (includeDefaults || ignoreMalformed.explicit()) {
             builder.field(Names.IGNORE_MALFORMED.getPreferredName(), ignoreMalformed.value());
         }

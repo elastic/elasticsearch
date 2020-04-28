@@ -22,6 +22,8 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.F
 import org.elasticsearch.index.store.cache.TestUtils;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.IOException;
@@ -570,6 +572,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         final ShardId shardId = new ShardId("_name", "_uuid", 0);
         final AtomicLong fakeClock = new AtomicLong();
         final LongSupplier statsCurrentTimeNanos = () -> fakeClock.addAndGet(FAKE_CLOCK_ADVANCE_NANOS);
+        final ThreadPool threadPool = new TestThreadPool(getTestClass().getSimpleName());
 
         final Long seekingThreshold = randomBoolean() ? randomLongBetween(1L, fileContent.length) : null;
 
@@ -590,7 +593,8 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                 indexSettings,
                 statsCurrentTimeNanos,
                 cacheService,
-                createTempDir()
+                createTempDir(),
+                threadPool
             ) {
                 @Override
                 protected IndexInputStats createIndexInputStats(long fileLength) {
@@ -610,6 +614,8 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
             assertThat("BlobContainer should be loaded", directory.blobContainer(), notNullValue());
 
             test.apply(fileName, fileContent, directory);
+        } finally {
+            terminate(threadPool);
         }
     }
 }

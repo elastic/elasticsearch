@@ -228,7 +228,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
+        public void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, String source,
                                                  Consumer<Exception> onFailure) {
         }
 

@@ -267,9 +267,11 @@ public interface Repository extends LifecycleComponent {
      * cluster state.
      *
      * @param createUpdateTask function to supply cluster state update task
+     * @param source           the source of the cluster state update task
      * @param onFailure        error handler invoked on failure to get a consistent view of the current {@link RepositoryData}
      */
-    void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, Consumer<Exception> onFailure);
+    void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, String source,
+                                      Consumer<Exception> onFailure);
 
     /**
      * Hook that allows a repository to filter the user supplied snapshot metadata in {@link SnapshotsInProgress.Entry#userMetadata()}

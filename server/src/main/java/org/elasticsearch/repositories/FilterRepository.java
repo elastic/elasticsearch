@@ -149,9 +149,9 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
+    public void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, String source,
                                              Consumer<Exception> onFailure) {
-        in.executeConsistentStateUpdate(createUpdateTask, onFailure);
+        in.executeConsistentStateUpdate(createUpdateTask, source, onFailure);
     }
 
     @Override

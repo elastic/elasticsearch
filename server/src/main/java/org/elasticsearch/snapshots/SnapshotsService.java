@@ -1095,7 +1095,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     try {
                         repositoriesService.repository(repositoryName).executeConsistentStateUpdate(repositoryData ->
                                 createDeleteStateUpdate(matchingSnapshotIds(repositoryData, snapshotNames, repositoryName), repositoryName,
-                                        repositoryData.getGenId(), Priority.NORMAL, listener), listener::onFailure);
+                                        repositoryData.getGenId(), request.masterNodeTimeout(), Priority.NORMAL, listener),
+                                        "delete completed snapshots", listener::onFailure);
                     } catch (RepositoryMissingException e) {
                         listener.onFailure(e);
                     }
@@ -1107,7 +1108,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         logger.debug("deleted snapshot completed - deleting files");
                         clusterService.submitStateUpdateTask("delete snapshot",
                                 createDeleteStateUpdate(Collections.singletonList(result.v2().snapshotId()), repositoryName,
-                                        result.v1().getGenId(), Priority.IMMEDIATE, listener));
+                                        result.v1().getGenId(), null, Priority.IMMEDIATE, listener));
                     },
                     e -> {
                         if (abortedDuringInit) {
@@ -1179,7 +1180,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     private ClusterStateUpdateTask createDeleteStateUpdate(List<SnapshotId> snapshotIds, String repoName, long repositoryStateId,
-                                                           Priority priority, ActionListener<Void> listener) {
+                                                           @Nullable TimeValue timeout, Priority priority, ActionListener<Void> listener) {
         // Short circuit to noop state update if there isn't anything to delete
         if (snapshotIds.isEmpty()) {
             return new ClusterStateUpdateTask() {
@@ -1196,6 +1197,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     listener.onResponse(null);
+                }
+
+                @Override
+                public TimeValue timeout() {
+                    return timeout;
                 }
             };
         }

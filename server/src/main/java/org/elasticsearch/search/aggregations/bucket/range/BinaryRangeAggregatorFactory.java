@@ -23,9 +23,12 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -34,8 +37,11 @@ import java.util.Map;
 
 import static org.elasticsearch.usage.UsageService.OTHER_SUBTYPE;
 
-public class BinaryRangeAggregatorFactory
-        extends ValuesSourceAggregatorFactory {
+public class BinaryRangeAggregatorFactory extends ValuesSourceAggregatorFactory {
+
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(IpRangeAggregationBuilder.NAME, CoreValuesSourceType.IP, (IpRangeAggregatorSupplier) BinaryRangeAggregator::new);
+    }
 
     private final List<BinaryRangeAggregator.Range> ranges;
     private final boolean keyed;
@@ -62,17 +68,15 @@ public class BinaryRangeAggregatorFactory
                                           SearchContext searchContext, Aggregator parent,
                                           boolean collectsFromSingleBucket,
                                           Map<String, Object> metadata) throws IOException {
-        if (valuesSource instanceof ValuesSource.Bytes == false) {
-            throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
-                this.name());
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+            IpRangeAggregationBuilder.NAME);
+
+        if (aggregatorSupplier instanceof IpRangeAggregatorSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected IpRangeAggregatorSupplier, found [" +
+                aggregatorSupplier.getClass().toString() + "]");
         }
-        return new BinaryRangeAggregator(name, factories, (ValuesSource.Bytes) valuesSource, config.format(),
+        return ((IpRangeAggregatorSupplier) aggregatorSupplier).build(name, factories, valuesSource, config.format(),
                 ranges, keyed, searchContext, parent, metadata);
     }
 
-    @Override
-    public String getStatsSubtype() {
-        // IPRange doesn't register itself correctly
-        return OTHER_SUBTYPE;
-    }
 }

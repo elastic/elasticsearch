@@ -35,6 +35,8 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.function.LongSupplier;
 
@@ -42,6 +44,7 @@ import java.util.function.LongSupplier;
  * {@link CoreValuesSourceType} holds the {@link ValuesSourceType} implementations for the core aggregations package.
  */
 public enum CoreValuesSourceType implements ValuesSourceType {
+
     NUMERIC() {
         @Override
         public ValuesSource getEmpty() {
@@ -292,4 +295,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
     public String typeName() {
         return value();
     }
+
+    /** List containing all members of the enumeration. */
+    public static List<ValuesSourceType> ALL_CORE = Arrays.asList(CoreValuesSourceType.values());
 }

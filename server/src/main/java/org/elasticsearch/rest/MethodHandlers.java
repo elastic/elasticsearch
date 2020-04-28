@@ -74,7 +74,9 @@ final class MethodHandlers {
     @Nullable
     RestHandler getHandler(RestRequest.Method method, Version version) {
         Map<Version, RestHandler> versionToHandlers = methodHandlers.get(method);
-
+        if (versionToHandlers == null) {
+            return null; //method not found
+        }
         final RestHandler handler = versionToHandlers.get(version);
         return handler != null || version.equals(Version.CURRENT) ? handler : versionToHandlers.get(Version.CURRENT);
     }

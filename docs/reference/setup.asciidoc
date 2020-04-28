@@ -1,5 +1,5 @@
 [[setup]]
-= Set up Elasticsearch
+= Set up {es}
 
 [partintro]
 --
@@ -64,6 +64,8 @@ include::setup/logging-config.asciidoc[]
 include::settings/ml-settings.asciidoc[]
 
 include::settings/monitoring-settings.asciidoc[]
+
+include::modules/network.asciidoc[]
 
 include::modules/indices/query_cache.asciidoc[]
 

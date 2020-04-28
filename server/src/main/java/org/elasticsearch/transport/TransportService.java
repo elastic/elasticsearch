@@ -694,6 +694,15 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
                 final String executor = lifecycle.stoppedOrClosed() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
                 threadPool.executor(executor).execute(new AbstractRunnable() {
                     @Override
+                    public void onRejection(Exception e) {
+                        // if we get rejected during node shutdown we don't wanna bubble it up
+                        logger.debug(
+                            () -> new ParameterizedMessage(
+                                "failed to notify response handler on rejection, action: {}",
+                                contextToNotify.action()),
+                            e);
+                    }
+                    @Override
                     public void onFailure(Exception e) {
                         logger.warn(
                             () -> new ParameterizedMessage(

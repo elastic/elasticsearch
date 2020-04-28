@@ -67,8 +67,11 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
 
     @Override
     public synchronized void accept(ReplicationGroup replicationGroup) {
-        Set<String> trackedAllocationIds = replicationGroup.getTrackedAllocationIds();
+        acceptNewTrackedAllocationIds(replicationGroup.getTrackedAllocationIds());
+    }
 
+    // Visible for testing
+    synchronized void acceptNewTrackedAllocationIds(Set<String> trackedAllocationIds) {
         for (String targetAllocationId : trackedAllocationIds) {
             onGoingReplicationActions.putIfAbsent(targetAllocationId, ConcurrentCollections.newConcurrentSet());
         }

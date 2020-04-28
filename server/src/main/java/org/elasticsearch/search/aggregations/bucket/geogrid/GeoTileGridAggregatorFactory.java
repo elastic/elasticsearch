@@ -90,8 +90,8 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
             requiredSize, shardSize, searchContext, parent, metadata);
     }
 
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(GeoTileGridAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(GeoTileGridAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
             (GeoGridAggregatorSupplier) (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
                                          aggregationContext, parent, metadata) -> {
                 CellIdSource cellIdSource = new CellIdSource((ValuesSource.GeoPoint) valuesSource, precision, geoBoundingBox,

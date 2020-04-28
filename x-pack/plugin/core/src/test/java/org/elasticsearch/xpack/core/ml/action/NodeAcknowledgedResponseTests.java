@@ -6,11 +6,10 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-public class NodeAcknowledgedResponseTests extends AbstractBWCWireSerializationTestCase<NodeAcknowledgedResponse> {
+public class NodeAcknowledgedResponseTests extends AbstractWireSerializingTestCase<NodeAcknowledgedResponse> {
 
     @Override
     protected NodeAcknowledgedResponse createTestInstance() {
@@ -26,16 +25,6 @@ public class NodeAcknowledgedResponseTests extends AbstractBWCWireSerializationT
     protected NodeAcknowledgedResponse mutateInstance(NodeAcknowledgedResponse instance) {
         if (instance.getNode().isEmpty()) {
             return new NodeAcknowledgedResponse(true, randomAlphaOfLength(10));
-        } else {
-            return new NodeAcknowledgedResponse(true, "");
-        }
-    }
-
-    @Override
-    protected NodeAcknowledgedResponse mutateInstanceForVersion(NodeAcknowledgedResponse instance, Version version) {
-        // TODO change in backport
-        if (version.onOrAfter(Version.V_8_0_0)) {
-            return instance;
         } else {
             return new NodeAcknowledgedResponse(true, "");
         }

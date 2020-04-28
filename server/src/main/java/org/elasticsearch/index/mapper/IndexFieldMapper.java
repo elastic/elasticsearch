@@ -115,7 +115,6 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValuesSourceType getValuesSourceType() {
-            // TODO: Should Index fields be aggregatable?  What even is an IndexField?
             return CoreValuesSourceType.BYTES;
         }
     }

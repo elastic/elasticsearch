@@ -37,8 +37,13 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
 
     private final ValuesSource valuesSource;
 
-    public MissingAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
-            SearchContext aggregationContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
+    public MissingAggregator(
+            String name,
+            AggregatorFactories factories,
+            ValuesSource valuesSource,
+            SearchContext aggregationContext,
+            Aggregator parent,
+            Map<String, Object> metadata) throws IOException {
         super(name, factories, aggregationContext, parent, metadata);
         this.valuesSource = valuesSource;
     }

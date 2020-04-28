@@ -568,6 +568,7 @@ stringContains(<source>, <substring>)
 ----
 
 *Parameters*
+
 `<source>`::
 (Required, string or `null`)
 Source string to search. If `null`, the function returns `null`.

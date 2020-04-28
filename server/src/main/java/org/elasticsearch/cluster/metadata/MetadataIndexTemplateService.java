@@ -433,8 +433,8 @@ public class MetadataIndexTemplateService {
      * Return a map of v2 template names to their index patterns for v2 templates that would overlap
      * with the given template's index patterns.
      */
-    static Map<String, List<String>> findConflictingV2Templates(final ClusterState state, final String candidateName,
-                                                                final List<String> indexPatterns) {
+    public static Map<String, List<String>> findConflictingV2Templates(final ClusterState state, final String candidateName,
+                                                                       final List<String> indexPatterns) {
         return findConflictingV2Templates(state, candidateName, indexPatterns, false, null);
     }
 

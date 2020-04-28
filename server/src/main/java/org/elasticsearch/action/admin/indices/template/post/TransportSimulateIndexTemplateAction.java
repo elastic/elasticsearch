@@ -62,6 +62,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.resolveV2Mappings;
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV1Templates;
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV2Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
@@ -153,12 +155,13 @@ public class TransportSimulateIndexTemplateAction
             IndexTemplateV2 templateV2 = simulateOnClusterState.metadata().templatesV2().get(matchingTemplate);
             assert templateV2 != null : "the matched template must exist";
 
-            Map<String, List<String>> conflictingV1Templates =
-                MetadataIndexTemplateService.findConflictingV1Templates(simulateOnClusterState
-                    , matchingTemplate, templateV2.indexPatterns());
+            Map<String, List<String>> overlapping = findConflictingV1Templates(simulateOnClusterState, matchingTemplate,
+                templateV2.indexPatterns());
+            overlapping.putAll(findConflictingV2Templates(simulateOnClusterState, matchingTemplate, templateV2.indexPatterns()));
+
             Template template = new Template(settings, mappingsJson == null ? null : new CompressedXContent(mappingsJson),
                 aliases.stream().collect(Collectors.toMap(AliasMetadata::getAlias, Function.identity())));
-            listener.onResponse(new SimulateIndexTemplateResponse(template, conflictingV1Templates));
+            listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
         } finally {
             if (index != null) {
                 indicesService.removeIndex(index, NO_LONGER_ASSIGNED, "created to validate template aliases");

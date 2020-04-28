@@ -41,7 +41,7 @@
       allowed_warnings:
         - "index template [test] has index patterns [te*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test] will take precedence during new index creation"
       indices.put_index_template:
-        name: test
+        name: existing_test
         body:
           index_patterns: te*
           priority: 10
@@ -67,7 +67,7 @@
               test_alias: {}
 
   - match: {template.settings.index.blocks.write: "true"}
-  - match: {overlapping: {}}
+  - match: {overlapping: {existing_test: ["te*"]}}
   - length: {template.aliases: 1}
   - is_true: template.aliases.test_alias
 
@@ -118,13 +118,31 @@
 
   - do:
       allowed_warnings:
-        - "index template [test] has index patterns [te*] matching patterns from existing older templates [v1_template] with patterns
-        (v1_template => [t*, t1*]); this template [test] will take precedence during new index creation"
+        - "index template [v2_template] has index patterns [te*] matching patterns from existing older templates [v1_template] with patterns
+        (v1_template => [t*, t1*]); this template [v2_template] will take precedence during new index creation"
       indices.put_index_template:
-        name: test
+        name: v2_template
         body:
           index_patterns: te*
           priority: 10
+          template:
+            settings:
+              number_of_shards:   10
+              number_of_replicas: 2
+            mappings:
+              properties:
+                field:
+                  type: text
+
+  - do:
+      allowed_warnings:
+        - "index template [winning_v2_template] has index patterns [te*] matching patterns from existing older templates [v1_template] with patterns
+        (v1_template => [t*, t1*]); this template [winning_v2_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: winning_v2_template
+        body:
+          index_patterns: te*
+          priority: 20
           template:
             settings:
               number_of_shards:   1
@@ -141,4 +159,4 @@
   - match: {template.settings.index.number_of_shards: "1"}
   - match: {template.settings.index.number_of_replicas: "0"}
   - match: {template.mappings._doc.properties.field.type: "keyword"}
-  - match: {overlapping: {v1_template: ["t*", "t1*"]}}
+  - match: {overlapping: {v1_template: ["t*", "t1*"], v2_template: ["te*"]}}

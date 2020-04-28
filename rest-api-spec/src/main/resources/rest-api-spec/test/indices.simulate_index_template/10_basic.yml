@@ -67,7 +67,8 @@
               test_alias: {}
 
   - match: {template.settings.index.blocks.write: "true"}
-  - match: {overlapping: {existing_test: ["te*"]}}
+  - match: {overlapping.0.name: existing_test}
+  - match: {overlapping.0.index_patterns: ["te*"]}
   - length: {template.aliases: 1}
   - is_true: template.aliases.test_alias
 
@@ -159,4 +160,7 @@
   - match: {template.settings.index.number_of_shards: "1"}
   - match: {template.settings.index.number_of_replicas: "0"}
   - match: {template.mappings._doc.properties.field.type: "keyword"}
-  - match: {overlapping: {v1_template: ["t*", "t1*"], v2_template: ["te*"]}}
+  - match: {overlapping.0.name: v1_template}
+  - match: {overlapping.0.index_patterns: ["t*", "t1*"]}
+  - match: {overlapping.1.name: v2_template}
+  - match: {overlapping.1.index_patterns: ["te*"]}

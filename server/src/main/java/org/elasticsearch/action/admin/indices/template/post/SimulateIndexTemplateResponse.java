@@ -41,6 +41,8 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
 
     private static final ParseField TEMPLATE = new ParseField("template");
     private static final ParseField OVERLAPPING = new ParseField("overlapping");
+    private static final ParseField NAME = new ParseField("name");
+    private static final ParseField INDEX_PATTERNS = new ParseField("index_patterns");
 
     @Nullable
     // the resolved settings, mappings and aliases for the matched templates, if any
@@ -92,7 +94,14 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
             builder.field(TEMPLATE.getPreferredName(), this.resolvedTemplate);
         }
         if (this.overlappingTemplates != null) {
-            builder.field(OVERLAPPING.getPreferredName(), overlappingTemplates);
+            builder.startArray(OVERLAPPING.getPreferredName());
+            for (Map.Entry<String, List<String>> entry : overlappingTemplates.entrySet()) {
+                builder.startObject();
+                builder.field(NAME.getPreferredName(), entry.getKey());
+                builder.field(INDEX_PATTERNS.getPreferredName(), entry.getValue());
+                builder.endObject();
+            }
+            builder.endArray();
         }
         builder.endObject();
         return builder;

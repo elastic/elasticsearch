@@ -14,10 +14,16 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.CardinalityAggregator;
+import org.elasticsearch.search.aggregations.metrics.CardinalityAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregatorSupplier;
+import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ValueCountAggregator;
+import org.elasticsearch.search.aggregations.metrics.ValueCountAggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
@@ -68,8 +74,12 @@ public class SpatialPlugin extends GeoPlugin implements MapperPlugin, SearchPlug
 
     @Override
     public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
-        return org.elasticsearch.common.collect.List.of(this::registerGeoShapeBoundsAggregator,
-            this::registerGeoShapeCentroidAggregator);
+        return org.elasticsearch.common.collect.List.of(
+            this::registerGeoShapeBoundsAggregator,
+            this::registerGeoShapeCentroidAggregator,
+            SpatialPlugin::registerValueCountAggregator,
+            SpatialPlugin::registerCardinalityAggregator
+        );
     }
 
     @Override
@@ -88,10 +98,21 @@ public class SpatialPlugin extends GeoPlugin implements MapperPlugin, SearchPlug
         builder.register(GeoCentroidAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (GeoCentroidAggregatorSupplier) (name, aggregationContext, parent, valuesSource, metadata)
                 -> {
-            if (getLicenseState().isAllowed(XPackLicenseState.Feature.SPATIAL_GEO_CENTROID)) {
-                return new GeoShapeCentroidAggregator(name, aggregationContext, parent, (GeoShapeValuesSource) valuesSource, metadata);
-            }
+                if (getLicenseState().isAllowed(XPackLicenseState.Feature.SPATIAL_GEO_CENTROID)) {
+                    return new GeoShapeCentroidAggregator(name, aggregationContext, parent, (GeoShapeValuesSource) valuesSource, metadata);
+                }
                 throw LicenseUtils.newComplianceException("geo_centroid aggregation on geo_shape fields");
             });
+    }
+
+    public static void registerValueCountAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(ValueCountAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
+            (ValueCountAggregatorSupplier) ValueCountAggregator::new
+        );
+    }
+
+    public static void registerCardinalityAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(CardinalityAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
+            (CardinalityAggregatorSupplier) CardinalityAggregator::new);
     }
 }

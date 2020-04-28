@@ -220,7 +220,7 @@ public final class AutoCreateAction extends ActionType<AutoCreateAction.Response
 
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
-                        return autoCreate(request, result, currentState, createIndexService);
+                        return autoCreate(request, result, currentState, createIndexService, indexNameExpressionResolver);
                     }
 
                     @Override
@@ -239,8 +239,10 @@ public final class AutoCreateAction extends ActionType<AutoCreateAction.Response
     static ClusterState autoCreate(Request request,
                                    Map<String, Exception> result,
                                    ClusterState currentState,
-                                   MetadataCreateIndexService createIndexService) {
+                                   MetadataCreateIndexService createIndexService,
+                                   IndexNameExpressionResolver resolver) {
         for (String indexName : request.names) {
+            indexName = resolver.resolveDateMathExpression(indexName);
             CreateIndexClusterStateUpdateRequest req = new CreateIndexClusterStateUpdateRequest(request.cause,
                 indexName, indexName).masterNodeTimeout(request.masterNodeTimeout())
                 .preferV2Templates(request.preferV2Templates);

@@ -24,10 +24,12 @@ import org.elasticsearch.action.admin.indices.create.AutoCreateAction.Request;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -47,15 +49,22 @@ import static org.mockito.Mockito.when;
 
 public class AutoCreateActionTests extends ESTestCase {
 
+    private MetadataCreateIndexService mcis;
+    private IndexNameExpressionResolver resolver;
+
+    @Before
+    public void setup() {
+        mcis = mock(MetadataCreateIndexService.class);
+        resolver = new IndexNameExpressionResolver();
+    }
+
     public void testAutoCreate() throws Exception {
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
         Request request = new Request(Set.of("index1", "index2", "index3"), "reason", randomBoolean() ? null : randomBoolean());
-
-        MetadataCreateIndexService mcis = mock(MetadataCreateIndexService.class);
         expectApplyCreateIndexRequest(mcis, request, Set.of());
 
         Map<String, Exception> result = new HashMap<>();
-        cs = AutoCreateAction.autoCreate(request, result, cs, mcis);
+        cs = AutoCreateAction.autoCreate(request, result, cs, mcis, resolver);
         assertThat(cs.metadata().indices().size(), equalTo(3));
         assertThat(cs.metadata().index("index1"), notNullValue());
         assertThat(cs.metadata().index("index2"), notNullValue());
@@ -82,12 +91,10 @@ public class AutoCreateActionTests extends ESTestCase {
                 .numberOfReplicas(1)
                 .build(), false)).build();
         Request request = new Request(Set.of("index1", "index2", "index3"), "reason", randomBoolean() ? null : randomBoolean());
-
-        MetadataCreateIndexService mcis = mock(MetadataCreateIndexService.class);
         expectApplyCreateIndexRequest(mcis, request, Set.of());
 
         Map<String, Exception> result = new HashMap<>();
-        cs = AutoCreateAction.autoCreate(request, result, cs, mcis);
+        cs = AutoCreateAction.autoCreate(request, result, cs, mcis, resolver);
         assertThat(cs.metadata().indices().size(), equalTo(3));
         assertThat(cs.metadata().index("index1"), notNullValue());
         assertThat(cs.metadata().index("index2"), notNullValue());
@@ -107,12 +114,10 @@ public class AutoCreateActionTests extends ESTestCase {
     public void testAutoCreateFailure() throws Exception {
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
         Request request = new Request(Set.of("index1", "index2", "index3"), "reason", randomBoolean() ? null : randomBoolean());
-
-        MetadataCreateIndexService mcis = mock(MetadataCreateIndexService.class);
         expectApplyCreateIndexRequest(mcis, request, Set.of("index2"));
 
         Map<String, Exception> result = new HashMap<>();
-        cs = AutoCreateAction.autoCreate(request, result, cs, mcis);
+        cs = AutoCreateAction.autoCreate(request, result, cs, mcis, resolver);
         assertThat(cs.metadata().indices().size(), equalTo(2));
         assertThat(cs.metadata().index("index1"), notNullValue());
         assertThat(cs.metadata().index("index2"), nullValue());

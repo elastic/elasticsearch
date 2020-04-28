@@ -12,7 +12,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
@@ -24,7 +23,7 @@ public class MlAutoUpdateService implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(MlAutoUpdateService.class);
 
     public interface UpdateAction {
-        boolean minNodeSupported(Version minNodeVersion);
+        boolean isMinNodeVersionSupported(Version minNodeVersion);
         String getName();
         void runUpdate();
     }
@@ -34,8 +33,7 @@ public class MlAutoUpdateService implements ClusterStateListener {
     private final Set<String> completedUpdates;
     private final ThreadPool threadPool;
 
-    public MlAutoUpdateService(ThreadPool threadPool, ClusterService clusterService, List<UpdateAction> updateActions) {
-        clusterService.addListener(this);
+    public MlAutoUpdateService(ThreadPool threadPool, List<UpdateAction> updateActions) {
         this.updateActions = updateActions;
         this.completedUpdates = ConcurrentHashMap.newKeySet();
         this.currentlyUpdating = ConcurrentHashMap.newKeySet();
@@ -50,7 +48,7 @@ public class MlAutoUpdateService implements ClusterStateListener {
 
         Version minNodeVersion = event.state().getNodes().getMinNodeVersion();
         final List<UpdateAction> toRun = updateActions.stream()
-            .filter(action -> action.minNodeSupported(minNodeVersion))
+            .filter(action -> action.isMinNodeVersionSupported(minNodeVersion))
             .filter(action -> completedUpdates.contains(action.getName()) == false)
             .filter(action -> currentlyUpdating.add(action.getName()))
             .collect(Collectors.toList());

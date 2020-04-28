@@ -13,8 +13,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -84,12 +82,8 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
         assertThat(exceptionHolder.get(), is(nullValue()));
         client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
 
-        ClusterService clusterService = new ClusterService(Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            client().threadPool());
         DatafeedConfigAutoUpdater autoUpdater = new DatafeedConfigAutoUpdater(datafeedConfigProvider);
         MlAutoUpdateService mlAutoUpdateService = new MlAutoUpdateService(client().threadPool(),
-            clusterService,
             Collections.singletonList(autoUpdater));
 
         ClusterChangedEvent event = new ClusterChangedEvent("test",

@@ -682,8 +682,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
             new MlConfigMigrator(settings, client, clusterService, indexNameExpressionResolver), clusterService);
 
         MlAutoUpdateService mlAutoUpdateService = new MlAutoUpdateService(threadPool,
-            clusterService,
             List.of(new DatafeedConfigAutoUpdater(datafeedConfigProvider)));
+        clusterService.addListener(mlAutoUpdateService);
         // this object registers as a license state listener, and is never removed, so there's no need to retain another reference to it
         final InvalidLicenseEnforcer enforcer =
                 new InvalidLicenseEnforcer(getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);

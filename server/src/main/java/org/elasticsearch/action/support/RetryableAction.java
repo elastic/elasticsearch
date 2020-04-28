@@ -82,8 +82,8 @@ public abstract class RetryableAction<Response> {
             if (localRetryTask != null) {
                 localRetryTask.cancel();
             }
-            finalListener.onFailure(e);
             onFinished();
+            finalListener.onFailure(e);
         }
     }
 
@@ -131,8 +131,8 @@ public abstract class RetryableAction<Response> {
         @Override
         public void onResponse(Response response) {
             if (isDone.compareAndSet(false, true)) {
-                finalListener.onResponse(response);
                 onFinished();
+                finalListener.onResponse(response);
             }
         }
 
@@ -145,8 +145,8 @@ public abstract class RetryableAction<Response> {
                         TimeValue.timeValueMillis(elapsedMillis)), e);
                     addException(e);
                     if (isDone.compareAndSet(false, true)) {
-                        finalListener.onFailure(buildFinalException());
                         onFinished();
+                        finalListener.onFailure(buildFinalException());
                     }
                 } else {
                     addException(e);
@@ -164,8 +164,8 @@ public abstract class RetryableAction<Response> {
             } else {
                 addException(e);
                 if (isDone.compareAndSet(false,true)) {
-                    finalListener.onFailure(buildFinalException());
                     onFinished();
+                    finalListener.onFailure(buildFinalException());
                 }
             }
         }

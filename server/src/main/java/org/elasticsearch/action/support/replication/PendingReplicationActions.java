@@ -95,6 +95,6 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
 
         threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> toCancel.stream()
             .flatMap(Collection::stream)
-            .forEach(action -> action.cancel(new IndexShardClosedException(shardId))));
+            .forEach(action -> action.cancel(new IndexShardClosedException(shardId, "Primary closed."))));
     }
 }

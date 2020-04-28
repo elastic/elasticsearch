@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
@@ -84,6 +85,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     protected final TransformConfigManager transformsConfigManager;
     private final CheckpointProvider checkpointProvider;
     private final TransformProgressGatherer progressGatherer;
+    private volatile float requestsPerSecond = -1;
 
     protected final TransformAuditor auditor;
     protected final TransformContext context;
@@ -97,7 +99,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private final Map<String, String> fieldMappings;
 
     private Pivot pivot;
-    private int pageSize = 0;
+    private volatile int pageSize = 0;
     private long logEvery = 1;
     private long logCount = 0;
     private volatile TransformCheckpoint lastCheckpoint;
@@ -144,6 +146,10 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         // give runState a default
         this.runState = RunState.APPLY_BUCKET_RESULTS;
+
+        if (transformConfig.getSettings() != null && transformConfig.getSettings().getRequestsPerSecond() != null) {
+            requestsPerSecond = transformConfig.getSettings().getRequestsPerSecond();
+        }
     }
 
     public int getPageSize() {
@@ -153,6 +159,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     @Override
     protected String getJobId() {
         return transformConfig.getId();
+    }
+
+    @Override
+    protected float getMaximumRequestsPerSecond() {
+        return requestsPerSecond;
     }
 
     public TransformConfig getConfig() {
@@ -445,6 +456,20 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
 
         return super.maybeTriggerAsyncJob(now);
+    }
+
+    /**
+     * Handle new settings at runtime, this is triggered by a call to _transform/id/_update
+     *
+     * @param newSettings The new settings that should be applied
+     */
+    public void applyNewSettings(SettingsConfig newSettings) {
+        requestsPerSecond = newSettings.getRequestsPerSecond() != null ? newSettings.getRequestsPerSecond() : -1;
+        if (newSettings.getMaxPageSearchSize() != null) {
+            pageSize = newSettings.getMaxPageSearchSize();
+        }
+
+        rethrottle();
     }
 
     @Override

@@ -27,10 +27,7 @@ import java.io.IOException;
 public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig> {
 
     public static SettingsConfig randomSettingsConfig() {
-        return new SettingsConfig(
-            randomBoolean() ? null : randomIntBetween(10, 10_000),
-            randomBoolean() ? null : randomFloat()
-        );
+        return new SettingsConfig(randomBoolean() ? null : randomIntBetween(10, 10_000), randomBoolean() ? null : randomFloat());
     }
 
     @Override

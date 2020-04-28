@@ -202,6 +202,10 @@ public class TransformConfigUpdate implements Writeable {
             && isNullOrEqual(headers, config.getHeaders());
     }
 
+    public boolean changesSettings(TransformConfig config) {
+        return isNullOrEqual(settings, config.getSettings()) == false;
+    }
+
     private boolean isNullOrEqual(Object lft, Object rgt) {
         return lft == null || lft.equals(rgt);
     }

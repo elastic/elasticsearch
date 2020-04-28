@@ -17,10 +17,7 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
     private boolean lenient;
 
     public static SettingsConfig randomSettingsConfig() {
-        return new SettingsConfig(
-            randomBoolean() ? null : randomIntBetween(10, 10_000),
-            randomBoolean() ? null : randomFloat()
-        );
+        return new SettingsConfig(randomBoolean() ? null : randomIntBetween(10, 10_000), randomBoolean() ? null : randomFloat());
     }
 
     @Before

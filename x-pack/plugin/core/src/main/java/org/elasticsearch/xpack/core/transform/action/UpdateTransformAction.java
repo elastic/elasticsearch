@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.tasks.BaseTasksRequest;
+import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -38,11 +39,12 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
         super(NAME, Response::new);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
+    public static class Request extends BaseTasksRequest<Request> {
 
         private final TransformConfigUpdate update;
         private final String id;
         private final boolean deferValidation;
+        private TransformConfig config;
 
         public Request(TransformConfigUpdate update, String id, boolean deferValidation) {
             this.update = update;
@@ -104,6 +106,14 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
             return update;
         }
 
+        public TransformConfig getConfig() {
+            return config;
+        }
+
+        public void setConfig(TransformConfig config) {
+            this.config = config;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -130,26 +140,30 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends BaseTasksResponse implements ToXContentObject {
 
         private final TransformConfig config;
 
         public Response(TransformConfig config) {
+            // ignore failures
+            super(Collections.emptyList(), Collections.emptyList());
             this.config = config;
         }
 
         public Response(StreamInput in) throws IOException {
+            super(in);
             this.config = new TransformConfig(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            this.config.writeTo(out);
+            super.writeTo(out);
+            config.writeTo(out);
         }
 
         @Override
         public int hashCode() {
-            return config.hashCode();
+            return Objects.hash(super.hashCode(), config);
         }
 
         @Override
@@ -161,12 +175,17 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
                 return false;
             }
             Response other = (Response) obj;
-            return Objects.equals(config, other.config);
+            return Objects.equals(config, other.config) && super.equals(obj);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            super.toXContentCommon(builder, params);
             return config.toXContent(builder, params);
+        }
+
+        public TransformConfig getConfig() {
+            return config;
         }
     }
 }

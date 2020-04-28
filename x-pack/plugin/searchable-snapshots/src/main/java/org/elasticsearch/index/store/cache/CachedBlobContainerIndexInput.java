@@ -28,6 +28,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
@@ -217,12 +218,13 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, rangeLength))];
 
                 long totalBytesRead = 0L;
-                long remaining = rangeEnd - rangeStart;
+                final AtomicLong totalBytesWritten = new AtomicLong();
+                long remainingBytes = rangeEnd - rangeStart;
                 final long startTimeNanos = stats.currentTimeNanos();
                 try (InputStream input = openInputStream(rangeStart, rangeLength)) {
-                    while (remaining > 0L) {
-                        assert totalBytesRead + remaining == rangeLength;
-                        final int bytesRead = readSafe(input, copyBuffer, rangeStart, rangeEnd, remaining, cacheFileReference);
+                    while (remainingBytes > 0L) {
+                        assert totalBytesRead + remainingBytes == rangeLength;
+                        final int bytesRead = readSafe(input, copyBuffer, rangeStart, rangeEnd, remainingBytes, cacheFileReference);
                         final long readStart = rangeStart + totalBytesRead;
                         cacheFile.fetchRange(readStart, readStart + bytesRead, (start, end) -> {
                             logger.trace(
@@ -246,12 +248,13 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                                 fileInfo.physicalName(),
                                 writtenBytes
                             );
+                            totalBytesWritten.addAndGet(writtenBytes);
                         });
                         totalBytesRead += bytesRead;
-                        remaining -= bytesRead;
+                        remainingBytes -= bytesRead;
                     }
                     final long endTimeNanos = stats.currentTimeNanos();
-                    stats.addCachedBytesWritten(totalBytesRead, endTimeNanos - startTimeNanos);
+                    stats.addCachedBytesWritten(totalBytesWritten.get(), endTimeNanos - startTimeNanos);
                 }
 
                 assert totalBytesRead == rangeLength;

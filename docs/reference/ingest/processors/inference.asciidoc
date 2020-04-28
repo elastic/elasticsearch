@@ -46,9 +46,8 @@ Specifies the field to which the inference prediction is written. Defaults to
 `num_top_feature_importance_values`::::
 (Optional, integer)
 Specifies the maximum number of
-{ml-docs}/dfa-regression.html#dfa-regression-feature-importance[feature
-importance] values per document. By default, it is zero and no feature importance
-calculation occurs.
+{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document. By 
+default, it is zero and no {feat-imp} calculation occurs.
 
 
 [discrete]

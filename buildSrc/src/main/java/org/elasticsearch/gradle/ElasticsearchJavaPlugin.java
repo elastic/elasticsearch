@@ -23,6 +23,7 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.test.ErrorReportingTestListener;
+import org.elasticsearch.gradle.util.Util;
 import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
@@ -87,8 +88,8 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
     public static void configureConfigurations(Project project) {
         // we want to test compileOnly deps!
         Configuration compileOnlyConfig = project.getConfigurations().getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME);
-        Configuration compileConfig = project.getConfigurations().getByName(JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME);
-        compileConfig.extendsFrom(compileOnlyConfig);
+        Configuration testCompileConfig = project.getConfigurations().getByName(JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME);
+        testCompileConfig.extendsFrom(compileOnlyConfig);
 
         // we are not shipping these jars, we act like dumb consumers of these things
         if (project.getPath().startsWith(":test:fixtures") || project.getPath().equals(":build-tools")) {
@@ -122,8 +123,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
     /** Adds compiler settings to the project */
     public static void configureCompile(Project project) {
-        ExtraPropertiesExtension ext = project.getExtensions().getByType(ExtraPropertiesExtension.class);
-        ext.set("compactProfile", "full");
+        project.getExtensions().getExtraProperties().set("compactProfile", "full");
 
         JavaPluginExtension java = project.getExtensions().getByType(JavaPluginExtension.class);
         java.setSourceCompatibility(BuildParams.getMinimumRuntimeVersion());
@@ -251,7 +251,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 // TODO remove once jvm.options are added to test system properties
                 test.systemProperty("java.locale.providers", "SPI,COMPAT");
             });
-            if (inFipsJvm()) {
+            if (BuildParams.isInFipsJvm()) {
                 project.getDependencies().add("testRuntimeOnly", "org.bouncycastle:bc-fips:1.0.1");
                 project.getDependencies().add("testRuntimeOnly", "org.bouncycastle:bctls-fips:1.0.9");
             }
@@ -277,7 +277,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 test.jvmArgs((Object[]) argline.split(" "));
             }
 
-            if (Boolean.parseBoolean(System.getProperty("tests.asserts", "true"))) {
+            if (Util.getBooleanProperty("tests.asserts", true)) {
                 test.jvmArgs("-ea", "-esa");
             }
 
@@ -370,9 +370,5 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 test.setClasspath(test.getClasspath().minus(mainRuntime).plus(shadowConfig).plus(shadowJar));
             });
         });
-    }
-
-    private static boolean inFipsJvm() {
-        return Boolean.parseBoolean(System.getProperty("tests.fips.enabled"));
     }
 }

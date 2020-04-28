@@ -541,10 +541,10 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
                     if (fieldsInThisRow != fieldsInFirstRow) {
                         illFormattedRows.add(numberOfRows - 1);
                         // This calculation is complicated by the possibility of multi-lined CSV columns
-                        // `getLineNumber` is a current count of true lines, regardless of row count
+                        // `getLineNumber` is a current count of lines, regardless of row count
                         double totalNumberOfRows = (numberOfRows + numberOfLinesInSample - csvReader.getLineNumber());
                         // We should only allow a certain percentage of ill formatted rows
-                        // as it may effects our sample sizing and down stream processing
+                        // as it may have and down stream effects
                         if (illFormattedRows.size() > Math.ceil(allowedFractionOfBadLines * totalNumberOfRows)) {
                             explanation.add(new ParameterizedMessage(
                                 "Not {} because {} or more rows did not have the same number of fields as the first row ({}). Bad rows {}",

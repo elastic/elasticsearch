@@ -13,9 +13,9 @@
             "POST"
           ],
           "parts":{
-            "name":{
-              "type":"list",
-              "description":"application name"
+            "application":{
+              "type":"string",
+              "description":"Application name"
             }
           }
         }

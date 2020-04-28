@@ -71,7 +71,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
     public static final List<String> USERS = asList(ElasticUser.NAME, APMSystemUser.NAME, KibanaUser.NAME, KibanaSystemUser.NAME,
         LogstashSystemUser.NAME, BeatsSystemUser.NAME, RemoteMonitoringUser.NAME);
 
-    public static final Map<String, String> USERS_WITH_SHARED_PASSWORDS = Collections.unmodifiableMap(new HashMap<>() {
+    public static final Map<String, String> USERS_WITH_SHARED_PASSWORDS = Collections.unmodifiableMap(new HashMap<String, String>() {
         {
             put(KibanaSystemUser.NAME, KibanaUser.NAME);
         }

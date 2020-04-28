@@ -189,7 +189,7 @@ releases 2.0 and later do not support rivers.
   Performance monitoring with live charts showing cluster and node stats, integrated
   alerts, email reports, etc.
 * https://www.zabbix.com/integrations/elasticsearch[Zabbix monitoring template]:
-  Monitor the performance and status of your {es} nodes and cluster with Zabbix,
+  Monitor the performance and status of your {es} nodes and cluster with Zabbix
   and receive events information.
 
 [[other-integrations]]

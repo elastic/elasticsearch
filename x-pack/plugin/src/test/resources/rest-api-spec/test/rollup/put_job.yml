@@ -4,7 +4,8 @@ setup:
         - headers
         - allowed_warnings
   - do:
-      allowed_warnings: "index [foo_rollup] matches multiple templates [global, test], and won't be supported with v2 index templates"
+      allowed_warnings:
+        - "index [foo_rollup] matches multiple templates [global, test], and won't be supported with v2 index templates"
       indices.create:
         index: foo
         body:

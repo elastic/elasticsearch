@@ -32,7 +32,7 @@ import java.util.Objects;
 /**
  * Represents an array load/store or shortcut on a def type.  (Internal only.)
  */
-public class PSubDefArray extends AStoreable {
+public class PSubDefArray extends AExpression {
 
     protected AExpression index;
 
@@ -43,7 +43,7 @@ public class PSubDefArray extends AStoreable {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         Output output = new Output();
 
         Input indexInput = new Input();
@@ -53,6 +53,7 @@ public class PSubDefArray extends AStoreable {
 
         // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
         output.actual = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
+        output.isDefOptimized = true;
 
         BraceSubDefNode braceSubDefNode = new BraceSubDefNode();
 
@@ -64,10 +65,5 @@ public class PSubDefArray extends AStoreable {
         output.expressionNode = braceSubDefNode;
 
         return output;
-    }
-
-    @Override
-    boolean isDefOptimized() {
-        return true;
     }
 }

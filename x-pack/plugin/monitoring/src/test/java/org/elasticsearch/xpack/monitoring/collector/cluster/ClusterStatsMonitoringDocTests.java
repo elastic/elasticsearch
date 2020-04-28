@@ -243,7 +243,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockNodeInfo.getNode()).thenReturn(discoveryNode);
 
         final TransportInfo mockTransportInfo = mock(TransportInfo.class);
-        when(mockNodeInfo.getTransport()).thenReturn(mockTransportInfo);
+        when(mockNodeInfo.getInfo(TransportInfo.class)).thenReturn(mockTransportInfo);
 
         final BoundTransportAddress bound = new BoundTransportAddress(new TransportAddress[]{transportAddress}, transportAddress);
         when(mockTransportInfo.address()).thenReturn(bound);
@@ -254,20 +254,20 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                                             .build());
 
         final PluginsAndModules mockPluginsAndModules = mock(PluginsAndModules.class);
-        when(mockNodeInfo.getPlugins()).thenReturn(mockPluginsAndModules);
+        when(mockNodeInfo.getInfo(PluginsAndModules.class)).thenReturn(mockPluginsAndModules);
         final PluginInfo pluginInfo = new PluginInfo("_plugin", "_plugin_desc", "_plugin_version", Version.CURRENT,
             "1.8", "_plugin_class", Collections.emptyList(), false);
         when(mockPluginsAndModules.getPluginInfos()).thenReturn(singletonList(pluginInfo));
 
         final OsInfo mockOsInfo = mock(OsInfo.class);
-        when(mockNodeInfo.getOs()).thenReturn(mockOsInfo);
+        when(mockNodeInfo.getInfo(OsInfo.class)).thenReturn(mockOsInfo);
         when(mockOsInfo.getAvailableProcessors()).thenReturn(32);
         when(mockOsInfo.getAllocatedProcessors()).thenReturn(16);
         when(mockOsInfo.getName()).thenReturn("_os_name");
         when(mockOsInfo.getPrettyName()).thenReturn("_pretty_os_name");
 
         final JvmInfo mockJvmInfo = mock(JvmInfo.class);
-        when(mockNodeInfo.getJvm()).thenReturn(mockJvmInfo);
+        when(mockNodeInfo.getInfo(JvmInfo.class)).thenReturn(mockJvmInfo);
         when(mockJvmInfo.version()).thenReturn("_jvm_version");
         when(mockJvmInfo.getVmName()).thenReturn("_jvm_vm_name");
         when(mockJvmInfo.getVmVersion()).thenReturn("_jvm_vm_version");

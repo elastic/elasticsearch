@@ -28,14 +28,13 @@ import org.objectweb.asm.Type;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.painless.symbol.ScopeTable.Variable;
+
 public class CallSubDefNode extends ArgumentsNode {
 
     /* ---- begin node data ---- */
 
     private String name;
-    private String recipe;
-    private final List<String> pointers = new ArrayList<>();
-    private final List<Class<?>> typeParameters = new ArrayList<>();
 
     public void setName(String name) {
         this.name = name;
@@ -45,50 +44,65 @@ public class CallSubDefNode extends ArgumentsNode {
         return name;
     }
 
-    public void setRecipe(String recipe) {
-        this.recipe = recipe;
-    }
-
-    public String getRecipe() {
-        return recipe;
-    }
-
-    public void addPointer(String pointer) {
-        pointers.add(pointer);
-    }
-
-    public List<String> getPointers() {
-        return pointers;
-    }
-
-    public void addTypeParameter(Class<?> typeParameter) {
-        typeParameters.add(typeParameter);
-    }
-
-    public List<Class<?>> getTypeParameters() {
-        return typeParameters;
-    }
-
     /* ---- end node data ---- */
 
+    /**
+     * Writes an invokedynamic instruction for a call with an unknown receiver type.
+     */
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
         methodWriter.writeDebugInfo(location);
 
-        for (ExpressionNode argumentNode : getArgumentNodes()) {
+        // its possible to have unknown functional interfaces
+        // as arguments that require captures; the set of
+        // captures with call arguments is ambiguous so
+        // additional information is encoded to indicate
+        // which are values are arguments and which are captures
+        StringBuilder defCallRecipe = new StringBuilder();
+        List<Object> boostrapArguments = new ArrayList<>();
+        List<Class<?>> typeParameters = new ArrayList<>();
+        int capturedCount = 0;
+
+        // add an Object class as a placeholder type for the receiver
+        typeParameters.add(Object.class);
+
+        for (int i = 0; i < getArgumentNodes().size(); ++i) {
+            ExpressionNode argumentNode = getArgumentNodes().get(i);
             argumentNode.write(classWriter, methodWriter, scopeTable);
+
+            typeParameters.add(argumentNode.getExpressionType());
+
+            // handle the case for unknown functional interface
+            // to hint at which values are the call's arguments
+            // versus which values are captures
+            if (argumentNode instanceof DefInterfaceReferenceNode) {
+                DefInterfaceReferenceNode defInterfaceReferenceNode = (DefInterfaceReferenceNode)argumentNode;
+                boostrapArguments.add(defInterfaceReferenceNode.getDefReferenceEncoding());
+
+                // the encoding uses a char to indicate the number of captures
+                // where the value is the number of current arguments plus the
+                // total number of captures for easier capture count tracking
+                // when resolved at runtime
+                char encoding = (char)(i + capturedCount);
+                defCallRecipe.append(encoding);
+                capturedCount += defInterfaceReferenceNode.getCaptures().size();
+
+                for (String capturedName : defInterfaceReferenceNode.getCaptures()) {
+                    Variable capturedVariable = scopeTable.getVariable(capturedName);
+                    typeParameters.add(capturedVariable.getType());
+                }
+            }
         }
 
-        // create method type from return value and arguments
         Type[] asmParameterTypes = new Type[typeParameters.size()];
+
         for (int index = 0; index < asmParameterTypes.length; ++index) {
             asmParameterTypes[index] = MethodWriter.getType(typeParameters.get(index));
         }
+
         Type methodType = Type.getMethodType(MethodWriter.getType(getExpressionType()), asmParameterTypes);
 
-        List<Object> args = new ArrayList<>();
-        args.add(recipe);
-        args.addAll(pointers);
-        methodWriter.invokeDefCall(name, methodType, DefBootstrap.METHOD_CALL, args.toArray());
+        boostrapArguments.add(0, defCallRecipe.toString());
+        methodWriter.invokeDefCall(name, methodType, DefBootstrap.METHOD_CALL, boostrapArguments.toArray());
     }
 }

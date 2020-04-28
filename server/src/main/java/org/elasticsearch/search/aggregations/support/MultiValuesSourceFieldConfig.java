@@ -100,7 +100,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         this.missing = in.readGenericValue();
         this.script = in.readOptionalWriteable(Script::new);
         this.timeZone = in.readOptionalZoneId();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { //Change to Version.V_7_8_0 after backporting
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
             this.filter = in.readOptionalNamedWriteable(QueryBuilder.class);
         } else {
             this.filter = null;
@@ -137,7 +137,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         out.writeGenericValue(missing);
         out.writeOptionalWriteable(script);
         out.writeOptionalZoneId(timeZone);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { //Change to Version.V_7_8_0 after backporting
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
             out.writeOptionalNamedWriteable(filter);
         }
     }

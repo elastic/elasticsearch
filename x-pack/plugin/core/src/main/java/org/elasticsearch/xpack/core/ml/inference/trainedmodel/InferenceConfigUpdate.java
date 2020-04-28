@@ -9,9 +9,9 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
 
-public interface InferenceConfigUpdate<T extends InferenceConfig> extends NamedXContentObject, NamedWriteable {
+public interface InferenceConfigUpdate extends NamedXContentObject, NamedWriteable {
 
-    T apply(T originalConfig);
+    InferenceConfig apply(InferenceConfig originalConfig);
 
     InferenceConfig toConfig();
 

@@ -28,7 +28,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.singletonList;
 import static org.apache.lucene.search.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
 import static org.elasticsearch.search.aggregations.InternalAggregations.topLevelReduce;
-import static org.elasticsearch.xpack.search.AsyncSearchIndexService.restoreResponseHeadersContext;
+import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.restoreResponseHeadersContext;
 
 /**
  * A mutable search response that allows to update and create partial response synchronously.
@@ -156,7 +156,7 @@ class MutableSearchResponse {
         } else {
             resp = null;
         }
-        return new AsyncSearchResponse(task.getSearchId().getEncoded(), resp, failure, isPartial,
+        return new AsyncSearchResponse(task.getExecutionId().getEncoded(), resp, failure, isPartial,
             frozen == false, task.getStartTime(), expirationTime);
     }
 

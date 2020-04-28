@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -155,6 +156,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         verify(client.admin().indices(), times(5)).putTemplate(captor.capture(), anyObject());
         captor.getAllValues().forEach(req -> assertNull(req.settings().get("index.lifecycle.name")));
         verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), anyObject(), anyObject());
+        assertSettingDeprecationsAndWarnings(new Setting[]{XPackSettings.INDEX_LIFECYCLE_ENABLED});
     }
 
     public void testThatNonExistingPoliciesAreAddedImmediately() {
@@ -192,6 +194,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         ClusterChangedEvent event = createClusterChangedEvent(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
         verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), anyObject(), anyObject());
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{XPackSettings.INDEX_LIFECYCLE_ENABLED});
     }
 
     public void testPolicyAlreadyExistsButDiffers() throws IOException {

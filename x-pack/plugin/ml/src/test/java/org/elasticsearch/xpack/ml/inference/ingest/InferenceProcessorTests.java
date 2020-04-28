@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResu
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
@@ -77,8 +78,8 @@ public class InferenceProcessorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testMutateDocumentClassificationTopNClasses() {
-        ClassificationConfigUpdate classificationConfigUpdate = new ClassificationConfigUpdate(2, null, null, null);
-        ClassificationConfig classificationConfig = new ClassificationConfig(2, null, null, null);
+        ClassificationConfigUpdate classificationConfigUpdate = new ClassificationConfigUpdate(2, null, null, null, null);
+        ClassificationConfig classificationConfig = new ClassificationConfig(2, null, null, null, PredictionFieldType.STRING);
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
             "my_processor",
@@ -92,8 +93,8 @@ public class InferenceProcessorTests extends ESTestCase {
         IngestDocument document = new IngestDocument(source, ingestMetadata);
 
         List<ClassificationInferenceResults.TopClassEntry> classes = new ArrayList<>(2);
-        classes.add(new ClassificationInferenceResults.TopClassEntry("foo", 0.6));
-        classes.add(new ClassificationInferenceResults.TopClassEntry("bar", 0.4));
+        classes.add(new ClassificationInferenceResults.TopClassEntry("foo", 0.6, 0.6));
+        classes.add(new ClassificationInferenceResults.TopClassEntry("bar", 0.4, 0.4));
 
         InternalInferModelAction.Response response = new InternalInferModelAction.Response(
             Collections.singletonList(new ClassificationInferenceResults(1.0, "foo", classes, classificationConfig)),
@@ -107,8 +108,8 @@ public class InferenceProcessorTests extends ESTestCase {
     }
 
     public void testMutateDocumentClassificationFeatureInfluence() {
-        ClassificationConfig classificationConfig = new ClassificationConfig(2, null, null, 2);
-        ClassificationConfigUpdate classificationConfigUpdate = new ClassificationConfigUpdate(2, null, null, 2);
+        ClassificationConfig classificationConfig = new ClassificationConfig(2, null, null, 2, PredictionFieldType.STRING);
+        ClassificationConfigUpdate classificationConfigUpdate = new ClassificationConfigUpdate(2, null, null, 2, null);
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
             "my_processor",
@@ -122,8 +123,8 @@ public class InferenceProcessorTests extends ESTestCase {
         IngestDocument document = new IngestDocument(source, ingestMetadata);
 
         List<ClassificationInferenceResults.TopClassEntry> classes = new ArrayList<>(2);
-        classes.add(new ClassificationInferenceResults.TopClassEntry("foo", 0.6));
-        classes.add(new ClassificationInferenceResults.TopClassEntry("bar", 0.4));
+        classes.add(new ClassificationInferenceResults.TopClassEntry("foo", 0.6, 0.6));
+        classes.add(new ClassificationInferenceResults.TopClassEntry("bar", 0.4, 0.4));
 
         List<FeatureImportance> featureInfluence = new ArrayList<>();
         featureInfluence.add(FeatureImportance.forRegression("feature_1", 1.13));
@@ -148,8 +149,8 @@ public class InferenceProcessorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testMutateDocumentClassificationTopNClassesWithSpecificField() {
-        ClassificationConfig classificationConfig = new ClassificationConfig(2, "result", "tops");
-        ClassificationConfigUpdate classificationConfigUpdate = new ClassificationConfigUpdate(2, "result", "tops", null);
+        ClassificationConfig classificationConfig = new ClassificationConfig(2, "result", "tops", null, PredictionFieldType.STRING);
+        ClassificationConfigUpdate classificationConfigUpdate = new ClassificationConfigUpdate(2, "result", "tops", null, null);
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
             "my_processor",
@@ -163,8 +164,8 @@ public class InferenceProcessorTests extends ESTestCase {
         IngestDocument document = new IngestDocument(source, ingestMetadata);
 
         List<ClassificationInferenceResults.TopClassEntry> classes = new ArrayList<>(2);
-        classes.add(new ClassificationInferenceResults.TopClassEntry("foo", 0.6));
-        classes.add(new ClassificationInferenceResults.TopClassEntry("bar", 0.4));
+        classes.add(new ClassificationInferenceResults.TopClassEntry("foo", 0.6, 0.6));
+        classes.add(new ClassificationInferenceResults.TopClassEntry("bar", 0.4, 0.4));
 
         InternalInferModelAction.Response response = new InternalInferModelAction.Response(
             Collections.singletonList(new ClassificationInferenceResults(1.0, "foo", classes, classificationConfig)),
@@ -240,7 +241,7 @@ public class InferenceProcessorTests extends ESTestCase {
             "my_processor",
             "my_field",
             modelId,
-            new ClassificationConfigUpdate(topNClasses, null, null, null),
+            new ClassificationConfigUpdate(topNClasses, null, null, null, null),
             Collections.emptyMap());
 
         Map<String, Object> source = new HashMap<>(){{
@@ -269,7 +270,7 @@ public class InferenceProcessorTests extends ESTestCase {
             "my_processor",
             "my_field",
             modelId,
-            new ClassificationConfigUpdate(topNClasses, null, null, null),
+            new ClassificationConfigUpdate(topNClasses, null, null, null, null),
             fieldMapping);
 
         Map<String, Object> source = new HashMap<>(5){{
@@ -305,7 +306,7 @@ public class InferenceProcessorTests extends ESTestCase {
             "my_processor",
             "my_field",
             modelId,
-            new ClassificationConfigUpdate(topNClasses, null, null, null),
+            new ClassificationConfigUpdate(topNClasses, null, null, null, null),
             fieldMapping);
 
         Map<String, Object> source = new HashMap<>(5){{

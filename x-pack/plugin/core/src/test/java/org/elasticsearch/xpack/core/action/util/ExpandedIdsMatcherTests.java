@@ -13,7 +13,8 @@ import java.util.Collections;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public class ExpandedIdsMatcherTests extends ESTestCase {
 
@@ -72,8 +73,8 @@ public class ExpandedIdsMatcherTests extends ESTestCase {
         assertThat(requiredMatches.unmatchedIds(), hasSize(4));
         requiredMatches.filterMatchedIds(Arrays.asList("foo","baz"));
         assertThat(requiredMatches.unmatchedIds(), hasSize(2));
-        assertThat(requiredMatches.unmatchedIds().get(0), isOneOf("bar", "wild*"));
-        assertThat(requiredMatches.unmatchedIds().get(1), isOneOf("bar", "wild*"));
+        assertThat(requiredMatches.unmatchedIds().get(0), is(oneOf("bar", "wild*")));
+        assertThat(requiredMatches.unmatchedIds().get(1), is(oneOf("bar", "wild*")));
     }
 
     public void testMatchingResourceIds_allowNoMatch() {

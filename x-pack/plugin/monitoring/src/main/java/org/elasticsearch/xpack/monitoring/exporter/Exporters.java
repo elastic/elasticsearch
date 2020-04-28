@@ -254,6 +254,7 @@ public class Exporters extends AbstractLifecycleComponent {
         List<Setting.AffixSetting<?>> settings = new ArrayList<>();
         settings.addAll(Exporter.getSettings());
         settings.addAll(HttpExporter.getSettings());
+        settings.addAll(LocalExporter.getSettings());
         return settings;
     }
 

@@ -134,8 +134,15 @@ class IndexLifecycleRunner {
                 markPolicyDoesNotExist(policy, indexMetadata.getIndex(), lifecycleState);
                 return;
             } else {
+                Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+                if (TerminalPolicyStep.KEY.equals(currentStepKey)) {
+                    // This index is a leftover from before we halted execution on the final phase
+                    // instead of going to the completed phase, so it's okay to ignore this index
+                    // for now
+                    return;
+                }
                 logger.error("current step [{}] for index [{}] with policy [{}] is not recognized",
-                    LifecycleExecutionState.getCurrentStepKey(lifecycleState), index, policy);
+                    currentStepKey, index, policy);
                 return;
             }
         }
@@ -263,8 +270,15 @@ class IndexLifecycleRunner {
             return;
         }
         if (currentStep == null) {
+            Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+            if (TerminalPolicyStep.KEY.equals(currentStepKey)) {
+                // This index is a leftover from before we halted execution on the final phase
+                // instead of going to the completed phase, so it's okay to ignore this index
+                // for now
+                return;
+            }
             logger.warn("current step [{}] for index [{}] with policy [{}] is not recognized",
-                LifecycleExecutionState.getCurrentStepKey(lifecycleState), index, policy);
+                currentStepKey, index, policy);
             return;
         }
 
@@ -323,8 +337,15 @@ class IndexLifecycleRunner {
                 markPolicyDoesNotExist(policy, indexMetadata.getIndex(), lifecycleState);
                 return;
             } else {
+                Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+                if (TerminalPolicyStep.KEY.equals(currentStepKey)) {
+                    // This index is a leftover from before we halted execution on the final phase
+                    // instead of going to the completed phase, so it's okay to ignore this index
+                    // for now
+                    return;
+                }
                 logger.error("current step [{}] for index [{}] with policy [{}] is not recognized",
-                    LifecycleExecutionState.getCurrentStepKey(lifecycleState), index, policy);
+                    currentStepKey, index, policy);
                 return;
             }
         }

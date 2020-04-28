@@ -26,8 +26,9 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xpack.spatial.SpatialPlugin;
+import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
 import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
@@ -46,7 +47,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return List.of(new SpatialPlugin());
+        return List.of(new LocalStateSpatialPlugin());
     }
 
     public void testEmpty() throws Exception {
@@ -226,6 +227,6 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return List.of(GeoShapeValuesSourceType.instance());
+        return List.of(CoreValuesSourceType.GEOPOINT, GeoShapeValuesSourceType.instance());
     }
 }

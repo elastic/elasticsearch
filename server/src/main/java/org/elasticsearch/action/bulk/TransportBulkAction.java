@@ -33,6 +33,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -56,6 +57,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -85,6 +87,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerArray;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -235,36 +238,91 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             if (autoCreateIndices.isEmpty()) {
                 executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated);
             } else {
-                final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size());
-                for (String index : autoCreateIndices) {
-                    createIndex(index, bulkRequest.preferV2Templates(), bulkRequest.timeout(), new ActionListener<>() {
-                        @Override
-                        public void onResponse(CreateIndexResponse result) {
-                            if (counter.decrementAndGet() == 0) {
-                                threadPool.executor(ThreadPool.Names.WRITE).execute(
-                                    () -> executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated));
+                if (state.getNodes().getMinNodeVersion().onOrAfter(Version.V_8_0_0)) {
+                    CheckedConsumer<AutoCreateAction.Response, Exception> handler = response -> {
+                        Exception suppressed = null;
+                        for (Map.Entry<String, Exception> entry : response.getFailureByNames().entrySet()) {
+                            Exception e = entry.getValue();
+                            if (e == null) {
+                                continue;
+                            }
+
+                            String index = entry.getKey();
+                            for (int i = 0; i < bulkRequest.requests.size(); i++) {
+                                DocWriteRequest<?> request = bulkRequest.requests.get(i);
+                                if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
+                                    bulkRequest.requests.set(i, null);
+                                }
+                            }
+
+                            if (suppressed == null) {
+                                suppressed = e;
+                            } else {
+                                suppressed.addSuppressed(e);
                             }
                         }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            if (!(ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException)) {
-                                // fail all requests involving this index, if create didn't work
-                                for (int i = 0; i < bulkRequest.requests.size(); i++) {
-                                    DocWriteRequest<?> request = bulkRequest.requests.get(i);
-                                    if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
-                                        bulkRequest.requests.set(i, null);
-                                    }
+                        final ActionListener<BulkResponse> finalListener;
+                        if (suppressed != null) {
+                            final Exception e = suppressed;
+                            finalListener = ActionListener.wrap(listener::onResponse, inner -> {
+                                inner.addSuppressed(e);
+                                listener.onFailure(inner);
+                            });
+                        } else {
+                            finalListener = listener;
+                        }
+
+                        threadPool.executor(ThreadPool.Names.WRITE).execute(
+                            () -> executeBulk(task, bulkRequest, startTime, finalListener, responses, indicesThatCannotBeCreated));
+                    };
+                    Consumer<Exception> failureHandler = e -> {
+                        // major failure, set error on all bulk items and then return bulk response
+                        for (int i = 0; i < bulkRequest.requests.size(); i++) {
+                            DocWriteRequest<?> request = bulkRequest.requests.get(i);
+                            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(request.index(), request.id(), e);
+                            responses.set(i, new BulkItemResponse(i, request.opType(), failure));
+                            bulkRequest.requests.set(i, null);
+                        }
+                        executeBulk(task, bulkRequest, startTime, ActionListener.wrap(listener::onResponse, inner -> {
+                            inner.addSuppressed(e);
+                            listener.onFailure(inner);
+                        }), responses, indicesThatCannotBeCreated);
+                    };
+                    autoCreate(autoCreateIndices, bulkRequest.preferV2Templates(), bulkRequest.timeout(),
+                        ActionListener.wrap(handler, failureHandler));
+                } else {
+                    final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size());
+                    for (String index : autoCreateIndices) {
+                        createIndex(index, bulkRequest.preferV2Templates(), bulkRequest.timeout(), new ActionListener<>() {
+                            @Override
+                            public void onResponse(CreateIndexResponse result) {
+                                if (counter.decrementAndGet() == 0) {
+                                    threadPool.executor(ThreadPool.Names.WRITE).execute(
+                                        () -> executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated));
                                 }
                             }
-                            if (counter.decrementAndGet() == 0) {
-                                executeBulk(task, bulkRequest, startTime, ActionListener.wrap(listener::onResponse, inner -> {
-                                    inner.addSuppressed(e);
-                                    listener.onFailure(inner);
-                                }), responses, indicesThatCannotBeCreated);
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                if (!(ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException)) {
+                                    // fail all requests involving this index, if create didn't work
+                                    for (int i = 0; i < bulkRequest.requests.size(); i++) {
+                                        DocWriteRequest<?> request = bulkRequest.requests.get(i);
+                                        if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
+                                            bulkRequest.requests.set(i, null);
+                                        }
+                                    }
+                                }
+                                if (counter.decrementAndGet() == 0) {
+                                    executeBulk(task, bulkRequest, startTime, ActionListener.wrap(listener::onResponse, inner -> {
+                                        inner.addSuppressed(e);
+                                        listener.onFailure(inner);
+                                    }), responses, indicesThatCannotBeCreated);
+                                }
                             }
-                        }
-                    });
+                        });
+                    }
                 }
             }
         } else {
@@ -388,6 +446,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         createIndexRequest.masterNodeTimeout(timeout);
         createIndexRequest.preferV2Templates(preferV2Templates);
         client.admin().indices().create(createIndexRequest, listener);
+    }
+
+    void autoCreate(Set<String> names, Boolean preferV2Templates, TimeValue timeout,
+                    ActionListener<AutoCreateAction.Response> listener) {
+        AutoCreateAction.Request request = new AutoCreateAction.Request(names, "auto(bulk api)", preferV2Templates);
+        request.masterNodeTimeout(timeout);
+        client.execute(AutoCreateAction.INSTANCE, request, listener);
     }
 
     private boolean setResponseFailureIfIndexMatches(AtomicArray<BulkItemResponse> responses, int idx, DocWriteRequest<?> request,

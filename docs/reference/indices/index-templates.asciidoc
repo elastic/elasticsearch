@@ -21,17 +21,15 @@ configured prior to index creation and then when an index is created either manu
 indexing a document, the template settings are used as a basis for creating the index.
 
 There are two types of templates, index templates and <<component-templates,component templates>>.
-Component templates are building blocks that specify mappings, settings, or alias configuration, but
-don't apply to a set of indices themselves. Index patterns can also optionally specify settings,
-mappings, and aliases, as well as a list of component templates that should be merged in a given
-order to generate the final index settings.
+Component templates are reusable building blocks that configure mappings, settings, and aliases.
+You use component templates to construct index templates, they aren't directly applied to a set of indices. 
+Index templates can contain a collection of component templates, 
+as well as directly specify settings, mappings, and aliases.
 
-When an index is created and matches more than one index template, only the index template with the
-highest priority will be used.
+If a new index matches more than one index template, the index template with the highest priority is used.
 
-In the case where an index is created with explicit settings, the settings specified in the create
-index request always take precedence over any setting specified in the index and component
-templates.
+If an index is created with explicit settings and also matches an index template, 
+the settings from the create index request take precedence over settings specified in the index template and its component templates.
 
 [source,console]
 --------------------------------------------------
@@ -90,7 +88,7 @@ DELETE _component_template/*
 [[put-index-template-api-desc]]
 ==== {api-description-title}
 
-Use the PUT index template API to create or update an index template.
+Creates or updates an index template. 
 
 // tag::index-template-def[]
 Index templates define <<index-modules-settings,settings>> and <<mapping,mappings>> that you can

@@ -75,7 +75,7 @@ public class AggProviderTests extends AbstractSerializingTestCase<AggProvider> {
             AggregatorFactories.Builder aggs =
                 XContentObjectTransformer.aggregatorTransformer(new NamedXContentRegistry(searchModule.getNamedXContents()))
                     .fromMap(agg);
-            return new AggProvider(agg, aggs, null);
+            return new AggProvider(agg, aggs, null, false);
         } catch (IOException ex) {
             fail(ex.getMessage());
         }
@@ -183,6 +183,6 @@ public class AggProviderTests extends AbstractSerializingTestCase<AggProvider> {
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new AggProvider(instance.getAggs(), parsedAggs, parsingException);
+        return new AggProvider(instance.getAggs(), parsedAggs, parsingException, false);
     }
 }

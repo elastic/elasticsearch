@@ -86,7 +86,7 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new AutoDateHistogramAggregator(name, factories, numBuckets, roundingInfos, null, null, config.format(), searchContext,
-            parent, metadata);
+        return new AutoDateHistogramAggregator(name, factories, numBuckets, roundingInfos, Rounding::prepareForUnknown, null,
+                config.format(), searchContext, parent, metadata);
     }
 }

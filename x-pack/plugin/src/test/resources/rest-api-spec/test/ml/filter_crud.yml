@@ -1,11 +1,15 @@
 ---
 setup:
   - skip:
-      features: headers
+      features:
+        - headers
+        - allowed_warnings
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
+      allowed_warnings:
+        - "index [.ml-meta] matches multiple templates [.ml-meta, global], and won't be supported with v2 index templates"
       index:
         index: .ml-meta
         id: filter_imposter-filter

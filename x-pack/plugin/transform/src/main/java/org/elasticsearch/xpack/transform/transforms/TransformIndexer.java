@@ -464,6 +464,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
      * @param newSettings The new settings that should be applied
      */
     public void applyNewSettings(SettingsConfig newSettings) {
+        auditor.info(transformConfig.getId(), "Transform settings have been updated.");
+        logger.info("[{}] transform settings have been updated.");
+
         requestsPerSecond = newSettings.getRequestsPerSecond() != null ? newSettings.getRequestsPerSecond() : -1;
         if (newSettings.getMaxPageSearchSize() != null) {
             pageSize = newSettings.getMaxPageSearchSize();

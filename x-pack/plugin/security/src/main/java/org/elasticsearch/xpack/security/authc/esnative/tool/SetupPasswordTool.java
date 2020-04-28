@@ -47,6 +47,8 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -69,7 +71,11 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
     public static final List<String> USERS = asList(ElasticUser.NAME, APMSystemUser.NAME, KibanaUser.NAME, KibanaSystemUser.NAME,
         LogstashSystemUser.NAME, BeatsSystemUser.NAME, RemoteMonitoringUser.NAME);
 
-    public static final Map<String, String> USERS_WITH_SHARED_PASSWORDS = Map.of(KibanaSystemUser.NAME, KibanaUser.NAME);
+    public static final Map<String, String> USERS_WITH_SHARED_PASSWORDS = Collections.unmodifiableMap(new HashMap<>() {
+        {
+            put(KibanaSystemUser.NAME, KibanaUser.NAME);
+        }
+    });
 
     private final BiFunction<Environment, Settings, CommandLineHttpClient> clientFunction;
     private final CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction;

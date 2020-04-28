@@ -45,7 +45,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class ClusterShardLimitIT extends ESIntegTestCase {
@@ -110,7 +109,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
 
         setShardsPerNode(counts.getShardsPerNode());
 
-        if (counts.firstIndexShards > 0) {
+        if (counts.getFirstIndexShards() > 0) {
             createIndex(
                 "test",
                 Settings.builder()
@@ -367,68 +366,4 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         assertEquals(expectedError, e.getMessage());
     }
 
-    public static class ShardCounts {
-        private final int shardsPerNode;
-
-        private final int firstIndexShards;
-        private final int firstIndexReplicas;
-
-        private final int failingIndexShards;
-        private final int failingIndexReplicas;
-
-        private ShardCounts(int shardsPerNode,
-                            int firstIndexShards,
-                            int firstIndexReplicas,
-                            int failingIndexShards,
-                            int failingIndexReplicas) {
-            this.shardsPerNode = shardsPerNode;
-            this.firstIndexShards = firstIndexShards;
-            this.firstIndexReplicas = firstIndexReplicas;
-            this.failingIndexShards = failingIndexShards;
-            this.failingIndexReplicas = failingIndexReplicas;
-        }
-
-        public static ShardCounts forDataNodeCount(int dataNodes) {
-            assertThat("this method will not work reliably with this many data nodes due to the limit of shards in a single index," +
-                "use fewer data nodes or multiple indices", dataNodes, lessThanOrEqualTo(90));
-            int mainIndexReplicas = between(0, dataNodes - 1);
-            int mainIndexShards = between(1, 10);
-            int totalShardsInIndex = (mainIndexReplicas + 1) * mainIndexShards;
-            // Sometimes add some headroom to the limit to check that it works even if you're not already right up against the limit
-            int shardsPerNode = (int) Math.ceil((double) totalShardsInIndex / dataNodes) + between(0, 10);
-            int totalCap = shardsPerNode * dataNodes;
-
-            int failingIndexShards;
-            int failingIndexReplicas;
-            if (dataNodes > 1 && frequently()) {
-                failingIndexShards = Math.max(1, totalCap - totalShardsInIndex);
-                failingIndexReplicas = between(1, dataNodes - 1);
-            } else {
-                failingIndexShards = totalCap - totalShardsInIndex + between(1, 10);
-                failingIndexReplicas = 0;
-            }
-
-            return new ShardCounts(shardsPerNode, mainIndexShards, mainIndexReplicas, failingIndexShards, failingIndexReplicas);
-        }
-
-        public int getShardsPerNode() {
-            return shardsPerNode;
-        }
-
-        public int getFirstIndexShards() {
-            return firstIndexShards;
-        }
-
-        public int getFirstIndexReplicas() {
-            return firstIndexReplicas;
-        }
-
-        public int getFailingIndexShards() {
-            return failingIndexShards;
-        }
-
-        public int getFailingIndexReplicas() {
-            return failingIndexReplicas;
-        }
-    }
 }

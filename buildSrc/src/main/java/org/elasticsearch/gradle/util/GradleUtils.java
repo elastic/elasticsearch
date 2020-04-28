@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.util;
 
+import org.elasticsearch.gradle.ElasticsearchJavaPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.NamedDomainObjectContainer;
@@ -25,16 +26,27 @@ import org.gradle.api.PolymorphicDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.UnknownTaskException;
+import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.file.FileCollection;
+import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceRegistration;
 import org.gradle.api.services.BuildServiceRegistry;
+import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.testing.Test;
+import org.gradle.plugins.ide.eclipse.model.EclipseModel;
+import org.gradle.plugins.ide.idea.model.IdeaModel;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 public abstract class GradleUtils {
 
@@ -119,5 +131,62 @@ public abstract class GradleUtils {
         }
 
         return (Provider<T>) registration.getService();
+    }
+
+    /**
+     * Add a source set and task of the same name that runs tests.
+     *
+     * IDEs are also configured if setup, and the test task is added to check. The new test source
+     * set extends from the normal test source set to allow sharing of utilities.
+     */
+    public static void addTestSourceSet(Project project, String sourceSetName) {
+        project.getPluginManager().apply(ElasticsearchJavaPlugin.class);
+
+        // create our test source set and task
+        SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+        SourceSet extraTestSourceSet = sourceSets.create(sourceSetName);
+        TaskProvider<Test> testTask = project.getTasks().register(sourceSetName, Test.class);
+        testTask.configure(task -> {
+            task.setTestClassesDirs(extraTestSourceSet.getOutput().getClassesDirs());
+            task.setClasspath(extraTestSourceSet.getRuntimeClasspath());
+        });
+        SourceSet mainSourceSet = sourceSets.getByName("main");
+        SourceSet testSourceSet = sourceSets.getByName("test");
+
+        extendConfiguration(project, testSourceSet, extraTestSourceSet, SourceSet::getCompileConfigurationName);
+        extendConfiguration(project, testSourceSet, extraTestSourceSet, SourceSet::getImplementationConfigurationName);
+        extendConfiguration(project, testSourceSet, extraTestSourceSet, SourceSet::getRuntimeConfigurationName);
+        extendConfiguration(project, testSourceSet, extraTestSourceSet, SourceSet::getRuntimeOnlyConfigurationName);
+
+        // tie this new test source set to the main and test source sets
+        Configuration extraTestCompileConfig = project.getConfigurations().getByName(extraTestSourceSet.getCompileClasspathConfigurationName());
+        Configuration extraTestRuntimeConfig = project.getConfigurations().getByName(extraTestSourceSet.getRuntimeClasspathConfigurationName());
+        extraTestSourceSet.setCompileClasspath(project.getObjects().fileCollection().from(mainSourceSet.getOutput(), testSourceSet.getOutput(), extraTestCompileConfig));
+        extraTestSourceSet.setRuntimeClasspath(project.getObjects().fileCollection().from(extraTestSourceSet.getOutput(), mainSourceSet.getOutput(), testSourceSet.getOutput(), extraTestRuntimeConfig));
+
+        // setup IDEs
+        String runtimeClasspathName = extraTestSourceSet.getRuntimeClasspathConfigurationName();
+        Configuration runtimeClasspathConfiguration = project.getConfigurations().getByName(runtimeClasspathName);
+        project.getPluginManager().withPlugin("idea", p -> {
+            IdeaModel idea = project.getExtensions().getByType(IdeaModel.class);
+            idea.getModule().setTestSourceDirs(extraTestSourceSet.getJava().getSrcDirs());
+            idea.getModule().getScopes().put("TEST", Map.of("plus", List.of(runtimeClasspathConfiguration)));
+        });
+        project.getPluginManager().withPlugin("eclipse", p -> {
+            EclipseModel eclipse = project.getExtensions().getByType(EclipseModel.class);
+            eclipse.getClasspath().setSourceSets(List.of(extraTestSourceSet));
+            eclipse.getClasspath().getPlusConfigurations().add(runtimeClasspathConfiguration);
+        });
+
+        // add to the check task
+        project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(testTask));
+    }
+
+    private static void extendConfiguration(Project project, SourceSet parent, SourceSet child, Function<SourceSet, String> configName) {
+        String parentConfigName = configName.apply(parent);
+        String childConfigName = configName.apply(child);
+        Configuration parentConfig = project.getConfigurations().getByName(parentConfigName);
+        Configuration childConfig = project.getConfigurations().getByName(childConfigName);
+        childConfig.extendsFrom(parentConfig);
     }
 }

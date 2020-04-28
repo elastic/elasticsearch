@@ -30,6 +30,8 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
+import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
@@ -40,9 +42,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.search.AsyncSearchMaintenanceService.ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING;
 
 public final class AsyncSearch extends Plugin implements ActionPlugin {
+    public static final String INDEX = ".async-search";
     private final Settings settings;
 
     public AsyncSearch(Settings settings) {
@@ -85,11 +89,11 @@ public final class AsyncSearch extends Plugin implements ActionPlugin {
                                                CircuitBreakerService circuitBreakerService) {
         if (DiscoveryNode.isDataNode(environment.settings())) {
             // only data nodes should be eligible to run the maintenance service.
-            AsyncSearchIndexService indexService =
-                new AsyncSearchIndexService(clusterService, threadPool.getThreadContext(), client, namedWriteableRegistry);
+            AsyncTaskIndexService<AsyncSearchResponse> indexService =
+                new AsyncTaskIndexService<>(AsyncSearch.INDEX, clusterService, threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN,
+                    AsyncSearchResponse::new, namedWriteableRegistry);
             AsyncSearchMaintenanceService maintenanceService =
-                new AsyncSearchMaintenanceService(nodeEnvironment.nodeId(), settings, threadPool, indexService);
-            clusterService.addListener(maintenanceService);
+                new AsyncSearchMaintenanceService(clusterService, nodeEnvironment.nodeId(), settings, threadPool, indexService);
             return Collections.singletonList(maintenanceService);
         } else {
             return Collections.emptyList();

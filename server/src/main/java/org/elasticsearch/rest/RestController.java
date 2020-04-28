@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -32,7 +33,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
@@ -54,8 +54,6 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
-import static org.elasticsearch.rest.CompatibleConstants.COMPATIBLE_PARAMS_KEY;
-import static org.elasticsearch.rest.CompatibleConstants.COMPATIBLE_VERSION;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.rest.RestStatus.METHOD_NOT_ALLOWED;
@@ -147,12 +145,17 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param method GET, POST, etc.
      */
     protected void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
+        assert Version.minimumRestCompatibilityVersion() == handler.compatibleWithVersion() ||
+            Version.CURRENT == handler.compatibleWithVersion()
+            : "REST API compatibility is only supported for version " + Version.minimumRestCompatibilityVersion().major;
+
         if (handler instanceof BaseRestHandler) {
             usageService.addRestHandler((BaseRestHandler) handler);
         }
+        final Version version = handler.compatibleWithVersion();
         final RestHandler maybeWrappedHandler = handlerWrapper.apply(handler);
-        handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, method),
-            (mHandlers, newMHandler) -> mHandlers.addMethods(maybeWrappedHandler, method));
+        handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, version, method),
+            (mHandlers, newMHandler) -> mHandlers.addMethods(maybeWrappedHandler, version, method));
     }
 
     /**
@@ -297,6 +300,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         final String rawPath = request.rawPath();
         final String uri = request.uri();
+        Version version = request.getCompatibleApiVersion();
+
         final RestRequest.Method requestMethod;
         try {
             // Resolves the HTTP method and fails if the method is invalid
@@ -309,20 +314,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 if (handlers == null) {
                     handler = null;
                 } else {
-                    handler = handlers.getHandler(requestMethod);
+                    handler = handlers.getHandler(requestMethod, version);
                 }
                 if (handler == null) {
                   if (handleNoHandlerFound(rawPath, requestMethod, uri, channel)) {
                       return;
                   }
                 } else {
-                    if(handler.compatibilityRequired() == false //regular (not removed) handlers are always dispatched
-                        //handlers that were registered compatible, require request to be compatible
-                        || isCompatible(request)) {
-                        dispatchRequest(request, channel, handler);
-                    } else {
-                        handleBadRequest(uri, requestMethod, channel);
-                    }
+                    dispatchRequest(request, channel, handler);
                     return;
                 }
             }
@@ -332,11 +331,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
         // If request has not been handled, fallback to a bad request error.
         handleBadRequest(uri, requestMethod, channel);
-    }
-
-    private boolean isCompatible(ToXContent.Params params) {
-        String param = params.param(COMPATIBLE_PARAMS_KEY);
-        return COMPATIBLE_VERSION.equals(param);
     }
 
     Iterator<MethodHandlers> getAllHandlers(@Nullable Map<String, String> requestParamsRef, String rawPath) {

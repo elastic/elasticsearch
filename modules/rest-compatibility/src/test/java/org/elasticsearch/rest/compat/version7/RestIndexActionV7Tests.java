@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class RestIndexActionV7Tests extends RestActionTestCase {
 
-    final String mimeType = randomFrom("application/vnd.elasticsearch+json;compatible-with=7");
+    final String mimeType = "application/vnd.elasticsearch+json;compatible-with=7";
     final List<String> contentTypeHeader = Collections.singletonList(mimeType);
 
     private final AtomicReference<ClusterState> clusterStateSupplier = new AtomicReference<>();

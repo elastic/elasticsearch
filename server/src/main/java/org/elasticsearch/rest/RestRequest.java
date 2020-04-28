@@ -70,12 +70,12 @@ public class RestRequest implements ToXContent.Params {
     private final Set<String> consumedParams = new HashSet<>();
     private final SetOnce<XContentType> xContentType = new SetOnce<>();
     private final HttpChannel httpChannel;
+    private final long requestId;
+    private final Version compatibleApiVersion;
 
     private HttpRequest httpRequest;
-
     private boolean contentConsumed = false;
 
-    private final long requestId;
 
     public boolean isContentConsumed() {
         return contentConsumed;
@@ -91,6 +91,7 @@ public class RestRequest implements ToXContent.Params {
         this(xContentRegistry, params, path, headers, httpRequest, httpChannel, requestId, true);
 
     }
+
     private RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path,
                         Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel,
                         long requestId, boolean headersValidation) {
@@ -110,7 +111,7 @@ public class RestRequest implements ToXContent.Params {
         this.rawPath = path;
         this.headers = Collections.unmodifiableMap(headers);
         this.requestId = requestId;
-        addCompatibleParameter(headersValidation);
+        this.compatibleApiVersion = addCompatibleParameter(headersValidation);
     }
 
     protected RestRequest(RestRequest restRequest) {
@@ -144,16 +145,14 @@ public class RestRequest implements ToXContent.Params {
             requestIdGenerator.incrementAndGet());
     }
 
-    private void addCompatibleParameter(boolean headersValidation) {
-        if(headersValidation){
-            if(isRequestingCompatibility()) {
-                params().put(CompatibleConstants.COMPATIBLE_PARAMS_KEY,
-                    String.valueOf(Version.minimumRestCompatibilityVersion().major));
-                //use it so it won't fail request validation with unused parameter
-                param(CompatibleConstants.COMPATIBLE_PARAMS_KEY);
-            }
+    private Version addCompatibleParameter(boolean headersValidation) {
+        if (headersValidation && isRequestingCompatibility()) {
+            return Version.minimumRestCompatibilityVersion();
+        } else {
+            return Version.CURRENT;
         }
     }
+
     private boolean isRequestingCompatibility() {
         String acceptHeader = header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER);
         String aVersion = XContentType.parseVersion(acceptHeader);
@@ -194,6 +193,15 @@ public class RestRequest implements ToXContent.Params {
         }
 
         return acceptVersion < Version.CURRENT.major;
+    }
+
+    /**
+     * An http request can be accompanied with a compatible version indicating with what version a client is using.
+     * Only a major Versions are supported. Internally we use Versions objects, but only use Version(major,0,0)
+     * @return a version with what a client is compatible with.
+     */
+    public Version getCompatibleApiVersion() {
+        return this.compatibleApiVersion;
     }
 
     private static Map<String, String> params(final String uri) {

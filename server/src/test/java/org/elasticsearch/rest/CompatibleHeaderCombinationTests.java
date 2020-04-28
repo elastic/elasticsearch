@@ -175,9 +175,8 @@ public class CompatibleHeaderCombinationTests extends ESTestCase {
     }
 
     private Matcher<RestRequest> requestHasVersion(int version) {
-        return ElasticsearchMatchers.HasPropertyLambdaMatcher.hasProperty(build ->
-                build.param(CompatibleConstants.COMPATIBLE_PARAMS_KEY) //TODO to be refactored into getVersion
-            , equalTo(String.valueOf(version)));
+        return ElasticsearchMatchers.HasPropertyLambdaMatcher.hasProperty(restRequest ->
+            restRequest.getCompatibleApiVersion(), equalTo(Version.fromString(version + ".0.0")));
     }
 
     private String bodyNotPresent() {

@@ -183,7 +183,7 @@ public class FakeRestRequest extends RestRequest {
         }
 
         public Builder withHeaders(Map<String, List<String>> headers) {
-            this.headers = headers;
+            this.headers.putAll(headers);
             return this;
         }
 

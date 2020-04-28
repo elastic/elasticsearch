@@ -31,9 +31,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -55,8 +53,6 @@ public class RestIndexActionV7 {
 
         @Override
         public List<Route> routes() {
-            assert Version.CURRENT.major == 8 : "REST API compatilbity for version 7 is only supported on version 8";
-
             return List.of(new Route(POST, "/{index}/{type}/{id}"), new Route(PUT, "/{index}/{type}/{id}"));
         }
 
@@ -68,8 +64,8 @@ public class RestIndexActionV7 {
         }
 
         @Override
-        public boolean compatibilityRequired() {
-            return true;
+        public Version compatibleWithVersion() {
+            return Version.V_7_0_0;
         }
     }
 
@@ -82,9 +78,7 @@ public class RestIndexActionV7 {
 
         @Override
         public List<Route> routes() {
-            return unmodifiableList(
-                asList(new Route(POST, "/{index}/{type}/{id}/_create"), new Route(PUT, "/{index}/{type}/{id}/_create"))
-            );
+            return List.of(new Route(POST, "/{index}/{type}/{id}/_create"), new Route(PUT, "/{index}/{type}/{id}/_create"));
         }
 
         @Override
@@ -95,8 +89,8 @@ public class RestIndexActionV7 {
         }
 
         @Override
-        public boolean compatibilityRequired() {
-            return true;
+        public Version compatibleWithVersion() {
+            return Version.V_7_0_0;
         }
     }
 
@@ -124,8 +118,8 @@ public class RestIndexActionV7 {
         }
 
         @Override
-        public boolean compatibilityRequired() {
-            return true;
+        public Version compatibleWithVersion() {
+            return Version.V_7_0_0;
         }
     }
 }

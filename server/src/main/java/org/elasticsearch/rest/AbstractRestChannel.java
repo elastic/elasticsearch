@@ -127,8 +127,8 @@ public abstract class AbstractRestChannel implements RestChannel {
         }
 
         builder.humanReadable(human);
-        String compatibleVersion = request.param(CompatibleConstants.COMPATIBLE_PARAMS_KEY);
-        builder.setCompatibleMajorVersion(compatibleVersion == null ? -1 : Byte.parseByte(compatibleVersion));
+
+        builder.setCompatibleMajorVersion(request.getCompatibleApiVersion().major);
         return builder;
     }
 

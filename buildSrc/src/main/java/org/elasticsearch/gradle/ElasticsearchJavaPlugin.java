@@ -249,7 +249,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
                 // TODO remove once jvm.options are added to test system properties
 
-                //TODO remove once jvm.options are added to test system properties
+                // TODO remove once jvm.options are added to test system properties
                 if (BuildParams.getRuntimeJavaVersion() == JavaVersion.VERSION_1_8) {
                     test.systemProperty("java.locale.providers", "SPI,JRE");
                 } else {

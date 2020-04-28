@@ -28,19 +28,19 @@ import static org.elasticsearch.xpack.ql.util.DateUtils.UTC;
 
 public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
 
-    public enum DateTimeParseExtractor {
+    public enum Parser {
         DATE_TIME((timestampStr, pattern) -> DateTimeFormatter.ofPattern(pattern, Locale.ROOT)
                 .parseBest(timestampStr, ZonedDateTime::from, LocalDateTime::from)),
         TIME((timestampStr, pattern) -> DateTimeFormatter.ofPattern(pattern, Locale.ROOT)
                 .parseBest(timestampStr, OffsetTime::from, LocalTime::from));
 
-        private final BiFunction<String, String, TemporalAccessor> apply;
+        private final BiFunction<String, String, TemporalAccessor> parser;
 
-        DateTimeParseExtractor(BiFunction<String, String, TemporalAccessor> apply) {
-            this.apply = apply;
+        Parser(BiFunction<String, String, TemporalAccessor> parser) {
+            this.parser = parser;
         }
 
-        public Object extract(Object timestamp, Object pattern) {
+        public Object parse(Object timestamp, Object pattern) {
             if (timestamp == null || pattern == null) {
                 return null;
             }
@@ -55,7 +55,7 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
                 return null;
             }
             try {
-                TemporalAccessor ta = apply.apply((String) timestamp, (String) pattern);
+                TemporalAccessor ta = parser.apply((String) timestamp, (String) pattern);
                 if (ta instanceof LocalDateTime) {
                     return ZonedDateTime.ofInstant((LocalDateTime) ta, ZoneOffset.UTC, UTC);
                 } else if (ta instanceof LocalTime) {
@@ -78,23 +78,23 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
         }
     }
     
-    private final DateTimeParseExtractor extractor;
+    private final Parser parser;
 
     public static final String NAME = "dtparse";
 
-    public DateTimeParseProcessor(Processor source1, Processor source2, DateTimeParseExtractor extractor) {
+    public DateTimeParseProcessor(Processor source1, Processor source2, Parser parser) {
         super(source1, source2, null);
-        this.extractor = extractor;
+        this.parser = parser;
     }
 
     public DateTimeParseProcessor(StreamInput in) throws IOException {
         super(in);
-        this.extractor = in.readEnum(DateTimeParseExtractor.class);
+        this.parser = in.readEnum(Parser.class);
     }
     
     @Override
     public void doWrite(StreamOutput out) throws IOException {
-        out.writeEnum(extractor);
+        out.writeEnum(parser);
     }
     
     @Override
@@ -104,12 +104,12 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
 
     @Override
     protected Object doProcess(Object timestamp, Object pattern) {
-            return this.extractor.extract(timestamp, pattern);
+        return this.parser.parse(timestamp, pattern);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(extractor, left(), right());
+        return Objects.hash(parser, left(), right());
     }
 
     @Override
@@ -123,16 +123,16 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
         }
 
         DateTimeParseProcessor other = (DateTimeParseProcessor) obj;
-        return Objects.equals(extractor, other.extractor)
+        return Objects.equals(parser, other.parser)
             && Objects.equals(left(), other.left()) && Objects.equals(right(), other.right());
     }
 
     @Override
     public String toString(){
-        return extractor.toString();
+        return parser.toString();
     }
     
-    public DateTimeParseExtractor extractor() {
-        return extractor;
+    public Parser extractor() {
+        return parser;
     }
 }

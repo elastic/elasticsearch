@@ -8,33 +8,54 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.DateTimeParseExtractor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.time.ZoneId;
+import java.util.Objects;
 
 public class DateTimeParsePipe extends BinaryDateTimePipe {
     
-    private final DateTimeParseExtractor dateTimeParseExtractor;
+    private final Parser parser;
 
-    public DateTimeParsePipe(Source source, Expression expression, Pipe left, Pipe right, DateTimeParseExtractor dateTimeParseExtractor) {
+    public DateTimeParsePipe(Source source, Expression expression, Pipe left, Pipe right, Parser parser) {
         super(source, expression, left, right, null);
-        this.dateTimeParseExtractor = dateTimeParseExtractor;
+        this.parser = parser;
     }
 
     @Override
     protected NodeInfo<DateTimeParsePipe> info() {
-        return NodeInfo.create(this, DateTimeParsePipe::new, expression(), left(), right(), dateTimeParseExtractor);
+        return NodeInfo.create(this, DateTimeParsePipe::new, expression(), left(), right(), parser);
     }
 
     @Override
     protected DateTimeParsePipe replaceChildren(Pipe left, Pipe right) {
-        return new DateTimeParsePipe(source(), expression(), left, right, dateTimeParseExtractor);
+        return new DateTimeParsePipe(source(), expression(), left, right, parser);
     }
 
     @Override
     protected Processor makeProcessor(Processor left, Processor right, ZoneId zoneId) {
-        return new DateTimeParseProcessor(left, right, dateTimeParseExtractor);
+        return new DateTimeParseProcessor(left, right, parser);
+    }
+    
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), this.parser);
+    }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (!super.equals(o)) {
+            return false;
+        }
+        DateTimeParsePipe that = (DateTimeParsePipe) o;
+        return super.equals(o) && this.parser == that.parser;
     }
 }

@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.DateTimeParseExtractor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser;
 
 import java.time.ZoneId;
 
@@ -27,7 +27,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
         return new DateTimeParseProcessor(
             new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)),
             new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)),
-                randomFrom(DateTimeParseExtractor.values())
+                randomFrom(Parser.values())
         );
     }
     
@@ -43,7 +43,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
 
     @Override
     protected DateTimeParseProcessor mutateInstance(DateTimeParseProcessor instance) {
-        DateTimeParseExtractor replaced = randomValueOtherThan(instance.extractor(), () -> randomFrom(DateTimeParseExtractor.values()));
+        Parser replaced = randomValueOtherThan(instance.extractor(), () -> randomFrom(Parser.values()));
         return new DateTimeParseProcessor(
             new ConstantProcessor(ESTestCase.randomRealisticUnicodeOfLength(128)),
             new ConstantProcessor(ESTestCase.randomRealisticUnicodeOfLength(128)),

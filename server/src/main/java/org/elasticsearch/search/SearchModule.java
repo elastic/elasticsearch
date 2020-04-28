@@ -416,7 +416,9 @@ public class SearchModule {
                     .addResultReader(InternalDateRange::new)
                     .setAggregatorRegistrar(DateRangeAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(IpRangeAggregationBuilder.NAME, IpRangeAggregationBuilder::new,
-                IpRangeAggregationBuilder.PARSER).addResultReader(InternalBinaryRange::new), builder);
+                IpRangeAggregationBuilder.PARSER)
+                    .addResultReader(InternalBinaryRange::new)
+                    .setAggregatorRegistrar(IpRangeAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(HistogramAggregationBuilder.NAME, HistogramAggregationBuilder::new,
                 HistogramAggregationBuilder.PARSER)
                     .addResultReader(InternalHistogram::new)

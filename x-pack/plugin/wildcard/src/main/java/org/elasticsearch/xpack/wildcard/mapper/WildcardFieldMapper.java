@@ -69,8 +69,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -234,50 +236,50 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         public Query wildcardQuery(String wildcardPattern, RewriteMethod method, QueryShardContext context) {
-            
+
             Automaton dvAutomaton = WildcardQuery.toAutomaton(new Term(name(), wildcardPattern));
-            
+
             String ngramIndexPattern = addLineEndChars(toLowerCase(wildcardPattern));
-            
+
             // Break search term into tokens
-            ArrayList<String> tokens = new ArrayList<>();            
+            Set<String> tokens = new LinkedHashSet<>();
             StringBuilder sequence = new StringBuilder();
             for (int i = 0; i < ngramIndexPattern.length();) {
-              final int c = ngramIndexPattern.codePointAt(i);
-              int length = Character.charCount(c);
-              switch(c) {
-                case WildcardQuery.WILDCARD_STRING:
-                case WildcardQuery.WILDCARD_CHAR:
-                    if(sequence.length()>0) {
-                  getNgramTokens(tokens, sequence.toString());
-                  sequence = new StringBuilder();
-                    }
-                  break;
-                case WildcardQuery.WILDCARD_ESCAPE:
-                  // add the next codepoint instead, if it exists
-                  if (i + length < wildcardPattern.length()) {
-                    final int nextChar = wildcardPattern.codePointAt(i + length);
-                    length += Character.charCount(nextChar);
-                    sequence.append(Character.toChars(nextChar));
-                  } else {
-                      sequence.append(Character.toChars(c));
-                  }
-                  break;
-                      
-                default:
-                    sequence.append(Character.toChars(c));
-              }
-              i += length;
+                final int c = ngramIndexPattern.codePointAt(i);
+                int length = Character.charCount(c);
+                switch (c) {
+                    case WildcardQuery.WILDCARD_STRING:
+                    case WildcardQuery.WILDCARD_CHAR:
+                        if (sequence.length() > 0) {
+                            getNgramTokens(tokens, sequence.toString());
+                            sequence = new StringBuilder();
+                        }
+                        break;
+                    case WildcardQuery.WILDCARD_ESCAPE:
+                        // add the next codepoint instead, if it exists
+                        if (i + length < wildcardPattern.length()) {
+                            final int nextChar = wildcardPattern.codePointAt(i + length);
+                            length += Character.charCount(nextChar);
+                            sequence.append(Character.toChars(nextChar));
+                        } else {
+                            sequence.append(Character.toChars(c));
+                        }
+                        break;
+
+                    default:
+                        sequence.append(Character.toChars(c));
+                }
+                i += length;
             }
-            
-            if(sequence.length()>0) {
+
+            if (sequence.length() > 0) {
                 getNgramTokens(tokens, sequence.toString());
             }
-            
+
             BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
             int clauseCount = 0;
             for (String string : tokens) {
-                if(clauseCount >= MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
+                if (clauseCount >= MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
                     break;
                 }
                 addClause(string, rewritten, Occur.MUST);
@@ -292,7 +294,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 verifyingBuilder.add(new BooleanClause(verifyingQuery, Occur.MUST));
                 return verifyingBuilder.build();
             }
-            return verifyingQuery;  
+            return verifyingQuery;
 
         }
         
@@ -365,7 +367,7 @@ public class WildcardFieldMapper extends FieldMapper {
             if (approxQuery instanceof TermQuery) {
                 TermQuery tq = (TermQuery) approxQuery;
                 // Break term into tokens
-                ArrayList<String> tokens = new ArrayList<>();
+                Set<String> tokens = new LinkedHashSet<>();
                 getNgramTokens(tokens, tq.getTerm().text());
                 BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
                 for (String string : tokens) {
@@ -380,7 +382,7 @@ public class WildcardFieldMapper extends FieldMapper {
             throw new IllegalStateException("Invalid query type found parsing regex query:" + approxQuery);
         }     
 
-        protected void getNgramTokens(ArrayList<String> tokens, String fragment) {
+        protected void getNgramTokens(Set<String> tokens, String fragment) {
             // Break fragment into multiple Ngrams
             TokenStream tokenizer = WILDCARD_ANALYZER.tokenStream(name(), fragment);
             CharTermAttribute termAtt = tokenizer.addAttribute(CharTermAttribute.class);
@@ -402,6 +404,7 @@ public class WildcardFieldMapper extends FieldMapper {
                     // alternate
                     takeThis = !takeThis;
                     if (tokens.size() >= MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
+                        lastUnusedToken = null;
                         break;
                     }
                 }

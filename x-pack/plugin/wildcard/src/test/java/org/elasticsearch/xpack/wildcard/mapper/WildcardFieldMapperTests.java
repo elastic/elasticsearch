@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.wildcard.mapper;
 
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -14,6 +15,9 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -45,6 +49,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.search.QueryStringQueryParser;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -285,17 +290,25 @@ public class WildcardFieldMapperTests extends ESTestCase {
         dir.close();
     }
     
-    public void testRegexAcceleration() throws IOException {
-        // All of these regexes should be accelerated. 
-        String knownFastRegexes[] = { ".*/etc/passw.*", ".*etc/passwd HTTP.*", ".*/etc/passwd.*", "/etc/passwd.*", 
-            ".*ietcipasswd.*", ".*jetcjpasswd.*", ".*\\.c", ".a", "b", "a.*bcgcgc", "a.*bcg(cg|ab)c", "(aaa.+&.+bbb)cat",
-            "[Pp][Oo][Ww][Ee][Rr][Ss][Hh][Ee][Ll][Ll]\\.[Ee][Xx][Ee]", "(http|ftp)://foo\\.com", "foo<1-100>bar", "foo~bc",
-            "((b)+|doesnotexist)", "[aa]"};
-        for (String regex : knownFastRegexes) {
+    public void testRegexAcceleration() throws IOException, ParseException {
+        // All of these regexes should be accelerated as the equivalent of the given QueryString query 
+        String tests[][] = { 
+            {".*/etc/passw.*", "+(+\\/et +tc\\/ +\\/pa +ass +ssw)"}, 
+            {".*etc/passwd",  "+(+etc +c\\/p +pas +ssw +wd_ +d__)"}, 
+            {"(http|ftp)://foo.*",  "+((+htt +ttp) OR (+ftp)) +(+\\:\\/\\/ +\\/fo +foo)"}, 
+            {"[Pp][Oo][Ww][Ee][Rr][Ss][Hh][Ee][Ll][Ll]\\.[Ee][Xx][Ee]",  "+(+_po +owe +ers +she +ell +l\\.e +exe +xe_ +e__ )"}, 
+            {"foo<1-100>bar",  "+(+_fo +foo) +(+bar +ar_ +r__ )"},
+            {"(aaa.+&.+bbb)cat", "+(+cat +at_ +t__ )"},
+            {".a", "+(+a__)"}
+            };
+        for (String[] test : tests) {
+            String regex = test[0];
+            String expectedAccelerationQueryString = test[1].replaceAll("_", ""+WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 20000, null, MOCK_QSC);
-            assertTrue(regex+" pattern not accelerated", wildcardFieldQuery instanceof BooleanQuery);
-        }
-        
+            
+            testExpectedAccelerationQuery(wildcardFieldQuery, expectedAccelerationQueryString);
+            assertTrue(wildcardFieldQuery instanceof BooleanQuery);
+        }        
         
         // Mostly for documentation purposes - here's examples of nasty regexes we know we can't accelerate
         String knownSlowRegexes[] = { "@&~(abc.+)", "aaa.+&.+bbb"};
@@ -306,14 +319,42 @@ public class WildcardFieldMapperTests extends ESTestCase {
         }
     }    
     
-    public void testWildcardAcceleration() throws IOException {
+    public void testWildcardAcceleration() throws IOException, ParseException {
         // All of these patterns should be accelerated. 
-        String patterns[] = { "*foobar", "foobar*", "foo*bar", "foo?bar", "?foo*bar?", "*c"};
-        for (String pattern : patterns) {
+        String tests[][] = { 
+            {"*foobar", "+foo +oba +ar_ +r__"}, 
+            {"foobar*", "+_fo +oob +oba +bar"}, 
+            {"foo*bar", "+_fo +foo +bar +ar_ +r__"}, 
+            {"foo?bar", "+_fo +foo +bar +ar_ +r__"}, 
+            {"?foo*bar?", "+foo +bar"}, 
+            {"*c", "+c__"}};
+        for (String[] test : tests) {
+            String pattern = test[0];
+            String expectedAccelerationQueryString = test[1].replaceAll("_", ""+WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
             Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_QSC);
+            testExpectedAccelerationQuery(wildcardFieldQuery, expectedAccelerationQueryString);
             assertTrue(wildcardFieldQuery instanceof BooleanQuery);
         }
-    }      
+    }
+    void testExpectedAccelerationQuery(Query combinedQuery, String expectedAccelerationQueryString) throws ParseException {
+        BooleanQuery cq = (BooleanQuery) combinedQuery;
+        assert cq.clauses().size() == 2;
+        Query approximationQuery = null;
+        boolean verifyQueryFound = false;
+        for (BooleanClause booleanClause : cq.clauses()) {
+            Query q = booleanClause.getQuery();
+            if (q instanceof AutomatonQueryOnBinaryDv) {
+                verifyQueryFound = true;
+            } else {
+                approximationQuery = q;
+            }
+        }
+        assert verifyQueryFound;
+        
+        QueryParser qsp = new QueryParser(WILDCARD_FIELD_NAME, new KeywordAnalyzer());
+        Query expectedAccelerationQuery = qsp.parse(expectedAccelerationQueryString);
+        assertEquals(expectedAccelerationQuery, approximationQuery);
+    }
     
     private String getRandomFuzzyPattern(HashSet<String> values, int edits, int prefixLength) {
         assert edits >=0 && edits <=2;

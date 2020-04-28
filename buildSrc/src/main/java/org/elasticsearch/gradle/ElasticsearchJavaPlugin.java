@@ -45,8 +45,6 @@ import org.gradle.internal.jvm.Jvm;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -109,7 +107,8 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         Consumer<String> disableTransitiveDeps = configName -> {
             Configuration config = project.getConfigurations().getByName(configName);
             config.getDependencies().all(dep -> {
-                if (dep instanceof ModuleDependency && dep instanceof ProjectDependency == false
+                if (dep instanceof ModuleDependency
+                    && dep instanceof ProjectDependency == false
                     && dep.getGroup().startsWith("org.elasticsearch") == false) {
                     ((ModuleDependency) dep).setTransitive(false);
                 }
@@ -168,7 +167,8 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 compilerArgs.add("-Xdoclint:all");
                 compilerArgs.add("-Xdoclint:-missing");
 
-                // either disable annotation processor completely (default) or allow to enable them if an annotation processor is explicitly defined
+                // either disable annotation processor completely (default) or allow to enable them if an annotation processor is explicitly
+                // defined
                 if (compilerArgs.contains("-processor") == false) {
                     compilerArgs.add("-proc:none");
                 }
@@ -196,7 +196,8 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         });
 
         project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", plugin -> {
-            // Ensure that when we are compiling against the "original" JAR that we also include any "shadow" dependencies on the compile classpath
+            // Ensure that when we are compiling against the "original" JAR that we also include any "shadow" dependencies on the compile
+            // classpath
             Configuration shadowConfig = project.getConfigurations().getByName(ShadowBasePlugin.getCONFIGURATION_NAME());
             Configuration apiConfig = project.getConfigurations().getByName(JavaPlugin.API_ELEMENTS_CONFIGURATION_NAME);
             shadowConfig.getDependencies().all(dependency -> apiConfig.getDependencies().add(dependency));
@@ -212,9 +213,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
     public static void configureTestTasks(Project project) {
         // Default test task should run only unit tests
-        maybeConfigure(project.getTasks(), "test", Test.class, task ->
-            task.include("**/*Tests.class")
-        );
+        maybeConfigure(project.getTasks(), "test", Test.class, task -> task.include("**/*Tests.class"));
 
         // none of this stuff is applicable to the `:buildSrc` project tests
         if (project.getPath().equals(":build-tools")) {
@@ -249,8 +248,8 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 project.mkdir(test.getWorkingDir());
                 project.mkdir(test.getWorkingDir().toPath().resolve("temp"));
 
-                //TODO remove once jvm.options are added to test system properties
-                test.systemProperty("java.locale.providers","SPI,COMPAT");
+                // TODO remove once jvm.options are added to test system properties
+                test.systemProperty("java.locale.providers", "SPI,COMPAT");
             });
             if (inFipsJvm()) {
                 project.getDependencies().add("testRuntimeOnly", "org.bouncycastle:bc-fips:1.0.1");
@@ -264,10 +263,12 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
             test.exclude("**/*$*.class");
 
-            test.jvmArgs("-Xmx" + System.getProperty("tests.heap.size", "512m"),
+            test.jvmArgs(
+                "-Xmx" + System.getProperty("tests.heap.size", "512m"),
                 "-Xms" + System.getProperty("tests.heap.size", "512m"),
                 "--illegal-access=warn",
-                "-XX:+HeapDumpOnOutOfMemoryError");
+                "-XX:+HeapDumpOnOutOfMemoryError"
+            );
 
             test.getJvmArgumentProviders().add(() -> List.of("-XX:HeapDumpPath=$heapdumpDir"));
 
@@ -281,12 +282,19 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             }
 
             Map<String, String> sysprops = Map.of(
-                "java.awt.headless", "true",
-                "tests.gradle", "true",
-                "tests.artifact", project.getName(),
-                "tests.task", test.getPath(),
-                "tests.security.manager", "true",
-                "jna.nosys", "true");
+                "java.awt.headless",
+                "true",
+                "tests.gradle",
+                "true",
+                "tests.artifact",
+                project.getName(),
+                "tests.task",
+                test.getPath(),
+                "tests.security.manager",
+                "true",
+                "jna.nosys",
+                "true"
+            );
             test.systemProperties(sysprops);
 
             // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability experimentation
@@ -300,8 +308,10 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             File gradleHome = project.getGradle().getGradleUserHomeDir();
             String gradleVersion = project.getGradle().getGradleVersion();
             nonInputProperties.systemProperty("gradle.dist.lib", new File(project.getGradle().getGradleHomeDir(), "lib"));
-            nonInputProperties.systemProperty("gradle.worker.jar",
-                gradleHome + "/caches/" + gradleVersion + "/workerMain/gradle-worker.jar");
+            nonInputProperties.systemProperty(
+                "gradle.worker.jar",
+                gradleHome + "/caches/" + gradleVersion + "/workerMain/gradle-worker.jar"
+            );
             nonInputProperties.systemProperty("gradle.user.home", gradleHome);
             // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
             nonInputProperties.systemProperty("java.io.tmpdir", test.getWorkingDir().toPath().resolve("temp"));
@@ -348,7 +358,10 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
              */
             project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", p -> {
                 // Remove output class files and any other dependencies from the test classpath, since the shadow JAR includes these
-                FileCollection mainRuntime = project.getExtensions().getByType(SourceSetContainer.class).getByName(SourceSet.MAIN_SOURCE_SET_NAME).getRuntimeClasspath();
+                FileCollection mainRuntime = project.getExtensions()
+                    .getByType(SourceSetContainer.class)
+                    .getByName(SourceSet.MAIN_SOURCE_SET_NAME)
+                    .getRuntimeClasspath();
                 // Add any "shadow" dependencies. These are dependencies that are *not* bundled into the shadow JAR
                 Configuration shadowConfig = project.getConfigurations().getByName(ShadowBasePlugin.getCONFIGURATION_NAME());
                 // Add the shadow JAR artifact itself
@@ -359,7 +372,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         });
     }
 
-    private static boolean inFipsJvm(){
+    private static boolean inFipsJvm() {
         return Boolean.parseBoolean(System.getProperty("tests.fips.enabled"));
     }
 }

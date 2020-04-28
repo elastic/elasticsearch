@@ -25,20 +25,11 @@ import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 
-public class LoadMapShortcutNode extends IndexNode {
+public class LoadMapShortcutNode extends ExpressionNode {
 
     /* ---- begin node data ---- */
 
-    private PainlessMethod setter;
     private PainlessMethod getter;
-
-    public void setSetter(PainlessMethod setter) {
-        this.setter = setter;
-    }
-
-    public PainlessMethod getSetter() {
-        return setter;
-    }
 
     public void setGetter(PainlessMethod getter) {
         this.getter = getter;
@@ -59,40 +50,11 @@ public class LoadMapShortcutNode extends IndexNode {
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        getIndexNode().write(classWriter, methodWriter, writeScope);
-
         methodWriter.writeDebugInfo(location);
         methodWriter.invokeMethodCall(getter);
 
         if (getter.returnType != getter.javaMethod.getReturnType()) {
             methodWriter.checkCast(MethodWriter.getType(getter.returnType));
         }
-    }
-
-    @Override
-    protected int accessElementCount() {
-        return 2;
-    }
-
-    @Override
-    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        getIndexNode().write(classWriter, methodWriter, writeScope);
-    }
-
-    @Override
-    protected void load(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
-        methodWriter.invokeMethodCall(getter);
-
-        if (getter.returnType != getter.javaMethod.getReturnType()) {
-            methodWriter.checkCast(MethodWriter.getType(getter.returnType));
-        }
-    }
-
-    @Override
-    protected void store(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
-        methodWriter.invokeMethodCall(setter);
-        methodWriter.writePop(MethodWriter.getType(setter.returnType).getSize());
     }
 }

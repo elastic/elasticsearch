@@ -27,19 +27,7 @@ import org.elasticsearch.painless.symbol.WriteScope;
 
 public class StoreListShortcutNode extends StoreAccessNode {
 
-    /* ---- begin tree structure ---- */
-
-    private ExpressionNode indexNode;
-
-    public void setIndexNode(ExpressionNode indexNode) {
-        this.indexNode = indexNode;
-    }
-
-    public ExpressionNode getIndexNode() {
-        return indexNode;
-    }
-
-    /* ---- end tree structure, begin node data ---- */
+    /* ---- begin node data ---- */
 
     private PainlessMethod setter;
 
@@ -62,7 +50,7 @@ public class StoreListShortcutNode extends StoreAccessNode {
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        getIndexNode().write(classWriter, methodWriter, writeScope);
+        getAccessNode().write(classWriter, methodWriter, writeScope);
         methodWriter.writeDebugInfo(location);
         methodWriter.invokeMethodCall(setter);
         methodWriter.writePop(MethodWriter.getType(setter.returnType).getSize());

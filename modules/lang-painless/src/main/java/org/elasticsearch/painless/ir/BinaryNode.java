@@ -19,7 +19,11 @@
 
 package org.elasticsearch.painless.ir;
 
-public abstract class BinaryNode extends ExpressionNode {
+import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.symbol.WriteScope;
+
+public class BinaryNode extends ExpressionNode {
 
     /* ---- begin tree structure ---- */
 
@@ -44,4 +48,9 @@ public abstract class BinaryNode extends ExpressionNode {
 
     /* ---- end tree structure ---- */
 
+    @Override
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+        leftNode.write(classWriter, methodWriter, writeScope);
+        rightNode.write(classWriter, methodWriter, writeScope);
+    }
 }

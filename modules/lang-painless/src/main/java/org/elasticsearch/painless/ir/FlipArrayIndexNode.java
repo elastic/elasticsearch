@@ -26,7 +26,7 @@ import org.elasticsearch.painless.symbol.WriteScope;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
-public class FlipArrayIndexNode extends IndexNode {
+public class FlipArrayIndexNode extends UnaryNode {
 
     /* ---- begin visitor ---- */
 
@@ -39,7 +39,7 @@ public class FlipArrayIndexNode extends IndexNode {
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        getIndexNode().write(classWriter, methodWriter, writeScope);
+        getChildNode().write(classWriter, methodWriter, writeScope);
 
         Label noFlip = new Label();
         methodWriter.dup();

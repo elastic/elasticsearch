@@ -96,6 +96,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     public DataStream removeBackingIndex(Index index) {
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.remove(index);
+        assert backingIndices.size() == indices.size() - 1;
         return new DataStream(name, timeStampField, backingIndices, generation);
     }
 

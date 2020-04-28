@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.bytes;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.BytesStream;
@@ -61,7 +62,7 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
         if (bytesRef.offset == 0 && bytesRef.length == bytesRef.bytes.length) {
             return bytesRef.bytes;
         }
-        return BytesRef.deepCopyOf(bytesRef).bytes;
+        return ArrayUtil.copyOfSubArray(bytesRef.bytes, bytesRef.offset, bytesRef.offset + bytesRef.length);
     }
 
     /**

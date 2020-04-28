@@ -52,7 +52,7 @@ public class JobUpdate implements ToXContentObject {
         PARSER.declareLong(Builder::setRenormalizationWindowDays, Job.RENORMALIZATION_WINDOW_DAYS);
         PARSER.declareLong(Builder::setResultsRetentionDays, Job.RESULTS_RETENTION_DAYS);
         PARSER.declareLong(Builder::setModelSnapshotRetentionDays, Job.MODEL_SNAPSHOT_RETENTION_DAYS);
-        PARSER.declareLong(Builder::setModelSnapshotRetentionSparseAfterDays, Job.MODEL_SNAPSHOT_RETENTION_SPARSE_AFTER_DAYS);
+        PARSER.declareLong(Builder::setDailyModelSnapshotRetentionAfterDays, Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS);
         PARSER.declareStringArray(Builder::setCategorizationFilters, AnalysisConfig.CATEGORIZATION_FILTERS);
         PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.map(), Job.CUSTOM_SETTINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareBoolean(Builder::setAllowLazyOpen, Job.ALLOW_LAZY_OPEN);
@@ -67,7 +67,7 @@ public class JobUpdate implements ToXContentObject {
     private final Long renormalizationWindowDays;
     private final TimeValue backgroundPersistInterval;
     private final Long modelSnapshotRetentionDays;
-    private final Long modelSnapshotRetentionSparseAfterDays;
+    private final Long dailyModelSnapshotRetentionAfterDays;
     private final Long resultsRetentionDays;
     private final List<String> categorizationFilters;
     private final Map<String, Object> customSettings;
@@ -77,7 +77,7 @@ public class JobUpdate implements ToXContentObject {
                       @Nullable List<DetectorUpdate> detectorUpdates, @Nullable ModelPlotConfig modelPlotConfig,
                       @Nullable AnalysisLimits analysisLimits, @Nullable TimeValue backgroundPersistInterval,
                       @Nullable Long renormalizationWindowDays, @Nullable Long resultsRetentionDays,
-                      @Nullable Long modelSnapshotRetentionDays, @Nullable Long modelSnapshotRetentionSparseAfterDays,
+                      @Nullable Long modelSnapshotRetentionDays, @Nullable Long dailyModelSnapshotRetentionAfterDays,
                       @Nullable List<String> categorizationFilters,
                       @Nullable Map<String, Object> customSettings, @Nullable Boolean allowLazyOpen) {
         this.jobId = jobId;
@@ -89,7 +89,7 @@ public class JobUpdate implements ToXContentObject {
         this.renormalizationWindowDays = renormalizationWindowDays;
         this.backgroundPersistInterval = backgroundPersistInterval;
         this.modelSnapshotRetentionDays = modelSnapshotRetentionDays;
-        this.modelSnapshotRetentionSparseAfterDays = modelSnapshotRetentionSparseAfterDays;
+        this.dailyModelSnapshotRetentionAfterDays = dailyModelSnapshotRetentionAfterDays;
         this.resultsRetentionDays = resultsRetentionDays;
         this.categorizationFilters = categorizationFilters;
         this.customSettings = customSettings;
@@ -176,8 +176,8 @@ public class JobUpdate implements ToXContentObject {
         if (modelSnapshotRetentionDays != null) {
             builder.field(Job.MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), modelSnapshotRetentionDays);
         }
-        if (modelSnapshotRetentionSparseAfterDays != null) {
-            builder.field(Job.MODEL_SNAPSHOT_RETENTION_SPARSE_AFTER_DAYS.getPreferredName(), modelSnapshotRetentionSparseAfterDays);
+        if (dailyModelSnapshotRetentionAfterDays != null) {
+            builder.field(Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS.getPreferredName(), dailyModelSnapshotRetentionAfterDays);
         }
         if (resultsRetentionDays != null) {
             builder.field(Job.RESULTS_RETENTION_DAYS.getPreferredName(), resultsRetentionDays);
@@ -216,7 +216,7 @@ public class JobUpdate implements ToXContentObject {
             && Objects.equals(this.renormalizationWindowDays, that.renormalizationWindowDays)
             && Objects.equals(this.backgroundPersistInterval, that.backgroundPersistInterval)
             && Objects.equals(this.modelSnapshotRetentionDays, that.modelSnapshotRetentionDays)
-            && Objects.equals(this.modelSnapshotRetentionSparseAfterDays, that.modelSnapshotRetentionSparseAfterDays)
+            && Objects.equals(this.dailyModelSnapshotRetentionAfterDays, that.dailyModelSnapshotRetentionAfterDays)
             && Objects.equals(this.resultsRetentionDays, that.resultsRetentionDays)
             && Objects.equals(this.categorizationFilters, that.categorizationFilters)
             && Objects.equals(this.customSettings, that.customSettings)
@@ -226,7 +226,7 @@ public class JobUpdate implements ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, renormalizationWindowDays,
-            backgroundPersistInterval, modelSnapshotRetentionDays, modelSnapshotRetentionSparseAfterDays, resultsRetentionDays,
+            backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
             categorizationFilters, customSettings, allowLazyOpen);
     }
 
@@ -320,7 +320,7 @@ public class JobUpdate implements ToXContentObject {
         private Long renormalizationWindowDays;
         private TimeValue backgroundPersistInterval;
         private Long modelSnapshotRetentionDays;
-        private Long modelSnapshotRetentionSparseAfterDays;
+        private Long dailyModelSnapshotRetentionAfterDays;
         private Long resultsRetentionDays;
         private List<String> categorizationFilters;
         private Map<String, Object> customSettings;
@@ -434,12 +434,12 @@ public class JobUpdate implements ToXContentObject {
         /**
          * The time in days after which only one model snapshot per day is retained for the job.
          *
-         * Updates the {@link Job#modelSnapshotRetentionSparseAfterDays} setting
+         * Updates the {@link Job#dailyModelSnapshotRetentionAfterDays} setting
          *
-         * @param modelSnapshotRetentionSparseAfterDays number of days to keep a model snapshot
+         * @param dailyModelSnapshotRetentionAfterDays number of days to keep a model snapshot
          */
-        public Builder setModelSnapshotRetentionSparseAfterDays(Long modelSnapshotRetentionSparseAfterDays) {
-            this.modelSnapshotRetentionSparseAfterDays = modelSnapshotRetentionSparseAfterDays;
+        public Builder setDailyModelSnapshotRetentionAfterDays(Long dailyModelSnapshotRetentionAfterDays) {
+            this.dailyModelSnapshotRetentionAfterDays = dailyModelSnapshotRetentionAfterDays;
             return this;
         }
 
@@ -487,7 +487,7 @@ public class JobUpdate implements ToXContentObject {
 
         public JobUpdate build() {
             return new JobUpdate(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, backgroundPersistInterval,
-                renormalizationWindowDays, resultsRetentionDays, modelSnapshotRetentionDays, modelSnapshotRetentionSparseAfterDays,
+                renormalizationWindowDays, resultsRetentionDays, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays,
                 categorizationFilters, customSettings, allowLazyOpen);
         }
     }

@@ -61,7 +61,7 @@ public class JobBuilderTests extends AbstractSerializingTestCase<Job.Builder> {
             builder.setModelSnapshotRetentionDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            builder.setModelSnapshotRetentionSparseAfterDays(randomNonNegativeLong());
+            builder.setDailyModelSnapshotRetentionAfterDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
             builder.setResultsRetentionDays(randomNonNegativeLong());

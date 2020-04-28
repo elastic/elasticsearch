@@ -106,7 +106,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertNull(job.getRenormalizationWindowDays());
         assertNull(job.getBackgroundPersistInterval());
         assertThat(job.getModelSnapshotRetentionDays(), equalTo(1L));
-        assertNull(job.getModelSnapshotRetentionSparseAfterDays());
+        assertNull(job.getDailyModelSnapshotRetentionAfterDays());
         assertNull(job.getResultsRetentionDays());
         assertNotNull(job.allInputFields());
         assertFalse(job.allInputFields().isEmpty());
@@ -628,7 +628,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
             builder.setModelSnapshotRetentionDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            builder.setModelSnapshotRetentionSparseAfterDays(randomNonNegativeLong());
+            builder.setDailyModelSnapshotRetentionAfterDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
             builder.setResultsRetentionDays(randomNonNegativeLong());

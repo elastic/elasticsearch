@@ -71,7 +71,7 @@ public class JobUpdateTests extends AbstractXContentTestCase<JobUpdate> {
             update.setModelSnapshotRetentionDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            update.setModelSnapshotRetentionSparseAfterDays(randomNonNegativeLong());
+            update.setDailyModelSnapshotRetentionAfterDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
             update.setResultsRetentionDays(randomNonNegativeLong());

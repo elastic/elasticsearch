@@ -145,7 +145,7 @@ public class JobTests extends AbstractXContentTestCase<Job> {
             builder.setModelSnapshotRetentionDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            builder.setModelSnapshotRetentionSparseAfterDays(randomNonNegativeLong());
+            builder.setDailyModelSnapshotRetentionAfterDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
             builder.setResultsRetentionDays(randomNonNegativeLong());

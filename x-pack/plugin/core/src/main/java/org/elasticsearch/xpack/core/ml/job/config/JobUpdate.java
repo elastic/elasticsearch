@@ -52,7 +52,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
             parser.declareLong(Builder::setRenormalizationWindowDays, Job.RENORMALIZATION_WINDOW_DAYS);
             parser.declareLong(Builder::setResultsRetentionDays, Job.RESULTS_RETENTION_DAYS);
             parser.declareLong(Builder::setModelSnapshotRetentionDays, Job.MODEL_SNAPSHOT_RETENTION_DAYS);
-            parser.declareLong(Builder::setModelSnapshotRetentionSparseAfterDays, Job.MODEL_SNAPSHOT_RETENTION_SPARSE_AFTER_DAYS);
+            parser.declareLong(Builder::setDailyModelSnapshotRetentionAfterDays, Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS);
             parser.declareStringArray(Builder::setCategorizationFilters, AnalysisConfig.CATEGORIZATION_FILTERS);
             parser.declareField(Builder::setCustomSettings, (p, c) -> p.map(), Job.CUSTOM_SETTINGS, ObjectParser.ValueType.OBJECT);
             parser.declareBoolean(Builder::setAllowLazyOpen, Job.ALLOW_LAZY_OPEN);
@@ -73,7 +73,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
     private final Long renormalizationWindowDays;
     private final TimeValue backgroundPersistInterval;
     private final Long modelSnapshotRetentionDays;
-    private final Long modelSnapshotRetentionSparseAfterDays;
+    private final Long dailyModelSnapshotRetentionAfterDays;
     private final Long resultsRetentionDays;
     private final List<String> categorizationFilters;
     private final Map<String, Object> customSettings;
@@ -87,7 +87,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
                       @Nullable List<DetectorUpdate> detectorUpdates, @Nullable ModelPlotConfig modelPlotConfig,
                       @Nullable AnalysisLimits analysisLimits, @Nullable TimeValue backgroundPersistInterval,
                       @Nullable Long renormalizationWindowDays, @Nullable Long resultsRetentionDays,
-                      @Nullable Long modelSnapshotRetentionDays, @Nullable Long modelSnapshotRetentionSparseAfterDays,
+                      @Nullable Long modelSnapshotRetentionDays, @Nullable Long dailyModelSnapshotRetentionAfterDays,
                       @Nullable List<String> categorizationFilters,
                       @Nullable Map<String, Object> customSettings, @Nullable String modelSnapshotId,
                       @Nullable Version modelSnapshotMinVersion, @Nullable Version jobVersion, @Nullable Boolean clearJobFinishTime,
@@ -101,7 +101,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         this.renormalizationWindowDays = renormalizationWindowDays;
         this.backgroundPersistInterval = backgroundPersistInterval;
         this.modelSnapshotRetentionDays = modelSnapshotRetentionDays;
-        this.modelSnapshotRetentionSparseAfterDays = modelSnapshotRetentionSparseAfterDays;
+        this.dailyModelSnapshotRetentionAfterDays = dailyModelSnapshotRetentionAfterDays;
         this.resultsRetentionDays = resultsRetentionDays;
         this.categorizationFilters = categorizationFilters;
         this.customSettings = customSettings;
@@ -129,9 +129,9 @@ public class JobUpdate implements Writeable, ToXContentObject {
         modelSnapshotRetentionDays = in.readOptionalLong();
         // TODO: change version on backport
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            modelSnapshotRetentionSparseAfterDays = in.readOptionalLong();
+            dailyModelSnapshotRetentionAfterDays = in.readOptionalLong();
         } else {
-            modelSnapshotRetentionSparseAfterDays = null;
+            dailyModelSnapshotRetentionAfterDays = null;
         }
         resultsRetentionDays = in.readOptionalLong();
         if (in.readBoolean()) {
@@ -176,7 +176,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         out.writeOptionalLong(modelSnapshotRetentionDays);
         // TODO: change on backport
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalLong(modelSnapshotRetentionSparseAfterDays);
+            out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
         }
         out.writeOptionalLong(resultsRetentionDays);
         out.writeBoolean(categorizationFilters != null);
@@ -241,8 +241,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
         return modelSnapshotRetentionDays;
     }
 
-    public Long getModelSnapshotRetentionSparseAfterDays() {
-        return modelSnapshotRetentionSparseAfterDays;
+    public Long getDailyModelSnapshotRetentionAfterDays() {
+        return dailyModelSnapshotRetentionAfterDays;
     }
 
     public Long getResultsRetentionDays() {
@@ -309,8 +309,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
         if (modelSnapshotRetentionDays != null) {
             builder.field(Job.MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), modelSnapshotRetentionDays);
         }
-        if (modelSnapshotRetentionSparseAfterDays != null) {
-            builder.field(Job.MODEL_SNAPSHOT_RETENTION_SPARSE_AFTER_DAYS.getPreferredName(), modelSnapshotRetentionSparseAfterDays);
+        if (dailyModelSnapshotRetentionAfterDays != null) {
+            builder.field(Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS.getPreferredName(), dailyModelSnapshotRetentionAfterDays);
         }
         if (resultsRetentionDays != null) {
             builder.field(Job.RESULTS_RETENTION_DAYS.getPreferredName(), resultsRetentionDays);
@@ -366,8 +366,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
         if (modelSnapshotRetentionDays != null) {
             updateFields.add(Job.MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName());
         }
-        if (modelSnapshotRetentionSparseAfterDays != null) {
-            updateFields.add(Job.MODEL_SNAPSHOT_RETENTION_SPARSE_AFTER_DAYS.getPreferredName());
+        if (dailyModelSnapshotRetentionAfterDays != null) {
+            updateFields.add(Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS.getPreferredName());
         }
         if (resultsRetentionDays != null) {
             updateFields.add(Job.RESULTS_RETENTION_DAYS.getPreferredName());
@@ -447,8 +447,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
         if (modelSnapshotRetentionDays != null) {
             builder.setModelSnapshotRetentionDays(modelSnapshotRetentionDays);
         }
-        if (modelSnapshotRetentionSparseAfterDays != null) {
-            builder.setModelSnapshotRetentionSparseAfterDays(modelSnapshotRetentionSparseAfterDays);
+        if (dailyModelSnapshotRetentionAfterDays != null) {
+            builder.setDailyModelSnapshotRetentionAfterDays(dailyModelSnapshotRetentionAfterDays);
         }
         if (resultsRetentionDays != null) {
             builder.setResultsRetentionDays(resultsRetentionDays);
@@ -488,8 +488,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 && (renormalizationWindowDays == null || Objects.equals(renormalizationWindowDays, job.getRenormalizationWindowDays()))
                 && (backgroundPersistInterval == null || Objects.equals(backgroundPersistInterval, job.getBackgroundPersistInterval()))
                 && (modelSnapshotRetentionDays == null || Objects.equals(modelSnapshotRetentionDays, job.getModelSnapshotRetentionDays()))
-                && (modelSnapshotRetentionSparseAfterDays == null
-                        || Objects.equals(modelSnapshotRetentionSparseAfterDays, job.getModelSnapshotRetentionSparseAfterDays()))
+                && (dailyModelSnapshotRetentionAfterDays == null
+                        || Objects.equals(dailyModelSnapshotRetentionAfterDays, job.getDailyModelSnapshotRetentionAfterDays()))
                 && (resultsRetentionDays == null || Objects.equals(resultsRetentionDays, job.getResultsRetentionDays()))
                 && (categorizationFilters == null
                         || Objects.equals(categorizationFilters, job.getAnalysisConfig().getCategorizationFilters()))
@@ -540,7 +540,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 && Objects.equals(this.renormalizationWindowDays, that.renormalizationWindowDays)
                 && Objects.equals(this.backgroundPersistInterval, that.backgroundPersistInterval)
                 && Objects.equals(this.modelSnapshotRetentionDays, that.modelSnapshotRetentionDays)
-                && Objects.equals(this.modelSnapshotRetentionSparseAfterDays, that.modelSnapshotRetentionSparseAfterDays)
+                && Objects.equals(this.dailyModelSnapshotRetentionAfterDays, that.dailyModelSnapshotRetentionAfterDays)
                 && Objects.equals(this.resultsRetentionDays, that.resultsRetentionDays)
                 && Objects.equals(this.categorizationFilters, that.categorizationFilters)
                 && Objects.equals(this.customSettings, that.customSettings)
@@ -554,7 +554,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, renormalizationWindowDays,
-                backgroundPersistInterval, modelSnapshotRetentionDays, modelSnapshotRetentionSparseAfterDays, resultsRetentionDays,
+                backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
                 categorizationFilters, customSettings, modelSnapshotId, modelSnapshotMinVersion, jobVersion, clearJobFinishTime,
                 allowLazyOpen);
     }
@@ -661,7 +661,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         private Long renormalizationWindowDays;
         private TimeValue backgroundPersistInterval;
         private Long modelSnapshotRetentionDays;
-        private Long modelSnapshotRetentionSparseAfterDays;
+        private Long dailyModelSnapshotRetentionAfterDays;
         private Long resultsRetentionDays;
         private List<String> categorizationFilters;
         private Map<String, Object> customSettings;
@@ -720,8 +720,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setModelSnapshotRetentionSparseAfterDays(Long modelSnapshotRetentionSparseAfterDays) {
-            this.modelSnapshotRetentionSparseAfterDays = modelSnapshotRetentionSparseAfterDays;
+        public Builder setDailyModelSnapshotRetentionAfterDays(Long dailyModelSnapshotRetentionAfterDays) {
+            this.dailyModelSnapshotRetentionAfterDays = dailyModelSnapshotRetentionAfterDays;
             return this;
         }
 
@@ -777,7 +777,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
 
         public JobUpdate build() {
             return new JobUpdate(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, backgroundPersistInterval,
-                    renormalizationWindowDays, resultsRetentionDays, modelSnapshotRetentionDays, modelSnapshotRetentionSparseAfterDays,
+                    renormalizationWindowDays, resultsRetentionDays, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays,
                     categorizationFilters, customSettings, modelSnapshotId, modelSnapshotMinVersion, jobVersion, clearJobFinishTime,
                     allowLazyOpen);
         }

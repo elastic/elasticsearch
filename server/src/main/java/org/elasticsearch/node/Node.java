@@ -387,14 +387,13 @@ public class Node implements Closeable {
             SearchModule searchModule = new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class));
             CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
                 settingsModule.getClusterSettings());
-            pluginsService.filterPlugins(CircuitBreakerPlugin.class).forEach(circuitBreakerPlugin -> {
-                circuitBreakerPlugin.getCircuitBreakers().forEach(circuitBreakerService::registerBreaker);
-                circuitBreakerPlugin.addDynamicBreakerUpdates(settingsModule.getClusterSettings(),
-                    circuitBreakerService::registerBreaker);
-            });
             resourcesToClose.add(circuitBreakerService);
-            modules.add(new GatewayModule());
 
+            pluginsService.filterPlugins(CircuitBreakerPlugin.class).stream()
+                .flatMap(p -> p.getCircuitBreakers(settingsModule.getSettings()).stream())
+                .forEach(circuitBreakerService::registerBreaker);
+
+            modules.add(new GatewayModule());
 
             PageCacheRecycler pageCacheRecycler = createPageCacheRecycler(settings);
             BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService);

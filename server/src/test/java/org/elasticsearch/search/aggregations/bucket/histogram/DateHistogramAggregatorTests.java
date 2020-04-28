@@ -155,8 +155,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
     public void testNoDocsDeprecatedInterval() throws IOException {
         Query query = new MatchNoDocsQuery();
         List<String> dates = Collections.emptyList();
-        Consumer<DateHistogramAggregationBuilder>
-            aggregation =
+        Consumer<DateHistogramAggregationBuilder> aggregation =
             agg -> agg.dateHistogramInterval(DateHistogramInterval.YEAR).field(DATE_FIELD);
 
         testSearchCase(query, dates, aggregation, histogram -> {

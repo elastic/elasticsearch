@@ -499,9 +499,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             InternalAggregationTestCase.assertMultiBucketConsumer(agg, shardBucketConsumer);
         }
         if (aggs.isEmpty()) {
-            root.preCollection();
-            root.postCollection();
-            return (A) root.buildAggregation(0L);
+            return (A) root.buildEmptyAggregation();
         } else {
             if (randomBoolean() && aggs.size() > 1) {
                 // sometimes do an incremental reduce

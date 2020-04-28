@@ -80,7 +80,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
     private static final String FIELD_SCRIPT_NAME = "field_script";
 
     public void testNoDocs() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testAggregation(new MatchAllDocsQuery(), iw -> {
             // Intentionally not writing any docs
         }, count -> {
             assertEquals(0L, count.getValue(), 0d);
@@ -89,7 +89,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoMatchingField() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testAggregation(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 1)));
         }, count -> {
@@ -99,7 +99,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNumericDocValues() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testAggregation(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 1)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 2)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 1)));
@@ -123,7 +123,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSortedNumericDocValues() throws IOException {
-        testCase(new DocValuesFieldExistsQuery(FIELD_NAME), iw -> {
+        testAggregation(new DocValuesFieldExistsQuery(FIELD_NAME), iw -> {
             iw.addDocument(Arrays.asList(new SortedNumericDocValuesField(FIELD_NAME, 3),
                 new SortedNumericDocValuesField(FIELD_NAME, 4)));
             iw.addDocument(Arrays.asList(new SortedNumericDocValuesField(FIELD_NAME, 3),
@@ -136,7 +136,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     public void testQueryFiltering() throws IOException {
-        testCase(new TermQuery(new Term("match", "yes")), iw -> {
+        testAggregation(new TermQuery(new Term("match", "yes")), iw -> {
             iw.addDocument(Arrays.asList(new StringField("match", "yes", Field.Store.NO), new NumericDocValuesField(FIELD_NAME, 1)));
             iw.addDocument(Arrays.asList(new StringField("match", "no", Field.Store.NO), new NumericDocValuesField(FIELD_NAME, 2)));
             iw.addDocument(Arrays.asList(new StringField("match", "yes", Field.Store.NO), new NumericDocValuesField(FIELD_NAME, 3)));
@@ -150,7 +150,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
 
     public void testStringField() throws IOException {
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
-            testCase(new MatchAllDocsQuery(), iw -> {
+            testAggregation(new MatchAllDocsQuery(), iw -> {
                 iw.addDocument(singleton(new SortedDocValuesField(FIELD_NAME, new BytesRef("1"))));
             }, count -> {
                 assertEquals(0L, count.getValue(), 0d);
@@ -193,7 +193,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     private void verifySummationOfDoubles(double[] values, double expected, double delta) throws IOException {
-        this.<SumAggregationBuilder, InternalSum>testCase(
+        testAggregation(
             sum("_name").field(FIELD_NAME),
             new MatchAllDocsQuery(),
             iw -> {
@@ -322,10 +322,8 @@ public class SumAggregatorTests extends AggregatorTestCase {
         }
         final long finalSum = sum;
 
-        AggregationBuilder aggregationBuilder = sum("_name").field(aggField.name()).missing(missingValue);
-
-        this.<AggregationBuilder, InternalSum>testCase(
-            aggregationBuilder,
+        testAggregation(
+            sum("_name").field(aggField.name()).missing(missingValue),
             new MatchAllDocsQuery(),
             writer -> writer.addDocuments(docs),
             internalSum -> {
@@ -368,7 +366,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
         }
         final long finalSum = sum;
 
-        this.<SumAggregationBuilder, InternalSum>testCase(
+        testAggregation(
             builder,
             new MatchAllDocsQuery(),
             writer -> writer.addDocuments(docs),
@@ -377,11 +375,18 @@ public class SumAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    private void testCase(Query query,
+    private void testAggregation(Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> indexer,
                           Consumer<InternalSum> verify) throws IOException {
-        this.<SumAggregationBuilder, InternalSum>testCase( sum("_name").field(FIELD_NAME), query,
-            indexer, verify, defaultFieldType());
+        AggregationBuilder aggregationBuilder = sum("_name").field(FIELD_NAME);
+        testAggregation( aggregationBuilder, query, indexer, verify, defaultFieldType());
+    }
+
+
+    private void testAggregation(AggregationBuilder aggregationBuilder, Query query,
+        CheckedConsumer<RandomIndexWriter, IOException> indexer,
+        Consumer<InternalSum> verify, MappedFieldType... fieldTypes) throws IOException {
+        testCase(aggregationBuilder, query, indexer, verify, fieldTypes);
     }
 
     @Override

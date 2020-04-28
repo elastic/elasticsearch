@@ -697,15 +697,16 @@ public final class SearchPhaseController {
         private synchronized void consumeInternal(QuerySearchResult querySearchResult) {
             if (querySearchResult.isNull() == false) {
                 if (index == bufferSize) {
-                    InternalAggregations reducedAggs = null;
+                    DelayableWriteable.Serialized<InternalAggregations> reducedAggs = null;
                     if (hasAggs) {
                         List<InternalAggregations> aggs = new ArrayList<>(aggsBuffer.length);
                         for (int i = 0; i < aggsBuffer.length; i++) {
                             aggs.add(aggsBuffer[i].get());
                             aggsBuffer[i] = null; // null the buffer so it can be GCed now.
                         }
-                        reducedAggs = InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forPartialReduction());
-                        aggsBuffer[0] = DelayableWriteable.referencing(reducedAggs)
+                        InternalAggregations reduced =
+                                InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forPartialReduction());
+                        reducedAggs = aggsBuffer[0] = DelayableWriteable.referencing(reduced)
                                 .asSerialized(InternalAggregations::new, namedWriteableRegistry);
                         long previousBufferSize = aggsCurrentBufferSize;
                         aggsMaxBufferSize = Math.max(aggsMaxBufferSize, aggsCurrentBufferSize);

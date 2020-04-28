@@ -173,24 +173,25 @@ public class AsyncSearchTaskTests extends ESTestCase {
         task.getSearchProgressActionListener().onFinalReduce(shards,
             new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
         int numFetchFailures = randomIntBetween(0, numShards);
+        ShardSearchFailure[] failures = new ShardSearchFailure[numFetchFailures];
         for (int i = 0; i < numFetchFailures; i++) {
-            task.getSearchProgressActionListener().onFetchFailure(i,
-                new SearchShardTarget("0", new ShardId("0", "0", 1), null, OriginalIndices.NONE),
-                new IOException("boum"));
-
+            failures[i] = new ShardSearchFailure(new IOException("boum"),
+                new SearchShardTarget("0", new ShardId("0", "0", 1), null, OriginalIndices.NONE));
+            task.getSearchProgressActionListener().onFetchFailure(i, failures[i].shard(), (Exception) failures[i].getCause());
         }
         assertCompletionListeners(task, numShards+numSkippedShards, numSkippedShards, numFetchFailures, true);
         ((AsyncSearchTask.Listener)task.getProgressListener()).onResponse(
-            newSearchResponse(numShards+numSkippedShards, numShards, numSkippedShards));
+            newSearchResponse(numShards+numSkippedShards, numShards, numSkippedShards, failures));
         assertCompletionListeners(task, numShards+numSkippedShards,
             numSkippedShards, numFetchFailures, false);
     }
 
-    private static SearchResponse newSearchResponse(int totalShards, int successfulShards, int skippedShards) {
+    private static SearchResponse newSearchResponse(int totalShards, int successfulShards, int skippedShards,
+            ShardSearchFailure... failures) {
         InternalSearchResponse response = new InternalSearchResponse(SearchHits.empty(),
             InternalAggregations.EMPTY, null, null, false, null, 1);
         return new SearchResponse(response, null, totalShards, successfulShards, skippedShards,
-            100, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+            100, failures, SearchResponse.Clusters.EMPTY);
     }
 
     private void assertCompletionListeners(AsyncSearchTask task,

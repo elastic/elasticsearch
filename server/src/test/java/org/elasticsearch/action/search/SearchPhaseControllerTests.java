@@ -33,6 +33,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -851,7 +852,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 }
 
                 @Override
-                public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
+                public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits,
+                        DelayableWriteable.Serialized<InternalAggregations> aggs, int reducePhase) {
                     assertEquals(numReduceListener.incrementAndGet(), reducePhase);
                 }
 

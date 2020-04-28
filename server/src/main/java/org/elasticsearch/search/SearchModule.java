@@ -489,6 +489,8 @@ public class SearchModule {
         if (register != null) {
             register.accept(builder);
         } else {
+            // Register is typically handling usage registration, but for the older aggregations that don't use register, we
+            // have to register usage explicitly here.
             usageService.registerAggregationUsage(spec.getName().getPreferredName());
         }
     }

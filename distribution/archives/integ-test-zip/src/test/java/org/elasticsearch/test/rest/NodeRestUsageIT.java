@@ -148,12 +148,10 @@ public class NodeRestUsageIT extends ESRestTestCase {
 
         Map<String, Map<String, Long>> beforeCombinedAggsUsage = getTotalUsage(beforeNodesMap);
         // Do some requests to get some rest usage stats
-        client().performRequest(new Request("PUT", "/test"));
-        for (int i = 0; i < 3; i++) {
-            final Request index = new Request("POST", "/test/_doc/" + i);
-            index.setJsonEntity("{\"str\": \"val\", \"foo\":\"bar\", \"num\": 5, \"start\": \"2020-03-15\"}");
-            client().performRequest(index);
-        }
+        Request create = new Request("PUT", "/test");
+        create.setJsonEntity("{\"mappings\": {\"properties\": { \"str\": {\"type\": \"keyword\"}, " +
+            "\"foo\": {\"type\": \"keyword\"}, \"num\": {\"type\": \"long\"}, \"start\": {\"type\": \"date\"} } }}");
+        client().performRequest(create);
 
         Request searchRequest = new Request("GET", "/test/_search");
         SearchSourceBuilder searchSource = new SearchSourceBuilder()

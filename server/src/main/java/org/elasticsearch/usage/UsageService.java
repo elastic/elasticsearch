@@ -113,10 +113,10 @@ public class UsageService {
             LongAdder adder = valuesSourceMap.get(valuesSourceType);
             if (adder != null) {
                 adder.increment();
-            } else {
-                throw new IllegalArgumentException("Unknown subtype [" + aggregationName + "][" + valuesSourceType + "]");
             }
+            assert adder != null : "Unknown subtype [" + aggregationName + "][" + valuesSourceType + "]";
         }
+        assert valuesSourceMap != null : "Unknown aggregation [" + aggregationName + "][" + valuesSourceType + "]";
     }
 
     /**

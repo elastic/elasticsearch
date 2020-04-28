@@ -1,0 +1,171 @@
+---
+"Test ingest fingerprint processor with defaults":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "fingerprint" : {
+                  "fields" : ["_field"]
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: { _field: "test content" }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source._field: "test content" }
+  - match: { _source.fingerprint: "a0a003767ebde642b4d908ef7417d8e5" }
+
+---
+"Test ingest fingerprint processor with method 'SHA1' and base64 encoding":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "fingerprint" : {
+                  "fields" : ["field1", "field2"],
+                  "method": "SHA1",
+                  "base64_encode": true,
+                  "target_field": "hash"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: { field1: "test content1",  field2: "test content2"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.field1: "test content1" }
+  - match: { _source.field2: "test content2" }
+  - match: { _source.hash: "WoS6Wglc7lPWj6Lo4Rg7DTc3coM=" }
+
+---
+"Test ingest fingerprint processor with method UUID":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "fingerprint" : {
+                  "method": "UUID",
+                  "target_field": "hash"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: { field1: "test content1",  field2: "test content2"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.field1: "test content1" }
+  - match: { _source.field2: "test content2" }
+  - is_true: _source.hash
+
+---
+"Test ingest fingerprint processor with concatenate_all_fields":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "fingerprint" : {
+                  "concatenate_all_fields": true,
+                  "method": "SHA256",
+                  "base64_encode": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: { field1: "test content1",  field2: "test content2"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.field1: "test content1" }
+  - match: { _source.field2: "test content2" }
+  - match: { _source.fingerprint: "pCxZhjiaRyJ0yxP1Xp/KCYXxGkNPCJOjOdCR4Kx+cFU=" }
+
+
+---
+"Test ingest fingerprint processor with ignore_missing":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "fingerprint" : {
+                  "fields" : ["_field", "_field2"],
+                  "base64_encode": true,
+                  "ignore_missing": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: { _field: "test content"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source._field: "test content" }
+  - match: { _source.fingerprint: "oKADdn695kK02QjvdBfY5Q==" }

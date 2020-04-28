@@ -1,0 +1,62 @@
+[[fingerprint-processor]]
+=== Fingerprint Processor
+
+Generates fingerprint from field names and values.
+
+[[fingerprint-options]]
+.Fingerprint Options
+[options="header"]
+|======
+| Name                      | Required  | Default       | Description
+| `fields`                  | no        | -             | List of fields are used to compute fingerprint if `method` isn't `UUID`
+| `target_field`           | no        | fingerprint   | The field to assign  the fingerprint to
+| `method`                  | no        | MD5           | The hash method, one of [`SHA1`, `SHA256`, `SHA512`, `MD5`, `MURMUR3` `UUID`]
+| `base64_encode`           | no        | false         | Using base64 encoding for fingerprint
+| `concatenate_all_fields`  | no        | false         | If true and `method` isn’t `UUID`, the processor concatenates all fields into one string and uses it to compute fingerprint
+| `ignore_missing`          | no        | false         | If true and some of `fields` does not exist, the processor use the rest of `fields` to compute fingerprint. If all is missing, the processor just quietly exits without modifying the document
+
+include::common-options.asciidoc[]
+|======
+
+Here is an example that computes fingerprint from `field1` using the default method `MD5` and write it to default target field `fingerprint`.
+
+[source,js]
+--------------------------------------------------
+{
+    "fingerprint": {
+        "fields": ["field1"]
+    }
+}
+--------------------------------------------------
+
+Here is an example that computes fingerprint from `field1` and `field2` using the method `SHA1`, encodes it by BASE64 and write it to `field3`.
+
+[source,js]
+--------------------------------------------------
+{
+    "fingerprint": {
+        "fields": ["field1", "field2"],
+        "method": "SHA1",
+        "target_field": "field3",
+        "base64_encode": true,
+        "ignore_missing": true
+    }
+}
+--------------------------------------------------
+
+Here is an example that computes fingerprint from the all fields including source and meta fields using the method `SHA256`, encodes it by BASE64 and write it to `field3`.
+
+[source,js]
+--------------------------------------------------
+{
+    "fingerprint": {
+        "fields": ["field1", "field2"],
+        "method": "SHA1",
+        "target_field": "field3",
+        "base64_encode": true,
+        "ignore_missing": true
+    }
+}
+--------------------------------------------------
+
+

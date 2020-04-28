@@ -89,7 +89,9 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
                 entry(DissectProcessor.TYPE, new DissectProcessor.Factory()),
                 entry(DropProcessor.TYPE, new DropProcessor.Factory()),
                 entry(HtmlStripProcessor.TYPE, new HtmlStripProcessor.Factory()),
-                entry(CsvProcessor.TYPE, new CsvProcessor.Factory()));
+                entry(CsvProcessor.TYPE, new CsvProcessor.Factory()),
+                entry(FingerprintProcessor.TYPE, new FingerprintProcessor.Factory()));
+
     }
 
     @Override

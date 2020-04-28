@@ -10,7 +10,6 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 
 import java.util.Iterator;
-import java.util.Map;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Predicate;

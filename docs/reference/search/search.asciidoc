@@ -198,7 +198,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
   (Optional, integer) The maximum number of documents to collect for each shard,
   upon reaching which the query execution will terminate early.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
+`timeout`::
+  (Optional, <<time-units, time units>>) Specifies the period of time to wait
+  for a response. If no response is received before the timeout expires, the
+  request fails and returns an error. Defaults to no timeout.
 
 `track_scores`::
   (Optional, boolean) If `true`, then calculates and returns scores even if they

@@ -676,6 +676,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
         final Snapshot snapshot = entry.snapshot();
         if (entry.repositoryStateId() == RepositoryData.UNKNOWN_REPO_GEN) {
+            // BwC logic to handle master fail-over from an older version that still used unknown repo generation snapshot entries
             logger.debug("[{}] was aborted before starting", snapshot);
             removeSnapshotFromClusterState(entry.snapshot(), new SnapshotException(snapshot, "Aborted on initialization"));
             return;

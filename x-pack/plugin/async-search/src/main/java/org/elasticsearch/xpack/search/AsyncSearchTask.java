@@ -17,13 +17,12 @@ import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -40,6 +39,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+
+import static java.util.Collections.singletonList;
 
 /**
  * Task that tracks the progress of a currently running {@link SearchRequest}.
@@ -362,32 +363,48 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             // best effort to cancel expired tasks
             checkCancellation();
             searchResponse.compareAndSet(null,
-                new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters,
-                    aggReduceContextSupplier, threadPool.getThreadContext()));
+                new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, threadPool.getThreadContext()));
             executeInitListeners();
         }
 
         @Override
-        public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
+        public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits,
+                DelayableWriteable.Serialized<InternalAggregations> aggregations, int reducePhase) {
             // best effort to cancel expired tasks
             checkCancellation();
-            searchResponse.get().updatePartialResponse(shards.size(),
-                new InternalSearchResponse(new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN), aggs,
-                    null, null, false, null, reducePhase), aggs == null);
+            // The way that the MutableSearchResponse will build the aggs.
+            Supplier<InternalAggregations> reducedAggs;
+            if (aggregations == null) {
+                // There aren't any aggs to reduce.
+                reducedAggs = () -> null;
+            } else {
+                /*
+                 * Keep a reference to the serialiazed form of the partially
+                 * reduced aggs and reduce it on the fly when someone asks
+                 * for it. This will produce right-ish aggs. Much more right
+                 * than if you don't do the final reduce. Its important that
+                 * we wait until someone needs the result so we don't perform
+                 * the final reduce only to throw it away. And it is important
+                 * that we kep the reference to the serialized aggrgations
+                 * because the SearchPhaseController *already* has that
+                 * reference so we're not creating more garbage. 
+                 */
+                reducedAggs = () ->
+                    InternalAggregations.topLevelReduce(singletonList(aggregations.get()), aggReduceContextSupplier.get()); 
+            }
+            searchResponse.get().updatePartialResponse(shards.size(), totalHits, reducedAggs, reducePhase);
         }
 
         @Override
-        public void onFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
+        public void onFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggregations, int reducePhase) {
             // best effort to cancel expired tasks
             checkCancellation();
-            searchResponse.get().updatePartialResponse(shards.size(),
-                new InternalSearchResponse(new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN), aggs,
-                    null, null, false, null, reducePhase), true);
+            searchResponse.get().updatePartialResponse(shards.size(), totalHits, () -> aggregations, reducePhase);
         }
 
         @Override
         public void onResponse(SearchResponse response) {
-            searchResponse.get().updateFinalResponse(response.getSuccessfulShards(), response.getInternalResponse());
+            searchResponse.get().updateFinalResponse(response);
             executeCompletionListeners();
         }
 
@@ -396,8 +413,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             if (searchResponse.get() == null) {
                 // if the failure occurred before calling onListShards
                 searchResponse.compareAndSet(null,
-                    new MutableSearchResponse(-1, -1, null,
-                        aggReduceContextSupplier, threadPool.getThreadContext()));
+                    new MutableSearchResponse(-1, -1, null, threadPool.getThreadContext()));
             }
             searchResponse.get().updateWithFailure(exc);
             executeInitListeners();

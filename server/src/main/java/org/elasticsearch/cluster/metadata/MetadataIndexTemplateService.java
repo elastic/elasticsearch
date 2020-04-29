@@ -341,6 +341,7 @@ public class MetadataIndexTemplateService {
 
         Map<String, List<String>> overlaps = findConflictingV2Templates(currentState, name, template.indexPatterns(), true,
             template.priority());
+        overlaps.remove(name);
         if (overlaps.size() > 0) {
             String error = String.format(Locale.ROOT, "index template [%s] has index patterns %s matching patterns from " +
                     "existing templates [%s] with patterns (%s) that have the same priority [%d], multiple index templates may not " +
@@ -367,7 +368,7 @@ public class MetadataIndexTemplateService {
                     .collect(Collectors.joining(",")),
                 name);
             logger.warn(warning);
-            deprecationLogger.deprecated(warning);
+            deprecationLogger.deprecatedAndMaybeLog("index_template_pattern_overlap", warning);
         }
 
         IndexTemplateV2 finalIndexTemplate = template;
@@ -574,38 +575,21 @@ public class MetadataIndexTemplateService {
         if (request.create && isUpdate) {
             throw new IllegalArgumentException("index_template [" + request.name + "] already exists");
         }
-        boolean isUpdateAndPatternsAreUnchanged = isUpdate &&
-            currentState.metadata().templates().get(request.name).patterns().equals(request.indexPatterns);
 
         Map<String, List<String>> overlaps = findConflictingV2Templates(currentState, request.name, request.indexPatterns);
         if (overlaps.size() > 0) {
-            // Be less strict (just a warning) if we're updating an existing template or this is a match-all template
-            if (isUpdateAndPatternsAreUnchanged || request.indexPatterns.stream().anyMatch(Regex::isMatchAllPattern)) {
-                String warning = String.format(Locale.ROOT, "template [%s] has index patterns %s matching patterns" +
-                        " from existing index templates [%s] with patterns (%s); this template [%s] may be ignored in favor of " +
-                        "an index template at index creation time",
-                    request.name,
-                    request.indexPatterns,
-                    Strings.collectionToCommaDelimitedString(overlaps.keySet()),
-                    overlaps.entrySet().stream()
-                        .map(e -> e.getKey() + " => " + e.getValue())
-                        .collect(Collectors.joining(",")),
-                    request.name);
-                logger.warn(warning);
-                deprecationLogger.deprecated(warning);
-            } else {
-                // Otherwise, this is a hard error, the user should use V2 index templates instead
-                String error = String.format(Locale.ROOT, "template [%s] has index patterns %s matching patterns" +
-                        " from existing index templates [%s] with patterns (%s), use index templates (/_index_template) instead",
-                    request.name,
-                    request.indexPatterns,
-                    Strings.collectionToCommaDelimitedString(overlaps.keySet()),
-                    overlaps.entrySet().stream()
-                        .map(e -> e.getKey() + " => " + e.getValue())
-                        .collect(Collectors.joining(",")));
-                logger.error(error);
-                throw new IllegalArgumentException(error);
-            }
+            String warning = String.format(Locale.ROOT, "template [%s] has index patterns %s matching patterns" +
+                    " from existing index templates [%s] with patterns (%s); this template [%s] may be ignored in favor of " +
+                    "an index template at index creation time",
+                request.name,
+                request.indexPatterns,
+                Strings.collectionToCommaDelimitedString(overlaps.keySet()),
+                overlaps.entrySet().stream()
+                    .map(e -> e.getKey() + " => " + e.getValue())
+                    .collect(Collectors.joining(",")),
+                request.name);
+            logger.warn(warning);
+            deprecationLogger.deprecatedAndMaybeLog("index_template_pattern_overlap", warning);
         }
 
         templateBuilder.order(request.order);
@@ -767,8 +751,6 @@ public class MetadataIndexTemplateService {
         Optional.ofNullable(template.template())
             .map(Template::mappings)
             .ifPresent(mappings::add);
-        // When actually merging mappings, the highest precedence ones should go first, so reverse the list
-        Collections.reverse(mappings);
         return Collections.unmodifiableList(mappings);
     }
 

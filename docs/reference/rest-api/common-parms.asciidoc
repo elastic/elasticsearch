@@ -359,6 +359,13 @@ tag::help[]
 to `false`.
 end::help[]
 
+tag::bulk-id[]
+`_id`::
+(Optional, string)
+The document ID.
+If no ID is specified, a document ID is automatically generated.
+end::bulk-id[]
+
 tag::if_primary_term[]
 `if_primary_term`::
 (Optional, integer) Only perform the operation if the document has
@@ -374,7 +381,7 @@ end::if_seq_no[]
 tag::ignore_throttled[]
 `ignore_throttled`::
 (Optional, boolean) If `true`, concrete, expanded or aliased indices are
-ignored when throttled.
+ignored when frozen.
 end::ignore_throttled[]
 
 tag::index-ignore-unavailable[]

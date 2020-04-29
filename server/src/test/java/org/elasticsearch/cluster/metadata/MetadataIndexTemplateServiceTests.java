@@ -358,6 +358,25 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertNotNull(state.metadata().templatesV2().get("bar"));
     }
 
+    public void testUpdateIndexTemplateV2() throws Exception {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        IndexTemplateV2 template = IndexTemplateV2Tests.randomInstance();
+        state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template);
+
+        assertNotNull(state.metadata().templatesV2().get("foo"));
+        assertTemplatesEqual(state.metadata().templatesV2().get("foo"), template);
+
+        List<String> patterns = new ArrayList<>(template.indexPatterns());
+        patterns.add("new-pattern");
+        template = new IndexTemplateV2(patterns, template.template(), template.composedOf(), template.priority(), template.version(),
+            template.metadata());
+        state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template);
+
+        assertNotNull(state.metadata().templatesV2().get("foo"));
+        assertTemplatesEqual(state.metadata().templatesV2().get("foo"), template);
+    }
+
     public void testRemoveIndexTemplateV2() throws Exception {
         IndexTemplateV2 template = IndexTemplateV2Tests.randomInstance();
         final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
@@ -465,24 +484,20 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * Test that if we have a pre-existing v2 template and put a v1 template that would match the same indices, we generate a hard error
+     * Test that if we have a pre-existing v2 template and put a v1 template that would match the same indices, we generate a warning
      */
-    public void testPuttingV1NonStarTemplateGeneratesError() throws Exception {
+    public void testPuttingV1NonStarTemplateGeneratesWarning() throws Exception {
         final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
         IndexTemplateV2 v2Template = new IndexTemplateV2(Arrays.asList("foo-bar-*", "eggplant"), null, null, null, null, null);
         ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "v2-template", v2Template);
 
         MetadataIndexTemplateService.PutRequest req = new MetadataIndexTemplateService.PutRequest("cause", "v1-template");
         req.patterns(Arrays.asList("egg*", "baz"));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> MetadataIndexTemplateService.innerPutTemplate(state, req, IndexTemplateMetadata.builder("v1-template")));
+        MetadataIndexTemplateService.innerPutTemplate(state, req, IndexTemplateMetadata.builder("v1-template"));
 
-        assertThat(e.getMessage(),
-            equalTo("template [v1-template] has index patterns [egg*, baz] matching patterns from existing index " +
-                "templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]), use index templates " +
-                "(/_index_template) instead"));
-
-        assertNull(state.metadata().templates().get("v1-template"));
+        assertWarnings("template [v1-template] has index patterns [egg*, baz] matching patterns " +
+            "from existing index templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]);" +
+            " this template [v1-template] may be ignored in favor of an index template at index creation time");
     }
 
     /**
@@ -528,9 +543,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     /**
      * Test that if we have a pre-existing v1 and v2 template, and we update the existing v1
-     * template *AND* change the index patterns that an error is generated
+     * template *AND* change the index patterns that a warning is generated
      */
-    public void testUpdatingV1NonStarWithChangedPatternsTemplateGeneratesError() throws Exception {
+    public void testUpdatingV1NonStarWithChangedPatternsTemplateGeneratesWarning() throws Exception {
         final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
         IndexTemplateMetadata v1Template = IndexTemplateMetadata.builder("v1-template")
             .patterns(Arrays.asList("fo*", "baz"))
@@ -557,12 +572,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         MetadataIndexTemplateService.PutRequest req = new MetadataIndexTemplateService.PutRequest("cause", "v1-template");
         req.patterns(Arrays.asList("egg*", "baz"));
         final ClusterState finalState = state;
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> MetadataIndexTemplateService.innerPutTemplate(finalState, req, IndexTemplateMetadata.builder("v1-template")));
+        MetadataIndexTemplateService.innerPutTemplate(finalState, req, IndexTemplateMetadata.builder("v1-template"));
 
-        assertThat(e.getMessage(), equalTo("template [v1-template] has index patterns [egg*, baz] matching patterns " +
-            "from existing index templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]), use index " +
-            "templates (/_index_template) instead"));
+        assertWarnings("template [v1-template] has index patterns [egg*, baz] matching patterns " +
+            "from existing index templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); " +
+            "this template [v1-template] may be ignored in favor of an index template at index creation time");
     }
 
     public void testPuttingOverlappingV2Template() throws Exception {
@@ -680,19 +694,19 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .collect(Collectors.toList());
 
         // The order of mappings should be:
-        // - index template
-        // - ct_high
         // - ct_low
-        // Because the first elements when merging mappings have the highest precedence
+        // - ct_high
+        // - index template
+        // Because the first elements when merging mappings have the lowest precedence
         assertThat(parsedMappings.get(0),
             equalTo(Collections.singletonMap("_doc", Collections.singletonMap("properties",
-                Collections.singletonMap("field", Collections.singletonMap("type", "keyword"))))));
+                Collections.singletonMap("field2", Collections.singletonMap("type", "text"))))));
         assertThat(parsedMappings.get(1),
             equalTo(Collections.singletonMap("_doc", Collections.singletonMap("properties",
                 Collections.singletonMap("field2", Collections.singletonMap("type", "keyword"))))));
         assertThat(parsedMappings.get(2),
             equalTo(Collections.singletonMap("_doc", Collections.singletonMap("properties",
-                Collections.singletonMap("field2", Collections.singletonMap("type", "text"))))));
+                Collections.singletonMap("field", Collections.singletonMap("type", "keyword"))))));
     }
 
     public void testResolveSettings() throws Exception {

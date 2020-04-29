@@ -348,7 +348,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedConfig);
         if (jobId != null) {
             if (datafeedConfig.getJobId() != null && datafeedConfig.getJobId().equals(jobId) == false) {
-                deprecationLogger.deprecated(DEPRECATION_MESSAGE_ON_JOB_ID_UPDATE);
+                deprecationLogger.deprecatedAndMaybeLog("update_datafeed_job_id", DEPRECATION_MESSAGE_ON_JOB_ID_UPDATE);
             }
             builder.setJobId(jobId);
         }

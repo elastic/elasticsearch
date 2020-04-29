@@ -14,9 +14,21 @@
 FROM ${base_image} AS builder
 
 RUN for iter in {1..10}; do yum update --setopt=tsflags=nodocs -y && \
-    yum install --setopt=tsflags=nodocs -y gzip shadow-utils tar && \
+    yum install --setopt=tsflags=nodocs -y wget gzip shadow-utils tar && \
     yum clean all && exit_code=0 && break || exit_code=\$? && echo "yum error: retry \$iter in 10s" && sleep 10; done; \
     (exit \$exit_code)
+
+# `tini` is a tiny but valid init for containers. This is used to cleanly
+# control how ES and any child processes are shut down.
+#
+# The tini GitHub page gives instructions for verifying the binary using
+# gpg, but the keyservers are slow to return the key and this can fail the
+# build. Instead, we check the binary against a checksum that they provide.
+RUN wget --no-cookies --quiet https://github.com/krallin/tini/releases/download/v0.19.0/tini-${tini_arch} \
+    && wget --no-cookies --quiet https://github.com/krallin/tini/releases/download/v0.19.0/tini-${tini_arch}.sha256sum \
+    && sha256sum -c tini-${tini_arch}.sha256sum \
+    && mv tini-${tini_arch} /tini \
+    && chmod +x /tini
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
@@ -45,6 +57,8 @@ FROM ${base_image}
 
 ENV ELASTIC_CONTAINER true
 
+COPY --from=builder /tini /tini
+
 RUN for iter in {1..10}; do yum update --setopt=tsflags=nodocs -y && \
     yum install --setopt=tsflags=nodocs -y nc shadow-utils zip unzip && \
     yum clean all && exit_code=0 && break || exit_code=\$? && echo "yum error: retry \$iter in 10s" && sleep 10; done; \
@@ -65,16 +79,13 @@ RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
-COPY --chown=1000:0 bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+
+RUN chmod g=u /etc/passwd && \
+    chmod 0775 /usr/local/bin/docker-entrypoint.sh
 
 # Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
 RUN find / -xdev -perm -4000 -exec chmod ug-s {} +
-
-# Openshift overrides USER and uses ones with randomly uid>1024 and gid=0
-# Allow ENTRYPOINT (and ES) to run even with a different user
-RUN chgrp 0 /usr/local/bin/docker-entrypoint.sh && \
-    chmod g=u /etc/passwd && \
-    chmod 0775 /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 9200 9300
 
@@ -98,7 +109,7 @@ LABEL org.label-schema.build-date="${build_date}" \
   org.opencontainers.image.vendor="Elastic" \
   org.opencontainers.image.version="${version}"
 
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+ENTRYPOINT ["/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
 # Dummy overridable parameter parsed by entrypoint
 CMD ["eswrapper"]
 

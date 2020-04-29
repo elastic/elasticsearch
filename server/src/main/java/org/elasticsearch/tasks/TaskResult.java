@@ -27,7 +27,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParserHelper;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -79,7 +79,7 @@ public final class TaskResult implements Writeable, ToXContentObject {
         this(true, task, null, XContentHelper.toXContent(response, Requests.INDEX_CONTENT_TYPE, true));
     }
 
-    private TaskResult(boolean completed, TaskInfo task, @Nullable BytesReference error, @Nullable BytesReference result) {
+    public TaskResult(boolean completed, TaskInfo task, @Nullable BytesReference error, @Nullable BytesReference result) {
         this.completed = completed;
         this.task = requireNonNull(task, "task is required");
         this.error = error;
@@ -174,21 +174,17 @@ public final class TaskResult implements Writeable, ToXContentObject {
         return builder;
     }
 
-    public static final ConstructingObjectParser<TaskResult, Void> PARSER = new ConstructingObjectParser<>(
-            "stored_task_result", a -> {
-                int i = 0;
-                boolean completed = (boolean) a[i++];
-                TaskInfo task = (TaskInfo) a[i++];
-                BytesReference error = (BytesReference) a[i++];
-                BytesReference response = (BytesReference) a[i++];
-                return new TaskResult(completed, task, error, response);
-            });
+    public static final InstantiatingObjectParser<TaskResult, Void> PARSER;
+
     static {
-        PARSER.declareBoolean(constructorArg(), new ParseField("completed"));
-        PARSER.declareObject(constructorArg(), TaskInfo.PARSER, new ParseField("task"));
+        InstantiatingObjectParser.Builder<TaskResult, Void> parser = InstantiatingObjectParser.builder(
+            "stored_task_result", true, TaskResult.class);
+        parser.declareBoolean(constructorArg(), new ParseField("completed"));
+        parser.declareObject(constructorArg(), TaskInfo.PARSER, new ParseField("task"));
         ObjectParserHelper<TaskResult, Void> parserHelper = new ObjectParserHelper<>();
-        parserHelper.declareRawObject(PARSER, optionalConstructorArg(), new ParseField("error"));
-        parserHelper.declareRawObject(PARSER, optionalConstructorArg(), new ParseField("response"));
+        parserHelper.declareRawObject(parser, optionalConstructorArg(), new ParseField("error"));
+        parserHelper.declareRawObject(parser, optionalConstructorArg(), new ParseField("response"));
+        PARSER = parser.build();
     }
 
     @Override

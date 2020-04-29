@@ -194,11 +194,13 @@ The fields within the nested object, which can be of any
 <<mapping-types,datatype>>, including `nested`. New properties
 may be added to an existing nested object.
 
+[[nested-include-in-parent-parm]]
 `include_in_parent`::
 (Optional, boolean)
 If `true`, all fields in the nested object are also added to the parent document
 as standard (flat) fields. Defaults to `false`.
 
+[[nested-include-in-root-parm]]
 `include_in_root`::
 (Optional, boolean)
 If `true`, all fields in the nested object are also added to the root

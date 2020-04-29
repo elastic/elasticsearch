@@ -5,13 +5,6 @@
  */
 package org.elasticsearch.xpack.analytics.mapper;
 
-import static java.util.Collections.singleton;
-
-import java.io.IOException;
-import java.util.Iterator;
-import java.util.List;
-import java.util.function.Consumer;
-
 import org.HdrHistogram.DoubleHistogram;
 import org.HdrHistogram.DoubleHistogramIterationValue;
 import org.apache.lucene.document.BinaryDocValuesField;
@@ -39,6 +32,13 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
+
+import java.io.IOException;
+import java.util.Iterator;
+import java.util.List;
+import java.util.function.Consumer;
+
+import static java.util.Collections.singleton;
 
 public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCase {
 

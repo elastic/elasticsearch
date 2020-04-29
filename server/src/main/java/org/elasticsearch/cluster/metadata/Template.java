@@ -83,7 +83,7 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
         this.aliases = aliases;
     }
 
-    Template(StreamInput in) throws IOException {
+    public Template(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             this.settings = Settings.readSettingsFromStream(in);
         } else {

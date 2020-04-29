@@ -111,7 +111,7 @@ public class MetadataUpdateSettingsService {
         final Settings openSettings = settingsForOpenIndices.build();
         final boolean preserveExisting = request.isPreserveExisting();
 
-        clusterService.submitStateUpdateTask("update-settings",
+        clusterService.submitStateUpdateTask("update-settings " + Arrays.toString(request.indices()),
                 new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request,
                     wrapPreservingContext(listener, threadPool.getThreadContext())) {
 

@@ -722,7 +722,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             }
 
             // Try to resolve aggregates and groupings based on the child plan
-            if (plan instanceof Aggregate) {
+            if (plan instanceof Aggregate && !plan.resolved() && plan.childrenResolved()) {
                 Aggregate a = (Aggregate) plan;
                 LogicalPlan child = a.child();
                 List<Expression> newGroupings = new ArrayList<>(a.groupings().size());

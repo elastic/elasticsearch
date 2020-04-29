@@ -27,6 +27,7 @@ import org.gradle.api.tasks.SourceSet;
 public class InternalClusterTestPlugin implements Plugin<Project> {
 
     public static final String SOURCE_SET_NAME = "internalClusterTest";
+
     @Override
     public void apply(Project project) {
         GradleUtils.addTestSourceSet(project, SOURCE_SET_NAME);

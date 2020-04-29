@@ -415,7 +415,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     // 2. Snapshots in state INIT that a previous master of an older version failed to start
                     // 3. Snapshots in any other state that have all their shard tasks completed
                     snapshotsInProgress.entries().stream().filter(
-                        entry -> entry.state().completed() || (entry.state() == State.INIT || completed(entry.shards().values()))
+                        entry -> entry.state().completed() || entry.state() == State.INIT || completed(entry.shards().values())
                     ).forEach(entry -> endSnapshot(entry, event.state().metadata()));
                 }
                 if (newMaster) {
@@ -864,10 +864,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 final State state = snapshotEntry.state();
                 final String failure;
                 if (state == State.INIT) {
-                    // snapshot is still initializing, mark it as aborted
+                    // snapshot was created by an older version of ES and never moved past INIT, remove it from the cluster state
                     shards = snapshotEntry.shards();
                     assert shards.isEmpty();
-                    failure = "Snapshot was aborted during initialization";
+                    failure = null;
                     abortedDuringInit = true;
                 } else if (state == State.STARTED) {
                     // snapshot is started - mark every non completed shard as aborted
@@ -906,12 +906,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     failure = snapshotEntry.failure();
                 }
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE,
-                    new SnapshotsInProgress(snapshots.entries().stream().map(existing -> {
-                        if (existing.equals(snapshotEntry)) {
-                            return new SnapshotsInProgress.Entry(snapshotEntry, State.ABORTED, shards, failure);
-                        }
-                        return existing;
-                    }).collect(Collectors.toUnmodifiableList()))).build();
+                    new SnapshotsInProgress(snapshots.entries().stream()
+                        // remove init state snapshot we found from a previous master if there was one
+                        .filter(existing -> abortedDuringInit == false || existing.equals(snapshotEntry) == false)
+                        .map(existing -> {
+                            if (existing.equals(snapshotEntry)) {
+                                return new SnapshotsInProgress.Entry(snapshotEntry, State.ABORTED, shards, failure);
+                            }
+                            return existing;
+                        }).collect(Collectors.toUnmodifiableList()))).build();
             }
 
             @Override
@@ -921,6 +924,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                if (abortedDuringInit) {
+                    // BwC Path where we removed an outdated INIT state snapshot from the cluster state
+                    logger.info("Successfully aborted snapshot [{}]", runningSnapshot);
+                    listener.onResponse(null);
+                    return;
+                }
                 if (runningSnapshot == null) {
                     try {
                         repositoriesService.repository(repositoryName).executeConsistentStateUpdate(repositoryData ->
@@ -941,12 +950,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                         result.v1().getGenId(), null, Priority.IMMEDIATE, listener));
                     },
                     e -> {
-                        if (abortedDuringInit) {
-                            logger.info("Successfully aborted snapshot [{}]", runningSnapshot);
-                            listener.onResponse(null);
-                        } else {
-                            if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class)
-                                != null) {
+                       if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
                                 logger.warn("master failover before deleted snapshot could complete", e);
                                 // Just pass the exception to the transport handler as is so it is retried on the new master
                                 listener.onFailure(e);
@@ -956,7 +960,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     new SnapshotMissingException(runningSnapshot.getRepository(), runningSnapshot.getSnapshotId(), e));
                             }
                         }
-                    }
                 ));
             }
 

@@ -28,7 +28,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviation;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -43,13 +42,9 @@ import static org.elasticsearch.gateway.DanglingIndicesState.AUTO_IMPORT_DANGLIN
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -211,12 +206,16 @@ public class DanglingIndicesStateTests extends ESTestCase {
             MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
             DanglingIndicesState danglingState = createDanglingIndicesState(env, metaStateService);
 
-            final Settings.Builder danglingSettings = Settings.builder().put(indexSettings).put(IndexMetadata.SETTING_INDEX_UUID, "test1UUID");
+            final Settings.Builder danglingSettings = Settings.builder()
+                .put(indexSettings)
+                .put(IndexMetadata.SETTING_INDEX_UUID, "test1UUID");
             IndexMetadata dangledIndex = IndexMetadata.builder("test_index").settings(danglingSettings).build();
             metaStateService.writeIndex("test_write", dangledIndex);
 
             // Build another index with the same name but a different UUID
-            final Settings.Builder existingSettings = Settings.builder().put(indexSettings).put(IndexMetadata.SETTING_INDEX_UUID, "test2UUID");
+            final Settings.Builder existingSettings = Settings.builder()
+                .put(indexSettings)
+                .put(IndexMetadata.SETTING_INDEX_UUID, "test2UUID");
             IndexMetadata existingIndex = IndexMetadata.builder("test_index").settings(existingSettings).build();
             metaStateService.writeIndex("test_write", existingIndex);
 

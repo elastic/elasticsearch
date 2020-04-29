@@ -27,6 +27,8 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.List;
+import org.elasticsearch.common.collect.Set;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -41,9 +43,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.core.IsNull;
 import org.junit.Before;
 
-import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;

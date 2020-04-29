@@ -541,7 +541,9 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
                     if (fieldsInThisRow != fieldsInFirstRow) {
                         illFormattedRows.add(numberOfRows - 1);
                         // This calculation is complicated by the possibility of multi-lined CSV columns
-                        // `getLineNumber` is a current count of lines, regardless of row count
+                        // `getLineNumber` is a current count of lines, regardless of row count, so
+                        // this formula is just an approximation, but gets more accurate the further
+                        // through the sample you are.
                         double totalNumberOfRows = (numberOfRows + numberOfLinesInSample - csvReader.getLineNumber());
                         // We should only allow a certain percentage of ill formatted rows
                         // as it may have and down stream effects

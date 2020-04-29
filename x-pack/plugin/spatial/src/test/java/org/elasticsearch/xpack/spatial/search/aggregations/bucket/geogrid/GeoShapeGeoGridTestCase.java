@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -15,6 +16,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.geometry.Geometry;
@@ -128,6 +130,17 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
                 iw.addDocument(Collections.singleton(
                     new BinaryGeoShapeDocValuesField(FIELD_NAME, GeoTestUtils.toDecodedTriangles(new Point(10D, 10D)),
                         new CentroidCalculator(new Point(10D, 10D)))));
+            },
+            geoGrid -> assertEquals(1, geoGrid.getBuckets().size()), builder);
+    }
+
+    public void testMappedMissingGeoShape() throws IOException {
+        GeoGridAggregationBuilder builder = createBuilder("_name")
+            .field(FIELD_NAME)
+            .missing("LINESTRING (30 10, 10 30, 40 40)");
+        testCase(new MatchAllDocsQuery(), 1, null,
+            iw -> {
+                iw.addDocument(Collections.singleton(new SortedSetDocValuesField("string", new BytesRef("a"))));
             },
             geoGrid -> assertEquals(1, geoGrid.getBuckets().size()), builder);
     }

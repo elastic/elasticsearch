@@ -179,7 +179,7 @@ public class JobResultsProvider {
                 .setIndicesOptions(IndicesOptions.strictExpand());
 
         SearchRequestBuilder resultDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
-                .setIndicesOptions(IndicesOptions.lenientExpandOpenHidden())
+                .setIndicesOptions(IndicesOptions.lenientExpandHidden())
                 .setQuery(QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
                 .setTrackTotalHits(false)
                 .setSize(1);
@@ -189,7 +189,7 @@ public class JobResultsProvider {
                 .add(resultDocSearch)
                 .add(quantilesDocSearch);
 
-        ActionListener<MultiSearchResponse> searchResponseActionListener = new ActionListener<MultiSearchResponse>() {
+        ActionListener<MultiSearchResponse> searchResponseActionListener = new ActionListener<>() {
             @Override
             public void onResponse(MultiSearchResponse response) {
                 List<SearchHit> searchHits = new ArrayList<>();

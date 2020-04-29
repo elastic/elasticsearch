@@ -99,7 +99,8 @@ public class TransportSimulateIndexTemplateAction
     }
 
     @Override
-    protected void masterOperation(SimulateIndexTemplateRequest request, ClusterState state, ActionListener<SimulateIndexTemplateResponse> listener) throws Exception {
+    protected void masterOperation(SimulateIndexTemplateRequest request, ClusterState state,
+                                   ActionListener<SimulateIndexTemplateResponse> listener) throws Exception {
         ClusterState simulateOnClusterState = state;
         if (request.getIndexTemplateRequest() != null) {
             // we'll "locally" add the template defined by the user in the cluster state (as if it existed in the system)

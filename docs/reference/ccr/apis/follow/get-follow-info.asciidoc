@@ -76,7 +76,8 @@ replication options and whether the follower indices are active or paused.
 
 //Begin parameters
 `parameters`::
-(object) An object that encapsulates {ccr} parameters.
+(object) An object that encapsulates {ccr} parameters. This object will be
+omitted if the follower index's `status` is `paused`.
 +
 .Properties of `parameters`
 [%collapsible%open]
@@ -132,7 +133,7 @@ to read from the leader again.
 leader index.
 
 `status`::
-(string) Whether index following is `active` or `paused`. 
+(string) Whether index following is `active` or `paused`.
 ====
 //End follower_indices
 
@@ -146,7 +147,7 @@ This example retrieves follower info:
 GET /follower_index/_ccr/info
 --------------------------------------------------
 
-The API returns the following results:
+The API returns the following results if the follower index is `active`:
 
 [source,console-result]
 --------------------------------------------------
@@ -169,6 +170,22 @@ The API returns the following results:
                 "max_retry_delay" : "500ms",
                 "read_poll_timeout" : "1m"
             }
+        }
+    ]
+}
+--------------------------------------------------
+
+The API returns the following results if the follower index is `paused`:
+
+[source,console-result]
+--------------------------------------------------
+{
+    "follower_indices" : [
+        {
+            "follower_index" : "follower_index",
+            "remote_cluster" : "remote_cluster",
+            "leader_index" : "leader_index",
+            "status" : "paused"
         }
     ]
 }

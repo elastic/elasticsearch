@@ -57,6 +57,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.get.GetResult;
@@ -715,7 +716,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             String scrollId = searchResponse.getScrollId();
             SearchHit[] searchHits = searchResponse.getHits().getHits();
 
-            while (searchHits != null && searchHits.length > 0) { // <2>
+            while (!CollectionUtils.isEmpty(searchHits)) { // <2>
                 // <3>
                 SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId); // <4>
                 scrollRequest.scroll(scroll);

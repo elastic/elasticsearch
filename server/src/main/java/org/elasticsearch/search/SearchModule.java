@@ -532,7 +532,7 @@ public class SearchModule {
         registerPipelineAggregation(new PipelineAggregationSpec(
                 CumulativeSumPipelineAggregationBuilder.NAME,
                 CumulativeSumPipelineAggregationBuilder::new,
-                CumulativeSumPipelineAggregationBuilder::parse));
+                CumulativeSumPipelineAggregationBuilder.PARSER));
         registerPipelineAggregation(new PipelineAggregationSpec(
                 BucketScriptPipelineAggregationBuilder.NAME,
                 BucketScriptPipelineAggregationBuilder::new,

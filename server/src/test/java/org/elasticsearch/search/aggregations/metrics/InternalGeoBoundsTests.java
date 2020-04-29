@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
@@ -93,11 +92,6 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
 
         assertEquals(aggregation.topLeft(), parsed.topLeft());
         assertEquals(aggregation.bottomRight(), parsed.bottomRight());
-    }
-
-    @Override
-    protected Writeable.Reader<InternalGeoBounds> instanceReader() {
-        return InternalGeoBounds::new;
     }
 
     @Override

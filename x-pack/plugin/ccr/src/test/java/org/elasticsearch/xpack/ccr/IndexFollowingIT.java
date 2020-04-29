@@ -1290,6 +1290,9 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         followerClient().admin().indices().prepareClose("index2").get();
         pauseFollow("index2");
+        if (randomBoolean()) {
+            assertAcked(followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request("index2")).actionGet());
+        }
 
         final PutFollowAction.Request followRequest2 = putFollow("index1", "index2");
         PutFollowAction.Response response2 = followerClient().execute(PutFollowAction.INSTANCE, followRequest2).get();

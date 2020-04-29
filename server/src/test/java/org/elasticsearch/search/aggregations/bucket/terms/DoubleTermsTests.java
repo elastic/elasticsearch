@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -56,11 +55,6 @@ public class DoubleTermsTests extends InternalTermsTestCase {
         }
         return new DoubleTerms(name, order, requiredSize, minDocCount,
                 metadata, format, shardSize, showTermDocCountError, otherDocCount, buckets, docCountError);
-    }
-
-    @Override
-    protected Reader<InternalTerms<?, ?>> instanceReader() {
-        return DoubleTerms::new;
     }
 
     @Override

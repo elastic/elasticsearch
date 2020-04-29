@@ -13,7 +13,7 @@
 ==== Removal of old discovery settings
 
 All settings under the `discovery.zen` namespace, which existed only for BWC reasons in 7.x,
-will no longer be supported. In particular, this includes:
+are no longer supported. In particular, this includes:
 
 - `discovery.zen.no_master_block`
 - `discovery.zen.hosts_provider`

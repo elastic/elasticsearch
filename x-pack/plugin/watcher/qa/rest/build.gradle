@@ -22,7 +22,7 @@ artifacts {
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'search', 'get', 'indices', 
+    includeCore '_common', 'cluster', 'nodes', 'search', 'get', 'indices',
                 'index', 'put_script', 'ingest', 'count'
     includeXpack 'watcher', 'xpack'
   }
@@ -30,10 +30,7 @@ restResources {
 
 testClusters.integTest {
   testDistribution = 'DEFAULT'
-  setting 'xpack.slm.enabled', 'false'
-  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.security.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'

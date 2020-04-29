@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -88,11 +87,6 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
             buckets.add(new InternalDateRange.Bucket("range_" + i, from, to, docCount, aggregations, keyed, format));
         }
         return new InternalDateRange(name, buckets, format, keyed, metadata);
-    }
-
-    @Override
-    protected Writeable.Reader<InternalDateRange> instanceReader() {
-        return InternalDateRange::new;
     }
 
     @Override

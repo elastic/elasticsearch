@@ -28,6 +28,7 @@ import org.apache.commons.io.IOUtils
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
 import org.elasticsearch.gradle.info.JavaHome
+import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
@@ -42,6 +43,7 @@ import org.gradle.api.NamedDomainObjectContainer
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.XmlProvider
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.ModuleDependency
@@ -178,60 +180,6 @@ class BuildPlugin implements Plugin<Project> {
             }
 
         }
-    }
-
-    /** Add a check before gradle execution phase which ensures java home for the given java version is set. */
-    static void requireJavaHome(Task task, int version) {
-        // use root project for global accounting
-        Project rootProject = task.project.rootProject
-        ExtraPropertiesExtension extraProperties = rootProject.extensions.extraProperties
-
-        // hacky way (but the only way) to find if the task graph has already been populated
-        boolean taskGraphReady
-        try {
-            rootProject.gradle.taskGraph.getAllTasks()
-            taskGraphReady = true
-        } catch (IllegalStateException) {
-            taskGraphReady = false
-        }
-
-        if (taskGraphReady) {
-            // check directly if the version is present since we are already executing
-            if (BuildParams.javaVersions.find { it.version == version } == null) {
-                throw new GradleException("JAVA${version}_HOME required to run task:\n${task}")
-            }
-        } else {
-            // setup list of java versions we will check at the end of configuration time
-            if (extraProperties.has('requiredJavaVersions') == false) {
-                extraProperties.set('requiredJavaVersions', [:])
-                rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
-                    List<String> messages = []
-                    Map<Integer, List<Task>> requiredJavaVersions = (Map<Integer, List<Task>>) extraProperties.get('requiredJavaVersions')
-                    for (Map.Entry<Integer, List<Task>> entry : requiredJavaVersions) {
-                        if (BuildParams.javaVersions.any { it.version == entry.key }) {
-                            continue
-                        }
-                        List<String> tasks = entry.value.findAll { taskGraph.hasTask(it) }.collect { "  ${it.path}".toString() }
-                        if (tasks.isEmpty() == false) {
-                            messages.add("JAVA${entry.key}_HOME required to run tasks:\n${tasks.join('\n')}".toString())
-                        }
-                    }
-                    if (messages.isEmpty() == false) {
-                        throw new GradleException(messages.join('\n'))
-                    }
-                }
-            }
-            Map<Integer, List<Task>> requiredJavaVersions = (Map<Integer, List<Task>>) extraProperties.get('requiredJavaVersions')
-            requiredJavaVersions.putIfAbsent(version, [])
-            requiredJavaVersions.get(version).add(task)
-        }
-    }
-
-    /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
-    static String getJavaHome(final Task task, final int version) {
-        requireJavaHome(task, version)
-        JavaHome java = BuildParams.javaVersions.find { it.version == version }
-        return java == null ? null : java.javaHome.get().absolutePath
     }
 
     /**
@@ -373,8 +321,12 @@ class BuildPlugin implements Plugin<Project> {
                 shadow.component(publication)
                 // Workaround for https://github.com/johnrengelman/shadow/issues/334
                 // Here we manually add any project dependencies in the "shadow" configuration to our generated POM
+                publication.pom.withXml(this.&addScmInfo)
                 publication.pom.withXml { xml ->
-                    Node dependenciesNode = (xml.asNode().get('dependencies') as NodeList).get(0) as Node
+                    Node root = xml.asNode();
+                    root.appendNode('name', project.name)
+                    root.appendNode('description', project.description)
+                    Node dependenciesNode = (root.get('dependencies') as NodeList).get(0) as Node
                     project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME).allDependencies.each { dependency ->
                         if (dependency instanceof ProjectDependency) {
                             def dependencyNode = dependenciesNode.appendNode('dependency')
@@ -388,6 +340,20 @@ class BuildPlugin implements Plugin<Project> {
                 generatePomTask.configure({ Task t -> t.dependsOn = ['generatePomFileForShadowPublication'] } as Action<Task>)
             }
         }
+
+        // Add git origin info to generated POM files
+        project.pluginManager.withPlugin('nebula.maven-base-publish') {
+            PublishingExtension publishing = project.extensions.getByType(PublishingExtension)
+            MavenPublication nebulaPublication = (MavenPublication) publishing.publications.getByName('nebula')
+            nebulaPublication.pom.withXml(this.&addScmInfo)
+        }
+    }
+
+    private static void addScmInfo(XmlProvider xml) {
+        Node root = xml.asNode()
+        root.appendNode('url', PluginBuildPlugin.urlFromOrigin(BuildParams.gitOrigin))
+        Node scmNode = root.appendNode('scm')
+        scmNode.appendNode('url', BuildParams.gitOrigin)
     }
 
     /**
@@ -675,7 +641,8 @@ class BuildPlugin implements Plugin<Project> {
                 // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
                 nonInputProperties.systemProperty('java.io.tmpdir', test.workingDir.toPath().resolve('temp'))
 
-                nonInputProperties.systemProperty('compiler.java', "${-> BuildParams.compilerJavaVersion.majorVersion}")
+                nonInputProperties.systemProperty('compiler.java', BuildParams.compilerJavaVersion.majorVersion)
+                nonInputProperties.systemProperty('runtime.java', BuildParams.runtimeJavaVersion.majorVersion)
 
                 // TODO: remove setting logging level via system property
                 test.systemProperty 'tests.logger.level', 'WARN'

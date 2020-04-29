@@ -41,16 +41,20 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
 import static org.elasticsearch.cluster.metadata.AliasMetadata.newAliasMetadataBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_API;
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_GATEWAY;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class ToAndFromJsonMetadataTests extends ESTestCase {
 
     public void testSimpleJsonFromAndTo() throws IOException {
+        IndexMetadata idx1 = createFirstBackingIndex("data-stream1").build();
+        IndexMetadata idx2 = createFirstBackingIndex("data-stream2").build();
         Metadata metadata = Metadata.builder()
                 .put(IndexTemplateMetadata.builder("foo")
                         .patterns(Collections.singletonList("bar"))
@@ -94,8 +98,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                         .putAlias(newAliasMetadataBuilder("alias-bar1"))
                         .putAlias(newAliasMetadataBuilder("alias-bar2").filter("{\"term\":{\"user\":\"kimchy\"}}"))
                         .putAlias(newAliasMetadataBuilder("alias-bar3").routing("routing-bar")))
-                .put(new DataStream("data-stream1", "@timestamp", Collections.emptyList()))
-                .put(new DataStream("data-stream2", "@timestamp2", Collections.emptyList()))
+                .put(idx1, false)
+                .put(idx2, false)
+                .put(new DataStream("data-stream1", "@timestamp", List.of(idx1.getIndex())))
+                .put(new DataStream("data-stream2", "@timestamp2", List.of(idx2.getIndex())))
                 .build();
 
         XContentBuilder builder = JsonXContent.contentBuilder();
@@ -146,11 +152,11 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         assertNotNull(parsedMetadata.dataStreams().get("data-stream1"));
         assertThat(parsedMetadata.dataStreams().get("data-stream1").getName(), is("data-stream1"));
         assertThat(parsedMetadata.dataStreams().get("data-stream1").getTimeStampField(), is("@timestamp"));
-        assertThat(parsedMetadata.dataStreams().get("data-stream1").getIndices(), is(Collections.emptyList()));
+        assertThat(parsedMetadata.dataStreams().get("data-stream1").getIndices(), contains(idx1.getIndex()));
         assertNotNull(parsedMetadata.dataStreams().get("data-stream2"));
         assertThat(parsedMetadata.dataStreams().get("data-stream2").getName(), is("data-stream2"));
         assertThat(parsedMetadata.dataStreams().get("data-stream2").getTimeStampField(), is("@timestamp2"));
-        assertThat(parsedMetadata.dataStreams().get("data-stream2").getIndices(), is(Collections.emptyList()));
+        assertThat(parsedMetadata.dataStreams().get("data-stream2").getIndices(), contains(idx2.getIndex()));
     }
 
     private static final String MAPPING_SOURCE1 = "{\"mapping1\":{\"text1\":{\"type\":\"string\"}}}";

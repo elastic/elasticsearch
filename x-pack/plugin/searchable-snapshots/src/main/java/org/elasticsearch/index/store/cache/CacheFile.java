@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 
@@ -51,7 +52,6 @@ public class CacheFile {
     private final ReleasableLock readLock;
 
     private final SparseFileTracker tracker;
-    private final int rangeSize;
     private final String description;
     private final Path file;
 
@@ -61,12 +61,11 @@ public class CacheFile {
     @Nullable // if evicted, or there are no listeners
     private volatile FileChannel channel;
 
-    public CacheFile(String description, long length, Path file, int rangeSize) {
+    public CacheFile(String description, long length, Path file) {
         this.tracker = new SparseFileTracker(file.toString(), length);
         this.description = Objects.requireNonNull(description);
         this.file = Objects.requireNonNull(file);
         this.listeners = new HashSet<>();
-        this.rangeSize = rangeSize;
         this.evicted = false;
 
         final ReentrantReadWriteLock cacheLock = new ReentrantReadWriteLock();
@@ -85,16 +84,20 @@ public class CacheFile {
     }
 
     ReleasableLock fileLock() {
-        try (ReleasableLock ignored = evictionLock.acquire()) {
+        boolean success = false;
+        final ReleasableLock fileLock = readLock.acquire();
+        try {
             ensureOpen();
-            // check if we have a channel under eviction lock
+            // check if we have a channel while holding the read lock
             if (channel == null) {
                 throw new AlreadyClosedException("Cache file channel has been released and closed");
             }
-            // acquire next read lock while holding the eviction lock
-            // makes sure that channel won't be closed until this
-            // read lock is released
-            return readLock.acquire();
+            success = true;
+            return fileLock;
+        } finally {
+            if (success == false) {
+                fileLock.close();
+            }
         }
     }
 
@@ -245,46 +248,45 @@ public class CacheFile {
     }
 
     CompletableFuture<Integer> fetchRange(
-        long position,
+        long start,
+        long end,
         CheckedBiFunction<Long, Long, Integer, IOException> onRangeAvailable,
         CheckedBiConsumer<Long, Long, IOException> onRangeMissing
     ) {
         final CompletableFuture<Integer> future = new CompletableFuture<>();
         try {
-            if (position < 0 || position > tracker.getLength()) {
-                throw new IllegalArgumentException("Wrong read position [" + position + "]");
+            if (start < 0 || start > tracker.getLength() || start > end || end > tracker.getLength()) {
+                throw new IllegalArgumentException(
+                    "Invalid range [start=" + start + ", end=" + end + "] for length [" + tracker.getLength() + ']'
+                );
             }
-
             ensureOpen();
-            final long rangeStart = (position / rangeSize) * rangeSize;
-            final long rangeEnd = Math.min(rangeStart + rangeSize, tracker.getLength());
-
             final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
-                rangeStart,
-                rangeEnd,
+                start,
+                end,
                 ActionListener.wrap(
-                    rangeReady -> future.complete(onRangeAvailable.apply(rangeStart, rangeEnd)),
+                    rangeReady -> future.complete(onRangeAvailable.apply(start, end)),
                     rangeFailure -> future.completeExceptionally(rangeFailure)
                 )
             );
 
-            if (gaps.size() > 0) {
-                final SparseFileTracker.Gap range = gaps.get(0);
-                assert gaps.size() == 1 : "expected 1 range to fetch but got " + gaps.size();
-                assert range.start == rangeStart : "range/gap start mismatch (" + range.start + ',' + rangeStart + ')';
-                assert range.end == rangeEnd : "range/gap end mismatch (" + range.end + ',' + rangeEnd + ')';
-
+            for (SparseFileTracker.Gap gap : gaps) {
                 try {
                     ensureOpen();
-                    onRangeMissing.accept(rangeStart, rangeEnd);
-                    range.onResponse(null);
+                    onRangeMissing.accept(gap.start, gap.end);
+                    gap.onResponse(null);
                 } catch (Exception e) {
-                    range.onFailure(e);
+                    gap.onFailure(e);
                 }
             }
         } catch (Exception e) {
             future.completeExceptionally(e);
         }
         return future;
+    }
+
+    public Tuple<Long, Long> getAbsentRangeWithin(long start, long end) {
+        ensureOpen();
+        return tracker.getAbsentRangeWithin(start, end);
     }
 }

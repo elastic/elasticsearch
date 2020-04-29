@@ -50,8 +50,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.snapshots.SnapshotInfo.METADATA_FIELD_INTRODUCED;
-
 /**
  * Meta data about snapshots that are currently executing
  */
@@ -523,10 +521,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
             long repositoryStateId = in.readLong();
             final String failure = in.readOptionalString();
-            Map<String, Object> userMetadata = null;
-            if (in.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
-                userMetadata = in.readMap();
-            }
+            final Map<String, Object> userMetadata = in.readMap();
             final Version version;
             if (in.getVersion().onOrAfter(VERSION_IN_SNAPSHOT_VERSION)) {
                 version = Version.readVersion(in);
@@ -572,9 +567,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
             out.writeLong(entry.repositoryStateId);
             out.writeOptionalString(entry.failure);
-            if (out.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
-                out.writeMap(entry.userMetadata);
-            }
+            out.writeMap(entry.userMetadata);
             if (out.getVersion().onOrAfter(VERSION_IN_SNAPSHOT_VERSION)) {
                 Version.writeVersion(entry.version, out);
             } else {

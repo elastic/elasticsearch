@@ -352,4 +352,45 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("Integer.MAX_VALUE; return null;"));
         assertEquals(iae.getMessage(), "not a statement: result of dot operator [.] not used");
     }
+
+    public void testInvalidAssignment() {
+        IllegalArgumentException iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("1 * 1 = 2; return null;"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot assign a value to multiplication operation [*]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("boolean x = true; x && false = 2; return null;"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot assign a value to boolean and operation [&&]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("false = 2; return null;"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot assign a value to boolean constant [false]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("x() = 1; return null;"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot assign a value to function call [x/0]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("1 == 1 = 2; return null;"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot assign a value to equals operation [==]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("boolean x = true; (x ? 1 : 1) = 2; return null;"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot assign a value to conditional operation [?:]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("1.1 = 1; return null;"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot assign a value to decimal constant [1.1]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List x = []; (x ?: []) = 2; return null;"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot assign a value to elvis operation [?:]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List x = []; x instanceof List = 5; return null;"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot assign a value to instanceof with target type [List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("[] = 5; return null;"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot assign a value to list initializer");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("[:] = 5; return null;"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot assign a value to map initializer");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("new int[] {} = 5; return null;"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot assign a value to new array");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("new ArrayList() = 1; return null;"));
+        assertEquals(iae.getMessage(), "invalid assignment cannot assign a value to new object with constructor [ArrayList/0]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("null = 1; return null;"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot assign a value to null constant");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("1 = 1; return null;"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot assign a value to numeric constant [1]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("/a/ = 1; return null;"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot assign a value to regex constant [a] with flags []");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("'1' = 1; return null;"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot assign a value to string constant [1]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("+1 = 2; return null;"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot assign a value to addition operation [+]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("Double.x() = 1;"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot assign a value to method call [x/0]");
+    }
 }

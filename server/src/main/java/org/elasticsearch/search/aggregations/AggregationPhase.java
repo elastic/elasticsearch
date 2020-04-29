@@ -130,8 +130,7 @@ public class AggregationPhase implements SearchPhase {
                 throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);
             }
         }
-        context.queryResult().aggregations(new InternalAggregations(aggregations,
-                context.request().source().aggregations()::buildPipelineTree));
+        context.queryResult().aggregations(new InternalAggregations(aggregations));
 
         // disable aggregations so that they don't run on next pages in case of scrolling
         context.aggregations(null);

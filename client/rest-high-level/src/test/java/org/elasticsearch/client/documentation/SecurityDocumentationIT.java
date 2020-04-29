@@ -200,11 +200,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             List<User> users = new ArrayList<>(3);
             users.addAll(response.getUsers());
             assertNotNull(response);
-            // 9 users are expected to be returned
+            // 10 users are expected to be returned
             // test_users (3): user1, user2, user3
-            // system_users (6): elastic, beats_system, apm_system, logstash_system, kibana, remote_monitoring_user
+            // system_users (6): elastic, beats_system, apm_system, logstash_system, kibana, kibana_system, remote_monitoring_user
             logger.info(users);
-            assertThat(users.size(), equalTo(9));
+            assertThat(users.size(), equalTo(10));
         }
 
         {

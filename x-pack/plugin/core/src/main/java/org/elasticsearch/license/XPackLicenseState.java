@@ -46,7 +46,8 @@ public class XPackLicenseState {
         SECURITY_API_KEY_SERVICE(OperationMode.MISSING, false),
         SECURITY_AUTHORIZATION_REALM(OperationMode.PLATINUM, true),
         SECURITY_AUTHORIZATION_ENGINE(OperationMode.PLATINUM, true),
-        SPATIAL_GEO_CENTROID(OperationMode.GOLD, true);
+        SPATIAL_GEO_CENTROID(OperationMode.GOLD, true),
+        SPATIAL_GEO_GRID(OperationMode.GOLD, true);
 
         final OperationMode minimumOperationMode;
         final boolean needsActive;

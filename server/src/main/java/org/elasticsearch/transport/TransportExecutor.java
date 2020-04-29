@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -19,14 +19,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.tasks.Task;
+public class TransportExecutor {
 
-public interface TransportRequestHandler<T extends TransportRequest> {
 
-    void messageReceived(T request, TransportChannel channel, Task task) throws Exception;
-
-    default Releasable preDispatchValidation(T request) throws Exception {
-        return () -> {};
-    };
 }

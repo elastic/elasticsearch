@@ -21,14 +21,20 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class RequestHandlerRegistry<Request extends TransportRequest> {
 
     private final String action;
+    private final ThreadPool threadPool;
     private final TransportRequestHandler<Request> handler;
     private final boolean forceExecution;
     private final boolean canTripCircuitBreaker;
@@ -36,11 +42,12 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
     private final TaskManager taskManager;
     private final Writeable.Reader<Request> requestReader;
 
-    public RequestHandlerRegistry(String action, Writeable.Reader<Request> requestReader, TaskManager taskManager,
+    public RequestHandlerRegistry(String action, Writeable.Reader<Request> requestReader, ThreadPool threadPool, TaskManager taskManager,
                                   TransportRequestHandler<Request> handler, String executor, boolean forceExecution,
                                   boolean canTripCircuitBreaker) {
         this.action = action;
         this.requestReader = requestReader;
+        this.threadPool = threadPool;
         this.handler = handler;
         this.forceExecution = forceExecution;
         this.canTripCircuitBreaker = canTripCircuitBreaker;
@@ -57,14 +64,22 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
     }
 
     public void processMessageReceived(Request request, TransportChannel channel) throws Exception {
+        processMessageReceived(request, channel, new AtomicReference<>(() -> {}));
+    }
+
+    private void processMessageReceived(Request request, TransportChannel channel, AtomicReference<Releasable> releasable)
+        throws Exception {
         final Task task = taskManager.register(channel.getChannelType(), action, request);
+        Releasable[] releasables = new Releasable[2];
         boolean success = false;
         try {
-            handler.messageReceived(request, new TaskTransportChannel(taskManager, task, channel), task);
+            releasables[0] = () -> taskManager.unregister(task);
+            releasables[1] = releasable.get();
+            handler.messageReceived(request, new TaskTransportChannel(channel, releasables), task);
             success = true;
         } finally {
             if (success == false) {
-                taskManager.unregister(task);
+                Releasables.close(releasables);
             }
         }
     }
@@ -85,6 +100,38 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         return handler;
     }
 
+    public void dispatchMessage(Request request, TransportChannel channel) {
+        final AtomicReference<Releasable> releasable = new AtomicReference<>();
+        try {
+            releasable.set(handler.preDispatchValidation(request));
+            threadPool.executor(executor).execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    Releasables.close(releasable.get());
+                    TransportChannel.sendErrorResponse(channel, action, request, e);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    processMessageReceived(request, channel, releasable);
+                }
+
+                @Override
+                public boolean isForceExecution() {
+                    return forceExecution;
+                }
+
+                @Override
+                public String toString() {
+                    return "processing of [" + action + "]: " + request;
+                }
+            });
+        } catch (Exception e) {
+            Releasables.close(releasable.get());
+            TransportChannel.sendErrorResponse(channel, action, request, e);
+        }
+    }
+
     @Override
     public String toString() {
         return handler.toString();
@@ -92,7 +139,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
 
     public static <R extends TransportRequest> RequestHandlerRegistry<R> replaceHandler(RequestHandlerRegistry<R> registry,
                                                                                         TransportRequestHandler<R> handler) {
-        return new RequestHandlerRegistry<>(registry.action, registry.requestReader, registry.taskManager, handler,
+        return new RequestHandlerRegistry<>(registry.action, registry.requestReader, registry.threadPool, registry.taskManager, handler,
             registry.executor, registry.forceExecution, registry.canTripCircuitBreaker);
     }
 }

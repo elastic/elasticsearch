@@ -42,6 +42,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 public class DeterministicTaskQueue {
@@ -201,13 +202,13 @@ public class DeterministicTaskQueue {
      * @return A <code>ExecutorService</code> that uses this task queue.
      */
     public ExecutorService getExecutorService() {
-        return getExecutorService(Function.identity());
+        return getExecutorService(Function.identity(), this::scheduleNow);
     }
 
     /**
      * @return A <code>ExecutorService</code> that uses this task queue and wraps <code>Runnable</code>s in the given wrapper.
      */
-    public ExecutorService getExecutorService(Function<Runnable, Runnable> runnableWrapper) {
+    public ExecutorService getExecutorService(Function<Runnable, Runnable> runnableWrapper, Consumer<Runnable> executor) {
         return new ExecutorService() {
 
             @Override
@@ -272,7 +273,7 @@ public class DeterministicTaskQueue {
 
             @Override
             public void execute(Runnable command) {
-                scheduleNow(runnableWrapper.apply(command));
+                executor.accept(runnableWrapper.apply(command));
             }
         };
     }
@@ -291,6 +292,8 @@ public class DeterministicTaskQueue {
         return new ThreadPool(settings) {
 
             private final Map<String, ThreadPool.Info> infos = new HashMap<>();
+
+            final Map<String, ExecutorService> executors = new HashMap<>();
 
             {
                 stopCachedTimeThread();
@@ -323,12 +326,13 @@ public class DeterministicTaskQueue {
 
             @Override
             public ExecutorService generic() {
-                return getExecutorService(runnableWrapper);
+                return executor(Names.GENERIC);
             }
 
             @Override
             public ExecutorService executor(String name) {
-                return getExecutorService(runnableWrapper);
+                return executors.computeIfAbsent(name, key -> getExecutorService(runnableWrapper,
+                        Names.SAME.equals(key) ? Runnable::run : DeterministicTaskQueue.this::scheduleNow));
             }
 
             @Override

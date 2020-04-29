@@ -304,7 +304,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
             assertFalse(called.get());
             called.set(true);
             runnable.run();
-        });
+        }, taskQueue::scheduleNow);
         executorService.execute(() -> logger.info("runnable executed"));
         assertFalse(called.get());
         taskQueue.runAllRunnableTasks();

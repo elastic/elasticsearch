@@ -169,7 +169,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
                 new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                     @Override
                     public void handleResponse(TransportResponse.Empty response) {
-                        logger.warn("sent ban for tasks with the parent [{}] to the node [{}]", taskId, node);
+                        logger.trace("sent ban for tasks with the parent [{}] to the node [{}]", taskId, node);
                         groupedListener.onResponse(null);
                     }
 

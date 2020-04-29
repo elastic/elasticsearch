@@ -241,6 +241,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         ensureAllBansRemoved();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55875")
     public void testDoNotWaitForCompletion() throws Exception {
         Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
         TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 3));

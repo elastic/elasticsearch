@@ -153,11 +153,11 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
             .setAggregationConfig(aggConfig) // <2>
             .build();
         // end::put-transform-pivot-config
-        // tag::put-transform-settings
+        // tag::put-transform-settings-config
         SettingsConfig settings = SettingsConfig.builder()
             .setMaxPageSearchSize(1000) // <1>
             .build();
-        // end::put-transform-settings
+        // end::put-transform-settings-config
         // tag::put-transform-config
         TransformConfig transformConfig = TransformConfig
             .builder()

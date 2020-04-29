@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,8 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.elasticsearch.common.geo.GeoDistance;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -28,16 +31,19 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
-public interface RangeAggregatorSupplier extends AggregatorSupplier {
+public interface GeoDistanceAggregatorSupplier extends AggregatorSupplier {
     Aggregator build(
         String name,
-                     AggregatorFactories factories,
-                     ValuesSource.Numeric valuesSource,
-                     DocValueFormat format,
-                     InternalRange.Factory rangeFactory,
-                     RangeAggregator.Range[] ranges,
-                     boolean keyed,
-                     SearchContext context,
-                     Aggregator parent,
-                     Map<String, Object> metadata) throws IOException;
+        AggregatorFactories factories,
+        GeoDistance distanceType,
+        org.elasticsearch.common.geo.GeoPoint origin,
+        DistanceUnit units,
+        ValuesSource valuesSource,
+        DocValueFormat format,
+        InternalRange.Factory rangeFactory,
+        RangeAggregator.Range[] ranges,
+        boolean keyed,
+        SearchContext context,
+        Aggregator parent,
+        Map<String, Object> metadata) throws IOException;
 }

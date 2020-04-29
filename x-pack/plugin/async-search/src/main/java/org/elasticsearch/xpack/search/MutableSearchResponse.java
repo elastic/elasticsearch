@@ -44,7 +44,7 @@ class MutableSearchResponse {
     /**
      * How we get the reduced aggs when {@link #finalResponse} isn't populated.
      * We default to returning no aggs, this {@code -> null}. We'll replace
-     * this as we receive updates on the search progress listener. 
+     * this as we receive updates on the search progress listener.
      */
     private Supplier<InternalAggregations> reducedAggsSource = () -> null;
     private int reducePhase;
@@ -77,6 +77,7 @@ class MutableSearchResponse {
         this.shardFailures = totalShards == -1 ? null : new AtomicArray<>(totalShards-skippedShards);
         this.isPartial = true;
         this.threadContext = threadContext;
+        this.totalHits = new TotalHits(0L, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
     }
 
     /**
@@ -150,7 +151,7 @@ class MutableSearchResponse {
             return finalResponse;
         }
         if (clusters == null) {
-            // An error occurred before we got the shard list 
+            // An error occurred before we got the shard list
             return null;
         }
         /*

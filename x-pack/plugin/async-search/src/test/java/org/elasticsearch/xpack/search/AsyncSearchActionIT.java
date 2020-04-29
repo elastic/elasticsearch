@@ -80,7 +80,6 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         ensureGreen("test-async");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55955")
     public void testMaxMinAggregation() throws Exception {
         int step = numShards > 2 ? randomIntBetween(2, numShards) : 2;
         int numFailures = randomBoolean() ? randomIntBetween(0, numShards) : 0;
@@ -125,7 +124,6 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55955")
     public void testTermsAggregation() throws Exception {
         int step = numShards > 2 ? randomIntBetween(2, numShards) : 2;
         int numFailures = randomBoolean() ? randomIntBetween(0, numShards) : 0;

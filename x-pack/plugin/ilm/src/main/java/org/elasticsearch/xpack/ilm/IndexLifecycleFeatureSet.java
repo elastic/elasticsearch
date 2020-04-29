@@ -11,11 +11,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.PhaseStats;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.PolicyStats;
@@ -29,14 +27,12 @@ import java.util.stream.Collectors;
 
 public class IndexLifecycleFeatureSet implements XPackFeatureSet {
 
-    private final boolean enabled;
     private final XPackLicenseState licenseState;
     private ClusterService clusterService;
 
     @Inject
-    public IndexLifecycleFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState, ClusterService clusterService) {
+    public IndexLifecycleFeatureSet(@Nullable XPackLicenseState licenseState, ClusterService clusterService) {
         this.clusterService = clusterService;
-        this.enabled = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(settings);
         this.licenseState = licenseState;
     }
 
@@ -52,7 +48,7 @@ public class IndexLifecycleFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean enabled() {
-        return enabled;
+        return true;
     }
 
     @Override
@@ -83,9 +79,9 @@ public class IndexLifecycleFeatureSet implements XPackFeatureSet {
                 }).collect(Collectors.toMap(Tuple::v1, Tuple::v2));
                 return new PolicyStats(phaseStats, policyUsage.getOrDefault(policy.getName(), 0));
             }).collect(Collectors.toList());
-            listener.onResponse(new IndexLifecycleFeatureSetUsage(available(), enabled(), policyStats));
+            listener.onResponse(new IndexLifecycleFeatureSetUsage(available(), policyStats));
         } else {
-            listener.onResponse(new IndexLifecycleFeatureSetUsage(available(), enabled()));
+            listener.onResponse(new IndexLifecycleFeatureSetUsage(available()));
         }
     }
 

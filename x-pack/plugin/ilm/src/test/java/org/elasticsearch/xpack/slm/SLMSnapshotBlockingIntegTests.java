@@ -87,7 +87,6 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-        settings.put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), true);
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
@@ -106,7 +105,6 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
     @Override
     protected Settings transportClientSettings() {
         Settings.Builder settings = Settings.builder().put(super.transportClientSettings());
-        settings.put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), true);
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);

@@ -25,12 +25,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 /**
  * A holder for {@link Writeable}s that delays reading the underlying object
- * on the receiving end. To be used for objects that use a lot of memory hence
- * it is desirable to keep them around only for a limited amount of time.
+ * on the receiving end. To be used for objects whose deserialized
+ * representation is inefficient to keep in memory compared to their
+ * corresponding serialized representation.
  * The node that produces the {@link Writeable} calls {@link #referencing(Writeable)}
  * to create a {@link DelayableWriteable} that serializes the inner object
  * first to a buffer and writes the content of the buffer to the {@link StreamOutput}.
@@ -40,7 +40,7 @@ import java.util.function.Supplier;
  * Multiple {@link DelayableWriteable}s coming from different nodes may be buffered
  * on the receiver end, which may hold a mix of {@link DelayableWriteable}s that were
  * produced locally (hence expanded) as well as received form another node (hence subject
- * to delayed expansion). When such objects are buffered for some time it is desirable
+ * to delayed expansion). When such objects are buffered for some time it may be desirable
  * to force their buffering in serialized format by calling
  * {@link #asSerialized(Reader, NamedWriteableRegistry)}.
  */

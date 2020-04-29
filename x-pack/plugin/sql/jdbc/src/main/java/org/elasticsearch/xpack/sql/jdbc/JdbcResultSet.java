@@ -300,7 +300,6 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         }
 
         try {
-
             return JdbcDateUtils.asDate(val.toString());
         } catch (Exception e) {
             throw new SQLException(
@@ -525,7 +524,11 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     @Override
     @Deprecated
     public BigDecimal getBigDecimal(int columnIndex, int scale) throws SQLException {
-        throw new SQLFeatureNotSupportedException("BigDecimal not supported");
+        BigDecimal bd = getBigDecimal(columnIndex);
+        // The API doesn't allow for specifying a rounding behavior, although BigDecimals did have a way of controlling rounding, even
+        // before the API got deprecated => default to fail if scaling can't return an exactly equal value, since this behavior was
+        // expected by (old) callers as well.
+        return bd == null ? null : bd.setScale(scale);
     }
 
     @Override
@@ -547,7 +550,9 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     @Override
     @Deprecated
     public BigDecimal getBigDecimal(String columnLabel, int scale) throws SQLException {
-        throw new SQLFeatureNotSupportedException("BigDecimal not supported");
+        BigDecimal bd = getBigDecimal(columnLabel);
+        // see comment in {@link #getBigDecimal(int columnIndex, int scale)}
+        return bd == null ? null : bd.setScale(scale);
     }
 
     @Override
@@ -594,12 +599,12 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
-        throw new SQLFeatureNotSupportedException("BigDecimal not supported");
+        return convert(columnIndex, BigDecimal.class);
     }
 
     @Override
     public BigDecimal getBigDecimal(String columnLabel) throws SQLException {
-        throw new SQLFeatureNotSupportedException("BigDecimal not supported");
+        return getBigDecimal(column(columnLabel));
     }
 
     @Override

@@ -47,7 +47,6 @@ import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregat
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.hamcrest.Matchers;
-import org.junit.Assert;
 
 import java.io.IOException;
 import java.time.LocalDate;
@@ -205,7 +204,10 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
             }
         );
         testSearchAndReduceCase(DEFAULT_QUERY, dates, aggregation,
-            Assert::assertNull
+            histogram -> {
+                assertEquals(0, histogram.getBuckets().size());
+                assertFalse(AggregationInspectionHelper.hasValue(histogram));
+            }
         );
     }
 

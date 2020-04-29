@@ -54,17 +54,20 @@ public class MlAutoUpdateService implements ClusterStateListener {
 
         Version minNodeVersion = event.state().getNodes().getMinNodeVersion();
         final List<UpdateAction> toRun = updateActions.stream()
-            .filter(action -> action.isMinNodeVersionSupported(minNodeVersion))
-            .filter(action -> action.isAbleToRun(event.state()))
             .filter(action -> completedUpdates.contains(action.getName()) == false)
+            .filter(action -> action.isMinNodeVersionSupported(minNodeVersion))
             .filter(action -> currentlyUpdating.add(action.getName()))
             .collect(Collectors.toList());
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(
-            () -> toRun.forEach(this::runUpdate)
+            () -> toRun.forEach(action -> runUpdate(action, event.state()))
         );
     }
 
-    private void runUpdate(UpdateAction action) {
+    private void runUpdate(UpdateAction action, ClusterState state) {
+        if (action.isAbleToRun(state) == false) {
+            this.currentlyUpdating.remove(action.getName());
+            return;
+        }
         try {
             logger.debug(() -> new ParameterizedMessage("[{}] starting executing update action", action.getName()));
             action.runUpdate();

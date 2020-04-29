@@ -63,7 +63,7 @@ public final class CsvTestUtils {
         csvProperties.setProperty("separator", "|");
         csvProperties.setProperty("trimValues", "true");
         // Converter when type is java.sql.Time use this property
-        csvProperties.setProperty("timeFormat", "HH:mm:ss.SSS'Z'");
+        csvProperties.setProperty("timeFormat", "HH:mm:ss.SSSX");
         Tuple<String, String> resultsAndTypes = extractColumnTypesAndStripCli(csvTest.earlySchema, csvTest.expectedResults);
         csvProperties.setProperty("columnTypes", resultsAndTypes.v2());
         Reader reader = new StringReader(resultsAndTypes.v1());

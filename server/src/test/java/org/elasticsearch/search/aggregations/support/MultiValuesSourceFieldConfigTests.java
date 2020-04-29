@@ -29,7 +29,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -72,13 +71,13 @@ public class MultiValuesSourceFieldConfigTests extends AbstractSerializingTestCa
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList(), new UsageService())
+        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList())
             .getNamedWriteables());
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList(), new UsageService())
+        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList())
             .getNamedXContents());
     }
 }

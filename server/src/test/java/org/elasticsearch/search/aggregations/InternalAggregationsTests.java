@@ -35,7 +35,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,7 +47,7 @@ import static java.util.Collections.singletonList;
 public class InternalAggregationsTests extends ESTestCase {
 
     private final NamedWriteableRegistry registry = new NamedWriteableRegistry(
-        new SearchModule(Settings.EMPTY, Collections.emptyList(), new UsageService()).getNamedWriteables());
+        new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
 
     public void testReduceEmptyAggs() {
         List<InternalAggregations> aggs = Collections.emptyList();

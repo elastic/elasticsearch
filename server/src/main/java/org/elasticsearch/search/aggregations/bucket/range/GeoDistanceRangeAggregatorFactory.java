@@ -42,7 +42,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.usage.UsageService.OTHER_SUBTYPE;
+import static org.elasticsearch.search.aggregations.support.AggregationUsageService.OTHER_SUBTYPE;
 
 public class GeoDistanceRangeAggregatorFactory
         extends ValuesSourceAggregatorFactory {

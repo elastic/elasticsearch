@@ -18,7 +18,6 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.util.Arrays;
@@ -97,8 +96,7 @@ public class AggregationsTests extends ESTestCase {
 
     public void testAggregationsVsTransforms() {
         // Note: if a new plugin is added, it must be added here
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Arrays.asList((new AnalyticsPlugin()), new MatrixAggregationPlugin()),
-            new UsageService());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Arrays.asList((new AnalyticsPlugin()), new MatrixAggregationPlugin()));
         List<NamedWriteableRegistry.Entry> namedWriteables = searchModule.getNamedWriteables();
 
         List<String> aggregationNames = namedWriteables.stream()

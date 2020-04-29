@@ -49,7 +49,6 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Signi
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.TestSearchContext;
-import org.elasticsearch.usage.UsageService;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -108,7 +107,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         StreamInput in = new InputStreamStreamInput(inBuffer);
         // populates the registry through side effects
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList(), new UsageService());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         NamedWriteableRegistry registry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
         in = new NamedWriteableAwareStreamInput(in, registry);
         in.setVersion(version);
@@ -476,6 +475,6 @@ public class SignificanceHeuristicTests extends ESTestCase {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, emptyList(), new UsageService()).getNamedXContents());
+        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, emptyList()).getNamedXContents());
     }
 }

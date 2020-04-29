@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.usage.UsageService;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -46,7 +45,7 @@ public class WeightedAvgAggregationBuilderTests extends AbstractSerializingTestC
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList(), new UsageService());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 

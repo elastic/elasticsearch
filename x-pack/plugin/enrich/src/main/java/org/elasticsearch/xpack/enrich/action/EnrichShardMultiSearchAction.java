@@ -62,7 +62,6 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.io.IOException;
@@ -158,9 +157,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
         }
 
         private SearchSourceBuilder copy(SearchSourceBuilder source) {
-            NamedWriteableRegistry registry = new NamedWriteableRegistry(
-                new SearchModule(Settings.EMPTY, List.of(), new UsageService()).getNamedWriteables()
-            );
+            NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables());
             try (BytesStreamOutput output = new BytesStreamOutput()) {
                 source.writeTo(output);
                 try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), registry)) {

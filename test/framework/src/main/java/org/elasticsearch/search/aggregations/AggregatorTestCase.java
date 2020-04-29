@@ -114,7 +114,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.usage.UsageService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -183,7 +182,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     // Make this @Before instead of @BeforeClass so it can call the non-static getSearchPlugins method
     @Before
     public void initValuesSourceRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, this.getSearchPlugins(), new UsageService());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, this.getSearchPlugins());
         valuesSourceRegistry = searchModule.getValuesSourceRegistry();
     }
 

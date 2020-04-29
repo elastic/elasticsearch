@@ -37,7 +37,6 @@ import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.usage.UsageService;
 
 import static java.util.Collections.emptyList;
 
@@ -46,7 +45,7 @@ public class QuerySearchResultTests extends ESTestCase {
     private final NamedWriteableRegistry namedWriteableRegistry;
 
     public QuerySearchResultTests() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList(), new UsageService());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         this.namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 

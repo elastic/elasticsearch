@@ -32,7 +32,7 @@ import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.usage.UsageService.OTHER_SUBTYPE;
+import static org.elasticsearch.search.aggregations.support.AggregationUsageService.OTHER_SUBTYPE;
 
 public abstract class AggregatorFactory {
 
@@ -243,8 +243,8 @@ public abstract class AggregatorFactory {
     /**
      * Returns the aggregation subtype for nodes usage stats.
      * <p>
-     * It should match the types registered by calling {@linkplain org.elasticsearch.usage.UsageService#registerAggregationUsage}. In other
-     * words, it should be ValueSourcesType for the VST aggregations OTHER_SUBTYPE for all other aggregations.
+     * It should match the types registered by calling {@linkplain org.elasticsearch.search.aggregations.support.AggregationUsageService}.
+     * In other words, it should be ValueSourcesType for the VST aggregations OTHER_SUBTYPE for all other aggregations.
      */
     public String getStatsSubtype() {
         return OTHER_SUBTYPE;

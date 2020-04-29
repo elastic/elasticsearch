@@ -26,7 +26,6 @@ import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.usage.UsageService;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -43,10 +42,10 @@ import java.util.Map;
 public class ValuesSourceRegistry {
 
     public static class Builder {
-        private final UsageService usageService;
+        private final AggregationUsageService.Builder usageServiceBuilder;
 
-        public Builder(UsageService usageService) {
-            this.usageService = usageService;
+        public Builder() {
+            this.usageServiceBuilder = new AggregationUsageService.Builder();
         }
 
         private Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry = new HashMap<>();
@@ -85,19 +84,23 @@ public class ValuesSourceRegistry {
         }
 
         public void registerUsage(String aggregationName, ValuesSourceType valuesSourceType) {
-            usageService.registerAggregationUsage(aggregationName, valuesSourceType.typeName());
+            usageServiceBuilder.registerAggregationUsage(aggregationName, valuesSourceType.typeName());
+        }
+
+        public void registerUsage(String aggregationName) {
+            usageServiceBuilder.registerAggregationUsage(aggregationName);
         }
 
         public ValuesSourceRegistry build() {
-            return new ValuesSourceRegistry(aggregatorRegistry, usageService);
+            return new ValuesSourceRegistry(aggregatorRegistry, usageServiceBuilder.build());
         }
     }
 
     /** Maps Aggregation names to (ValuesSourceType, Supplier) pairs, keyed by ValuesSourceType */
-    private final UsageService usageService;
+    private final AggregationUsageService usageService;
     private Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry;
     public ValuesSourceRegistry(Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry,
-                                UsageService usageService) {
+                                AggregationUsageService usageService) {
         /*
          Make an immutatble copy of our input map. Since this is write once, read many, we'll spend a bit of extra time to shape this
          into a Map.of(), which is more read optimized than just using a hash map.
@@ -169,7 +172,7 @@ public class ValuesSourceRegistry {
         }
     }
 
-    public UsageService getUsageService() {
+    public AggregationUsageService getUsageService() {
         return usageService;
     }
 }

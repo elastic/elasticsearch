@@ -39,7 +39,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.usage.UsageService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -55,7 +54,7 @@ public class RestActionsTests extends ESTestCase {
 
     @BeforeClass
     public static void init() {
-        xContentRegistry = new NamedXContentRegistry(new SearchModule(Settings.EMPTY, emptyList(), new UsageService()).getNamedXContents());
+        xContentRegistry = new NamedXContentRegistry(new SearchModule(Settings.EMPTY, emptyList()).getNamedXContents());
     }
 
     @AfterClass

@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -97,7 +96,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractXContentTestCase<Data
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
-        namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList(), new UsageService()).getNamedXContents());
+        namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
         namedXContent.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
         return new NamedXContentRegistry(namedXContent);
     }

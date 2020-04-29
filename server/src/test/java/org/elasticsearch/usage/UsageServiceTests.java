@@ -19,27 +19,21 @@
 
 package org.elasticsearch.usage;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.node.usage.NodeUsage;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
-import java.net.InetAddress;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.usage.UsageService.OTHER_SUBTYPE;
+import static org.elasticsearch.search.aggregations.support.AggregationUsageService.OTHER_SUBTYPE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class UsageServiceTests extends ESTestCase {
 
@@ -96,8 +90,6 @@ public class UsageServiceTests extends ESTestCase {
     }
 
     public void testRestUsage() throws Exception {
-        DiscoveryNode discoveryNode = new DiscoveryNode("foo", new TransportAddress(InetAddress.getByName("localhost"), 12345),
-            Version.CURRENT);
         RestRequest restRequest = new FakeRestRequest();
         BaseRestHandler handlerA = new MockRestHandler("a");
         BaseRestHandler handlerB = new MockRestHandler("b");
@@ -126,10 +118,7 @@ public class UsageServiceTests extends ESTestCase {
         handlerF.handleRequest(restRequest, null, null);
         handlerC.handleRequest(restRequest, null, null);
         handlerD.handleRequest(restRequest, null, null);
-        NodeUsage usage = usageService.getUsageStats(discoveryNode, true, false);
-        assertThat(usage.getNode(), sameInstance(discoveryNode));
-        assertThat(usage.getAggregationUsage(), nullValue());
-        Map<String, Long> restUsage = usage.getRestUsage();
+        Map<String, Long> restUsage = usageService.getRestUsageStats();
         assertThat(restUsage, notNullValue());
         assertThat(restUsage.size(), equalTo(6));
         assertThat(restUsage.get("a"), equalTo(4L));
@@ -138,25 +127,20 @@ public class UsageServiceTests extends ESTestCase {
         assertThat(restUsage.get("d"), equalTo(2L));
         assertThat(restUsage.get("e"), equalTo(1L));
         assertThat(restUsage.get("f"), equalTo(1L));
-
-        usage = usageService.getUsageStats(discoveryNode, false, false);
-        assertThat(usage.getNode(), sameInstance(discoveryNode));
-        assertThat(usage.getRestUsage(), nullValue());
-        assertThat(usage.getAggregationUsage(), nullValue());
     }
 
     @SuppressWarnings("unchecked")
     public void testAggsUsage() throws Exception {
-        DiscoveryNode discoveryNode = new DiscoveryNode("foo", new TransportAddress(InetAddress.getByName("localhost"), 12345),
-            Version.CURRENT);
-        UsageService usageService = new UsageService();
+        AggregationUsageService.Builder builder = new AggregationUsageService.Builder();
 
-        usageService.registerAggregationUsage("a", "x");
-        usageService.registerAggregationUsage("a", "y");
-        usageService.registerAggregationUsage("b", "x");
-        usageService.registerAggregationUsage("c");
-        usageService.registerAggregationUsage("b", "y");
-        usageService.registerAggregationUsage("a", "z");
+        builder.registerAggregationUsage("a", "x");
+        builder.registerAggregationUsage("a", "y");
+        builder.registerAggregationUsage("b", "x");
+        builder.registerAggregationUsage("c");
+        builder.registerAggregationUsage("b", "y");
+        builder.registerAggregationUsage("a", "z");
+
+        AggregationUsageService usageService = builder.build();
 
         usageService.incAggregationUsage("a", "x");
         for (int i = 0; i < 2; i++) {
@@ -175,9 +159,8 @@ public class UsageServiceTests extends ESTestCase {
             usageService.incAggregationUsage("c", OTHER_SUBTYPE);
         }
 
-        NodeUsage usage = usageService.getUsageStats(discoveryNode, false, true);
-        assertThat(usage.getNode(), sameInstance(discoveryNode));
-        Map<String, Object> aggsUsage = usage.getAggregationUsage();
+
+        Map<String, Object> aggsUsage = usageService.getUsageStats();
         assertThat(aggsUsage, notNullValue());
         assertThat(aggsUsage.size(), equalTo(3));
         assertThat(((Map<String, Object>) aggsUsage.get("a")).get("x"), equalTo(1L));
@@ -186,10 +169,6 @@ public class UsageServiceTests extends ESTestCase {
         assertThat(((Map<String, Object>) aggsUsage.get("b")).get("x"), equalTo(4L));
         assertThat(((Map<String, Object>) aggsUsage.get("b")).get("y"), equalTo(5L));
         assertThat(((Map<String, Object>) aggsUsage.get("c")).get(OTHER_SUBTYPE), equalTo(6L));
-
-        usage = usageService.getUsageStats(discoveryNode, false, false);
-        assertThat(usage.getNode(), sameInstance(discoveryNode));
-        assertThat(usage.getRestUsage(), nullValue());
     }
 
     private class MockRestHandler extends BaseRestHandler {

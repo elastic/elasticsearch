@@ -14,7 +14,6 @@ import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregatorSuppli
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.util.List;
@@ -27,7 +26,7 @@ public class SpatialPluginTests extends ESTestCase {
     public void testGeoCentroidLicenseCheck() {
         for (License.OperationMode operationMode : License.OperationMode.values()) {
             SpatialPlugin plugin = getPluginWithOperationMode(operationMode);
-            ValuesSourceRegistry.Builder registryBuilder = new ValuesSourceRegistry.Builder(new UsageService());
+            ValuesSourceRegistry.Builder registryBuilder = new ValuesSourceRegistry.Builder();
             List<Consumer<ValuesSourceRegistry.Builder>> registrar = plugin.getAggregationExtentions();
             registrar.forEach(c -> c.accept(registryBuilder));
             ValuesSourceRegistry registry = registryBuilder.build();

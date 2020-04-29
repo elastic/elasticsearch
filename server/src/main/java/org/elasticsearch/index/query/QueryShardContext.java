@@ -56,10 +56,10 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -472,7 +472,7 @@ public class QueryShardContext extends QueryRewriteContext {
         return bitsetFilterCache;
     }
 
-    public UsageService getUsageService() {
+    public AggregationUsageService getUsageService() {
         return valuesSourceRegistry.getUsageService();
     }
 }

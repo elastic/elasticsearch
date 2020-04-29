@@ -66,7 +66,6 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.usage.UsageService;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -99,7 +98,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
-        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, emptyList(), new UsageService()).getNamedWriteables());
+        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
     }
 
     @Before

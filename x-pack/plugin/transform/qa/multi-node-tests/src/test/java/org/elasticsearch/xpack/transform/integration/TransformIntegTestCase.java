@@ -61,7 +61,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.usage.UsageService;
 import org.joda.time.Instant;
 
 import java.io.IOException;
@@ -387,7 +386,7 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList(), new UsageService());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
@@ -400,7 +399,7 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
 
     protected static class TestRestHighLevelClient extends RestHighLevelClient {
         private static final List<NamedXContentRegistry.Entry> X_CONTENT_ENTRIES =
-            new SearchModule(Settings.EMPTY, Collections.emptyList(), new UsageService()).getNamedXContents();
+            new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents();
 
         TestRestHighLevelClient() {
             super(client(), restClient -> {}, X_CONTENT_ENTRIES);

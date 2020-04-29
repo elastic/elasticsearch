@@ -24,7 +24,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
 import java.util.function.Predicate;
@@ -63,7 +62,7 @@ public class SourceConfigTests extends AbstractXContentTestCase<SourceConfig> {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList(), new UsageService());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 }

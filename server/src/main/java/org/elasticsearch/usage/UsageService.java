@@ -39,14 +39,12 @@
 package org.elasticsearch.usage;
 
 import org.elasticsearch.action.admin.cluster.node.usage.NodeUsage;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.rest.BaseRestHandler;
 
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.LongAdder;
 
 /**
  * A service to monitor usage of Elasticsearch features.
@@ -54,20 +52,15 @@ import java.util.concurrent.atomic.LongAdder;
 public class UsageService {
 
     private final Map<String, BaseRestHandler> handlers;
-    private final Map<String, Map<String, LongAdder>> aggs;
-    private final long sinceTime;
 
     public UsageService() {
         this.handlers = new HashMap<>();
-        this.aggs = new HashMap<>();
-        this.sinceTime = System.currentTimeMillis();
     }
 
     /**
      * Add a REST handler to this service.
      *
-     * @param handler
-     *            the {@link BaseRestHandler} to add to the usage service.
+     * @param handler the {@link BaseRestHandler} to add to the usage service.
      */
     public void addRestHandler(BaseRestHandler handler) {
         Objects.requireNonNull(handler);
@@ -92,76 +85,22 @@ public class UsageService {
         }
     }
 
-    public static final String OTHER_SUBTYPE = "other";
-
-    public void registerAggregationUsage(String aggregationName) {
-        registerAggregationUsage(aggregationName, OTHER_SUBTYPE);
-    }
-
-    public void registerAggregationUsage(String aggregationName, String valuesSourceType) {
-        Map<String, LongAdder> subAgg = aggs.computeIfAbsent(aggregationName, k -> new HashMap<>());
-        if ( subAgg.put(valuesSourceType, new LongAdder()) != null) {
-            throw new IllegalArgumentException("stats for aggregation [" + aggregationName + "][" + valuesSourceType +
-                "] already registered");
-        }
-    }
-
-    public void incAggregationUsage(String aggregationName, String valuesSourceType) {
-        Map<String, LongAdder> valuesSourceMap = aggs.get(aggregationName);
-        // Not all aggs register their usage at the moment we also don't register them in test context
-        if (valuesSourceMap != null) {
-            LongAdder adder = valuesSourceMap.get(valuesSourceType);
-            if (adder != null) {
-                adder.increment();
-            }
-            assert adder != null : "Unknown subtype [" + aggregationName + "][" + valuesSourceType + "]";
-        }
-        assert valuesSourceMap != null : "Unknown aggregation [" + aggregationName + "][" + valuesSourceType + "]";
-    }
-
     /**
      * Get the current usage statistics for this node.
      *
-     * @param localNode
-     *            the {@link DiscoveryNode} for this node
-     * @param restActions
-     *            whether to include rest action usage in the returned
-     *            statistics
      * @return the {@link NodeUsage} representing the usage statistics for this
-     *         node
+     * node
      */
-    public NodeUsage getUsageStats(DiscoveryNode localNode, boolean restActions, boolean aggregations) {
+    public Map<String, Long> getRestUsageStats() {
         Map<String, Long> restUsageMap;
-        Map<String, Object> aggsUsageMap;
-        if (restActions) {
-            restUsageMap = new HashMap<>();
-            handlers.values().forEach(handler -> {
-                long usageCount = handler.getUsageCount();
-                if (usageCount > 0) {
-                    restUsageMap.put(handler.getName(), usageCount);
-                }
-            });
-        } else {
-            restUsageMap = null;
-        }
-        if (aggregations) {
-            aggsUsageMap = new HashMap<>();
-            aggs.forEach((name, agg) -> {
-                Map<String, Long> aggUsageMap = new HashMap<>();
-                agg.forEach((k, v) -> {
-                    long val = v.longValue();
-                    if (val > 0) {
-                        aggUsageMap.put(k, val);
-                    }
-                });
-                if (aggUsageMap.isEmpty() == false) {
-                    aggsUsageMap.put(name, aggUsageMap);
-                }
-            });
-        } else {
-            aggsUsageMap = null;
-        }
-        return new NodeUsage(localNode, System.currentTimeMillis(), sinceTime, restUsageMap, aggsUsageMap);
+        restUsageMap = new HashMap<>();
+        handlers.values().forEach(handler -> {
+            long usageCount = handler.getUsageCount();
+            if (usageCount > 0) {
+                restUsageMap.put(handler.getName(), usageCount);
+            }
+        });
+        return restUsageMap;
     }
 
 }

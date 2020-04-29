@@ -39,7 +39,6 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilders;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.usage.UsageService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -65,7 +64,7 @@ public class RatedRequestsTests extends ESTestCase {
     @BeforeClass
     public static void init() {
         xContentRegistry = new NamedXContentRegistry(
-                Stream.of(new SearchModule(Settings.EMPTY, emptyList(), new UsageService()).getNamedXContents().stream())
+                Stream.of(new SearchModule(Settings.EMPTY, emptyList()).getNamedXContents().stream())
                     .flatMap(Function.identity()).collect(toList()));
     }
 

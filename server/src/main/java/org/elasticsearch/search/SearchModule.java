@@ -249,7 +249,6 @@ import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
-import org.elasticsearch.usage.UsageService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -275,7 +274,6 @@ public class SearchModule {
     private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
     private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
     private final ValuesSourceRegistry valuesSourceRegistry;
-    private final UsageService usageService;
 
     /**
      * Constructs a new SearchModule object
@@ -284,11 +282,9 @@ public class SearchModule {
      *       When constructed, a static flag is set in Lucene {@link BooleanQuery#setMaxClauseCount} according to the settings.
      * @param settings Current settings
      * @param plugins List of included {@link SearchPlugin} objects.
-     * @param usageService usage service for gathering aggregetion stats
      */
-    public SearchModule(Settings settings, List<SearchPlugin> plugins, UsageService usageService) {
+    public SearchModule(Settings settings, List<SearchPlugin> plugins) {
         this.settings = settings;
-        this.usageService = usageService;
         registerSuggesters(plugins);
         highlighters = setupHighlighters(settings, plugins);
         registerScoreFunctions(plugins);
@@ -326,7 +322,7 @@ public class SearchModule {
     }
 
     private ValuesSourceRegistry registerAggregations(List<SearchPlugin> plugins) {
-        ValuesSourceRegistry.Builder builder = new ValuesSourceRegistry.Builder(usageService);
+        ValuesSourceRegistry.Builder builder = new ValuesSourceRegistry.Builder();
 
         registerAggregation(new AggregationSpec(AvgAggregationBuilder.NAME, AvgAggregationBuilder::new, AvgAggregationBuilder.PARSER)
             .addResultReader(InternalAvg::new)
@@ -491,7 +487,7 @@ public class SearchModule {
         } else {
             // Register is typically handling usage registration, but for the older aggregations that don't use register, we
             // have to register usage explicitly here.
-            usageService.registerAggregationUsage(spec.getName().getPreferredName());
+            builder.registerUsage(spec.getName().getPreferredName());
         }
     }
 

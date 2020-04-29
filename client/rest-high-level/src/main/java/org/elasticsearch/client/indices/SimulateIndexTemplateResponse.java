@@ -57,7 +57,7 @@ public class SimulateIndexTemplateResponse {
         String name;
         List<String> indexPatterns;
 
-        public IndexTemplateAndPatterns(String name, List<String> indexPatterns) {
+        IndexTemplateAndPatterns(String name, List<String> indexPatterns) {
             this.name = name;
             this.indexPatterns = indexPatterns;
         }

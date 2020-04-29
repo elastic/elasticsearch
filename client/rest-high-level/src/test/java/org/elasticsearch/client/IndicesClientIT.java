@@ -1634,15 +1634,15 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         SimulateIndexTemplateRequest simulateIndexTemplateRequest = new SimulateIndexTemplateRequest("pattern");
         AliasMetadata simulationAlias = AliasMetadata.builder("simulation-alias").writeIndex(true).build();
-        IndexTemplateV2 simulationTemplate = new IndexTemplateV2(pattern, new Template(null, null, Map.of("simulation-alias", simulationAlias)), Collections.emptyList(), 2L, 1L,
-            new HashMap<>());
+        IndexTemplateV2 simulationTemplate = new IndexTemplateV2(pattern, new Template(null, null,
+            Map.of("simulation-alias", simulationAlias)), Collections.emptyList(), 2L, 1L, new HashMap<>());
         PutIndexTemplateV2Request newIndexTemplateReq =
             new PutIndexTemplateV2Request().name("used-for-simulation").create(true).indexTemplate(indexTemplate);
         newIndexTemplateReq.indexTemplate(simulationTemplate);
         simulateIndexTemplateRequest.indexTemplateV2Request(newIndexTemplateReq);
 
-        SimulateIndexTemplateResponse simulateResponse = execute(simulateIndexTemplateRequest, highLevelClient().indices()::simulateIndexTemplate,
-            highLevelClient().indices()::simulateIndexTemplateAsync);
+        SimulateIndexTemplateResponse simulateResponse = execute(simulateIndexTemplateRequest,
+            highLevelClient().indices()::simulateIndexTemplate, highLevelClient().indices()::simulateIndexTemplateAsync);
 
         Map<String, AliasMetadata> aliases = simulateResponse.resolvedTemplate().aliases();
         assertThat(aliases, is(notNullValue()));

@@ -952,12 +952,13 @@ public final class IndicesClient {
      * on elastic.co</a>
      *
      * @param simulateIndexTemplateRequest the request
-     * @param options                      the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param options                      the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
+     *                                     customized
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public SimulateIndexTemplateResponse simulateIndexTemplate(SimulateIndexTemplateRequest simulateIndexTemplateRequest, RequestOptions options)
-        throws IOException {
+    public SimulateIndexTemplateResponse simulateIndexTemplate(SimulateIndexTemplateRequest simulateIndexTemplateRequest,
+                                                               RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(simulateIndexTemplateRequest,
             IndicesRequestConverters::simulateIndexTemplate, options, SimulateIndexTemplateResponse::fromXContent, emptySet());
     }
@@ -968,7 +969,8 @@ public final class IndicesClient {
      * on elastic.co</a>
      *
      * @param simulateIndexTemplateRequest the request
-     * @param options                      the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param options                      the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
+     *                                     customized
      * @param listener                     the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */

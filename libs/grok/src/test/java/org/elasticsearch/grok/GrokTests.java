@@ -46,9 +46,8 @@ public class GrokTests extends ESTestCase {
     }
 
     public void testNoMatchingPatternInDictionary() {
-        Exception e = expectThrows(RuntimeException.class, () -> new Grok(Collections.emptyMap(), "%{NOTFOUND}"));
-        assertEquals(e.getCause().getCause().getClass(), IllegalArgumentException.class);
-        assertThat(e.getCause().getCause().getMessage(), equalTo("Unable to find pattern [NOTFOUND] in Grok's pattern dictionary"));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new Grok(Collections.emptyMap(), "%{NOTFOUND}"));
+        assertThat(e.getMessage(), equalTo("Unable to find pattern [NOTFOUND] in Grok's pattern dictionary"));
     }
 
     public void testSimpleSyslogLine() {
@@ -191,7 +190,7 @@ public class GrokTests extends ESTestCase {
         String pattern = "%{EXCITED_NAME} - %{NAME}";
         Grok g = new Grok(bank, pattern, false);
 
-        assertEquals("(?<EXCITED_NAME_0>!!!(?<NAME_21>Tal)!!!) - (?<NAME_22>Tal)", g.toRegex(pattern, 0));
+        assertEquals("(?<EXCITED_NAME_0>!!!(?<NAME_21>Tal)!!!) - (?<NAME_22>Tal)", g.toRegex(pattern));
         assertEquals(true, g.match(text));
 
         Object actual = g.captures(text);

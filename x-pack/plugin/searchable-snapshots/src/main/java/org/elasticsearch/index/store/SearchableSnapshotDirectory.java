@@ -19,6 +19,7 @@ import org.apache.lucene.store.SingleInstanceLockFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
@@ -381,7 +383,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                                 final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
 
                                 final CachedBlobContainerIndexInput cachedIndexInput = (CachedBlobContainerIndexInput) input.clone();
-                                cachedIndexInput.prefetchPart(part); // TODO does not include any rate limitation
+                                cachedIndexInput.prefetchPart(part);
 
                                 logger.trace(
                                     () -> new ParameterizedMessage(
@@ -444,7 +446,17 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         );
 
         final LazyInitializable<BlobContainer, RuntimeException> lazyBlobContainer = new LazyInitializable<>(
-            () -> blobStoreRepository.shardContainer(indexId, shardPath.getShardId().id())
+            () -> new FilterBlobContainer(blobStoreRepository.shardContainer(indexId, shardPath.getShardId().id())) {
+                @Override
+                public InputStream readBlob(String blobName) throws IOException {
+                    return blobStoreRepository.maybeRateLimitRestores(super.readBlob(blobName));
+                }
+
+                @Override
+                public InputStream readBlob(String blobName, long position, long length) throws IOException {
+                    return blobStoreRepository.maybeRateLimitRestores(super.readBlob(blobName, position, length));
+                }
+            }
         );
         final LazyInitializable<BlobStoreIndexShardSnapshot, RuntimeException> lazySnapshot = new LazyInitializable<>(
             () -> blobStoreRepository.loadShardSnapshot(lazyBlobContainer.getOrCompute(), snapshotId)

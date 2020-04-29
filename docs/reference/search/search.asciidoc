@@ -126,6 +126,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
   (Optional, string) Specifies the node or shard the operation should be
   performed on. Random by default.
 
+[[search-api-query-params-q]]
 `q`::
   (Optional, string) Query in the Lucene query string syntax.
 
@@ -222,6 +223,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 [[search-search-api-request-body]]
 ==== {api-request-body-title}
 
+[[search-api-request-body-query]]
 `query`::
   (Optional, <<query-dsl,query object>>) Defines the search definition using the
   <<query-dsl,Query DSL>>.

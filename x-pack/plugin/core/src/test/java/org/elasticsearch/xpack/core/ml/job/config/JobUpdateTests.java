@@ -77,6 +77,9 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
             update.setModelSnapshotRetentionDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
+            update.setDailyModelSnapshotRetentionAfterDays(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
             update.setResultsRetentionDays(randomNonNegativeLong());
         }
         if (randomBoolean() && jobSupportsCategorizationFilters(job)) {

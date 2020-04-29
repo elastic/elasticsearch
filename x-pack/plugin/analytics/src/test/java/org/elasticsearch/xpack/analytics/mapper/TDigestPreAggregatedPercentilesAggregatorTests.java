@@ -5,14 +5,8 @@
  */
 package org.elasticsearch.xpack.analytics.mapper;
 
-import static java.util.Collections.singleton;
-
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.function.Consumer;
-
+import com.tdunning.math.stats.Centroid;
+import com.tdunning.math.stats.TDigest;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -40,8 +34,13 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
-import com.tdunning.math.stats.Centroid;
-import com.tdunning.math.stats.TDigest;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.function.Consumer;
+
+import static java.util.Collections.singleton;
 
 public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTestCase {
 

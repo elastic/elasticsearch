@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.phase;
 
-import org.elasticsearch.painless.ir.AssignmentNode;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.BooleanNode;
@@ -190,11 +189,6 @@ public class IRTreeBaseVisitor<Input, Output> implements IRTreeVisitor<Input, Ou
 
     @Override
     public Output visitBreak(BreakNode irBreakNode, Input input) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Output visitAssignment(AssignmentNode irAssignmentNode, Input input) {
         throw new UnsupportedOperationException();
     }
 

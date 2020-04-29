@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.phase;
 
-import org.elasticsearch.painless.ir.AssignmentNode;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.BooleanNode;
@@ -111,7 +110,6 @@ public interface IRTreeVisitor<Input, Output> {
     Output visitContinue(ContinueNode irContinueNode, Input input);
     Output visitBreak(BreakNode irBreakNode, Input input);
 
-    Output visitAssignment(AssignmentNode irAssignmentNode, Input input);
     Output visitUnaryMath(UnaryMathNode irUnaryMathNode, Input input);
     Output visitBinaryMath(BinaryMathNode irBinaryMathNode, Input input);
     Output visitBoolean(BooleanNode irBoolNode, Input input);

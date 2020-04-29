@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.util.function.Supplier;
 
 /**
- * A holder for {@link Writeable}s that can delays reading the underlying
+ * A holder for {@link Writeable}s that can delay reading the underlying
  * {@linkplain Writeable} when it is read from a remote node.
  */
 public abstract class DelayableWriteable<T extends Writeable> implements Supplier<T>, Writeable {

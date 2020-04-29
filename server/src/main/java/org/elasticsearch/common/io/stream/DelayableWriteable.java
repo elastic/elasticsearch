@@ -63,7 +63,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Supplie
     abstract boolean isSerialized();
 
     private static class Referencing<T extends Writeable> extends DelayableWriteable<T> {
-        private T reference;
+        private final T reference;
 
         private Referencing(T reference) {
             this.reference = reference;

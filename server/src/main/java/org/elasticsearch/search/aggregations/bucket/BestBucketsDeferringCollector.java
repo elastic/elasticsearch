@@ -226,11 +226,10 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 if (selectedBuckets == null) {
                     throw new IllegalStateException("Collection has not been replayed yet.");
                 }
-                assert owningBucketOrds.length == selectedBuckets.size();
                 long[] rebasedOrds = new long[owningBucketOrds.length];
-                for (int ord = 0; ord < owningBucketOrds.length; ord++) {
-                    final long rebasedBucket = selectedBuckets.find(owningBucketOrds[ord]);
-                    if (rebasedBucket == -1) {
+                for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+                    rebasedOrds[ordIdx] = selectedBuckets.find(owningBucketOrds[ordIdx]);
+                    if (rebasedOrds[ordIdx] == -1) {
                         throw new IllegalStateException("Cannot build for a bucket which has not been collected");
                     }
                 }

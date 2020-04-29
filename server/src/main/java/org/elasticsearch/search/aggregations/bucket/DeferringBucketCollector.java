@@ -49,8 +49,8 @@ public abstract class DeferringBucketCollector extends BucketCollector {
 
     public final void replay(long... selectedBuckets) throws IOException {
         LongHash hash = new LongHash(selectedBuckets.length, BigArrays.NON_RECYCLING_INSTANCE);
-        for (long bucket : selectedBuckets) {
-            hash.add(bucket);
+        for (long ord : selectedBuckets) {
+            hash.add(ord);
         }
         prepareSelectedBuckets(hash);
     }
@@ -110,18 +110,13 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         }
 
         @Override
-        public InternalAggregation buildAggregation(long bucket) throws IOException {
-            return in.buildAggregation(bucket);
+        public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+            return in.buildAggregations(owningBucketOrds);
         }
 
         @Override
         public InternalAggregation buildEmptyAggregation() {
             return in.buildEmptyAggregation();
-        }
-
-        @Override
-        public boolean runDeferredCollections() throws IOException {
-            return in.runDeferredCollections();
         }
 
         @Override

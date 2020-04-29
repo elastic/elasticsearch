@@ -176,8 +176,6 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
-
         // Buckets are ordered into groups - [keyed filters] [key1&key2 intersects]
         int maxOrd = owningBucketOrds.length * totalNumKeys;
         int totalBucketsToBuild = 0;
@@ -186,6 +184,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
                 totalBucketsToBuild++;
             }
         }
+        consumeBucketsAndMaybeBreak(totalBucketsToBuild);
         long[] bucketOrdsToBuild = new long[totalBucketsToBuild];
         int builtBucketIndex = 0;
         for (int ord = 0; ord < maxOrd; ord++) {
@@ -193,13 +192,14 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
                 bucketOrdsToBuild[builtBucketIndex++] = ord;
             }
         }
-
+        assert builtBucketIndex == totalBucketsToBuild;
         builtBucketIndex = 0;
-        List<InternalAdjacencyMatrix.InternalBucket> buckets = new ArrayList<>(filters.length);
         InternalAggregations[] bucketSubAggs = buildSubAggsForBuckets(bucketOrdsToBuild);
-        for (int ord = 0; ord < owningBucketOrds.length; ord++) {
+        InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
+        for (int owningBucketOrdIdx = 0; owningBucketOrdIdx < owningBucketOrds.length; owningBucketOrdIdx++) {
+            List<InternalAdjacencyMatrix.InternalBucket> buckets = new ArrayList<>(filters.length);
             for (int i = 0; i < keys.length; i++) {
-                long bucketOrd = bucketOrd(owningBucketOrds[ord], i);
+                long bucketOrd = bucketOrd(owningBucketOrds[owningBucketOrdIdx], i);
                 int docCount = bucketDocCount(bucketOrd);
                 // Empty buckets are not returned because this aggregation will commonly be used under a
                 // a date-histogram where we will look for transactions over time and can expect many
@@ -213,7 +213,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
             int pos = keys.length;
             for (int i = 0; i < keys.length; i++) {
                 for (int j = i + 1; j < keys.length; j++) {
-                    long bucketOrd = bucketOrd(owningBucketOrds[ord], pos);
+                    long bucketOrd = bucketOrd(owningBucketOrds[owningBucketOrdIdx], pos);
                     int docCount = bucketDocCount(bucketOrd);
                     // Empty buckets are not returned due to potential for very sparse matrices
                     if (docCount > 0) {
@@ -225,8 +225,9 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
                     pos++;
                 }
             }
-            results[ord] = new InternalAdjacencyMatrix(name, buckets, metadata());
+            results[owningBucketOrdIdx] = new InternalAdjacencyMatrix(name, buckets, metadata());
         }
+        assert builtBucketIndex == totalBucketsToBuild;
         return results;
     }
 

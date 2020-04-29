@@ -1294,10 +1294,10 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     public void testThreeLayerLong() throws IOException {
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
-                Document d = new Document();
                 for (int i = 0; i < 10; i++) {
                     for (int j = 0; j < 10; j++) {
                         for (int k = 0; k < 10; k++) {
+                            Document d = new Document();
                             d.add(new SortedNumericDocValuesField("i", i));
                             d.add(new SortedNumericDocValuesField("j", j));
                             d.add(new SortedNumericDocValuesField("k", k));
@@ -1310,8 +1310,22 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     TermsAggregationBuilder request = new TermsAggregationBuilder("i").field("i")
                         .subAggregation(new TermsAggregationBuilder("j").field("j")
                             .subAggregation(new TermsAggregationBuilder("k").field("k")));
-                    InternalTerms result = search(searcher, new MatchAllDocsQuery(), request,
+                    LongTerms result = search(searcher, new MatchAllDocsQuery(), request,
                         longField("i"), longField("j"), longField("k"));
+                    for (int i = 0; i < 10; i++) {
+                        LongTerms.Bucket iBucket = result.getBucketByKey(Integer.toString(i));
+                        assertThat(iBucket.getDocCount(), equalTo(100L));
+                        LongTerms jAgg = iBucket.getAggregations().get("j");
+                        for (int j = 0; j < 10; j++) {
+                            LongTerms.Bucket jBucket = jAgg.getBucketByKey(Integer.toString(j));
+                            assertThat(jBucket.getDocCount(), equalTo(10L));
+                            LongTerms kAgg = jBucket.getAggregations().get("k");
+                            for (int k = 0; k < 10; k++) {
+                                LongTerms.Bucket kBucket = kAgg.getBucketByKey(Integer.toString(k));
+                                assertThat(kBucket.getDocCount(), equalTo(1L));
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -41,10 +41,9 @@ public class ParentToChildrenAggregator extends ParentJoinAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0;
-        return new InternalChildren(name, bucketDocCount(owningBucketOrdinal),
-                buildSubAggsForBuckets(new long[0])[0], metadata());
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
+            new InternalChildren(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
     }
 
     @Override

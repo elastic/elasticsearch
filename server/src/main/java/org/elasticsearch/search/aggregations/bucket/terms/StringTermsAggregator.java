@@ -30,7 +30,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -109,8 +108,8 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0;
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0;
 
         if (bucketCountThresholds.getMinDocCount() == 0
             && (InternalOrder.isCountDesc(order) == false
@@ -156,27 +155,20 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
 
         // Get the top buckets
         final StringTerms.Bucket[] list = new StringTerms.Bucket[ordered.size()];
-        long survivingBucketOrds[] = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
             final StringTerms.Bucket bucket = ordered.pop();
-            survivingBucketOrds[i] = bucket.bucketOrd;
             list[i] = bucket;
             otherDocCount -= bucket.docCount;
-        }
-        // replay any deferred collections
-        runDeferredCollections(survivingBucketOrds);
-        InternalAggregations[] sub = buildSubAggsForBuckets(survivingBucketOrds);
-
-        // Now build the aggs
-        for (int i = 0; i < list.length; i++) {
-            list[i].termBytes = BytesRef.deepCopyOf(list[i].termBytes);
-            list[i].aggregations = sub[i];
-            list[i].docCountError = 0;
+            bucket.termBytes = BytesRef.deepCopyOf(list[i].termBytes);
+            bucket.docCountError = 0;
         }
 
-        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
+        buildSubAggsForBuckets(list, b -> b.bucketOrd, (b, a) -> b.aggregations = a);
+        return new InternalAggregation[] {
+            new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
                 metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError, otherDocCount,
-                Arrays.asList(list), 0);
+                Arrays.asList(list), 0)
+        };
     }
 
     @Override

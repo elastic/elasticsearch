@@ -24,6 +24,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
@@ -70,10 +71,10 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
     }
 
     @Override
-    public SignificantLongTerms buildAggregation(long owningBucketOrd) throws IOException {
-        assert owningBucketOrd == 0;
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0;
 
-        long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrd);
+        long bucketsInOrd = bucketOrds.bucketsInOrd(0);
         final int size = (int) Math.min(bucketsInOrd, bucketCountThresholds.getShardSize());
 
         long supersetSize = termsAggFactory.getSupersetNumDocs();
@@ -81,7 +82,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
         BucketSignificancePriorityQueue<SignificantLongTerms.Bucket> ordered = new BucketSignificancePriorityQueue<>(size);
         SignificantLongTerms.Bucket spare = null;
-        BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
+        BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(0);
         while (ordsEnum.next()) {
             final int docCount = bucketDocCount(ordsEnum.ord());
             if (docCount < bucketCountThresholds.getShardMinDocCount()) {
@@ -107,21 +108,16 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
         }
 
         SignificantLongTerms.Bucket[] list = new SignificantLongTerms.Bucket[ordered.size()];
-        final long[] survivingBucketOrds = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; i--) {
-            final SignificantLongTerms.Bucket bucket = ordered.pop();
-            survivingBucketOrds[i] = bucket.bucketOrd;
-            list[i] = bucket;
+            list[i] = ordered.pop();
         }
 
-        runDeferredCollections(survivingBucketOrds);
+        buildSubAggsForBuckets(list, bucket -> bucket.bucketOrd, (bucket, aggs) -> bucket.aggregations = aggs); 
 
-        for (SignificantLongTerms.Bucket bucket : list) {
-            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
-        }
-
-        return new SignificantLongTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                metadata(), format, subsetSize, supersetSize, significanceHeuristic, Arrays.asList(list));
+        return new InternalAggregation[] {
+            new SignificantLongTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
+                metadata(), format, subsetSize, supersetSize, significanceHeuristic, Arrays.asList(list))
+        };
     }
 
     @Override

@@ -19,17 +19,9 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.apache.lucene.util.IOSupplier;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.LongHash;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory.MultiBucketAggregatorWrapper;
 import org.elasticsearch.search.aggregations.BucketCollector;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.elasticsearch.search.internal.SearchContext;
@@ -92,13 +84,9 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
     /**
      * This method should be overridden by subclasses that want to defer
      * calculation of a child aggregation until a first pass is complete and a
-     * set of buckets has been pruned. Deferring collection will require the
-     * recording of all doc/bucketIds from the first pass and then the sub class
-     * should call {@link #runDeferredCollections(long...)} for the selected set
-     * of buckets that survive the pruning.
+     * set of buckets has been pruned.
      *
-     * @param aggregator
-     *            the child aggregator
+     * @param aggregator the child aggregator
      * @return true if the aggregator should be deferred until a first pass at
      *         collection has completed
      */
@@ -106,28 +94,10 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
         return false;
     }
 
-    /**
-     * Collect sub aggregations for a list of bucket ordinals. This may
-     * only be called once so any aggregation that calls this must be
-     * wrapped in {@link MultiBucketAggregatorWrapper}.
-     * @deprecated prefer delaying construction of the result with many calls
-     *             to {@link #recordSurvingOrd(long)} and returning
-     *             {@link #deferred(IOSupplier)}.  
-     */
-    @Deprecated
-    protected final void runDeferredCollections(long... bucketOrds) throws IOException {
-        // Being lenient here - ignore calls where there are no deferred
-        // collections to playback
+    @Override
+    protected void beforeBuildingBuckets(long[] ordsToCollect) throws IOException {
         if (recordingWrapper != null) {
-            recordingWrapper.replay(bucketOrds);
+            recordingWrapper.replay(ordsToCollect);
         }
-    }
-
-    protected final InternalAggregations[] runDeferredCollections(LongHash bucketOrds) throws IOException {
-        // NOCOMMIT maybe remove this entirely and just piggy back on building buckets?
-        if (recordingWrapper != null) {
-            recordingWrapper.prepareSelectedBuckets(bucketOrds);
-        }
-        long[]  
     }
 }

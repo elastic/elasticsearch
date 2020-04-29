@@ -254,15 +254,6 @@ public abstract class AggregatorBase extends Aggregator {
     protected void doPostCollection() throws IOException {
     }
 
-    @Override
-    public boolean runDeferredCollections() throws IOException {
-        boolean ran = false;
-        for (Aggregator sub : subAggregators) {
-            ran |= sub.runDeferredCollections();
-        }
-        return ran;
-    }
-
     protected final InternalAggregations buildEmptySubAggregations() {
         List<InternalAggregation> aggs = new ArrayList<>();
         for (Aggregator aggregator : subAggregators) {

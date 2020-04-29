@@ -84,32 +84,19 @@ public class ProfilingAggregator extends Aggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long bucket) throws IOException {
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         Timer timer = profileBreakdown.getTimer(AggregationTimingType.BUILD_AGGREGATION);
         timer.start();
-        InternalAggregation result;
         try {
-            result = delegate.buildAggregation(bucket);
+            return delegate.buildAggregations(owningBucketOrds);
         } finally {
             timer.stop();
         }
-        return result;
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return delegate.buildEmptyAggregation();
-    }
-
-    @Override
-    public boolean runDeferredCollections() throws IOException {
-        Timer timer = profileBreakdown.getTimer(AggregationTimingType.RUN_DEFERRED_COLLECTIONS);
-        timer.start();
-        try {
-            return delegate.runDeferredCollections();
-        } finally {
-            timer.stop();
-        }
     }
 
     @Override

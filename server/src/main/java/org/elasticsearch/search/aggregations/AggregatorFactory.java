@@ -144,31 +144,26 @@ public abstract class AggregatorFactory {
         }
 
         @Override
-        public InternalAggregation buildAggregation(long bucket) throws IOException {
-            if (bucket < aggregators.size()) {
-                Aggregator aggregator = aggregators.get(bucket);
-                if (aggregator != null) {
-                    return aggregator.buildAggregation(0);
+        public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+            InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
+            for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+                if (owningBucketOrds[ordIdx] < aggregators.size()) {
+                    Aggregator aggregator = aggregators.get(owningBucketOrds[ordIdx]);
+                    if (aggregator != null) {
+                        results[ordIdx] = aggregator.buildAggregations(new long [] {0})[0];
+                    } else {
+                        results[ordIdx] = buildEmptyAggregation();
+                    }
+                } else {
+                    results[ordIdx] = buildEmptyAggregation();
                 }
             }
-            return buildEmptyAggregation();
+            return results;
         }
 
         @Override
         public InternalAggregation buildEmptyAggregation() {
             return first.buildEmptyAggregation();
-        }
-
-        @Override
-        public boolean runDeferredCollections() throws IOException {
-            boolean ran = false;
-            for (long i = 0; i < aggregators.size(); ++i) {
-                final Aggregator aggregator = aggregators.get(i);
-                if (aggregator != null) {
-                    ran |= aggregator.runDeferredCollections();
-                }
-            }
-            return ran;
         }
 
         @Override
@@ -242,7 +237,9 @@ public abstract class AggregatorFactory {
      * Utility method. Given an {@link AggregatorFactory} that creates
      * {@link Aggregator}s that only know how to collect bucket {@code 0}, this
      * returns an aggregator that can collect any bucket.
+     * @deprecated implement the aggregator to handle many owning buckets
      */
+    @Deprecated
     protected static Aggregator asMultiBucketAggregator(final AggregatorFactory factory, final SearchContext searchContext,
             final Aggregator parent) throws IOException {
         final Aggregator first = factory.create(searchContext, parent, true);

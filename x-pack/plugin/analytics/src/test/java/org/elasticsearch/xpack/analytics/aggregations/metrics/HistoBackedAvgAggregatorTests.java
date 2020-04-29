@@ -45,12 +45,11 @@ public class HistoBackedAvgAggregatorTests extends AggregatorTestCase {
 
     private static final String FIELD_NAME = "field";
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55824")
     public void testNoDocs() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
             // Intentionally not writing any docs
         }, avg -> {
-            assertEquals(0L, avg.getValue(), 0d);
+            assertEquals(Double.NaN, avg.getValue(), 0d);
             assertFalse(AggregationInspectionHelper.hasValue(avg));
         });
     }

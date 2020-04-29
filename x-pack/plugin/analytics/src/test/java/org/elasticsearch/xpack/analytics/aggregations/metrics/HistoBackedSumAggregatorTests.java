@@ -45,7 +45,6 @@ public class HistoBackedSumAggregatorTests extends AggregatorTestCase {
 
     private static final String FIELD_NAME = "field";
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55824")
     public void testNoDocs() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
             // Intentionally not writing any docs

@@ -41,6 +41,7 @@ import org.gradle.api.tasks.testing.Test;
 import org.gradle.plugins.ide.eclipse.model.EclipseModel;
 import org.gradle.plugins.ide.idea.model.IdeaModel;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -136,64 +137,72 @@ public abstract class GradleUtils {
      *
      * IDEs are also configured if setup, and the test task is added to check. The new test source
      * set extends from the normal test source set to allow sharing of utilities.
+     *
+     * @return A task provider for the newly created test task
      */
-    public static void addTestSourceSet(Project project, String sourceSetName) {
+    public static TaskProvider<?> addTestSourceSet(Project project, String sourceSetName) {
         project.getPluginManager().apply(ElasticsearchJavaPlugin.class);
 
         // create our test source set and task
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-        SourceSet extraTestSourceSet = sourceSets.create(sourceSetName);
+        SourceSet testSourceSet = sourceSets.create(sourceSetName);
         TaskProvider<Test> testTask = project.getTasks().register(sourceSetName, Test.class);
         testTask.configure(task -> {
             task.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
-            task.setTestClassesDirs(extraTestSourceSet.getOutput().getClassesDirs());
-            task.setClasspath(extraTestSourceSet.getRuntimeClasspath());
+            task.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs());
+            task.setClasspath(testSourceSet.getRuntimeClasspath());
         });
-        SourceSet mainSourceSet = sourceSets.getByName("main");
-        SourceSet testSourceSet = sourceSets.getByName("test");
 
-        extendConfiguration(project, testSourceSet, extraTestSourceSet, SourceSet::getCompileConfigurationName);
-        extendConfiguration(project, testSourceSet, extraTestSourceSet, SourceSet::getImplementationConfigurationName);
-        extendConfiguration(project, testSourceSet, extraTestSourceSet, SourceSet::getRuntimeConfigurationName);
-        extendConfiguration(project, testSourceSet, extraTestSourceSet, SourceSet::getRuntimeOnlyConfigurationName);
+        Configuration testCompileConfig = project.getConfigurations().getByName(testSourceSet.getCompileClasspathConfigurationName());
+        Configuration testRuntimeConfig = project.getConfigurations().getByName(testSourceSet.getRuntimeClasspathConfigurationName());
+        testSourceSet.setCompileClasspath(testCompileConfig);
+        testSourceSet.setRuntimeClasspath(testSourceSet.getOutput().plus(testRuntimeConfig));
 
-        // tie this new test source set to the main and test source sets
-        Configuration extraTestCompileConfig = project.getConfigurations()
-            .getByName(extraTestSourceSet.getCompileClasspathConfigurationName());
-        Configuration extraTestRuntimeConfig = project.getConfigurations()
-            .getByName(extraTestSourceSet.getRuntimeClasspathConfigurationName());
-        extraTestSourceSet.setCompileClasspath(
-            project.getObjects().fileCollection().from(mainSourceSet.getOutput(), testSourceSet.getOutput(), extraTestCompileConfig)
-        );
-        extraTestSourceSet.setRuntimeClasspath(
-            project.getObjects()
-                .fileCollection()
-                .from(extraTestSourceSet.getOutput(), mainSourceSet.getOutput(), testSourceSet.getOutput(), extraTestRuntimeConfig)
-        );
+        extendSourceSet(project, SourceSet.MAIN_SOURCE_SET_NAME, sourceSetName);
 
         // setup IDEs
-        String runtimeClasspathName = extraTestSourceSet.getRuntimeClasspathConfigurationName();
+        String runtimeClasspathName = testSourceSet.getRuntimeClasspathConfigurationName();
         Configuration runtimeClasspathConfiguration = project.getConfigurations().getByName(runtimeClasspathName);
         project.getPluginManager().withPlugin("idea", p -> {
             IdeaModel idea = project.getExtensions().getByType(IdeaModel.class);
-            idea.getModule().setTestSourceDirs(extraTestSourceSet.getJava().getSrcDirs());
+            idea.getModule().setTestSourceDirs(testSourceSet.getJava().getSrcDirs());
             idea.getModule().getScopes().put("TEST", Map.of("plus", List.of(runtimeClasspathConfiguration)));
         });
         project.getPluginManager().withPlugin("eclipse", p -> {
             EclipseModel eclipse = project.getExtensions().getByType(EclipseModel.class);
-            eclipse.getClasspath().setSourceSets(List.of(extraTestSourceSet));
+            eclipse.getClasspath().setSourceSets(List.of(testSourceSet));
             eclipse.getClasspath().getPlusConfigurations().add(runtimeClasspathConfiguration);
         });
 
         // add to the check task
         project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(testTask));
+
+        return testTask;
     }
 
-    private static void extendConfiguration(Project project, SourceSet parent, SourceSet child, Function<SourceSet, String> configName) {
-        String parentConfigName = configName.apply(parent);
-        String childConfigName = configName.apply(child);
-        Configuration parentConfig = project.getConfigurations().getByName(parentConfigName);
-        Configuration childConfig = project.getConfigurations().getByName(childConfigName);
-        childConfig.extendsFrom(parentConfig);
+    /**
+     * Extend the configurations of one source set from another.
+     */
+    public static void extendSourceSet(Project project, String parentSourceSetName, String childSourceSetName) {
+        final List<Function<SourceSet, String>> configNameFunctions = Arrays.asList(
+            SourceSet::getCompileConfigurationName,
+            SourceSet::getImplementationConfigurationName,
+            SourceSet::getRuntimeConfigurationName,
+            SourceSet::getRuntimeOnlyConfigurationName);
+        SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+        SourceSet parent = sourceSets.getByName(parentSourceSetName);
+        SourceSet child = sourceSets.getByName(childSourceSetName);
+
+        for (Function<SourceSet, String> configNameFunction : configNameFunctions) {
+            String parentConfigName = configNameFunction.apply(parent);
+            String childConfigName = configNameFunction.apply(child);
+            Configuration parentConfig = project.getConfigurations().getByName(parentConfigName);
+            Configuration childConfig = project.getConfigurations().getByName(childConfigName);
+            childConfig.extendsFrom(parentConfig);
+        }
+
+        // tie this new test source set to the main and test source sets
+        child.setCompileClasspath(child.getCompileClasspath().plus(parent.getOutput()));
+        child.setRuntimeClasspath(child.getCompileClasspath().plus(parent.getOutput()));
     }
 }

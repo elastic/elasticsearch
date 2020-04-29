@@ -22,13 +22,19 @@ package org.elasticsearch.gradle.test;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.tasks.SourceSet;
 
 public class InternalClusterTestPlugin implements Plugin<Project> {
+
+    public static final String SOURCE_SET_NAME = "internalClusterTest";
     @Override
     public void apply(Project project) {
-        GradleUtils.addTestSourceSet(project, "internalClusterTest");
+        GradleUtils.addTestSourceSet(project, SOURCE_SET_NAME);
+
+        // TODO: fix usages of IT tests depending on Tests methods so this extension is not necessary
+        GradleUtils.extendSourceSet(project, SourceSet.TEST_SOURCE_SET_NAME, SOURCE_SET_NAME);
 
         // add alias task that is easier to type
-        project.getTasks().register("icTest").configure(alias -> alias.dependsOn("internalClusterTest"));
+        project.getTasks().register("icTest").configure(alias -> alias.dependsOn(SOURCE_SET_NAME));
     }
 }

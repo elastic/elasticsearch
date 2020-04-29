@@ -182,7 +182,6 @@ POST /follower_index/_ccr/pause_follow
 
 GET /follower_index/_ccr/info
 --------------------------------------------------
-// TEST[continued]
 ////
 
 If the follower index is `paused`, the API returns the following results:

@@ -26,7 +26,6 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
-import java.util.Objects;
 
 public class InboundMessage implements Releasable {
 
@@ -88,7 +87,11 @@ public class InboundMessage implements Releasable {
     public Releasable takeBreakerReleaseControl() {
         final Releasable toReturn = breakerRelease;
         breakerRelease = null;
-        return Objects.requireNonNullElse(toReturn, () -> {});
+        if (toReturn != null) {
+            return toReturn;
+        } else {
+            return () -> {};
+        }
     }
 
     public StreamInput openOrGetStreamInput() throws IOException {

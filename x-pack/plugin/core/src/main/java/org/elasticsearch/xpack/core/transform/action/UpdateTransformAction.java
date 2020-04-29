@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.action.compat.UpdateTransformActionPre78;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 
@@ -52,11 +54,23 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
             this.deferValidation = deferValidation;
         }
 
-        public Request(StreamInput in) throws IOException {
+        // use fromStreamWithBWC, this can be changed back to public after BWC is not required anymore
+        private Request(StreamInput in) throws IOException {
             super(in);
             this.update = new TransformConfigUpdate(in);
             this.id = in.readString();
             this.deferValidation = in.readBoolean();
+            if (in.readBoolean()) {
+                this.config = new TransformConfig(in);
+            }
+        }
+
+        public static Request fromStreamWithBWC(StreamInput in) throws IOException {
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_8_0
+                return new Request(in);
+            }
+            UpdateTransformActionPre78.Request r = new UpdateTransformActionPre78.Request(in);
+            return new Request(r.getUpdate(), r.getId(), r.isDeferValidation());
         }
 
         public static Request fromXContent(final XContentParser parser, final String id, final boolean deferValidation) {
@@ -116,10 +130,21 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            this.update.writeTo(out);
-            out.writeString(id);
-            out.writeBoolean(deferValidation);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                super.writeTo(out);
+                update.writeTo(out);
+                out.writeString(id);
+                out.writeBoolean(deferValidation);
+                if (config == null) {
+                    out.writeBoolean(false);
+                } else {
+                    config.writeTo(out);
+                }
+                return;
+            }
+
+            UpdateTransformActionPre78.Request r = new UpdateTransformActionPre78.Request(update, id, deferValidation);
+            r.writeTo(out);
         }
 
         @Override
@@ -150,15 +175,34 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
             this.config = config;
         }
 
-        public Response(StreamInput in) throws IOException {
+        // use fromStreamWithBWC, this can be changed back to public after BWC is not required anymore
+        private Response(StreamInput in) throws IOException {
             super(in);
             this.config = new TransformConfig(in);
         }
 
+        public static Response fromStreamWithBWC(StreamInput in) throws IOException {
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_8_0
+                return new Response(in);
+            }
+            UpdateTransformActionPre78.Response r = new UpdateTransformActionPre78.Response(in);
+            return new Response(r.getConfig());
+        }
+
+        public TransformConfig getConfig() {
+            return config;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            config.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                super.writeTo(out);
+                config.writeTo(out);
+                return;
+            }
+
+            UpdateTransformActionPre78.Response r = new UpdateTransformActionPre78.Response(config);
+            r.writeTo(out);
         }
 
         @Override
@@ -184,8 +228,5 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
             return config.toXContent(builder, params);
         }
 
-        public TransformConfig getConfig() {
-            return config;
-        }
     }
 }

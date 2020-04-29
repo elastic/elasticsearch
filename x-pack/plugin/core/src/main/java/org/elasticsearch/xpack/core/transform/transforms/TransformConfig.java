@@ -197,9 +197,10 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         final SyncConfig syncConfig,
         final Map<String, String> headers,
         final PivotConfig pivotConfig,
-        final String description
+        final String description,
+        final SettingsConfig settings
     ) {
-        this(id, source, dest, frequency, syncConfig, headers, pivotConfig, description, null, null, null);
+        this(id, source, dest, frequency, syncConfig, headers, pivotConfig, description, settings, null, null);
     }
 
     public TransformConfig(final StreamInput in) throws IOException {

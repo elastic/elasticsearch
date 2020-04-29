@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
@@ -121,7 +122,16 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         TransformServices transformServices,
         Client client
     ) {
-        super(name, clusterService, transportService, actionFilters, Request::new, Response::new, Response::new, ThreadPool.Names.SAME);
+        super(
+            name,
+            clusterService,
+            transportService,
+            actionFilters,
+            Request::fromStreamWithBWC,
+            Response::fromStreamWithBWC,
+            Response::fromStreamWithBWC,
+            ThreadPool.Names.SAME
+        );
 
         this.licenseState = licenseState;
         this.client = client;
@@ -164,7 +174,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                     nodes.getMasterNode(),
                     actionName,
                     request,
-                    new ActionListenerResponseHandler<>(listener, Response::new)
+                    new ActionListenerResponseHandler<>(listener, Response::fromStreamWithBWC)
                 );
             }
         } else {
@@ -196,9 +206,17 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                         clusterState
                     );
                     PersistentTasksCustomMetadata.PersistentTask<?> transformTask = tasksMetadata.getTask(request.getId());
+
+                    // to send a request to apply new settings at runtime, several requirements must be met:
+                    // - transform must be running, meaning a task exists
+                    // - transform is not failed (stopped transforms do not have a task)
+                    // - the node where transform is executed on is at least 7.8.0 in order to understand the request
                     if (transformTask != null
                         && transformTask.getState() instanceof TransformState
-                        && ((TransformState) transformTask.getState()).getTaskState() != TransformTaskState.FAILED) {
+                        && ((TransformState) transformTask.getState()).getTaskState() != TransformTaskState.FAILED
+                        && clusterState.nodes().get(transformTask.getExecutorNode()).getVersion().onOrAfter(Version.V_8_0_0) // todo:
+                                                                                                                             // V_7_8_0
+                    ) {
                         request.setNodes(transformTask.getExecutorNode());
                         updateListener = ActionListener.wrap(updateResponse -> {
                             request.setConfig(updateResponse.getConfig());

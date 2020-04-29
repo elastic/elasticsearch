@@ -104,6 +104,10 @@ public class UpdateTransformActionPre78 {
             this.config = new TransformConfig(in);
         }
 
+        public TransformConfig getConfig() {
+            return config;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             this.config.writeTo(out);
@@ -131,6 +135,5 @@ public class UpdateTransformActionPre78 {
             return config.toXContent(builder, params);
         }
     }
-
 
 }

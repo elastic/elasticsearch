@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.ml.dataframe.stats;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 
@@ -68,14 +67,5 @@ public class ProgressTrackerTests extends ESTestCase {
         assertThat(phases.get(1).getProgressPercent(), equalTo(2));
         assertThat(phases.get(2).getProgressPercent(), equalTo(3));
         assertThat(phases.get(3).getProgressPercent(), equalTo(4));
-    }
-
-    public void testUpdatePhase_GivenUnknownPhase() {
-        ProgressTracker progressTracker = ProgressTracker.fromZeroes(Collections.singletonList("foo"));
-
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
-            () -> progressTracker.updatePhase(new PhaseProgress("bar", 42)));
-
-        assertThat(e.getMessage(), equalTo("unknown progress phase [bar]"));
     }
 }

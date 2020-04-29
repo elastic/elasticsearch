@@ -502,10 +502,10 @@ public class MetadataCreateIndexService {
             Collections.singletonList(templateName), metadataTransformer);
     }
 
-    static Map<String, Object> resolveV2Mappings(final String requestMappings,
-                                                 final ClusterState currentState,
-                                                 final String templateName,
-                                                 final NamedXContentRegistry xContentRegistry) throws Exception {
+    public static Map<String, Object> resolveV2Mappings(final String requestMappings,
+                                                        final ClusterState currentState,
+                                                        final String templateName,
+                                                        final NamedXContentRegistry xContentRegistry) throws Exception {
         final Map<String, Object> mappings = Collections.unmodifiableMap(parseV2Mappings(requestMappings,
             MetadataIndexTemplateService.resolveMappings(currentState, templateName), xContentRegistry));
         return mappings;
@@ -735,9 +735,10 @@ public class MetadataCreateIndexService {
      * @return the list of resolved aliases, with the explicitly provided aliases occurring first (having a higher priority) followed by
      * the ones inherited from the templates
      */
-    static List<AliasMetadata> resolveAndValidateAliases(String index, Set<Alias> aliases, List<Map<String, AliasMetadata>> templateAliases,
-                                                         Metadata metadata, AliasValidator aliasValidator,
-                                                         NamedXContentRegistry xContentRegistry, QueryShardContext queryShardContext) {
+    public static List<AliasMetadata> resolveAndValidateAliases(String index, Set<Alias> aliases,
+                                                                List<Map<String, AliasMetadata>> templateAliases, Metadata metadata,
+                                                                AliasValidator aliasValidator, NamedXContentRegistry xContentRegistry,
+                                                                QueryShardContext queryShardContext) {
         List<AliasMetadata> resolvedAliases = new ArrayList<>();
         for (Alias alias : aliases) {
             aliasValidator.validateAlias(alias, index, metadata);

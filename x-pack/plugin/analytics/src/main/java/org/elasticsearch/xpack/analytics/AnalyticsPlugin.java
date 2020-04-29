@@ -31,7 +31,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.analytics.action.AnalyticsInfoTransportAction;
 import org.elasticsearch.xpack.analytics.action.AnalyticsUsageTransportAction;
 import org.elasticsearch.xpack.analytics.action.TransportAnalyticsStatsAction;
-import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsPercentilesAggregatorFactory;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsAggregatorFactory;
 import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
@@ -128,8 +128,11 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
-        return List.of(AnalyticsPercentilesAggregatorFactory::registerPercentilesAggregator,
-            AnalyticsPercentilesAggregatorFactory::registerPercentileRanksAggregator);
+            return List.of(
+                AnalyticsAggregatorFactory::registerPercentilesAggregator,
+                AnalyticsAggregatorFactory::registerPercentileRanksAggregator,
+                AnalyticsAggregatorFactory::registerHistoBackedSumAggregator
+            );
     }
 
     @Override

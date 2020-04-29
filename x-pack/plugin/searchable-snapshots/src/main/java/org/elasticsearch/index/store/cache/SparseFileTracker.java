@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -147,6 +148,58 @@ public class SparseFileTracker {
         assert gaps.isEmpty(); // or else pendingRanges.isEmpty() == false so we already returned
         listener.onResponse(null);
         return Collections.emptyList();
+    }
+
+    /**
+     * Returns a range that contains all bytes of the target range which are absent (possibly pending). The returned range may include
+     * some ranges of present bytes. It tries to return the smallest possible range, but does so on a best-effort basis. This method does
+     * not acquire anything, which means that another thread may concurrently fill in some of the returned range.
+     *
+     * @param start The (inclusive) start of the target range
+     * @param end The (exclusive) end of the target range
+     * @return a range that contains all bytes of the target range which are absent, or {@code null} if there are no such bytes.
+     */
+    public Tuple<Long, Long> getAbsentRangeWithin(final long start, final long end) {
+        synchronized (mutex) {
+
+            // Find the first absent byte in the range
+            final SortedSet<Range> startRanges = ranges.headSet(new Range(start, start, null), true); // ranges which start <= 'start'
+            long resultStart;
+            if (startRanges.isEmpty()) {
+                resultStart = start;
+            } else {
+                final Range lastStartRange = startRanges.last();
+                // last range which starts <= 'start' and which therefore may contain the first byte of the range
+                if (lastStartRange.end < start) {
+                    resultStart = start;
+                } else if (lastStartRange.isPending()) {
+                    resultStart = start;
+                } else {
+                    resultStart = lastStartRange.end;
+                }
+            }
+            assert resultStart >= start;
+
+            // Find the last absent byte in the range
+            final SortedSet<Range> endRanges = ranges.headSet(new Range(end, end, null), false); // ranges which start < 'end'
+            final long resultEnd;
+            if (endRanges.isEmpty()) {
+                resultEnd = end;
+            } else {
+                final Range lastEndRange = endRanges.last();
+                // last range which starts < 'end' and which therefore may contain the last byte of the range
+                if (lastEndRange.end < end) {
+                    resultEnd = end;
+                } else if (lastEndRange.isPending()) {
+                    resultEnd = end;
+                } else {
+                    resultEnd = lastEndRange.start;
+                }
+            }
+            assert resultEnd <= end;
+
+            return resultStart < resultEnd ? Tuple.tuple(resultStart, resultEnd) : null;
+        }
     }
 
     private void onGapSuccess(final long start, final long end) {

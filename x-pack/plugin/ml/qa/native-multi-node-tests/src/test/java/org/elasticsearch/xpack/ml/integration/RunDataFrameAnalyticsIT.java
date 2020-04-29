@@ -98,7 +98,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         String id = "test_outlier_detection_with_few_docs";
         DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", null,
             new OutlierDetection.Builder().build());
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(id);
@@ -184,7 +183,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         String id = "test_outlier_detection_with_enough_docs_to_scroll";
         DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", "custom_ml",
             new OutlierDetection.Builder().build());
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(id);
@@ -259,7 +257,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         String id = "test_outlier_detection_with_more_fields_than_docvalue_limit";
         DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", null,
             new OutlierDetection.Builder().build());
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(id);
@@ -328,7 +325,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         String id = "test_stop_outlier_detection_with_enough_docs_to_scroll";
         DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", "custom_ml",
             new OutlierDetection.Builder().build());
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(id);
@@ -398,7 +394,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setDest(new DataFrameAnalyticsDest(destIndex, null))
             .setAnalysis(new OutlierDetection.Builder().build())
             .build();
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(id);
@@ -460,7 +455,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         String id = "test_outlier_detection_with_pre_existing_dest_index";
         DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, destIndex, null, new OutlierDetection.Builder().build());
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(id);
@@ -524,7 +518,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setModelMemoryLimit(modelMemoryLimit)
             .build();
 
-        registerAnalytics(config);
         putAnalytics(config);
         assertIsStopped(id);
 
@@ -569,7 +562,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setAllowLazyStart(true)
             .build();
 
-        registerAnalytics(config);
         putAnalytics(config);
         assertIsStopped(id);
 
@@ -619,7 +611,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         String id = "test_outlier_detection_stop_and_restart";
         DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", "custom_ml",
             new OutlierDetection.Builder().build());
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(id);
@@ -697,7 +688,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
                 .setOutlierFraction(0.04)
                 .setStandardizationEnabled(true)
                 .build());
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(id);

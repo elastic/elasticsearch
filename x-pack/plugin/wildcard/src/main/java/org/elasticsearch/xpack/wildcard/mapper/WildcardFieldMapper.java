@@ -24,6 +24,7 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
@@ -358,11 +359,7 @@ public class WildcardFieldMapper extends FieldMapper {
                         rewritten.add(q, clause.getOccur());
                     }
                 }
-                BooleanQuery result = rewritten.build();
-                if (result.clauses().size() == 0) {
-                    return null;
-                }
-                return result;
+                return simplify(rewritten);
             }
             if (approxQuery instanceof TermQuery) {
                 TermQuery tq = (TermQuery) approxQuery;
@@ -373,14 +370,21 @@ public class WildcardFieldMapper extends FieldMapper {
                 for (String string : tokens) {
                     addClause(string, rewritten, Occur.MUST);
                 }
-                BooleanQuery result = rewritten.build();
-                if (result.clauses().size() == 0) {
-                    return null;
-                }
-                return result;
+                return simplify(rewritten);
             }
             throw new IllegalStateException("Invalid query type found parsing regex query:" + approxQuery);
-        }     
+        }    
+        
+        private Query simplify(BooleanQuery.Builder bqBuilder) {
+            BooleanQuery result = bqBuilder.build();
+            if (result.clauses().size() == 0) {
+                return null;
+            }
+            if (result.clauses().size() == 1) {
+                return result.clauses().get(0).getQuery();
+            }
+            return result;            
+        }
 
         protected void getNgramTokens(Set<String> tokens, String fragment) {
             // Break fragment into multiple Ngrams
@@ -428,7 +432,7 @@ public class WildcardFieldMapper extends FieldMapper {
             } else {
                 // Ignore tokens that are just string start or end markers
                 if (token.charAt(token.length() - 1) != TOKEN_START_OR_END_CHAR) {
-                    WildcardQuery wq = new WildcardQuery(new Term(name(), token + "*"));
+                    PrefixQuery wq = new PrefixQuery(new Term(name(), token));
                     wq.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
                     bqBuilder.add(new BooleanClause(wq, occur));
                 }

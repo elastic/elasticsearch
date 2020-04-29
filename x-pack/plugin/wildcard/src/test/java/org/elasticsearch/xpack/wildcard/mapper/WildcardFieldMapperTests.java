@@ -292,13 +292,13 @@ public class WildcardFieldMapperTests extends ESTestCase {
     public void testRegexAcceleration() throws IOException, ParseException {
         // All of these regexes should be accelerated as the equivalent of the given QueryString query 
         String tests[][] = { 
-            {".*/etc/passw.*", "+(+\\/et +tc\\/ +\\/pa +ass +ssw)"}, 
-            {".*etc/passwd",  "+(+etc +c\\/p +pas +ssw +wd_ +d__)"}, 
-            {"(http|ftp)://foo.*",  "+((+htt +ttp) OR (+ftp)) +(+\\:\\/\\/ +\\/fo +foo)"}, 
-            {"[Pp][Oo][Ww][Ee][Rr][Ss][Hh][Ee][Ll][Ll]\\.[Ee][Xx][Ee]",  "+(+_po +owe +ers +she +ell +l\\.e +exe +xe_ +e__ )"}, 
+            {".*/etc/passw.*", "+\\/et +tc\\/ +\\/pa +ass +ssw"}, 
+            {".*etc/passwd",  "+etc +c\\/p +pas +ssw +wd_ +d__"}, 
+            {"(http|ftp)://foo.*",  "+((+htt +ttp) ftp) +(+\\:\\/\\/ +\\/fo +foo)"}, 
+            {"[Pp][Oo][Ww][Ee][Rr][Ss][Hh][Ee][Ll][Ll]\\.[Ee][Xx][Ee]",  "+_po +owe +ers +she +ell +l\\.e +exe +xe_ +e__"}, 
             {"foo<1-100>bar",  "+(+_fo +foo) +(+bar +ar_ +r__ )"},
-            {"(aaa.+&.+bbb)cat", "+(+cat +at_ +t__ )"},
-            {".a", "+(+a__)"}
+            {"(aaa.+&.+bbb)cat", "+cat +at_ +t__"},
+            {".a", "a__"}
             };
         for (String[] test : tests) {
             String regex = test[0];
@@ -306,10 +306,22 @@ public class WildcardFieldMapperTests extends ESTestCase {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 20000, null, MOCK_QSC);
             
             testExpectedAccelerationQuery(wildcardFieldQuery, expectedAccelerationQueryString);
-            assertTrue(wildcardFieldQuery instanceof BooleanQuery);
-        }        
+        }  
         
-        // Mostly for documentation purposes - here's examples of nasty regexes we know we can't accelerate
+        // Documentation - regexes that we would like to improve in future versions. 
+        String suboptimalTests[][] = { 
+            // TODO short wildcards aren't great. Ideally we would attach to successors to create (acd OR bcd)
+            { "[ab]cd",  "+(a* b*) +(+cd_ +d__)"}
+            };
+        for (String[] test : suboptimalTests) {
+            String regex = test[0];
+            String expectedAccelerationQueryString = test[1].replaceAll("_", ""+WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 20000, null, MOCK_QSC);
+            
+            testExpectedAccelerationQuery(wildcardFieldQuery, expectedAccelerationQueryString);
+        }          
+        
+        // Mostly for documentation purposes - here's examples of nasty regexes we know we can't accelerate at all
         String knownSlowRegexes[] = { "@&~(abc.+)", "aaa.+&.+bbb"};
         for (String regex : knownSlowRegexes) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 20000, null, MOCK_QSC);
@@ -352,7 +364,11 @@ public class WildcardFieldMapperTests extends ESTestCase {
         
         QueryParser qsp = new QueryParser(WILDCARD_FIELD_NAME, new KeywordAnalyzer());
         Query expectedAccelerationQuery = qsp.parse(expectedAccelerationQueryString);
-        assertEquals(expectedAccelerationQuery, approximationQuery);
+        String actualString = approximationQuery.toString()
+            .replaceAll("wildcard_field\\:", "")
+            .replaceAll("" + WildcardFieldMapper.TOKEN_START_OR_END_CHAR, "_");
+        String message = "actual query: " + actualString + "\nexpected query: " + expectedAccelerationQuery;
+        assertEquals(message, expectedAccelerationQuery, approximationQuery);
     }
     
     private String getRandomFuzzyPattern(HashSet<String> values, int edits, int prefixLength) {

@@ -220,20 +220,12 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         fieldType.setHasDocValues(true);
         fieldType.setName("date_field");
 
-        testCase(
-            aggregation,
-            DEFAULT_QUERY,
+        testCase(aggregation, DEFAULT_QUERY,
             iw -> {},
             (Consumer<InternalAutoDateHistogram>) histogram -> {
-                // TODO: searchAndReduce incorrectly returns null for empty aggs
-                assertNull(histogram);
-                /*
                 assertEquals(0, histogram.getBuckets().size());
                 assertFalse(AggregationInspectionHelper.hasValue(histogram));
-                 */
-            },
-            fieldType
-        );
+            }, fieldType);
     }
 
     public void testUnmappedMissing() throws IOException {
@@ -245,20 +237,12 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         fieldType.setHasDocValues(true);
         fieldType.setName("date_field");
 
-        testCase(
-            aggregation,
-            DEFAULT_QUERY,
+        testCase(aggregation, DEFAULT_QUERY,
             iw -> {},
             (Consumer<InternalAutoDateHistogram>) histogram -> {
-                // TODO: searchAndReduce incorrectly returns null for empty aggs
-                assertNull(histogram);
-                /*
-                assertEquals(1, histogram.getBuckets().size());
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                 */
-            },
-           fieldType
-        );
+                assertEquals(0, histogram.getBuckets().size());
+                assertFalse(AggregationInspectionHelper.hasValue(histogram));
+        }, fieldType);
     }
 
     public void testIntervalYear() throws IOException {

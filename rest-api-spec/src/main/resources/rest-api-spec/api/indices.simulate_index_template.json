@@ -29,7 +29,7 @@
       },
       "cause":{
         "type":"string",
-        "description":"User defined reason for simulating the optionally defined new template for simulation purposes",
+        "description":"User defined reason for dry-run creating the new template for simulation purposes",
         "default":false
       },
       "master_timeout":{

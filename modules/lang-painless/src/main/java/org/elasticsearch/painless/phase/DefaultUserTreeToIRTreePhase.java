@@ -468,7 +468,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                     dupNode.setDepth(0);
                     dupNode.setChildNode(irAccessNode);
 
-                    ((StoreAccessNode)irStoreNode).setAccessNode(irAccessNode);
+                    ((StoreAccessNode)irStoreNode).setAccessNode(dupNode);
                 }
 
                 BinaryMathNode binaryMathNode = new BinaryMathNode();
@@ -1687,6 +1687,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irFlipCollectionIndexNode.setLocation(userBraceNode.getIndexNode().getLocation());
             irFlipCollectionIndexNode.setExpressionType(int.class);
             irFlipCollectionIndexNode.setChildNode(irIndexNode);
+            irIndexNode = irFlipCollectionIndexNode;
 
             if (write || compound) {
                 StoreListShortcutNode irStoreListShortcutNode = new StoreListShortcutNode();

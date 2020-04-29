@@ -25,10 +25,6 @@ Block write operations to the index.
 Remove the index as the write index for the rollover alias and 
 start indexing to a new index.
 
-[[ilm-searchable-snapshot-action]]<<ilm-searchable-snapshot, Searchable Snapshot>>::
-Take a snapshot of the managed index in the configured repository
-and mount it as a searchable snapshot.
-
 [[ilm-set-priority-action]]<<ilm-set-priority,Set Priority>>::
 Lower the priority of an index as it moves through the lifecycle
 to ensure that hot indices are recovered first. 
@@ -49,7 +45,6 @@ include::actions/ilm-forcemerge.asciidoc[]
 include::actions/ilm-freeze.asciidoc[]
 include::actions/ilm-readonly.asciidoc[]
 include::actions/ilm-rollover.asciidoc[]
-include::actions/ilm-searchable-snapshot.asciidoc[]
 include::actions/ilm-set-priority.asciidoc[]
 include::actions/ilm-shrink.asciidoc[]
 include::actions/ilm-unfollow.asciidoc[]

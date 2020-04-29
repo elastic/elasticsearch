@@ -6,16 +6,6 @@ Phases allowed: delete.
 
 Permanently removes the index.
 
-[[ilm-delete-options]]
-==== Options
-
-`delete_searchable_snapshot`::
-(Optional, boolean)
-Deletes the searchable snapshot created in the cold phase. 
-Defaults to `true`.
-This option is applicable when the <<ilm-searchable-snapshot-action,searchable
-snapshot>> action is used in the cold phase.
-
 [[ilm-delete-action-ex]]
 ==== Example
 

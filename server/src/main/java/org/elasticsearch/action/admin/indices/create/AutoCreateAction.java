@@ -22,9 +22,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
@@ -41,10 +40,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
@@ -60,7 +61,7 @@ public final class AutoCreateAction extends ActionType<AutoCreateAction.Response
         super(NAME, Response::new);
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest {
+    public static class Request extends MasterNodeReadRequest<Request> implements CompositeIndicesRequest {
 
         private final Set<String> names;
         private final String cause;
@@ -91,16 +92,6 @@ public final class AutoCreateAction extends ActionType<AutoCreateAction.Response
             out.writeStringCollection(names);
             out.writeString(cause);
             out.writeOptionalBoolean(preferV2Templates);
-        }
-
-        @Override
-        public String[] indices() {
-            return names.toArray(new String[0]);
-        }
-
-        @Override
-        public IndicesOptions indicesOptions() {
-            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
 
         public Set<String> getNames() {
@@ -208,14 +199,45 @@ public final class AutoCreateAction extends ActionType<AutoCreateAction.Response
         protected void masterOperation(Task task,
                                        Request request,
                                        ClusterState state,
-                                       ActionListener<Response> listener) throws Exception {
-            // For now always redirect to the auto create index action, because only indices get auto created.
-            client.execute(AutoCreateIndexAction.INSTANCE, request, listener);
+                                       ActionListener<Response> listener) {
+            autoCreate(request, listener, client);
         }
 
         @Override
         protected ClusterBlockException checkBlock(Request request, ClusterState state) {
             return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, request.names.toArray(new String[0]));
+        }
+    }
+
+    static void autoCreate(Request request, ActionListener<Response> listener, Client client) {
+        // For now always redirect to the auto create index action, because only indices get auto created.
+        final AtomicInteger counter = new AtomicInteger(request.getNames().size());
+        final Map<String, Exception> results = new HashMap<>();
+        for (String name : request.getNames()) {
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest();
+            createIndexRequest.index(name);
+            createIndexRequest.cause(request.getCause());
+            createIndexRequest.masterNodeTimeout(request.masterNodeTimeout());
+            createIndexRequest.preferV2Templates(request.getPreferV2Templates());
+            client.execute(AutoCreateIndexAction.INSTANCE, createIndexRequest, ActionListener.wrap(
+                createIndexResponse -> {
+                    // Maybe a bit overkill to ensure visibility of results map across threads...
+                    synchronized (results) {
+                        results.put(name, null);
+                        if (counter.decrementAndGet() == 0) {
+                            listener.onResponse(new Response(results));
+                        }
+                    }
+                },
+                e -> {
+                    synchronized (results) {
+                        results.put(name, e);
+                        if (counter.decrementAndGet() == 0) {
+                            listener.onResponse(new Response(results));
+                        }
+                    }
+                }
+            ));
         }
     }
 

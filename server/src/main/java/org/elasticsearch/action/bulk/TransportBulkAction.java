@@ -243,7 +243,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         Exception suppressed = null;
                         for (Map.Entry<String, Exception> entry : response.getFailureByNames().entrySet()) {
                             Exception e = entry.getValue();
-                            if (e == null) {
+                            if (e == null || ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                                 continue;
                             }
 

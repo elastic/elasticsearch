@@ -18,43 +18,37 @@
  */
 package org.elasticsearch.action.admin.indices.create;
 
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Api that auto creates an index that originate from requests that write into an index that doesn't yet exist.
  */
-public final class AutoCreateIndexAction extends ActionType<AutoCreateAction.Response> {
+public final class AutoCreateIndexAction extends ActionType<CreateIndexResponse> {
 
     public static final AutoCreateIndexAction INSTANCE = new AutoCreateIndexAction();
     public static final String NAME = "indices:admin/auto_create_index";
 
     private AutoCreateIndexAction() {
-        super(NAME, AutoCreateAction.Response::new);
+        super(NAME, CreateIndexResponse::new);
     }
 
-    public static final class TransportAction extends TransportMasterNodeAction<AutoCreateAction.Request, AutoCreateAction.Response> {
+    public static final class TransportAction extends TransportMasterNodeAction<CreateIndexRequest, CreateIndexResponse> {
 
         private final MetadataCreateIndexService createIndexService;
 
@@ -62,7 +56,7 @@ public final class AutoCreateIndexAction extends ActionType<AutoCreateAction.Res
         public TransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                MetadataCreateIndexService createIndexService) {
-            super(NAME, transportService, clusterService, threadPool, actionFilters, AutoCreateAction.Request::new,
+            super(NAME, transportService, clusterService, threadPool, actionFilters, CreateIndexRequest::new,
                 indexNameExpressionResolver);
             this.createIndexService = createIndexService;
         }
@@ -73,72 +67,22 @@ public final class AutoCreateIndexAction extends ActionType<AutoCreateAction.Res
         }
 
         @Override
-        protected AutoCreateAction.Response read(StreamInput in) throws IOException {
-            return new AutoCreateAction.Response(in);
+        protected CreateIndexResponse read(StreamInput in) throws IOException {
+            return new CreateIndexResponse(in);
         }
 
         @Override
         protected void masterOperation(Task task,
-                                       AutoCreateAction.Request request,
+                                       CreateIndexRequest request,
                                        ClusterState state,
-                                       ActionListener<AutoCreateAction.Response> listener) throws Exception {
-            // Should this be an AckedClusterStateUpdateTask and
-            // should we add ActiveShardsObserver.waitForActiveShards(...) here?
-            // (This api used from TransportBulkAction only and it currently ignores CreateIndexResponse, so
-            // I think there is no need to include acked and shard ackeds here)
-            clusterService.submitStateUpdateTask("auto create resources for [" + request.getNames() + "]",
-                new ClusterStateUpdateTask(Priority.HIGH) {
-
-                    final Map<String, Exception> result = new HashMap<>();
-
-                    @Override
-                    public TimeValue timeout() {
-                        return request.masterNodeTimeout();
-                    }
-
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        listener.onFailure(e);
-                    }
-
-                    @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
-                        return autoCreate(request, result, currentState, createIndexService, indexNameExpressionResolver);
-                    }
-
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        listener.onResponse(new AutoCreateAction.Response(result));
-                    }
-                });
+                                       ActionListener<CreateIndexResponse> listener) throws Exception {
+            TransportCreateIndexAction.innerCreateIndex(request, listener, indexNameExpressionResolver, createIndexService);
         }
 
         @Override
-        protected ClusterBlockException checkBlock(AutoCreateAction.Request request, ClusterState state) {
-            return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, request.getNames().toArray(new String[0]));
+        protected ClusterBlockException checkBlock(CreateIndexRequest request, ClusterState state) {
+            return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.index());
         }
-    }
-
-    static ClusterState autoCreate(AutoCreateAction.Request request,
-                                   Map<String, Exception> result,
-                                   ClusterState currentState,
-                                   MetadataCreateIndexService createIndexService,
-                                   IndexNameExpressionResolver resolver) {
-        for (String indexName : request.getNames()) {
-            indexName = resolver.resolveDateMathExpression(indexName);
-            CreateIndexClusterStateUpdateRequest req = new CreateIndexClusterStateUpdateRequest(request.getCause(),
-                indexName, indexName).masterNodeTimeout(request.masterNodeTimeout())
-                .preferV2Templates(request.getPreferV2Templates());
-            try {
-                currentState = createIndexService.applyCreateIndexRequest(currentState, req, false);
-                result.put(indexName, null);
-            } catch (ResourceAlreadyExistsException e) {
-                // ignore resource already exists exception.
-            } catch (Exception e) {
-                result.put(indexName, e);
-            }
-        }
-        return currentState;
     }
 
 }

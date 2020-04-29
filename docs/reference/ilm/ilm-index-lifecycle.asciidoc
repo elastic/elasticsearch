@@ -70,7 +70,6 @@ If they cannot, phase execution continues using the cached definition.
   - <<ilm-unfollow-action,Unfollow>>
   - <<ilm-allocate,Allocate>>
   - <<ilm-freeze,Freeze>>
-  - <<ilm-searchable-snapshot, Searchable Snapshot>>
 * Delete
   - <<ilm-wait-for-snapshot-action,Wait For Snapshot>>
   - <<ilm-delete,Delete>>

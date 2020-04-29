@@ -33,6 +33,8 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForRolloverReadyStep> {
 
@@ -105,7 +107,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
     public void testEvaluateCondition() {
         String alias = randomAlphaOfLength(5);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .putAlias(AliasMetadata.builder(alias))
+            .putAlias(AliasMetadata.builder(alias).writeIndex(randomFrom(true, null)))
             .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
@@ -148,9 +150,9 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         assertEquals(true, conditionsMet.get());
 
-        Mockito.verify(client, Mockito.only()).admin();
-        Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
+        verify(client, Mockito.only()).admin();
+        verify(adminClient, Mockito.only()).indices();
+        verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
     }
 
     public void testEvaluateDoesntTriggerRolloverForIndexManuallyRolledOnLifecycleRolloverAlias() {
@@ -177,7 +179,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             }
         }, MASTER_TIMEOUT);
 
-        Mockito.verify(indicesClient, Mockito.never()).rolloverIndex(Mockito.any(), Mockito.any());
+        verify(indicesClient, Mockito.never()).rolloverIndex(Mockito.any(), Mockito.any());
     }
 
     public void testEvaluateTriggersRolloverForIndexManuallyRolledOnDifferentAlias() {
@@ -206,7 +208,33 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             }
         }, MASTER_TIMEOUT);
 
-        Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
+        verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
+    }
+
+    public void testPerformActionWriteIndexIsFalse() {
+        String alias = randomAlphaOfLength(5);
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
+            .putAlias(AliasMetadata.builder(alias).writeIndex(false))
+            .settings(settings(Version.CURRENT)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        WaitForRolloverReadyStep step = createRandomInstance();
+        step.evaluateCondition(indexMetadata, new AsyncWaitStep.Listener() {
+
+            @Override
+            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+                fail("expecting failure as the write index must be set to true or null");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertThat(e.getMessage(), is(String.format(Locale.ROOT, "index [%s] is not the write index for alias [%s]",
+                    indexMetadata.getIndex().getName(), alias)));
+            }
+        }, MASTER_TIMEOUT);
+
+        verify(client, times(0)).admin();
     }
 
     public void testPerformActionWithIndexingComplete() {
@@ -311,9 +339,9 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         assertEquals(false, actionCompleted.get());
 
-        Mockito.verify(client, Mockito.only()).admin();
-        Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
+        verify(client, Mockito.only()).admin();
+        verify(adminClient, Mockito.only()).indices();
+        verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
     }
 
     public void testPerformActionFailure() {
@@ -361,9 +389,9 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         assertEquals(true, exceptionThrown.get());
 
-        Mockito.verify(client, Mockito.only()).admin();
-        Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
+        verify(client, Mockito.only()).admin();
+        verify(adminClient, Mockito.only()).indices();
+        verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
     }
 
     public void testPerformActionInvalidNullOrEmptyAlias() {

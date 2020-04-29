@@ -312,15 +312,15 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         ActionListener<Boolean> deleteByQueryExecutor = ActionListener.wrap(
                 response -> {
                     if (response && indexNames.get().length > 0) {
-                        logger.info("Running DBQ on [" + String.join(", ", indexNames.get()) + "] for job [" + jobId + "]");
-                        DeleteByQueryRequest request = new DeleteByQueryRequest(indexNames.get());
+                        logger.info("[{}] running delete by query on [{}]", jobId, String.join(", ", indexNames.get()));
                         ConstantScoreQueryBuilder query =
-                                new ConstantScoreQueryBuilder(new TermQueryBuilder(Job.ID.getPreferredName(), jobId));
-                        request.setQuery(query);
-                        request.setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
-                        request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
-                        request.setAbortOnVersionConflict(false);
-                        request.setRefresh(true);
+                            new ConstantScoreQueryBuilder(new TermQueryBuilder(Job.ID.getPreferredName(), jobId));
+                        DeleteByQueryRequest request = new DeleteByQueryRequest(indexNames.get())
+                            .setQuery(query)
+                            .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpenHidden()))
+                            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+                            .setAbortOnVersionConflict(false)
+                            .setRefresh(true);
 
                         executeAsyncWithOrigin(parentTaskClient, ML_ORIGIN, DeleteByQueryAction.INSTANCE, request, dbqHandler);
                     } else { // We did not execute DBQ, no need to delete aliases or check the response
@@ -364,7 +364,9 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                final boolean needToRunDBQ = needToRunDBQTemp;
                if (indicesToDelete.isEmpty()) {
                    deleteByQueryExecutor.onResponse(needToRunDBQ);
+                   return;
                }
+               logger.info("[{}] deleting the following indices directly {}", jobId, indicesToDelete);
                DeleteIndexRequest request = new DeleteIndexRequest(indicesToDelete.toArray(String[]::new));
                request.indicesOptions(IndicesOptions.lenientExpandOpenHidden());
                executeAsyncWithOrigin(

@@ -5,9 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.action.AliasesRequest;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -20,7 +19,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -45,9 +43,13 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -129,39 +131,52 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
         // Manually switching over alias info
         IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();
         aliasesRequest.addAliasAction(IndicesAliasesRequest.AliasActions
-            .add()
-            .alias(AnomalyDetectorsIndex.resultsWriteAlias(jobIdDedicated))
-            .isHidden(true)
-            .index(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared")
-            .filter(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobIdDedicated)))).addAliasAction(IndicesAliasesRequest.AliasActions.add())
-        client().admin().indices().prepareAliases()
-            .addAlias(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared", AnomalyDetectorsIndex.resultsWriteAlias(jobIdDedicated))
-            .addAlias(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared", AnomalyDetectorsIndex.jobResultsAliasedName(jobIdDedicated))
-            .removeAlias(dedicatedIndex, AnomalyDetectorsIndex.resultsWriteAlias(jobIdDedicated))
-            .get();
+                .add()
+                .alias(AnomalyDetectorsIndex.jobResultsAliasedName(jobIdDedicated))
+                .isHidden(true)
+                .index(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared")
+                .writeIndex(false)
+                .filter(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobIdDedicated))))
+            .addAliasAction(IndicesAliasesRequest.AliasActions
+                .add()
+                .alias(AnomalyDetectorsIndex.resultsWriteAlias(jobIdDedicated))
+                .index(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared")
+                .isHidden(true)
+                .writeIndex(true))
+            .addAliasAction(IndicesAliasesRequest.AliasActions
+                .remove()
+                .alias(AnomalyDetectorsIndex.resultsWriteAlias(jobIdDedicated))
+                .index(dedicatedIndex));
+
+        client().admin().indices().aliases(aliasesRequest).actionGet();
 
         createBuckets(jobIdDedicated, 11, 10);
+        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*").get();
         AtomicReference<QueryPage<Bucket>> bucketHandler = new AtomicReference<>();
         AtomicReference<Exception> failureHandler = new AtomicReference<>();
-        jobResultsProvider.buckets(jobIdDedicated,
-            new BucketsQueryBuilder().from(0).size(21),
-            bucketHandler::set,
-            failureHandler::set,
-            client());
-        assertThat(bucketHandler.get().count(), equalTo(20));
+        blockingCall(listener ->  jobResultsProvider.buckets(jobIdDedicated,
+            new BucketsQueryBuilder().from(0).size(22),
+            listener::onResponse,
+            listener::onFailure,
+            client()), bucketHandler, failureHandler);
+        assertThat(failureHandler.get(), is(nullValue()));
+        assertThat(bucketHandler.get().count(), equalTo(22L));
 
         DeleteJobAction.Request deleteJobRequest = new DeleteJobAction.Request(jobIdDedicated);
         deleteJobRequest.setForce(true);
         client().execute(DeleteJobAction.INSTANCE, deleteJobRequest).get();
 
+        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*").get();
         // Make sure our shared index job is OK
         bucketHandler = new AtomicReference<>();
         failureHandler = new AtomicReference<>();
-        jobResultsProvider.buckets(jobIdShared,
+        blockingCall(listener ->  jobResultsProvider.buckets(jobIdShared,
             new BucketsQueryBuilder().from(0).size(21),
-            bucketHandler::set,
-            failureHandler::set, client());
-        assertThat(bucketHandler.get().count(), equalTo(10));
+            listener::onResponse,
+            listener::onFailure,
+            client()), bucketHandler, failureHandler);
+        assertThat(failureHandler.get(), is(nullValue()));
+        assertThat(bucketHandler.get().count(), equalTo(11L));
 
         // Make sure dedicated index is gone
         assertThat(client().admin()
@@ -193,5 +208,23 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
             builder.persistBucket(bucket);
         }
         builder.executeRequest();
+    }
+
+    protected <T> void blockingCall(Consumer<ActionListener<T>> function, AtomicReference<T> response,
+                                    AtomicReference<Exception> error) throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        ActionListener<T> listener = ActionListener.wrap(
+            r -> {
+                response.set(r);
+                latch.countDown();
+            },
+            e -> {
+                error.set(e);
+                latch.countDown();
+            }
+        );
+
+        function.accept(listener);
+        latch.await();
     }
 }

@@ -138,6 +138,7 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
                 if (config == null) {
                     out.writeBoolean(false);
                 } else {
+                    out.writeBoolean(true);
                     config.writeTo(out);
                 }
                 return;
@@ -149,7 +150,7 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
 
         @Override
         public int hashCode() {
-            return Objects.hash(update, id, deferValidation);
+            return Objects.hash(update, id, deferValidation, config);
         }
 
         @Override
@@ -161,7 +162,10 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(update, other.update) && this.deferValidation == other.deferValidation && this.id.equals(other.id);
+            return Objects.equals(update, other.update)
+                && this.deferValidation == other.deferValidation
+                && this.id.equals(other.id)
+                && Objects.equals(config, other.config);
         }
     }
 

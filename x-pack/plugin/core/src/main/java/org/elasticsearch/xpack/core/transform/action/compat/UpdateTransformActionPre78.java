@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.transform.action.compat;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -40,6 +41,7 @@ public class UpdateTransformActionPre78 {
 
         public Request(StreamInput in) throws IOException {
             super(in);
+            assert in.getVersion().before(Version.V_7_8_0);
             this.update = new TransformConfigUpdate(in);
             this.id = in.readString();
             this.deferValidation = in.readBoolean();
@@ -63,6 +65,7 @@ public class UpdateTransformActionPre78 {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            assert out.getVersion().before(Version.V_7_8_0);
             super.writeTo(out);
             this.update.writeTo(out);
             out.writeString(id);
@@ -101,6 +104,7 @@ public class UpdateTransformActionPre78 {
         }
 
         public Response(StreamInput in) throws IOException {
+            assert in.getVersion().before(Version.V_7_8_0);
             this.config = new TransformConfig(in);
         }
 
@@ -110,6 +114,7 @@ public class UpdateTransformActionPre78 {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            assert out.getVersion().before(Version.V_7_8_0);
             this.config.writeTo(out);
         }
 

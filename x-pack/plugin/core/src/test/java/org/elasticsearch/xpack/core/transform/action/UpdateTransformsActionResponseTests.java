@@ -35,24 +35,40 @@ public class UpdateTransformsActionResponseTests extends AbstractSerializingTran
 
     public void testBWCPre78() throws IOException {
         Response newResponse = createTestInstance();
-        UpdateTransformActionPre78.Response oldResponse = translateBWCObject(
+        UpdateTransformActionPre78.Response oldResponse = writeAndReadBWCObject(
             newResponse,
             getNamedWriteableRegistry(),
             (out, value) -> value.writeTo(out),
             UpdateTransformActionPre78.Response::new,
             Version.V_7_7_0
         );
+        assertEquals(newResponse.getConfig().getDescription(), oldResponse.getConfig().getDescription());
+        assertEquals(newResponse.getConfig().getId(), oldResponse.getConfig().getId());
+        assertEquals(newResponse.getConfig().getCreateTime(), oldResponse.getConfig().getCreateTime());
+        assertEquals(newResponse.getConfig().getDestination(), oldResponse.getConfig().getDestination());
+        assertEquals(newResponse.getConfig().getFrequency(), oldResponse.getConfig().getFrequency());
+        assertEquals(newResponse.getConfig().getPivotConfig(), oldResponse.getConfig().getPivotConfig());
+        assertEquals(newResponse.getConfig().getSource(), oldResponse.getConfig().getSource());
+        assertEquals(newResponse.getConfig().getSyncConfig(), oldResponse.getConfig().getSyncConfig());
+        assertEquals(newResponse.getConfig().getVersion(), oldResponse.getConfig().getVersion());
 
-        assertEquals(newResponse.getConfig(), oldResponse.getConfig());
-
-        Response newRequestFromOld = translateBWCObject(
+        //
+        Response newRequestFromOld = writeAndReadBWCObject(
             oldResponse,
             getNamedWriteableRegistry(),
             (out, value) -> value.writeTo(out),
             Response::fromStreamWithBWC,
-            Version.CURRENT
+            Version.V_7_7_0
         );
 
-        assertEquals(newResponse, newRequestFromOld);
+        assertEquals(newResponse.getConfig().getDescription(), newRequestFromOld.getConfig().getDescription());
+        assertEquals(newResponse.getConfig().getId(), newRequestFromOld.getConfig().getId());
+        assertEquals(newResponse.getConfig().getCreateTime(), newRequestFromOld.getConfig().getCreateTime());
+        assertEquals(newResponse.getConfig().getDestination(), newRequestFromOld.getConfig().getDestination());
+        assertEquals(newResponse.getConfig().getFrequency(), newRequestFromOld.getConfig().getFrequency());
+        assertEquals(newResponse.getConfig().getPivotConfig(), newRequestFromOld.getConfig().getPivotConfig());
+        assertEquals(newResponse.getConfig().getSource(), newRequestFromOld.getConfig().getSource());
+        assertEquals(newResponse.getConfig().getSyncConfig(), newRequestFromOld.getConfig().getSyncConfig());
+        assertEquals(newResponse.getConfig().getVersion(), newRequestFromOld.getConfig().getVersion());
     }
 }

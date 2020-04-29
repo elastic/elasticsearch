@@ -35,7 +35,7 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
 
     public void testBWCPre78() throws IOException {
         Request newRequest = createTestInstance();
-        UpdateTransformActionPre78.Request oldRequest = translateBWCObject(
+        UpdateTransformActionPre78.Request oldRequest = writeAndReadBWCObject(
             newRequest,
             getNamedWriteableRegistry(),
             (out, value) -> value.writeTo(out),
@@ -44,20 +44,26 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
         );
 
         assertEquals(newRequest.getId(), oldRequest.getId());
-        assertEquals(newRequest.getUpdate(), oldRequest.getUpdate());
+        assertEquals(newRequest.getUpdate().getDestination(), oldRequest.getUpdate().getDestination());
+        assertEquals(newRequest.getUpdate().getFrequency(), oldRequest.getUpdate().getFrequency());
+        assertEquals(newRequest.getUpdate().getSource(), oldRequest.getUpdate().getSource());
+        assertEquals(newRequest.getUpdate().getSyncConfig(), oldRequest.getUpdate().getSyncConfig());
         assertEquals(newRequest.isDeferValidation(), oldRequest.isDeferValidation());
 
-        Request newRequestFromOld = translateBWCObject(
+        Request newRequestFromOld = writeAndReadBWCObject(
             oldRequest,
             getNamedWriteableRegistry(),
             (out, value) -> value.writeTo(out),
             Request::fromStreamWithBWC,
-            Version.CURRENT
+            Version.V_7_7_0
         );
 
-        // the old pre 7.7 request object does not know about config, so we have to null before checking
-        newRequest.setConfig(null);
-        assertEquals(newRequest, newRequestFromOld);
+        assertEquals(newRequest.getId(), newRequestFromOld.getId());
+        assertEquals(newRequest.getUpdate().getDestination(), newRequestFromOld.getUpdate().getDestination());
+        assertEquals(newRequest.getUpdate().getFrequency(), newRequestFromOld.getUpdate().getFrequency());
+        assertEquals(newRequest.getUpdate().getSource(), newRequestFromOld.getUpdate().getSource());
+        assertEquals(newRequest.getUpdate().getSyncConfig(), newRequestFromOld.getUpdate().getSyncConfig());
+        assertEquals(newRequest.isDeferValidation(), newRequestFromOld.isDeferValidation());
     }
 
 }

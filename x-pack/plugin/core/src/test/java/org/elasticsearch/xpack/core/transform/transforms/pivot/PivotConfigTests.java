@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.empty;
 
 public class PivotConfigTests extends AbstractSerializingTransformTestCase<PivotConfig> {
 
-    public static PivotConfig randomPivotConfigWithDeprecation() {
+    public static PivotConfig randomPivotConfigWithDeprecatedFields() {
         return new PivotConfig(
             GroupConfigTests.randomGroupConfig(),
             AggregationConfigTests.randomAggregationConfig(),
@@ -54,7 +54,7 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
 
     @Override
     protected PivotConfig createTestInstance() {
-        return randomPivotConfigWithDeprecation();
+        return randomPivotConfig();
     }
 
     @Override
@@ -228,7 +228,7 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
     }
 
     public void testDeprecation() {
-        PivotConfig pivotConfig = randomPivotConfigWithDeprecation();
+        PivotConfig pivotConfig = randomPivotConfigWithDeprecatedFields();
         assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
     }
 

@@ -59,7 +59,7 @@ public abstract class AbstractSerializingTransformTestCase<T extends ToXContent 
         return namedXContentRegistry;
     }
 
-    protected <X extends Writeable, Y extends Writeable> Y translateBWCObject(
+    protected <X extends Writeable, Y extends Writeable> Y writeAndReadBWCObject(
         X original,
         NamedWriteableRegistry namedWriteableRegistry,
         Writeable.Writer<X> writer,

@@ -276,7 +276,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 "-XX:+HeapDumpOnOutOfMemoryError"
             );
 
-            test.getJvmArgumentProviders().add(new SimpleCommandLineArgumentProvider("-XX:HeapDumpPath=$heapdumpDir"));
+            test.getJvmArgumentProviders().add(new SimpleCommandLineArgumentProvider("-XX:HeapDumpPath=" + heapdumpDir));
 
             String argline = System.getProperty("tests.jvm.argline");
             if (argline != null) {

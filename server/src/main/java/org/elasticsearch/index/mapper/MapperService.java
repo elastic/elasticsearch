@@ -572,6 +572,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
+     * Given a field name, returns its possible paths in the _source. For example,
+     * the 'source path' for a multi-field is the path to its parent field.
+     */
+    public Set<String> sourcePath(String fullName) {
+        return fieldTypes.sourcePaths(fullName);
+    }
+
+    /**
      * Returns all mapped field types.
      */
     public Iterable<MappedFieldType> fieldTypes() {

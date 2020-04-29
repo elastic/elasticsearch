@@ -65,7 +65,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Supplie
     private static class Referencing<T extends Writeable> extends DelayableWriteable<T> {
         private T reference;
 
-        Referencing(T reference) {
+        private Referencing(T reference) {
             this.reference = reference;
         }
 
@@ -111,8 +111,8 @@ public abstract class DelayableWriteable<T extends Writeable> implements Supplie
         private final NamedWriteableRegistry registry;
         private final BytesReference serialized;
 
-        Serialized(Writeable.Reader<T> reader, Version serializedAtVersion,
-                NamedWriteableRegistry registry, BytesReference serialized) throws IOException {
+        private Serialized(Writeable.Reader<T> reader, Version serializedAtVersion,
+                NamedWriteableRegistry registry, BytesReference serialized) {
             this.reader = reader;
             this.serializedAtVersion = serializedAtVersion;
             this.registry = registry;

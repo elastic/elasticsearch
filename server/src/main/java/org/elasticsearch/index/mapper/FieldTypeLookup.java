@@ -24,6 +24,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -38,20 +39,32 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
 
     final CopyOnWriteHashMap<String, MappedFieldType> fullNameToFieldType;
     private final CopyOnWriteHashMap<String, String> aliasToConcreteName;
+
+    /**
+     * A map from field name to all fields whose content has been copied into it
+     * through copy_to. A field only be present in the map if some other field
+     * has listed it as a target of copy_to.
+     *
+     * For convenience, the set of copied fields includes the field itself.
+     */
+    private final CopyOnWriteHashMap<String, Set<String>> fieldToCopiedFields;
     private final DynamicKeyFieldTypeLookup dynamicKeyLookup;
 
 
     FieldTypeLookup() {
         fullNameToFieldType = new CopyOnWriteHashMap<>();
         aliasToConcreteName = new CopyOnWriteHashMap<>();
+        fieldToCopiedFields = new CopyOnWriteHashMap<>();
         dynamicKeyLookup = new DynamicKeyFieldTypeLookup();
     }
 
     private FieldTypeLookup(CopyOnWriteHashMap<String, MappedFieldType> fullNameToFieldType,
                             CopyOnWriteHashMap<String, String> aliasToConcreteName,
+                            CopyOnWriteHashMap<String, Set<String>> fieldToCopiedFields,
                             DynamicKeyFieldTypeLookup dynamicKeyLookup) {
         this.fullNameToFieldType = fullNameToFieldType;
         this.aliasToConcreteName = aliasToConcreteName;
+        this.fieldToCopiedFields = fieldToCopiedFields;
         this.dynamicKeyLookup = dynamicKeyLookup;
     }
 
@@ -66,6 +79,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
 
         CopyOnWriteHashMap<String, MappedFieldType> fullName = this.fullNameToFieldType;
         CopyOnWriteHashMap<String, String> aliases = this.aliasToConcreteName;
+        CopyOnWriteHashMap<String, Set<String>> sourcePaths = this.fieldToCopiedFields;
         Map<String, DynamicKeyFieldMapper> dynamicKeyMappers = new HashMap<>();
 
         for (FieldMapper fieldMapper : fieldMappers) {
@@ -80,6 +94,17 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             if (fieldMapper instanceof DynamicKeyFieldMapper) {
                 dynamicKeyMappers.put(fieldName, (DynamicKeyFieldMapper) fieldMapper);
             }
+
+            for (String targetField : fieldMapper.copyTo().copyToFields()) {
+                Set<String> sourcePath = sourcePaths.get(targetField);
+                if (sourcePath == null) {
+                    sourcePaths = sourcePaths.copyAndPut(targetField, Set.of(targetField, fieldName));
+                } else if (sourcePath.contains(fieldName) == false) {
+                    Set<String> newSourcePath = new HashSet<>(sourcePath);
+                    newSourcePath.add(fieldName);
+                    sourcePaths = sourcePaths.copyAndPut(targetField, Collections.unmodifiableSet(newSourcePath));
+                }
+            }
         }
 
         for (FieldAliasMapper fieldAliasMapper : fieldAliasMappers) {
@@ -93,7 +118,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
         }
 
         DynamicKeyFieldTypeLookup newDynamicKeyLookup = this.dynamicKeyLookup.copyAndAddAll(dynamicKeyMappers, aliases);
-        return new FieldTypeLookup(fullName, aliases, newDynamicKeyLookup);
+        return new FieldTypeLookup(fullName, aliases, sourcePaths, newDynamicKeyLookup);
     }
 
     /**
@@ -127,6 +152,31 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             }
         }
         return fields;
+    }
+
+    /**
+     * Given a field, returns its possible paths in the _source.
+     *
+     * For most fields, the source path is the same as the field itself. However
+     * there are some exceptions:
+     *   - The 'source path' for a field alias is its target field.
+     *   - For a multi-field, the source path is the parent field.
+     *   - One field's content could have been copied to another through copy_to.
+     */
+    public Set<String> sourcePaths(String field) {
+        String resolvedField = aliasToConcreteName.getOrDefault(field, field);
+
+        int lastDotIndex = resolvedField.lastIndexOf('.');
+        if (lastDotIndex > 0) {
+            String parentField = resolvedField.substring(0, lastDotIndex);
+            if (fullNameToFieldType.containsKey(parentField)) {
+                resolvedField = parentField;
+            }
+        }
+
+        return fieldToCopiedFields.containsKey(resolvedField)
+            ? fieldToCopiedFields.get(resolvedField)
+            : Set.of(resolvedField);
     }
 
     @Override

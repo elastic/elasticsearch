@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.esnative;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
@@ -23,10 +24,12 @@ import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
+import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
@@ -40,6 +43,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A realm for predefined users. These users can only be modified in terms of changing their passwords; no other modifications are allowed.
@@ -61,6 +65,8 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     private final Hasher reservedRealmHasher;
     private final ReservedUserInfo disabledDefaultUserInfo;
     private final ReservedUserInfo enabledDefaultUserInfo;
+
+    private final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public ReservedRealm(Environment env, Settings settings, NativeUsersStore nativeUsersStore, AnonymousUser anonymousUser,
                          SecurityIndexManager securityIndex, ThreadPool threadPool) {
@@ -98,6 +104,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                             result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
                         } else if (userInfo.verifyPassword(token.credentials())) {
                             final User user = getUser(token.principal(), userInfo);
+                            logDeprecatedUser(user);
                             result = AuthenticationResult.success(user);
                         } else {
                             result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
@@ -147,6 +154,8 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 return new ElasticUser(userInfo.enabled);
             case KibanaUser.NAME:
                 return new KibanaUser(userInfo.enabled);
+            case KibanaSystemUser.NAME:
+                return new KibanaSystemUser(userInfo.enabled);
             case LogstashSystemUser.NAME:
                 return new LogstashSystemUser(userInfo.enabled);
             case BeatsSystemUser.NAME:
@@ -176,6 +185,9 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
                 userInfo = reservedUserInfos.get(KibanaUser.NAME);
                 users.add(new KibanaUser(userInfo == null || userInfo.enabled));
+
+                userInfo = reservedUserInfos.get(KibanaSystemUser.NAME);
+                users.add(new KibanaSystemUser(userInfo == null || userInfo.enabled));
 
                 userInfo = reservedUserInfos.get(LogstashSystemUser.NAME);
                 users.add(new LogstashSystemUser(userInfo == null || userInfo.enabled));
@@ -217,6 +229,15 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                         new ParameterizedMessage("failed to retrieve password hash for reserved user [{}]", username), e);
                 listener.onResponse(null);
             }));
+        }
+    }
+
+    private void logDeprecatedUser(final User user){
+        Map<String, Object> metadata = user.metadata();
+        if (Boolean.TRUE.equals(metadata.get(MetadataUtils.DEPRECATED_METADATA_KEY))) {
+            deprecationLogger.deprecatedAndMaybeLog("deprecated_user-" + user.principal(), "The user [" + user.principal() +
+                "] is deprecated and will be removed in a future version of Elasticsearch. " +
+                metadata.get(MetadataUtils.DEPRECATED_REASON_METADATA_KEY));
         }
     }
 

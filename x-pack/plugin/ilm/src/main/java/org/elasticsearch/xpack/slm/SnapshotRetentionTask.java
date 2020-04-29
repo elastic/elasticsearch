@@ -362,6 +362,8 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             for (SnapshotInfo info : snapshots) {
                 final String policyId = getPolicyId(info);
                 final long deleteStartTime = nowNanoSupplier.getAsLong();
+                // TODO: Use snapshot multi-delete instead of this loop if all nodes in the cluster support it
+                //       i.e are newer or equal to SnapshotsService#MULTI_DELETE_VERSION
                 deleteSnapshot(policyId, repo, info.snapshotId(), slmStats, ActionListener.wrap(acknowledgedResponse -> {
                     deleted.incrementAndGet();
                     if (acknowledgedResponse.isAcknowledged()) {

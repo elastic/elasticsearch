@@ -393,6 +393,14 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         return aggProvider != null && aggProvider.getAggs() != null && aggProvider.getAggs().size() > 0;
     }
 
+    public boolean aggsRewritten() {
+        return aggProvider != null && aggProvider.isRewroteAggs();
+    }
+
+    public AggProvider getAggProvider() {
+        return aggProvider;
+    }
+
     public List<SearchSourceBuilder.ScriptField> getScriptFields() {
         return scriptFields == null ? Collections.emptyList() : scriptFields;
     }

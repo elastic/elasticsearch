@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
@@ -76,7 +77,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTestCase {
 
-    private List<DataFrameAnalyticsConfig> analytics = new ArrayList<>();
+    private final List<DataFrameAnalyticsConfig> analytics = new ArrayList<>();
 
     @Override
     protected void cleanUpResources() {
@@ -91,7 +92,8 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
                 assertThat(deleteAnalytics(config.getId()).isAcknowledged(), is(true));
                 assertThat(searchStoredProgress(config.getId()).getHits().getTotalHits().value, equalTo(0L));
             } catch (Exception e) {
-                // ignore
+                // just log and ignore
+                logger.error(new ParameterizedMessage("[{}] Could not clean up analytics job config", config.getId()), e);
             }
         }
     }
@@ -110,13 +112,10 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         }
     }
 
-    protected void registerAnalytics(DataFrameAnalyticsConfig config) {
+    protected PutDataFrameAnalyticsAction.Response putAnalytics(DataFrameAnalyticsConfig config) {
         if (analytics.add(config) == false) {
             throw new IllegalArgumentException("analytics config [" + config.getId() + "] is already registered");
         }
-    }
-
-    protected PutDataFrameAnalyticsAction.Response putAnalytics(DataFrameAnalyticsConfig config) {
         PutDataFrameAnalyticsAction.Request request = new PutDataFrameAnalyticsAction.Request(config);
         return client().execute(PutDataFrameAnalyticsAction.INSTANCE, request).actionGet();
     }

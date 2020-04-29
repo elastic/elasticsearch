@@ -16,6 +16,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentileRanks;
@@ -27,10 +28,9 @@ import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsPercentilesAggregatorFactory;
+import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 import org.hamcrest.Matchers;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -38,9 +38,9 @@ import java.util.List;
 
 public class HDRPreAggregatedPercentileRanksAggregatorTests extends AggregatorTestCase {
 
-    @BeforeClass
-    public static void registerBuilder() {
-        AnalyticsPercentilesAggregatorFactory.registerPercentileRanksAggregator(valuesSourceRegistry);
+    @Override
+    protected List<SearchPlugin> getSearchPlugins() {
+        return List.of(new AnalyticsPlugin());
     }
 
     @Override
@@ -107,11 +107,5 @@ public class HDRPreAggregatedPercentileRanksAggregatorTests extends AggregatorTe
                 assertTrue(AggregationInspectionHelper.hasValue((InternalHDRPercentileRanks)ranks));
             }
         }
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55360")
-    @Override
-    public void testSupportedFieldTypes() throws IOException {
-        super.testSupportedFieldTypes();
     }
 }

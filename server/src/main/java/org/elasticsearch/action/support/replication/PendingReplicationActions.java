@@ -70,8 +70,10 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
     public void accept(ReplicationGroup replicationGroup) {
         if (replicationGroup.getVersion() - replicationGroupVersion > 0) {
             synchronized (this) {
-                acceptNewTrackedAllocationIds(replicationGroup.getTrackedAllocationIds());
-                replicationGroupVersion = replicationGroup.getVersion();
+                if (replicationGroup.getVersion() - replicationGroupVersion > 0) {
+                    acceptNewTrackedAllocationIds(replicationGroup.getTrackedAllocationIds());
+                    replicationGroupVersion = replicationGroup.getVersion();
+                }
             }
         }
     }

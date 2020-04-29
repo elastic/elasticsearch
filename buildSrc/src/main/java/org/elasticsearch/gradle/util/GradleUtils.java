@@ -145,6 +145,7 @@ public abstract class GradleUtils {
         SourceSet extraTestSourceSet = sourceSets.create(sourceSetName);
         TaskProvider<Test> testTask = project.getTasks().register(sourceSetName, Test.class);
         testTask.configure(task -> {
+            task.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
             task.setTestClassesDirs(extraTestSourceSet.getOutput().getClassesDirs());
             task.setClasspath(extraTestSourceSet.getRuntimeClasspath());
         });

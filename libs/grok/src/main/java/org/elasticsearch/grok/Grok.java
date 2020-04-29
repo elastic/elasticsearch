@@ -61,7 +61,7 @@ public final class Grok {
             GROK_PATTERN.getBytes(StandardCharsets.UTF_8).length, Option.NONE, UTF8Encoding.INSTANCE, Syntax.DEFAULT);
 
     private static final Map<String, String> builtinPatterns;
-    private static final int MAX_TO_REGEX_ITERATIONS = 10_000; //sanity limit
+    private static final int MAX_TO_REGEX_ITERATIONS = 100_000; //sanity limit
 
     static {
         try {

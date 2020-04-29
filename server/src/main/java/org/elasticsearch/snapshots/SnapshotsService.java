@@ -205,14 +205,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         request.indicesOptions(), request.indices()));
                 logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);
 
-                logger.info("snapshot [{}] started", snapshot);
-                final Version version =
-                        minCompatibleVersion(currentState.nodes().getMinNodeVersion(), snapshot.getRepository(), repositoryData, null);
-                List<SnapshotsInProgress.Entry> entries = null;
                 final List<IndexId> indexIds = repositoryData.resolveNewIndices(indices);
-                // Replace the snapshot that was just initialized
+                final Version version = minCompatibleVersion(
+                        clusterService.state().nodes().getMinNodeVersion(), repositoryData, null);
                 ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards =
                         shards(currentState, indexIds, useShardGenerations(version), repositoryData);
+                SnapshotsInProgress.Entry newEntry = null;
                 if (request.partial() == false) {
                     Tuple<Set<String>, Set<String>> indicesWithMissingShards = indicesWithMissingShards(shards,
                             currentState.metadata());
@@ -229,37 +227,22 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 failureMessage.append("; ");
                             }
                             failureMessage.append("Indices are closed ");
-                            failureMessage.append(closed);
                         }
-                        entries = List.of(new SnapshotsInProgress.Entry(new SnapshotsInProgress.Entry(
-                                new Snapshot(repositoryName, snapshotId),
-                                request.includeGlobalState(), request.partial(),
-                                State.INIT,
-                                Collections.emptyList(),
-                                threadPool.absoluteTimeInMillis(),
-                                RepositoryData.UNKNOWN_REPO_GEN,
-                                null,
-                                userMeta, Version.CURRENT
-                        ), State.FAILED, indexIds,
-                                repositoryData.getGenId(), shards, version, failureMessage.toString()));
+                        // TODO: We should just throw here instead of creating a FAILED and hence useless snapshot in the repository
+                        newEntry = new SnapshotsInProgress.Entry(
+                                new Snapshot(repositoryName, snapshotId), request.includeGlobalState(), false,
+                                State.FAILED, indexIds, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards,
+                                failureMessage.toString(), userMeta, version);
                     }
                 }
-                if (entries == null) {
-                    entries = List.of(new SnapshotsInProgress.Entry(new SnapshotsInProgress.Entry(
-                            new Snapshot(repositoryName, snapshotId),
-                            request.includeGlobalState(), request.partial(),
-                            State.INIT,
-                            Collections.emptyList(),
-                            threadPool.absoluteTimeInMillis(),
-                            RepositoryData.UNKNOWN_REPO_GEN,
-                            null,
-                            userMeta, Version.CURRENT
-                    ), State.STARTED, indexIds, repositoryData.getGenId(),
-                            shards, version, null));
+                if (newEntry == null) {
+                    newEntry = new SnapshotsInProgress.Entry(
+                            new Snapshot(repositoryName, snapshotId), request.includeGlobalState(), request.partial(),
+                            State.STARTED, indexIds, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards,
+                            null, userMeta, version);
                 }
-                return ClusterState.builder(currentState)
-                        .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(unmodifiableList(entries)))
-                        .build();
+                return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE,
+                        new SnapshotsInProgress(List.of(newEntry))).build();
             }
 
             @Override
@@ -270,6 +253,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
+                logger.info("snapshot [{}] started", snapshot);
                 listener.onResponse(snapshot);
             }
 
@@ -318,25 +302,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             throw new InvalidSnapshotNameException(repositoryName,
                                                    snapshotName,
                                                    "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
-        }
-    }
-
-    private static class CleanupAfterErrorListener {
-
-        private final ActionListener<Snapshot> userCreateSnapshotListener;
-        private final Exception e;
-
-        CleanupAfterErrorListener(ActionListener<Snapshot> userCreateSnapshotListener, Exception e) {
-            this.userCreateSnapshotListener = userCreateSnapshotListener;
-            this.e = e;
-        }
-
-        public void onFailure(@Nullable Exception e) {
-            userCreateSnapshotListener.onFailure(ExceptionsHelper.useOrSuppress(e, this.e));
-        }
-
-        public void onNoLongerMaster() {
-            userCreateSnapshotListener.onFailure(e);
         }
     }
 
@@ -713,7 +678,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final Snapshot snapshot = entry.snapshot();
         if (entry.repositoryStateId() == RepositoryData.UNKNOWN_REPO_GEN) {
             logger.debug("[{}] was aborted before starting", snapshot);
-            removeSnapshotFromClusterState(entry.snapshot(), new SnapshotException(snapshot, "Aborted on initialization"), null);
+            removeSnapshotFromClusterState(entry.snapshot(), new SnapshotException(snapshot, "Aborted on initialization"));
             return;
         }
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
@@ -776,7 +741,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         new SnapshotException(snapshot, "Failed to update cluster state during snapshot finalization", e));
                 } else {
                     logger.warn(() -> new ParameterizedMessage("[{}] failed to finalize snapshot", snapshot), e);
-                    removeSnapshotFromClusterState(snapshot, e, null);
+                    removeSnapshotFromClusterState(snapshot, e);
                 }
             }
         });
@@ -806,10 +771,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * Removes record of running snapshot from cluster state and notifies the listener when this action is complete
      * @param snapshot   snapshot
      * @param failure    exception if snapshot failed
-     * @param listener   listener to notify when snapshot information is removed from the cluster state
      */
-    private void removeSnapshotFromClusterState(final Snapshot snapshot, Exception failure,
-                                                @Nullable CleanupAfterErrorListener listener) {
+    private void removeSnapshotFromClusterState(final Snapshot snapshot, Exception failure) {
         assert failure != null : "Failure must be supplied";
         clusterService.submitStateUpdateTask("remove snapshot metadata", new ClusterStateUpdateTask() {
 
@@ -823,26 +786,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 logger.warn(() -> new ParameterizedMessage("[{}] failed to remove snapshot metadata", snapshot), e);
                 failSnapshotCompletionListeners(
                     snapshot, new SnapshotException(snapshot, "Failed to remove snapshot from cluster state", e));
-                if (listener != null) {
-                    listener.onFailure(e);
-                }
             }
 
             @Override
             public void onNoLongerMaster(String source) {
                 failSnapshotCompletionListeners(
                     snapshot, ExceptionsHelper.useOrSuppress(failure, new SnapshotException(snapshot, "no longer master")));
-                if (listener != null) {
-                    listener.onNoLongerMaster();
-                }
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 failSnapshotCompletionListeners(snapshot, failure);
-                if (listener != null) {
-                    listener.onFailure(null);
-                }
             }
         });
     }
@@ -1146,17 +1100,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * repository and all nodes in the cluster.
      *
      * @param minNodeVersion minimum node version in the cluster
-     * @param repositoryName name of the repository to modify
      * @param repositoryData current {@link RepositoryData} of that repository
      * @param excluded       snapshot id to ignore when computing the minimum version
      *                       (used to use newer metadata version after a snapshot delete)
      * @return minimum node version that must still be able to read the repository metadata
      */
-    public Version minCompatibleVersion(Version minNodeVersion, String repositoryName, RepositoryData repositoryData,
-                                        @Nullable Collection<SnapshotId> excluded) {
+    public Version minCompatibleVersion(Version minNodeVersion, RepositoryData repositoryData, @Nullable Collection<SnapshotId> excluded) {
         Version minCompatVersion = minNodeVersion;
         final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
-        final Repository repository = repositoriesService.repository(repositoryName);
         for (SnapshotId snapshotId : snapshotIds.stream().filter(excluded == null ? sn -> true : Predicate.not(excluded::contains))
                 .collect(Collectors.toList())) {
             final Version known = repositoryData.getVersion(snapshotId);
@@ -1165,18 +1116,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 assert repositoryData.shardGenerations().totalShards() == 0 :
                     "Saw shard generations [" + repositoryData.shardGenerations() +
                         "] but did not have versions tracked for snapshot [" + snapshotId + "]";
-                try {
-                    final Version foundVersion = repository.getSnapshotInfo(snapshotId).version();
-                    if (useShardGenerations(foundVersion) == false) {
-                        // We don't really care about the exact version if its before 7.6 as the 7.5 metadata is the oldest we are able
-                        // to write out so we stop iterating here and just use 7.5.0 as a placeholder.
-                        return OLD_SNAPSHOT_FORMAT;
-                    }
-                    minCompatVersion = minCompatVersion.before(foundVersion) ? minCompatVersion : foundVersion;
-                } catch (SnapshotMissingException e) {
-                    logger.warn("Failed to load snapshot metadata, assuming repository is in old format", e);
-                    return OLD_SNAPSHOT_FORMAT;
-                }
+                return OLD_SNAPSHOT_FORMAT;
             } else {
                 minCompatVersion = minCompatVersion.before(known) ? minCompatVersion : known;
             }
@@ -1209,7 +1149,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             Repository repository = repositoriesService.repository(repoName);
             repository.getRepositoryData(ActionListener.wrap(repositoryData -> repository.deleteSnapshots(snapshotIds,
                 repositoryStateId,
-                minCompatibleVersion(minNodeVersion, repoName, repositoryData, snapshotIds),
+                minCompatibleVersion(minNodeVersion, repositoryData, snapshotIds),
                 ActionListener.wrap(v -> {
                         logger.info("snapshots {} deleted", snapshotIds);
                         removeSnapshotDeletionFromClusterState(snapshotIds, null, l);

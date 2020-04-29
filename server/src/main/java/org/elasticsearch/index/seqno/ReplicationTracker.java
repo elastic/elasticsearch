@@ -944,9 +944,16 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     private ReplicationGroup calculateReplicationGroup() {
+        long newVersion;
+        if (replicationGroup == null) {
+            newVersion = 0;
+        } else {
+            newVersion = replicationGroup.getVersion() + 1;
+        }
         return new ReplicationGroup(routingTable,
             checkpoints.entrySet().stream().filter(e -> e.getValue().inSync).map(Map.Entry::getKey).collect(Collectors.toSet()),
-            checkpoints.entrySet().stream().filter(e -> e.getValue().tracked).map(Map.Entry::getKey).collect(Collectors.toSet()));
+            checkpoints.entrySet().stream().filter(e -> e.getValue().tracked).map(Map.Entry::getKey).collect(Collectors.toSet()),
+            newVersion);
     }
 
     /**

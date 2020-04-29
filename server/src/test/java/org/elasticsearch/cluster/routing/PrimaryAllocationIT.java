@@ -497,7 +497,6 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
     /**
      * This test asserts that replicas failed to execute resync operations will be failed but not marked as stale.
      */
-    @AwaitsFix(bugUrl = "fix_before_merge")
     public void testPrimaryReplicaResyncFailed() throws Exception {
         String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         final int numberOfReplicas = between(2, 3);
@@ -509,9 +508,11 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final ShardId shardId = new ShardId(clusterService().state().metadata().index("test").getIndex(), 0);
         final Set<String> replicaNodes = new HashSet<>(internalCluster().startDataOnlyNodes(numberOfReplicas));
         ensureGreen();
+        String timeout = randomFrom("0s", "1s", "2s");
         assertAcked(
             client(master).admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "none")).get());
+                .setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"))
+                .setPersistentSettings(Settings.builder().put("indices.replication.retry_timeout", timeout)).get());
         logger.info("--> Indexing with gap in seqno to ensure that some operations will be replayed in resync");
         long numDocs = scaledRandomIntBetween(5, 50);
         for (int i = 0; i < numDocs; i++) {

@@ -64,6 +64,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -604,7 +605,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                         adaptResponse(result.finalResponse, getPrimaryShard());
                         return result.finalResponse;
                     }),
-                    new ReplicasRef(), logger, threadPool, opType, primaryTerm)
+                    new ReplicasRef(), logger, threadPool, opType, primaryTerm, TimeValue.timeValueMillis(20),
+                    TimeValue.timeValueSeconds(60))
                     .execute();
             } catch (Exception e) {
                 listener.onFailure(e);

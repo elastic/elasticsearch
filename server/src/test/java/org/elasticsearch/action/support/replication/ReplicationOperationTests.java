@@ -117,7 +117,7 @@ public class ReplicationOperationTests extends ESTestCase {
         addTrackingInfo(indexShardRoutingTable, primaryShard, trackedShards, untrackedShards);
         trackedShards.addAll(staleAllocationIds);
 
-        final ReplicationGroup replicationGroup = new ReplicationGroup(indexShardRoutingTable, inSyncAllocationIds, trackedShards);
+        final ReplicationGroup replicationGroup = new ReplicationGroup(indexShardRoutingTable, inSyncAllocationIds, trackedShards, 0);
 
         final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, initialState, trackedShards);
 
@@ -191,7 +191,7 @@ public class ReplicationOperationTests extends ESTestCase {
         addTrackingInfo(indexShardRoutingTable, primaryShard, trackedShards, untrackedShards);
         trackedShards.addAll(staleAllocationIds);
 
-        final ReplicationGroup replicationGroup = new ReplicationGroup(indexShardRoutingTable, inSyncAllocationIds, trackedShards);
+        final ReplicationGroup replicationGroup = new ReplicationGroup(indexShardRoutingTable, inSyncAllocationIds, trackedShards, 0);
 
         final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, initialState, trackedShards);
 
@@ -222,7 +222,7 @@ public class ReplicationOperationTests extends ESTestCase {
 
         final TestPrimary primary = new TestPrimary(primaryShard, () -> replicationGroup, threadPool);
         final TestReplicationOperation op = new TestReplicationOperation(request, primary, listener, replicasProxy, primaryTerm,
-            TimeValue.timeValueMillis(20));
+            TimeValue.timeValueMillis(20), TimeValue.timeValueSeconds(60));
         op.execute();
         assertThat("request was not processed on primary", request.processedOnPrimary.get(), equalTo(true));
         assertThat(request.processedOnReplicas, equalTo(expectedReplicas));
@@ -287,7 +287,7 @@ public class ReplicationOperationTests extends ESTestCase {
         addTrackingInfo(indexShardRoutingTable, primaryShard, trackedShards, new HashSet<>());
         trackedShards.addAll(staleAllocationIds);
 
-        final ReplicationGroup replicationGroup = new ReplicationGroup(indexShardRoutingTable, inSyncAllocationIds, trackedShards);
+        final ReplicationGroup replicationGroup = new ReplicationGroup(indexShardRoutingTable, inSyncAllocationIds, trackedShards, 0);
 
         final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, initialState, trackedShards);
 
@@ -363,7 +363,7 @@ public class ReplicationOperationTests extends ESTestCase {
         IndexShardRoutingTable shardRoutingTable = initialState.getRoutingTable().shardRoutingTable(shardId);
         Set<String> trackedShards = new HashSet<>();
         addTrackingInfo(shardRoutingTable, null, trackedShards, new HashSet<>());
-        ReplicationGroup initialReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards);
+        ReplicationGroup initialReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
 
         final ClusterState stateWithAddedReplicas;
         if (randomBoolean()) {
@@ -378,7 +378,7 @@ public class ReplicationOperationTests extends ESTestCase {
         trackedShards = new HashSet<>();
         addTrackingInfo(shardRoutingTable, null, trackedShards, new HashSet<>());
 
-        ReplicationGroup updatedReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards);
+        ReplicationGroup updatedReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
 
         final AtomicReference<ReplicationGroup> replicationGroup = new AtomicReference<>(initialReplicationGroup);
         logger.debug("--> using initial replicationGroup:\n{}", replicationGroup.get());
@@ -436,7 +436,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final Set<String> inSyncAllocationIds = state.metadata().index(index).inSyncAllocationIds(0);
         Set<String> trackedShards = new HashSet<>();
         addTrackingInfo(shardRoutingTable, null, trackedShards, new HashSet<>());
-        final ReplicationGroup initialReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards);
+        final ReplicationGroup initialReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
 
         PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
         final ShardRouting primaryShard = shardRoutingTable.primaryShard();
@@ -472,7 +472,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(0);
         final IndexShardRoutingTable shardRoutingTable = state.routingTable().index(index).shard(shardId.id());
         final Set<String> trackedShards = shardRoutingTable.getAllAllocationIds();
-        final ReplicationGroup initialReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards);
+        final ReplicationGroup initialReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
 
         final boolean fatal = randomBoolean();
         final AtomicBoolean primaryFailed = new AtomicBoolean();
@@ -776,9 +776,9 @@ public class ReplicationOperationTests extends ESTestCase {
 
         TestReplicationOperation(Request request, Primary<Request, Request, TestPrimary.Result> primary,
                 ActionListener<TestPrimary.Result> listener, Replicas<Request> replicas, long primaryTerm,
-                TimeValue initialRetryBackoffBound) {
+                TimeValue initialRetryBackoffBound, TimeValue retryTimeout) {
             this(request, primary, listener, replicas, ReplicationOperationTests.this.logger, threadPool, "test", primaryTerm,
-                initialRetryBackoffBound);
+                initialRetryBackoffBound, retryTimeout);
         }
 
         TestReplicationOperation(Request request, Primary<Request, Request, TestPrimary.Result> primary,
@@ -789,14 +789,15 @@ public class ReplicationOperationTests extends ESTestCase {
         TestReplicationOperation(Request request, Primary<Request, Request, TestPrimary.Result> primary,
                                  ActionListener<TestPrimary.Result> listener,
                                  Replicas<Request> replicas, Logger logger, ThreadPool threadPool, String opType, long primaryTerm) {
-            this(request, primary, listener, replicas, logger, threadPool, opType, primaryTerm, TimeValue.timeValueMillis(50));
+            this(request, primary, listener, replicas, logger, threadPool, opType, primaryTerm, TimeValue.timeValueMillis(50),
+                TimeValue.timeValueSeconds(1));
         }
 
         TestReplicationOperation(Request request, Primary<Request, Request, TestPrimary.Result> primary,
                                  ActionListener<TestPrimary.Result> listener,
                                  Replicas<Request> replicas, Logger logger, ThreadPool threadPool, String opType, long primaryTerm,
-                                 TimeValue initialRetryBackoffBound) {
-            super(request, primary, listener, replicas, logger, threadPool, opType, primaryTerm, initialRetryBackoffBound);
+                                 TimeValue initialRetryBackoffBound, TimeValue retryTimeout) {
+            super(request, primary, listener, replicas, logger, threadPool, opType, primaryTerm, initialRetryBackoffBound, retryTimeout);
         }
     }
 

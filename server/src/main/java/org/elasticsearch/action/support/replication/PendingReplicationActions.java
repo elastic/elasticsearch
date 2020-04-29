@@ -38,6 +38,7 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
     private final Map<String, Set<RetryableAction<?>>> onGoingReplicationActions = ConcurrentCollections.newConcurrentMap();
     private final ShardId shardId;
     private final ThreadPool threadPool;
+    private volatile long replicationGroupVersion = -1;
 
     public PendingReplicationActions(ShardId shardId, ThreadPool threadPool) {
         this.shardId = shardId;
@@ -66,8 +67,13 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
     }
 
     @Override
-    public synchronized void accept(ReplicationGroup replicationGroup) {
-        acceptNewTrackedAllocationIds(replicationGroup.getTrackedAllocationIds());
+    public void accept(ReplicationGroup replicationGroup) {
+        if (replicationGroup.getVersion() - replicationGroupVersion > 0) {
+            synchronized (this) {
+                acceptNewTrackedAllocationIds(replicationGroup.getTrackedAllocationIds());
+                replicationGroupVersion = replicationGroup.getVersion();
+            }
+        }
     }
 
     // Visible for testing

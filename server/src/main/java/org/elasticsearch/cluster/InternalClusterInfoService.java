@@ -259,7 +259,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         final IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
         indicesStatsRequest.clear();
         indicesStatsRequest.store(true);
-        indicesStatsRequest.indicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED);
+        indicesStatsRequest.indicesOptions(IndicesOptions.strictIncludeDataStreamsExpand());
 
         client.admin().indices().stats(indicesStatsRequest, new LatchedActionListener<>(listener, latch));
         return latch;

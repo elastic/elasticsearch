@@ -234,8 +234,12 @@ public class TaskManager implements ClusterStateApplier {
     public Releasable registerChildNode(long taskId, DiscoveryNode node) {
         final CancellableTaskHolder holder = cancellableTasks.get(taskId);
         if (holder != null) {
+            logger.trace("register child node [{}] task [{}]", node, taskId);
             holder.registerChildNode(node);
-            return Releasables.releaseOnce(() -> holder.unregisterChildNode(node));
+            return Releasables.releaseOnce(() -> {
+                logger.trace("unregister child node [{}] task [{}]", node, taskId);
+                holder.unregisterChildNode(node);
+            });
         }
         return () -> {};
     }

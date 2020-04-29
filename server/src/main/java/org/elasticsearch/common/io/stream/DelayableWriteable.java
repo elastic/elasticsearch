@@ -31,7 +31,7 @@ import java.util.function.Supplier;
  * A holder for {@link Writeable}s that can delay reading the underlying
  * {@linkplain Writeable} when it is read from a remote node.
  */
-public abstract class DelayableWriteable<T extends Writeable> implements Supplier<T>, Writeable {
+public abstract class DelayableWriteable<T extends Writeable> implements Writeable {
     /**
      * Build a {@linkplain DelayableWriteable} that wraps an existing object
      * but is serialized so that deserializing it can be delayed.
@@ -56,6 +56,8 @@ public abstract class DelayableWriteable<T extends Writeable> implements Supplie
      */
     public abstract Serialized<T> asSerialized(Writeable.Reader<T> reader, NamedWriteableRegistry registry);
 
+    public abstract T expand();
+
     /**
      * {@code true} if the {@linkplain Writeable} is being stored in
      * serialized form, {@code false} otherwise.
@@ -75,7 +77,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Supplie
         }
 
         @Override
-        public T get() {
+        public T expand() {
             return reference;
         }
 
@@ -136,12 +138,12 @@ public abstract class DelayableWriteable<T extends Writeable> implements Supplie
                  * differences in the wire protocol. This ain't efficient but
                  * it should be quite rare.
                  */
-                referencing(get()).writeTo(out);
+                referencing(expand()).writeTo(out);
             }
         }
 
         @Override
-        public T get() {
+        public T expand() {
             try {
                 try (StreamInput in = registry == null ?
                         serialized.streamInput() : new NamedWriteableAwareStreamInput(serialized.streamInput(), registry)) {

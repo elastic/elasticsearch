@@ -83,11 +83,13 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
 
         @Override
         public Serialized<T> asSerialized(Reader<T> reader, NamedWriteableRegistry registry) {
+            BytesStreamOutput buffer;
             try {
-                return new Serialized<>(reader, Version.CURRENT, registry, writeToBuffer(Version.CURRENT).bytes());
+                buffer = writeToBuffer(Version.CURRENT);
             } catch (IOException e) {
-                throw new RuntimeException("unexpected error expanding aggregations", e);
+                throw new RuntimeException("unexpected error writing writeable to buffer", e);
             }
+            return new Serialized<>(reader, Version.CURRENT, registry, buffer.bytes());
         }
 
         @Override

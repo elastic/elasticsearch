@@ -207,12 +207,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         description = in.readOptionalString();
         createTime = new Date(in.readVLong());
         finishedTime = in.readBoolean() ? new Date(in.readVLong()) : null;
-        // for removed last_data_time field
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            if (in.readBoolean()) {
-                in.readVLong();
-            }
-        }
         analysisConfig = new AnalysisConfig(in);
         analysisLimits = in.readOptionalWriteable(AnalysisLimits::new);
         dataDescription = in.readOptionalWriteable(DataDescription::new);
@@ -220,28 +214,19 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         renormalizationWindowDays = in.readOptionalLong();
         backgroundPersistInterval = in.readOptionalTimeValue();
         modelSnapshotRetentionDays = in.readOptionalLong();
-        // TODO: change version in backport
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            dailyModelSnapshotRetentionAfterDays = in.readOptionalLong();
-        } else {
-            dailyModelSnapshotRetentionAfterDays = null;
-        }
+        dailyModelSnapshotRetentionAfterDays = in.readOptionalLong();
         resultsRetentionDays = in.readOptionalLong();
         Map<String, Object> readCustomSettings = in.readMap();
         customSettings = readCustomSettings == null ? null : Collections.unmodifiableMap(readCustomSettings);
         modelSnapshotId = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0) && in.readBoolean()) {
+        if (in.readBoolean()) {
             modelSnapshotMinVersion = Version.readVersion(in);
         } else {
             modelSnapshotMinVersion = null;
         }
         resultsIndexName = in.readString();
         deleting = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-            allowLazyOpen = in.readBoolean();
-        } else {
-            allowLazyOpen = false;
-        }
+        allowLazyOpen = in.readBoolean();
     }
 
     /**
@@ -486,10 +471,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         } else {
             out.writeBoolean(false);
         }
-        // for removed last_data_time field
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            out.writeBoolean(false);
-        }
         analysisConfig.writeTo(out);
         out.writeOptionalWriteable(analysisLimits);
         out.writeOptionalWriteable(dataDescription);
@@ -497,26 +478,19 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         out.writeOptionalLong(renormalizationWindowDays);
         out.writeOptionalTimeValue(backgroundPersistInterval);
         out.writeOptionalLong(modelSnapshotRetentionDays);
-        // TODO: change version in backport
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
-        }
+        out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
         out.writeOptionalLong(resultsRetentionDays);
         out.writeMap(customSettings);
         out.writeOptionalString(modelSnapshotId);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            if (modelSnapshotMinVersion != null) {
-                out.writeBoolean(true);
-                Version.writeVersion(modelSnapshotMinVersion, out);
-            } else {
-                out.writeBoolean(false);
-            }
+        if (modelSnapshotMinVersion != null) {
+            out.writeBoolean(true);
+            Version.writeVersion(modelSnapshotMinVersion, out);
+        } else {
+            out.writeBoolean(false);
         }
         out.writeString(resultsIndexName);
         out.writeBoolean(deleting);
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-            out.writeBoolean(allowLazyOpen);
-        }
+        out.writeBoolean(allowLazyOpen);
     }
 
     @Override
@@ -732,23 +706,18 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             renormalizationWindowDays = in.readOptionalLong();
             backgroundPersistInterval = in.readOptionalTimeValue();
             modelSnapshotRetentionDays = in.readOptionalLong();
-            // TODO: change version in backport
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                dailyModelSnapshotRetentionAfterDays = in.readOptionalLong();
-            }
+            dailyModelSnapshotRetentionAfterDays = in.readOptionalLong();
             resultsRetentionDays = in.readOptionalLong();
             customSettings = in.readMap();
             modelSnapshotId = in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_7_0_0) && in.readBoolean()) {
+            if (in.readBoolean()) {
                 modelSnapshotMinVersion = Version.readVersion(in);
             } else {
                 modelSnapshotMinVersion = null;
             }
             resultsIndexName = in.readOptionalString();
             deleting = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-                allowLazyOpen = in.readBoolean();
-            }
+            allowLazyOpen = in.readBoolean();
         }
 
         public Builder setId(String id) {
@@ -934,26 +903,19 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             out.writeOptionalLong(renormalizationWindowDays);
             out.writeOptionalTimeValue(backgroundPersistInterval);
             out.writeOptionalLong(modelSnapshotRetentionDays);
-            // TODO: change version in backport
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
-            }
+            out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
             out.writeOptionalLong(resultsRetentionDays);
             out.writeMap(customSettings);
             out.writeOptionalString(modelSnapshotId);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-                if (modelSnapshotMinVersion != null) {
-                    out.writeBoolean(true);
-                    Version.writeVersion(modelSnapshotMinVersion, out);
-                } else {
-                    out.writeBoolean(false);
-                }
+            if (modelSnapshotMinVersion != null) {
+                out.writeBoolean(true);
+                Version.writeVersion(modelSnapshotMinVersion, out);
+            } else {
+                out.writeBoolean(false);
             }
             out.writeOptionalString(resultsIndexName);
             out.writeBoolean(deleting);
-            if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-                out.writeBoolean(allowLazyOpen);
-            }
+            out.writeBoolean(allowLazyOpen);
         }
 
         @Override

@@ -165,11 +165,7 @@ public final class Grok {
      */
     public String toRegex(String grokPattern) {
         StringBuilder res = new StringBuilder();
-        int i = 0;
-        while (true) {
-            if (i++ >= MAX_TO_REGEX_ITERATIONS) {
-                throw new IllegalArgumentException("Can not convert grok patterns to regular expression");
-            }
+        for (int i = 0; i < MAX_TO_REGEX_ITERATIONS; i++) {
             byte[] grokPatternBytes = grokPattern.getBytes(StandardCharsets.UTF_8);
             Matcher matcher = GROK_PATTERN_REGEX.matcher(grokPatternBytes);
 
@@ -187,7 +183,8 @@ public final class Grok {
 
             Region region = matcher.getEagerRegion();
             String namedPatternRef = groupMatch(NAME_GROUP, region, grokPattern);
-            String subName = groupMatch(SUBNAME_GROUP, region, grokPattern);// TODO(tal): Support definitions
+            String subName = groupMatch(SUBNAME_GROUP, region, grokPattern);
+            // TODO(tal): Support definitions
             @SuppressWarnings("unused")
             String definition = groupMatch(DEFINITION_GROUP, region, grokPattern);
             String patternName = groupMatch(PATTERN_GROUP, region, grokPattern);
@@ -211,6 +208,7 @@ public final class Grok {
             grokPattern = grokPart + rest;
             res.append(start);
         }
+        throw new IllegalArgumentException("Can not convert grok patterns to regular expression");
     }
 
     /**

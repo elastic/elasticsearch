@@ -37,10 +37,11 @@ public class TragicExceptionHolder {
             return; // first exception
         }
         final Exception tragedy = this.tragedy.get();
-        assert ex == tragedy || ex instanceof AlreadyClosedException : new AssertionError("must be ACE or tragic exception", ex);
         // ensure no circular reference
         if (ExceptionsHelper.unwrapCausesAndSuppressed(ex, e -> e == tragedy).isEmpty()) {
             tragedy.addSuppressed(ex);
+        } else {
+            assert ex == tragedy || ex instanceof AlreadyClosedException : new AssertionError("must be ACE or tragic exception", ex);
         }
     }
 

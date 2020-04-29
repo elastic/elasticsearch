@@ -1,18 +1,8 @@
 [role="xpack"]
 [testenv="basic"]
+[[ilm-configure-rollover]]
+== Configure rollover
 [[using-policies-rollover]]
-== Roll over automatically
-
-The rollover action enables you to automatically roll over to a new index based
-on the index size, document count, or age. When a rollover is triggered, a new
-index is created, the write alias is updated to point to the new index, and all
-subsequent updates are written to the new index.
-
-Rolling over to a new index based on size, document count, or age is preferable
-to time-based rollovers. Rolling over at an arbitrary time often results in
-many small indices, which can have a negative impact on performance and
-resource usage.
-
 You control when the rollover action is triggered by specifying one or more
 rollover parameters. The rollover is performed once any of the criteria are
 met. Because the criteria are checked periodically, the index might grow
@@ -22,7 +12,7 @@ checked, specify the `indices.lifecycle.poll_interval` cluster setting.
 IMPORTANT: New indices created via rollover will not automatically inherit the
 policy used by the old index, and will not use any policy by default. Therefore,
 it is highly recommended to apply the policy via
-<<applying-policy-to-template,index template>>, including a Rollover alias
+<<apply-policy-template,index template>>, including a Rollover alias
 setting, for your indices which specifies the policy you wish to use for each
 new index.
 
@@ -146,7 +136,7 @@ an exception to your normal Lifecycle Policy and switching the alias to a
 different index by hand, but do not want to remove the index from {ilm}
 completely.
 
-This setting is set to `true` automatically by ILM upon the successful
+This setting is set to `true` automatically by {ilm-init} upon the successful
 completion of a Rollover Action. However, it will be removed if
 <<ilm-remove-policy,the policy is removed>> from the index.
 

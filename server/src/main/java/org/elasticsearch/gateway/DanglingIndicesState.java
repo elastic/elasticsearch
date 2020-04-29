@@ -36,6 +36,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -204,8 +205,14 @@ public class DanglingIndicesState implements ClusterStateListener {
         }
     }
 
-    Map<Index, IndexMetadata> filterDanglingIndices(Metadata metadata, Map<Index, IndexMetadata> allIndices) {
-        Map<Index, IndexMetadata> filteredIndices = new HashMap<>(allIndices.size());
+    /**
+     * Filters out dangling indices that cannot be automatically imported into the cluster state.
+     * @param metadata the current cluster metadata
+     * @param allIndices all currently known dangling indices
+     * @return a filtered list of dangling index metadata
+     */
+    List<IndexMetadata> filterDanglingIndices(Metadata metadata, Map<Index, IndexMetadata> allIndices) {
+        List<IndexMetadata> filteredIndices = new ArrayList<>(allIndices.size());
 
         allIndices.forEach((index, indexMetadata) -> {
             if (metadata.hasIndex(indexMetadata.getIndex().getName())) {
@@ -216,7 +223,7 @@ public class DanglingIndicesState implements ClusterStateListener {
                     "[{}] dangling index exists on local file system, but not in cluster metadata, auto import to cluster state",
                     indexMetadata.getIndex()
                 );
-                filteredIndices.put(indexMetadata.getIndex(), stripAliases(indexMetadata));
+                filteredIndices.add(stripAliases(indexMetadata));
             }
         });
 
@@ -224,6 +231,8 @@ public class DanglingIndicesState implements ClusterStateListener {
     }
 
     /**
+     * Removes all aliases from the supplied index metadata.
+     *
      * Dangling importing indices with aliases is dangerous, it could for instance result in inability to write to an existing alias if it
      * previously had only one index with any is_write_index indication.
      */
@@ -249,14 +258,14 @@ public class DanglingIndicesState implements ClusterStateListener {
             return;
         }
 
-        final Map<Index, IndexMetadata> filteredIndices = filterDanglingIndices(metadata, danglingIndices);
+        final List<IndexMetadata> filteredIndices = filterDanglingIndices(metadata, danglingIndices);
 
         if (filteredIndices.isEmpty()) {
             return;
         }
 
         try {
-            danglingIndicesAllocator.allocateDangled(Collections.unmodifiableCollection(filteredIndices.values()),
+            danglingIndicesAllocator.allocateDangled(filteredIndices,
                 new ActionListener<>() {
                     @Override
                     public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse response) {

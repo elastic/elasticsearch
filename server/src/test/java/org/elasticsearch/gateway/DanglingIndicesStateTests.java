@@ -35,6 +35,7 @@ import org.hamcrest.Matchers;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -42,9 +43,11 @@ import static org.elasticsearch.gateway.DanglingIndicesState.AUTO_IMPORT_DANGLIN
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -201,8 +204,8 @@ public class DanglingIndicesStateTests extends ESTestCase {
             assertThat(newDanglingIndices, is(aMapWithSize(1)));
 
             // ...but the filter method should remove those with tombstones
-            final Map<Index, IndexMetadata> filteredIndices = danglingState.filterDanglingIndices(metadata, newDanglingIndices);
-            assertThat(filteredIndices, is(aMapWithSize(0)));
+            final List<IndexMetadata> filteredIndices = danglingState.filterDanglingIndices(metadata, newDanglingIndices);
+            assertThat(filteredIndices.isEmpty(), equalTo(true));
         }
     }
 
@@ -230,8 +233,8 @@ public class DanglingIndicesStateTests extends ESTestCase {
             assertThat(newDanglingIndices, is(aMapWithSize(1)));
 
             // ...but the filter method should remove those where another index exists with the same name
-            final Map<Index, IndexMetadata> filteredIndices = danglingState.filterDanglingIndices(metadata, newDanglingIndices);
-            assertThat(filteredIndices, is(aMapWithSize(0)));
+            final List<IndexMetadata> filteredIndices = danglingState.filterDanglingIndices(metadata, newDanglingIndices);
+            assertThat(filteredIndices.isEmpty(), equalTo(true));
         }
     }
 

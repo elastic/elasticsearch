@@ -470,17 +470,6 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * @return the name of the stopped node
      */
     private String createDanglingIndices(String... indices) throws Exception {
-        return createDanglingIndices(null, indices);
-    }
-
-    /**
-     * Creates a number of dangling indices by first creating then, then stopping a data node
-     * and deleting the indices while the node is stopped.
-     * @param onStopped an optional action to perform just before the stopped node is restarted
-     * @param indices the indices to create and delete
-     * @return the name of the stopped node
-     */
-    private String createDanglingIndices(Runnable onStopped, String... indices) throws Exception {
         createIndices(indices);
 
         ensurePendingDanglingIndicesWritten();
@@ -496,9 +485,6 @@ public class DanglingIndicesIT extends ESIntegTestCase {
                 stoppedNodeName.set(nodeName);
                 for (String index : indices) {
                     assertAcked(client().admin().indices().prepareDelete(index));
-                }
-                if (onStopped != null) {
-                    onStopped.run();
                 }
                 return super.onNodeStopped(nodeName);
             }

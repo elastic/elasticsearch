@@ -180,7 +180,8 @@ public final class GeoTileUtils {
         return longEncode((long) parsed[0], (long) parsed[1], (long) parsed[2]);
     }
 
-    public static long longEncodeTiles(int precision, long xTile, long yTile) { // Zoom value is placed in front of all the bits used for the geotile
+    public static long longEncodeTiles(int precision, long xTile, long yTile) {
+        // Zoom value is placed in front of all the bits used for the geotile
         // e.g. when max zoom is 29, the largest index would use 58 bits (57th..0th),
         // leaving 5 bits unused for zoom. See MAX_ZOOM comment above.
         return ((long) precision << ZOOM_SHIFT) | (xTile << MAX_ZOOM) | yTile;

@@ -42,6 +42,8 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.gateway.DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
@@ -199,13 +201,8 @@ public class DanglingIndicesStateTests extends ESTestCase {
             final IndexGraveyard graveyard = IndexGraveyard.builder().addTombstone(dangledIndex.getIndex()).build();
             final Metadata metadata = Metadata.builder().indexGraveyard(graveyard).build();
 
-            // All dangling indices should be found...
             final Map<Index, IndexMetadata> newDanglingIndices = danglingState.findNewDanglingIndices(emptyMap(), metadata);
-            assertThat(newDanglingIndices, is(aMapWithSize(1)));
-
-            // ...but the filter method should remove those with tombstones
-            final List<IndexMetadata> filteredIndices = danglingState.filterDanglingIndices(metadata, newDanglingIndices);
-            assertThat(filteredIndices.isEmpty(), equalTo(true));
+            assertThat(newDanglingIndices, is(emptyMap()));
         }
     }
 
@@ -234,7 +231,7 @@ public class DanglingIndicesStateTests extends ESTestCase {
 
             // ...but the filter method should remove those where another index exists with the same name
             final List<IndexMetadata> filteredIndices = danglingState.filterDanglingIndices(metadata, newDanglingIndices);
-            assertThat(filteredIndices.isEmpty(), equalTo(true));
+            assertThat(filteredIndices, is(empty()));
         }
     }
 

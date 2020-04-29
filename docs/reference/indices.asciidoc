@@ -55,6 +55,11 @@ index settings, aliases, mappings, and index templates.
 * <<indices-template-exists>>
 
 [float]
+[[component-template-apis]]
+=== Component templates:
+* <<indices-component-template>>
+
+[float]
 [[monitoring]]
 === Monitoring:
 * <<indices-stats>>
@@ -122,6 +127,10 @@ include::indices/stats.asciidoc[]
 include::indices/template-exists.asciidoc[]
 
 include::indices/open-close.asciidoc[]
+
+include::indices/index-templates.asciidoc[]
+
+include::indices/component-templates.asciidoc[]
 
 include::indices/templates.asciidoc[]
 

@@ -176,8 +176,7 @@ public class EDot extends AExpression {
                         Output indexOutput;
                         PainlessCast indexCast;
 
-                        if ((input.read || input.write)
-                                && (input.read == false || getter != null) && (input.write == false || setter != null)) {
+                        if ((input.read == false || getter != null) && (input.write == false || setter != null)) {
                             Input indexInput = new Input();
                             indexInput.expected = setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0);
                             indexOutput = index.analyze(classNode, scriptRoot, scope, indexInput);
@@ -222,8 +221,7 @@ public class EDot extends AExpression {
                         Output indexOutput;
                         PainlessCast indexCast;
 
-                        if ((input.read || input.write)
-                                && (input.read == false || getter != null) && (input.write == false || setter != null)) {
+                        if ((input.read == false || getter != null) && (input.write == false || setter != null)) {
                             Input indexInput = new Input();
                             indexInput.expected = int.class;
                             indexOutput = index.analyze(classNode, scriptRoot, scope, indexInput);

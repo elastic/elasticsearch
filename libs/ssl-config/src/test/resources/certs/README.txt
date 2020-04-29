@@ -73,3 +73,9 @@ do
     keytool -keypasswd -keystore cert-all/certs.jks -alias $Cert -keypass p12-pass -new key-pass -storepass jks-pass
 done
 
+# 11. (Not relevant on 6.8 branch)
+
+# 12. Convert certifcate keys to pkcs8
+
+openssl pkcs8 -topk8 -inform PEM -in cert1/cert1.key -outform PEM -out cert1/cert1-pkcs8.key -nocrypt
+openssl pkcs8 -topk8 -inform PEM -in cert2/cert2.key -outform PEM -out cert2/cert2-pkcs8.key -passin pass:"c2-pass" -passout pass:"c2-pass"

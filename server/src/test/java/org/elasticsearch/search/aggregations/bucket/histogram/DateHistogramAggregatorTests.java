@@ -166,18 +166,17 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
     public void testNoDocsDeprecatedInterval() throws IOException {
         Query query = new MatchNoDocsQuery();
         List<String> dates = Collections.emptyList();
-        Consumer<DateHistogramAggregationBuilder> aggregation = agg ->
-                agg.dateHistogramInterval(DateHistogramInterval.YEAR).field(AGGREGABLE_DATE);
+        Consumer<DateHistogramAggregationBuilder> aggregation =
+            agg -> agg.dateHistogramInterval(DateHistogramInterval.YEAR).field(AGGREGABLE_DATE);
 
-        testSearchCase(query, dates, aggregation,
-                histogram -> {
-                    assertEquals(0, histogram.getBuckets().size());
-                    assertFalse(AggregationInspectionHelper.hasValue(histogram));
-                }, false
-        );
-        testSearchAndReduceCase(query, dates, aggregation,
-                histogram -> assertNull(histogram), false
-        );
+        testSearchCase(query, dates, aggregation, histogram -> {
+            assertEquals(0, histogram.getBuckets().size());
+            assertFalse(AggregationInspectionHelper.hasValue(histogram));
+        }, false);
+        testSearchAndReduceCase(query, dates, aggregation, histogram -> {
+            assertEquals(0, histogram.getBuckets().size());
+            assertFalse(AggregationInspectionHelper.hasValue(histogram));
+        }, false);
         assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
@@ -190,7 +189,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
             histogram -> assertEquals(0, histogram.getBuckets().size()), false
         );
         testSearchAndReduceCase(query, dates, aggregation,
-            histogram -> assertNull(histogram), false
+            histogram -> assertEquals(0, histogram.getBuckets().size()), false
         );
 
         aggregation = agg ->
@@ -199,7 +198,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
             histogram -> assertEquals(0, histogram.getBuckets().size()), false
         );
         testSearchAndReduceCase(query, dates, aggregation,
-            histogram -> assertNull(histogram), false
+            histogram -> assertEquals(0, histogram.getBuckets().size()), false
         );
     }
 

@@ -87,6 +87,11 @@ public class PutIndexTemplateV2Action extends ActionType<AcknowledgedResponse> {
             if (name == null || Strings.hasText(name) == false) {
                 validationException = addValidationError("name is missing", validationException);
             }
+            validationException = validateIndexTemplate(validationException);
+            return validationException;
+        }
+
+        public ActionRequestValidationException validateIndexTemplate(@Nullable ActionRequestValidationException validationException) {
             if (indexTemplate == null) {
                 validationException = addValidationError("an index template is required", validationException);
             } else {
@@ -99,7 +104,6 @@ public class PutIndexTemplateV2Action extends ActionType<AcknowledgedResponse> {
                     }
                 }
             }
-
             return validationException;
         }
 

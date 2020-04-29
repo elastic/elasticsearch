@@ -149,7 +149,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Supplie
                     return reader.read(in);
                 }
             } catch (IOException e) {
-                throw new RuntimeException("unexpected error expanding aggregations", e);
+                throw new RuntimeException("unexpected error expanding serialized delayed writeable", e);
             }
         }
 

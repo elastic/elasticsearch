@@ -94,7 +94,6 @@ public class QueryStringQueryParser extends XQueryParser {
     private ZoneId timeZone;
     private Fuzziness fuzziness = Fuzziness.AUTO;
     private int fuzzyMaxExpansions = FuzzyQuery.defaultMaxExpansions;
-    private MappedFieldType currentFieldType;
     private MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
     private boolean fuzzyTranspositions = FuzzyQuery.defaultTranspositions;
 
@@ -410,7 +409,7 @@ public class QueryStringQueryParser extends XQueryParser {
 
     private Query getRangeQuerySingle(String field, String part1, String part2,
                                       boolean startInclusive, boolean endInclusive, QueryShardContext context) {
-        currentFieldType = context.fieldMapper(field);
+        MappedFieldType currentFieldType = context.fieldMapper(field);
         if (currentFieldType == null) {
             return newUnmappedFieldQuery(field);
         }
@@ -460,7 +459,7 @@ public class QueryStringQueryParser extends XQueryParser {
     }
 
     private Query getFuzzyQuerySingle(String field, String termStr, int minSimilarity) throws ParseException {
-        currentFieldType = context.fieldMapper(field);
+        MappedFieldType currentFieldType = context.fieldMapper(field);
         if (currentFieldType == null) {
             return newUnmappedFieldQuery(field);
         }
@@ -512,7 +511,7 @@ public class QueryStringQueryParser extends XQueryParser {
     private Query getPrefixQuerySingle(String field, String termStr) throws ParseException {
         Analyzer oldAnalyzer = getAnalyzer();
         try {
-            currentFieldType = context.fieldMapper(field);
+            MappedFieldType currentFieldType = context.fieldMapper(field);
             if (currentFieldType == null) {
                 return newUnmappedFieldQuery(field);
             }
@@ -521,7 +520,7 @@ public class QueryStringQueryParser extends XQueryParser {
             if (currentFieldType.tokenized() == false) {
                 query = currentFieldType.prefixQuery(termStr, getMultiTermRewriteMethod(), context);
             } else {
-                query = getPossiblyAnalyzedPrefixQuery(currentFieldType.name(), termStr);
+                query = getPossiblyAnalyzedPrefixQuery(currentFieldType.name(), termStr, currentFieldType);
             }
             return query;
         } catch (RuntimeException e) {
@@ -534,7 +533,7 @@ public class QueryStringQueryParser extends XQueryParser {
         }
     }
 
-    private Query getPossiblyAnalyzedPrefixQuery(String field, String termStr) throws ParseException {
+    private Query getPossiblyAnalyzedPrefixQuery(String field, String termStr, MappedFieldType currentFieldType) throws ParseException {
         if (analyzeWildcard == false) {
             return currentFieldType.prefixQuery(getAnalyzer().normalize(field, termStr).utf8ToString(),
                 getMultiTermRewriteMethod(), context);
@@ -665,10 +664,9 @@ public class QueryStringQueryParser extends XQueryParser {
             return existsQuery(field);
         }
         String indexedNameField = field;
-        currentFieldType = null;
         Analyzer oldAnalyzer = getAnalyzer();
         try {
-            currentFieldType = queryBuilder.context.fieldMapper(field);
+            MappedFieldType currentFieldType = queryBuilder.context.fieldMapper(field);
             if (currentFieldType != null) {
                 setAnalyzer(forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer);
                 indexedNameField = currentFieldType.name();
@@ -712,10 +710,9 @@ public class QueryStringQueryParser extends XQueryParser {
     }
 
     private Query getRegexpQuerySingle(String field, String termStr) throws ParseException {
-        currentFieldType = null;
         Analyzer oldAnalyzer = getAnalyzer();
         try {
-            currentFieldType = queryBuilder.context.fieldMapper(field);
+            MappedFieldType currentFieldType = queryBuilder.context.fieldMapper(field);
             if (currentFieldType == null) {
                 return newUnmappedFieldQuery(field);
             }

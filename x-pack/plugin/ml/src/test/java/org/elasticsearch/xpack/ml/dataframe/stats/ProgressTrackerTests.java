@@ -68,4 +68,15 @@ public class ProgressTrackerTests extends ESTestCase {
         assertThat(phases.get(2).getProgressPercent(), equalTo(3));
         assertThat(phases.get(3).getProgressPercent(), equalTo(4));
     }
+
+    public void testUpdatePhase_GivenUnknownPhase() {
+        ProgressTracker progressTracker = ProgressTracker.fromZeroes(Collections.singletonList("foo"));
+
+        progressTracker.updatePhase(new PhaseProgress("unknown", 42));
+        List<PhaseProgress> phases = progressTracker.report();
+
+        assertThat(phases.size(), equalTo(4));
+        assertThat(phases.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
+            contains("reindexing", "loading_data", "foo", "writing_results"));
+    }
 }

@@ -707,7 +707,7 @@ field datatypes:
 `<wildcard_exp>`::
 +
 --
-(Required{multi-arg}, string)
+(Required{multi-arg-ref}, string)
 Wildcard expression used to match the source string. If `null`, the function
 returns `null`. Fields are not supported as arguments.
 -- 

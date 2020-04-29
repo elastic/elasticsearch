@@ -127,12 +127,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         renormalizationWindowDays = in.readOptionalLong();
         backgroundPersistInterval = in.readOptionalTimeValue();
         modelSnapshotRetentionDays = in.readOptionalLong();
-        // TODO: change version on backport
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            dailyModelSnapshotRetentionAfterDays = in.readOptionalLong();
-        } else {
-            dailyModelSnapshotRetentionAfterDays = null;
-        }
+        dailyModelSnapshotRetentionAfterDays = in.readOptionalLong();
         resultsRetentionDays = in.readOptionalLong();
         if (in.readBoolean()) {
             categorizationFilters = in.readStringList();
@@ -147,16 +142,12 @@ public class JobUpdate implements Writeable, ToXContentObject {
             jobVersion = null;
         }
         clearJobFinishTime = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0) && in.readBoolean()) {
+        if (in.readBoolean()) {
             modelSnapshotMinVersion = Version.readVersion(in);
         } else {
             modelSnapshotMinVersion = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-            allowLazyOpen = in.readOptionalBoolean();
-        } else {
-            allowLazyOpen = null;
-        }
+        allowLazyOpen = in.readOptionalBoolean();
     }
 
     @Override
@@ -174,10 +165,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         out.writeOptionalLong(renormalizationWindowDays);
         out.writeOptionalTimeValue(backgroundPersistInterval);
         out.writeOptionalLong(modelSnapshotRetentionDays);
-        // TODO: change on backport
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
-        }
+        out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
         out.writeOptionalLong(resultsRetentionDays);
         out.writeBoolean(categorizationFilters != null);
         if (categorizationFilters != null) {
@@ -192,17 +180,13 @@ public class JobUpdate implements Writeable, ToXContentObject {
             out.writeBoolean(false);
         }
         out.writeOptionalBoolean(clearJobFinishTime);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            if (modelSnapshotMinVersion != null) {
-                out.writeBoolean(true);
-                Version.writeVersion(modelSnapshotMinVersion, out);
-            } else {
-                out.writeBoolean(false);
-            }
+        if (modelSnapshotMinVersion != null) {
+            out.writeBoolean(true);
+            Version.writeVersion(modelSnapshotMinVersion, out);
+        } else {
+            out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-            out.writeOptionalBoolean(allowLazyOpen);
-        }
+        out.writeOptionalBoolean(allowLazyOpen);
     }
 
     public String getJobId() {

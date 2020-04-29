@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.stats;
 
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 
 import java.util.ArrayList;
@@ -74,10 +73,7 @@ public class ProgressTracker {
     }
 
     public void updatePhase(PhaseProgress phase) {
-        Integer newValue = progressPercentPerPhase.computeIfPresent(phase.getPhase(), (k, v) -> phase.getProgressPercent());
-        if (newValue == null) {
-            throw ExceptionsHelper.serverError("unknown progress phase [" + phase.getPhase() + "]");
-        }
+        progressPercentPerPhase.computeIfPresent(phase.getPhase(), (k, v) -> phase.getProgressPercent());
     }
 
     public List<PhaseProgress> report() {

@@ -24,7 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -56,8 +56,8 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
                 PercentilesConfig.TDigest::new,
                 PERCENTS_FIELD);
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        PercentilesAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        PercentilesAggregatorFactory.registerAggregators(builder);
     }
 
     public PercentilesAggregationBuilder(StreamInput in) throws IOException {
@@ -73,12 +73,12 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
     }
 
     protected PercentilesAggregationBuilder(PercentilesAggregationBuilder clone,
-                                            Builder factoriesBuilder, Map<String, Object> metadata) {
+                                            AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         super(clone, factoriesBuilder, metadata);
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new PercentilesAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
@@ -129,7 +129,7 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
     protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
                                                                     ValuesSourceConfig config,
                                                                     AggregatorFactory parent,
-                                                                    Builder subFactoriesBuilder) throws IOException {
+                                                                    AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new PercentilesAggregatorFactory(name, config, values, configOrDefault(), keyed,
             queryShardContext, parent, subFactoriesBuilder, metadata);
     }

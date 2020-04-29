@@ -236,6 +236,18 @@ public class ArchiveTests extends PackagingTestCase {
         });
     }
 
+    public void test54ForceBundledJdkEmptyJavaHome() throws Exception {
+        assumeThat(distribution().hasJdk, is(true));
+        // cleanup from previous test
+        rm(installation.config("elasticsearch.keystore"));
+
+        sh.getEnv().put("JAVA_HOME", "");
+
+        startElasticsearch();
+        ServerUtils.runElasticsearchTests();
+        stopElasticsearch();
+    }
+
     public void test70CustomPathConfAndJvmOptions() throws Exception {
 
         final Path tempConf = getTempDir().resolve("esconf-alternate");

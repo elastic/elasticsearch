@@ -167,6 +167,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
             private final BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
 
+            final long startBulkTime = System.nanoTime();
+
             @Override
             protected void doRun() throws Exception {
                 while (context.hasMoreOperationsToExecute()) {
@@ -178,6 +180,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     }
                     assert context.isInitial(); // either completed and moved to next or reset
                 }
+                primary.getBulkOperationListener().afterBulk(request.totalSizeInBytes(), System.nanoTime() - startBulkTime);
                 // We're done, there's no more operations to execute so we resolve the wrapped listener
                 finishRequest();
             }
@@ -427,7 +430,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     public WriteReplicaResult<BulkShardRequest> shardOperationOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
+        final long startBulkTime = System.nanoTime();
         final Translog.Location location = performOnReplica(request, replica);
+        replica.getBulkOperationListener().afterBulk(request.totalSizeInBytes(), System.nanoTime() - startBulkTime);
         return new WriteReplicaResult<>(request, location, null, replica, logger);
     }
 

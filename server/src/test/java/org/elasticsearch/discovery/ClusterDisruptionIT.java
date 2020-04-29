@@ -489,10 +489,10 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
             threads[i].start();
         }
         ensureGreen(index);
-        assertBusy(() -> assertThat(docID.get(), greaterThanOrEqualTo(100)));
+        assertBusy(() -> assertThat(docID.get(), greaterThanOrEqualTo(100)), 1L, TimeUnit.MINUTES);
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback());
         ensureGreen(index);
-        assertBusy(() -> assertThat(docID.get(), greaterThanOrEqualTo(200)));
+        assertBusy(() -> assertThat(docID.get(), greaterThanOrEqualTo(200)), 1L, TimeUnit.MINUTES);
         stopped.set(true);
         for (Thread thread : threads) {
             thread.join();

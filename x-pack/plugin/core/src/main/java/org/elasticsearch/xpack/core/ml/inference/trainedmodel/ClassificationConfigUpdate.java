@@ -262,9 +262,13 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate {
             return this;
         }
 
-        private Builder setPredictionFieldType(String predictionFieldType) {
-            this.predictionFieldType = PredictionFieldType.fromString(predictionFieldType);
+        public Builder setPredictionFieldType(PredictionFieldType predictionFieldtype) {
+            this.predictionFieldType = predictionFieldtype;
             return this;
+        }
+
+        private Builder setPredictionFieldType(String predictionFieldType) {
+            return setPredictionFieldType(PredictionFieldType.fromString(predictionFieldType));
         }
 
         public ClassificationConfigUpdate build() {

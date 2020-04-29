@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -130,6 +131,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         writeFile(xpackConf, "users_roles", configUsersRoles());
 
         Settings.Builder builder = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), home)
                 .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
                 .put(NetworkModule.HTTP_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)

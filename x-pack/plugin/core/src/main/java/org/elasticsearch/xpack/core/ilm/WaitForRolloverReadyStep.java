@@ -111,6 +111,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         if (Boolean.FALSE.equals(isWriteIndex)) {
             listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
                 "index [%s] is not the write index for alias [%s]", indexMetadata.getIndex().getName(), rolloverAlias)));
+            return;
         }
 
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverAlias, null).masterNodeTimeout(masterTimeout);

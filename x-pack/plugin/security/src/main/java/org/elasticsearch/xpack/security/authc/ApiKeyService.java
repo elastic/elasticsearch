@@ -573,11 +573,13 @@ public class ApiKeyService {
     }
 
     private boolean isEnabled() {
-        return enabled && licenseState.isApiKeyServiceAllowed();
+        return enabled && licenseState.isSecurityEnabled() &&
+            licenseState.isAllowed(XPackLicenseState.Feature.SECURITY_API_KEY_SERVICE);
     }
 
     public void ensureEnabled() {
-        if (licenseState.isApiKeyServiceAllowed() == false) {
+        if (licenseState.isSecurityEnabled() == false ||
+            licenseState.isAllowed(XPackLicenseState.Feature.SECURITY_API_KEY_SERVICE) == false) {
             throw LicenseUtils.newComplianceException("api keys");
         }
         if (enabled == false) {

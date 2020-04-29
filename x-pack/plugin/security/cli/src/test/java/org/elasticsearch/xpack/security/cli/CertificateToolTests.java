@@ -563,10 +563,10 @@ public class CertificateToolTests extends ESTestCase {
 
         final int days = randomIntBetween(7, 1500);
 
-        final String caPassword = randomAlphaOfLengthBetween(4, 16);
-        final String node1Password = randomAlphaOfLengthBetween(4, 16);
-        final String node2Password = randomAlphaOfLengthBetween(4, 16);
-        final String node3Password = randomAlphaOfLengthBetween(4, 16);
+        final String caPassword = randomFrom("", randomAlphaOfLengthBetween(4, 16));
+        final String node1Password = randomFrom("", randomAlphaOfLengthBetween(4, 16));
+        final String node2Password = randomFrom("", randomAlphaOfLengthBetween(4, 16));
+        final String node3Password = randomFrom("", randomAlphaOfLengthBetween(4, 16));
 
         final String node1Ip = "200.181." + randomIntBetween(1, 250) + "." + randomIntBetween(1, 250);
         final String node2Ip = "200.182." + randomIntBetween(1, 250) + "." + randomIntBetween(1, 250);

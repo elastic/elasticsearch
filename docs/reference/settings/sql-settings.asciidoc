@@ -12,4 +12,5 @@ these SQL Access settings in the `elasticsearch.yml` file.
 [[general-sql-settings]]
 ==== General SQL Access Settings
 `xpack.sql.enabled`::
+deprecated:[7.8.0,Basic License features should always be enabled] +
 Set to `false` to disable SQL Access on the node.

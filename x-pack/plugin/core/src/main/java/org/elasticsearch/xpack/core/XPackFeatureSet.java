@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public interface XPackFeatureSet {
 
@@ -35,6 +36,7 @@ public interface XPackFeatureSet {
         }
 
         public Usage(String name, boolean available, boolean enabled) {
+            Objects.requireNonNull(name);
             this.name = name;
             this.available = available;
             this.enabled = enabled;

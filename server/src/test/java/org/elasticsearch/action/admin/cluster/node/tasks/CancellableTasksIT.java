@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
@@ -278,14 +279,18 @@ public class CancellableTasksIT extends ESIntegTestCase {
         ensureAllBansRemoved();
     }
 
-    static TaskId getRootTaskId(TestRequest request) {
-        ListTasksResponse listTasksResponse = client().admin().cluster().prepareListTasks()
-            .setActions(TransportTestAction.ACTION.name()).setDetailed(true).get();
-        List<TaskInfo> tasks = listTasksResponse.getTasks().stream()
-            .filter(t -> t.getDescription().equals(request.taskDescription()))
-            .collect(Collectors.toList());
-        assertThat(tasks, hasSize(1));
-        return tasks.get(0).getTaskId();
+    static TaskId getRootTaskId(TestRequest request) throws Exception {
+        SetOnce<TaskId> taskId = new SetOnce<>();
+        assertBusy(() -> {
+            ListTasksResponse listTasksResponse = client().admin().cluster().prepareListTasks()
+                .setActions(TransportTestAction.ACTION.name()).setDetailed(true).get();
+            List<TaskInfo> tasks = listTasksResponse.getTasks().stream()
+                .filter(t -> t.getDescription().equals(request.taskDescription()))
+                .collect(Collectors.toList());
+            assertThat(tasks, hasSize(1));
+            taskId.set(tasks.get(0).getTaskId());
+        });
+        return taskId.get();
     }
 
     static void waitForRootTask(ActionFuture<TestResponse> rootTask) {

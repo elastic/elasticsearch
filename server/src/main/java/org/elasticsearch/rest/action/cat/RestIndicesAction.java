@@ -495,6 +495,26 @@ public class RestIndicesAction extends AbstractCatAction {
 
         table.addCell("search.throttled", "alias:sth;default:false;desc:indicates if the index is search throttled");
 
+        table.addCell("bulk.total_operations",
+            "sibling:pri;alias:bto,bulkTotalOperation;default:false;text-align:right;desc:number of bulk shard ops");
+        table.addCell("pri.bulk.total_operations", "default:false;text-align:right;desc:number of bulk shard ops");
+
+        table.addCell("bulk.total_time",
+            "sibling:pri;alias:btti,bulkTotalTime;default:false;text-align:right;desc:time spend in shard bulk");
+        table.addCell("pri.bulk.total_time", "default:false;text-align:right;desc:time spend in shard bulk");
+
+        table.addCell("bulk.total_size_in_bytes",
+            "sibling:pri;alias:btsi,bulkTotalSizeInBytes;default:false;text-align:right;desc:total size in bytes of shard bulk");
+        table.addCell("pri.bulk.total_size_in_bytes", "default:false;text-align:right;desc:total size in bytes of shard bulk");
+
+        table.addCell("bulk.avg_time",
+            "sibling:pri;alias:bati,bulkAvgTime;default:false;text-align:right;desc:average time spend in shard bulk");
+        table.addCell("pri.bulk.avg_time", "default:false;text-align:right;desc:average time spend in shard bulk");
+
+        table.addCell("bulk.avg_size_in_bytes",
+            "sibling:pri;alias:basi,bulkAvgSizeInBytes;default:false;text-align:right;desc:average size in bytes of shard bulk");
+        table.addCell("pri.bulk.avg_size_in_bytes", "default:false;text-align:right;desc:average size in bytes of shard bulk");
+
         table.endHeaders();
         return table;
     }
@@ -753,6 +773,21 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(primaryStats.getTotalMemory());
 
             table.addCell(searchThrottled);
+
+            table.addCell(totalStats.getBulk() == null ? null : totalStats.getBulk().getTotalOperations());
+            table.addCell(primaryStats.getBulk() == null ? null : primaryStats.getBulk().getTotalOperations());
+
+            table.addCell(totalStats.getBulk() == null ? null : totalStats.getBulk().getTotalTime());
+            table.addCell(primaryStats.getBulk() == null ? null : primaryStats.getBulk().getTotalTime());
+
+            table.addCell(totalStats.getBulk() == null ? null : totalStats.getBulk().getTotalSizeInBytes());
+            table.addCell(primaryStats.getBulk() == null ? null : primaryStats.getBulk().getTotalSizeInBytes());
+
+            table.addCell(totalStats.getBulk() == null ? null : totalStats.getBulk().getAvgTime());
+            table.addCell(primaryStats.getBulk() == null ? null : primaryStats.getBulk().getAvgTime());
+
+            table.addCell(totalStats.getBulk() == null ? null : totalStats.getBulk().getAvgSizeInBytes());
+            table.addCell(primaryStats.getBulk() == null ? null : primaryStats.getBulk().getAvgSizeInBytes());
 
             table.endRow();
         });

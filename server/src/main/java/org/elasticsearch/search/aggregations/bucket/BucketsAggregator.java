@@ -32,6 +32,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
+import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
@@ -132,18 +133,39 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * the maximum number of buckets allowed in a response
      */
     protected final void consumeBucketsAndMaybeBreak(int count) {
+        // NOCOMMIT do we need to keep this?
         multiBucketConsumer.accept(count);
     }
 
     /**
      * Required method to build the child aggregations of the given bucket (identified by the bucket ordinal).
      */
-    protected final InternalAggregations bucketAggregations(long bucket) throws IOException {
-        final InternalAggregation[] aggregations = new InternalAggregation[subAggregators.length];
+    protected final InternalAggregations[] buildSubAggsForBuckets(long[] ordsToCollect) throws IOException {
+        consumeBucketsAndMaybeBreak(ordsToCollect.length);
+        InternalAggregation[][] aggregations = new InternalAggregation[subAggregators.length][];
         for (int i = 0; i < subAggregators.length; i++) {
-            aggregations[i] = subAggregators[i].buildAggregation(bucket);
+            aggregations[i] = subAggregators[i].buildAggregations(ordsToCollect);
         }
-        return new InternalAggregations(Arrays.asList(aggregations));
+        InternalAggregations[] result = new InternalAggregations[ordsToCollect.length];
+        for (int ord = 0; ord < ordsToCollect.length; ord++) {
+            InternalAggregation[] slice = new InternalAggregation[subAggregators.length];
+            for (int i = 0; i < subAggregators.length; i++) {
+                slice[i] = aggregations[i][ord];
+            }
+            final int thisOrd = ord;
+            result[ord] = new InternalAggregations(new AbstractList<InternalAggregation>() {
+                @Override
+                public InternalAggregation get(int index) {
+                    return aggregations[index][thisOrd];
+                }
+
+                @Override
+                public int size() {
+                    return aggregations.length;
+                }
+            }); 
+        }
+        return result;
     }
 
     /**

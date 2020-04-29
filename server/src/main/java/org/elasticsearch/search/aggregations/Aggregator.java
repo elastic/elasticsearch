@@ -33,6 +33,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
 
 /**
@@ -167,7 +168,17 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * generally accomplished by calling {@link #buildTopLevel()} on each top
      * level aggregator. 
      */
-    public abstract InternalAggregation buildAggregation(long owningBucketOrd) throws IOException;
+    public InternalAggregation buildAggregation(long owningBucketOrd) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
+        for (int o = 0; o < owningBucketOrds.length; o++) {
+            results[o] = buildAggregation(owningBucketOrds[o]);
+        }
+        return results;
+    }
 
     /**
      * Build the result of this aggregation if it is on top level of the
@@ -181,7 +192,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      */
     public final InternalAggregation buildTopLevel() throws IOException {
         assert parent() == null;
-        InternalAggregation result = buildAggregation(0);
+        InternalAggregation result = buildAggregations(new long[0])[0];
         if (runDeferredCollections()) {
             return result.undefer();
         }

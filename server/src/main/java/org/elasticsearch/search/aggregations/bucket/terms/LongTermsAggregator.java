@@ -22,11 +22,13 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -106,68 +108,79 @@ public class LongTermsAggregator extends TermsAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrd) throws IOException {
-        long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrd);
-        if (bucketCountThresholds.getMinDocCount() == 0 && (InternalOrder.isCountDesc(order) == false ||
-                bucketsInOrd < bucketCountThresholds.getRequiredSize())) {
-            // we need to fill-in the blanks
-            for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {
-                final SortedNumericDocValues values = getValues(valuesSource, ctx);
-                for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
-                    if (values.advanceExact(docId)) {
-                        final int valueCount = values.docValueCount();
-                        for (int i = 0; i < valueCount; ++i) {
-                            long value = values.nextValue();
-                            if (longFilter == null || longFilter.accept(value)) {
-                                bucketOrds.add(owningBucketOrd, value);
+    public InternalAggregation[] buildAggregations(int owningBucketOrdsToCollect) throws IOException {
+        try (LongHash survivingOrds = new LongHash(owningBucketOrdsToCollect * bucketCountThresholds.getShardSize(), context.bigArrays())) {
+            LongTerms.Bucket[][] topBuckets = new LongTerms.Bucket[owningBucketOrdsToCollect][];
+            long[] otherDocCounts = new long[owningBucketOrdsToCollect];
+            for (int owningBucketOrd = 0; owningBucketOrd < owningBucketOrdsToCollect; owningBucketOrd++) {
+                long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrd);
+                if (bucketCountThresholds.getMinDocCount() == 0 && (InternalOrder.isCountDesc(order) == false ||
+                        bucketsInOrd < bucketCountThresholds.getRequiredSize())) {
+                    // we need to fill-in the blanks
+                    for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {
+                        final SortedNumericDocValues values = getValues(valuesSource, ctx);
+                        for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
+                            if (values.advanceExact(docId)) {
+                                final int valueCount = values.docValueCount();
+                                for (int i = 0; i < valueCount; ++i) {
+                                    long value = values.nextValue();
+                                    if (longFilter == null || longFilter.accept(value)) {
+                                        bucketOrds.add(owningBucketOrd, value);
+                                    }
+                                }
                             }
                         }
                     }
+                    bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrd);
+                }
+    
+                final int size = (int) Math.min(bucketsInOrd, bucketCountThresholds.getShardSize());
+                BucketPriorityQueue<LongTerms.Bucket> ordered = new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);
+                LongTerms.Bucket spare = null;
+                BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
+                while (ordsEnum.next()) {
+                    if (spare == null) {
+                        spare = new LongTerms.Bucket(0, 0, null, showTermDocCountError, 0, format);
+                    }
+                    spare.term = ordsEnum.value();
+                    spare.docCount = bucketDocCount(ordsEnum.ord());
+                    otherDocCounts[owningBucketOrd] += spare.docCount;
+                    spare.bucketOrd = ordsEnum.ord();
+                    if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
+                        spare = ordered.insertWithOverflow(spare);
+                        if (spare == null) {
+                            consumeBucketsAndMaybeBreak(1);
+                        }
+                    }
+                }
+    
+                // Get the top buckets
+                LongTerms.Bucket[] list = topBuckets[owningBucketOrd] = new LongTerms.Bucket[ordered.size()];
+                for (int i = ordered.size() - 1; i >= 0; --i) {
+                    final LongTerms.Bucket bucket = ordered.pop();
+                    bucket.bucketOrd = survivingOrds.add(bucket.bucketOrd);
+                    if (bucket.bucketOrd < 0) {
+                        bucket.bucketOrd = 1 - bucket.bucketOrd;
+                    }
+                    list[i] = bucket;
+                    otherDocCounts[owningBucketOrd] -= bucket.docCount;
                 }
             }
-            bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrd);
-        }
 
-        final int size = (int) Math.min(bucketsInOrd, bucketCountThresholds.getShardSize());
-        long otherDocCount = 0;
-        BucketPriorityQueue<LongTerms.Bucket> ordered = new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);
-        LongTerms.Bucket spare = null;
-        BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
-        while (ordsEnum.next()) {
-            if (spare == null) {
-                spare = new LongTerms.Bucket(0, 0, null, showTermDocCountError, 0, format);
-            }
-            spare.term = ordsEnum.value();
-            spare.docCount = bucketDocCount(ordsEnum.ord());
-            otherDocCount += spare.docCount;
-            spare.bucketOrd = ordsEnum.ord();
-            if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
-                spare = ordered.insertWithOverflow(spare);
-                if (spare == null) {
-                    consumeBucketsAndMaybeBreak(1);
+            runDeferredCollections(survivingOrds);
+            InternalAggregations[] bucketAggs = buildSubAggsForBuckets(survivingOrds.size());
+
+            InternalAggregation[] result = new InternalAggregation[owningBucketOrdsToCollect];
+            for (int owningBucketOrd = 0; owningBucketOrd < owningBucketOrdsToCollect; owningBucketOrd++) {
+                for (int i = 0; i < topBuckets[0].length; i++) {
+                    topBuckets[owningBucketOrd][i].aggregations = bucketAggs[(int) survivingOrds.find(topBuckets[0][i].bucketOrd)];
+                    topBuckets[owningBucketOrd][i].docCountError = 0;
                 }
+
+                result[owningBucketOrd] = buildResult(otherDocCounts[owningBucketOrd], Arrays.asList(topBuckets[owningBucketOrd]));
             }
+            return result;
         }
-
-        // Get the top buckets
-        final LongTerms.Bucket[] list = new LongTerms.Bucket[ordered.size()];
-        for (int i = ordered.size() - 1; i >= 0; --i) {
-            final LongTerms.Bucket bucket = ordered.pop();
-            recordSurvingOrd(bucket.bucketOrd);
-            list[i] = bucket;
-            otherDocCount -= bucket.docCount;
-        }
-
-        // Return a deferred agg that will build the buckets when undeferred
-        final long finalOtherDocCount = otherDocCount;
-        return deferred(() -> {
-            for (int i = 0; i < list.length; i++) {
-                list[i].aggregations = bucketAggregations(list[i].bucketOrd);
-                list[i].docCountError = 0;
-            }
-
-            return buildResult(finalOtherDocCount, Arrays.asList(list));
-        });
     }
 
     protected InternalAggregation buildResult(long otherDocCount, List<Bucket> buckets) {

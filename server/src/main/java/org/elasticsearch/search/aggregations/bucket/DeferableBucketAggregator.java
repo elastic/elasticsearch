@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory.MultiBucketAggregatorWrapper;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.elasticsearch.search.internal.SearchContext;
@@ -44,23 +45,6 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
      * been deferred.
      */
     private DeferringBucketCollector recordingWrapper;
-    /**
-     * Hash of surviving sub-aggregation ordinals. Non-null if there are any
-     * surviving ordinals.
-     */
-    private LongHash survivingOrds;
-    /**
-     * List of deferred results to build when running deferred collections.
-     * Non-null if any results have been deferred.
-     * <p>
-     * Its kind of a shame to keep a {@linkplain List} around to keep the
-     * reference to these but we must build the results <strong>after</strong>
-     * running our deferred collections and <strong>before</strong> running our
-     * sub-aggregation's deferred collections. This is because it is building
-     * our results that marks which gives our sub-aggregators the chance to
-     * mark any of their buckets as surviving.
-     */
-    private List<DeferredInternalAggregation> deferred;
 
     protected DeferableBucketAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
             Map<String, Object> metadata) throws IOException {
@@ -139,132 +123,11 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
         }
     }
 
-    @Override
-    public final boolean runDeferredCollections() throws IOException {
-        if (survivingOrds == null) {
-            /*
-             * If there aren't any ords that need to be replayed we just
-             * function as a regular aggregator, giving our sub-aggregation's
-             * a chance to run deferred collections if they need to.
-             */
-            return super.runDeferredCollections();
+    protected final InternalAggregations[] runDeferredCollections(LongHash bucketOrds) throws IOException {
+        // NOCOMMIT maybe remove this entirely and just piggy back on building buckets?
+        if (recordingWrapper != null) {
+            recordingWrapper.prepareSelectedBuckets(bucketOrds);
         }
-        /*
-         * If we have any deferred collections we reply them and then
-         * build our results. Building our results will have the side
-         * effect of marking any of the our children's surviving buckets
-         * for replay. So, after that, we can finally run our children's
-         * deferred collections by calling super.runDeferredCollections.
-         */
-        recordingWrapper.prepareSelectedBuckets(survivingOrds);
-        for (DeferredInternalAggregation d : deferred) {
-            d.buildRealResult();
-        }
-        super.runDeferredCollections();
-        return true;
-    }
-
-    /**
-     * Record an ordinal to be replayed before suppliers passed to
-     * {@link #deferred(IOSupplier)} are called.
-     */
-    protected final void recordSurvingOrd(long ord) {
-        if (recordingWrapper == null) {
-            /*
-             * recording wrapper is null if no child aggregations have
-             * been delayed.
-             */
-            return;
-        }
-        if (survivingOrds == null) {
-            survivingOrds = new LongHash(1, context.bigArrays());
-        }
-        survivingOrds.add(ord);
-    }
-
-    /**
-     * Build a "deferred" aggregation result. The provided supplier is called
-     * after all ordinals recorded with {@link #recordSurvingOrd(long)} are
-     * replayed on child aggregations.
-     */
-    protected final InternalAggregation deferred(IOSupplier<InternalAggregation> buildRealResult) throws IOException {
-        if (survivingOrds == null) {
-            /*
-             * No aggregations have been delayed so we are safe to finish
-             * building the result right away. 
-             */
-            return buildRealResult.get();
-        }
-        if (deferred == null) {
-            deferred = new ArrayList<>();
-        }
-        DeferredInternalAggregation d = new DeferredInternalAggregation(name, buildRealResult);
-        deferred.add(d);
-        return d;
-    }
-
-    @Override
-    protected void doClose() {
-        super.doClose();
-        Releasables.close(survivingOrds);
-    }
-
-    private static class DeferredInternalAggregation extends InternalAggregation {
-        private final IOSupplier<InternalAggregation> buildRealResult;
-        private InternalAggregation realResult;
-
-        DeferredInternalAggregation(String name, IOSupplier<InternalAggregation> buildRealResult) {
-            super(name, null);
-            this.buildRealResult = buildRealResult;
-        }
-
-        @Override
-        public String toString() {
-            if (realResult == null) {
-                return "deferred [" + name + "/" + buildRealResult + "]";
-            } else {
-                return realResult.toString();
-            }
-        }
-
-        private void buildRealResult() throws IOException {
-            realResult = buildRealResult.get();
-            if (realResult == null) {
-                throw new IllegalStateException("undeferring bucket didn't build anything");
-            }
-        }
-
-        @Override
-        public InternalAggregation undefer() {
-            if (realResult == null) {
-                throw new IllegalStateException("deferred collections not replayed!");
-            }
-            return realResult.undefer();
-        }
-
-        @Override
-        public String getWriteableName() {
-            throw new IllegalStateException();
-        }
-
-        @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {
-            throw new IllegalStateException();
-        }
-
-        @Override
-        public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-            throw new IllegalStateException();
-        }
-
-        @Override
-        public Object getProperty(List<String> path) {
-            throw new IllegalStateException();
-        }
-
-        @Override
-        public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-            throw new IllegalStateException();
-        }
+        long[]  
     }
 }

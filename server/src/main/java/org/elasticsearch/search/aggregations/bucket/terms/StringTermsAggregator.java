@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -164,12 +165,13 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         }
         // replay any deferred collections
         runDeferredCollections(survivingBucketOrds);
+        InternalAggregations[] sub = buildSubAggsForBuckets(survivingBucketOrds);
 
         // Now build the aggs
-        for (final StringTerms.Bucket bucket : list) {
-            bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
-            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
-            bucket.docCountError = 0;
+        for (int i = 0; i < list.length; i++) {
+            list[i].termBytes = BytesRef.deepCopyOf(list[i].termBytes);
+            list[i].aggregations = sub[i];
+            list[i].docCountError = 0;
         }
 
         return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),

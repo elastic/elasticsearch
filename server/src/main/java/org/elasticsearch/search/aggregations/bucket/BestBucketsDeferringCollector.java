@@ -221,6 +221,21 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 return in.buildAggregation(rebasedBucket);
             }
 
+            @Override
+            public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+                if (selectedBuckets == null) {
+                    throw new IllegalStateException("Collection has not been replayed yet.");
+                }
+                assert owningBucketOrds.length == selectedBuckets.size();
+                long[] rebasedOrds = new long[owningBucketOrds.length];
+                for (int ord = 0; ord < owningBucketOrds.length; ord++) {
+                    final long rebasedBucket = selectedBuckets.find(owningBucketOrds[ord]);
+                    if (rebasedBucket == -1) {
+                        throw new IllegalStateException("Cannot build for a bucket which has not been collected");
+                    }
+                }
+                return in.buildAggregations(rebasedOrds);
+            }
         };
     }
 

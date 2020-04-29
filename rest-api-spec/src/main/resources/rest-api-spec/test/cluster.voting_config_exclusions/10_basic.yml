@@ -4,6 +4,10 @@ teardown:
 
 ---
 "Get cluster state without voting config exclusions":
+  - skip:
+      version:     " - 6.99.99"
+      reason:      Voting config exclusions were introduced in 7.0.0
+
   - do:
       cluster.state: {}
 

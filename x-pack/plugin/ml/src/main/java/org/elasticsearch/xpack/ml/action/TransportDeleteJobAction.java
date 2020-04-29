@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
@@ -338,6 +339,8 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                    deleteByQueryExecutor.onResponse(true); // We need to run DBQ and alias deletion
                    return;
                }
+               String defaultSharedIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX +
+                   AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
                List<String> indicesToDelete = new ArrayList<>();
                boolean needToRunDBQTemp = false;
                assert multiSearchResponse.getResponses().length == indexNames.get().length;
@@ -354,7 +357,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                        }
                    }
                    SearchResponse searchResponse = item.getResponse();
-                   if (searchResponse.getHits().getTotalHits().value > 0) {
+                   if (searchResponse.getHits().getTotalHits().value > 0 || indexNames.get()[i].equals(defaultSharedIndex)) {
                        ++i;
                        needToRunDBQTemp = true;
                    } else {

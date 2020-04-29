@@ -27,7 +27,6 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.UnknownTaskException;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.provider.Provider;
@@ -45,7 +44,6 @@ import org.gradle.plugins.ide.idea.model.IdeaModel;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 public abstract class GradleUtils {
@@ -159,10 +157,18 @@ public abstract class GradleUtils {
         extendConfiguration(project, testSourceSet, extraTestSourceSet, SourceSet::getRuntimeOnlyConfigurationName);
 
         // tie this new test source set to the main and test source sets
-        Configuration extraTestCompileConfig = project.getConfigurations().getByName(extraTestSourceSet.getCompileClasspathConfigurationName());
-        Configuration extraTestRuntimeConfig = project.getConfigurations().getByName(extraTestSourceSet.getRuntimeClasspathConfigurationName());
-        extraTestSourceSet.setCompileClasspath(project.getObjects().fileCollection().from(mainSourceSet.getOutput(), testSourceSet.getOutput(), extraTestCompileConfig));
-        extraTestSourceSet.setRuntimeClasspath(project.getObjects().fileCollection().from(extraTestSourceSet.getOutput(), mainSourceSet.getOutput(), testSourceSet.getOutput(), extraTestRuntimeConfig));
+        Configuration extraTestCompileConfig = project.getConfigurations()
+            .getByName(extraTestSourceSet.getCompileClasspathConfigurationName());
+        Configuration extraTestRuntimeConfig = project.getConfigurations()
+            .getByName(extraTestSourceSet.getRuntimeClasspathConfigurationName());
+        extraTestSourceSet.setCompileClasspath(
+            project.getObjects().fileCollection().from(mainSourceSet.getOutput(), testSourceSet.getOutput(), extraTestCompileConfig)
+        );
+        extraTestSourceSet.setRuntimeClasspath(
+            project.getObjects()
+                .fileCollection()
+                .from(extraTestSourceSet.getOutput(), mainSourceSet.getOutput(), testSourceSet.getOutput(), extraTestRuntimeConfig)
+        );
 
         // setup IDEs
         String runtimeClasspathName = extraTestSourceSet.getRuntimeClasspathConfigurationName();

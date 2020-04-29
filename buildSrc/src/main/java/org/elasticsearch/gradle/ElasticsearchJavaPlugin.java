@@ -24,10 +24,12 @@ import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.test.ErrorReportingTestListener;
 import org.elasticsearch.gradle.util.Util;
+import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.artifacts.ProjectDependency;
@@ -241,14 +243,19 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
              */
             SystemPropertyCommandLineArgumentProvider nonInputProperties = new SystemPropertyCommandLineArgumentProvider();
 
-            test.doFirst(t -> {
-                project.mkdir(testOutputDir);
-                project.mkdir(heapdumpDir);
-                project.mkdir(test.getWorkingDir());
-                project.mkdir(test.getWorkingDir().toPath().resolve("temp"));
+            // We specifically use an anonymous inner class here because lambda task actions break Gradle cacheability
+            // See: https://docs.gradle.org/current/userguide/more_about_tasks.html#sec:how_does_it_work
+            test.doFirst(new Action<>() {
+                @Override
+                public void execute(Task t) {
+                    project.mkdir(testOutputDir);
+                    project.mkdir(heapdumpDir);
+                    project.mkdir(test.getWorkingDir());
+                    project.mkdir(test.getWorkingDir().toPath().resolve("temp"));
 
-                // TODO remove once jvm.options are added to test system properties
-                test.systemProperty("java.locale.providers", "SPI,COMPAT");
+                    // TODO remove once jvm.options are added to test system properties
+                    test.systemProperty("java.locale.providers", "SPI,COMPAT");
+                }
             });
             if (BuildParams.isInFipsJvm()) {
                 project.getDependencies().add("testRuntimeOnly", "org.bouncycastle:bc-fips:1.0.1");
@@ -269,7 +276,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 "-XX:+HeapDumpOnOutOfMemoryError"
             );
 
-            test.getJvmArgumentProviders().add(() -> List.of("-XX:HeapDumpPath=$heapdumpDir"));
+            test.getJvmArgumentProviders().add(new SimpleCommandLineArgumentProvider("-XX:HeapDumpPath=" + heapdumpDir));
 
             String argline = System.getProperty("tests.jvm.argline");
             if (argline != null) {

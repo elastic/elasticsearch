@@ -28,6 +28,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
@@ -174,27 +175,130 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     /**
      * Prefetches a complete part and writes it in cache. This method is used to prewarm the cache.
      */
-    public int prefetchPart(final int part) throws IOException {
+    public void prefetchPart(final int part) throws IOException {
         ensureContext(ctx -> ctx == CACHE_WARMING_CONTEXT);
         if (part >= fileInfo.numberOfParts()) {
             throw new IllegalArgumentException("Unexpected part number [" + part + "]");
         }
-        final Tuple<Long, Long> range = computeRange(IntStream.range(0, part).mapToLong(fileInfo::partBytes).sum());
-        assert assertRangeIsAlignedWithPart(range);
+        final Tuple<Long, Long> partRange = computeRange(IntStream.range(0, part).mapToLong(fileInfo::partBytes).sum());
+        assert assertRangeIsAlignedWithPart(partRange);
+
         try {
             final CacheFile cacheFile = getCacheFileSafe();
             try (ReleasableLock ignored = cacheFile.fileLock()) {
-                final int bytesRead = cacheFile.fetchRange(range.v1(), range.v2(), (start, end) -> {
-                    logger.trace("range [{}-{}] of file [{}] is now available in cache", start, end, fileInfo.physicalName());
-                    return Math.toIntExact(end - start);
-                }, (start, end) -> writeCacheFile(cacheFile.getChannel(), start, end)).get();
 
-                assert bytesRead == (range.v2() - range.v1());
-                return bytesRead;
+                final Tuple<Long, Long> range = cacheFile.getAbsentRangeWithin(partRange.v1(), partRange.v2());
+                if (range == null) {
+                    logger.trace(
+                        "prefetchPart: part [{}] bytes [{}-{}] is already fully available for cache file [{}]",
+                        part,
+                        partRange.v1(),
+                        partRange.v2(),
+                        cacheFileReference
+                    );
+                    return;
+                }
+
+                final long rangeStart = range.v1();
+                final long rangeEnd = range.v2();
+                final long rangeLength = rangeEnd - rangeStart;
+
+                logger.trace(
+                    "prefetchPart: prewarming part [{}] bytes [{}-{}] by fetching bytes [{}-{}] for cache file [{}]",
+                    part,
+                    partRange.v1(),
+                    partRange.v2(),
+                    rangeStart,
+                    rangeEnd,
+                    cacheFileReference
+                );
+
+                final FileChannel fc = cacheFile.getChannel();
+                assert assertFileChannelOpen(fc);
+                final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, rangeLength))];
+
+                long totalBytesRead = 0L;
+                final AtomicLong totalBytesWritten = new AtomicLong();
+                long remainingBytes = rangeEnd - rangeStart;
+                final long startTimeNanos = stats.currentTimeNanos();
+                try (InputStream input = openInputStream(rangeStart, rangeLength)) {
+                    while (remainingBytes > 0L) {
+                        assert totalBytesRead + remainingBytes == rangeLength;
+                        final int bytesRead = readSafe(input, copyBuffer, rangeStart, rangeEnd, remainingBytes, cacheFileReference);
+                        final long readStart = rangeStart + totalBytesRead;
+                        cacheFile.fetchRange(readStart, readStart + bytesRead, (start, end) -> {
+                            logger.trace(
+                                "prefetchPart: range [{}-{}] of file [{}] is available in cache",
+                                start,
+                                end,
+                                fileInfo.physicalName()
+                            );
+                            return Math.toIntExact(end - start);
+                        }, (start, end) -> {
+                            final ByteBuffer byteBuffer = ByteBuffer.wrap(
+                                copyBuffer,
+                                Math.toIntExact(start - readStart),
+                                Math.toIntExact(end - start)
+                            );
+                            final int writtenBytes = positionalWrite(fc, start, byteBuffer);
+                            logger.trace(
+                                "prefetchPart: writing range [{}-{}] of file [{}], [{}] bytes written",
+                                start,
+                                end,
+                                fileInfo.physicalName(),
+                                writtenBytes
+                            );
+                            totalBytesWritten.addAndGet(writtenBytes);
+                        });
+                        totalBytesRead += bytesRead;
+                        remainingBytes -= bytesRead;
+                    }
+                    final long endTimeNanos = stats.currentTimeNanos();
+                    stats.addCachedBytesWritten(totalBytesWritten.get(), endTimeNanos - startTimeNanos);
+                }
+
+                assert totalBytesRead == rangeLength;
             }
         } catch (final Exception e) {
             throw new IOException("Failed to prefetch file part in cache", e);
         }
+    }
+
+    @SuppressForbidden(reason = "Use positional writes on purpose")
+    private static int positionalWrite(FileChannel fc, long start, ByteBuffer byteBuffer) throws IOException {
+        return fc.write(byteBuffer, start);
+    }
+
+    /**
+     * Perform a single {@code read()} from {@code inputStream} into {@code copyBuffer}, handling an EOF by throwing an {@link EOFException}
+     * rather than returning {@code -1}. Returns the number of bytes read, which is always positive.
+     *
+     * Most of its arguments are there simply to make the message of the {@link EOFException} more informative.
+     */
+    private static int readSafe(
+        InputStream inputStream,
+        byte[] copyBuffer,
+        long rangeStart,
+        long rangeEnd,
+        long remaining,
+        CacheFileReference cacheFileReference
+    ) throws IOException {
+        final int len = (remaining < copyBuffer.length) ? Math.toIntExact(remaining) : copyBuffer.length;
+        final int bytesRead = inputStream.read(copyBuffer, 0, len);
+        if (bytesRead == -1) {
+            throw new EOFException(
+                String.format(
+                    Locale.ROOT,
+                    "unexpected EOF reading [%d-%d] ([%d] bytes remaining) from %s",
+                    rangeStart,
+                    rangeEnd,
+                    remaining,
+                    cacheFileReference
+                )
+            );
+        }
+        assert bytesRead > 0 : bytesRead;
+        return bytesRead;
     }
 
     /**
@@ -218,37 +322,28 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     private int readCacheFile(FileChannel fc, long end, long position, byte[] buffer, int offset, long length) throws IOException {
         assert assertFileChannelOpen(fc);
         int bytesRead = Channels.readFromFileChannel(fc, position, buffer, offset, Math.toIntExact(Math.min(length, end - position)));
+        if (bytesRead == -1) {
+            throw new EOFException(
+                String.format(Locale.ROOT, "unexpected EOF reading [%d-%d] from %s", position, position + length, cacheFileReference)
+            );
+        }
         stats.addCachedBytesRead(bytesRead);
         return bytesRead;
     }
 
-    @SuppressForbidden(reason = "Use positional writes on purpose")
     private void writeCacheFile(FileChannel fc, long start, long end) throws IOException {
         assert assertFileChannelOpen(fc);
         final long length = end - start;
         final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, length))];
         logger.trace(() -> new ParameterizedMessage("writing range [{}-{}] to cache file [{}]", start, end, cacheFileReference));
 
-        int bytesCopied = 0;
+        long bytesCopied = 0L;
+        long remaining = end - start;
         final long startTimeNanos = stats.currentTimeNanos();
         try (InputStream input = openInputStream(start, length)) {
-            long remaining = end - start;
-            while (remaining > 0) {
-                final int len = (remaining < copyBuffer.length) ? Math.toIntExact(remaining) : copyBuffer.length;
-                int bytesRead = input.read(copyBuffer, 0, len);
-                if (bytesRead == -1) {
-                    throw new EOFException(
-                        String.format(
-                            Locale.ROOT,
-                            "unexpected EOF reading [%d-%d] ([%d] bytes remaining) from %s",
-                            start,
-                            end,
-                            remaining,
-                            cacheFileReference
-                        )
-                    );
-                }
-                fc.write(ByteBuffer.wrap(copyBuffer, 0, bytesRead), start + bytesCopied);
+            while (remaining > 0L) {
+                final int bytesRead = readSafe(input, copyBuffer, start, end, remaining, cacheFileReference);
+                positionalWrite(fc, start + bytesCopied, ByteBuffer.wrap(copyBuffer, 0, bytesRead));
                 bytesCopied += bytesRead;
                 remaining -= bytesRead;
             }

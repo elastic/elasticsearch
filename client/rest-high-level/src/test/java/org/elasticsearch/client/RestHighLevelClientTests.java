@@ -861,6 +861,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             "indices.create_data_stream",
             "indices.get_data_streams",
             "indices.delete_data_stream",
+            "indices.simulate_index_template",
             "clear_reader",
             "open_reader"
         };
@@ -871,6 +872,8 @@ public class RestHighLevelClientTests extends ESTestCase {
             "cluster.reroute",
             "cluster.state",
             "cluster.stats",
+            "cluster.post_voting_config_exclusions",
+            "cluster.delete_voting_config_exclusions",
             "indices.shard_stores",
             "indices.upgrade",
             "indices.recovery",

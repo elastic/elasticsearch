@@ -1015,7 +1015,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             if (downcast != null) {
                 semanticScope.putDecoration(userAssignmentNode, new DowncastPainlessCast(downcast));
             }
-        // if the lhs node is a def optimized node we update the actual type to remove the need for a cast
+            // if the lhs node is a def optimized node we update the actual type to remove the need for a cast
         } else if (semanticScope.getCondition(userLeftNode, DefOptimized.class)) {
             checkedVisit(userRightNode, semanticScope);
             Class<?> rightValueType = semanticScope.getDecoration(userRightNode, ValueType.class).getValueType();

@@ -24,9 +24,11 @@ import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviation;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -37,7 +39,11 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.gateway.DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -85,6 +91,28 @@ public class DanglingIndicesStateTests extends ESTestCase {
             metadata = Metadata.builder().put(dangledIndex, false).build();
             newDanglingIndices = danglingState.findNewDanglingIndices(emptyMap(), metadata);
             assertFalse(newDanglingIndices.containsKey(dangledIndex.getIndex()));
+        }
+    }
+
+    /**
+     * Check that a dangling index is not reported as newly discovered when we
+     * already known about it.
+     */
+    public void testDanglingIndicesNotDiscoveredWhenAlreadyKnown() throws Exception {
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
+            DanglingIndicesState danglingState = createDanglingIndicesState(env, metaStateService);
+
+            Metadata metadata = Metadata.builder().build();
+            final Settings.Builder settings = Settings.builder().put(indexSettings).put(IndexMetadata.SETTING_INDEX_UUID, "test1UUID");
+            IndexMetadata dangledIndex = IndexMetadata.builder("test1").settings(settings).build();
+            metaStateService.writeIndex("test_write", dangledIndex);
+
+            Map<Index, IndexMetadata> newDanglingIndices = danglingState.findNewDanglingIndices(
+                Map.of(dangledIndex.getIndex(), dangledIndex),
+                metadata
+            );
+            assertThat(newDanglingIndices, is(anEmptyMap()));
         }
     }
 
@@ -167,7 +195,43 @@ public class DanglingIndicesStateTests extends ESTestCase {
 
             final IndexGraveyard graveyard = IndexGraveyard.builder().addTombstone(dangledIndex.getIndex()).build();
             final Metadata metadata = Metadata.builder().indexGraveyard(graveyard).build();
-            assertThat(danglingState.findNewDanglingIndices(emptyMap(), metadata).size(), equalTo(0));
+
+            // All dangling indices should be found...
+            final Map<Index, IndexMetadata> newDanglingIndices = danglingState.findNewDanglingIndices(emptyMap(), metadata);
+            assertThat(newDanglingIndices, is(aMapWithSize(1)));
+
+            // ...but the filter method should remove those with tombstones
+            final Map<Index, IndexMetadata> filteredIndices = danglingState.filterDanglingIndices(metadata, newDanglingIndices);
+            assertThat(filteredIndices, is(aMapWithSize(0)));
+        }
+    }
+
+    public void testDanglingIndicesNotImportedWhenIndexNameIsAlreadyUsed() throws Exception {
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
+            DanglingIndicesState danglingState = createDanglingIndicesState(env, metaStateService);
+
+            final Settings.Builder danglingSettings = Settings.builder().put(indexSettings).put(IndexMetadata.SETTING_INDEX_UUID, "test1UUID");
+            IndexMetadata dangledIndex = IndexMetadata.builder("test_index").settings(danglingSettings).build();
+            metaStateService.writeIndex("test_write", dangledIndex);
+
+            // Build another index with the same name but a different UUID
+            final Settings.Builder existingSettings = Settings.builder().put(indexSettings).put(IndexMetadata.SETTING_INDEX_UUID, "test2UUID");
+            IndexMetadata existingIndex = IndexMetadata.builder("test_index").settings(existingSettings).build();
+            metaStateService.writeIndex("test_write", existingIndex);
+
+            final ImmutableOpenMap<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
+                .fPut(dangledIndex.getIndex().getName(), existingIndex)
+                .build();
+            final Metadata metadata = Metadata.builder().indices(indices).build();
+
+            // All dangling indices should be found...
+            final Map<Index, IndexMetadata> newDanglingIndices = danglingState.findNewDanglingIndices(emptyMap(), metadata);
+            assertThat(newDanglingIndices, is(aMapWithSize(1)));
+
+            // ...but the filter method should remove those where another index exists with the same name
+            final Map<Index, IndexMetadata> filteredIndices = danglingState.filterDanglingIndices(metadata, newDanglingIndices);
+            assertThat(filteredIndices, is(aMapWithSize(0)));
         }
     }
 
@@ -241,9 +305,10 @@ public class DanglingIndicesStateTests extends ESTestCase {
             IndexMetadata dangledIndex = IndexMetadata.builder("test1").settings(settings).build();
             metaStateService.writeIndex("test_write", dangledIndex);
 
-            danglingIndicesState.findNewAndAddDanglingIndices(Metadata.builder().build());
+            final Metadata metadata = Metadata.builder().build();
+            danglingIndicesState.findNewAndAddDanglingIndices(metadata);
 
-            danglingIndicesState.allocateDanglingIndices();
+            danglingIndicesState.allocateDanglingIndices(metadata);
 
             verify(localAllocateDangledIndices).allocateDangled(any(), any());
         }

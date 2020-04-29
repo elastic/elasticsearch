@@ -314,7 +314,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (indexService != null) {
                 indexSettings = indexService.getIndexSettings();
                 indicesService.removeIndex(index, DELETED, "index no longer part of the metadata");
-            } else if (previousState.metadata().hasIndex(index.getName())) {
+            } else if (previousState.metadata().hasIndex(index)) {
                 // The deleted index was part of the previous cluster state, but not loaded on the local node
                 final IndexMetadata metadata = previousState.metadata().index(index);
                 indexSettings = new IndexSettings(metadata, settings);

@@ -21,8 +21,8 @@ package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -276,7 +277,7 @@ public class ClusterChangedEvent {
         // each node should make sure to delete any related data.
         for (IndexGraveyard.Tombstone tombstone : currentMetadata.indexGraveyard().getTombstones()) {
             final Index index = tombstone.getIndex();
-            final boolean isNewTombstone = previousMetadata.hasIndex(index.getName()) == false
+            final boolean isNewTombstone = previousMetadata.hasIndex(index) == false
                 && previousMetadata.indexGraveyard().containsIndex(index) == false;
             if (isNewTombstone) {
                 if (deleted == null) {

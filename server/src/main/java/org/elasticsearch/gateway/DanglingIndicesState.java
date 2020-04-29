@@ -36,7 +36,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -113,7 +112,7 @@ public class DanglingIndicesState implements ClusterStateListener {
         }
         cleanupAllocatedDangledIndices(metadata);
         findNewAndAddDanglingIndices(metadata);
-        allocateDanglingIndices();
+        allocateDanglingIndices(metadata);
     }
 
     /**
@@ -168,7 +167,7 @@ public class DanglingIndicesState implements ClusterStateListener {
 
     /**
      * Finds new dangling indices by iterating over the indices and trying to find indices
-     * that have state on disk, but are not part of the provided meta data, or not detected
+     * that have state on disk, but are not part of the provided metadata, or not detected
      * as dangled already.
      */
     public Map<Index, IndexMetadata> findNewDanglingIndices(Map<Index, IndexMetadata> existingDanglingIndices, final Metadata metadata) {
@@ -185,21 +184,16 @@ public class DanglingIndicesState implements ClusterStateListener {
             final IndexGraveyard graveyard = metadata.indexGraveyard();
 
             for (IndexMetadata indexMetadata : indexMetadataList) {
-                if (metadata.hasIndex(indexMetadata.getIndex().getName())) {
-                    logger.warn("[{}] can not be imported as a dangling index, as index with same name already exists in cluster metadata",
-                        indexMetadata.getIndex());
-                } else if (graveyard.containsIndex(indexMetadata.getIndex())) {
-                    logger.warn("[{}] can not be imported as a dangling index, as an index with the same name and UUID exist in the " +
-                                "index tombstones.  This situation is likely caused by copying over the data directory for an index " +
-                                "that was previously deleted.", indexMetadata.getIndex());
+                Index index = indexMetadata.getIndex();
+                // Although deleting a dangling index through the API adds a tombstone to the graveyard, that process results in the
+                // dangling index files being deleted, so we don't expect to encounter a dangling index and a tombstone here when
+                // everything is working normally.
+                if (graveyard.containsIndex(index)) {
+                    logger.warn("[{}] cannot be imported as a dangling index, as an index with the same name and UUID exist in the "
+                        + "index tombstones. This situation is likely caused by copying over the data directory for an index "
+                        + "that was previously deleted.", indexMetadata.getIndex());
                 } else {
-                    if (this.isAutoImportDanglingIndicesEnabled) {
-                        logger.info(
-                            "[{}] dangling index exists on local file system, but not in cluster metadata, auto import to cluster state",
-                            indexMetadata.getIndex()
-                        );
-                    }
-                    newIndices.put(indexMetadata.getIndex(), stripAliases(indexMetadata));
+                    newIndices.put(index, stripAliases(indexMetadata));
                 }
             }
 
@@ -208,6 +202,25 @@ public class DanglingIndicesState implements ClusterStateListener {
             logger.warn("failed to list dangling indices", e);
             return emptyMap();
         }
+    }
+
+    Map<Index, IndexMetadata> filterDanglingIndices(Metadata metadata, Map<Index, IndexMetadata> allIndices) {
+        Map<Index, IndexMetadata> filteredIndices = new HashMap<>(allIndices.size());
+
+        allIndices.forEach((index, indexMetadata) -> {
+            if (metadata.hasIndex(indexMetadata.getIndex().getName())) {
+                logger.warn("[{}] can not be imported as a dangling index, as index with same name already exists in cluster metadata",
+                    indexMetadata.getIndex());
+            } else {
+                logger.info(
+                    "[{}] dangling index exists on local file system, but not in cluster metadata, auto import to cluster state",
+                    indexMetadata.getIndex()
+                );
+                filteredIndices.put(indexMetadata.getIndex(), stripAliases(indexMetadata));
+            }
+        });
+
+        return filteredIndices;
     }
 
     /**
@@ -228,14 +241,22 @@ public class DanglingIndicesState implements ClusterStateListener {
      * Allocates the detected list of dangling indices by sending them to the master node
      * for allocation, provided auto-import is enabled via the
      * {@link #AUTO_IMPORT_DANGLING_INDICES_SETTING} setting.
+     * @param metadata the current cluster metadata, used to filter out dangling indices that cannot be allocated
+     *                 for some reason.
      */
-    void allocateDanglingIndices() {
+    void allocateDanglingIndices(Metadata metadata) {
         if (danglingIndices.isEmpty()) {
             return;
         }
 
+        final Map<Index, IndexMetadata> filteredIndices = filterDanglingIndices(metadata, danglingIndices);
+
+        if (filteredIndices.isEmpty()) {
+            return;
+        }
+
         try {
-            danglingIndicesAllocator.allocateDangled(Collections.unmodifiableCollection(new ArrayList<>(danglingIndices.values())),
+            danglingIndicesAllocator.allocateDangled(Collections.unmodifiableCollection(filteredIndices.values()),
                 new ActionListener<>() {
                     @Override
                     public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse response) {

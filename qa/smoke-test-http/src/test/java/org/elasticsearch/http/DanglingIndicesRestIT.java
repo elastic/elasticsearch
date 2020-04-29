@@ -24,7 +24,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.gateway.GatewayMetaState;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
@@ -221,7 +221,7 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
      * that each index has a primary or replica shard on every node, and if
      * a node is stopped prematurely, this assumption is broken.
      *
-     * @return a mapping from each createad index name to its UUID
+     * @return a mapping from each created index name to its UUID
      */
     private Map<String, String> createIndices(String... indices) throws IOException {
         assert indices.length > 0;
@@ -276,6 +276,11 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
 
         final AtomicReference<String> stoppedNodeName = new AtomicReference<>();
 
+        assertBusy(
+            () -> internalCluster().getInstances(IndicesService.class)
+                .forEach(indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten()))
+        );
+
         // Restart node, deleting the index in its absence, so that there is a dangling index to recover
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
 
@@ -291,11 +296,6 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         });
 
         ensureStableCluster(3);
-
-        assertBusy(
-            () -> internalCluster().getInstances(GatewayMetaState.class)
-                .forEach(gatewayMetaState -> assertTrue(gatewayMetaState.allPendingAsyncStatesWritten()))
-        );
 
         return new DanglingIndexDetails(stoppedNodeName.get(), indexToUUID);
     }

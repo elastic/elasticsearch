@@ -22,6 +22,7 @@ package org.elasticsearch.common.compress;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedOutputStream;
@@ -45,19 +47,9 @@ import java.util.zip.CheckedOutputStream;
 public final class CompressedXContent {
 
     private static int crc32(BytesReference data) {
-        OutputStream dummy = new OutputStream() {
-            @Override
-            public void write(int b) throws IOException {
-                // no-op
-            }
-            @Override
-            public void write(byte[] b, int off, int len) throws IOException {
-                // no-op
-            }
-        };
         CRC32 crc32 = new CRC32();
         try {
-            data.writeTo(new CheckedOutputStream(dummy, crc32));
+            data.writeTo(new CheckedOutputStream(Streams.NULL_OUTPUT_STREAM, crc32));
         } catch (IOException bogus) {
             // cannot happen
             throw new Error(bogus);
@@ -124,7 +116,7 @@ public final class CompressedXContent {
     }
 
     public CompressedXContent(String str) throws IOException {
-        this(new BytesArray(new BytesRef(str)));
+        this(new BytesArray(str.getBytes(StandardCharsets.UTF_8)));
     }
 
     /** Return the compressed bytes. */

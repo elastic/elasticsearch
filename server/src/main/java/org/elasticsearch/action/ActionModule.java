@@ -28,9 +28,6 @@ import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclu
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
-import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction;
-import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
@@ -116,6 +113,9 @@ import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDangli
 import org.elasticsearch.action.admin.indices.dangling.import_index.TransportImportDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.dangling.list.TransportListDanglingIndicesAction;
+import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
+import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
+import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
@@ -166,6 +166,8 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesActi
 import org.elasticsearch.action.admin.indices.template.get.TransportGetComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.TransportGetIndexTemplateV2Action;
 import org.elasticsearch.action.admin.indices.template.get.TransportGetIndexTemplatesAction;
+import org.elasticsearch.action.admin.indices.template.post.SimulateIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.post.TransportSimulateIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateV2Action;
@@ -268,11 +270,9 @@ import org.elasticsearch.rest.action.admin.cluster.RestClusterStateAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterStatsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterUpdateSettingsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestCreateSnapshotAction;
-import org.elasticsearch.rest.action.admin.indices.RestDeleteDataStreamAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteSnapshotAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteStoredScriptAction;
-import org.elasticsearch.rest.action.admin.indices.RestGetDataStreamsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetScriptContextAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetScriptLanguageAction;
@@ -285,7 +285,6 @@ import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesStatsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPendingClusterTasksAction;
-import org.elasticsearch.rest.action.admin.indices.RestCreateDataStreamAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPutRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPutStoredScriptAction;
 import org.elasticsearch.rest.action.admin.cluster.RestReloadSecureSettingsAction;
@@ -299,8 +298,10 @@ import org.elasticsearch.rest.action.admin.cluster.dangling.RestListDanglingIndi
 import org.elasticsearch.rest.action.admin.indices.RestAnalyzeAction;
 import org.elasticsearch.rest.action.admin.indices.RestClearIndicesCacheAction;
 import org.elasticsearch.rest.action.admin.indices.RestCloseIndexAction;
+import org.elasticsearch.rest.action.admin.indices.RestCreateDataStreamAction;
 import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteComponentTemplateAction;
+import org.elasticsearch.rest.action.admin.indices.RestDeleteDataStreamAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteIndexTemplateV2Action;
@@ -308,6 +309,7 @@ import org.elasticsearch.rest.action.admin.indices.RestFlushAction;
 import org.elasticsearch.rest.action.admin.indices.RestForceMergeAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetComponentTemplateAction;
+import org.elasticsearch.rest.action.admin.indices.RestGetDataStreamsAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetFieldMappingAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetIndexTemplateV2Action;
@@ -321,6 +323,7 @@ import org.elasticsearch.rest.action.admin.indices.RestIndicesSegmentsAction;
 import org.elasticsearch.rest.action.admin.indices.RestIndicesShardStoresAction;
 import org.elasticsearch.rest.action.admin.indices.RestIndicesStatsAction;
 import org.elasticsearch.rest.action.admin.indices.RestOpenIndexAction;
+import org.elasticsearch.rest.action.admin.indices.RestSimulateIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestPutComponentTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateV2Action;
@@ -561,6 +564,7 @@ public class ActionModule extends AbstractModule {
             actions.register(PutIndexTemplateV2Action.INSTANCE, TransportPutIndexTemplateV2Action.class);
             actions.register(GetIndexTemplateV2Action.INSTANCE, TransportGetIndexTemplateV2Action.class);
             actions.register(DeleteIndexTemplateV2Action.INSTANCE, TransportDeleteIndexTemplateV2Action.class);
+            actions.register(SimulateIndexTemplateAction.INSTANCE, TransportSimulateIndexTemplateAction.class);
         }
         actions.register(ValidateQueryAction.INSTANCE, TransportValidateQueryAction.class);
         actions.register(RefreshAction.INSTANCE, TransportRefreshAction.class);
@@ -717,6 +721,7 @@ public class ActionModule extends AbstractModule {
             registerHandler.accept(new RestPutIndexTemplateV2Action());
             registerHandler.accept(new RestGetIndexTemplateV2Action());
             registerHandler.accept(new RestDeleteIndexTemplateV2Action());
+            registerHandler.accept(new RestSimulateIndexTemplateAction());
         }
 
         registerHandler.accept(new RestPutMappingAction());

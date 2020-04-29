@@ -43,6 +43,8 @@ public class StoreVariableNode extends StoreNode {
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+        getChildNode().write(classWriter, methodWriter, writeScope);
+
         Variable variable = writeScope.getVariable(name);
         methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
     }

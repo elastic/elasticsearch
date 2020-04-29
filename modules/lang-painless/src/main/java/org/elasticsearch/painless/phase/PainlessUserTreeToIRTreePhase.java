@@ -24,7 +24,7 @@ import org.elasticsearch.painless.PainlessError;
 import org.elasticsearch.painless.PainlessExplainError;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.ScriptClassInfo.MethodArgument;
-import org.elasticsearch.painless.ir.AccessNode;
+import org.elasticsearch.painless.ir.BinaryNode;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.CatchNode;
 import org.elasticsearch.painless.ir.ConstantNode;
@@ -35,12 +35,12 @@ import org.elasticsearch.painless.ir.FunctionNode;
 import org.elasticsearch.painless.ir.InvokeCallMemberNode;
 import org.elasticsearch.painless.ir.InvokeCallNode;
 import org.elasticsearch.painless.ir.LoadFieldMemberNode;
+import org.elasticsearch.painless.ir.LoadVariableNode;
 import org.elasticsearch.painless.ir.NullNode;
 import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.ir.StaticNode;
 import org.elasticsearch.painless.ir.ThrowNode;
 import org.elasticsearch.painless.ir.TryNode;
-import org.elasticsearch.painless.ir.LoadVariableNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.node.SFunction;
@@ -404,18 +404,18 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
 
             irInvokeCallMemberNode.addArgumentNode(irLoadVariableNode);
 
-            AccessNode irAccessNode = new AccessNode();
-            irAccessNode.setLocation(internalLocation);
-            irAccessNode.setExpressionType(Map.class);
+            BinaryNode irBinaryNode = new BinaryNode();
+            irBinaryNode.setLocation(internalLocation);
+            irBinaryNode.setExpressionType(Map.class);
 
-            irInvokeCallMemberNode.addArgumentNode(irAccessNode);
+            irInvokeCallMemberNode.addArgumentNode(irBinaryNode);
 
             irLoadVariableNode = new LoadVariableNode();
             irLoadVariableNode.setLocation(internalLocation);
             irLoadVariableNode.setExpressionType(PainlessExplainError.class);
             irLoadVariableNode.setName("#painlessExplainError");
 
-            irAccessNode.setLeftNode(irLoadVariableNode);
+            irBinaryNode.setLeftNode(irLoadVariableNode);
 
             InvokeCallNode irInvokeCallNode = new InvokeCallNode();
             irInvokeCallNode.setLocation(internalLocation);
@@ -434,7 +434,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                     )
             );
 
-            irAccessNode.setRightNode(irInvokeCallNode);
+            irBinaryNode.setRightNode(irInvokeCallNode);
 
             LoadFieldMemberNode irLoadFieldMemberNode = new LoadFieldMemberNode();
             irLoadFieldMemberNode.setLocation(internalLocation);
@@ -490,17 +490,17 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
 
                 irInvokeCallMemberNode.addArgumentNode(irLoadVariableNode);
 
-                irAccessNode = new AccessNode();
-                irAccessNode.setLocation(internalLocation);
-                irAccessNode.setExpressionType(Map.class);
+                irBinaryNode = new BinaryNode();
+                irBinaryNode.setLocation(internalLocation);
+                irBinaryNode.setExpressionType(Map.class);
 
-                irInvokeCallMemberNode.addArgumentNode(irAccessNode);
+                irInvokeCallMemberNode.addArgumentNode(irBinaryNode);
 
                 StaticNode irStaticNode = new StaticNode();
                 irStaticNode.setLocation(internalLocation);
                 irStaticNode.setExpressionType(Collections.class);
 
-                irAccessNode.setLeftNode(irStaticNode);
+                irBinaryNode.setLeftNode(irStaticNode);
 
                 irInvokeCallNode = new InvokeCallNode();
                 irInvokeCallNode.setLocation(internalLocation);
@@ -517,7 +517,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                         )
                 );
 
-                irAccessNode.setRightNode(irInvokeCallNode);
+                irBinaryNode.setRightNode(irInvokeCallNode);
             }
 
             irBlockNode = new BlockNode();

@@ -38,6 +38,8 @@ public class StoreBraceNode extends StoreAccessNode {
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         getAccessNode().write(classWriter, methodWriter, writeScope);
+        getChildNode().write(classWriter, methodWriter, writeScope);
+
         methodWriter.writeDebugInfo(location);
         methodWriter.arrayStore(MethodWriter.getType(getStoreType()));
     }

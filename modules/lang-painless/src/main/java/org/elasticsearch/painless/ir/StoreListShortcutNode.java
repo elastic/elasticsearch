@@ -51,6 +51,8 @@ public class StoreListShortcutNode extends StoreAccessNode {
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         getAccessNode().write(classWriter, methodWriter, writeScope);
+        getChildNode().write(classWriter, methodWriter, writeScope);
+
         methodWriter.writeDebugInfo(location);
         methodWriter.invokeMethodCall(setter);
         methodWriter.writePop(MethodWriter.getType(setter.returnType).getSize());

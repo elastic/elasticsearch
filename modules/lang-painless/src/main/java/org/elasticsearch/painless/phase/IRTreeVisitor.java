@@ -19,13 +19,10 @@
 
 package org.elasticsearch.painless.phase;
 
-import org.elasticsearch.painless.ir.AccessNode;
 import org.elasticsearch.painless.ir.AssignmentNode;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.BooleanNode;
-import org.elasticsearch.painless.ir.LoadBraceDefNode;
-import org.elasticsearch.painless.ir.LoadBraceNode;
 import org.elasticsearch.painless.ir.BreakNode;
 import org.elasticsearch.painless.ir.CastNode;
 import org.elasticsearch.painless.ir.CatchNode;
@@ -38,9 +35,6 @@ import org.elasticsearch.painless.ir.DeclarationBlockNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
 import org.elasticsearch.painless.ir.DoWhileLoopNode;
-import org.elasticsearch.painless.ir.LoadDotDefNode;
-import org.elasticsearch.painless.ir.LoadDotNode;
-import org.elasticsearch.painless.ir.LoadDotShortcutNode;
 import org.elasticsearch.painless.ir.DupNode;
 import org.elasticsearch.painless.ir.ElvisNode;
 import org.elasticsearch.painless.ir.FieldNode;
@@ -59,11 +53,17 @@ import org.elasticsearch.painless.ir.InvokeCallDefNode;
 import org.elasticsearch.painless.ir.InvokeCallMemberNode;
 import org.elasticsearch.painless.ir.InvokeCallNode;
 import org.elasticsearch.painless.ir.ListInitializationNode;
-import org.elasticsearch.painless.ir.LoadListShortcutNode;
+import org.elasticsearch.painless.ir.LoadBraceDefNode;
+import org.elasticsearch.painless.ir.LoadBraceNode;
 import org.elasticsearch.painless.ir.LoadDotArrayLengthNode;
+import org.elasticsearch.painless.ir.LoadDotDefNode;
+import org.elasticsearch.painless.ir.LoadDotNode;
+import org.elasticsearch.painless.ir.LoadDotShortcutNode;
 import org.elasticsearch.painless.ir.LoadFieldMemberNode;
-import org.elasticsearch.painless.ir.MapInitializationNode;
+import org.elasticsearch.painless.ir.LoadListShortcutNode;
 import org.elasticsearch.painless.ir.LoadMapShortcutNode;
+import org.elasticsearch.painless.ir.LoadVariableNode;
+import org.elasticsearch.painless.ir.MapInitializationNode;
 import org.elasticsearch.painless.ir.NewArrayNode;
 import org.elasticsearch.painless.ir.NewObjectNode;
 import org.elasticsearch.painless.ir.NullNode;
@@ -84,7 +84,6 @@ import org.elasticsearch.painless.ir.TryNode;
 import org.elasticsearch.painless.ir.TypedCaptureReferenceNode;
 import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
 import org.elasticsearch.painless.ir.UnaryMathNode;
-import org.elasticsearch.painless.ir.LoadVariableNode;
 import org.elasticsearch.painless.ir.WhileLoopNode;
 
 public interface IRTreeVisitor<Input, Output> {
@@ -133,7 +132,6 @@ public interface IRTreeVisitor<Input, Output> {
     Output visitStatic(StaticNode irStaticNode, Input input);
     Output visitLoadVariable(LoadVariableNode irLoadVariableNode, Input input);
     Output visitNullSafeSub(NullSafeSubNode irNullSafeSubNode, Input input);
-    Output visitAccess(AccessNode irAccessNode, Input input);
     Output visitLoadDotArrayLengthNode(LoadDotArrayLengthNode irLoadDotArrayLengthNode, Input input);
     Output visitLoadDotDef(LoadDotDefNode irLoadDotDefNode, Input input);
     Output visitLoadDot(LoadDotNode irLoadDotNode, Input input);

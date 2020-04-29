@@ -1015,7 +1015,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             if (downcast != null) {
                 semanticScope.putDecoration(userAssignmentNode, new DowncastPainlessCast(downcast));
             }
-            // if the lhs node is a def optimized node we update the actual type to remove the need for a cast
+        // if the lhs node is a def optimized node we update the actual type to remove the need for a cast
         } else if (semanticScope.getCondition(userLeftNode, DefOptimized.class)) {
             checkedVisit(userRightNode, semanticScope);
             Class<?> rightValueType = semanticScope.getDecoration(userRightNode, ValueType.class).getValueType();
@@ -2446,6 +2446,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             throw userDotNode.createError(new IllegalArgumentException("not a statement: result of dot operator [.] not used"));
         }
 
+        ScriptScope scriptScope = semanticScope.getScriptScope();
+        String index = userDotNode.getIndex();
+
         AExpression userPrefixNode = userDotNode.getPrefixNode();
         semanticScope.setCondition(userPrefixNode, Read.class);
         visit(userPrefixNode, semanticScope);
@@ -2457,9 +2460,6 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                     "value [" + prefixValueType.getValueCanonicalTypeName() + "] " +
                     "and type [" + prefixStaticType.getStaticCanonicalTypeName() + "]"));
         }
-
-        ScriptScope scriptScope = semanticScope.getScriptScope();
-        String index = userDotNode.getIndex();
 
         if (semanticScope.hasDecoration(userPrefixNode, PartialCanonicalTypeName.class)) {
             if (prefixValueType != null) {

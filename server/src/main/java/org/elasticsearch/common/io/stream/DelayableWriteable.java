@@ -28,8 +28,21 @@ import java.io.IOException;
 import java.util.function.Supplier;
 
 /**
- * A holder for {@link Writeable}s that can delay reading the underlying
- * {@linkplain Writeable} when it is read from a remote node.
+ * A holder for {@link Writeable}s that delays reading the underlying object
+ * on the receiving end. To be used for objects that use a lot of memory hence
+ * it is desirable to keep them around only for a limited amount of time.
+ * The node that produces the {@link Writeable} calls {@link #referencing(Writeable)}
+ * to create a {@link DelayableWriteable} that serializes the inner object
+ * first to a buffer and writes the content of the buffer to the {@link StreamOutput}.
+ * The receiver node calls {@link #delayed(Reader, StreamInput)} to create a
+ * {@link DelayableWriteable} that reads the buffer from the @link {@link StreamInput}
+ * but delays creating the actual object by calling {@link #expand()} when needed.
+ * Multiple {@link DelayableWriteable}s coming from different nodes may be buffered
+ * on the receiver end, which may hold a mix of {@link DelayableWriteable}s that were
+ * produced locally (hence expanded) as well as received form another node (hence subject
+ * to delayed expansion). When such objects are buffered for some time it is desirable
+ * to force their buffering in serialized format by calling
+ * {@link #asSerialized(Reader, NamedWriteableRegistry)}.
  */
 public abstract class DelayableWriteable<T extends Writeable> implements Writeable {
     /**
@@ -42,7 +55,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
     /**
      * Build a {@linkplain DelayableWriteable} that copies a buffer from
      * the provided {@linkplain StreamInput} and deserializes the buffer
-     * when {@link Supplier#get()} is called.
+     * when {@link #expand()} is called.
      */
     public static <T extends Writeable> DelayableWriteable<T> delayed(Writeable.Reader<T> reader, StreamInput in) throws IOException {
         return new Serialized<>(reader, in.getVersion(), in.namedWriteableRegistry(), in.readBytesReference());
@@ -56,6 +69,9 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
      */
     public abstract Serialized<T> asSerialized(Writeable.Reader<T> reader, NamedWriteableRegistry registry);
 
+    /**
+     * Expands the inner {@link Writeable} to its original representation and returns it
+     */
     public abstract T expand();
 
     /**

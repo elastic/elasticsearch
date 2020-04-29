@@ -96,14 +96,23 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
         return state.getEstimatedFootprintInBytes();
     }
 
+    /**
+     * Return the internal {@link DoubleHistogram} sketch for this metric.
+     */
     public DoubleHistogram getState() {
         return state;
     }
 
+    /**
+     * Return the keys (percentiles) requested.
+     */
     public double[] getKeys() {
         return keys;
     }
 
+    /**
+     * Should the output be keyed.
+     */
     public boolean keyed() {
         return keyed;
     }

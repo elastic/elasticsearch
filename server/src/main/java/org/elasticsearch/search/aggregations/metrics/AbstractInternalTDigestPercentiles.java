@@ -80,14 +80,23 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         return state.byteSize();
     }
 
+    /**
+     * Return the internal {@link TDigestState} sketch for this metric.
+     */
     public TDigestState getState() {
         return state;
     }
 
+    /**
+     * Return the keys (percentiles) requested.
+     */
     public double[] getKeys() {
         return keys;
     }
 
+    /**
+     * Should the output be keyed.
+     */
     public boolean keyed() {
         return keyed;
     }

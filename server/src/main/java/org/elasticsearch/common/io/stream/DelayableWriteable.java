@@ -82,7 +82,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Supplie
         @Override
         public Serialized<T> asSerialized(Reader<T> reader, NamedWriteableRegistry registry) {
             try {
-                return new Serialized<T>(reader, Version.CURRENT, registry, writeToBuffer(Version.CURRENT).bytes());
+                return new Serialized<>(reader, Version.CURRENT, registry, writeToBuffer(Version.CURRENT).bytes());
             } catch (IOException e) {
                 throw new RuntimeException("unexpected error expanding aggregations", e);
             }

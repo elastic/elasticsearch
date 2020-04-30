@@ -63,6 +63,10 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
         Collection<String> fields = context.simpleMatchToIndexNames(fieldPattern);
         Collection<String> mappedFields = fields.stream().filter((field) -> context.getObjectMapper(field) != null
                 || context.getMapperService().fieldType(field) != null).collect(Collectors.toList());
+        if (mappedFields.size() == 0) {
+            assertThat(query, instanceOf(MatchNoDocsQuery.class));
+            return;
+        }
         if (context.getIndexSettings().getIndexVersionCreated().before(Version.V_6_1_0)) {
             if (fields.size() == 1) {
                 assertThat(query, instanceOf(ConstantScoreQuery.class));
@@ -82,9 +86,6 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
                     assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
                 }
             }
-        } else if (mappedFields.size() == 0) {
-            assertThat(query, instanceOf(MatchNoDocsQuery.class));
-            MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
         } else if (fields.size() == 1) {
             assertThat(query, instanceOf(ConstantScoreQuery.class));
             ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;

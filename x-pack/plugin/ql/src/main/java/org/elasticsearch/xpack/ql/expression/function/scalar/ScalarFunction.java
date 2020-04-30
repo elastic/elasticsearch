@@ -22,6 +22,7 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 
 /**
  * A {@code ScalarFunction} is a {@code Function} that takes values from some
@@ -110,6 +111,10 @@ public abstract class ScalarFunction extends Function {
     
     protected ScriptTemplate scriptWithAggregate(AggregateFunction aggregate) {
         String template = "{}";
+        // Aggregations on date_nanos are returned as double
+        if (aggregate.field().dataType() == DATETIME_NANOS) {
+            template = "{sql}.asDateTime({})";
+        }
         return new ScriptTemplate(processScript(template),
                 paramsBuilder().agg(aggregate).build(),
                 dataType());

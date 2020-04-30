@@ -30,6 +30,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.type.DataTypes.CONSTANT_KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
@@ -432,7 +433,7 @@ public class IndexResolverTests extends ESTestCase {
     }
 
     private static boolean isAggregatable(DataType type) {
-        return type.isNumeric() || type == KEYWORD || type == DATETIME || type == CONSTANT_KEYWORD;
+        return type.isNumeric() || type == KEYWORD || type == DATETIME || type == DATETIME_NANOS || type == CONSTANT_KEYWORD;
     }
 
     private static class UpdateableFieldCapabilities extends FieldCapabilities {

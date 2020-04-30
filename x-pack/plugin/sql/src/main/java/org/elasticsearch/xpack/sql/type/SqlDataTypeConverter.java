@@ -38,6 +38,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.CONSTANT_KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
@@ -96,22 +97,29 @@ public final class SqlDataTypeConverter {
                 return right;
             }
         }
-        if (left == DATETIME) {
+        if (left == DATETIME || left == DATETIME_NANOS) {
             if (right == DATE || right == TIME) {
-                return left;
+                return DATETIME;
             }
             if (isInterval(right)) {
-                return left;
+                return DATETIME;
             }
         }
-        if (right == DATETIME) {
+        if (right == DATETIME || right == DATETIME_NANOS) {
             if (left == DATE || left == TIME) {
-                return right;
+                return DATETIME;
             }
             if (isInterval(left)) {
-                return right;
+                return DATETIME;
             }
         }
+        if (left == DATETIME && right == DATETIME_NANOS) {
+            return left;
+        }
+        if (left == DATETIME_NANOS && right == DATETIME) {
+            return right;
+        }
+
         // Interval * integer is a valid operation
         if (isInterval(left)) {
             if (right.isInteger()) {
@@ -293,7 +301,7 @@ public final class SqlDataTypeConverter {
         if (isString(from)) {
             return SqlConverter.STRING_TO_DATE;
         }
-        if (from == DATETIME) {
+        if (from == DATETIME || from == DATETIME_NANOS) {
             return SqlConverter.DATETIME_TO_DATE;
         }
         return null;
@@ -315,7 +323,7 @@ public final class SqlDataTypeConverter {
         if (from == DATE) {
             return SqlConverter.DATE_TO_TIME;
         }
-        if (from == DATETIME) {
+        if (from == DATETIME || from == DATETIME_NANOS) {
             return SqlConverter.DATETIME_TO_TIME;
         }
         return null;

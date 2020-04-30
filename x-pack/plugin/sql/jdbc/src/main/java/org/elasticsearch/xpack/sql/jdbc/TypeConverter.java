@@ -86,7 +86,7 @@ final class TypeConverter {
     }
 
     /**
-     * Converts millisecond after epoc to timestamp
+     * Converts millisecond after epoch to timestamp
      */
     static Timestamp convertTimestamp(Long millis, Calendar cal) {
         return dateTimeConvert(millis, cal, c -> new Timestamp(c.getTimeInMillis()));

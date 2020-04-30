@@ -5,6 +5,7 @@
         "text" : { "type" : "text" },
         "keyword" : { "type" : "keyword" },
         "date" :  { "type" : "date" },
+        "date_nanos": { "type" : "date_nanos" },
         "unsupported" : { "type" : "ip_range" },
         "some" : {
             "properties" : {

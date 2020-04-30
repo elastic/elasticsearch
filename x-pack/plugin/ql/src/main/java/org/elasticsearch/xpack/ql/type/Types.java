@@ -16,6 +16,7 @@ import java.util.Map.Entry;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.CONSTANT_KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
@@ -94,6 +95,8 @@ public abstract class Types {
                 field = new ConstantKeywordEsField(name);
             } else if (esDataType == DATETIME) {
                 field = new DateEsField(name, properties, docValues);
+            } else if (esDataType == DATETIME_NANOS) {
+                field = new DateNanosEsField(name, properties, docValues);
             } else if (esDataType == UNSUPPORTED) {
                 String type = content.get("type").toString();
                 field = new UnsupportedEsField(name, type, null, properties);
@@ -118,7 +121,7 @@ public abstract class Types {
     private static int intSetting(Object value, int defaultValue) {
         return value == null ? defaultValue : Integer.parseInt(value.toString());
     }
-    
+
     private static void propagateUnsupportedType(String inherited, String originalType, Map<String, EsField> properties) {
         if (properties != null && properties.isEmpty() == false) {
             for (Entry<String, EsField> entry : properties.entrySet()) {

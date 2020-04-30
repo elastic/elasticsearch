@@ -16,11 +16,13 @@ import java.sql.JDBCType;
 import java.sql.SQLType;
 import java.time.OffsetTime;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
@@ -31,6 +33,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.CONSTANT_KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.HALF_FLOAT;
@@ -159,11 +162,16 @@ public class SqlDataTypes {
             .collect(toUnmodifiableList());
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream()
+            .filter(t -> t != DATETIME_NANOS)
             .collect(toUnmodifiableMap(DataType::typeName, t -> t));
 
-    private static final Map<String, DataType> ES_TO_TYPE = TYPES.stream()
-            .filter(e -> e.esType() != null)
-            .collect(toUnmodifiableMap(DataType::esType, t -> t));
+    private static final Map<String, DataType> ES_TO_TYPE;
+
+    static {
+        Map<String, DataType> map = TYPES.stream().filter(e -> e.esType() != null).collect(Collectors.toMap(DataType::esType, t -> t));
+        map.put(DATETIME_NANOS.esType(), DATETIME_NANOS);
+        ES_TO_TYPE = Collections.unmodifiableMap(map);
+    }
 
     private static final Map<String, DataType> SQL_TO_ES;
 
@@ -244,7 +252,7 @@ public class SqlDataTypes {
     }
 
     public static boolean isDateBased(DataType type) {
-        return type == DATE || type == DATETIME;
+        return type == DATE || type == DATETIME || type == DATETIME_NANOS;
     }
 
     public static boolean isTimeBased(DataType type) {
@@ -264,6 +272,9 @@ public class SqlDataTypes {
     }
 
     public static String format(DataType type) {
+        if (type == DATETIME_NANOS) {
+            return "strict_date_optional_time_nanos";
+        }
         return isDateOrTimeBased(type) ? "epoch_millis" : null;
     }
 
@@ -271,6 +282,7 @@ public class SqlDataTypes {
         return dataType == KEYWORD // because of ignore_above. Extracting this from _source wouldn't make sense
                 || dataType == DATE         // because of date formats
                 || dataType == DATETIME
+                || dataType == DATETIME_NANOS
                 || dataType == SCALED_FLOAT // because of scaling_factor
                 || dataType == CONSTANT_KEYWORD
                 || dataType == GEO_POINT
@@ -340,7 +352,7 @@ public class SqlDataTypes {
         if (dataType == CONSTANT_KEYWORD) {
             return JDBCType.VARCHAR;
         }
-        if (dataType == DATETIME) {
+        if (dataType == DATETIME || dataType == DATETIME_NANOS) {
             return JDBCType.TIMESTAMP;
         }
         if (dataType == IP) {
@@ -466,8 +478,8 @@ public class SqlDataTypes {
         if (dataType == CONSTANT_KEYWORD) {
             return 15;
         }
-        if (dataType == DATETIME) {
-            return 3;
+        if (dataType == DATETIME || dataType == DATETIME_NANOS) {
+            return 9;
         }
         if (dataType == IP) {
             return dataType.size();
@@ -491,7 +503,7 @@ public class SqlDataTypes {
             return 3;
         }
         if (dataType == TIME) {
-            return 3;
+            return 9;
         }
 
         if (dataType == GEO_SHAPE) {
@@ -589,8 +601,8 @@ public class SqlDataTypes {
         if (dataType == CONSTANT_KEYWORD) {
             return 32766;
         }
-        if (dataType == DATETIME) {
-            return 29;
+        if (dataType == DATETIME || dataType == DATETIME_NANOS) {
+            return 34;
         }
         if (dataType == IP) {
             return dataType.size();
@@ -611,7 +623,7 @@ public class SqlDataTypes {
             return 29;
         }
         if (dataType == TIME) {
-            return 18;
+            return 24;
         }
         if (dataType == GEO_SHAPE) {
             return dataType.size();
@@ -639,7 +651,7 @@ public class SqlDataTypes {
     // https://docs.microsoft.com/en-us/sql/relational-databases/native-client-odbc-date-time/metadata-catalog
     // https://github.com/elastic/elasticsearch/issues/30386
     public static Integer metaSqlDataType(DataType t) {
-        if (t == DATETIME) {
+        if (t == DATETIME || t == DATETIME_NANOS) {
             // ODBC SQL_DATETME
             return Integer.valueOf(9);
         }
@@ -650,7 +662,7 @@ public class SqlDataTypes {
     // https://github.com/elastic/elasticsearch/issues/30386
     // https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function
     public static Integer metaSqlDateTimeSub(DataType t) {
-        if (t == DATETIME) {
+        if (t == DATETIME || t == DATETIME_NANOS) {
             // ODBC SQL_CODE_TIMESTAMP
             return Integer.valueOf(3);
         } else if (t == DATE) {
@@ -681,7 +693,7 @@ public class SqlDataTypes {
         if (t.isInteger()) {
             return Short.valueOf((short) 0);
         }
-        if (t == DATETIME || t == TIME || t.isRational()) {
+        if (t == DATETIME || t == DATETIME_NANOS || t == TIME || t.isRational()) {
             return Short.valueOf((short) defaultPrecision(t));
         }
         return null;

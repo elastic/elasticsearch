@@ -82,6 +82,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.sql.SqlTestUtils.literal;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation.E;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation.PI;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.DATE_FORMAT;
@@ -148,6 +149,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals((agg.get(0)).name(), "c");
         assertEquals(((Count) ((Alias) agg.get(0)).child()).functionName(), "COUNT");
     }
+
     public void testLiteralWithGroupBy(){
         LogicalPlan p = plan("SELECT 1 as t, 2 FROM test GROUP BY int");
         assertTrue(p instanceof Aggregate);
@@ -280,41 +282,87 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testDateRangeWithCurrentTimestamp() {
-        testDateRangeWithCurrentFunctions("CURRENT_TIMESTAMP()", DATE_FORMAT, SqlTestUtils.TEST_CFG.now());
-        testDateRangeWithCurrentFunctions_AndRangeOptimization("CURRENT_TIMESTAMP()", DATE_FORMAT,
-                SqlTestUtils.TEST_CFG.now().minusDays(1L).minusSeconds(1L),
-                SqlTestUtils.TEST_CFG.now().plusDays(1L).plusSeconds(1L));
+        Integer nanoPrecision = randomPrecision();
+        testDateRangeWithCurrentFunctions(
+            functionWithPrecision("CURRENT_TIMESTAMP", nanoPrecision),
+            DATE_FORMAT,
+            nanoPrecision,
+            SqlTestUtils.TEST_CFG.now()
+        );
+        testDateRangeWithCurrentFunctions_AndRangeOptimization(
+            functionWithPrecision("CURRENT_TIMESTAMP", nanoPrecision),
+            DATE_FORMAT,
+            nanoPrecision,
+            SqlTestUtils.TEST_CFG.now().minusDays(1L).minusSeconds(1L),
+            SqlTestUtils.TEST_CFG.now().plusDays(1L).plusSeconds(1L)
+        );
     }
 
     public void testDateRangeWithCurrentDate() {
-        testDateRangeWithCurrentFunctions("CURRENT_DATE()", DATE_FORMAT, DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now()));
-        testDateRangeWithCurrentFunctions_AndRangeOptimization("CURRENT_DATE()", DATE_FORMAT,
-                DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now().minusDays(1L)).minusSeconds(1),
-                DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now().plusDays(1L)).plusSeconds(1));
+        testDateRangeWithCurrentFunctions("CURRENT_DATE()", DATE_FORMAT, null, DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now()));
+        testDateRangeWithCurrentFunctions_AndRangeOptimization(
+            "CURRENT_DATE()",
+            DATE_FORMAT,
+            null,
+            DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now().minusDays(1L)).minusSeconds(1),
+            DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now().plusDays(1L)).plusSeconds(1)
+        );
     }
 
     public void testDateRangeWithToday() {
-        testDateRangeWithCurrentFunctions("TODAY()", DATE_FORMAT, DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now()));
-        testDateRangeWithCurrentFunctions_AndRangeOptimization("TODAY()", DATE_FORMAT,
-                DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now().minusDays(1L)).minusSeconds(1),
-                DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now().plusDays(1L)).plusSeconds(1));
+        testDateRangeWithCurrentFunctions("TODAY()", DATE_FORMAT, null, DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now()));
+        testDateRangeWithCurrentFunctions_AndRangeOptimization(
+            "TODAY()",
+            DATE_FORMAT,
+            null,
+            DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now().minusDays(1L)).minusSeconds(1),
+            DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now().plusDays(1L)).plusSeconds(1)
+        );
     }
 
     public void testDateRangeWithNow() {
-        testDateRangeWithCurrentFunctions("NOW()", DATE_FORMAT, SqlTestUtils.TEST_CFG.now());
-        testDateRangeWithCurrentFunctions_AndRangeOptimization("NOW()", DATE_FORMAT,
-                SqlTestUtils.TEST_CFG.now().minusDays(1L).minusSeconds(1L),
-                SqlTestUtils.TEST_CFG.now().plusDays(1L).plusSeconds(1L));
+        Integer nanoPrecision = randomPrecision();
+        testDateRangeWithCurrentFunctions(
+            functionWithPrecision("NOW", nanoPrecision),
+            DATE_FORMAT,
+            nanoPrecision,
+            SqlTestUtils.TEST_CFG.now()
+        );
+        testDateRangeWithCurrentFunctions_AndRangeOptimization(
+            functionWithPrecision("NOW", nanoPrecision),
+            DATE_FORMAT,
+            nanoPrecision,
+            SqlTestUtils.TEST_CFG.now().minusDays(1L).minusSeconds(1L),
+            SqlTestUtils.TEST_CFG.now().plusDays(1L).plusSeconds(1L)
+        );
     }
 
     public void testDateRangeWithCurrentTime() {
-        testDateRangeWithCurrentFunctions("CURRENT_TIME()", TIME_FORMAT, SqlTestUtils.TEST_CFG.now());
-        testDateRangeWithCurrentFunctions_AndRangeOptimization("CURRENT_TIME()", TIME_FORMAT,
-                SqlTestUtils.TEST_CFG.now().minusDays(1L).minusSeconds(1L),
-                SqlTestUtils.TEST_CFG.now().plusDays(1L).plusSeconds(1L));
+        Integer nanoPrecision = randomPrecision();
+        testDateRangeWithCurrentFunctions(
+            functionWithPrecision("CURRENT_TIME", nanoPrecision),
+            TIME_FORMAT,
+            nanoPrecision,
+            SqlTestUtils.TEST_CFG.now()
+        );
+        testDateRangeWithCurrentFunctions_AndRangeOptimization(
+            functionWithPrecision("CURRENT_TIME", nanoPrecision),
+            TIME_FORMAT,
+            nanoPrecision,
+            SqlTestUtils.TEST_CFG.now().minusDays(1L).minusSeconds(1L),
+            SqlTestUtils.TEST_CFG.now().plusDays(1L).plusSeconds(1L)
+        );
     }
 
-    private void testDateRangeWithCurrentFunctions(String function, String pattern, ZonedDateTime now) {
+    private Integer randomPrecision() {
+        return randomFrom(new Integer[] {null, 1, 2, 3, 4, 5, 6, 7, 8, 9});
+    }
+
+    private String functionWithPrecision(String function, Integer precision) {
+        return function + "(" + (precision == null ? "" : precision.toString()) + ")";
+    }
+
+    private void testDateRangeWithCurrentFunctions(String function, String pattern, Integer nanoPrecision, ZonedDateTime now) {
         String operator = randomFrom(new String[] {">", ">=", "<", "<=", "=", "!="});
         LogicalPlan p = plan("SELECT some.string FROM test WHERE date" + operator + function);
         assertTrue(p instanceof Project);
@@ -337,12 +385,12 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("date", rq.field());
 
         if (operator.contains("<") || operator.equals("=") || operator.equals("!=")) {
-            assertEquals(DateFormatter.forPattern(pattern).format(now.withNano(DateUtils.getNanoPrecision(null, now.getNano()))),
-                    rq.upper());
+            assertEquals(DateFormatter.forPattern(pattern).format(now.withNano(DateUtils.getNanoPrecision(
+                nanoPrecision == null ? null : literal(nanoPrecision), now.getNano()))), rq.upper());
         }
         if (operator.contains(">") || operator.equals("=") || operator.equals("!=")) {
-            assertEquals(DateFormatter.forPattern(pattern).format(now.withNano(DateUtils.getNanoPrecision(null, now.getNano()))),
-                    rq.lower());
+            assertEquals(DateFormatter.forPattern(pattern).format(now.withNano(DateUtils.getNanoPrecision(
+                nanoPrecision == null ? null : literal(nanoPrecision), now.getNano()))), rq.lower());
         }
 
         assertEquals(operator.equals("=") || operator.equals("!=") || operator.equals("<="), rq.includeUpper());
@@ -350,8 +398,13 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(pattern, rq.format());
     }
 
-    private void testDateRangeWithCurrentFunctions_AndRangeOptimization(String function, String pattern, ZonedDateTime lowerValue,
-            ZonedDateTime upperValue) {
+    private void testDateRangeWithCurrentFunctions_AndRangeOptimization(
+        String function,
+        String pattern,
+        Integer nanoPrecision,
+        ZonedDateTime lowerValue,
+        ZonedDateTime upperValue
+    ) {
         String lowerOperator = randomFrom(new String[] {"<", "<="});
         String upperOperator = randomFrom(new String[] {">", ">="});
         // use both date-only interval (1 DAY) and time-only interval (1 second) to cover CURRENT_TIMESTAMP and TODAY scenarios
@@ -373,9 +426,11 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("date", rq.field());
 
         assertEquals(DateFormatter.forPattern(pattern)
-                .format(upperValue.withNano(DateUtils.getNanoPrecision(null, upperValue.getNano()))), rq.upper());
+                .format(upperValue.withNano(DateUtils.getNanoPrecision(
+                    nanoPrecision == null ? null : literal(nanoPrecision), upperValue.getNano()))), rq.upper());
         assertEquals(DateFormatter.forPattern(pattern)
-                .format(lowerValue.withNano(DateUtils.getNanoPrecision(null, lowerValue.getNano()))), rq.lower());
+                .format(lowerValue.withNano(DateUtils.getNanoPrecision(
+                    nanoPrecision == null ? null : literal(nanoPrecision), lowerValue.getNano()))), rq.lower());
 
         assertEquals(lowerOperator.equals("<="), rq.includeUpper());
         assertEquals(upperOperator.equals(">="), rq.includeLower());

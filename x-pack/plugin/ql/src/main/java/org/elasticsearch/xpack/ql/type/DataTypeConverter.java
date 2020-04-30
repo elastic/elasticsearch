@@ -23,6 +23,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.CONSTANT_KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
@@ -96,6 +97,13 @@ public final class DataTypeConverter {
             }
         }
 
+        if (left == DATETIME && right == DATETIME_NANOS) {
+            return left;
+        }
+        if (left == DATETIME_NANOS && right == DATETIME) {
+            return right;
+        }
+
         // none found
         return null;
     }
@@ -158,7 +166,7 @@ public final class DataTypeConverter {
     }
 
     private static Converter conversionToString(DataType from) {
-        if (from == DATETIME) {
+        if (from == DATETIME || from == DATETIME_NANOS) {
             return DefaultConverter.DATETIME_TO_STRING;
         }
         return DefaultConverter.OTHER_TO_STRING;
@@ -184,7 +192,7 @@ public final class DataTypeConverter {
         if (isString(from)) {
             return DefaultConverter.STRING_TO_LONG;
         }
-        if (from == DATETIME) {
+        if (from == DATETIME || from == DATETIME_NANOS) {
             return DefaultConverter.DATETIME_TO_LONG;
         }
         return null;
@@ -203,7 +211,7 @@ public final class DataTypeConverter {
         if (isString(from)) {
             return DefaultConverter.STRING_TO_INT;
         }
-        if (from == DATETIME) {
+        if (from == DATETIME || from == DATETIME_NANOS) {
             return DefaultConverter.DATETIME_TO_INT;
         }
         return null;
@@ -222,7 +230,7 @@ public final class DataTypeConverter {
         if (isString(from)) {
             return DefaultConverter.STRING_TO_SHORT;
         }
-        if (from == DATETIME) {
+        if (from == DATETIME || from == DATETIME_NANOS) {
             return DefaultConverter.DATETIME_TO_SHORT;
         }
         return null;
@@ -241,7 +249,7 @@ public final class DataTypeConverter {
         if (isString(from)) {
             return DefaultConverter.STRING_TO_BYTE;
         }
-        if (from == DATETIME) {
+        if (from == DATETIME || from == DATETIME_NANOS) {
             return DefaultConverter.DATETIME_TO_BYTE;
         }
         return null;
@@ -260,7 +268,7 @@ public final class DataTypeConverter {
         if (isString(from)) {
             return DefaultConverter.STRING_TO_FLOAT;
         }
-        if (from == DATETIME) {
+        if (from == DATETIME || from == DATETIME_NANOS) {
             return DefaultConverter.DATETIME_TO_FLOAT;
         }
         return null;
@@ -279,7 +287,7 @@ public final class DataTypeConverter {
         if (isString(from)) {
             return DefaultConverter.STRING_TO_DOUBLE;
         }
-        if (from == DATETIME) {
+        if (from == DATETIME || from == DATETIME_NANOS) {
             return DefaultConverter.DATETIME_TO_DOUBLE;
         }
         return null;
@@ -308,7 +316,7 @@ public final class DataTypeConverter {
         if (isString(from)) {
             return DefaultConverter.STRING_TO_BOOLEAN;
         }
-        if (from == DATETIME) {
+        if (from == DATETIME || from == DATETIME_NANOS) {
             return DefaultConverter.DATETIME_TO_BOOLEAN;
         }
         return null;

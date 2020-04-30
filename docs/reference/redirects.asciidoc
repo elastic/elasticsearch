@@ -493,3 +493,71 @@ See <<ilm-actions>>.
 === {ilm-init} policy definition
 
 See <<ilm-index-lifecycle>>.
+
+[role="exclude",id="mapping-nested-type"]
+=== Installing {es}
+
+See <<nested>>.
+
+[role="exclude",id="_basic_concepts"]
+=== Basic {es} concepts
+
+See <<elasticsearch-intro>>.
+
+
+[role="exclude",id="mapping-timestamp-field"]
+=== 
+
+Use a regular <<date>> field.
+
+[role="exclude",id="mapping-core-types"]
+=== Core datatypes
+
+See <<mapping-types>>.
+
+[role="exclude",id="modules-discovery-zen"]
+=== Discovery and cluster formation
+
+See <<modules-discovery-hosts-providers>>.
+
+[role="exclude",id="query-dsl-filtered-query"]
+=== Query filters
+
+Use a <<query-dsl-bool-query>> with a filter.
+
+[role="exclude",id="search-facets"]
+=== Search facets
+
+Use <<search-aggregations>>.
+
+[role="exclude",id="setup-configuration"]
+=== {es} configuration
+
+See <<settings>>.
+
+[role="exclude",id="indices-optimize"]
+=== Index optimization
+
+Use <<indices-forcemerge>>.
+
+[role="exclude",id="query-dsl-nested-filter"]
+=== Nested filter
+
+Use <<query-dsl-nested-query>>.
+
+[role="exclude",id="query-dsl-bool-filter"]
+=== Bool filter
+
+Use <<query-dsl-bool-query>>.
+
+[role="exclude",id="query-dsl-terms-filter"]
+=== Terms filter
+
+Use <<query-dsl-terms-query>>.
+
+[role="exclude",id="cluster-nodes-shutdown"]
+=== Shut down nodes
+
+Set up {es} to run as a service.
+For more information, see <<install-elasticsearch>>.
+

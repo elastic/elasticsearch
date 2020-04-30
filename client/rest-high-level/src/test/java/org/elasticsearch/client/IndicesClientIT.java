@@ -67,9 +67,9 @@ import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexResponse;
+import org.elasticsearch.client.indices.GetIndexTemplateV2Request;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
-import org.elasticsearch.client.indices.GetIndexTemplateV2Request;
 import org.elasticsearch.client.indices.GetIndexTemplatesV2Response;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
@@ -81,6 +81,8 @@ import org.elasticsearch.client.indices.PutIndexTemplateV2Request;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersResponse;
+import org.elasticsearch.client.indices.SimulateIndexTemplateRequest;
+import org.elasticsearch.client.indices.SimulateIndexTemplateResponse;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.indices.rollover.RolloverResponse;
@@ -1613,5 +1615,41 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             highLevelClient().indices()::existsIndexTemplate, highLevelClient().indices()::existsIndexTemplateAsync);
 
         assertFalse(exist);
+    }
+
+    public void testSimulateIndexTemplate() throws Exception {
+        String templateName = "my-template";
+        Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
+        CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"host_name\":{\"type\":\"keyword\"}}}");
+        AliasMetadata alias = AliasMetadata.builder("alias").writeIndex(true).build();
+        Template template = new Template(settings, mappings, Map.of("alias", alias));
+        List<String> pattern = List.of("pattern");
+        IndexTemplateV2 indexTemplate = new IndexTemplateV2(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>());
+        PutIndexTemplateV2Request putIndexTemplateV2Request =
+            new PutIndexTemplateV2Request().name(templateName).create(true).indexTemplate(indexTemplate);
+
+        AcknowledgedResponse response = execute(putIndexTemplateV2Request,
+            highLevelClient().indices()::putIndexTemplate, highLevelClient().indices()::putIndexTemplateAsync);
+        assertThat(response.isAcknowledged(), equalTo(true));
+
+        SimulateIndexTemplateRequest simulateIndexTemplateRequest = new SimulateIndexTemplateRequest("pattern");
+        AliasMetadata simulationAlias = AliasMetadata.builder("simulation-alias").writeIndex(true).build();
+        IndexTemplateV2 simulationTemplate = new IndexTemplateV2(pattern, new Template(null, null,
+            Map.of("simulation-alias", simulationAlias)), Collections.emptyList(), 2L, 1L, new HashMap<>());
+        PutIndexTemplateV2Request newIndexTemplateReq =
+            new PutIndexTemplateV2Request().name("used-for-simulation").create(true).indexTemplate(indexTemplate);
+        newIndexTemplateReq.indexTemplate(simulationTemplate);
+        simulateIndexTemplateRequest.indexTemplateV2Request(newIndexTemplateReq);
+
+        SimulateIndexTemplateResponse simulateResponse = execute(simulateIndexTemplateRequest,
+            highLevelClient().indices()::simulateIndexTemplate, highLevelClient().indices()::simulateIndexTemplateAsync);
+
+        Map<String, AliasMetadata> aliases = simulateResponse.resolvedTemplate().aliases();
+        assertThat(aliases, is(notNullValue()));
+        assertThat("the template we provided for the simulation has a higher priority than the one in the system",
+            aliases.get("simulation-alias"), is(notNullValue()));
+        assertThat(aliases.get("simulation-alias").getAlias(), is("simulation-alias"));
+        assertThat("existing template overlaps the higher priority template we provided for the simulation",
+            simulateResponse.overlappingTemplates().get("my-template").get(0), is("pattern"));
     }
 }

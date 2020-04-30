@@ -163,7 +163,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         ClusterState state,
         ActionListener<StartTransformAction.Response> listener
     ) throws Exception {
-        if (!licenseState.isTransformAllowed()) {
+        if (!licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM)) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.TRANSFORM));
             return;
         }

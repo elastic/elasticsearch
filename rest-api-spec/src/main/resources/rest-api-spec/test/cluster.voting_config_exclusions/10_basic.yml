@@ -1,0 +1,85 @@
+teardown:
+  - do:
+      cluster.delete_voting_config_exclusions: {}
+
+---
+"Get cluster state without voting config exclusions":
+  - do:
+      cluster.state: {}
+
+  - length: { metadata.cluster_coordination.voting_config_exclusions: 0 }
+
+---
+"Add voting config exclusion by unknown node Id":
+  - do:
+      cluster.post_voting_config_exclusions:
+        node_ids: nodeId
+
+  - do:
+      cluster.state: {}
+
+  - length: { metadata.cluster_coordination.voting_config_exclusions: 1 }
+  - match: { metadata.cluster_coordination.voting_config_exclusions.0.node_id: "nodeId" }
+  - match: { metadata.cluster_coordination.voting_config_exclusions.0.node_name: "_absent_" }
+
+---
+"Add voting config exclusion by unknown node Ids":
+  - skip:
+        reason: "contains is a newly added assertion"
+        features: contains
+
+  - do:
+      cluster.post_voting_config_exclusions:
+        node_ids: nodeId1,nodeId2
+
+  - do:
+      cluster.state: {}
+
+  - length: { metadata.cluster_coordination.voting_config_exclusions: 2 }
+  - contains : { metadata.cluster_coordination.voting_config_exclusions: {node_id: "nodeId1", node_name: "_absent_"} }
+  - contains : { metadata.cluster_coordination.voting_config_exclusions: {node_id: "nodeId2", node_name: "_absent_"} }
+
+---
+"Add voting config exclusion by unknown node name":
+  - do:
+      cluster.post_voting_config_exclusions:
+        node_names: nodeName
+
+  - do:
+      cluster.state: {}
+
+  - length: { metadata.cluster_coordination.voting_config_exclusions: 1 }
+  - match: { metadata.cluster_coordination.voting_config_exclusions.0.node_id: "_absent_" }
+  - match: { metadata.cluster_coordination.voting_config_exclusions.0.node_name: "nodeName" }
+
+---
+"Add voting config exclusion by unknown node names":
+  - skip:
+      reason: "contains is a newly added assertion"
+      features: contains
+
+  - do:
+      cluster.post_voting_config_exclusions:
+        node_names: nodeName1,nodeName2
+
+  - do:
+      cluster.state: {}
+
+  - length: { metadata.cluster_coordination.voting_config_exclusions: 2 }
+  - contains : { metadata.cluster_coordination.voting_config_exclusions: {node_id: "_absent_", node_name: "nodeName1"} }
+  - contains : { metadata.cluster_coordination.voting_config_exclusions: {node_id: "_absent_", node_name: "nodeName2"} }
+
+---
+"Throw exception when adding voting config exclusion without specifying nodes":
+  - do:
+      catch: /(You must set \[node_names\] or \[node_ids\] but not both|Please set node identifiers correctly. One and only one of \[node_name\], \[node_names\] and \[node_ids\] has to be set)/
+      cluster.post_voting_config_exclusions: {}
+
+---
+"Throw exception when adding voting config exclusion and specifying both node_ids and node_names":
+  - do:
+      catch: /(You must set \[node_names\] or \[node_ids\] but not both|Please set node identifiers correctly. One and only one of \[node_name\], \[node_names\] and \[node_ids\] has to be set)/
+      cluster.post_voting_config_exclusions:
+        node_ids: nodeId
+        node_names: nodeName
+

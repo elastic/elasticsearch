@@ -21,6 +21,7 @@ public class PEMKeyConfigTests extends ESTestCase {
     public static final SecureString TESTNODE_PASSWORD = new SecureString("testnode".toCharArray());
 
     public void testEncryptedPkcs8RsaKey() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, PBE KeySpec is not available", inFipsJvm());
         verifyKeyConfig("testnode.crt", "key_pkcs8_encrypted.pem", TESTNODE_PASSWORD);
     }
 
@@ -29,11 +30,11 @@ public class PEMKeyConfigTests extends ESTestCase {
     }
 
     public void testUnencryptedPkcs8DsaKey() throws Exception {
-        verifyKeyConfig("testnode.crt", "dsa_key_pkcs8_plain.pem", NO_PASSWORD);
+        verifyKeyConfig("testnode_dsa.crt", "dsa_key_pkcs8_plain.pem", NO_PASSWORD);
     }
 
     public void testUnencryptedPkcs8EcKey() throws Exception {
-        verifyKeyConfig("testnode.crt", "ec_key_pkcs8_plain.pem", NO_PASSWORD);
+        verifyKeyConfig("testnode_ec.crt", "ec_key_pkcs8_plain.pem", NO_PASSWORD);
     }
 
     public void testEncryptedPkcs1RsaKey() throws Exception {

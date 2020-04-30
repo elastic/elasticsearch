@@ -68,7 +68,7 @@ import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.AbstractHeaderWarningLogger;
+import org.elasticsearch.common.logging.HeaderWarningLogger;
 import org.elasticsearch.common.logging.NodeAndClusterIdStateListener;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
@@ -335,8 +335,8 @@ public class Node implements Closeable {
             final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
             resourcesToClose.add(resourceWatcherService);
             // adds the context to the DeprecationLogger so that it does not need to be injected everywhere
-            AbstractHeaderWarningLogger.setThreadContext(threadPool.getThreadContext());
-            resourcesToClose.add(() -> AbstractHeaderWarningLogger.removeThreadContext(threadPool.getThreadContext()));
+            HeaderWarningLogger.setThreadContext(threadPool.getThreadContext());
+            resourcesToClose.add(() -> HeaderWarningLogger.removeThreadContext(threadPool.getThreadContext()));
 
             final List<Setting<?>> additionalSettings = new ArrayList<>(pluginsService.getPluginSettings());
             final List<String> additionalSettingsFilter = new ArrayList<>(pluginsService.getPluginSettingsFilter());

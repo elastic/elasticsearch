@@ -49,7 +49,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.common.logging.DeprecationLogger.WARNING_HEADER_PATTERN;
+import static org.elasticsearch.common.logging.HeaderWarningLogger.WARNING_HEADER_PATTERN;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -62,7 +62,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests {@link DeprecationLogger}
+ * Tests {@link HeaderWarningLogger}
  */
 public class DeprecationLoggerTests extends ESTestCase {
 
@@ -201,57 +201,57 @@ public class DeprecationLoggerTests extends ESTestCase {
 
     public void testFailsWhenDoubleSettingSameThreadContext() throws IOException {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        DeprecationLogger.setThreadContext(threadContext);
+        HeaderWarningLogger.setThreadContext(threadContext);
 
         try {
-            expectThrows(IllegalStateException.class, () -> DeprecationLogger.setThreadContext(threadContext));
+            expectThrows(IllegalStateException.class, () -> HeaderWarningLogger.setThreadContext(threadContext));
         } finally {
             // cleanup after ourselves
-            DeprecationLogger.removeThreadContext(threadContext);
+            HeaderWarningLogger.removeThreadContext(threadContext);
         }
     }
 
     public void testFailsWhenRemovingUnknownThreadContext() throws IOException {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        expectThrows(IllegalStateException.class, () -> DeprecationLogger.removeThreadContext(threadContext));
+        expectThrows(IllegalStateException.class, () -> HeaderWarningLogger.removeThreadContext(threadContext));
     }
 
     public void testWarningValueFromWarningHeader() {
         final String s = randomAlphaOfLength(16);
-        final String first = DeprecationLogger.formatWarning(s);
-        assertThat(DeprecationLogger.extractWarningValueFromWarningHeader(first, false), equalTo(s));
+        final String first = HeaderWarningLogger.formatWarning(s);
+        assertThat(HeaderWarningLogger.extractWarningValueFromWarningHeader(first, false), equalTo(s));
 
         final String withPos = "[context][1:11] Blah blah blah";
-        final String formatted = DeprecationLogger.formatWarning(withPos);
-        assertThat(DeprecationLogger.extractWarningValueFromWarningHeader(formatted, true), equalTo("Blah blah blah"));
+        final String formatted = HeaderWarningLogger.formatWarning(withPos);
+        assertThat(HeaderWarningLogger.extractWarningValueFromWarningHeader(formatted, true), equalTo("Blah blah blah"));
 
         final String withNegativePos = "[context][-1:-1] Blah blah blah";
-        assertThat(DeprecationLogger.extractWarningValueFromWarningHeader(DeprecationLogger.formatWarning(withNegativePos), true),
+        assertThat(HeaderWarningLogger.extractWarningValueFromWarningHeader(HeaderWarningLogger.formatWarning(withNegativePos), true),
             equalTo("Blah blah blah"));
     }
 
     public void testEscapeBackslashesAndQuotes() {
-        assertThat(DeprecationLogger.escapeBackslashesAndQuotes("\\"), equalTo("\\\\"));
-        assertThat(DeprecationLogger.escapeBackslashesAndQuotes("\""), equalTo("\\\""));
-        assertThat(DeprecationLogger.escapeBackslashesAndQuotes("\\\""), equalTo("\\\\\\\""));
-        assertThat(DeprecationLogger.escapeBackslashesAndQuotes("\"foo\\bar\""),equalTo("\\\"foo\\\\bar\\\""));
+        assertThat(HeaderWarningLogger.escapeBackslashesAndQuotes("\\"), equalTo("\\\\"));
+        assertThat(HeaderWarningLogger.escapeBackslashesAndQuotes("\""), equalTo("\\\""));
+        assertThat(HeaderWarningLogger.escapeBackslashesAndQuotes("\\\""), equalTo("\\\\\\\""));
+        assertThat(HeaderWarningLogger.escapeBackslashesAndQuotes("\"foo\\bar\""),equalTo("\\\"foo\\\\bar\\\""));
         // test that characters other than '\' and '"' are left unchanged
         String chars = "\t !" + range(0x23, 0x24) + range(0x26, 0x5b) + range(0x5d, 0x73) + range(0x80, 0xff);
         final String s = new CodepointSetGenerator(chars.toCharArray()).ofCodePointsLength(random(), 16, 16);
-        assertThat(DeprecationLogger.escapeBackslashesAndQuotes(s), equalTo(s));
+        assertThat(HeaderWarningLogger.escapeBackslashesAndQuotes(s), equalTo(s));
     }
 
     public void testEncode() {
-        assertThat(DeprecationLogger.encode("\n"), equalTo("%0A"));
-        assertThat(DeprecationLogger.encode("😱"), equalTo("%F0%9F%98%B1"));
-        assertThat(DeprecationLogger.encode("福島深雪"), equalTo("%E7%A6%8F%E5%B3%B6%E6%B7%B1%E9%9B%AA"));
-        assertThat(DeprecationLogger.encode("100%\n"), equalTo("100%25%0A"));
+        assertThat(HeaderWarningLogger.encode("\n"), equalTo("%0A"));
+        assertThat(HeaderWarningLogger.encode("😱"), equalTo("%F0%9F%98%B1"));
+        assertThat(HeaderWarningLogger.encode("福島深雪"), equalTo("%E7%A6%8F%E5%B3%B6%E6%B7%B1%E9%9B%AA"));
+        assertThat(HeaderWarningLogger.encode("100%\n"), equalTo("100%25%0A"));
         // test that valid characters are left unchanged
         String chars = "\t !" + range(0x23, 0x24) + range(0x26, 0x5b) + range(0x5d, 0x73) + range(0x80, 0xff) + '\\' + '"';
         final String s = new CodepointSetGenerator(chars.toCharArray()).ofCodePointsLength(random(), 16, 16);
-        assertThat(DeprecationLogger.encode(s), equalTo(s));
+        assertThat(HeaderWarningLogger.encode(s), equalTo(s));
         // when no encoding is needed, the original string is returned (optimization)
-        assertThat(DeprecationLogger.encode(s), IsSame.sameInstance(s));
+        assertThat(HeaderWarningLogger.encode(s), IsSame.sameInstance(s));
     }
 
 

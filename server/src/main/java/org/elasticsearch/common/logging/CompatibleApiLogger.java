@@ -21,21 +21,14 @@ package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-
-import java.util.Set;
 
 /**
  * A logger that logs deprecation notices.
  */
-public class CompatibleApiLogger extends AbstractThrottlingLogger{
+public class CompatibleApiLogger {
 
-    private final Logger logger;
-
-    @Override
-    protected Logger logger() {
-        return logger;
-    }
+    private final ThrottlingLogger throttlingLogger;
+    private final HeaderWarningLogger headerWarningLogger = new HeaderWarningLogger();
 
     /**
      * Creates a new deprecation logger based on the parent logger. Automatically
@@ -50,14 +43,15 @@ public class CompatibleApiLogger extends AbstractThrottlingLogger{
         } else {
             name = "compatible." + name;
         }
-        this.logger = LogManager.getLogger(name);
+        this.throttlingLogger = new ThrottlingLogger(LogManager.getLogger(name));
     }
 
     /**
      * Logs a deprecation message, adding a formatted warning message as a response header on the thread context.
      */
     public void deprecated(String msg, Object... params) {
-        log(msg, true, params);
+        headerWarningLogger.log(msg, params);
+        throttlingLogger.log(msg, params);
     }
 
     /**
@@ -69,17 +63,7 @@ public class CompatibleApiLogger extends AbstractThrottlingLogger{
      * @param params parameters to the message
      */
     public void deprecatedAndMaybeLog(final String key, final String msg, final Object... params) {
-        super.headerWarningAndMaybeLog(key,msg,params);
-    }
-
-    /**
-     * Logs a deprecated message to the deprecation log, as well as to the local {@link ThreadContext}.
-     *
-     * @param threadContexts The node's {@link ThreadContext} (outside of concurrent tests, this should only ever have one context).
-     * @param message The deprecation message.
-     * @param params The parameters used to fill in the message, if any exist.
-     */
-    void deprecated(final Set<ThreadContext> threadContexts, final String message, final Object... params) {
-        log(threadContexts, message, true, params);
+        headerWarningLogger.log(msg, params);
+        throttlingLogger.throttleLog(key, msg, params);
     }
 }

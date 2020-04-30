@@ -137,12 +137,12 @@ public class EvilLoggerTests extends ESTestCase {
                  */
                 final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
                 final Set<String> actualWarningValues =
-                        warnings.stream().map(s -> DeprecationLogger.extractWarningValueFromWarningHeader(s, true))
+                        warnings.stream().map(s -> HeaderWarningLogger.extractWarningValueFromWarningHeader(s, true))
                             .collect(Collectors.toSet());
                 for (int j = 0; j < 128; j++) {
                     assertThat(
                             actualWarningValues,
-                            hasItem(DeprecationLogger.escapeAndEncode("This is a maybe logged deprecation message" + j)));
+                            hasItem(HeaderWarningLogger.escapeAndEncode("This is a maybe logged deprecation message" + j)));
                 }
 
                 try {

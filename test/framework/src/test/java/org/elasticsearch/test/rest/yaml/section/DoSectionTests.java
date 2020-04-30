@@ -24,7 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.HeaderWarningLogger;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
@@ -61,10 +61,10 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             section.checkWarningHeaders(emptyList(), Version.CURRENT);
         }
 
-        final String testHeader = DeprecationLogger.formatWarning("test");
-        final String anotherHeader = DeprecationLogger.formatWarning("another");
-        final String someMoreHeader = DeprecationLogger.formatWarning("some more");
-        final String catHeader = DeprecationLogger.formatWarning("cat");
+        final String testHeader = HeaderWarningLogger.formatWarning("test");
+        final String anotherHeader = HeaderWarningLogger.formatWarning("another");
+        final String someMoreHeader = HeaderWarningLogger.formatWarning("some more");
+        final String catHeader = HeaderWarningLogger.formatWarning("cat");
         // Any warning headers fail
         {
             final DoSection section = new DoSection(new XContentLocation(1, 1));

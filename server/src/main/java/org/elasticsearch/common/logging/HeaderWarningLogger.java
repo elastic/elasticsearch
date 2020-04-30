@@ -34,7 +34,11 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public abstract class AbstractHeaderWarningLogger {
+public class HeaderWarningLogger {
+    public void log(String msg, Object... params) {
+        addWarningToHeaders(THREAD_CONTEXT, msg, params);
+    }
+
     /**
      * This is set once by the {@code Node} constructor, but it uses {@link CopyOnWriteArraySet} to ensure that tests can run in parallel.
      * <p>
@@ -80,7 +84,7 @@ public abstract class AbstractHeaderWarningLogger {
         }
     }
 
-    public void addWarningToHeaders(Set<ThreadContext> threadContexts, String message, Object[] params) {
+    public static void addWarningToHeaders(Set<ThreadContext> threadContexts, String message, Object[] params) {
         final Iterator<ThreadContext> iterator = threadContexts.iterator();
         if (iterator.hasNext()) {
             final String formattedMessage = LoggerMessageFormat.format(message, params);

@@ -28,8 +28,7 @@ import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.AbstractHeaderWarningLogger;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.HeaderWarningLogger;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
@@ -321,17 +320,17 @@ public class DoSection implements ExecutableSection {
         final List<String> unmatched = new ArrayList<>();
         final List<String> missing = new ArrayList<>();
         Set<String> allowed = allowedWarningHeaders.stream()
-                .map(DeprecationLogger::escapeAndEncode)
+                .map(HeaderWarningLogger::escapeAndEncode)
                 .collect(toSet());
         // LinkedHashSet so that missing expected warnings come back in a predictable order which is nice for testing
         final Set<String> expected = expectedWarningHeaders.stream()
-                .map(DeprecationLogger::escapeAndEncode)
+                .map(HeaderWarningLogger::escapeAndEncode)
                 .collect(toCollection(LinkedHashSet::new));
         for (final String header : warningHeaders) {
-            final Matcher matcher = AbstractHeaderWarningLogger.WARNING_HEADER_PATTERN.matcher(header);
+            final Matcher matcher = HeaderWarningLogger.WARNING_HEADER_PATTERN.matcher(header);
             final boolean matches = matcher.matches();
             if (matches) {
-                final String message = AbstractHeaderWarningLogger.extractWarningValueFromWarningHeader(header, true);
+                final String message = HeaderWarningLogger.extractWarningValueFromWarningHeader(header, true);
                 if (allowed.contains(message)) {
                     continue;
                 }

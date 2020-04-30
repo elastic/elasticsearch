@@ -81,6 +81,7 @@ testClusters.integTest {
 
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'es.transport.cname_in_publish_address', 'true'
+  systemProperty 'es.itv2_feature_enabled', 'true'
 }
 
 // build the cluster with all plugins

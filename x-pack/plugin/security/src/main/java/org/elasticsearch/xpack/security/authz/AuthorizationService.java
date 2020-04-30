@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
@@ -362,7 +363,8 @@ public class AuthorizationService {
     }
 
     private AuthorizationEngine getAuthorizationEngineForUser(final User user) {
-        if (rbacEngine != authorizationEngine && licenseState.isSecurityEnabled() && licenseState.isAuthorizationEngineAllowed()) {
+        if (rbacEngine != authorizationEngine && licenseState.isSecurityEnabled() &&
+            licenseState.isAllowed(Feature.SECURITY_AUTHORIZATION_ENGINE)) {
             if (ClientReservedRealm.isReserved(user.principal(), settings) || User.isInternal(user)) {
                 return rbacEngine;
             } else {

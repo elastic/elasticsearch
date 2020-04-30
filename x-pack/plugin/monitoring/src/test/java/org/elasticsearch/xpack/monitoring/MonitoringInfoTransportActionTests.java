@@ -50,7 +50,7 @@ public class MonitoringInfoTransportActionTests extends ESTestCase {
         MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
-        when(licenseState.isMonitoringAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 

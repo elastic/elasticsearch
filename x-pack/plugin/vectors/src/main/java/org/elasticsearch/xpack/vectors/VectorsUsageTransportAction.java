@@ -47,7 +47,7 @@ public class VectorsUsageTransportAction extends XPackUsageFeatureTransportActio
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
-        boolean vectorsAvailable = licenseState.isVectorsAllowed();
+        boolean vectorsAvailable = licenseState.isAllowed(XPackLicenseState.Feature.VECTORS);
         boolean vectorsEnabled = XPackSettings.VECTORS_ENABLED.get(settings);
         int numDenseVectorFields = 0;
         int numSparseVectorFields = 0;

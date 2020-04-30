@@ -35,7 +35,7 @@ public class SLMInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     @Override
     public boolean available() {
-        return licenseState.isIndexLifecycleAllowed();
+        return licenseState.isAllowed(XPackLicenseState.Feature.ILM);
     }
 
     @Override

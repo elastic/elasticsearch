@@ -36,7 +36,7 @@ public class VectorsInfoTransportActionTests extends ESTestCase {
         VectorsInfoTransportAction featureSet = new VectorsInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
-        when(licenseState.isVectorsAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.VECTORS)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
 
         var usageAction = new VectorsUsageTransportAction(mock(TransportService.class), null, null,

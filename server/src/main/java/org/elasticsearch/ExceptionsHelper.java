@@ -210,7 +210,7 @@ public final class ExceptionsHelper {
     }
 
     @SuppressWarnings("unchecked")
-    private static <T extends Throwable> Optional<T> unwrapCausesAndSuppressed(Throwable cause, Predicate<Throwable> predicate) {
+    public static <T extends Throwable> Optional<T> unwrapCausesAndSuppressed(Throwable cause, Predicate<Throwable> predicate) {
         if (predicate.test(cause)) {
             return Optional.of((T) cause);
         }

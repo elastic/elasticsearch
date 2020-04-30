@@ -27,7 +27,6 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
     protected Settings nodeSettings()  {
         Settings.Builder newSettings = Settings.builder();
         newSettings.put(super.nodeSettings());
-        newSettings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         return newSettings.build();

@@ -50,8 +50,9 @@ class MutableSearchResponse {
     private int reducePhase;
     /**
      * The response produced by the search API. Once we receive it we stop
-     * building our own {@linkplain SearchResponse}s when you get the status
-     * and instead return this.
+     * building our own {@linkplain SearchResponse}s when get async search
+     * is called, and instead return this.
+     * @see #findOrBuildResponse(AsyncSearchTask)
      */
     private SearchResponse finalResponse;
     private ElasticsearchException failure;
@@ -157,10 +158,9 @@ class MutableSearchResponse {
         /*
          * Build the response, reducing aggs if we haven't already and
          * storing the result of the reduction so we won't have to reduce
-         * a second time if you get the response again and nothing has
-         * changed. This does cost memory because we have a reference
-         * to the reduced aggs sitting around so it can't be GCed until
-         * we get an update.
+         * the same aggregation results a second time if nothing has changed.
+         * This does cost memory because we have a reference to the finally
+         * reduced aggs sitting around which can't be GCed until we get an update.
          */
         InternalAggregations reducedAggs = reducedAggsSource.get();
         reducedAggsSource = () -> reducedAggs;
@@ -182,8 +182,6 @@ class MutableSearchResponse {
         }
         return resp;
     }
-
-
 
     private void failIfFrozen() {
         if (frozen) {

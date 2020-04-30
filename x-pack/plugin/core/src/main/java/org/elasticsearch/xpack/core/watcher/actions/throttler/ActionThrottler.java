@@ -38,7 +38,7 @@ public class ActionThrottler implements Throttler {
 
     @Override
     public Result throttle(String actionId, WatchExecutionContext ctx) {
-        if (licenseState.isWatcherAllowed() == false) {
+        if (licenseState.isAllowed(XPackLicenseState.Feature.WATCHER) == false) {
             return Result.throttle(LICENSE, "watcher license does not allow action execution");
         }
         if (periodThrottler != null) {

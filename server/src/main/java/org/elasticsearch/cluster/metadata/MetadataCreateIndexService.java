@@ -608,39 +608,14 @@ public class MetadataCreateIndexService {
         Objects.requireNonNull(first, "merging requires two non-null maps but the first map was null");
         Objects.requireNonNull(second, "merging requires two non-null maps but the second map was null");
         Map<String, Object> results = new HashMap<>(first);
-        Set<String> firstKeys = first.keySet();
-        for (String secondKey : second.keySet()) {
-
-            // First, ensure that we remove any exact duplicate keys (field names), because the
-            // "second" map's values are going to take precedence
-            if (firstKeys.contains(secondKey)) {
-                results.remove(secondKey);
-            }
-
-            // If the "second" key has a dot, remove all keys that share the prefix, so if it were
-            // "foo.bar" this removes the "foo" key as well as all keys starting with "foo."
-            if (secondKey.indexOf(".") > 0) {
-                String secondKeyPrefix = secondKey.substring(0, secondKey.indexOf(".")).toLowerCase(Locale.ROOT);
-                for (String key : firstKeys) {
-                    String lowercaseKey = key.toLowerCase(Locale.ROOT);
-                    if (lowercaseKey.equals(secondKeyPrefix) || lowercaseKey.startsWith(secondKeyPrefix + ".")) {
-                        results.remove(key);
-                    }
-                }
-            } else {
-                // If the "second" key doesn't have a dot, remove all the keys that share the same
-                // exact prefix, for example, if the "second" key were "foo" this removes "foo.bar"
-                // "foo.baz.eggplant", etc
-                for (String key : firstKeys) {
-                    int dotIndex = key.indexOf(".");
-                    if (dotIndex == secondKey.length() && key.substring(0, dotIndex).toLowerCase(Locale.ROOT).equals(secondKey)) {
-                        results.remove(key);
-                    }
-                }
-            }
-            results.put(secondKey, second.get(secondKey));
-        }
+        Set<String> prefixes = second.keySet().stream().map(MetadataCreateIndexService::prefix).collect(Collectors.toSet());
+        results.keySet().removeIf(k -> prefixes.contains(prefix(k)));
+        results.putAll(second);
         return results;
+    }
+
+    private static String prefix(String s) {
+        return s.split("\\.", 2)[0];
     }
 
     /**

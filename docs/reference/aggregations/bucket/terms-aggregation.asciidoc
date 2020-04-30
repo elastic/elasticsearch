@@ -124,76 +124,10 @@ NOTE: If you want to retrieve **all** terms or all combinations of terms in a ne
 [[search-aggregations-bucket-terms-aggregation-approximate-counts]]
 ==== Document counts are approximate
 
-As described above, the document counts (and the results of any sub aggregations) in the terms aggregation are not always
-accurate.  This is because each shard provides its own view of what the ordered list of terms should be and these are
-combined to give a final view. Consider the following scenario:
-
-A request is made to obtain the top 5 terms in the field product, ordered by descending document count from an index with
-3 shards. In this case each shard is asked to give its top 5 terms.
-
-[source,console,id=terms-aggregation-doc-counts-example]
---------------------------------------------------
-GET /_search
-{
-    "aggs" : {
-        "products" : {
-            "terms" : {
-                "field" : "product",
-                "size" : 5
-            }
-        }
-    }
-}
---------------------------------------------------
-// TEST[s/_search/_search\?filter_path=aggregations/]
-
-The terms for each of the three shards are shown below with their
-respective document counts in brackets:
-
-[width="100%",cols="^2,^2,^2,^2",options="header"]
-|=========================================================
-|    | Shard A        | Shard B        | Shard C
-
-| 1  | Product A (25) | Product A (30) | Product A (45)
-| 2  | Product B (18) | Product B (25) | Product C (44)
-| 3  | Product C (6)  | Product F (17) | Product Z (36)
-| 4  | Product D (3)  | Product Z (16) | Product G (30)
-| 5  | Product E (2)  | Product G (15) | Product E (29)
-| 6  | Product F (2)  | Product H (14) | Product H (28)
-| 7  | Product G (2)  | Product I (10) | Product Q (2)
-| 8  | Product H (2)  | Product Q (6)  | Product D (1)
-| 9  | Product I (1)  | Product J (6)  |
-| 10 | Product J (1)  | Product C (4)  |
-
-|=========================================================
-
-The shards will return their top 5 terms so the results from the shards will be:
-
-[width="100%",cols="^2,^2,^2,^2",options="header"]
-|=========================================================
-|    | Shard A        | Shard B        | Shard C
-
-| 1  | Product A (25) | Product A (30) | Product A (45)
-| 2  | Product B (18) | Product B (25) | Product C (44)
-| 3  | Product C (6)  | Product F (17) | Product Z (36)
-| 4  | Product D (3)  | Product Z (16) | Product G (30)
-| 5  | Product E (2)  | Product G (15) | Product E (29)
-
-|=========================================================
-
-Taking the top 5 results from each of the shards (as requested) and combining them to make a final top 5 list produces
-the following:
-
-[width="40%",cols="^2,^2"]
-|=========================================================
-
-| 1  | Product A (100)
-| 2  | Product C (54)
-| 3  | Product Z (52)
-| 4  | Product G (47)
-| 5  | Product H (44)
-
-|=========================================================
+Document counts (and the results of any sub aggregations) in the terms
+aggregation are not always accurate. Each shard provides its own view of what
+the ordered list of terms should be. These views are combined to give a final
+view.
 
 ==== Shard Size
 

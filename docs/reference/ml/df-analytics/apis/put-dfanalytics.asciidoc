@@ -33,9 +33,11 @@ built-in roles and privileges:
   
 For more information, see <<security-privileges>> and <<built-in-roles>>.
 
-NOTE: It is possible that secondary authorization headers are supplied in the
-request. If this is the case, the secondary authorization headers are used
-instead of the primary headers.
+NOTE: The {dfanalytics-job} remembers which roles the user who created it had at
+the time of creation. When you start the job, it performs the analysis using
+those same roles. If you provide
+<<http-clients-secondary-authorization,secondary authorization headers>>, 
+those credentials are used instead.
 
 [[ml-put-dfanalytics-desc]]
 ==== {api-description-title}
@@ -158,9 +160,8 @@ categories, the API reports all category probabilities. Defaults to 2.
 `num_top_feature_importance_values`::::
 (Optional, integer)
 Advanced configuration option. Specifies the maximum number of
-{ml-docs}/dfa-classification.html#dfa-classification-feature-importance[feature
-importance] values per document to return. By default, it is zero and no feature importance
-calculation occurs.
+{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document to return. 
+By default, it is zero and no {feat-imp} calculation occurs.
 
 `prediction_field_name`::::
 (Optional, string) 
@@ -268,9 +269,8 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=max-trees]
 `num_top_feature_importance_values`::::
 (Optional, integer)
 Advanced configuration option. Specifies the maximum number of
-{ml-docs}/dfa-regression.html#dfa-regression-feature-importance[feature importance] 
-values per document to return. By default, it is zero and no feature importance
-calculation occurs.
+{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document to return. 
+By default, it is zero and no {feat-imp} calculation occurs.
 
 `prediction_field_name`::::
 (Optional, string)

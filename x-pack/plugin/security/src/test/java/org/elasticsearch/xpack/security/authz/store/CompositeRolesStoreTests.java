@@ -56,7 +56,6 @@ import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
-import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -91,7 +90,6 @@ import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -902,43 +900,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
         compositeRolesStore.getRoles(user, auth, rolesFuture);
         final Role roles = rolesFuture.actionGet();
         assertEquals(Role.EMPTY, roles);
-    }
-
-    public void testAnonymousUserEnabledRoleAdded() {
-        Settings settings = Settings.builder()
-            .put(SECURITY_ENABLED_SETTINGS)
-            .put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous_user_role")
-            .build();
-        final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
-        doCallRealMethod().when(fileRolesStore).accept(any(Set.class), any(ActionListener.class));
-        final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
-        doCallRealMethod().when(nativeRolesStore).accept(any(Set.class), any(ActionListener.class));
-        doAnswer(invocationOnMock -> {
-            Set<String> names = (Set<String>) invocationOnMock.getArguments()[0];
-            if (names.size() == 1 && names.contains("anonymous_user_role")) {
-                RoleDescriptor rd = new RoleDescriptor("anonymous_user_role", null, null, null);
-                return Collections.singleton(rd);
-            }
-            return Collections.emptySet();
-        }).
-        when(fileRolesStore).roleDescriptors(anySetOf(String.class));
-        doAnswer((invocationOnMock) -> {
-            ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
-            callback.onResponse(RoleRetrievalResult.failure(new RuntimeException("intentionally failed!")));
-            return null;
-        }).when(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
-        final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
-
-        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(settings, fileRolesStore, nativeRolesStore,
-            reservedRolesStore, mock(NativePrivilegeStore.class), null, mock(ApiKeyService.class), null, null);
-        verify(fileRolesStore).addListener(any(Consumer.class)); // adds a listener in ctor
-
-        PlainActionFuture<Role> rolesFuture = new PlainActionFuture<>();
-        final User user = new User("no role user");
-        Authentication auth = new Authentication(user, new RealmRef("name", "type", "node"), null);
-        compositeRolesStore.getRoles(user, auth, rolesFuture);
-        final Role roles = rolesFuture.actionGet();
-        assertThat(Arrays.asList(roles.names()), hasItem("anonymous_user_role"));
     }
 
     public void testDoesNotUseRolesStoreForXPacAndAsyncSearchUser() {

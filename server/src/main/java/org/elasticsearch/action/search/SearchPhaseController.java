@@ -71,7 +71,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.IntFunction;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public final class SearchPhaseController {
@@ -437,7 +436,7 @@ public final class SearchPhaseController {
      * @see QuerySearchResult#consumeProfileResult()
      */
     private ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults,
-                                                List<Supplier<InternalAggregations>> bufferedAggs,
+                                                List<DelayableWriteable<InternalAggregations>> bufferedAggs,
                                                 List<TopDocs> bufferedTopDocs,
                                                 TopDocsStats topDocsStats, int numReducePhases, boolean isScrollRequest,
                                                 InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
@@ -462,7 +461,7 @@ public final class SearchPhaseController {
         final boolean hasSuggest = firstResult.suggest() != null;
         final boolean hasProfileResults = firstResult.hasProfileResults();
         final boolean consumeAggs;
-        final List<Supplier<InternalAggregations>> aggregationsList;
+        final List<DelayableWriteable<InternalAggregations>> aggregationsList;
         if (bufferedAggs != null) {
             consumeAggs = false;
             // we already have results from intermediate reduces and just need to perform the final reduce
@@ -527,10 +526,10 @@ public final class SearchPhaseController {
             firstResult.sortValueFormats(), numReducePhases, size, from, false);
     }
 
-    private InternalAggregations reduceAggs(
+    private static InternalAggregations reduceAggs(
         InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
         boolean performFinalReduce,
-        List<? extends Supplier<InternalAggregations>> aggregationsList
+        List<DelayableWriteable<InternalAggregations>> aggregationsList
     ) {
         /*
          * Parse the aggregations, clearing the list as we go so bits backing
@@ -538,7 +537,7 @@ public final class SearchPhaseController {
          */
         List<InternalAggregations> toReduce = new ArrayList<>(aggregationsList.size());
         for (int i = 0; i < aggregationsList.size(); i++) {
-            toReduce.add(aggregationsList.get(i).get());
+            toReduce.add(aggregationsList.get(i).expand());
             aggregationsList.set(i, null);
         }
         return aggregationsList.isEmpty() ? null : InternalAggregations.topLevelReduce(toReduce,
@@ -701,7 +700,7 @@ public final class SearchPhaseController {
                     if (hasAggs) {
                         List<InternalAggregations> aggs = new ArrayList<>(aggsBuffer.length);
                         for (int i = 0; i < aggsBuffer.length; i++) {
-                            aggs.add(aggsBuffer[i].get());
+                            aggs.add(aggsBuffer[i].expand());
                             aggsBuffer[i] = null; // null the buffer so it can be GCed now.
                         }
                         InternalAggregations reduced =
@@ -743,8 +742,8 @@ public final class SearchPhaseController {
             processedShards[querySearchResult.getShardIndex()] = querySearchResult.getSearchShardTarget();
         }
 
-        private synchronized List<Supplier<InternalAggregations>> getRemainingAggs() {
-            return hasAggs ? Arrays.asList((Supplier<InternalAggregations>[]) aggsBuffer).subList(0, index) : null;
+        private synchronized List<DelayableWriteable<InternalAggregations>> getRemainingAggs() {
+            return hasAggs ? Arrays.asList((DelayableWriteable<InternalAggregations>[]) aggsBuffer).subList(0, index) : null;
         }
 
         private synchronized List<TopDocs> getRemainingTopDocs() {

@@ -79,7 +79,7 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        boolean available = licenseState.isTransformAllowed();
+        boolean available = licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM);
 
         PersistentTasksCustomMetadata taskMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(state);
         Collection<PersistentTasksCustomMetadata.PersistentTask<?>> transformTasks = taskMetadata == null

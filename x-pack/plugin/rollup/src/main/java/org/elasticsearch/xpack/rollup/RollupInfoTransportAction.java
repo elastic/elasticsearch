@@ -31,7 +31,7 @@ public class RollupInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     @Override
     public boolean available() {
-        return licenseState.isRollupAllowed();
+        return licenseState.isAllowed(XPackLicenseState.Feature.ROLLUP);
     }
 
     @Override

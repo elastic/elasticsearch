@@ -31,7 +31,7 @@ public class VectorsInfoTransportAction extends XPackInfoFeatureTransportAction 
 
     @Override
     public boolean available() {
-        return licenseState.isVectorsAllowed();
+        return licenseState.isAllowed(XPackLicenseState.Feature.VECTORS);
     }
 
     @Override

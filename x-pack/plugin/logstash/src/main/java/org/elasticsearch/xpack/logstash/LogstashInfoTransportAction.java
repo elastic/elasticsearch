@@ -30,7 +30,7 @@ public class LogstashInfoTransportAction extends XPackInfoFeatureTransportAction
 
     @Override
     public boolean available() {
-        return licenseState.isLogstashAllowed();
+        return licenseState.isAllowed(XPackLicenseState.Feature.LOGSTASH);
     }
 
     @Override

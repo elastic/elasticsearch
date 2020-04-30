@@ -156,7 +156,7 @@ public abstract class GradleUtils {
         Configuration testCompileConfig = project.getConfigurations().getByName(testSourceSet.getCompileClasspathConfigurationName());
         Configuration testRuntimeConfig = project.getConfigurations().getByName(testSourceSet.getRuntimeClasspathConfigurationName());
         testSourceSet.setCompileClasspath(testCompileConfig);
-        testSourceSet.setRuntimeClasspath(testSourceSet.getOutput().plus(testRuntimeConfig));
+        testSourceSet.setRuntimeClasspath(project.getObjects().fileCollection().from(testSourceSet.getOutput(), testRuntimeConfig));
 
         extendSourceSet(project, SourceSet.MAIN_SOURCE_SET_NAME, sourceSetName);
 
@@ -203,7 +203,7 @@ public abstract class GradleUtils {
         }
 
         // tie this new test source set to the main and test source sets
-        child.setCompileClasspath(child.getCompileClasspath().plus(parent.getOutput()));
-        child.setRuntimeClasspath(child.getCompileClasspath().plus(parent.getOutput()));
+        child.setCompileClasspath(project.getObjects().fileCollection().from(child.getCompileClasspath(), parent.getOutput()));
+        child.setRuntimeClasspath(project.getObjects().fileCollection().from(child.getRuntimeClasspath(), parent.getOutput()));
     }
 }

@@ -25,7 +25,6 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.AbstractHeaderWarningLogger;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
@@ -184,7 +183,7 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
 
         assertThat(deprecatedWarnings, hasSize(headerMatchers.size()));
         for (final String deprecatedWarning : deprecatedWarnings) {
-            assertThat(deprecatedWarning, matches(AbstractHeaderWarningLogger.WARNING_HEADER_PATTERN.pattern()));
+            assertThat(deprecatedWarning, matches(DeprecationLogger.WARNING_HEADER_PATTERN.pattern()));
         }
         final List<String> actualWarningValues =
                 deprecatedWarnings.stream().map(s -> DeprecationLogger.extractWarningValueFromWarningHeader(s, true))

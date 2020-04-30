@@ -118,7 +118,7 @@ public class EvilLoggerTests extends ESTestCase {
                 final List<Integer> ids = IntStream.range(0, 128).boxed().collect(Collectors.toList());
                 Randomness.shuffle(ids);
                 final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-                AbstractHeaderWarningLogger.setThreadContext(threadContext);
+                DeprecationLogger.setThreadContext(threadContext);
                 try {
                     barrier.await();
                 } catch (final BrokenBarrierException | InterruptedException e) {

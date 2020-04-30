@@ -49,6 +49,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.logging.DeprecationLogger.WARNING_HEADER_PATTERN;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -65,7 +66,7 @@ import static org.mockito.Mockito.when;
  */
 public class DeprecationLoggerTests extends ESTestCase {
 
-    private static final RegexMatcher warningValueMatcher = matches(DeprecationLogger.WARNING_HEADER_PATTERN.pattern());
+    private static final RegexMatcher warningValueMatcher = matches(WARNING_HEADER_PATTERN.pattern());
 
     private final DeprecationLogger logger = new DeprecationLogger(LogManager.getLogger(getClass()));
 
@@ -164,7 +165,7 @@ public class DeprecationLoggerTests extends ESTestCase {
         final String unexpected = "testCannotRemoveThreadContext";
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        AbstractHeaderWarningLogger.setThreadContext(threadContext);
+        DeprecationLogger.setThreadContext(threadContext);
         logger.deprecatedAndMaybeLog("testCanRemoveThreadContext_key1", expected);
 
         {
@@ -176,7 +177,7 @@ public class DeprecationLoggerTests extends ESTestCase {
             assertThat(responses.get(0), containsString(expected));
         }
 
-        AbstractHeaderWarningLogger.removeThreadContext(threadContext);
+        DeprecationLogger.removeThreadContext(threadContext);
         logger.deprecatedAndMaybeLog("testCanRemoveThreadContext_key2", unexpected);
 
         {
@@ -200,13 +201,13 @@ public class DeprecationLoggerTests extends ESTestCase {
 
     public void testFailsWhenDoubleSettingSameThreadContext() throws IOException {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        AbstractHeaderWarningLogger.setThreadContext(threadContext);
+        DeprecationLogger.setThreadContext(threadContext);
 
         try {
-            expectThrows(IllegalStateException.class, () -> AbstractHeaderWarningLogger.setThreadContext(threadContext));
+            expectThrows(IllegalStateException.class, () -> DeprecationLogger.setThreadContext(threadContext));
         } finally {
             // cleanup after ourselves
-            AbstractHeaderWarningLogger.removeThreadContext(threadContext);
+            DeprecationLogger.removeThreadContext(threadContext);
         }
     }
 

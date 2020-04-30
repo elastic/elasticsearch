@@ -342,7 +342,7 @@ public class JsonLoggerTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader(Task.X_OPAQUE_ID, "ID1");
-            AbstractHeaderWarningLogger.setThreadContext(threadContext);
+            DeprecationLogger.setThreadContext(threadContext);
             deprecationLogger.deprecatedAndMaybeLog("key", "message1");
             deprecationLogger.deprecatedAndMaybeLog("key", "message2");
             assertWarnings("message1", "message2");
@@ -366,7 +366,7 @@ public class JsonLoggerTests extends ESTestCase {
                 );
             }
         } finally {
-            AbstractHeaderWarningLogger.removeThreadContext(threadContext);
+            DeprecationLogger.removeThreadContext(threadContext);
         }
 
 
@@ -374,7 +374,7 @@ public class JsonLoggerTests extends ESTestCase {
         //continuing with message1-ID1 in logs already, adding a new deprecation log line with message2-ID2
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader(Task.X_OPAQUE_ID, "ID2");
-            AbstractHeaderWarningLogger.setThreadContext(threadContext);
+            DeprecationLogger.setThreadContext(threadContext);
             deprecationLogger.deprecatedAndMaybeLog("key", "message1");
             deprecationLogger.deprecatedAndMaybeLog("key", "message2");
             assertWarnings("message1", "message2");
@@ -408,7 +408,7 @@ public class JsonLoggerTests extends ESTestCase {
                 );
             }
         } finally {
-            AbstractHeaderWarningLogger.removeThreadContext(threadContext);
+            DeprecationLogger.removeThreadContext(threadContext);
         }
     }
 

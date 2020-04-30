@@ -68,14 +68,19 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
 
     @Override
     public void accept(ReplicationGroup replicationGroup) {
-        if (replicationGroup.getVersion() - replicationGroupVersion > 0) {
+        if (isNewerVersion(replicationGroup)) {
             synchronized (this) {
-                if (replicationGroup.getVersion() - replicationGroupVersion > 0) {
+                if (isNewerVersion(replicationGroup)) {
                     acceptNewTrackedAllocationIds(replicationGroup.getTrackedAllocationIds());
                     replicationGroupVersion = replicationGroup.getVersion();
                 }
             }
         }
+    }
+
+    private boolean isNewerVersion(ReplicationGroup replicationGroup) {
+        // Relative comparison to mitigate long overflow
+        return replicationGroup.getVersion() - replicationGroupVersion > 0;
     }
 
     // Visible for testing
@@ -90,19 +95,20 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
             }
         }
 
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> toCancel.stream()
-            .flatMap(Collection::stream)
-            .forEach(action -> action.cancel(new IndexShardClosedException(shardId, "Replica left ReplicationGroup"))));
+        cancelActions(toCancel, "Replica left ReplicationGroup");
     }
-
 
     @Override
     public synchronized void close() {
         ArrayList<Set<RetryableAction<?>>> toCancel = new ArrayList<>(onGoingReplicationActions.values());
         onGoingReplicationActions.clear();
 
+        cancelActions(toCancel, "Primary closed.");
+    }
+
+    private void cancelActions(ArrayList<Set<RetryableAction<?>>> toCancel, String message) {
         threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> toCancel.stream()
             .flatMap(Collection::stream)
-            .forEach(action -> action.cancel(new IndexShardClosedException(shardId, "Primary closed."))));
+            .forEach(action -> action.cancel(new IndexShardClosedException(shardId, message))));
     }
 }

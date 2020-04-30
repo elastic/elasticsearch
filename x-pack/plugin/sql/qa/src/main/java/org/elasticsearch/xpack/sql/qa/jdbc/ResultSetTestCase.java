@@ -903,7 +903,6 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
     public void testGettingValidBigDecimalFromFloatWithoutCasting() throws Exception {
         List<Float> floatTestValues = createTestDataForNumericValueTests(ESTestCase::randomFloat);
-        System.out.println("#0_float: " + floatTestValues.get(0));
         doWithQuery("SELECT test_float, test_null_float, test_keyword FROM test", floatTestValues,
             ResultSetTestCase::validateBigDecimalWithoutCasting);
     }

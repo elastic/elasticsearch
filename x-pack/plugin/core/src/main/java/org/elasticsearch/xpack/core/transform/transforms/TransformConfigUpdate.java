@@ -246,7 +246,10 @@ public class TransformConfigUpdate implements Writeable {
             builder.setHeaders(headers);
         }
         if (settings != null) {
-            builder.setSettings(settings);
+            // settings are partially updateable, that means we only overwrite changed settings but keep others
+            SettingsConfig.Builder settingsBuilder = new SettingsConfig.Builder(config.getSettings());
+            settingsBuilder.update(settings);
+            builder.setSettings(settingsBuilder.build());
         }
         builder.setVersion(Version.CURRENT);
         return builder.build();

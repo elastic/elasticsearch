@@ -243,7 +243,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                     Integer initialConfiguredPageSize = getConfig().getSettings().getMaxPageSearchSize();
 
                     // if the user explicitly set a page size, take it from the config, otherwise let the function decide
-                    if (initialConfiguredPageSize != null) {
+                    if (initialConfiguredPageSize != null && initialConfiguredPageSize > 0) {
                         pageSize = initialConfiguredPageSize;
                     } else {
                         pageSize = pivot.getInitialPageSize();

@@ -92,7 +92,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             Collections.singletonMap("key", "value"),
             PivotConfigTests.randomPivotConfig(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            SettingsConfigTests.randomSettingsConfig(),
+            SettingsConfigTests.randomNonEmptySettingsConfig(),
             randomBoolean() ? null : Instant.now(),
             randomBoolean() ? null : Version.V_7_2_0.toString()
         );
@@ -121,6 +121,46 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         assertThat(updatedConfig.getVersion(), equalTo(Version.CURRENT));
     }
 
+    public void testApplySettings() {
+        TransformConfig config = new TransformConfig(
+            "time-transform",
+            randomSourceConfig(),
+            randomDestConfig(),
+            TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
+            TimeSyncConfigTests.randomTimeSyncConfig(),
+            Collections.singletonMap("key", "value"),
+            PivotConfigTests.randomPivotConfig(),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            SettingsConfigTests.randomNonEmptySettingsConfig(),
+            randomBoolean() ? null : Instant.now(),
+            randomBoolean() ? null : Version.V_7_2_0.toString()
+        );
+
+        TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null, new SettingsConfig(4_000, null));
+        TransformConfig updatedConfig = update.apply(config);
+
+        // for settings we allow partial updates, so changing 1 setting should not overwrite the other
+        // the parser handles explicit nulls, tested in @link{SettingsConfigTests}
+        assertThat(updatedConfig.getSettings().getMaxPageSearchSize(), equalTo(4_000));
+        assertThat(updatedConfig.getSettings().getDocsPerSecond(), equalTo(config.getSettings().getDocsPerSecond()));
+
+        update = new TransformConfigUpdate(null, null, null, null, null, new SettingsConfig(null, 43.244F));
+        updatedConfig = update.apply(updatedConfig);
+        assertThat(updatedConfig.getSettings().getMaxPageSearchSize(), equalTo(4_000));
+        assertThat(updatedConfig.getSettings().getDocsPerSecond(), equalTo(43.244F));
+
+        // now reset to default using the magic -1
+        update = new TransformConfigUpdate(null, null, null, null, null, new SettingsConfig(-1, null));
+        updatedConfig = update.apply(updatedConfig);
+        assertNull(updatedConfig.getSettings().getMaxPageSearchSize());
+        assertThat(updatedConfig.getSettings().getDocsPerSecond(), equalTo(43.244F));
+
+        update = new TransformConfigUpdate(null, null, null, null, null, new SettingsConfig(-1, -1F));
+        updatedConfig = update.apply(updatedConfig);
+        assertNull(updatedConfig.getSettings().getMaxPageSearchSize());
+        assertNull(updatedConfig.getSettings().getDocsPerSecond());
+    }
+
     public void testApplyWithSyncChange() {
         TransformConfig batchConfig = new TransformConfig(
             "batch-transform",
@@ -131,7 +171,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             null,
             PivotConfigTests.randomPivotConfig(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            SettingsConfigTests.randomSettingsConfig(),
+            SettingsConfigTests.randomNonEmptySettingsConfig(),
             randomBoolean() ? null : Instant.now(),
             randomBoolean() ? null : Version.CURRENT.toString()
         );
@@ -153,7 +193,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             null,
             PivotConfigTests.randomPivotConfig(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            SettingsConfigTests.randomSettingsConfig(),
+            SettingsConfigTests.randomNonEmptySettingsConfig(),
             randomBoolean() ? null : Instant.now(),
             randomBoolean() ? null : Version.CURRENT.toString()
         );

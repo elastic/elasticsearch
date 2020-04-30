@@ -23,8 +23,6 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestMetadata;
-import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.rest.RestStatus;
@@ -44,12 +42,14 @@ import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.ingest.Pipeline.PROCESSORS_KEY;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -172,19 +172,14 @@ public class InferenceProcessor extends AbstractProcessor {
             MODEL_ID));
 
         private final Client client;
-        private final IngestService ingestService;
         private final InferenceAuditor auditor;
         private volatile int currentInferenceProcessors;
         private volatile int maxIngestProcessors;
         private volatile Version minNodeVersion = Version.CURRENT;
 
-        public Factory(Client client,
-                       ClusterService clusterService,
-                       Settings settings,
-                       IngestService ingestService) {
+        public Factory(Client client, ClusterService clusterService, Settings settings) {
             this.client = client;
             this.maxIngestProcessors = MAX_INFERENCE_PROCESSORS.get(settings);
-            this.ingestService = ingestService;
             this.auditor = new InferenceAuditor(client, clusterService.getNodeName());
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_INFERENCE_PROCESSORS, this::setMaxIngestProcessors);
         }
@@ -205,14 +200,21 @@ public class InferenceProcessor extends AbstractProcessor {
 
             int count = 0;
             for (PipelineConfiguration configuration : ingestMetadata.getPipelines().values()) {
+                Map<String, Object> configMap = configuration.getConfigAsMap();
                 try {
-                    Pipeline pipeline = Pipeline.create(configuration.getId(),
-                        configuration.getConfigAsMap(),
-                        ingestService.getProcessorFactories(),
-                        ingestService.getScriptService());
-                    count += pipeline.getProcessors().stream().filter(processor -> processor instanceof InferenceProcessor).count();
+                    List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, configMap, PROCESSORS_KEY);
+                    for (Map<String, Object> processorConfigWithKey : processorConfigs) {
+                        for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
+                            if (TYPE.equals(entry.getKey())) {
+                                count++;
+                            }
+                        }
+                    }
+                // We cannot throw any exception here. It might break other pipelines.
                 } catch (Exception ex) {
-                    logger.warn(new ParameterizedMessage("failure parsing pipeline config [{}]", configuration.getId()), ex);
+                    logger.debug(
+                        () -> new ParameterizedMessage("failed gathering processors for pipeline [{}]", configuration.getId()),
+                        ex);
                 }
             }
             currentInferenceProcessors = count;

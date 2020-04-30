@@ -27,11 +27,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.IngestMetadata;
-import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
-import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
@@ -53,22 +50,9 @@ import static org.mockito.Mockito.when;
 
 public class InferenceProcessorFactoryTests extends ESTestCase {
 
-    private static final IngestPlugin SKINNY_PLUGIN = new IngestPlugin() {
-        @Override
-        public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-            XPackLicenseState licenseState = mock(XPackLicenseState.class);
-            when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
-            return Collections.singletonMap(InferenceProcessor.TYPE,
-                new InferenceProcessor.Factory(parameters.client,
-                    parameters.ingestService.getClusterService(),
-                    Settings.EMPTY,
-                    parameters.ingestService));
-        }
-    };
     private Client client;
     private XPackLicenseState licenseState;
     private ClusterService clusterService;
-    private IngestService ingestService;
 
     @Before
     public void setUpVariables() {
@@ -84,8 +68,6 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                 ClusterService.USER_DEFINED_METADATA,
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         clusterService = new ClusterService(settings, clusterSettings, tp);
-        ingestService = new IngestService(clusterService, tp, null, null,
-            null, Collections.singletonList(SKINNY_PLUGIN), client);
         licenseState = mock(XPackLicenseState.class);
         when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
     }
@@ -95,8 +77,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
 
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
-            Settings.EMPTY,
-            ingestService);
+            Settings.EMPTY);
         processorFactory.accept(buildClusterState(metadata));
 
         assertThat(processorFactory.numInferenceProcessors(), equalTo(0));
@@ -112,8 +93,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
     public void testCreateProcessorWithTooManyExisting() throws Exception {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
-            Settings.builder().put(InferenceProcessor.MAX_INFERENCE_PROCESSORS.getKey(), 1).build(),
-            ingestService);
+            Settings.builder().put(InferenceProcessor.MAX_INFERENCE_PROCESSORS.getKey(), 1).build());
 
         processorFactory.accept(buildClusterStateWithModelReferences("model1"));
 
@@ -127,8 +107,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
     public void testCreateProcessorWithInvalidInferenceConfig() {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
-            Settings.EMPTY,
-            ingestService);
+            Settings.EMPTY);
 
         Map<String, Object> config = new HashMap<>() {{
             put(InferenceProcessor.FIELD_MAP, Collections.emptyMap());
@@ -168,8 +147,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
     public void testCreateProcessorWithTooOldMinNodeVersion() throws IOException {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
-            Settings.EMPTY,
-            ingestService);
+            Settings.EMPTY);
         processorFactory.accept(builderClusterStateWithModelReferences(Version.V_7_5_0, "model1"));
 
         Map<String, Object> regression = new HashMap<>() {{
@@ -212,8 +190,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
     public void testCreateProcessor() {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
-            Settings.EMPTY,
-            ingestService);
+            Settings.EMPTY);
 
         Map<String, Object> regression = new HashMap<>() {{
             put(InferenceProcessor.FIELD_MAP, Collections.emptyMap());
@@ -247,8 +224,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
     public void testCreateProcessorWithDuplicateFields() {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
-            Settings.EMPTY,
-            ingestService);
+            Settings.EMPTY);
 
         Map<String, Object> regression = new HashMap<>() {{
             put(InferenceProcessor.FIELD_MAP, Collections.emptyMap());

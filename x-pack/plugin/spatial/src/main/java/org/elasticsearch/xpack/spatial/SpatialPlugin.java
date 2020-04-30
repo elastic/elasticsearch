@@ -104,14 +104,14 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
         return Map.of(CircleProcessor.TYPE, new CircleProcessor.Factory());
     }
 
-    public static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {
+    private static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(GeoBoundsAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (GeoBoundsAggregatorSupplier) (name, aggregationContext, parent, valuesSource, wrapLongitude, metadata)
                 -> new GeoShapeBoundsAggregator(name, aggregationContext, parent, (GeoShapeValuesSource) valuesSource,
                 wrapLongitude, metadata));
     }
 
-    public void registerGeoShapeCentroidAggregator(ValuesSourceRegistry.Builder builder) {
+    private void registerGeoShapeCentroidAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(GeoCentroidAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (GeoCentroidAggregatorSupplier) (name, aggregationContext, parent, valuesSource, metadata)
                 -> {
@@ -122,7 +122,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
             });
     }
 
-    public void registerGeoShapeGridAggregators(ValuesSourceRegistry.Builder builder) {
+    private void registerGeoShapeGridAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(GeoHashGridAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (GeoGridAggregatorSupplier) (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
                                          aggregationContext, parent, metadata) -> {
@@ -158,13 +158,13 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
             });
     }
 
-    static void registerValueCountAggregator(ValuesSourceRegistry.Builder builder) {
+    private static void registerValueCountAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(ValueCountAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (ValueCountAggregatorSupplier) ValueCountAggregator::new
         );
     }
 
-    static void registerCardinalityAggregator(ValuesSourceRegistry.Builder builder) {
+    private static void registerCardinalityAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(CardinalityAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (CardinalityAggregatorSupplier) CardinalityAggregator::new);
     }

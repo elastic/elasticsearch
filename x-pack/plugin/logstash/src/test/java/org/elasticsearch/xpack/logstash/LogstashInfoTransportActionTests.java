@@ -79,13 +79,6 @@ public class LogstashInfoTransportActionTests extends ESTestCase {
     private LogstashUsageTransportAction newUsageAction(boolean available) {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isAllowed(XPackLicenseState.Feature.LOGSTASH)).thenReturn(available);
-        return new LogstashUsageTransportAction(
-            mock(TransportService.class),
-            null,
-            null,
-            mock(ActionFilters.class),
-            null,
-            licenseState
-        );
+        return new LogstashUsageTransportAction(mock(TransportService.class), null, null, mock(ActionFilters.class), null, licenseState);
     }
 }

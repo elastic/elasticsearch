@@ -964,11 +964,11 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
                 sqle.getMessage());
 
             sqle = expectThrows(SQLException.class, () -> results.getBigDecimal("test_date"));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [BigDecimal]", asDateString(randomDate)),
-                sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [BigDecimal]",
+                asDateString(randomDate)), sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", BigDecimal.class));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [BigDecimal]", asDateString(randomDate)),
-                sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [BigDecimal]",
+                asDateString(randomDate)), sqle.getMessage());
         });
     }
 

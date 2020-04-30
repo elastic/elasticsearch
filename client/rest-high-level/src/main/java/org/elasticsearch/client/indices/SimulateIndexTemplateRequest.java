@@ -59,6 +59,9 @@ public class SimulateIndexTemplateRequest extends TimedRequest implements ToXCon
      * Set the index name to simulate template matching against the index templates in the system.
      */
     public SimulateIndexTemplateRequest indexName(String indexName) {
+        if (Strings.isNullOrEmpty(indexName)) {
+            throw new IllegalArgumentException("index name cannot be null or empty");
+        }
         this.indexName = indexName;
         return this;
     }

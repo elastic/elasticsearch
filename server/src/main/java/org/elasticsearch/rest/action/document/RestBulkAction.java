@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -82,6 +83,7 @@ public class RestBulkAction extends BaseRestHandler {
         bulkRequest.setRefreshPolicy(request.param("refresh"));
         bulkRequest.add(request.requiredContent(), defaultIndex, defaultRouting,
             defaultFetchSourceContext, defaultPipeline, allowExplicitIndex, request.getXContentType());
+        bulkRequest.preferV2Templates(RestCreateIndexAction.preferV2Templates(request));
 
         return channel -> client.bulk(bulkRequest, new RestStatusToXContentListener<>(channel));
     }

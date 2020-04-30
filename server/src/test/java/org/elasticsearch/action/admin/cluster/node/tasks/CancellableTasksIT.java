@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
@@ -51,6 +52,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -78,6 +80,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
+@TestIssueLogging(
+    value = "org.elasticsearch.action.admin.cluster.node.tasks.cancel:TRACE,org.elasticsearch.tasks:TRACE",
+    issueUrl = "https://github.com/elastic/elasticsearch/issues/55875")
 public class CancellableTasksIT extends ESIntegTestCase {
 
     static int idGenerator = 0;
@@ -236,6 +241,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         ensureAllBansRemoved();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55875")
     public void testDoNotWaitForCompletion() throws Exception {
         Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
         TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 3));
@@ -278,14 +284,18 @@ public class CancellableTasksIT extends ESIntegTestCase {
         ensureAllBansRemoved();
     }
 
-    static TaskId getRootTaskId(TestRequest request) {
-        ListTasksResponse listTasksResponse = client().admin().cluster().prepareListTasks()
-            .setActions(TransportTestAction.ACTION.name()).setDetailed(true).get();
-        List<TaskInfo> tasks = listTasksResponse.getTasks().stream()
-            .filter(t -> t.getDescription().equals(request.taskDescription()))
-            .collect(Collectors.toList());
-        assertThat(tasks, hasSize(1));
-        return tasks.get(0).getTaskId();
+    static TaskId getRootTaskId(TestRequest request) throws Exception {
+        SetOnce<TaskId> taskId = new SetOnce<>();
+        assertBusy(() -> {
+            ListTasksResponse listTasksResponse = client().admin().cluster().prepareListTasks()
+                .setActions(TransportTestAction.ACTION.name()).setDetailed(true).get();
+            List<TaskInfo> tasks = listTasksResponse.getTasks().stream()
+                .filter(t -> t.getDescription().equals(request.taskDescription()))
+                .collect(Collectors.toList());
+            assertThat(tasks, hasSize(1));
+            taskId.set(tasks.get(0).getTaskId());
+        });
+        return taskId.get();
     }
 
     static void waitForRootTask(ActionFuture<TestResponse> rootTask) {

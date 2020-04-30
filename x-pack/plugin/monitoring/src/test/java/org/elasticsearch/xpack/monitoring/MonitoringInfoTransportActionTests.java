@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -20,6 +21,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
@@ -48,7 +50,7 @@ public class MonitoringInfoTransportActionTests extends ESTestCase {
         MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
-        when(licenseState.isMonitoringAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 
@@ -59,6 +61,7 @@ public class MonitoringInfoTransportActionTests extends ESTestCase {
         MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(enabled));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.MONITORING_ENABLED } );
     }
 
     public void testEnabledDefault() {

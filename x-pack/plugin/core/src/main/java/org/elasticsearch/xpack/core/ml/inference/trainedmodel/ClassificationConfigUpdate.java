@@ -24,7 +24,7 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.Classificat
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig.RESULTS_FIELD;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig.TOP_CLASSES_RESULTS_FIELD;
 
-public class ClassificationConfigUpdate implements InferenceConfigUpdate<ClassificationConfig> {
+public class ClassificationConfigUpdate implements InferenceConfigUpdate {
 
     public static final ParseField NAME = new ParseField("classification");
 
@@ -185,11 +185,19 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate<Classif
     }
 
     @Override
-    public ClassificationConfig apply(ClassificationConfig originalConfig) {
-        if (isNoop(originalConfig)) {
+    public InferenceConfig apply(InferenceConfig originalConfig) {
+        if (originalConfig instanceof ClassificationConfig == false) {
+            throw ExceptionsHelper.badRequestException(
+                "Inference config of type [{}] can not be updated with a inference request of type [{}]",
+                originalConfig.getName(),
+                getName());
+        }
+        ClassificationConfig classificationConfig = (ClassificationConfig)originalConfig;
+
+        if (isNoop(classificationConfig)) {
             return originalConfig;
         }
-        ClassificationConfig.Builder builder = new ClassificationConfig.Builder(originalConfig);
+        ClassificationConfig.Builder builder = new ClassificationConfig.Builder(classificationConfig);
         if (resultsField != null) {
             builder.setResultsField(resultsField);
         }
@@ -254,9 +262,13 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate<Classif
             return this;
         }
 
-        private Builder setPredictionFieldType(String predictionFieldType) {
-            this.predictionFieldType = PredictionFieldType.fromString(predictionFieldType);
+        public Builder setPredictionFieldType(PredictionFieldType predictionFieldtype) {
+            this.predictionFieldType = predictionFieldtype;
             return this;
+        }
+
+        private Builder setPredictionFieldType(String predictionFieldType) {
+            return setPredictionFieldType(PredictionFieldType.fromString(predictionFieldType));
         }
 
         public ClassificationConfigUpdate build() {

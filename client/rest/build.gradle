@@ -51,7 +51,7 @@ dependencies {
   testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
 
-tasks.withType(CheckForbiddenApis) {
+tasks.withType(CheckForbiddenApis).configureEach {
   //client does not depend on server, so only jdk and http signatures should be checked
   replaceSignatureFiles('jdk-signatures', 'http-signatures')
 }
@@ -60,7 +60,7 @@ forbiddenPatterns {
   exclude '**/*.der'
 }
 
-forbiddenApisTest {
+tasks.named('forbiddenApisTest').configure {
   //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
   bundledSignatures -= 'jdk-non-portable'
   bundledSignatures += 'jdk-internal'

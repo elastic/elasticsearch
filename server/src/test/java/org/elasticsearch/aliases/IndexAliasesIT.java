@@ -1210,7 +1210,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         // And querying using a wildcard with indices options set to expand hidden
         searchResponse = client().prepareSearch("alias*")
             .setQuery(QueryBuilders.matchAllQuery())
-            .setIndicesOptions(IndicesOptions.fromOptions(false, false, true, false, true, true, true, false, false)).get();
+            .setIndicesOptions(IndicesOptions.fromOptions(false, false, true, false, true, true, true, false, false, true)).get();
         assertHits(searchResponse.getHits(), "1", "2", "3");
 
         // And that querying the alias with a wildcard and no expand options fails

@@ -163,6 +163,11 @@ public class IndexStatsMonitoringDoc extends FilteredMonitoringDoc {
                         "index_stats.primaries.store.size_in_bytes",
                         "index_stats.primaries.refresh.total_time_in_millis",
                         "index_stats.primaries.refresh.external_total_time_in_millis",
+                        "index_stats.primaries.bulk.total_operations",
+                        "index_stats.primaries.bulk.total_time_in_millis",
+                        "index_stats.primaries.bulk.total_size_in_bytes",
+                        "index_stats.primaries.bulk.avg_time_in_millis",
+                        "index_stats.primaries.bulk.avg_size_in_bytes",
                         "index_stats.total.docs.count",
                         "index_stats.total.fielddata.memory_size_in_bytes",
                         "index_stats.total.fielddata.evictions",
@@ -193,5 +198,10 @@ public class IndexStatsMonitoringDoc extends FilteredMonitoringDoc {
                         "index_stats.total.segments.fixed_bit_set_memory_in_bytes",
                         "index_stats.total.store.size_in_bytes",
                         "index_stats.total.refresh.total_time_in_millis",
-                        "index_stats.total.refresh.external_total_time_in_millis");
+                        "index_stats.total.refresh.external_total_time_in_millis",
+                        "index_stats.total.bulk.total_operations",
+                        "index_stats.total.bulk.total_time_in_millis",
+                        "index_stats.total.bulk.total_size_in_bytes",
+                        "index_stats.total.bulk.avg_time_in_millis",
+                        "index_stats.total.bulk.avg_size_in_bytes");
 }

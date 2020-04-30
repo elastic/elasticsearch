@@ -46,6 +46,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -73,8 +74,11 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
@@ -107,11 +111,12 @@ import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromId;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -188,12 +193,12 @@ public class AuthenticationServiceTests extends ESTestCase {
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
             .build();
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.areAllRealmsAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_ALL_REALMS)).thenReturn(true);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isApiKeyServiceAllowed()).thenReturn(true);
-        when(licenseState.isTokenServiceAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
-        when(licenseState.isAuditingAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_AUDITING)).thenReturn(true);
         ReservedRealm reservedRealm = mock(ReservedRealm.class);
         when(reservedRealm.type()).thenReturn("reserved");
         when(reservedRealm.name()).thenReturn("reserved_realm");
@@ -901,6 +906,48 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertThreadContextContainsAuthentication(result);
     }
 
+    public void testInheritAnonymousUserRoles() {
+        Settings settings = Settings.builder()
+            .putList(AnonymousUser.ROLES_SETTING.getKey(), "r3", "r4", "r5")
+            .build();
+        final AnonymousUser anonymousUser = new AnonymousUser(settings);
+        service = new AuthenticationService(settings, realms, auditTrailService,
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
+            threadPool, anonymousUser, tokenService, apiKeyService);
+        User user1 = new User("username", "r1", "r2", "r3");
+        when(firstRealm.token(threadContext)).thenReturn(token);
+        when(firstRealm.supports(token)).thenReturn(true);
+        mockAuthenticate(firstRealm, token, user1);
+        // this call does not actually go async
+        final AtomicBoolean completed = new AtomicBoolean(false);
+        service.authenticate(restRequest, true, ActionListener.wrap(authentication -> {
+            assertThat(authentication.getUser().roles(), arrayContainingInAnyOrder("r1", "r2", "r3", "r4", "r5"));
+            setCompletedToTrue(completed);
+        }, this::logAndFail));
+        assertTrue(completed.get());
+    }
+
+    public void testSystemUsersDoNotInheritAnonymousRoles() {
+        Settings settings = Settings.builder()
+            .putList(AnonymousUser.ROLES_SETTING.getKey(), "r3", "r4", "r5")
+            .build();
+        final AnonymousUser anonymousUser = new AnonymousUser(settings);
+        service = new AuthenticationService(settings, realms, auditTrailService,
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
+            threadPool, anonymousUser, tokenService, apiKeyService);
+        when(firstRealm.token(threadContext)).thenReturn(token);
+        when(firstRealm.supports(token)).thenReturn(true);
+        final User sysUser = randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE);
+        mockAuthenticate(firstRealm, token, sysUser);
+        // this call does not actually go async
+        final AtomicBoolean completed = new AtomicBoolean(false);
+        service.authenticate(restRequest, true, ActionListener.wrap(authentication -> {
+            assertThat(authentication.getUser().roles(), equalTo(sysUser.roles()));
+            setCompletedToTrue(completed);
+        }, this::logAndFail));
+        assertTrue(completed.get());
+    }
+
     public void testRealmTokenThrowingException() throws Exception {
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
         when(firstRealm.token(threadContext)).thenThrow(authenticationError("realm doesn't like tokens"));
@@ -1260,6 +1307,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         String token = tokenFuture.get().v1();
         when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
         mockGetTokenFromId(tokenService, userTokenId, expected, false, client);
+        when(securityIndex.freeze()).thenReturn(securityIndex);
         when(securityIndex.isAvailable()).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
@@ -1331,6 +1379,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     public void testExpiredToken() throws Exception {
+        when(securityIndex.freeze()).thenReturn(securityIndex);
         when(securityIndex.isAvailable()).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
         User user = new User("_username", "r1");
@@ -1515,7 +1564,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     private String expectAuditRequestId() {
         String reqId = AuditUtil.extractRequestId(threadContext);
-        assertThat(reqId, not(isEmptyOrNullString()));
+        assertThat(reqId, is(not(emptyOrNullString())));
         return reqId;
     }
 

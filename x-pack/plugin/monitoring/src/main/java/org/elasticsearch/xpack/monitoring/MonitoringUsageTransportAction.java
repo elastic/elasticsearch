@@ -50,8 +50,8 @@ public class MonitoringUsageTransportAction extends XPackUsageFeatureTransportAc
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
         final boolean collectionEnabled = monitoringService != null && monitoringService.isMonitoringActive();
-        var usage =
-            new MonitoringFeatureSetUsage(licenseState.isMonitoringAllowed(), enabled, collectionEnabled, exportersUsage(exporters));
+        var usage = new MonitoringFeatureSetUsage(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING),
+                enabled, collectionEnabled, exportersUsage(exporters));
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 

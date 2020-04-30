@@ -46,7 +46,7 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
-        boolean available = licenseState.isIndexLifecycleAllowed();
+        boolean available = licenseState.isAllowed(XPackLicenseState.Feature.ILM);
         Metadata metadata = state.metadata();
         IndexLifecycleMetadata lifecycleMetadata = metadata.custom(IndexLifecycleMetadata.TYPE);
         final IndexLifecycleFeatureSetUsage usage;

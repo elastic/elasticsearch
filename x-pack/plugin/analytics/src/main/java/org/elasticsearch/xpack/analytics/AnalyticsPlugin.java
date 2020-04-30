@@ -105,6 +105,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
                 TTestAggregationBuilder::new,
                 usage.track(AnalyticsStatsAction.Item.T_TEST, checkLicense(TTestAggregationBuilder.PARSER)))
                 .addResultReader(InternalTTest::new)
+                .setAggregatorRegistrar(TTestAggregationBuilder::registerUsage)
         );
     }
 
@@ -153,7 +154,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     private static <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser) {
         return (parser, name) -> {
-            if (getLicenseState().isAnalyticsAllowed() == false) {
+            if (getLicenseState().isAllowed(XPackLicenseState.Feature.ANALYTICS) == false) {
                 throw LicenseUtils.newComplianceException(XPackField.ANALYTICS);
             }
             return realParser.parse(parser, name);

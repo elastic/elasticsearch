@@ -29,9 +29,6 @@ import org.elasticsearch.common.Strings;
  */
 public class SimulateIndexTemplateRequest extends TimedRequest {
 
-    private static final ParseField INDEX_NAME = new ParseField("index_name");
-    private static final ParseField INDEX_TEMPLATE = new ParseField("index_template");
-
     private String indexName;
 
     @Nullable

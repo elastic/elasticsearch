@@ -69,9 +69,6 @@
 
 ---
 "Verify nodes usage works":
-  - skip:
-      version: "all"
-      reason: "for backport"
   - do:
       nodes.usage: {}
   - is_true: nodes

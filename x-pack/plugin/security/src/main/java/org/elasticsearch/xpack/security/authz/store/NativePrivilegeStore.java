@@ -134,7 +134,7 @@ public class NativePrivilegeStore {
 
         // TODO: We should have a way to express true Zero applications
         final Set<String> applicationNamesCacheKey = (isEmpty(applications) || applications.contains("*")) ?
-            Collections.singleton("*") : Set.copyOf(applications);
+            Set.of("*") : Set.copyOf(applications);
 
         // Always fetch for the concrete application names even when the passed in application names do not
         // contain any wildcard. This serves as a negative lookup.

@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
@@ -50,7 +51,6 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -114,7 +114,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private volatile long lastCheckpointCleanup = 0L;
 
     public TransformIndexer(
-        Executor executor,
+        ThreadPool threadPool,
+        String executorName,
         TransformConfigManager transformsConfigManager,
         CheckpointProvider checkpointProvider,
         TransformProgressGatherer progressGatherer,
@@ -129,7 +130,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         TransformCheckpoint nextCheckpoint,
         TransformContext context
     ) {
-        super(executor, initialState, initialPosition, jobStats);
+        super(threadPool, executorName, initialState, initialPosition, jobStats);
         this.transformsConfigManager = ExceptionsHelper.requireNonNull(transformsConfigManager, "transformsConfigManager");
         this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
         this.progressGatherer = ExceptionsHelper.requireNonNull(progressGatherer, "progressGatherer");
@@ -524,7 +525,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
      * @param listener listener to call after done
      */
     private void cleanupOldCheckpoints(ActionListener<Void> listener) {
-        long now = getTime();
+        long now = getTimeNanos() * 1000;
         long checkpointLowerBound = context.getCheckpoint() - NUMBER_OF_CHECKPOINTS_TO_KEEP;
         long lowerBoundEpochMs = now - RETENTION_OF_CHECKPOINTS_MS;
 
@@ -704,7 +705,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     @Override
-    protected SearchRequest buildSearchRequest() {
+    protected SearchRequest buildSearchRequest(long waitTimeInNanos) {
         assert nextCheckpoint != null;
 
         SearchRequest searchRequest = new SearchRequest(getConfig().getSource().getIndex()).allowPartialSearchResults(false)
@@ -844,13 +845,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     protected void failIndexer(String failureMessage) {
         // note: logging and audit is done as part of context.markAsFailed
         context.markAsFailed(failureMessage);
-    }
-
-    /*
-     * Get the current time, abstracted for the purpose of testing
-     */
-    long getTime() {
-        return System.currentTimeMillis();
     }
 
     /**

@@ -61,7 +61,7 @@ public class SqlInfoTransportActionTests extends ESTestCase {
         SqlInfoTransportAction featureSet = new SqlInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
-        when(licenseState.isSqlAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.SQL)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 

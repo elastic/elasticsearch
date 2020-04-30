@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.analytics.action.AnalyticsInfoTransportAction;
 import org.elasticsearch.xpack.analytics.action.AnalyticsUsageTransportAction;
 import org.elasticsearch.xpack.analytics.action.TransportAnalyticsStatsAction;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsAggregatorFactory;
+import org.elasticsearch.xpack.analytics.normalize.NormalizePipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
@@ -71,13 +72,18 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public List<PipelineAggregationSpec> getPipelineAggregations() {
-        return singletonList(
+        return Arrays.asList(
             new PipelineAggregationSpec(
                 CumulativeCardinalityPipelineAggregationBuilder.NAME,
                 CumulativeCardinalityPipelineAggregationBuilder::new,
                 usage.track(AnalyticsStatsAction.Item.CUMULATIVE_CARDINALITY,
-                        checkLicense(CumulativeCardinalityPipelineAggregationBuilder.PARSER)))
-        );
+                        checkLicense(CumulativeCardinalityPipelineAggregationBuilder.PARSER))),
+            new PipelineAggregationSpec(
+                NormalizePipelineAggregationBuilder.NAME,
+                NormalizePipelineAggregationBuilder::new,
+                usage.track(AnalyticsStatsAction.Item.NORMALIZE,
+                    checkLicense(NormalizePipelineAggregationBuilder.PARSER))
+        ));
     }
 
     @Override

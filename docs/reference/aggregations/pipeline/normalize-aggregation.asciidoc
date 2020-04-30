@@ -1,0 +1,119 @@
+[[search-aggregations-pipeline-normalize-aggregation]]
+=== Normalize Aggregation
+
+A parent pipeline aggregation which calculates the specific normalized/rescaled value for a specific bucket value.
+
+==== Syntax
+
+A `normalize` aggregation looks like this in isolation:
+
+[source,js]
+--------------------------------------------------
+{
+    "normalize": {
+        "buckets_path": "normalized",
+        "normalizer": "percent"
+    }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+[[normalizer_pipeline-params]]
+.`normalizer_pipeline` Parameters
+[options="header"]
+|===
+|Parameter Name |Description |Required |Default Value
+|`buckets_path` |The path to the buckets we wish to normalize (see <<buckets-path-syntax>> for more details) |Required |
+|`normalizer` | The specific rescaling to apply | Required |
+|`format` |format to apply to the output value of this aggregation |Optional |`null`
+|===
+
+The following snippet calculates the percent of total sales for each month:
+
+[source,console]
+--------------------------------------------------
+POST /sales/_search
+{
+    "size": 0,
+    "aggs" : {
+        "sales_per_month" : {
+            "date_histogram" : {
+                "field" : "date",
+                "calendar_interval" : "month"
+            },
+            "aggs": {
+                "sales": {
+                    "sum": {
+                        "field": "price"
+                    }
+                },
+                "percent_of_total_sales": {
+                    "normalize": {
+                        "buckets_path": "sales", <1>
+                        "normalizer": "percent"  <2>
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// TEST[setup:sales]
+
+<1> `buckets_path` instructs this normalize aggregation to use the output of the `sales` aggregation for rescaling
+<2> `normalizer` sets which rescaling to apply. In this case, `percent` will calculate the sales value as a percent of all sales
+    in the parent bucket
+
+And the following may be the response:
+
+[source,console-result]
+--------------------------------------------------
+{
+   "took": 11,
+   "timed_out": false,
+   "_shards": ...,
+   "hits": ...,
+   "aggregations": {
+      "sales_per_month": {
+         "buckets": [
+            {
+               "key_as_string": "2015/01/01 00:00:00",
+               "key": 1420070400000,
+               "doc_count": 3,
+               "sales": {
+                  "value": 550.0
+               },
+               "percent_of_total_sales": {
+                  "value": 0.5583756345177665
+               }
+            },
+            {
+               "key_as_string": "2015/02/01 00:00:00",
+               "key": 1422748800000,
+               "doc_count": 2,
+               "sales": {
+                  "value": 60.0
+               },
+               "percent_of_total_sales": {
+                  "value": 0.06091370558375635
+               }
+            },
+            {
+               "key_as_string": "2015/03/01 00:00:00",
+               "key": 1425168000000,
+               "doc_count": 2,
+               "sales": {
+                  "value": 375.0
+               },
+               "percent_of_total_sales": {
+                  "value": 0.38071065989847713
+               }
+            }
+         ]
+      }
+   }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 11/"took": $body.took/]
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+// TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]

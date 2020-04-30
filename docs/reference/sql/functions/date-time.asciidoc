@@ -189,8 +189,8 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[filterCurrentTime]
 --------------------------------------------------
 
 [IMPORTANT]
-Currently, using a _precision_ greater than 3 doesn't make any difference to the output of the
-function as the maximum number of second fractional digits returned is 3 (milliseconds).
+Currently, using a _precision_ greater than 6 doesn't make any difference to the output of the
+function as the maximum number of second fractional digits returned is 6.
 
 [[sql-functions-current-timestamp]]
 ==== `CURRENT_TIMESTAMP`
@@ -239,8 +239,8 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[filterNow]
 --------------------------------------------------
 
 [IMPORTANT]
-Currently, using a _precision_ greater than 3 doesn't make any difference to the output of the
-function as the maximum number of second fractional digits returned is 3 (milliseconds).
+Currently, using a _precision_ greater than 6 doesn't make any difference to the output of the
+function as the maximum number of second fractional digits returned is 6.
 
 [[sql-functions-datetime-add]]
 ==== `DATE_ADD/DATEADD/TIMESTAMP_ADD/TIMESTAMPADD`

@@ -63,8 +63,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-
 public final class ExpressionTranslators {
 
     public static final String DATE_FORMAT = "strict_date_time";
@@ -296,7 +294,7 @@ public final class ExpressionTranslators {
             }
 
             ZoneId zoneId = null;
-            if (bc.left().dataType() == DATETIME) {
+            if (DataTypes.isDateTime(bc.left().dataType())) {
                 zoneId = bc.zoneId();
             }
             if (bc instanceof GreaterThan) {
@@ -402,7 +400,7 @@ public final class ExpressionTranslators {
                     }
                 });
 
-                if (dt == DATETIME) {
+                if (DataTypes.isDateTime(dt)) {
                     DateFormatter formatter = DateFormatter.forPattern(DATE_FORMAT);
 
                     q = null;

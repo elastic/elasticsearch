@@ -5,6 +5,21 @@
  */
 package org.elasticsearch.test.eql;
 
+import static org.elasticsearch.test.eql.TestUtils.asDateNanos;
+import static org.elasticsearch.test.eql.TestUtils.asString;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.junit.Assert.assertThat;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+
 import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -26,19 +41,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.ql.TestUtils;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-
-import static org.hamcrest.Matchers.instanceOf;
-import static org.junit.Assert.assertThat;
-
 /**
  * Loads EQL dataset into ES.
  *
@@ -51,6 +53,7 @@ import static org.junit.Assert.assertThat;
 public class DataLoader {
     public static final String TEST_INDEX = "endgame-140";
     public static final String TEST_EXTRA_INDEX = "extra";
+    public static final String DATE_NANOS_INDEX = "eql_date_nanos";
 
     private static final Map<String, String[]> replacementPatterns = Collections.unmodifiableMap(getReplacementPatterns());
 
@@ -84,14 +87,18 @@ public class DataLoader {
         //
         // Main Index
         //
-        load(client, TEST_INDEX, true, p);
+        load(client, TEST_INDEX, true, false, p);
         //
         // Aux Index
         //
-        load(client, TEST_EXTRA_INDEX, false, p);
+        load(client, TEST_EXTRA_INDEX, false, false, p);
+        //
+        // Date_Nanos index
+        //
+        load(client, DATE_NANOS_INDEX, false, false, p);
     }
 
-    private static void load(RestHighLevelClient client, String indexName, boolean winFileTime,
+    private static void load(RestHighLevelClient client, String indexName, boolean winFileTime, boolean addDateNanos,
                              CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p) throws IOException {
         String name = "/data/" + indexName + ".mapping";
         URL mapping = DataLoader.class.getResource(name);
@@ -104,7 +111,7 @@ public class DataLoader {
             throw new IllegalArgumentException("Cannot find resource " + name);
         }
         createTestIndex(client, indexName, readMapping(mapping));
-        loadData(client, indexName, winFileTime, data, p);
+        loadData(client, indexName, winFileTime, addDateNanos, data, p);
     }
 
     private static void createTestIndex(RestHighLevelClient client, String indexName, String mapping) throws IOException {
@@ -139,7 +146,7 @@ public class DataLoader {
     }
 
     @SuppressWarnings("unchecked")
-    private static void loadData(RestHighLevelClient client, String indexName, boolean winfileTime, URL resource,
+    private static void loadData(RestHighLevelClient client, String indexName, boolean winfileTime, boolean addDateNanos, URL resource,
                                  CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p)
         throws IOException {
         BulkRequest bulk = new BulkRequest();
@@ -152,6 +159,9 @@ public class DataLoader {
                 Map<String, Object> entry = (Map<String, Object>) item;
                 if (winfileTime) {
                     transformDataset(entry);
+                }
+                if (addDateNanos) {
+                    addDateNanos(entry);
                 }
                 bulk.add(new IndexRequest(indexName).source(entry, XContentType.JSON));
             }
@@ -173,6 +183,13 @@ public class DataLoader {
         Long ts = (Long) object;
         // currently this is windows filetime
         entry.put("@timestamp", winFileTimeToUnix(ts));
+    }
+
+    // windows filetime transformation should precede this
+    private static void addDateNanos(Map<String, Object> entry) {
+        String dateNanos = asString(asDateNanos((Long) entry.get("timestamp")));
+        entry.put("timestamp", dateNanos);
+        entry.put("@timestamp", dateNanos);
     }
 
     public static long winFileTimeToUnix(final long filetime) {

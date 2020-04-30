@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.ql.session;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
@@ -18,7 +20,8 @@ public class Configuration {
 
     public Configuration(ZoneId zi, String username, String clusterName) {
         this.zoneId = zi.normalized();
-        this.now = ZonedDateTime.now(zoneId);
+        Clock clock = Clock.system(zoneId);
+        this.now = ZonedDateTime.now(Clock.tick(clock, Duration.ofNanos(1)));
         this.username = username;
         this.clusterName = clusterName;
     }

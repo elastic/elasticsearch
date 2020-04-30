@@ -65,6 +65,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
@@ -446,7 +447,10 @@ public class IndexResolver {
             return new KeywordEsField(fieldName, props, isAggregateable, length, normalized, isAlias);
         }
         if (esType == DATETIME) {
-            return new DateEsField(fieldName, props, isAggregateable);
+            return DateEsField.dateEsField(fieldName, props, isAggregateable);
+        }
+        if (esType == DATETIME_NANOS) {
+            return DateEsField.dateNanosEsField(fieldName, props, isAggregateable);
         }
         if (esType == UNSUPPORTED) {
             return new UnsupportedEsField(fieldName, typeName, null, props);

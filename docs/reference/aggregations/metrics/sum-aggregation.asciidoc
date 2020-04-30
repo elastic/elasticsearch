@@ -196,7 +196,7 @@ POST /metrics_index/_search?size=0
 }
 --------------------------------------------------
 
-For each histogram field the sum aggregation will multiply each number in the `values` array <1> multiplied with its associated count
+For each histogram field the `sum` aggregation will multiply each number in the `values` array <1> multiplied by its associated count
 in the `counts` array <2>. Eventually, it will add all values for all histograms and return the following result:
 
 [source,console-result]

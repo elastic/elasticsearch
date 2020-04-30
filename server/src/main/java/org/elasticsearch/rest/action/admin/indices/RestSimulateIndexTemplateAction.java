@@ -54,6 +54,9 @@ public class RestSimulateIndexTemplateAction extends BaseRestHandler {
         if (request.hasContent()) {
             PutIndexTemplateV2Action.Request indexTemplateRequest = new PutIndexTemplateV2Action.Request("simulating_template");
             indexTemplateRequest.indexTemplate(IndexTemplateV2.parse(request.contentParser()));
+            indexTemplateRequest.create(request.paramAsBoolean("create", false));
+            indexTemplateRequest.cause(request.param("cause", "api"));
+
             simulateIndexTemplateRequest.indexTemplateRequest(indexTemplateRequest);
         }
 

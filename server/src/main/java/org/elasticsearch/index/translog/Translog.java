@@ -1702,6 +1702,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public void rollGeneration() throws IOException {
         try (Releasable ignored = writeLock.acquire()) {
+            ensureOpen();
             try {
                 final TranslogReader reader = current.closeIntoReader();
                 readers.add(reader);

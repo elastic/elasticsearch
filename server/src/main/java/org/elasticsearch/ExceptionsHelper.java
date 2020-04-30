@@ -38,12 +38,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public final class ExceptionsHelper {
@@ -243,6 +245,31 @@ public final class ExceptionsHelper {
             final Throwable current = queue.remove();
             if (current instanceof Error) {
                 return Optional.of((Error) current);
+            }
+            Collections.addAll(queue, current.getSuppressed());
+            if (current.getCause() != null) {
+                queue.add(current.getCause());
+            }
+        }
+        return Optional.empty();
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T extends Throwable> Optional<T> unwrapCausesAndSuppressed(Throwable cause, Predicate<Throwable> predicate) {
+        if (predicate.test(cause)) {
+            return Optional.of((T) cause);
+        }
+
+        final Queue<Throwable> queue = new LinkedList<>();
+        queue.add(cause);
+        final Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        while (queue.isEmpty() == false) {
+            final Throwable current = queue.remove();
+            if (seen.add(current) == false) {
+                continue;
+            }
+            if (predicate.test(current)) {
+                return Optional.of((T) current);
             }
             Collections.addAll(queue, current.getSuppressed());
             if (current.getCause() != null) {

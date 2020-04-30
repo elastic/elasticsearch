@@ -26,6 +26,8 @@ import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -49,9 +51,6 @@ import java.io.StringWriter;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -77,6 +76,7 @@ import static org.mockito.Mockito.verify;
 public class TransformIndexerTests extends ESTestCase {
 
     private Client client;
+    private ThreadPool threadPool;
 
     class MockedTransformIndexer extends TransformIndexer {
 
@@ -88,7 +88,8 @@ public class TransformIndexerTests extends ESTestCase {
         private CountDownLatch latch;
 
         MockedTransformIndexer(
-            Executor executor,
+            ThreadPool threadPool,
+            String executorName,
             IndexBasedTransformConfigManager transformsConfigManager,
             CheckpointProvider checkpointProvider,
             TransformProgressGatherer progressGatherer,
@@ -104,7 +105,8 @@ public class TransformIndexerTests extends ESTestCase {
             Consumer<String> failureConsumer
         ) {
             super(
-                executor,
+                threadPool,
+                executorName,
                 transformsConfigManager,
                 checkpointProvider,
                 progressGatherer,
@@ -216,11 +218,13 @@ public class TransformIndexerTests extends ESTestCase {
     @Before
     public void setUpMocks() {
         client = new NoOpClient(getTestName());
+        threadPool = new TestThreadPool(getTestName());
     }
 
     @After
     public void tearDownClient() {
         client.close();
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
     }
 
     public void testPageSizeAdapt() throws Exception {
@@ -248,8 +252,6 @@ public class TransformIndexerTests extends ESTestCase {
 
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
-        final ExecutorService executor = Executors.newFixedThreadPool(1);
-        try {
             TransformAuditor auditor = new TransformAuditor(client, "node_1");
             TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
 
@@ -259,7 +261,8 @@ public class TransformIndexerTests extends ESTestCase {
                 searchFunction,
                 bulkFunction,
                 null,
-                executor,
+                threadPool,
+                ThreadPool.Names.GENERIC,
                 auditor,
                 context
             );
@@ -289,10 +292,6 @@ public class TransformIndexerTests extends ESTestCase {
             // assert that page size has been reduced again
             assertThat(pageSizeAfterFirstReduction, greaterThan((long) indexer.getPageSize()));
             assertThat(pageSizeAfterFirstReduction, greaterThan((long) TransformIndexer.MINIMUM_PAGE_SIZE));
-
-        } finally {
-            executor.shutdownNow();
-        }
     }
 
     public void testDoProcessAggNullCheck() {
@@ -330,8 +329,6 @@ public class TransformIndexerTests extends ESTestCase {
         Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> searchResponse;
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
-        final ExecutorService executor = Executors.newFixedThreadPool(1);
-        try {
             TransformAuditor auditor = mock(TransformAuditor.class);
             TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
 
@@ -341,7 +338,8 @@ public class TransformIndexerTests extends ESTestCase {
                 searchFunction,
                 bulkFunction,
                 null,
-                executor,
+                threadPool,
+                ThreadPool.Names.GENERIC,
                 auditor,
                 context
             );
@@ -351,9 +349,6 @@ public class TransformIndexerTests extends ESTestCase {
             assertThat(newPosition.getPosition(), is(nullValue()));
             assertThat(newPosition.isDone(), is(true));
             verify(auditor, times(1)).info(anyString(), anyString());
-        } finally {
-            executor.shutdownNow();
-        }
     }
 
     public void testScriptError() throws Exception {
@@ -397,8 +392,6 @@ public class TransformIndexerTests extends ESTestCase {
             failureMessage.compareAndSet(null, message);
         };
 
-        final ExecutorService executor = Executors.newFixedThreadPool(1);
-        try {
             MockTransformAuditor auditor = new MockTransformAuditor();
             TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
             TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
@@ -409,7 +402,8 @@ public class TransformIndexerTests extends ESTestCase {
                 searchFunction,
                 bulkFunction,
                 failureConsumer,
-                executor,
+                threadPool,
+                ThreadPool.Names.GENERIC,
                 auditor,
                 context
             );
@@ -433,9 +427,6 @@ public class TransformIndexerTests extends ESTestCase {
                 failureMessage.get(),
                 matchesRegex("Failed to execute script with error: \\[.*ArithmeticException: / by zero\\], stack trace: \\[stack\\]")
             );
-        } finally {
-            executor.shutdownNow();
-        }
     }
 
     private MockedTransformIndexer createMockIndexer(
@@ -444,12 +435,14 @@ public class TransformIndexerTests extends ESTestCase {
         Function<SearchRequest, SearchResponse> searchFunction,
         Function<BulkRequest, BulkResponse> bulkFunction,
         Consumer<String> failureConsumer,
-        final ExecutorService executor,
+        ThreadPool threadPool,
+        String executorName,
         TransformAuditor auditor,
         TransformContext context
     ) {
         return new MockedTransformIndexer(
-            executor,
+            threadPool,
+            executorName,
             mock(IndexBasedTransformConfigManager.class),
             mock(CheckpointProvider.class),
             new TransformProgressGatherer(client),

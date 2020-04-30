@@ -28,13 +28,13 @@ public class ConcatFunctionProcessorTests extends ESTestCase {
 
     public void testConcat() {
         assertEquals(process(), "");
-        assertEquals(process((Object) null), "");
+        assertNull(process((Object) null));
         assertEquals(process("foo"), "foo");
         assertEquals(process(true), "true");
         assertEquals(process(3.14), "3.14");
         assertEquals(process("foo", "::", "bar", "::", "baz"), "foo::bar::baz");
-        assertEquals(process("foo", "::", null, "::", "baz"), "foo::::baz");
-        assertEquals(process("foo", "::", null, "::", null), "foo::::");
+        assertNull(process("foo", "::", null, "::", "baz"));
+        assertNull(process("foo", "::", null, "::", null));
         assertEquals(process("foo", "::", 1.0, "::", "baz"), "foo::1.0::baz");
     }
 }

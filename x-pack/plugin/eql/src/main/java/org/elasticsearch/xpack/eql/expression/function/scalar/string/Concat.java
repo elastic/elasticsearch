@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder;
@@ -45,15 +44,12 @@ public class Concat extends ScalarFunction {
         }
 
         TypeResolution resolution = TypeResolution.TYPE_RESOLVED;
-        int index = 0;
         for (Expression value : values) {
-            resolution = isExact(value, sourceText(), ParamOrdinal.fromIndex(index));
+            resolution = isExact(value, sourceText(), Expressions.ParamOrdinal.DEFAULT);
 
             if (resolution.unresolved()) {
                 return resolution;
             }
-
-            index++;
         }
 
         return resolution;

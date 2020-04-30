@@ -47,9 +47,11 @@ public class ConcatFunctionProcessor implements Processor {
         StringBuilder str = new StringBuilder();
 
         for (Object input: inputs) {
-            if (input != null) {
-                str.append(input.toString());
+            if (input == null) {
+                return null;
             }
+
+            str.append(input.toString());
         }
 
         return str.toString();

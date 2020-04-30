@@ -84,7 +84,7 @@ public class HeaderWarningLogger {
         }
     }
 
-    public static void addWarningToHeaders(Set<ThreadContext> threadContexts, String message, Object[] params) {
+    public static void addWarningToHeaders(Set<ThreadContext> threadContexts, String message, Object... params) {
         final Iterator<ThreadContext> iterator = threadContexts.iterator();
         if (iterator.hasNext()) {
             final String formattedMessage = LoggerMessageFormat.format(message, params);

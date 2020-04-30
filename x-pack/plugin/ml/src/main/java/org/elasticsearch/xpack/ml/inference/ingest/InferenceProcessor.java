@@ -23,6 +23,7 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestMetadata;
+import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.rest.RestStatus;
@@ -166,6 +167,8 @@ public class InferenceProcessor extends AbstractProcessor {
     public static final class Factory implements Processor.Factory, Consumer<ClusterState> {
 
         private static final String FOREACH_PROCESSOR_NAME = "foreach";
+        //Any more than 10 nestings of processors, we stop searching for inference processor definitions
+        private static final int MAX_INFERENCE_PROCESSOR_SEARCH_RECURSIONS = 10;
         private static final Logger logger = LogManager.getLogger(Factory.class);
 
         private static final Set<String> RESERVED_ML_FIELD_NAMES = new HashSet<>(Arrays.asList(
@@ -206,20 +209,7 @@ public class InferenceProcessor extends AbstractProcessor {
                     List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, configMap, PROCESSORS_KEY);
                     for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                         for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
-                            if (TYPE.equals(entry.getKey())) {
-                                ++count;
-                            }
-                            // Special handling as `foreach` processors allow a `processor` to be defined
-                            if (FOREACH_PROCESSOR_NAME.equals(entry.getKey())) {
-                                if (entry.getValue() instanceof Map<?, ?>) {
-                                    Object processorDefinition = ((Map<?, ?>)entry.getValue()).get("processor");
-                                    if (processorDefinition instanceof Map<?, ?>) {
-                                        if (((Map<?, ?>) processorDefinition).keySet().contains(TYPE)) {
-                                            ++count;
-                                        }
-                                    }
-                                }
-                            }
+                            count += numInferenceProcessors(entry.getKey(), entry.getValue());
                         }
                     }
                 // We cannot throw any exception here. It might break other pipelines.
@@ -230,6 +220,47 @@ public class InferenceProcessor extends AbstractProcessor {
                 }
             }
             currentInferenceProcessors = count;
+        }
+
+        @SuppressWarnings("unchecked")
+        static int numInferenceProcessors(String processorType, Object processorDefinition) {
+            return numInferenceProcessors(processorType, (Map<String, Object>)processorDefinition, 0);
+        }
+
+        @SuppressWarnings("unchecked")
+        static int numInferenceProcessors(String processorType, Map<String, Object> processorDefinition, int level) {
+            int count = 0;
+            // arbitrary, but we must limit this somehow
+            if (MAX_INFERENCE_PROCESSOR_SEARCH_RECURSIONS > 10) {
+                return count;
+            }
+            if (processorType == null || processorDefinition == null) {
+                return count;
+            }
+            if (TYPE.equals(processorType)) {
+                count++;
+            }
+            if (FOREACH_PROCESSOR_NAME.equals(processorType)) {
+                Map<String, Object> innerProcessor = (Map<String, Object>)processorDefinition.get("processor");
+                if (innerProcessor != null) {
+                    for (Map.Entry<String, Object> innerProcessorWithName : innerProcessor.entrySet()) {
+                        count += numInferenceProcessors(innerProcessorWithName.getKey(),
+                            (Map<String, Object>) innerProcessorWithName.getValue(),
+                            level + 1);
+                    }
+                }
+            }
+            if (processorDefinition.containsKey(Pipeline.ON_FAILURE_KEY)) {
+                List<Map<String, Object>> onFailureConfigs = ConfigurationUtils.readList(
+                    null,
+                    null,
+                    processorDefinition,
+                    Pipeline.ON_FAILURE_KEY);
+                count += onFailureConfigs.stream()
+                    .flatMap(map -> map.entrySet().stream())
+                    .mapToInt(entry -> numInferenceProcessors(entry.getKey(), (Map<String, Object>)entry.getValue(), level + 1)).sum();
+            }
+            return count;
         }
 
         // Used for testing

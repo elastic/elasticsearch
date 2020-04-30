@@ -90,6 +90,53 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         assertThat(processorFactory.numInferenceProcessors(), equalTo(3));
     }
 
+    public void testNumInferenceProcessorsRecursivelyDefined() throws Exception {
+        Metadata metadata = null;
+
+        InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
+            clusterService,
+            Settings.EMPTY);
+        processorFactory.accept(buildClusterState(metadata));
+
+        Map<String, PipelineConfiguration> configurations = new HashMap<>();
+        configurations.put("pipeline_with_model_top_level",
+            randomBoolean() ?
+                newConfigurationWithInferenceProcessor("top_level") :
+                newConfigurationWithForeachProcessorProcessor("top_level"));
+        try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(Collections.singletonMap("processors",
+            Collections.singletonList(
+                Collections.singletonMap("set",
+                    new HashMap<>() {{
+                        put("field", "foo");
+                        put("value", "bar");
+                        put("on_failure",
+                            Arrays.asList(
+                                inferenceProcessorForModel("second_level"),
+                                forEachProcessorWithInference("third_level")));
+                    }}))))) {
+            configurations.put("pipeline_with_model_nested",
+                new PipelineConfiguration("pipeline_with_model_nested", BytesReference.bytes(xContentBuilder), XContentType.JSON));
+        }
+
+        IngestMetadata ingestMetadata = new IngestMetadata(configurations);
+
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
+            .nodes(DiscoveryNodes.builder()
+                .add(new DiscoveryNode("min_node",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                    Version.CURRENT))
+                .add(new DiscoveryNode("current_node",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
+                    Version.CURRENT))
+                .localNodeId("_node_id")
+                .masterNodeId("_node_id"))
+            .build();
+
+        processorFactory.accept(cs);
+        assertThat(processorFactory.numInferenceProcessors(), equalTo(3));
+    }
+
     public void testCreateProcessorWithTooManyExisting() throws Exception {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
@@ -282,14 +329,17 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
 
     private static PipelineConfiguration newConfigurationWithForeachProcessorProcessor(String modelId) throws IOException {
         try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(Collections.singletonMap("processors",
-            Collections.singletonList(
-                Collections.singletonMap("foreach",
-                    new HashMap<>() {{
-                        put("field", "foo");
-                        put("processor", inferenceProcessorForModel(modelId));
-                    }}))))) {
+            Collections.singletonList(forEachProcessorWithInference(modelId))))) {
             return new PipelineConfiguration("pipeline_with_model_" + modelId, BytesReference.bytes(xContentBuilder), XContentType.JSON);
         }
+    }
+
+    private static Map<String, Object> forEachProcessorWithInference(String modelId) {
+        return Collections.singletonMap("foreach",
+            new HashMap<>() {{
+                put("field", "foo");
+                put("processor", inferenceProcessorForModel(modelId));
+            }});
     }
 
     private static Map<String, Object> inferenceProcessorForModel(String modelId) {

@@ -1,3 +1,4 @@
+// To mute tests follow example in file: example.sql-spec
 
 simpleSubSelect
 SELECT first_name, last_name FROM (SELECT * FROM test_emp);

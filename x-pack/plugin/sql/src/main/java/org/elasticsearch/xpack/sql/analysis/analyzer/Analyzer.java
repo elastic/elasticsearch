@@ -311,10 +311,10 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    private static class ResolveRefs extends LogicalPlanAnalyzeRule {
+    private static class ResolveRefs extends BaseAnalyzeRule {
 
         @Override
-        protected LogicalPlan rulePlan(LogicalPlan plan) {
+        protected LogicalPlan doRule(LogicalPlan plan) {
             if (plan instanceof Project) {
                 Project p = (Project) plan;
                 if (hasStar(p.projections())) {
@@ -484,7 +484,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
     // Allow ordinal positioning in order/sort by (quite useful when dealing with aggs)
     // Note that ordering starts at 1
-    private static class ResolveOrdinalInOrderByAndGroupBy extends LogicalPlanAnalyzeRule {
+    private static class ResolveOrdinalInOrderByAndGroupBy extends BaseAnalyzeRule {
 
         @Override
         protected boolean skipResolved() {
@@ -492,7 +492,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         @Override
-        protected LogicalPlan rulePlan(LogicalPlan plan) {
+        protected LogicalPlan doRule(LogicalPlan plan) {
             if (plan instanceof OrderBy) {
                 OrderBy orderBy = (OrderBy) plan;
                 boolean changed = false;
@@ -589,7 +589,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     // It is valid to filter (including HAVING) or sort by attributes not present in the SELECT clause.
     // This rule pushed down the attributes for them to be resolved then projects them away.
     // As such this rule is an extended version of ResolveRefs
-    private static class ResolveMissingRefs extends LogicalPlanAnalyzeRule {
+    private static class ResolveMissingRefs extends BaseAnalyzeRule {
 
         private static class AggGroupingFailure {
             final List<String> expectedGrouping;
@@ -600,11 +600,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         @Override
-        protected LogicalPlan rulePlan(LogicalPlan plan) {
-            if (plan.resolved()) {
-                return plan;
-            }
-
+        protected LogicalPlan doRule(LogicalPlan plan) {
             if (plan instanceof OrderBy) {
                 OrderBy o = (OrderBy) plan;
                 LogicalPlan child = o.child();
@@ -904,10 +900,10 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    private static class ResolveAliases extends LogicalPlanAnalyzeRule {
+    private static class ResolveAliases extends BaseAnalyzeRule {
 
         @Override
-        protected LogicalPlan rulePlan(LogicalPlan plan) {
+        protected LogicalPlan doRule(LogicalPlan plan) {
             if (plan instanceof Project) {
                 Project p = (Project) plan;
                 if (hasUnresolvedAliases(p.projections())) {
@@ -1304,16 +1300,16 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
     }
     
-    abstract static class LogicalPlanAnalyzeRule extends AnalyzeRule<LogicalPlan> {
+    abstract static class BaseAnalyzeRule extends AnalyzeRule<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
             if (plan.childrenResolved() == false) {
                 return plan;
             }
-            return rulePlan(plan);
+            return doRule(plan);
         }
 
-        protected abstract LogicalPlan rulePlan(LogicalPlan plan);
+        protected abstract LogicalPlan doRule(LogicalPlan plan);
     }
 }

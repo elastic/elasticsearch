@@ -20,7 +20,6 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Setting;
@@ -29,7 +28,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Stream;
 
 public class BulkIndexingMemoryLimits implements CircuitBreaker {
 

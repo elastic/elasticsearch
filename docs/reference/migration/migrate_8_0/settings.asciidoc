@@ -69,11 +69,22 @@ removed.
 [float]
 ==== Option to disable basic license features is deprecated
 
-In Elasticsearch 7.8.0, the following settings have been deprecated:
+In Elasticsearch 7.8.0, the following settings no longer have any effect, and
+have been deprecated:
+
+* `xpack.ilm.enabled`
+
+In other words, even if `xpack.ilm.enabled` is set to `false`, the ILM APIs
+will be available.
+
+If you have disabled ILM so that you can use another tool to manage Watcher
+indices, the newly introduced `xpack.watcher.use_ilm_index_management` setting
+may be set to false.
+
+Additionally, the following settings have been deprecated:
 
 * `xpack.enrich.enabled`
 * `xpack.flattened.enabled`
-* `xpack.ilm.enabled`
 * `xpack.monitoring.enabled`
 * `xpack.rollup.enabled`
 * `xpack.slm.enabled`
@@ -82,7 +93,7 @@ In Elasticsearch 7.8.0, the following settings have been deprecated:
 * `xpack.vectors.enabled`
 
 In future releases, it will not be possible to disable the APIs for Enrichment,
-Flattened mappings, ILM, Monitoring, Rollup, SLM, SQL, Transforms, and Vectors.
+Flattened mappings, Monitoring, Rollup, SLM, SQL, Transforms, and Vectors.
 
 [float]
 ==== The `prefer_v2_templates` parameter now defaults to `true`

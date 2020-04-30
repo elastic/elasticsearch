@@ -41,7 +41,14 @@ import java.util.Map;
  *
  */
 public class ValuesSourceRegistry {
+
     public static class Builder {
+        private final AggregationUsageService.Builder usageServiceBuilder;
+
+        public Builder() {
+            this.usageServiceBuilder = new AggregationUsageService.Builder();
+        }
+
         private final Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry = new HashMap<>();
 
         /**
@@ -59,6 +66,7 @@ public class ValuesSourceRegistry {
                 aggregatorRegistry.put(aggregationName, new ArrayList<>());
             }
             aggregatorRegistry.get(aggregationName).add(new AbstractMap.SimpleEntry<>(valuesSourceType, aggregatorSupplier));
+            registerUsage(aggregationName, valuesSourceType);
         }
 
         /**
@@ -76,18 +84,29 @@ public class ValuesSourceRegistry {
             }
         }
 
+        public void registerUsage(String aggregationName, ValuesSourceType valuesSourceType) {
+            usageServiceBuilder.registerAggregationUsage(aggregationName, valuesSourceType.typeName());
+        }
+
+        public void registerUsage(String aggregationName) {
+            usageServiceBuilder.registerAggregationUsage(aggregationName);
+        }
+
         public ValuesSourceRegistry build() {
-            return new ValuesSourceRegistry(aggregatorRegistry);
+            return new ValuesSourceRegistry(aggregatorRegistry, usageServiceBuilder.build());
         }
     }
 
     /** Maps Aggregation names to (ValuesSourceType, Supplier) pairs, keyed by ValuesSourceType */
+    private final AggregationUsageService usageService;
     private Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry;
 
-    public ValuesSourceRegistry(Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry) {
+    public ValuesSourceRegistry(Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry,
+                                AggregationUsageService usageService) {
         Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> tmp = new HashMap<>();
         aggregatorRegistry.forEach((key, value) -> tmp.put(key, Collections.unmodifiableList(value)));
         this.aggregatorRegistry = Collections.unmodifiableMap(tmp);
+        this.usageService = usageService;
     }
 
     private AggregatorSupplier findMatchingSuppier(ValuesSourceType valuesSourceType,
@@ -114,7 +133,7 @@ public class ValuesSourceRegistry {
 
     public ValuesSourceType getValuesSourceType(MappedFieldType fieldType, String aggregationName,
                                                 // TODO: the following arguments are only needed for the legacy case
-                                                IndexFieldData indexFieldData,
+                                                IndexFieldData<?> indexFieldData,
                                                 ValueType valueType,
                                                 ValuesSourceType defaultValuesSourceType) {
         if (aggregationName != null && aggregatorRegistry.containsKey(aggregationName)) {
@@ -143,5 +162,9 @@ public class ValuesSourceRegistry {
                 }
             }
         }
+    }
+
+    public AggregationUsageService getUsageService() {
+        return usageService;
     }
 }

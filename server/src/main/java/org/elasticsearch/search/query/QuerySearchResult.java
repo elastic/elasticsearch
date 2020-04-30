@@ -386,7 +386,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         } else {
             out.writeBoolean(true);
             if (out.getVersion().before(Version.V_7_7_0)) {
-                InternalAggregations aggs = aggregations.get();
+                InternalAggregations aggs = aggregations.expand();
                 aggs.writeTo(out);
                 if (out.getVersion().before(Version.V_7_2_0)) {
                     /*

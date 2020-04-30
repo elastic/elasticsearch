@@ -307,14 +307,13 @@ public class SearchModule {
     private final Settings settings;
     private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
     private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
-    private ValuesSourceRegistry valuesSourceRegistry;
+    private final ValuesSourceRegistry valuesSourceRegistry;
 
     /**
      * Constructs a new SearchModule object
      *
      * NOTE: This constructor should not be called in production unless an accurate {@link Settings} object is provided.
      *       When constructed, a static flag is set in Lucene {@link BooleanQuery#setMaxClauseCount} according to the settings.
-     *
      * @param settings Current settings
      * @param transportClient Is this being constructed in the TransportClient or not
      * @param plugins List of included {@link SearchPlugin} objects.
@@ -372,7 +371,8 @@ public class SearchModule {
             .addResultReader(InternalAvg::new)
             .setAggregatorRegistrar(AvgAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(WeightedAvgAggregationBuilder.NAME, WeightedAvgAggregationBuilder::new,
-            WeightedAvgAggregationBuilder.PARSER).addResultReader(InternalWeightedAvg::new), builder);
+            WeightedAvgAggregationBuilder.PARSER).addResultReader(InternalWeightedAvg::new)
+            .setAggregatorRegistrar(WeightedAvgAggregationBuilder::registerUsage), builder);
         registerAggregation(new AggregationSpec(SumAggregationBuilder.NAME, SumAggregationBuilder::new, SumAggregationBuilder.PARSER)
             .addResultReader(InternalSum::new)
             .setAggregatorRegistrar(SumAggregationBuilder::registerAggregators), builder);
@@ -531,6 +531,10 @@ public class SearchModule {
         Consumer<ValuesSourceRegistry.Builder> register = spec.getAggregatorRegistrar();
         if (register != null) {
             register.accept(builder);
+        } else {
+            // Register is typically handling usage registration, but for the older aggregations that don't use register, we
+            // have to register usage explicitly here.
+            builder.registerUsage(spec.getName().getPreferredName());
         }
     }
 

@@ -45,7 +45,7 @@ public class TransformConfigTests extends AbstractXContentTestCase<TransformConf
             randomSourceConfig(),
             randomDestConfig(),
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1000, 1000000)),
-            randomBoolean() ? null : randomSyncConfig(), 
+            randomBoolean() ? null : randomSyncConfig(),
             PivotConfigTests.randomPivotConfig(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100),
             randomBoolean() ? null : Instant.now(),

@@ -76,7 +76,7 @@ public class TestingConventionsTasks extends DefaultTask {
         return getProject().getTasks()
             .withType(Test.class)
             .stream()
-            .filter(t -> t.getName().equals("test"))
+            .filter(t -> t.getName().equals("test") || t.getName().equals("integTest"))
             .filter(Task::getEnabled)
             .collect(Collectors.toMap(Task::getPath, task -> task.getCandidateClassFiles().getFiles()));
     }

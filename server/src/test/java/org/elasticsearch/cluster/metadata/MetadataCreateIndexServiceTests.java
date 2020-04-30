@@ -1085,7 +1085,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 .build())
             .build();
 
-        Map<String, Object> resolved =
+        Map<String, Map<String, Object>> resolved =
             MetadataCreateIndexService.resolveV2Mappings("{}", state,
                 "index-template", new NamedXContentRegistry(Collections.emptyList()));
 

@@ -440,7 +440,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
     }
 
     private static class ModelLoadedTracker {
-        private Set<String> expectedModelIds;
+        private final Set<String> expectedModelIds;
 
         ModelLoadedTracker(Collection<String> expectedModelIds) {
             this.expectedModelIds = new HashSet<>(expectedModelIds);

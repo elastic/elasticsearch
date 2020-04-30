@@ -84,7 +84,8 @@ public class TestingConventionsTasks extends DefaultTask {
     @Input
     public Map<String, File> getTestClassNames() {
         if (testClassNames == null) {
-            testClassNames = Util.getJavaTestSourceSet(getProject()).get()
+            testClassNames = Util.getJavaTestSourceSet(getProject())
+                .get()
                 .getOutput()
                 .getClassesDirs()
                 .getFiles()

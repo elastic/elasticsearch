@@ -249,7 +249,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 throw globalBlockException;
             }
 
-            String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
+            String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request, true);
             ClusterBlockException requestBlockException = checkRequestBlock(clusterState, request, concreteIndices);
             if (requestBlockException != null) {
                 throw requestBlockException;

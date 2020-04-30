@@ -144,6 +144,7 @@ class NodeDeprecationChecks {
             pluginsAndModules,
             ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING,
             ScriptService.SCRIPT_CACHE_SIZE_SETTING,
+            "a script context",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-general-script-cache-size"
         );
     }
@@ -154,6 +155,7 @@ class NodeDeprecationChecks {
             pluginsAndModules,
             ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING,
             ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
+            "a script context",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-general-script-expire"
         );
     }
@@ -164,6 +166,7 @@ class NodeDeprecationChecks {
             pluginsAndModules,
             ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING,
             ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING,
+            "a script context",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-general-script-compile-rate"
         );
     }
@@ -193,6 +196,36 @@ class NodeDeprecationChecks {
             value,
             replacementSettingKey,
             value);
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
+    }
+
+    private static DeprecationIssue checkDeprecatedSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final Setting<?> deprecatedSetting,
+        final Setting.AffixSetting<?> replacementSetting,
+        final String star,
+        final String url) {
+        assert deprecatedSetting.isDeprecated() : deprecatedSetting;
+        if (deprecatedSetting.exists(settings) == false) {
+            return null;
+        }
+        final String deprecatedSettingKey = deprecatedSetting.getKey();
+        final String replacementSettingKey = replacementSetting.getKey();
+        final String value = deprecatedSetting.get(settings).toString();
+        final String message = String.format(
+            Locale.ROOT,
+            "setting [%s] is deprecated in favor of grouped setting [%s]",
+            deprecatedSettingKey,
+            replacementSettingKey);
+        final String details = String.format(
+            Locale.ROOT,
+            "the setting [%s] is currently set to [%s], instead set [%s] to [%s] where * is %s",
+            deprecatedSettingKey,
+            value,
+            replacementSettingKey,
+            value,
+            star);
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
     }
 

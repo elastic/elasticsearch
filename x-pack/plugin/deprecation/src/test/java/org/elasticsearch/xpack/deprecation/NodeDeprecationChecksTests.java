@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -186,26 +187,28 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "setting [script.cache.max_size] is deprecated in favor of setting [script.context.*.max_size]",
+            "setting [script.cache.max_size] is deprecated in favor of grouped setting [script.context.*.cache_max_size]",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-general-script-cache-size",
-            "the setting [script.cache.max_size] is currently set to [" + size + "], remove this setting");
+            "the setting [script.cache.max_size] is currently set to [" + size + "], instead set [script.context.*.cache_max_size] " +
+                "to [" + size + "] where * is a script context");
         assertThat(issues, contains(expected));
-        assertSettingDeprecationsAndWarnings(new String[]{"script.cache.max_size"});
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING});
     }
 
     public void testGeneralScriptExpireSetting() {
-        final String size = randomIntBetween(1, 4) + "m";
-        final Settings settings = Settings.builder().put("script.cache.expire", size).build();
+        final String expire = randomIntBetween(1, 4) + "m";
+        final Settings settings = Settings.builder().put("script.cache.expire", expire).build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
         final List<DeprecationIssue> issues =
             DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "setting [script.cache.expire] is deprecated in favor of setting [script.context.*.expire]",
+            "setting [script.cache.expire] is deprecated in favor of grouped setting [script.context.*.cache_expire]",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-general-script-expire",
-            "the setting [script.cache.expire] is currently set to [" + size + "], remove this setting");
+            "the setting [script.cache.expire] is currently set to [" + expire + "], instead set [script.context.*.cache_expire] to " +
+                "[" + expire + "] where * is a script context");
         assertThat(issues, contains(expected));
-        assertSettingDeprecationsAndWarnings(new String[]{"script.cache.expire"});
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING});
     }
 
     public void testGeneralScriptCompileSettings() {
@@ -216,11 +219,12 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "setting [script.max_compilations_rate] is deprecated in favor of setting [script.context.*.max_compilations_rate]",
+            "setting [script.max_compilations_rate] is deprecated in favor of grouped setting [script.context.*.max_compilations_rate]",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-general-script-compile-rate",
-            "the setting [script.max_compilations_rate] is currently set to [" + rate + "], remove this setting");
+            "the setting [script.max_compilations_rate] is currently set to [" + rate +
+                "], instead set [script.context.*.max_compilations_rate] to [" + rate + "] where * is a script context");
         assertThat(issues, contains(expected));
-        assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.size"});
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING});
     }
 
     public void testClusterRemoteConnectSetting() {

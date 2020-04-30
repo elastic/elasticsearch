@@ -235,10 +235,12 @@ public class ScriptCache {
     public static class CompilationRate {
         public final int count;
         public final TimeValue time;
+        private final String source;
 
         public CompilationRate(Integer count, TimeValue time) {
             this.count = count;
             this.time = time;
+            this.source = null;
         }
 
         public CompilationRate(Tuple<Integer,TimeValue> rate) {
@@ -271,6 +273,7 @@ public class ScriptCache {
                 }
                 this.count = rate;
                 this.time = timeValue;
+                this.source = value;
             } catch (NumberFormatException e) {
                 // the number format exception message is so confusing, that it makes more sense to wrap it with a useful one
                 throw new IllegalArgumentException("could not parse [" + count + "] as integer in value [" + value + "]", e);
@@ -283,7 +286,7 @@ public class ScriptCache {
 
         @Override
         public String toString() {
-            return count + "/" + time.toHumanReadableString(0);
+            return source != null ? source : count + "/" + time.toHumanReadableString(0);
         }
 
         @Override

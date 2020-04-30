@@ -56,17 +56,4 @@ public class CacheIteratorHelper<K, V> {
             }
         }
     }
-
-    public void removeValuesIf(Predicate<V> removeIf) {
-        // the cache cannot be modified while doing this operation per the terms of the cache iterator
-        try (ReleasableLock ignored = this.acquireForIterator()) {
-            Iterator<K> iterator = cache.keys().iterator();
-            while (iterator.hasNext()) {
-                K key = iterator.next();
-                if (removeIf.test(cache.get(key))) {
-                    iterator.remove();
-                }
-            }
-        }
-    }
 }

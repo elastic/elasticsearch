@@ -143,7 +143,6 @@ public class NativePrivilegeStore {
         if (concreteApplicationNames != null && concreteApplicationNames.size() == 0) {
             logger.debug("returning empty application privileges as application names result in empty list");
             listener.onResponse(Collections.emptySet());
-
         } else {
             final Tuple<Set<String>, Map<String, Set<ApplicationPrivilegeDescriptor>>> cacheStatus;
             if (concreteApplicationNames == null) {
@@ -240,7 +239,7 @@ public class NativePrivilegeStore {
         // Always completely invalidate application names cache due to wildcard
         applicationNamesCache.invalidateAll();
         final Set<String> uniqueNames = Set.copyOf(updatedApplicationNames);
-       uniqueNames.forEach(descriptorsCache::invalidate);
+        uniqueNames.forEach(descriptorsCache::invalidate);
     }
 
     public void invalidateAll() {

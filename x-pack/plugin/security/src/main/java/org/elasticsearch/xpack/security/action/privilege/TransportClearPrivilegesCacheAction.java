@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 
 public class TransportClearPrivilegesCacheAction extends TransportNodesAction<ClearPrivilegesCacheRequest, ClearPrivilegesCacheResponse,

@@ -27,20 +27,29 @@ import org.elasticsearch.action.search.OpenReaderRequest;
 import org.elasticsearch.action.search.OpenReaderResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportOpenReaderAction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -187,6 +196,46 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
             .setPreference(null)
             .setReader(resp1.getReaderId(), TimeValue.timeValueMinutes(1)).get());
         clearReaderId(resp1.getReaderId());
+    }
+
+    public void testCanMatch() throws Exception {
+        final Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(5, 10))
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMillis(randomIntBetween(50, 100)));
+        assertAcked(prepareCreate("test").setSettings(settings)
+            .setMapping("{\"properties\":{\"created_date\":{\"type\": \"date\", \"format\": \"yyyy-MM-dd\"}}}"));
+        ensureGreen("test");
+        String readerId = openReaders(new String[]{"test*"}, TimeValue.timeValueMinutes(2));
+        try {
+            for (String node : internalCluster().nodesInclude("test")) {
+                for (IndexService indexService : internalCluster().getInstance(IndicesService.class, node)) {
+                    for (IndexShard indexShard : indexService) {
+                        assertBusy(() -> assertTrue(indexShard.isSearchIdle()));
+                    }
+                }
+            }
+            client().prepareIndex("test").setId("1").setSource("created_date", "2020-01-01").get();
+            SearchResponse resp = client().prepareSearch()
+                .setQuery(new RangeQueryBuilder("created_date").gte("2020-01-02").lte("2020-01-03"))
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setPreference(null)
+                .setPreFilterShardSize(randomIntBetween(2, 3))
+                .setMaxConcurrentShardRequests(randomIntBetween(1, 2))
+                .setReader(readerId, TimeValue.timeValueMinutes(2))
+                .get();
+            assertThat(resp.getHits().getHits(), arrayWithSize(0));
+            for (String node : internalCluster().nodesInclude("test")) {
+                for (IndexService indexService : internalCluster().getInstance(IndicesService.class, node)) {
+                    for (IndexShard indexShard : indexService) {
+                        // all shards are still search-idle as we did not acquire new searchers
+                        assertTrue(indexShard.isSearchIdle());
+                    }
+                }
+            }
+        } finally {
+            clearReaderId(readerId);
+        }
     }
 
     private String openReaders(String[] indices, TimeValue keepAlive) {

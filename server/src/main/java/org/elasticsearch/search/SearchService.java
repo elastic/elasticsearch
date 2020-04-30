@@ -1138,17 +1138,38 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public CanMatchResponse canMatch(ShardSearchRequest request) throws IOException {
         assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
-        // TODO: support can_match with reader contexts after https://github.com/elastic/elasticsearch/pull/54966
-        assert request.readerId() == null : "request with reader_id bypass can_match phase";
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexShard indexShard = indexService.getShard(request.shardId().getId());
-        // we don't want to use the reader wrapper since it could run costly operations
-        // and we can afford false positives.
-        final boolean hasRefreshPending = indexShard.hasRefreshPending();
-        try (Engine.Searcher searcher = indexShard.acquireSearcher("can_match")) {
+        final boolean hasRefreshPending;
+        final Engine.Searcher canMatchSearcher;
+        if (request.readerId() != null) {
+            final ReaderContext readerContext = findReaderContext(request.readerId());
+            checkKeepAliveLimit(request.keepAlive().millis());
+            readerContext.keepAlive(request.keepAlive().millis());
+            readerContext.incRef();
+            boolean success = false;
+            try {
+                final Engine.Searcher searcher = readerContext.acquireSearcher("can_match");
+                canMatchSearcher = new Engine.Searcher(searcher.source(), searcher.getDirectoryReader(),
+                    searcher.getSimilarity(), searcher.getQueryCache(), searcher.getQueryCachingPolicy(),
+                    Releasables.wrap(searcher, readerContext::decRef));
+                success = true;
+            } finally {
+                if (success == false) {
+                    readerContext.decRef();
+                }
+            }
+            hasRefreshPending = false;
+        } else {
+            IndexShard indexShard = indexService.getShard(request.shardId().getId());
+            hasRefreshPending = indexShard.hasRefreshPending();
+            // we don't want to use the reader wrapper since it could run costly operations
+            // and we can afford false positives.
+            canMatchSearcher = indexShard.acquireSearcher("can_match");
+        }
+        try (Releasable ignored = canMatchSearcher) {
             final boolean aliasFilterCanMatch = request.getAliasFilter()
                 .getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
-            QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), searcher,
+            QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), canMatchSearcher,
                 request::nowInMillis, request.getClusterAlias());
             Rewriteable.rewrite(request.getRewriteable(), context, false);
             FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
@@ -1187,10 +1208,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private void rewriteAndFetchShardRequest(IndexShard shard, ShardSearchRequest request, ActionListener<ShardSearchRequest> listener) {
-        ActionListener<Rewriteable> actionListener = ActionListener.wrap(r ->
-            // now we need to check if there is a pending refresh and register
-            shard.awaitShardSearchActive(b -> listener.onResponse(request)),
-            listener::onFailure);
+        ActionListener<Rewriteable> actionListener = ActionListener.wrap(r -> {
+            if (request.readerId() != null) {
+                listener.onResponse(request);
+            } else {
+                // now we need to check if there is a pending refresh and register
+                shard.awaitShardSearchActive(b -> listener.onResponse(request));
+            }
+        }, listener::onFailure);
         // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as
         // AliasFilters that might need to be rewritten. These are edge-cases but we are every efficient doing the rewrite here so it's not
         // adding a lot of overhead

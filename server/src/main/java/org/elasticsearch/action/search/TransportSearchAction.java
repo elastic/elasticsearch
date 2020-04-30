@@ -517,8 +517,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             indexRoutings = Map.of();
             localShardIterators = searchShardsFromReaderContexts(
                 clusterState, localIndices, searchRequest.getLocalClusterAlias(), readerContexts, searchRequest.reader().getKeepAlive());
-            // TODO: support can_match with reader contexts after https://github.com/elastic/elasticsearch/pull/54966
-            preFilterSearchShards = false;
+            preFilterSearchShards = shouldPreFilterSearchShards(clusterState, searchRequest, localIndices.indices(),
+                localShardIterators.size() + remoteShardIterators.size());
         } else {
             final Index[] indices = resolveLocalIndices(localIndices, searchRequest.indicesOptions(), clusterState, timeProvider);
             Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, searchRequest.routing(),

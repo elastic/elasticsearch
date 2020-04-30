@@ -19,51 +19,24 @@
 
 package org.elasticsearch.common.logging;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
  * A logger that logs deprecation notices.
  */
-public class CompatibleApiLogger {
+public class CompatibleApiLogger extends ThrottlingAndHeaderWarningLogger{
 
-    private final ThrottlingLogger throttlingLogger;
-    private final HeaderWarningLogger headerWarningLogger = new HeaderWarningLogger();
-
-    /**
-     * Creates a new deprecation logger based on the parent logger. Automatically
-     * prefixes the logger name with "deprecation", if it starts with "org.elasticsearch.",
-     * it replaces "org.elasticsearch" with "org.elasticsearch.deprecation" to maintain
-     * the "org.elasticsearch" namespace.
-     */
     public CompatibleApiLogger(Logger parentLogger) {
+        super(compatibleApiLogger(parentLogger));
+    }
+
+    private static String compatibleApiLogger(Logger parentLogger) {
         String name = parentLogger.getName();
         if (name.startsWith("org.elasticsearch")) {
             name = name.replace("org.elasticsearch.", "org.elasticsearch.compatible.");
         } else {
             name = "compatible." + name;
         }
-        this.throttlingLogger = new ThrottlingLogger(LogManager.getLogger(name));
-    }
-
-    /**
-     * Logs a deprecation message, adding a formatted warning message as a response header on the thread context.
-     */
-    public void deprecated(String msg, Object... params) {
-        headerWarningLogger.log(msg, params);
-        throttlingLogger.log(msg, params);
-    }
-
-    /**
-     * Adds a formatted warning message as a response header on the thread context, and logs a deprecation message if the associated key has
-     * not recently been seen.
-     *
-     * @param key    the key used to determine if this deprecation should be logged
-     * @param msg    the message to log
-     * @param params parameters to the message
-     */
-    public void deprecatedAndMaybeLog(final String key, final String msg, final Object... params) {
-        headerWarningLogger.log(msg, params);
-        throttlingLogger.throttleLog(key, msg, params);
+        return name;
     }
 }

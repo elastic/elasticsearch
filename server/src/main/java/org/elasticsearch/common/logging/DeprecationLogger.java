@@ -28,15 +28,7 @@ import java.util.Set;
 /**
  * A logger that logs deprecation notices.
  */
-public class DeprecationLogger  {
-
-    private final ThrottlingLogger throttlingLogger;
-    private final HeaderWarningLogger headerWarningLogger = new HeaderWarningLogger();
-
-//    @Override
-//    protected Logger logger() {
-//        return throttlingLogger;
-//    }
+public class DeprecationLogger extends ThrottlingAndHeaderWarningLogger {
 
     /**
      * Creates a new deprecation logger based on the parent logger. Automatically
@@ -45,13 +37,18 @@ public class DeprecationLogger  {
      * the "org.elasticsearch" namespace.
      */
     public DeprecationLogger(Logger parentLogger) {
+        super(deprecatedLoggerName(parentLogger));
+
+    }
+
+    private static String deprecatedLoggerName(Logger parentLogger) {
         String name = parentLogger.getName();
         if (name.startsWith("org.elasticsearch")) {
             name = name.replace("org.elasticsearch.", "org.elasticsearch.deprecation.");
         } else {
             name = "deprecation." + name;
         }
-        this.throttlingLogger = new ThrottlingLogger(LogManager.getLogger(name));
+        return name;
     }
 
     public static void setThreadContext(ThreadContext threadContext) {
@@ -66,9 +63,7 @@ public class DeprecationLogger  {
      * Logs a deprecation message, adding a formatted warning message as a response header on the thread context.
      */
     public void deprecated(String msg, Object... params) {
-//        headerWarningAndLog(msg, true, params);
-        headerWarningLogger.log(msg, params);
-        throttlingLogger.log(msg, params);
+        headerWarnAndLog(msg,params);
     }
 
     /**
@@ -80,8 +75,7 @@ public class DeprecationLogger  {
      * @param params parameters to the message
      */
     public void deprecatedAndMaybeLog(final String key, final String msg, final Object... params) {
-        headerWarningLogger.log(msg, params);
-        throttlingLogger.throttleLog(key, msg, params);
+        headerWarnAndThrottleLog(key, msg, params);
     }
 
     /**
@@ -94,7 +88,8 @@ public class DeprecationLogger  {
      */
     void deprecated(final Set<ThreadContext> threadContexts, final String message, final Object... params) {
 //        log(threadContexts, message, true, params);
-        HeaderWarningLogger.addWarningToHeaders(threadContexts, message, params);
-        throttlingLogger.log(message, params);
+//        HeaderWarningLogger.addWarningToHeaders(threadContexts, message, params);
+//        throttlingLogger.log(message, params);
+
     }
 }

@@ -41,6 +41,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ThrottlingAndHeaderWarningLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -78,8 +79,8 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 public class MetadataIndexTemplateService {
 
     private static final Logger logger = LogManager.getLogger(MetadataIndexTemplateService.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-
+//    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final ThrottlingAndHeaderWarningLogger deprecationLogger = new ThrottlingAndHeaderWarningLogger(logger.getName());
     private final ClusterService clusterService;
     private final AliasValidator aliasValidator;
     private final IndicesService indicesService;
@@ -367,7 +368,7 @@ public class MetadataIndexTemplateService {
                     .collect(Collectors.joining(",")),
                 name);
             logger.warn(warning);
-            deprecationLogger.deprecatedAndMaybeLog("index_template_pattern_overlap", warning);
+            deprecationLogger.headerWarnAndThrottleLog("index_template_pattern_overlap", warning);
         }
 
         IndexTemplateV2 finalIndexTemplate = template;
@@ -601,7 +602,7 @@ public class MetadataIndexTemplateService {
                         .collect(Collectors.joining(",")),
                     request.name);
                 logger.warn(warning);
-                deprecationLogger.deprecatedAndMaybeLog("index_template_pattern_overlap", warning);
+                deprecationLogger.headerWarnAndThrottleLog("index_template_pattern_overlap", warning);
             } else {
                 // Otherwise, this is a hard error, the user should use V2 index templates instead
                 String error = String.format(Locale.ROOT, "template [%s] has index patterns %s matching patterns" +

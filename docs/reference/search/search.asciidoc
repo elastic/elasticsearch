@@ -262,7 +262,7 @@ returned results may be partial or empty.
 
 `_shards`::
 (object)
-Object containing a count of shards used for the request.
+Contains a count of shards used for the request.
 +
 .Properties of `_shards`
 [%collapsible%open]
@@ -354,7 +354,7 @@ returned document.
 [[search-api-response-body-source]]
 `_source`::
 (object)
-Object containing the original JSON body passed for the document at index time.
+Original JSON body passed for the document at index time.
 =====
 ====
 

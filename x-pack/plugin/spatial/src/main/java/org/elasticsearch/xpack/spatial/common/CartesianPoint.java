@@ -25,12 +25,12 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Locale;
 
-import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
+import static org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.Names.IGNORE_Z_VALUE;
 
 /**
  * Represents a point in the cartesian space.
  */
-public final class CartesianPoint implements ToXContentFragment {
+public class CartesianPoint implements ToXContentFragment {
 
     private static final ParseField X_FIELD = new ParseField("x");
     private static final ParseField Y_FIELD = new ParseField("y");

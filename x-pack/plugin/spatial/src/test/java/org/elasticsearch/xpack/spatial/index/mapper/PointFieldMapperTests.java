@@ -21,8 +21,8 @@ import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
-import static org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper.Names.NULL_VALUE;
+import static org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper.Names.IGNORE_Z_VALUE;
+import static org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper.Names.NULL_VALUE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;

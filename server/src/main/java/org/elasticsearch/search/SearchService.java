@@ -1162,8 +1162,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         } else {
             IndexShard indexShard = indexService.getShard(request.shardId().getId());
             hasRefreshPending = indexShard.hasRefreshPending();
-            // we don't want to use the reader wrapper since it could run costly operations
-            // and we can afford false positives.
             canMatchSearcher = indexShard.acquireSearcher("can_match");
         }
         try (Releasable ignored = canMatchSearcher) {

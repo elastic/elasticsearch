@@ -41,7 +41,7 @@ public class VectorsFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isVectorsAllowed();
+        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.VECTORS);
     }
 
     @Override

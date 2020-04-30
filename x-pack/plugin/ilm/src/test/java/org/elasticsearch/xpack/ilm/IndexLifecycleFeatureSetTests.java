@@ -53,10 +53,10 @@ public class IndexLifecycleFeatureSetTests extends ESTestCase {
     public void testAvailable() {
         IndexLifecycleFeatureSet featureSet = new IndexLifecycleFeatureSet(licenseState, clusterService);
 
-        when(licenseState.isIndexLifecycleAllowed()).thenReturn(false);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.ILM)).thenReturn(false);
         assertThat(featureSet.available(), equalTo(false));
 
-        when(licenseState.isIndexLifecycleAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.ILM)).thenReturn(true);
         assertThat(featureSet.available(), equalTo(true));
 
         featureSet = new IndexLifecycleFeatureSet(null, clusterService);

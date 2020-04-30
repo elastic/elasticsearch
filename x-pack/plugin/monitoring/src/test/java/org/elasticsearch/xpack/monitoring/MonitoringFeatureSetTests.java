@@ -46,7 +46,7 @@ public class MonitoringFeatureSetTests extends ESTestCase {
     public void testAvailable() {
         MonitoringFeatureSet featureSet = new MonitoringFeatureSet(Settings.EMPTY, monitoring, licenseState, exporters);
         boolean available = randomBoolean();
-        when(licenseState.isMonitoringAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 

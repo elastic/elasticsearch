@@ -32,14 +32,14 @@ public class SqlFeatureSet implements XPackFeatureSet {
     private final boolean enabled;
     private final XPackLicenseState licenseState;
     private final Client client;
-    
+
     @Inject
     public SqlFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState, Client client) {
         this.enabled = XPackSettings.SQL_ENABLED.get(settings);
         this.licenseState = licenseState;
         this.client = client;
     }
-    
+
     @Override
     public String name() {
         return XPackField.SQL;
@@ -47,7 +47,7 @@ public class SqlFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isSqlAllowed();
+        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.SQL);
     }
 
     @Override

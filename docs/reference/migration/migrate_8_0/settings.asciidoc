@@ -76,7 +76,7 @@ have been deprecated:
 * `xpack.monitoring.enabled`
 
 Previously, these settings could be set to `false` in order to disable the
-APIs in a cluster. As of 7.8.0, these basic license features are
+feature's APIs in a cluster. As of 7.8.0, these basic license features are
 always enabled for the {default-dist}.
 
 If you have disabled ILM so that you can use another tool to manage Watcher

@@ -37,7 +37,7 @@ public class EnrichFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState.isEnrichAllowed();
+        return licenseState.isAllowed(XPackLicenseState.Feature.ENRICH);
     }
 
     @Override

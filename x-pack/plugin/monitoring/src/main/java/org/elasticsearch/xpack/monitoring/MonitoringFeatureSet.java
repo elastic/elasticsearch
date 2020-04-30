@@ -45,7 +45,7 @@ public class MonitoringFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isMonitoringAllowed();
+        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.MONITORING);
     }
 
     @Override

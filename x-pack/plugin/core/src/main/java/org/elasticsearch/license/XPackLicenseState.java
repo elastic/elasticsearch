@@ -83,6 +83,8 @@ public class XPackLicenseState {
 
         ODBC(OperationMode.PLATINUM, true),
 
+        FLATTENED(OperationMode.MISSING, true),
+
         VECTORS(OperationMode.MISSING, true),
 
         SPATIAL(OperationMode.MISSING, true),

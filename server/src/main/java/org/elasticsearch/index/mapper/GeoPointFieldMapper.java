@@ -226,7 +226,7 @@ public class GeoPointFieldMapper extends AbstractGeometryFieldMapper implements 
             context.doc().add(new LatLonDocValuesField(fieldType().name(), point.lat(), point.lon()));
         } else if (fieldType().stored() || fieldType().indexOptions() != IndexOptions.NONE) {
             List<IndexableField> fields = new ArrayList<>(1);
-            createFieldNamesField(context, fields);
+            createFieldNamesField(context);
             for (IndexableField field : fields) {
                 context.doc().add(field);
             }

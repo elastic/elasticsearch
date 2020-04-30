@@ -254,7 +254,8 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
     private static ClusterState builderClusterStateWithModelReferences(Version minNodeVersion, String... modelId) throws IOException {
         Map<String, PipelineConfiguration> configurations = new HashMap<>(modelId.length);
         for (String id : modelId) {
-            configurations.put("pipeline_with_model_" + id, newConfigurationWithInferenceProcessor(id));
+            configurations.put("pipeline_with_model_" + id,
+                randomBoolean() ? newConfigurationWithInferenceProcessor(id) : newConfigurationWithForeachProcessorProcessor(id));
         }
         IngestMetadata ingestMetadata = new IngestMetadata(configurations);
 
@@ -274,17 +275,32 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
 
     private static PipelineConfiguration newConfigurationWithInferenceProcessor(String modelId) throws IOException {
         try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(Collections.singletonMap("processors",
+            Collections.singletonList(inferenceProcessorForModel(modelId))))) {
+            return new PipelineConfiguration("pipeline_with_model_" + modelId, BytesReference.bytes(xContentBuilder), XContentType.JSON);
+        }
+    }
+
+    private static PipelineConfiguration newConfigurationWithForeachProcessorProcessor(String modelId) throws IOException {
+        try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(Collections.singletonMap("processors",
             Collections.singletonList(
-                Collections.singletonMap(InferenceProcessor.TYPE,
+                Collections.singletonMap("foreach",
                     new HashMap<>() {{
-                        put(InferenceProcessor.MODEL_ID, modelId);
-                        put(InferenceProcessor.INFERENCE_CONFIG,
-                                Collections.singletonMap(RegressionConfig.NAME.getPreferredName(), Collections.emptyMap()));
-                        put(InferenceProcessor.TARGET_FIELD, "new_field");
-                        put(InferenceProcessor.FIELD_MAP, Collections.singletonMap("source", "dest"));
+                        put("field", "foo");
+                        put("processor", inferenceProcessorForModel(modelId));
                     }}))))) {
             return new PipelineConfiguration("pipeline_with_model_" + modelId, BytesReference.bytes(xContentBuilder), XContentType.JSON);
         }
+    }
+
+    private static Map<String, Object> inferenceProcessorForModel(String modelId) {
+        return Collections.singletonMap(InferenceProcessor.TYPE,
+            new HashMap<>() {{
+                put(InferenceProcessor.MODEL_ID, modelId);
+                put(InferenceProcessor.INFERENCE_CONFIG,
+                    Collections.singletonMap(RegressionConfig.NAME.getPreferredName(), Collections.emptyMap()));
+                put(InferenceProcessor.TARGET_FIELD, "new_field");
+                put(InferenceProcessor.FIELD_MAP, Collections.singletonMap("source", "dest"));
+            }});
     }
 
 }

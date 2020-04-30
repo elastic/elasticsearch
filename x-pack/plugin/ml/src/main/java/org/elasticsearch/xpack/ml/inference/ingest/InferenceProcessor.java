@@ -165,6 +165,7 @@ public class InferenceProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory, Consumer<ClusterState> {
 
+        private static final String FOREACH_PROCESSOR_NAME = "foreach";
         private static final Logger logger = LogManager.getLogger(Factory.class);
 
         private static final Set<String> RESERVED_ML_FIELD_NAMES = new HashSet<>(Arrays.asList(
@@ -206,7 +207,18 @@ public class InferenceProcessor extends AbstractProcessor {
                     for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                         for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
                             if (TYPE.equals(entry.getKey())) {
-                                count++;
+                                ++count;
+                            }
+                            // Special handling as `foreach` processors allow a `processor` to be defined
+                            if (FOREACH_PROCESSOR_NAME.equals(entry.getKey())) {
+                                if (entry.getValue() instanceof Map<?, ?>) {
+                                    Object processorDefinition = ((Map<?, ?>)entry.getValue()).get("processor");
+                                    if (processorDefinition instanceof Map<?, ?>) {
+                                        if (((Map<?, ?>) processorDefinition).keySet().contains(TYPE)) {
+                                            ++count;
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

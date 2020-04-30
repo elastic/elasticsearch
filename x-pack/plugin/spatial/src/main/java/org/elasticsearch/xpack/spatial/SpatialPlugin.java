@@ -126,7 +126,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
         builder.register(GeoHashGridAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (GeoGridAggregatorSupplier) (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
                                          aggregationContext, parent, metadata) -> {
-                if (getLicenseState().isAllowed(XPackLicenseState.Feature.SPATIAL_GEO_CENTROID)) {
+                if (getLicenseState().isAllowed(XPackLicenseState.Feature.SPATIAL_GEO_GRID)) {
                     final GeoGridTiler tiler;
                     if (geoBoundingBox.isUnbounded()) {
                         tiler = new GeoHashGridTiler();

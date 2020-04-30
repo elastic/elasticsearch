@@ -101,9 +101,7 @@ public class NativePrivilegeStore {
     private final Client client;
     private final SecurityIndexManager securityIndexManager;
     private final Cache<String, Set<ApplicationPrivilegeDescriptor>> descriptorsCache;
-    private final CacheIteratorHelper<String, Set<ApplicationPrivilegeDescriptor>> descriptorsCacheHelper;
     private final Cache<Set<String>, Set<String>> applicationNamesCache;
-    private final CacheIteratorHelper<Set<String>, Set<String>> applicationNamesCacheHelper;
     private final AtomicLong numInvalidation = new AtomicLong();
 
     public NativePrivilegeStore(Settings settings, Client client, SecurityIndexManager securityIndexManager) {
@@ -117,7 +115,6 @@ public class NativePrivilegeStore {
             builder.weigher((k, v) -> v.size());
         }
         descriptorsCache = builder.build();
-        descriptorsCacheHelper = new CacheIteratorHelper<>(descriptorsCache);
 
         CacheBuilder<Set<String>, Set<String>> applicationNamesCacheBuilder = CacheBuilder.builder();
         final int nameCacheSize = APPLICATION_NAME_CACHE_SIZE_SETTING.get(settings);
@@ -126,7 +123,6 @@ public class NativePrivilegeStore {
             applicationNamesCacheBuilder.weigher((k, v) -> k.size() + v.size());
         }
         applicationNamesCache = applicationNamesCacheBuilder.build();
-        applicationNamesCacheHelper = new CacheIteratorHelper<>(applicationNamesCache);
     }
 
     public void getPrivileges(Collection<String> applications, Collection<String> names,
@@ -150,45 +146,42 @@ public class NativePrivilegeStore {
             } else {
                 cacheStatus = cacheStatusForApplicationNames(concreteApplicationNames);
             }
+            Set<String> uncachedApplicationNames = cacheStatus.v1();
+            Map<String, Set<ApplicationPrivilegeDescriptor>> cachedDescriptors = cacheStatus.v2();
 
-            if (cacheStatus.v1().isEmpty()) {
+            if (uncachedApplicationNames.isEmpty()) {
                 logger.debug("All application privileges found in cache");
-                final Set<ApplicationPrivilegeDescriptor> cachedDescriptors =
-                    cacheStatus.v2().values().stream().flatMap(Collection::stream).collect(Collectors.toUnmodifiableSet());
-                listener.onResponse(filterDescriptorsForNames(cachedDescriptors, names));
+                listener.onResponse(filterDescriptorsForNames(
+                    cachedDescriptors.values().stream().flatMap(Collection::stream).collect(Collectors.toUnmodifiableSet()), names));
             } else {
                 final long invalidationCounter = numInvalidation.get();
                 // Always fetch all privileges of an application for caching purpose
-                logger.debug("Fetching application privilege documents for: {}", cacheStatus.v1());
-                innerGetPrivileges(cacheStatus.v1(), ActionListener.wrap(fetchedDescriptors -> {
+                logger.debug("Fetching application privilege documents for: {}", uncachedApplicationNames);
+                innerGetPrivileges(uncachedApplicationNames, ActionListener.wrap(fetchedDescriptors -> {
                     final Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors = fetchedDescriptors.stream()
                         .collect(Collectors.groupingBy(ApplicationPrivilegeDescriptor::getApplication, Collectors.toUnmodifiableSet()));
                     final Set<String> allApplicationNames =
-                        Stream.concat(cacheStatus.v2().keySet().stream(), mapOfFetchedDescriptors.keySet().stream())
+                        Stream.concat(cachedDescriptors.keySet().stream(), mapOfFetchedDescriptors.keySet().stream())
                             .collect(Collectors.toUnmodifiableSet());
                     // Avoid caching potential stale results.
                     // TODO: It is still possible that cache gets invalidated immediately after the if check
                     if (invalidationCounter == numInvalidation.get()) {
                         // Do not cache the names if expansion has no effect
                         if (allApplicationNames.equals(applicationNamesCacheKey) == false) {
-                            try (ReleasableLock ignored = applicationNamesCacheHelper.acquireUpdateLock()) {
-                                applicationNamesCache.computeIfAbsent(applicationNamesCacheKey, (k) -> {
-                                    logger.debug("Caching application names query: {} = {}", k, allApplicationNames);
-                                    return allApplicationNames;
-                                });
-                            }
+                            applicationNamesCache.computeIfAbsent(applicationNamesCacheKey, (k) -> {
+                                logger.debug("Caching application names query: {} = {}", k, allApplicationNames);
+                                return allApplicationNames;
+                            });
                         }
-                        try (ReleasableLock ignored = descriptorsCacheHelper.acquireUpdateLock()) {
-                            for (Map.Entry<String, Set<ApplicationPrivilegeDescriptor>> entry : mapOfFetchedDescriptors.entrySet()) {
-                                descriptorsCache.computeIfAbsent(entry.getKey(), (k) -> {
-                                    logger.debug("Caching descriptors for application: {}", k);
-                                    return entry.getValue();
-                                });
-                            }
+                        for (Map.Entry<String, Set<ApplicationPrivilegeDescriptor>> entry : mapOfFetchedDescriptors.entrySet()) {
+                            descriptorsCache.computeIfAbsent(entry.getKey(), (k) -> {
+                                logger.debug("Caching descriptors for application: {}", k);
+                                return entry.getValue();
+                            });
                         }
                     }
                     final Set<ApplicationPrivilegeDescriptor> allDescriptors =
-                        Stream.concat(cacheStatus.v2().values().stream().flatMap(Collection::stream), fetchedDescriptors.stream())
+                        Stream.concat(cachedDescriptors.values().stream().flatMap(Collection::stream), fetchedDescriptors.stream())
                             .collect(Collectors.toUnmodifiableSet());
                     listener.onResponse(filterDescriptorsForNames(allDescriptors, names));
                 }, listener::onFailure));

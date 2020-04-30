@@ -217,14 +217,14 @@ public class AsyncSearchTaskTests extends ESTestCase {
     }
 
     private static SearchResponse newSearchResponse(int totalShards, int successfulShards, int skippedShards,
-                                                    ShardSearchFailure... shardFailures) {
+            ShardSearchFailure... failures) {
         InternalSearchResponse response = new InternalSearchResponse(SearchHits.empty(),
             InternalAggregations.EMPTY, null, null, false, null, 1);
         return new SearchResponse(response, null, totalShards, successfulShards, skippedShards,
-            100, shardFailures, SearchResponse.Clusters.EMPTY);
+            100, failures, SearchResponse.Clusters.EMPTY);
     }
 
-    private void assertCompletionListeners(AsyncSearchTask task,
+    private static void assertCompletionListeners(AsyncSearchTask task,
                                            int expectedTotalShards,
                                            int expectedSuccessfulShards,
                                            int expectedSkippedShards,

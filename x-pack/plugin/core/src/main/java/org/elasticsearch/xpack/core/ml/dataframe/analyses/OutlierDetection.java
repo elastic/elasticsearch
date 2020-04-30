@@ -249,6 +249,11 @@ public class OutlierDetection implements DataFrameAnalysis {
         throw new UnsupportedOperationException("Outlier detection does not support state");
     }
 
+    @Override
+    public List<String> getProgressPhases() {
+        return Collections.singletonList("analyzing");
+    }
+
     public enum Method {
         LOF, LDOF, DISTANCE_KTH_NN, DISTANCE_KNN;
 

@@ -91,9 +91,9 @@ The configuration information necessary to perform
 {ml-docs}/dfa-classification.html[{classification}].
 +
 TIP: Advanced parameters are for fine-tuning {classanalysis}. They are set 
-automatically by {ml-docs}/hyperparameters.html[hyperparameter optimization] to 
-give the minimum validation error. It is highly recommended to use the default 
-values unless you fully understand the function of these parameters.
+automatically by hyperparameter optimization to give the minimum validation
+error. It is highly recommended to use the default values unless you fully
+understand the function of these parameters.
 +
 .Properties of `classification`
 [%collapsible%open]
@@ -197,9 +197,9 @@ The configuration information necessary to perform
 {ml-docs}/dfa-regression.html[{regression}].
 +
 TIP: Advanced parameters are for fine-tuning {reganalysis}. They are set 
-automatically by {ml-docs}/hyperparameters.html[hyperparameter optimization] to 
-give the minimum validation error. It is highly recommended to use the default 
-values unless you fully understand the function of these parameters.
+automatically by hyperparameter optimization to give the minimum validation
+error. It is highly recommended to use the default values unless you fully
+understand the function of these parameters.
 +
 .Properties of `regression`
 [%collapsible%open]

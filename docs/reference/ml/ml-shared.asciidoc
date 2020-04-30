@@ -581,10 +581,11 @@ end::empty-bucket-count[]
 
 tag::eta[]
 Advanced configuration option. The shrinkage applied to the weights. Smaller
-values result in larger forests which have a better generalization error. However,
-the smaller the value the longer the training will take. For more information
-about shrinkage, see
+values result in larger forests which have a better generalization error.
+However, the smaller the value the longer the training will take. For more
+information about shrinkage, see
 https://en.wikipedia.org/wiki/Gradient_boosting#Shrinkage[this wiki article].
+By default, this value is calculated during hyperparameter optimization.
 end::eta[]
 
 tag::exclude-frequent[]
@@ -609,7 +610,8 @@ end::failed-category-count[]
 
 tag::feature-bag-fraction[]
 Advanced configuration option. Defines the fraction of features that will be
-used when selecting a random bag for each candidate split. 
+used when selecting a random bag for each candidate split. By default, this
+value is calculated during hyperparameter optimization.
 end::feature-bag-fraction[]
 
 tag::feature-influence-threshold[]
@@ -662,7 +664,8 @@ Advanced configuration option. Regularization parameter to prevent overfitting
 on the training data set. Multiplies a linear penalty associated with the size of 
 individual trees in the forest. The higher the value the more training will 
 prefer smaller trees. The smaller this parameter the larger individual trees
-will be and the longer training will take.
+will be and the longer training will take. By default, this value is calculated
+during hyperparameter optimization.
 end::gamma[]
 
 tag::groups[]
@@ -821,6 +824,7 @@ more training will attempt to keep leaf weights small. This makes the prediction
 function smoother at the expense of potentially not being able to capture 
 relevant relationships between the features and the {depvar}. The smaller this 
 parameter the larger individual trees will be and the longer training will take.
+By default, this value is calculated during hyperparameter optimization.
 end::lambda[]
 
 tag::last-data-time[]
@@ -864,7 +868,8 @@ end::max-empty-searches[]
 
 tag::max-trees[]
 Advanced configuration option. Defines the maximum number of trees the forest is
-allowed to contain. The maximum value is 2000.
+allowed to contain. The maximum value is 2000. By default, this value is
+calculated during hyperparameter optimization.
 end::max-trees[]
 
 tag::method[]

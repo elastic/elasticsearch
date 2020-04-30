@@ -12,11 +12,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
+import org.elasticsearch.xpack.watcher.Watcher;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -61,33 +61,39 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
     public static final LifecyclePolicyConfig POLICY_WATCH_HISTORY = new LifecyclePolicyConfig("watch-history-ilm-policy",
         "/watch-history-ilm-policy.json");
 
-    private final boolean ilmEnabled;
+    private final boolean ilmManagementEnabled;
 
     public WatcherIndexTemplateRegistry(Settings nodeSettings, ClusterService clusterService, ThreadPool threadPool, Client client,
                                         NamedXContentRegistry xContentRegistry) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
-        this.ilmEnabled = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(settings);
+        ilmManagementEnabled = Watcher.USE_ILM_INDEX_MANAGEMENT.get(nodeSettings);
     }
 
     @Override
     protected List<IndexTemplateConfig> getTemplateConfigs() {
         if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_7_0)) {
             return Arrays.asList(
-                ilmEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM,
+                ilmManagementEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM,
                 TEMPLATE_CONFIG_TRIGGERED_WATCHES,
                 TEMPLATE_CONFIG_WATCHES
             );
         } else {
             return Arrays.asList(
-                ilmEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY_10 : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM_10,
+                ilmManagementEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY_10 : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM_10,
                 TEMPLATE_CONFIG_TRIGGERED_WATCHES,
                 TEMPLATE_CONFIG_WATCHES
             );
         }
     }
 
+    /**
+     * If Watcher is configured not to use ILM, we don't return a policy.
+     */
     @Override
     protected List<LifecyclePolicyConfig> getPolicyConfigs() {
+        if (Watcher.USE_ILM_INDEX_MANAGEMENT.get(settings) == false) {
+            return Collections.emptyList();
+        }
         return Collections.singletonList(POLICY_WATCH_HISTORY);
     }
 

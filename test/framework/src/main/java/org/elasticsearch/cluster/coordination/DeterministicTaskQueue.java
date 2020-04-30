@@ -24,6 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.threadpool.ThreadPoolStats;
@@ -288,6 +289,7 @@ public class DeterministicTaskQueue {
      * @return A <code>ThreadPool</code> that uses this task queue and wraps <code>Runnable</code>s in the given wrapper.
      */
     public ThreadPool getThreadPool(Function<Runnable, Runnable> runnableWrapper) {
+        final ExecutorService forkingExecutor = getExecutorService(runnableWrapper);
         return new ThreadPool(settings) {
 
             private final Map<String, ThreadPool.Info> infos = new HashMap<>();
@@ -323,12 +325,12 @@ public class DeterministicTaskQueue {
 
             @Override
             public ExecutorService generic() {
-                return getExecutorService(runnableWrapper);
+                return executor(Names.GENERIC);
             }
 
             @Override
             public ExecutorService executor(String name) {
-                return getExecutorService(runnableWrapper);
+                return Names.SAME.equals(name) ? EsExecutors.newDirectExecutorService() : forkingExecutor;
             }
 
             @Override

@@ -103,7 +103,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         putAnalytics(config);
 
         assertIsStopped(jobId);
-        assertProgress(jobId, 0, 0, 0, 0);
+        assertProgressIsZero(jobId);
 
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
@@ -121,7 +121,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat(importanceArray, hasSize(greaterThan(0)));
         }
 
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
@@ -150,7 +150,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         putAnalytics(config);
 
         assertIsStopped(jobId);
-        assertProgress(jobId, 0, 0, 0, 0);
+        assertProgressIsZero(jobId);
 
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
@@ -171,7 +171,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(stats.getDataCounts().getTestDocsCount(), equalTo(0L));
         assertThat(stats.getDataCounts().getSkippedDocsCount(), equalTo(0L));
 
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
@@ -210,7 +210,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         putAnalytics(config);
 
         assertIsStopped(jobId);
-        assertProgress(jobId, 0, 0, 0, 0);
+        assertProgressIsZero(jobId);
 
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
@@ -245,7 +245,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(stats.getDataCounts().getTestDocsCount(), lessThan(300L));
         assertThat(stats.getDataCounts().getSkippedDocsCount(), equalTo(0L));
 
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
@@ -305,7 +305,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         putAnalytics(config);
 
         assertIsStopped(jobId);
-        assertProgress(jobId, 0, 0, 0, 0);
+        assertProgressIsZero(jobId);
 
         NodeAcknowledgedResponse response = startAnalytics(jobId);
         assertThat(response.getNode(), not(emptyString()));
@@ -346,7 +346,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertTopClasses(resultsObject, 2, KEYWORD_FIELD, KEYWORD_FIELD_VALUES);
         }
 
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
@@ -394,7 +394,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
     }
 
     public void testDependentVariableIsNested() throws Exception {
@@ -407,7 +407,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
@@ -425,7 +425,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
@@ -443,7 +443,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
@@ -539,7 +539,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         });
 
         waitUntilAnalyticsIsStopped(jobId);
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
     }
 
     public void testSetUpgradeMode_NewTaskDoesNotStart() throws Exception {
@@ -572,7 +572,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);

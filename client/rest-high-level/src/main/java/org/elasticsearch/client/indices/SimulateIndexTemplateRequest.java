@@ -23,15 +23,11 @@ import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-
-import java.io.IOException;
 
 /**
  * A request to simulate matching a provided index name and an optional new index template against the existing index templates.
  */
-public class SimulateIndexTemplateRequest extends TimedRequest implements ToXContentObject {
+public class SimulateIndexTemplateRequest extends TimedRequest {
 
     private static final ParseField INDEX_NAME = new ParseField("index_name");
     private static final ParseField INDEX_TEMPLATE = new ParseField("index_template");
@@ -81,16 +77,5 @@ public class SimulateIndexTemplateRequest extends TimedRequest implements ToXCon
     public SimulateIndexTemplateRequest indexTemplateV2Request(@Nullable PutIndexTemplateV2Request indexTemplateV2Request) {
         this.indexTemplateV2Request = indexTemplateV2Request;
         return this;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(INDEX_NAME.getPreferredName(), indexName);
-        if (indexTemplateV2Request != null) {
-            indexTemplateV2Request.toXContent(builder, params);
-        }
-        builder.endObject();
-        return builder;
     }
 }

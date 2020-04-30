@@ -240,7 +240,7 @@ public class NativePrivilegeStore {
         // Always completely invalidate application names cache due to wildcard
         applicationNamesCache.invalidateAll();
         final Set<String> uniqueNames = Set.copyOf(updatedApplicationNames);
-        descriptorsCacheHelper.removeKeysIf(uniqueNames::contains);
+       uniqueNames.forEach(descriptorsCache::invalidate);
     }
 
     public void invalidateAll() {

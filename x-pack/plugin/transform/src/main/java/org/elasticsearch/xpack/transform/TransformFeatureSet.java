@@ -89,7 +89,7 @@ public class TransformFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isTransformAllowed();
+        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM);
     }
 
     @Override

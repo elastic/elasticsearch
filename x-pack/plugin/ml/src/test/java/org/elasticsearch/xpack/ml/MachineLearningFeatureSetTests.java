@@ -139,7 +139,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(commonSettings), clusterService,
                 client, licenseState, jobManagerHolder);
         boolean available = randomBoolean();
-        when(licenseState.isMachineLearningAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
         PlainActionFuture<Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);
@@ -176,7 +176,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     }
 
     public void testUsage() throws Exception {
-        when(licenseState.isMachineLearningAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", true);
 
@@ -334,7 +334,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     }
 
     public void testUsageDisabledML() throws Exception {
-        when(licenseState.isMachineLearningAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", false);
 
@@ -356,7 +356,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     }
 
     public void testNodeCount() throws Exception {
-        when(licenseState.isMachineLearningAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
         int nodeCount = randomIntBetween(1, 3);
         givenNodeCount(nodeCount);
         Settings.Builder settings = Settings.builder().put(commonSettings);
@@ -399,7 +399,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     }
 
     public void testUsageGivenMlMetadataNotInstalled() throws Exception {
-        when(licenseState.isMachineLearningAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", true);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);

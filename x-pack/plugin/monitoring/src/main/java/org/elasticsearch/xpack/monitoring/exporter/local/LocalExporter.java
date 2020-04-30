@@ -433,7 +433,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                                                           final AtomicInteger pendingResponses) {
         final XPackClient xpackClient = new XPackClient(client);
         final WatcherClient watcher = xpackClient.watcher();
-        final boolean canAddWatches = licenseState.isMonitoringClusterAlertsAllowed();
+        final boolean canAddWatches = licenseState.isAllowed(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS);
 
         for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
             final String uniqueWatchId = ClusterAlertsUtil.createUniqueWatchId(clusterService, watchId);

@@ -35,7 +35,7 @@ public class RollupFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isRollupAllowed();
+        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.ROLLUP);
     }
 
     @Override

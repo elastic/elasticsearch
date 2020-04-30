@@ -55,7 +55,7 @@ public class SqlFeatureSetTests extends ESTestCase {
     public void testAvailable() {
         SqlFeatureSet featureSet = new SqlFeatureSet(Settings.EMPTY, licenseState, client);
         boolean available = randomBoolean();
-        when(licenseState.isSqlAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.SQL)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 

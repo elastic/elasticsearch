@@ -861,7 +861,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             "indices.create_data_stream",
             "indices.get_data_streams",
             "indices.delete_data_stream",
-            "indices.simulate_index_template",
             "clear_reader",
             "open_reader"
         };

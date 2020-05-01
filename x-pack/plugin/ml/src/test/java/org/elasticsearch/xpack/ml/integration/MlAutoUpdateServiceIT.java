@@ -10,6 +10,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -69,6 +70,7 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
 
     public void testAutomaticModelUpdate() throws Exception {
         ensureGreen("_all");
+        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
         client().prepareIndex(AnomalyDetectorsIndex.configIndexName())
             .setId(DatafeedConfig.documentId("farequote-datafeed-with-old-agg"))
             .setSource(AGG_WITH_OLD_DATE_HISTOGRAM_INTERVAL, XContentType.JSON)
@@ -82,7 +84,7 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
         assertThat(exceptionHolder.get(), is(nullValue()));
         client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
 
-        DatafeedConfigAutoUpdater autoUpdater = new DatafeedConfigAutoUpdater(datafeedConfigProvider);
+        DatafeedConfigAutoUpdater autoUpdater = new DatafeedConfigAutoUpdater(datafeedConfigProvider, indexNameExpressionResolver);
         MlAutoUpdateService mlAutoUpdateService = new MlAutoUpdateService(client().threadPool(),
             Collections.singletonList(autoUpdater));
 

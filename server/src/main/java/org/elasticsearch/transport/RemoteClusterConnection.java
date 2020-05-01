@@ -135,6 +135,7 @@ public final class RemoteClusterConnection implements TransportConnectionListene
                             String proxyAddress, ConnectionManager connectionManager) {
         this.transportService = transportService;
         this.maxNumRemoteConnections = maxNumRemoteConnections;
+        this.maxPendingConnectionListeners = REMOTE_MAX_PENDING_CONNECTION_LISTENERS.get(settings);
         this.nodePredicate = nodePredicate;
         this.clusterAlias = clusterAlias;
         this.connectionManager = connectionManager;
@@ -149,7 +150,6 @@ public final class RemoteClusterConnection implements TransportConnectionListene
         connectionManager.addListener(transportService);
         this.proxyAddress = proxyAddress;
         initialConnectionTimeout = RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
-        this.maxPendingConnectionListeners = REMOTE_MAX_PENDING_CONNECTION_LISTENERS.get(settings);
     }
 
 

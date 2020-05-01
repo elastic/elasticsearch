@@ -100,7 +100,7 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
     public void doWrite(StreamOutput out) throws IOException {
         out.writeEnum(parser);
     }
-    
+
     @Override
     public String getWriteableName() {
         return NAME;

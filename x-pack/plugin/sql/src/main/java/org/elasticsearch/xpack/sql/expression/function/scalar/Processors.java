@@ -56,7 +56,7 @@ public final class Processors {
      */
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-
+        
         entries.addAll(org.elasticsearch.xpack.ql.expression.processor.Processors.getNamedWriteables());
 
         // base

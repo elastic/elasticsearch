@@ -9,7 +9,6 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -19,11 +18,10 @@ import java.time.ZoneId;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.ql.type.DateUtils.UTC;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser.DATE_TIME;
 
 public class DateTimeParse extends BinaryDateTimeFunction {
-
-    private static final Parser parser = Parser.DATE_TIME;
-
+    
     public DateTimeParse(Source source, Expression timestamp, Expression pattern) {
         super(source, timestamp, pattern, UTC);
     }
@@ -63,11 +61,11 @@ public class DateTimeParse extends BinaryDateTimeFunction {
 
     @Override
     public Object fold() {
-        return parser.parse(left().fold(), right().fold());
+        return DATE_TIME.parse(left().fold(), right().fold());
     }
 
     @Override
     protected Pipe createPipe(Pipe timestamp, Pipe pattern, ZoneId zoneId) {
-        return new DateTimeParsePipe(source(), this, timestamp, pattern, parser);
+        return new DateTimeParsePipe(source(), this, timestamp, pattern, DATE_TIME);
     }
 }

@@ -43,6 +43,10 @@ public class DateTimeTestUtils {
     public static OffsetTime time(int hour, int minute, int second, int nano) {
         return OffsetTime.of(hour, minute, second, nano, ZoneOffset.UTC);
     }
+    
+    public static OffsetTime time(int hour, int minute, int second, int nano, ZoneOffset offset) {
+        return OffsetTime.of(hour, minute, second, nano, offset);
+    }
 
     static ZonedDateTime nowWithMillisResolution() {
         Clock millisResolutionClock = Clock.tick(Clock.systemUTC(), Duration.ofMillis(1));

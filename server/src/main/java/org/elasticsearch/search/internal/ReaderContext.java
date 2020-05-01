@@ -34,7 +34,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -43,10 +42,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * in {@link org.elasticsearch.search.SearchService} a SearchContext can be closed concurrently due to independent events
  * ie. when an index gets removed. To prevent accessing closed IndexReader / IndexSearcher instances the SearchContext
  * can be guarded by a reference count and fail if it's been closed by an external event.
- *
- * For reference why we use RefCounted here see https://github.com/elastic/elasticsearch/pull/20095.
  */
-public class ReaderContext extends AbstractRefCounted implements Releasable {
+public class ReaderContext implements Releasable {
     private final SearchContextId id;
     private final IndexShard indexShard;
     protected final Engine.SearcherSupplier searcherSupplier;
@@ -55,7 +52,8 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
 
     private final AtomicLong keepAlive;
     private final AtomicLong lastAccessTime;
-    private final AtomicInteger accessors = new AtomicInteger();
+    // For reference why we use RefCounted here see https://github.com/elastic/elasticsearch/pull/20095.
+    private final AbstractRefCounted refCounted;
 
     private final List<Releasable> onCloses = new CopyOnWriteArrayList<>();
 
@@ -68,13 +66,18 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
                          Engine.SearcherSupplier searcherSupplier,
                          long keepAliveInMillis,
                          boolean singleSession) {
-        super("reader_context");
         this.id = new SearchContextId(UUIDs.base64UUID(), id);
         this.indexShard = indexShard;
         this.searcherSupplier = searcherSupplier;
         this.singleSession = singleSession;
         this.keepAlive = new AtomicLong(keepAliveInMillis);
         this.lastAccessTime = new AtomicLong(nowInMillis());
+        this.refCounted = new AbstractRefCounted("reader_context") {
+            @Override
+            protected void closeInternal() {
+                doClose();
+            }
+        };
     }
 
     private long nowInMillis() {
@@ -84,12 +87,11 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
     @Override
     public final void close() {
         if (closed.compareAndSet(false, true)) {
-            decRef();
+            refCounted.decRef();
         }
     }
 
-    @Override
-    protected void closeInternal() {
+    void doClose() {
         Releasables.close(Releasables.wrap(onCloses), searcherSupplier);
     }
 
@@ -120,16 +122,16 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
      * @return a releasable to indicate the caller has stopped using this reader
      */
     public Releasable markAsUsed() {
-        accessors.incrementAndGet();
+        refCounted.incRef();
         return Releasables.releaseOnce(() -> {
             this.lastAccessTime.updateAndGet(curr -> Math.max(curr, nowInMillis()));
-            accessors.decrementAndGet();
+            refCounted.decRef();
         });
     }
 
-    public boolean isKeepAliveLapsed() {
-        if (accessors.get() > 0) {
-            return false; // being used
+    public boolean isExpired() {
+        if (refCounted.refCount() > 1) {
+            return false; // being used by markAsUsed
         }
         final long elapsed = nowInMillis() - lastAccessTime.get();
         return elapsed > keepAlive.get();

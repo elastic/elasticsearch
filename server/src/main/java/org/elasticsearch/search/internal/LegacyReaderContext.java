@@ -68,10 +68,10 @@ public class LegacyReaderContext extends ReaderContext {
         return super.acquireSearcher(source);
     }
 
+
     @Override
-    protected void closeInternal() {
-        Releasables.close(onClose);
-        super.closeInternal();
+    void doClose() {
+        Releasables.close(onClose, super::doClose);
     }
 
     @Override

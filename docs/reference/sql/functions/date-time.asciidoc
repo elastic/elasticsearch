@@ -462,7 +462,7 @@ DATETIME_PARSE(
 <1> datetime expression as a string
 <2> parsing pattern
 
-*Output*: time
+*Output*: datetime
 
 *Description*: Returns a datetime by parsing the 1st argument using the format specified in the 2nd argument. The parsing
 format pattern used is the one from
@@ -503,7 +503,7 @@ TIME_PARSE(
 <1> time expression as a string
 <2> parsing pattern
 
-*Output*: datetime
+*Output*: time
 
 *Description*: Returns a time by parsing the 1st argument using the format specified in the 2nd argument. The parsing
 format pattern used is the one from

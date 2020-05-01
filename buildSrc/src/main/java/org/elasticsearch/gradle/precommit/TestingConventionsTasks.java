@@ -47,8 +47,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -64,6 +66,8 @@ public class TestingConventionsTasks extends DefaultTask {
 
     private final NamedDomainObjectContainer<TestingConventionRule> naming;
 
+    private List<String> tasks = null;
+
     public TestingConventionsTasks() {
         setDescription("Tests various testing conventions");
         // Run only after everything is compiled
@@ -76,7 +80,7 @@ public class TestingConventionsTasks extends DefaultTask {
         return getProject().getTasks()
             .withType(Test.class)
             .stream()
-            .filter(t -> t.getName().equals("test") || t.getName().equals("integTest"))
+            .filter(t -> tasks == null || tasks.contains(t.getName()))
             .filter(Task::getEnabled)
             .collect(Collectors.toMap(Task::getPath, task -> task.getCandidateClassFiles().getFiles()));
     }
@@ -109,6 +113,10 @@ public class TestingConventionsTasks extends DefaultTask {
 
     public void naming(Closure<TestingConventionRule> action) {
         naming.configure(action);
+    }
+
+    public void setTasks(String... tasks) {
+        this.tasks = Arrays.asList(tasks);
     }
 
     @Input

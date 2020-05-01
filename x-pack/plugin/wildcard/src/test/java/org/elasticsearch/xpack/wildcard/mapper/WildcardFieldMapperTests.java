@@ -19,8 +19,10 @@ import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
@@ -290,8 +292,25 @@ public class WildcardFieldMapperTests extends ESTestCase {
     }
     
     public void testRegexAcceleration() throws IOException, ParseException {
+        // All these expressions should rewrite to a match all with no verification step required at all
+        String superfastRegexes[]= { ".*",  "...*..", "(foo|bar|.*)"};
+        for (String regex : superfastRegexes) {
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 20000, null, MOCK_QSC);
+          System.out.println(regex +" "+ wildcardFieldQuery.getClass().getTypeName()+
+              " "+wildcardFieldQuery.toString().replaceAll("_", ""+WildcardFieldMapper.TOKEN_START_OR_END_CHAR));
+            assertTrue(wildcardFieldQuery instanceof DocValuesFieldExistsQuery);
+        }        
+        String matchNoDocsRegexes[]= { ""};
+        for (String regex : matchNoDocsRegexes) {
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 20000, null, MOCK_QSC);
+            assertTrue(wildcardFieldQuery instanceof MatchNoDocsQuery);
+        }        
+
         // All of these regexes should be accelerated as the equivalent of the given QueryString query 
-        String tests[][] = { 
+        String acceleratedTests[][] = { 
+            {".*foo.*", "foo"}, 
+            {"..foobar","+foo +oba +ar_ +r__"},
+            {"(maynotexist)?foobar","+foo +oba +ar_ +r__"},
             {".*/etc/passw.*", "+\\/et +tc\\/ +\\/pa +ass +ssw"}, 
             {".*etc/passwd",  "+etc +c\\/p +pas +ssw +wd_ +d__"}, 
             {"(http|ftp)://foo.*",  "+((+htt +ttp) ftp) +(+\\:\\/\\/ +\\/fo +foo)"}, 
@@ -300,15 +319,25 @@ public class WildcardFieldMapperTests extends ESTestCase {
             {"(aaa.+&.+bbb)cat", "+cat +at_ +t__"},
             {".a", "a__"}
             };
-        for (String[] test : tests) {
+        for (String[] test : acceleratedTests) {
             String regex = test[0];
             String expectedAccelerationQueryString = test[1].replaceAll("_", ""+WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
-            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 20000, null, MOCK_QSC);
-            
-            testExpectedAccelerationQuery(wildcardFieldQuery, expectedAccelerationQueryString);
-        }  
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 20000, null, MOCK_QSC);            
+            testExpectedAccelerationQuery(regex, wildcardFieldQuery, expectedAccelerationQueryString);
+        }
         
-        // Documentation - regexes that we would like to improve in future versions. 
+        // All these expressions should rewrite to just the verification query (there's no ngram acceleration) 
+        // TODO we can possibly improve on some of these 
+        String matchAllButVerifyTests[]= { "..", "(a)?","(a|b){0,3}", "((foo)?|(foo|bar)?)", "@&~(abc.+)", "aaa.+&.+bbb"};
+        for (String regex : matchAllButVerifyTests) {
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 20000, null, MOCK_QSC);
+            assertTrue(regex +" was not a pure verify query " +formatQuery(wildcardFieldQuery), 
+                wildcardFieldQuery instanceof AutomatonQueryOnBinaryDv);
+        }        
+        
+        
+        
+        // Documentation - regexes that do try accelerate but we would like to improve in future versions. 
         String suboptimalTests[][] = { 
             // TODO short wildcards aren't great. Ideally we would attach to successors to create (acd OR bcd)
             { "[ab]cd",  "+(a* b*) +(+cd_ +d__)"}
@@ -318,36 +347,57 @@ public class WildcardFieldMapperTests extends ESTestCase {
             String expectedAccelerationQueryString = test[1].replaceAll("_", ""+WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 20000, null, MOCK_QSC);
             
-            testExpectedAccelerationQuery(wildcardFieldQuery, expectedAccelerationQueryString);
+            testExpectedAccelerationQuery(regex, wildcardFieldQuery, expectedAccelerationQueryString);
         }          
-        
-        // Mostly for documentation purposes - here's examples of nasty regexes we know we can't accelerate at all
-        String knownSlowRegexes[] = { "@&~(abc.+)", "aaa.+&.+bbb"};
-        for (String regex : knownSlowRegexes) {
-            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 20000, null, MOCK_QSC);
-            assertTrue(regex+" pattern wasn't expected to be accelerated", 
-                wildcardFieldQuery instanceof AutomatonQueryOnBinaryDv);
-        }
+
     }    
+    // Make error messages more readable
+    String formatQuery(Query q) {
+        return q.toString().replaceAll(WILDCARD_FIELD_NAME+":", "").replaceAll(WildcardFieldMapper.TOKEN_START_STRING, "_");
+    }
     
     public void testWildcardAcceleration() throws IOException, ParseException {
-        // All of these patterns should be accelerated. 
-        String tests[][] = { 
-            {"*foobar", "+foo +oba +ar_ +r__"}, 
-            {"foobar*", "+_fo +oob +oba +bar"}, 
-            {"foo*bar", "+_fo +foo +bar +ar_ +r__"}, 
-            {"foo?bar", "+_fo +foo +bar +ar_ +r__"}, 
-            {"?foo*bar?", "+foo +bar"}, 
-            {"*c", "+c__"}};
+        
+        // All these expressions should rewrite to MatchAll with no verification step required at all
+        String superfastPattern[] = { "*", "**", "*?" };
+        for (String pattern : superfastPattern) {
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_QSC);
+            assertTrue(
+                pattern + " was not a pure match all query " + formatQuery(wildcardFieldQuery),
+                wildcardFieldQuery instanceof DocValuesFieldExistsQuery
+            );
+        }
+
+        // All of these patterns should be accelerated.
+        String tests[][] = {
+            { "*foobar", "+foo +oba +ar_ +r__" },
+            { "foobar*", "+_fo +oob +oba +bar" },
+            { "foo\\*bar*", "+_fo +oo\\* +\\*ba +bar" },
+            { "foo\\?bar*", "+_fo +oo\\? +\\?ba +bar" },
+            { "foo*bar", "+_fo +foo +bar +ar_ +r__" },
+            { "foo?bar", "+_fo +foo +bar +ar_ +r__" },
+            { "?foo*bar?", "+foo +bar" },
+            { "*c", "+c__" } };
         for (String[] test : tests) {
             String pattern = test[0];
-            String expectedAccelerationQueryString = test[1].replaceAll("_", ""+WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
+            String expectedAccelerationQueryString = test[1].replaceAll("_", "" + WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
             Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_QSC);
-            testExpectedAccelerationQuery(wildcardFieldQuery, expectedAccelerationQueryString);
+            testExpectedAccelerationQuery(pattern, wildcardFieldQuery, expectedAccelerationQueryString);
             assertTrue(wildcardFieldQuery instanceof BooleanQuery);
         }
+
+        // TODO All these expressions have no acceleration at all and could be improved
+        String slowPatterns[] = { "??" };
+        for (String pattern : slowPatterns) {
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_QSC);
+            assertTrue(
+                pattern + " was not as slow as we assumed " + formatQuery(wildcardFieldQuery),
+                wildcardFieldQuery instanceof AutomatonQueryOnBinaryDv
+            );
+        }
+
     }
-    void testExpectedAccelerationQuery(Query combinedQuery, String expectedAccelerationQueryString) throws ParseException {
+    void testExpectedAccelerationQuery(String regex, Query combinedQuery, String expectedAccelerationQueryString) throws ParseException {
         BooleanQuery cq = (BooleanQuery) combinedQuery;
         assert cq.clauses().size() == 2;
         Query approximationQuery = null;
@@ -367,7 +417,11 @@ public class WildcardFieldMapperTests extends ESTestCase {
         String actualString = approximationQuery.toString()
             .replaceAll("wildcard_field\\:", "")
             .replaceAll("" + WildcardFieldMapper.TOKEN_START_OR_END_CHAR, "_");
-        String message = "actual query: " + actualString + "\nexpected query: " + expectedAccelerationQuery;
+        String expectedString = expectedAccelerationQuery.toString()
+            .replaceAll("wildcard_field\\:", "")
+            .replaceAll("" + WildcardFieldMapper.TOKEN_START_OR_END_CHAR, "_");        
+        String message = "regex: "+ regex +"\nactual query: " + actualString + 
+            "\nexpected query: " + expectedString + "\n";
         assertEquals(message, expectedAccelerationQuery, approximationQuery);
     }
     

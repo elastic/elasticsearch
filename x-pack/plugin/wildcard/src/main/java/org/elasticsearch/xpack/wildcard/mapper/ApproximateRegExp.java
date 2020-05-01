@@ -32,8 +32,10 @@ package org.elasticsearch.xpack.wildcard.mapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.xpack.wildcard.mapper.WildcardFieldMapper.WildcardFieldType;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -172,105 +174,145 @@ public class ApproximateRegExp {
     // Convert a regular expression to a simplified query consisting of BooleanQuery and TermQuery objects
     // which captures as much of the logic as possible. Query can produce some false positives but shouldn't
     // produce any false negatives.
+    // In addition to Term and BooleanQuery clauses there are MatchAllDocsQuery objects (e.g for .*) and
+    // an equivalent MatchAllButRequireVerificationQuery. 
+    // *  If an expression resolves to a single MatchAllDocsQuery eg .* then a match all shortcut is possible with 
+    //    no verification needed.     
+    // * If an expression resolves to a MatchAllButRequireVerificationQuery eg ?? then only the verification 
+    //   query is run.
+    // * Anything else is a concrete query that should be run on the ngram index.
     public Query toApproximationQuery(StringNormalizer normalizer) throws IllegalArgumentException {
-        List<Query> queries;
         Query result = null;
         switch (kind) {
             case REGEXP_UNION:
-                // Create an OR of clauses
-                queries = new ArrayList<>();
-                findLeaves(exp1, Kind.REGEXP_UNION, queries, normalizer);
-                findLeaves(exp2, Kind.REGEXP_UNION, queries, normalizer);
-                BooleanQuery.Builder bOr = new BooleanQuery.Builder();
-                HashSet<Query> uniqueClauses = new HashSet<>();
-                // Finding a null query means we found a regex expression we can't represent as a
-                // query so we have to abort this whole union (otherwise dropping individual OR clauses
-                // introduces false negatives).
-                boolean nullFound = false;
-                for (Query query : queries) {
-                    if (query != null) {
-                        if (uniqueClauses.add(query)) {
-                            bOr.add(query, Occur.SHOULD);
-                        }
-                    } else {
-                        nullFound = true;
-                    }
-                }
-                if (nullFound == false && uniqueClauses.size() > 0) {
-                    if (uniqueClauses.size() == 1) {
-                        // Fully-understood ORs that collapse to a single term should be returned minus
-                        // the BooleanQuery wrapper so that they might be concatenated.
-                        // Helps turn [Pp][Oo][Ww][Ee][Rr][Ss][Hh][Ee][Ll][Ll] into "powershell"
-                        // Each char pair eg (P OR p) can be normalized to (p) which can be a single term
-                        result = uniqueClauses.iterator().next();
-                    } else {
-                        result = bOr.build();
-                    }
-                }
+                result = createUnionQuery(normalizer);
                 break;
             case REGEXP_CONCATENATION:
-                // Create ANDs of expressions plus collapse consecutive TermQuerys into single longer ones
-                queries = new ArrayList<>();
-                findLeaves(exp1, Kind.REGEXP_CONCATENATION, queries, normalizer);
-                findLeaves(exp2, Kind.REGEXP_CONCATENATION, queries, normalizer);
-                BooleanQuery.Builder bAnd = new BooleanQuery.Builder();
-                StringBuilder sequence = new StringBuilder();
-                for (Query query : queries) {
-                    if (query instanceof TermQuery) {
-                        TermQuery tq = (TermQuery) query;
-                        sequence.append(tq.getTerm().text());
-                    } else {
-                        if (sequence.length() > 0) {
-                            bAnd.add(new TermQuery(new Term("", sequence.toString())), Occur.MUST);
-                            sequence = new StringBuilder();
-                        }
-                        if (query != null) {
-                            bAnd.add(query, Occur.MUST);
-                        }
-                    }
-                }
-                if (sequence.length() > 0) {
-                    bAnd.add(new TermQuery(new Term("", sequence.toString())), Occur.MUST);
-                }
-                BooleanQuery combined = bAnd.build();
-                if (combined.clauses().size() > 0) {
-                    result = combined;
-                }
+                result = createConcatenationQuery(normalizer);
                 break;
             case REGEXP_STRING:
                 String normalizedString = normalizer == null ? s : normalizer.normalize(s);
                 result = new TermQuery(new Term("", normalizedString));
                 break;
             case REGEXP_CHAR:
-                String normalizedChar = normalizer == null ? s : normalizer.normalize(Character.toString(c));
+                String cs =Character.toString(c);
+                String normalizedChar = normalizer == null ? cs : normalizer.normalize(cs);
                 result = new TermQuery(new Term("", normalizedChar));
                 break;
             case REGEXP_REPEAT:
+                // Repeat is zero or more times so zero matches = match all
+                result = new MatchAllDocsQuery();
+                break;
+                
             case REGEXP_REPEAT_MIN:
             case REGEXP_REPEAT_MINMAX:
                 if (min > 0) {
-                    Query repeatingQuery = exp1.toApproximationQuery(normalizer);
-                    if (repeatingQuery != null) {
+                    result = exp1.toApproximationQuery(normalizer);
+                    if(result instanceof TermQuery) {
                         // Wrap the repeating expression so that it is not concatenated by a parent which concatenates
                         // plain TermQuery objects together. Boolean queries are interpreted as a black box and not
                         // concatenated.
                         BooleanQuery.Builder wrapper = new BooleanQuery.Builder();
-                        wrapper.add(repeatingQuery, Occur.MUST);
+                        wrapper.add(result, Occur.MUST);
                         result = wrapper.build();
                     }
+                } else {
+                    // TODO match all was a nice assumption here for optimising .* but breaks 
+                    // for (a){0,3} which isn't a logical match all but empty string or up to 3 a's. 
+//                    result = new MatchAllDocsQuery();
+                    result = new MatchAllButRequireVerificationQuery();
                 }
                 break;
-            // All other kinds of expression cannot be represented as a boolean or term query so return null
-            case REGEXP_INTERSECTION:
+            case REGEXP_ANYSTRING:
+                // optimisation for .* queries - match all and no verification stage required.
+                result = new MatchAllDocsQuery();
+                break;
+            // All other kinds of expression cannot be represented as a boolean or term query so return an object 
+            // that indicates verification is required
             case REGEXP_OPTIONAL:
+            case REGEXP_INTERSECTION:
             case REGEXP_COMPLEMENT:
             case REGEXP_CHAR_RANGE:
-            case REGEXP_ANYSTRING:
             case REGEXP_ANYCHAR:
             case REGEXP_INTERVAL:
-            case REGEXP_EMPTY:
+            case REGEXP_EMPTY: 
             case REGEXP_AUTOMATON:
+                result = new MatchAllButRequireVerificationQuery();
                 break;
+        }
+        assert result != null; // All regex types are understood and translated to a query.
+        return result;
+    }
+    
+    private Query createConcatenationQuery(StringNormalizer normalizer) {
+        // Create ANDs of expressions plus collapse consecutive TermQuerys into single longer ones
+        Query result = null;
+        ArrayList<Query> queries = new ArrayList<>();
+        findLeaves(exp1, Kind.REGEXP_CONCATENATION, queries, normalizer);
+        findLeaves(exp2, Kind.REGEXP_CONCATENATION, queries, normalizer);
+        BooleanQuery.Builder bAnd = new BooleanQuery.Builder();
+        StringBuilder sequence = new StringBuilder();
+        for (Query query : queries) {
+            if (query instanceof TermQuery) {
+                TermQuery tq = (TermQuery) query;
+                sequence.append(tq.getTerm().text());
+            } else {
+                if (sequence.length() > 0) {
+                    addTerm(bAnd, sequence.toString());
+                    sequence = new StringBuilder();
+                }
+                bAnd.add(query, Occur.MUST);                    
+            }
+        }
+        if (sequence.length() > 0) {
+            addTerm(bAnd, sequence.toString());
+        }
+        BooleanQuery combined = bAnd.build();
+        if (combined.clauses().size() > 0) {
+            result = combined;
+        }
+        return result;
+    }
+    private static void addTerm(BooleanQuery.Builder builder, String s) {
+        // Ignore short strings that are just word beginning or endings.
+        // Helps with subsequent BooleanQuery simplification logic if we can
+        // assume TermQuery objects returned are all something useful other than 
+        // the equivalent of searching for the fact a doc value has a beginning 
+        // and end (all values do).
+        if (s.equals(WildcardFieldMapper.TOKEN_START_STRING) == false && 
+            s.equals(WildcardFieldMapper.TOKEN_END_STRING) == false) {
+            builder.add(new TermQuery(new Term("", s)), Occur.MUST);
+        }
+    }
+
+    private Query createUnionQuery(StringNormalizer normalizer) {
+        // Create an OR of clauses
+        Query result = null;
+        ArrayList<Query> queries = new ArrayList<>();
+        findLeaves(exp1, Kind.REGEXP_UNION, queries, normalizer);
+        findLeaves(exp2, Kind.REGEXP_UNION, queries, normalizer);
+        BooleanQuery.Builder bOr = new BooleanQuery.Builder();
+        HashSet<Query> uniqueClauses = new HashSet<>();
+        for (Query query : queries) {
+            if (WildcardFieldType.isMatchAll(query)) {
+                // Any MatchAll in an OR list is rewritten to a MatchAllQuery
+                return query;
+            } else {
+                if (uniqueClauses.add(query)) {
+                    bOr.add(query, Occur.SHOULD);
+                }
+            }
+        }
+        if (uniqueClauses.size() > 0) {
+            if (uniqueClauses.size() == 1) {
+                // Fully-understood ORs that collapse to a single term should be returned minus
+                // the BooleanQuery wrapper so that they might be concatenated.
+                // Helps turn [Pp][Oo][Ww][Ee][Rr][Ss][Hh][Ee][Ll][Ll] into "powershell"
+                // Each char pair eg (P OR p) can be normalized to (p) which can be a single term
+                result = uniqueClauses.iterator().next();
+            } else {
+                result = bOr.build();
+            }
         }
         return result;
     }

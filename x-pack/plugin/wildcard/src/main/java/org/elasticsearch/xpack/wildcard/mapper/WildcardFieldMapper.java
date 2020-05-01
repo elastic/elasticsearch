@@ -22,6 +22,8 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.search.PrefixQuery;
@@ -215,6 +217,8 @@ public class WildcardFieldMapper extends FieldMapper {
     }
 
      public static final char TOKEN_START_OR_END_CHAR = 0;
+     public static final String TOKEN_START_STRING = Character.toString(TOKEN_START_OR_END_CHAR);
+     public static final String TOKEN_END_STRING = TOKEN_START_STRING + TOKEN_START_STRING;
 
      public static final class WildcardFieldType extends MappedFieldType {
          
@@ -245,21 +249,30 @@ public class WildcardFieldMapper extends FieldMapper {
             // Break search term into tokens
             Set<String> tokens = new LinkedHashSet<>();
             StringBuilder sequence = new StringBuilder();
+            int numWildcardChars = 0;
+            int numWildcardStrings = 0;
             for (int i = 0; i < ngramIndexPattern.length();) {
                 final int c = ngramIndexPattern.codePointAt(i);
                 int length = Character.charCount(c);
                 switch (c) {
                     case WildcardQuery.WILDCARD_STRING:
+                        if (sequence.length() > 0) {
+                            getNgramTokens(tokens, sequence.toString());
+                            sequence = new StringBuilder();
+                        }
+                        numWildcardStrings++;
+                        break;
                     case WildcardQuery.WILDCARD_CHAR:
                         if (sequence.length() > 0) {
                             getNgramTokens(tokens, sequence.toString());
                             sequence = new StringBuilder();
                         }
+                        numWildcardChars++;
                         break;
                     case WildcardQuery.WILDCARD_ESCAPE:
                         // add the next codepoint instead, if it exists
-                        if (i + length < wildcardPattern.length()) {
-                            final int nextChar = wildcardPattern.codePointAt(i + length);
+                        if (i + length < ngramIndexPattern.length()) {
+                            final int nextChar = ngramIndexPattern.codePointAt(i + length);
                             length += Character.charCount(nextChar);
                             sequence.append(Character.toChars(nextChar));
                         } else {
@@ -294,6 +307,9 @@ public class WildcardFieldMapper extends FieldMapper {
                 verifyingBuilder.add(new BooleanClause(approxQuery, Occur.MUST));
                 verifyingBuilder.add(new BooleanClause(verifyingQuery, Occur.MUST));
                 return verifyingBuilder.build();
+            } else if (numWildcardChars == 0 || numWildcardStrings > 0) {
+                // We have no concrete characters and we're not a pure length query e.g. ??? 
+                return new DocValuesFieldExistsQuery(name());
             }
             return verifyingQuery;
 
@@ -301,11 +317,16 @@ public class WildcardFieldMapper extends FieldMapper {
         
         @Override
         public Query regexpQuery(String value, int flags, int maxDeterminizedStates, RewriteMethod method, QueryShardContext context) {
+            if (value.length() == 0) {
+                return new MatchNoDocsQuery();
+            }
+
             if (context.allowExpensiveQueries() == false) {
                 throw new ElasticsearchException(
                     "[regexp] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
                 );
             }
+            
             RegExp regex = new RegExp(value, flags);
             Automaton automaton = regex.toAutomaton(maxDeterminizedStates);
             ApproximateRegExp ngramRegex = new ApproximateRegExp(addLineEndChars(toLowerCase(value)), flags);
@@ -317,7 +338,20 @@ public class WildcardFieldMapper extends FieldMapper {
                 }
             });
             Query approxNgramQuery = rewriteBoolToNgramQuery(approxBooleanQuery);
+            
+            // MatchAll is a special case meaning the regex is known to match everything .* and 
+            // there is no need for verification.
+            if (approxNgramQuery instanceof MatchAllDocsQuery) {
+                return new DocValuesFieldExistsQuery(name());
+            }
             AutomatonQueryOnBinaryDv verifyingQuery = new AutomatonQueryOnBinaryDv(name(), value, automaton);
+            
+            // MatchAllButRequireVerificationQuery is a special case meaning the regex is reduced to a single
+            // clause which we can't accelerate at all and needs verification. Example would be ".." 
+            if (approxNgramQuery instanceof MatchAllButRequireVerificationQuery) {
+                return verifyingQuery;
+            }
+            
             if (approxNgramQuery != null) {
                 // We can accelerate execution with the ngram query
                 BooleanQuery.Builder verifyingBuilder = new BooleanQuery.Builder();
@@ -359,7 +393,7 @@ public class WildcardFieldMapper extends FieldMapper {
                         rewritten.add(q, clause.getOccur());
                     }
                 }
-                return simplify(rewritten);
+                return simplify(rewritten.build());
             }
             if (approxQuery instanceof TermQuery) {
                 TermQuery tq = (TermQuery) approxQuery;
@@ -370,23 +404,79 @@ public class WildcardFieldMapper extends FieldMapper {
                 for (String string : tokens) {
                     addClause(string, rewritten, Occur.MUST);
                 }
-                return simplify(rewritten);
+                return simplify(rewritten.build());
+            }
+            if (isMatchAll(approxQuery)) {
+                return approxQuery;
             }
             throw new IllegalStateException("Invalid query type found parsing regex query:" + approxQuery);
         }    
         
-        private Query simplify(BooleanQuery.Builder bqBuilder) {
-            BooleanQuery result = bqBuilder.build();
+        static Query simplify(Query input) {
+            if (input instanceof BooleanQuery == false) {
+                return input;
+            }
+            BooleanQuery result = (BooleanQuery) input;
             if (result.clauses().size() == 0) {
-                return null;
+                // A ".*" clause can produce zero clauses in which case we return MatchAll
+                return new MatchAllDocsQuery();
             }
             if (result.clauses().size() == 1) {
-                return result.clauses().get(0).getQuery();
+                return simplify(result.clauses().get(0).getQuery());
             }
-            return result;            
+
+            // We may have a mix of MatchAll and concrete queries - assess if we can simplify
+            int matchAllCount = 0;
+            int verifyCount = 0;
+            boolean allConcretesAreOptional = true;
+            for (BooleanClause booleanClause : result.clauses()) {
+                Query q = booleanClause.getQuery();
+                if (q instanceof MatchAllDocsQuery) {
+                    matchAllCount++;
+                } else if (q instanceof MatchAllButRequireVerificationQuery) {
+                    verifyCount++;
+                } else {
+                    // Concrete query
+                    if (booleanClause.getOccur() != Occur.SHOULD) {
+                        allConcretesAreOptional = false;
+                    }
+                }
+            }
+
+            if ((allConcretesAreOptional && matchAllCount > 0)) {
+                // Any match all expression takes precedence over all optional concrete queries.
+                return new MatchAllDocsQuery();
+            }
+
+            if ((allConcretesAreOptional && verifyCount > 0)) {
+                // Any match all expression that needs verification takes precedence over all optional concrete queries.
+                return new MatchAllButRequireVerificationQuery();
+            }
+
+            // We have some mandatory concrete queries - strip out the superfluous match all expressions
+            if (allConcretesAreOptional == false && matchAllCount + verifyCount > 0) {
+                BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
+                for (BooleanClause booleanClause : result.clauses()) {
+                    if (isMatchAll(booleanClause.getQuery()) == false) {
+                        rewritten.add(booleanClause);
+                    }
+                }
+                return simplify(rewritten.build());
+            }
+            return result;
+        }
+        
+        
+        static boolean isMatchAll(Query q) {
+            return q instanceof MatchAllDocsQuery || q instanceof MatchAllButRequireVerificationQuery;
         }
 
         protected void getNgramTokens(Set<String> tokens, String fragment) {
+            if (fragment.equals(TOKEN_START_STRING) || fragment.equals(TOKEN_END_STRING)) {
+                // If a regex is a form of match-all e.g. ".*" we only produce the token start/end markers as search
+                // terms which can be ignored.
+                return;
+            }
             // Break fragment into multiple Ngrams
             TokenStream tokenizer = WILDCARD_ANALYZER.tokenStream(name(), fragment);
             CharTermAttribute termAtt = tokenizer.addAttribute(CharTermAttribute.class);

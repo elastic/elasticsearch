@@ -17,9 +17,7 @@ import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregator;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregator;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregator;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregatorSupplier;
@@ -46,6 +44,8 @@ import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.Bounde
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoHashGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeCellIdSource;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeHashGridAggregator;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeTileGridAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoTileGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeBoundsAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
@@ -134,8 +134,10 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
                         tiler = new BoundedGeoHashGridTiler(geoBoundingBox);
                     }
                     GeoShapeCellIdSource cellIdSource = new GeoShapeCellIdSource((GeoShapeValuesSource) valuesSource, precision, tiler);
-                    return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, aggregationContext,
-                        parent, metadata);
+                    GeoShapeHashGridAggregator agg = new GeoShapeHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize,
+                        aggregationContext, parent, metadata);
+                    cellIdSource.setCircuitBreakerConsumer(agg::addRequestBytes);
+                    return agg;
                 }
                 throw LicenseUtils.newComplianceException("geohash_grid aggregation on geo_shape fields");
             });
@@ -151,8 +153,10 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
                         tiler = new BoundedGeoTileGridTiler(geoBoundingBox);
                     }
                     GeoShapeCellIdSource cellIdSource = new GeoShapeCellIdSource((GeoShapeValuesSource) valuesSource, precision, tiler);
-                    return new GeoTileGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, aggregationContext,
-                        parent, metadata);
+                    GeoShapeTileGridAggregator agg = new GeoShapeTileGridAggregator(name, factories, cellIdSource, requiredSize, shardSize,
+                        aggregationContext, parent, metadata);
+                    cellIdSource.setCircuitBreakerConsumer(agg::addRequestBytes);
+                    return agg;
                 }
                 throw LicenseUtils.newComplianceException("geotile_grid aggregation on geo_shape fields");
             });

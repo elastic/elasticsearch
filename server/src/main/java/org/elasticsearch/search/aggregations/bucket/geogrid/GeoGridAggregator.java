@@ -46,6 +46,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
     protected final int shardSize;
     protected final ValuesSource.Numeric valuesSource;
     protected final LongHash bucketOrds;
+    protected SortedNumericDocValues values;
 
     GeoGridAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource,
                       int requiredSize, int shardSize, SearchContext aggregationContext,
@@ -68,7 +69,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
-        final SortedNumericDocValues values = valuesSource.longValues(ctx);
+        values = valuesSource.longValues(ctx);
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long bucket) throws IOException {

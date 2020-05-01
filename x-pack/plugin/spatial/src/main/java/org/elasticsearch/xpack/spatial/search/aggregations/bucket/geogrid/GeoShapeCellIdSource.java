@@ -16,15 +16,27 @@ import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
+import java.util.function.Consumer;
+
 public class GeoShapeCellIdSource  extends ValuesSource.Numeric {
     private final GeoShapeValuesSource valuesSource;
     private final int precision;
     private final GeoGridTiler encoder;
+    private Consumer<Long> circuitBreakerConsumer;
 
     public GeoShapeCellIdSource(GeoShapeValuesSource valuesSource, int precision, GeoGridTiler encoder) {
         this.valuesSource = valuesSource;
         this.precision = precision;
         this.encoder = encoder;
+    }
+
+    /**
+     * This setter exists since the aggregator's circuit-breaking accounting needs to be
+     * accessible from within the values-source. Problem is that this values-source needs to
+     * be created and passed to the aggregator before we have access to this functionality.
+     */
+    public void setCircuitBreakerConsumer(Consumer<Long> circuitBreakerConsumer) {
+        this.circuitBreakerConsumer = circuitBreakerConsumer;
     }
 
     public int precision() {
@@ -41,12 +53,12 @@ public class GeoShapeCellIdSource  extends ValuesSource.Numeric {
         MultiGeoShapeValues geoValues = valuesSource.geoShapeValues(ctx);
         if (precision == 0) {
             // special case, precision 0 is the whole world
-            return new AllCellValues(geoValues, encoder);
+            return new AllCellValues(geoValues, encoder, circuitBreakerConsumer);
         }
         ValuesSourceType vs = geoValues.valuesSourceType();
         if (GeoShapeValuesSourceType.instance() == vs) {
             // docValues are geo shapes
-            return new GeoShapeCellValues(geoValues, precision, encoder);
+            return new GeoShapeCellValues(geoValues, precision, encoder, circuitBreakerConsumer);
         } else {
             throw new IllegalArgumentException("unsupported geo type");
         }

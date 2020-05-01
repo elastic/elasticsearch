@@ -56,4 +56,9 @@ public enum AnalyticsValuesSourceType implements ValuesSourceType {
     public String value() {
         return name().toLowerCase(Locale.ROOT);
     }
+
+    @Override
+    public String typeName() {
+        return value();
+    }
 }

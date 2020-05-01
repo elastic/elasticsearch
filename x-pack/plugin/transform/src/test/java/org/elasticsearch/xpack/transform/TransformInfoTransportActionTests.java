@@ -59,7 +59,7 @@ public class TransformInfoTransportActionTests extends ESTestCase {
             licenseState
         );
         boolean available = randomBoolean();
-        when(licenseState.isTransformAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 
@@ -132,7 +132,7 @@ public class TransformInfoTransportActionTests extends ESTestCase {
     }
 
     public void testUsageDisabled() throws IOException, InterruptedException, ExecutionException {
-        when(licenseState.isTransformAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM)).thenReturn(true);
         Settings.Builder settings = Settings.builder();
         settings.put("xpack.transform.enabled", false);
         var usageAction = new TransformUsageTransportAction(

@@ -40,7 +40,7 @@ public class VectorsFeatureSetTests extends ESTestCase {
     public void testAvailable() throws Exception {
         VectorsFeatureSet featureSet = new VectorsFeatureSet(Settings.EMPTY, licenseState, clusterService);
         boolean available = randomBoolean();
-        when(licenseState.isVectorsAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.VECTORS)).thenReturn(available);
         assertEquals(available, featureSet.available());
 
         PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
@@ -100,7 +100,7 @@ public class VectorsFeatureSetTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_testcluster")).metadata(metadata).build();
 
         Mockito.when(clusterService.state()).thenReturn(clusterState);
-        when(licenseState.isVectorsAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.VECTORS)).thenReturn(true);
 
         PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
         VectorsFeatureSet vectorsFeatureSet = new VectorsFeatureSet(Settings.EMPTY, licenseState, clusterService);

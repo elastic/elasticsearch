@@ -86,7 +86,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     @Override
     protected final void masterOperation(final DeprecationInfoAction.Request request, ClusterState state,
                                          final ActionListener<DeprecationInfoAction.Response> listener) {
-        if (licenseState.isDeprecationAllowed()) {
+        if (licenseState.isAllowed(XPackLicenseState.Feature.DEPRECATION)) {
 
             NodesDeprecationCheckRequest nodeDepReq = new NodesDeprecationCheckRequest("_all");
             ClientHelper.executeAsyncWithOrigin(client, ClientHelper.DEPRECATION_ORIGIN,

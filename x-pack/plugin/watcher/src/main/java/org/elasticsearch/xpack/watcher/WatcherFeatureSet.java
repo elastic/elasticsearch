@@ -49,7 +49,7 @@ public class WatcherFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isWatcherAllowed();
+        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.WATCHER);
     }
 
     @Override

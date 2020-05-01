@@ -32,14 +32,14 @@ public class EqlFeatureSet implements XPackFeatureSet {
     private final boolean enabled;
     private final XPackLicenseState licenseState;
     private final Client client;
-    
+
     @Inject
     public EqlFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState, Client client) {
         this.enabled = EqlPlugin.isEnabled(settings);
         this.licenseState = licenseState;
         this.client = client;
     }
-    
+
     @Override
     public String name() {
         return XPackField.EQL;
@@ -47,7 +47,7 @@ public class EqlFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState.isEqlAllowed();
+        return licenseState.isAllowed(XPackLicenseState.Feature.EQL);
     }
 
     @Override

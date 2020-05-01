@@ -62,7 +62,7 @@ public class WatcherFeatureSetTests extends ESTestCase {
     public void testAvailable() {
         WatcherFeatureSet featureSet = new WatcherFeatureSet(Settings.EMPTY, licenseState, client);
         boolean available = randomBoolean();
-        when(licenseState.isWatcherAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.WATCHER)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 

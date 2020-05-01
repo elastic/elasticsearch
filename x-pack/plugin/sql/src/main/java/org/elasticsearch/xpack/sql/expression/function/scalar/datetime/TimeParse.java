@@ -22,11 +22,10 @@ import static org.elasticsearch.xpack.ql.type.DateUtils.UTC;
 
 public class TimeParse extends BinaryDateTimeFunction {
 
-    private final Parser parser;
+    private static final Parser parser = Parser.TIME;
 
     public TimeParse(Source source, Expression timestamp, Expression pattern) {
         super(source, timestamp, pattern, UTC);
-        parser = Parser.TIME;
     }
 
     @Override

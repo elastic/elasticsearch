@@ -10,7 +10,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
-
 import java.io.IOException;
 import java.time.DateTimeException;
 import java.time.LocalDateTime;

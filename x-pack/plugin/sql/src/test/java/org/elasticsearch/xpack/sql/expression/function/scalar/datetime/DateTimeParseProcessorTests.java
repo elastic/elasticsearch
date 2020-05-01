@@ -30,7 +30,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
                 randomFrom(Parser.values())
         );
     }
-        
+
     @Override
     protected DateTimeParseProcessor createTestInstance() {
         return randomDateTimeParseProcessor();

@@ -20,25 +20,30 @@ import java.time.ZonedDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAccessor;
+import java.time.temporal.TemporalQuery;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC;
 
 public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
 
     public enum Parser {
-        DATE_TIME((timestampStr, pattern) -> DateTimeFormatter.ofPattern(pattern, Locale.ROOT)
-                .parseBest(timestampStr, ZonedDateTime::from, LocalDateTime::from)),
-        TIME((timestampStr, pattern) -> DateTimeFormatter.ofPattern(pattern, Locale.ROOT)
-                .parseBest(timestampStr, OffsetTime::from, LocalTime::from));
-
+        DATE_TIME("datetime", ZonedDateTime::from, LocalDateTime::from), 
+        TIME("time", OffsetTime::from, LocalTime::from);
+        
         private final BiFunction<String, String, TemporalAccessor> parser;
+        
+        private final String parseType;
 
-        Parser(BiFunction<String, String, TemporalAccessor> parser) {
-            this.parser = parser;
+        Parser(String parseType,  TemporalQuery<?> query, TemporalQuery<?> localQuery) {
+            this.parser = (timestampStr, pattern) -> DateTimeFormatter.ofPattern(pattern, Locale.ROOT)
+                    .parseBest(timestampStr, query, localQuery);
+            this.parseType = parseType;
         }
+        
 
         public Object parse(Object timestamp, Object pattern) {
             if (timestamp == null || pattern == null) {
@@ -66,10 +71,11 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
             } catch (IllegalArgumentException | DateTimeException e) {
                 String msg = e.getMessage();
                 if (msg.contains("Unable to convert parsed text using any of the specified queries")) {
-                    msg = "Unable to convert parsed text into [datetime or time]";
+                    msg = format("Unable to convert parsed text into [{}]", this.parseType);
                 }
                 throw new SqlIllegalArgumentException(
-                    "Invalid time/datetime string [{}] or pattern [{}] is received; {}",
+                    "Invalid [{}] string [{}] or pattern [{}] is received; {} ",
+                    this.parseType,
                     timestamp,
                     pattern,
                     msg

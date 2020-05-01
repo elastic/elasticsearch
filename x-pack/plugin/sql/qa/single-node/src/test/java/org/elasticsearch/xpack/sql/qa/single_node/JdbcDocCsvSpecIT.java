@@ -18,7 +18,6 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
-import java.util.TimeZone;
 
 import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.csvConnection;
 import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.executeCsvQuery;
@@ -30,9 +29,9 @@ import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.specParser;
  * gets reflected in the dataset structure.
  * The doc tests while redundant, try to be expressive first and foremost and sometimes
  * the dataset isn't exactly convenient.
- *
+ * 
  * Also looking around for the tests across the test files isn't trivial.
- *
+ * 
  * That's not to say the two cannot be merged however that felt like too much of an effort
  * at this stage and, to not keep things stalling, started with this approach.
  */

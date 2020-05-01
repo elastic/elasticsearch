@@ -27,7 +27,6 @@ public class TimeParse extends BinaryDateTimeFunction {
     public TimeParse(Source source, Expression timestamp, Expression pattern) {
         super(source, timestamp, pattern, UTC);
         parser = Parser.TIME;
-
     }
 
     @Override

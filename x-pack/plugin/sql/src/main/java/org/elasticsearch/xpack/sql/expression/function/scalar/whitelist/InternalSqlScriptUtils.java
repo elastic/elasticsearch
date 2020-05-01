@@ -300,8 +300,7 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     public static Object timeParse(String dateField, String pattern, String tzId) {
         return Parser.TIME.parse(dateField, pattern);
     }
-
-
+    
     public static ZonedDateTime asDateTime(Object dateTime) {
         return (ZonedDateTime) asDateTime(dateTime, false);
     }

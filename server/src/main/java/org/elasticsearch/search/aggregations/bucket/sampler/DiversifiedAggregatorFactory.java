@@ -36,6 +36,8 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.search.aggregations.support.AggregationUsageService.OTHER_SUBTYPE;
+
 public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final int shardSize;
@@ -98,4 +100,9 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
         };
     }
 
+    @Override
+    public String getStatsSubtype() {
+        // DiversifiedAggregatorFactory doesn't register itself with ValuesSourceRegistry
+        return OTHER_SUBTYPE;
+    }
 }

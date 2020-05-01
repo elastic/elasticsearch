@@ -21,7 +21,7 @@ import static org.elasticsearch.xpack.ql.type.DateUtils.UTC;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser.DATE_TIME;
 
 public class DateTimeParse extends BinaryDateTimeFunction {
-    
+
     public DateTimeParse(Source source, Expression timestamp, Expression pattern) {
         super(source, timestamp, pattern, UTC);
     }

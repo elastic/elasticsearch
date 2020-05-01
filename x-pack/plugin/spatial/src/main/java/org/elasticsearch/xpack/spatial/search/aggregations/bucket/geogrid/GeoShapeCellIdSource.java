@@ -28,6 +28,7 @@ public class GeoShapeCellIdSource  extends ValuesSource.Numeric {
         this.valuesSource = valuesSource;
         this.precision = precision;
         this.encoder = encoder;
+        this.circuitBreakerConsumer = (l) -> {};
     }
 
     /**

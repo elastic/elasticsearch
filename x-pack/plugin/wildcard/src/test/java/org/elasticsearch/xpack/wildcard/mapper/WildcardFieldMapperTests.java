@@ -296,8 +296,6 @@ public class WildcardFieldMapperTests extends ESTestCase {
         String superfastRegexes[]= { ".*",  "...*..", "(foo|bar|.*)"};
         for (String regex : superfastRegexes) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 20000, null, MOCK_QSC);
-          System.out.println(regex +" "+ wildcardFieldQuery.getClass().getTypeName()+
-              " "+wildcardFieldQuery.toString().replaceAll("_", ""+WildcardFieldMapper.TOKEN_START_OR_END_CHAR));
             assertTrue(wildcardFieldQuery instanceof DocValuesFieldExistsQuery);
         }        
         String matchNoDocsRegexes[]= { ""};

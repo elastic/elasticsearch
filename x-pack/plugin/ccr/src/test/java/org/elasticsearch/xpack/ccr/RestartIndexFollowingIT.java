@@ -12,8 +12,8 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.transport.RemoteClusterConnection;
 import org.elasticsearch.transport.RemoteConnectionInfo;
-import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
@@ -42,7 +42,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
     protected Settings followerClusterSettings() {
         final Settings.Builder settings = Settings.builder().put(super.followerClusterSettings());
         if (randomBoolean()) {
-            settings.put(RemoteConnectionStrategy.REMOTE_MAX_PENDING_CONNECTION_LISTENERS.getKey(), 1);
+            settings.put(RemoteClusterConnection.REMOTE_MAX_PENDING_CONNECTION_LISTENERS.getKey(), 1);
         }
         return settings.build();
     }

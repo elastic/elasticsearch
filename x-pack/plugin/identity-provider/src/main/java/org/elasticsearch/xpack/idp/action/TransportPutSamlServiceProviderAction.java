@@ -63,12 +63,14 @@ public class TransportPutSamlServiceProviderAction
             listener.onFailure(new IllegalArgumentException("NameID format [" + document.nameIdFormat + "] is not supported."));
             return;
         }
+        logger.trace("Searching for existing ServiceProvider with id [{}] for [{}]", document.entityId, request);
         index.findByEntityId(document.entityId, ActionListener.wrap(matchingDocuments -> {
             if (matchingDocuments.isEmpty()) {
                 // derive a document id from the entity id so that don't accidentally create duplicate entities due to a race condition
                 document.docId = deriveDocumentId(document);
                 // force a create in case there are concurrent requests. This way, if two nodes/threads are trying to create the SP at
                 // the same time, one will fail. That's not ideal, but it's better than having 1 silently overwrite the other.
+                logger.trace("No existing ServiceProvider for EntityID=[{}], writing new doc [{}]", document.entityId, document.docId);
                 writeDocument(document, DocWriteRequest.OpType.CREATE, request.getRefreshPolicy(), listener);
             } else if (matchingDocuments.size() == 1) {
                 final SamlServiceProviderDocument existingDoc = Iterables.get(matchingDocuments, 0).getDocument();
@@ -76,6 +78,7 @@ public class TransportPutSamlServiceProviderAction
                 assert existingDoc.entityId.equals(document.entityId) : "Loaded document with non-matching entity-id";
                 document.setDocId(existingDoc.docId);
                 document.setCreated(existingDoc.created);
+                logger.trace("Found existing ServiceProvider for EntityID=[{}], writing to doc [{}]", document.entityId, document.docId);
                 writeDocument(document, DocWriteRequest.OpType.INDEX, request.getRefreshPolicy(), listener);
             } else {
                 logger.warn("Found multiple existing service providers in [{}] with entity id [{}] - [{}]",

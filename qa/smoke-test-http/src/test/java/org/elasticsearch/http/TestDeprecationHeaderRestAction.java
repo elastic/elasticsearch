@@ -98,7 +98,7 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
             final Map<String, Object> source = parser.map();
 
             if (source.containsKey("deprecated_settings")) {
-                deprecationLogger.deprecated(DEPRECATED_USAGE);
+                deprecationLogger.deprecatedAndMaybeLog("deprecated_settings", DEPRECATED_USAGE);
 
                 settings = (List<String>)source.get("deprecated_settings");
             } else {

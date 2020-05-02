@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -56,9 +55,8 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
         }
     }
 
-    public UnmappedSignificantTerms(String name, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
-                                    Map<String, Object> metaData) {
-        super(name, requiredSize, minDocCount, pipelineAggregators, metaData);
+    public UnmappedSignificantTerms(String name, int requiredSize, long minDocCount, Map<String, Object> metadata) {
+        super(name, requiredSize, minDocCount, metadata);
     }
 
     /**
@@ -85,7 +83,7 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
 
     @Override
     public UnmappedSignificantTerms create(List<Bucket> buckets) {
-        return new UnmappedSignificantTerms(name, requiredSize, minDocCount, pipelineAggregators(), metaData);
+        return new UnmappedSignificantTerms(name, requiredSize, minDocCount, metadata);
     }
 
     @Override
@@ -106,7 +104,7 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        return new UnmappedSignificantTerms(name, requiredSize, minDocCount, pipelineAggregators(), metaData);
+        return new UnmappedSignificantTerms(name, requiredSize, minDocCount, metadata);
     }
 
     @Override

@@ -10,9 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
-import org.elasticsearch.cluster.metadata.AliasOrIndex.Alias;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.ParseField;
@@ -47,7 +46,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetaData originalIndexMeta = clusterState.metaData().index(index);
+        IndexMetadata originalIndexMeta = clusterState.metadata().index(index);
 
         if (originalIndexMeta == null) {
             String errorMessage = String.format(Locale.ROOT, "[%s] lifecycle action for index [%s] executed but index no longer exists",
@@ -71,25 +70,24 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
                 + "] is not set on index [" + originalIndexMeta.getIndex().getName() + "]");
         }
 
-        AliasOrIndex aliasOrIndex = clusterState.metaData().getAliasAndIndexLookup().get(rolloverAlias);
-        assert aliasOrIndex.isAlias() : rolloverAlias + " must be an alias but it is an index";
+        IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(rolloverAlias);
+        assert indexAbstraction.getType() == IndexAbstraction.Type.ALIAS : rolloverAlias + " must be an alias but it is not";
 
-        Alias alias = (Alias) aliasOrIndex;
-        IndexMetaData aliasWriteIndex = alias.getWriteIndex();
+        IndexMetadata aliasWriteIndex = indexAbstraction.getWriteIndex();
         final String rolledIndexName;
         final String waitForActiveShardsSettingValue;
         if (aliasWriteIndex != null) {
             rolledIndexName = aliasWriteIndex.getIndex().getName();
             waitForActiveShardsSettingValue = aliasWriteIndex.getSettings().get("index.write.wait_for_active_shards");
         } else {
-            List<IndexMetaData> indices = alias.getIndices();
+            List<IndexMetadata> indices = indexAbstraction.getIndices();
             int maxIndexCounter = -1;
-            IndexMetaData rolledIndexMeta = null;
-            for (IndexMetaData indexMetaData : indices) {
-                int indexNameCounter = parseIndexNameCounter(indexMetaData.getIndex().getName());
+            IndexMetadata rolledIndexMeta = null;
+            for (IndexMetadata indexMetadata : indices) {
+                int indexNameCounter = parseIndexNameCounter(indexMetadata.getIndex().getName());
                 if (maxIndexCounter < indexNameCounter) {
                     maxIndexCounter = indexNameCounter;
-                    rolledIndexMeta = indexMetaData;
+                    rolledIndexMeta = indexMetadata;
                 }
             }
             if (rolledIndexMeta == null) {

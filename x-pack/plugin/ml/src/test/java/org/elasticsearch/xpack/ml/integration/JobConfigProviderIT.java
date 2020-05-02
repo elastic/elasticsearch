@@ -12,7 +12,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
@@ -450,12 +450,12 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
 
         client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
 
-        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
         tasksBuilder.addTask(MlTasks.jobTaskId("foo-2"),
             MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("foo-2"),
-            new PersistentTasksCustomMetaData.Assignment("node-1", "test assignment"));
+            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment"));
 
-        PersistentTasksCustomMetaData tasks = tasksBuilder.build();
+        PersistentTasksCustomMetadata tasks = tasksBuilder.build();
 
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         AtomicReference<SortedSet<String>> jobIdsHolder = new AtomicReference<>();

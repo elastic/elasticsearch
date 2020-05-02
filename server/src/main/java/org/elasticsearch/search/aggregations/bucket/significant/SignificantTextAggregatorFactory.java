@@ -43,11 +43,9 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Signi
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class SignificantTextAggregatorFactory extends AggregatorFactory
@@ -77,8 +75,8 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory
                                                 String fieldName,
                                                 String [] sourceFieldNames,
                                                 boolean filterDuplicateText,
-                                                Map<String, Object> metaData) throws IOException {
-        super(name, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                                Map<String, Object> metadata) throws IOException {
+        super(name, queryShardContext, parent, subFactoriesBuilder, metadata);
 
         // Note that if the field is unmapped (its field type is null), we don't fail,
         // and just use the given field name as a placeholder.
@@ -173,8 +171,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory
 
     @Override
     protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
-                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
@@ -199,8 +196,8 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory
         IncludeExclude.StringFilter incExcFilter = includeExclude == null ? null:
             includeExclude.convertToStringFilter(DocValueFormat.RAW);
 
-        return new SignificantTextAggregator(name, factories, searchContext, parent, pipelineAggregators, bucketCountThresholds,
-                incExcFilter, significanceHeuristic, this, indexedFieldName, sourceFieldNames, filterDuplicateText, metaData);
+        return new SignificantTextAggregator(name, factories, searchContext, parent, bucketCountThresholds,
+                incExcFilter, significanceHeuristic, this, indexedFieldName, sourceFieldNames, filterDuplicateText, metadata);
 
     }
 }

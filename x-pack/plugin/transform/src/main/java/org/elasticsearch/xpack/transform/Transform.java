@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -36,13 +36,13 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -148,7 +148,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
      * These attributes should never be set directly, use the node setting counter parts instead.
      */
     public static final String TRANSFORM_ENABLED_NODE_ATTR = "transform.node";
-    public static final String TRANSFORM_REMOTE_ENABLED_NODE_ATTR = "transform.remote_connect";
 
     /**
      * Setting whether transform (the coordinator task) can run on this node and REST API's are available,
@@ -278,7 +277,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Environment environment,
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver expressionResolver
+        IndexNameExpressionResolver expressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         if (enabled == false) {
             return emptyList();
@@ -287,7 +287,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(client, xContentRegistry);
         TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName());
         TransformCheckpointService checkpointService = new TransformCheckpointService(
-            client,
             settings,
             clusterService,
             configManager,
@@ -301,18 +300,18 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     }
 
     @Override
-    public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
+    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return templates -> {
             try {
                 templates.put(
                     TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME,
-                    TransformInternalIndex.getIndexTemplateMetaData()
+                    TransformInternalIndex.getIndexTemplateMetadata()
                 );
             } catch (IOException e) {
                 logger.error("Error creating transform index template", e);
             }
             try {
-                templates.put(TransformInternalIndexConstants.AUDIT_INDEX, TransformInternalIndex.getAuditIndexTemplateMetaData());
+                templates.put(TransformInternalIndexConstants.AUDIT_INDEX, TransformInternalIndex.getAuditIndexTemplateMetadata());
             } catch (IOException e) {
                 logger.warn("Error creating transform audit index", e);
             }
@@ -355,9 +354,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public Settings additionalSettings() {
         String transformEnabledNodeAttribute = "node.attr." + TRANSFORM_ENABLED_NODE_ATTR;
-        String transformRemoteEnabledNodeAttribute = "node.attr." + TRANSFORM_REMOTE_ENABLED_NODE_ATTR;
 
-        if (settings.get(transformEnabledNodeAttribute) != null || settings.get(transformRemoteEnabledNodeAttribute) != null) {
+        if (settings.get(transformEnabledNodeAttribute) != null) {
             throw new IllegalArgumentException(
                 "Directly setting transform node attributes is not permitted, please use the documented node settings instead"
             );
@@ -370,7 +368,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Settings.Builder additionalSettings = Settings.builder();
 
         additionalSettings.put(transformEnabledNodeAttribute, TRANSFORM_ENABLED_NODE.get(settings));
-        additionalSettings.put(transformRemoteEnabledNodeAttribute, RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings));
 
         return additionalSettings.build();
     }
@@ -393,7 +390,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     }
 
     @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return Collections.singletonList(
             new SystemIndexDescriptor(TransformInternalIndexConstants.INDEX_NAME_PATTERN, "Contains Transform configuration data")
         );

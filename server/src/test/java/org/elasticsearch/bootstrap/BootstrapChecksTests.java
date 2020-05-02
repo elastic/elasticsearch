@@ -22,7 +22,7 @@ package org.elasticsearch.bootstrap;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -705,14 +705,14 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         final List<BootstrapCheck> checks = Collections.singletonList(new BootstrapChecks.DiscoveryConfiguredCheck());
 
         final BootstrapContext zen2Context = createTestContext(Settings.builder()
-            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), ZEN2_DISCOVERY_TYPE).build(), MetaData.EMPTY_META_DATA);
+            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), ZEN2_DISCOVERY_TYPE).build(), Metadata.EMPTY_METADATA);
 
         // not always enforced
         BootstrapChecks.check(zen2Context, false, checks);
 
         // not enforced for non-zen2 discovery
         BootstrapChecks.check(createTestContext(Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(),
-            randomFrom("single-node", randomAlphaOfLength(5))).build(), MetaData.EMPTY_META_DATA), true, checks);
+            randomFrom("single-node", randomAlphaOfLength(5))).build(), Metadata.EMPTY_METADATA), true, checks);
 
         final NodeValidationException e = expectThrows(NodeValidationException.class,
             () -> BootstrapChecks.check(zen2Context, true, checks));
@@ -722,7 +722,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         CheckedConsumer<Settings.Builder, NodeValidationException> ensureChecksPass = b ->
         {
             final BootstrapContext context = createTestContext(b
-                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), ZEN2_DISCOVERY_TYPE).build(), MetaData.EMPTY_META_DATA);
+                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), ZEN2_DISCOVERY_TYPE).build(), Metadata.EMPTY_METADATA);
             BootstrapChecks.check(context, true, checks);
         };
 

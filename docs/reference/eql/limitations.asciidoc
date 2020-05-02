@@ -15,7 +15,10 @@ experimental::[]
 {es} supports a subset of {eql-ref}/index.html[EQL syntax]. {es} cannot run EQL
 queries that contain:
 
-* {eql-ref}/functions.html[Functions]
+* Array functions:
+** {eql-ref}/functions.html#arrayContains[`arrayContains`]
+** {eql-ref}/functions.html#arrayCount[`arrayCount`]
+** {eql-ref}/functions.html#arraySearch[`arraySearch`]
 
 * {eql-ref}/joins.html[Joins]
 

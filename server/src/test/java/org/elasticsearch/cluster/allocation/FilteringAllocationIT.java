@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.allocation;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -56,7 +56,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         logger.info("--> creating an index with no replicas");
         createIndex("test", Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build());
         ensureGreen("test");
         logger.info("--> index some data");
@@ -110,7 +110,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
             .put(AutoExpandReplicas.SETTING.getKey(), "0-all")
             .build());
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-        assertThat(clusterState.metaData().index("test").getNumberOfReplicas(), equalTo(1));
+        assertThat(clusterState.metadata().index("test").getNumberOfReplicas(), equalTo(1));
         ensureGreen("test");
 
         logger.info("--> filter out the second node");
@@ -127,7 +127,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         logger.info("--> verify all are allocated on node1 now");
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-        assertThat(clusterState.metaData().index("test").getNumberOfReplicas(), equalTo(0));
+        assertThat(clusterState.metadata().index("test").getNumberOfReplicas(), equalTo(0));
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
@@ -146,8 +146,8 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         logger.info("--> creating an index with no replicas");
         createIndex("test", Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build());
         ensureGreen("test");
 
@@ -267,7 +267,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         state = client().admin().cluster().prepareState().get().getState();
 
         // The transient settings still exist in the state
-        assertThat(state.metaData().transientSettings(), equalTo(exclude));
+        assertThat(state.metadata().transientSettings(), equalTo(exclude));
 
         for (ShardRouting shard : state.getRoutingTable().shardsWithState(ShardRoutingState.STARTED)) {
             String node = state.getRoutingNodes().node(shard.currentNodeId()).node().getName();

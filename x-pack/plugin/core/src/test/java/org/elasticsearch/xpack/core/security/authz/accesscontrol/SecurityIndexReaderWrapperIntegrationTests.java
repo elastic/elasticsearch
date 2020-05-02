@@ -36,6 +36,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -93,11 +94,12 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         final long nowInMillis = randomNonNegativeLong();
         QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
                 null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
-                client, null, () -> nowInMillis, null, null, () -> true);
+                client, null, () -> nowInMillis, null, null, () -> true, null);
         QueryShardContext queryShardContext = spy(realQueryShardContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_DLS_FLS)).thenReturn(true);
 
         Directory directory = newDirectory();
         IndexWriter iw = new IndexWriter(
@@ -227,12 +229,13 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         final long nowInMillis = randomNonNegativeLong();
         QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
                 null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
-                client, null, () -> nowInMillis, null, null, () -> true);
+                client, null, () -> nowInMillis, null, null, () -> true, null);
         QueryShardContext queryShardContext = spy(realQueryShardContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
 
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_DLS_FLS)).thenReturn(true);
         SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(s -> queryShardContext,
                 bitsetCache, securityContext, licenseState, scriptService) {
 

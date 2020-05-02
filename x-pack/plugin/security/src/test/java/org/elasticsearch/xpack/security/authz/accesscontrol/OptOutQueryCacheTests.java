@@ -17,7 +17,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexSettings;
@@ -129,12 +129,12 @@ public class OptOutQueryCacheTests extends ESTestCase {
                 .put("index.version.created", Version.CURRENT)
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0);
-        final IndexMetaData indexMetaData = IndexMetaData.builder("index").settings(settings).build();
-        final IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
+        final IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthAllowed()).thenReturn(false);
+        when(licenseState.isSecurityEnabled()).thenReturn(false);
         final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, licenseState);
         cache.listenForLicenseStateChanges();
         final Weight weight = mock(Weight.class);
@@ -148,12 +148,12 @@ public class OptOutQueryCacheTests extends ESTestCase {
                 .put("index.version.created", Version.CURRENT)
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0);
-        final IndexMetaData indexMetaData = IndexMetaData.builder("index").settings(settings).build();
-        final IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
+        final IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, licenseState);
         cache.listenForLicenseStateChanges();
         final Weight weight = mock(Weight.class);
@@ -168,8 +168,8 @@ public class OptOutQueryCacheTests extends ESTestCase {
                 .put("index.version.created", Version.CURRENT)
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0);
-        final IndexMetaData indexMetaData = IndexMetaData.builder("index").settings(settings).build();
-        final IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
+        final IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final IndicesAccessControl.IndexAccessControl indexAccessControl = mock(IndicesAccessControl.IndexAccessControl.class);
@@ -178,7 +178,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
         when(indicesAccessControl.getIndexPermissions("index")).thenReturn(indexAccessControl);
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, licenseState);
         cache.listenForLicenseStateChanges();
         final Weight weight = mock(Weight.class);
@@ -192,8 +192,8 @@ public class OptOutQueryCacheTests extends ESTestCase {
                 .put("index.version.created", Version.CURRENT)
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0);
-        final IndexMetaData indexMetaData = IndexMetaData.builder("index").settings(settings).build();
-        final IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
+        final IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);

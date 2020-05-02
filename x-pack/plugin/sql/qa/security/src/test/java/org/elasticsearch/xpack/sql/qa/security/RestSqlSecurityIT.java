@@ -133,7 +133,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             for (String table : tables) {
                 List<String> fields = new ArrayList<>();
                 fields.add(table);
-                fields.add("BASE TABLE");
+                fields.add("TABLE");
                 fields.add("INDEX");
                 rows.add(fields);
             }

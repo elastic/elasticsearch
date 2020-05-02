@@ -42,7 +42,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -266,7 +266,7 @@ public class JobResultsProvider {
 
         // Our read/write aliases should point to the concrete index
         // If the initial index is NOT an alias, either it is already a concrete index, or it does not exist yet
-        if (state.getMetaData().hasAlias(tempIndexName)) {
+        if (state.getMetadata().hasAlias(tempIndexName)) {
             String[] concreteIndices = resolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), tempIndexName);
 
             // SHOULD NOT be closed as in typical call flow checkForLeftOverDocuments already verified this
@@ -299,7 +299,7 @@ public class JobResultsProvider {
 
         // Indices can be shared, so only create if it doesn't exist already. Saves us a roundtrip if
         // already in the CS
-        if (!state.getMetaData().hasIndex(indexName)) {
+        if (!state.getMetadata().hasIndex(indexName)) {
             LOGGER.trace("ES API CALL: create index {}", indexName);
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,
@@ -320,7 +320,7 @@ public class JobResultsProvider {
                             }
                     ), client.admin().indices()::create);
         } else {
-            MappingMetaData indexMappings = state.metaData().index(indexName).mapping();
+            MappingMetadata indexMappings = state.metadata().index(indexName).mapping();
             addTermsMapping(indexMappings, indexName, termFields, indexAndMappingsListener);
         }
     }
@@ -332,7 +332,7 @@ public class JobResultsProvider {
                 // Expect one index.  If this is not the case then it means the
                 // index has been deleted almost immediately after being created, and this is
                 // so unlikely that it's reasonable to fail the whole operation.
-                MappingMetaData indexMappings = getMappingsResponse.getMappings().iterator().next().value;
+                MappingMetadata indexMappings = getMappingsResponse.getMappings().iterator().next().value;
                 addTermsMapping(indexMappings, indexName, termFields, listener);
             },
             listener::onFailure
@@ -343,7 +343,7 @@ public class JobResultsProvider {
             client.admin().indices()::getMappings);
     }
 
-    private void addTermsMapping(MappingMetaData mapping, String indexName, Collection<String> termFields,
+    private void addTermsMapping(MappingMetadata mapping, String indexName, Collection<String> termFields,
                                  ActionListener<Boolean> listener) {
         long fieldCountLimit = MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.get(settings);
 
@@ -356,7 +356,7 @@ public class JobResultsProvider {
         }
     }
 
-    public static boolean violatedFieldCountLimit(long additionalFieldCount, long fieldCountLimit, MappingMetaData mapping) {
+    public static boolean violatedFieldCountLimit(long additionalFieldCount, long fieldCountLimit, MappingMetadata mapping) {
         long numFields = countFields(mapping.sourceAsMap());
         return numFields + additionalFieldCount > fieldCountLimit;
     }

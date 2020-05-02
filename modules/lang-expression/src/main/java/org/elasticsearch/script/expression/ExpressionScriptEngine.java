@@ -23,7 +23,6 @@ import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.expressions.SimpleBindings;
 import org.apache.lucene.expressions.js.JavascriptCompiler;
 import org.apache.lucene.expressions.js.VariableContext;
-import org.apache.lucene.queries.function.valuesource.DoubleConstValueSource;
 import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.SpecialPermission;
@@ -507,7 +506,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
         // but if we were to reverse it, we could provide a way to supply dynamic defaults for documents missing the field?
         Object value = params.get(variable);
         if (value instanceof Number) {
-            bindings.add(variable, new DoubleConstValueSource(((Number) value).doubleValue()).asDoubleValuesSource());
+            bindings.add(variable, DoubleValuesSource.constant(((Number)value).doubleValue()));
         } else {
             throw new ParseException("Parameter [" + variable + "] must be a numeric type", 0);
         }

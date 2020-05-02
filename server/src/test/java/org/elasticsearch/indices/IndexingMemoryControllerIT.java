@@ -63,7 +63,7 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
             // We need to set a larger buffer for the IndexWriter; otherwise, it will flush before the IndexingMemoryController.
             Settings settings = Settings.builder().put(config.getIndexSettings().getSettings())
                 .put("indices.memory.index_buffer_size", "10mb").build();
-            IndexSettings indexSettings = new IndexSettings(config.getIndexSettings().getIndexMetaData(), settings);
+            IndexSettings indexSettings = new IndexSettings(config.getIndexSettings().getIndexMetadata(), settings);
             return new EngineConfig(config.getShardId(), config.getAllocationId(), config.getThreadPool(),
                 indexSettings, config.getWarmer(), config.getStore(), config.getMergePolicy(), config.getAnalyzer(),
                 config.getSimilarity(), new CodecService(null, LogManager.getLogger(IndexingMemoryControllerIT.class)),

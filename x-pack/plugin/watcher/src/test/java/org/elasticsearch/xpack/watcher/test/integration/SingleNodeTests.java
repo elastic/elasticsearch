@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
@@ -42,8 +42,8 @@ public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
     public void testThatLoadingWithNonExistingIndexWorks() throws Exception {
         stopWatcher();
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
-        IndexMetaData metaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, clusterStateResponse.getState().metaData());
-        String watchIndexName = metaData.getIndex().getName();
+        IndexMetadata metadata = WatchStoreUtils.getConcreteIndex(Watch.INDEX, clusterStateResponse.getState().metadata());
+        String watchIndexName = metadata.getIndex().getName();
         assertAcked(client().admin().indices().prepareDelete(watchIndexName));
         startWatcher();
 

@@ -20,7 +20,7 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.SortOrder;
@@ -43,7 +43,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         if (version != null) {
             newSettings = Settings.builder()
                 .put(settings)
-                .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
                 .build();
         } else {
             newSettings = settings;

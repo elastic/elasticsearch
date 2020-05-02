@@ -23,7 +23,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -35,15 +35,15 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
 
 public class MockSearchServiceTests extends ESTestCase {
-    public static final IndexMetaData EMPTY_INDEX_METADATA = IndexMetaData.builder("")
-        .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+    public static final IndexMetadata EMPTY_INDEX_METADATA = IndexMetadata.builder("")
+        .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
         .numberOfShards(1).numberOfReplicas(0).build();
 
     public void testAssertNoInFlightContext() {
         final long nowInMillis = randomNonNegativeLong();
         SearchContext s = new TestSearchContext(new QueryShardContext(0,
             new IndexSettings(EMPTY_INDEX_METADATA, Settings.EMPTY), BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
-            xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null, () -> true)) {
+            xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null, () -> true, null)) {
 
             @Override
             public SearchShardTarget shardTarget() {

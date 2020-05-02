@@ -197,15 +197,15 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
     public void testMinShouldMatchBiggerThanNumberOfShouldClauses() throws Exception {
         BooleanQuery bq = (BooleanQuery) parseQuery(
             boolQuery()
-                .should(termQuery(STRING_FIELD_NAME, "bar"))
-                .should(termQuery(STRING_FIELD_NAME_2, "bar2"))
+                .should(termQuery(TEXT_FIELD_NAME, "bar"))
+                .should(termQuery(KEYWORD_FIELD_NAME, "bar2"))
                 .minimumShouldMatch("3")).toQuery(createShardContext());
         assertEquals(3, bq.getMinimumNumberShouldMatch());
 
         bq = (BooleanQuery) parseQuery(
             boolQuery()
-                .should(termQuery(STRING_FIELD_NAME, "bar"))
-                .should(termQuery(STRING_FIELD_NAME_2, "bar2"))
+                .should(termQuery(TEXT_FIELD_NAME, "bar"))
+                .should(termQuery(KEYWORD_FIELD_NAME, "bar2"))
                 .minimumShouldMatch(3)).toQuery(createShardContext());
         assertEquals(3, bq.getMinimumNumberShouldMatch());
     }
@@ -213,8 +213,8 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
     public void testMinShouldMatchDisableCoord() throws Exception {
         BooleanQuery bq = (BooleanQuery) parseQuery(
                 boolQuery()
-                        .should(termQuery(STRING_FIELD_NAME, "bar"))
-                        .should(termQuery(STRING_FIELD_NAME, "bar2"))
+                        .should(termQuery(TEXT_FIELD_NAME, "bar"))
+                        .should(termQuery(TEXT_FIELD_NAME, "bar2"))
                         .minimumShouldMatch("3")).toQuery(createShardContext());
         assertEquals(3, bq.getMinimumNumberShouldMatch());
     }
@@ -310,22 +310,22 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         boolean mustRewrite = false;
         if (randomBoolean()) {
             mustRewrite = true;
-            boolQueryBuilder.must(new WrapperQueryBuilder(new TermsQueryBuilder(STRING_FIELD_NAME, "must").toString()));
+            boolQueryBuilder.must(new WrapperQueryBuilder(new TermsQueryBuilder(TEXT_FIELD_NAME, "must").toString()));
         }
         if (randomBoolean()) {
             mustRewrite = true;
-            boolQueryBuilder.should(new WrapperQueryBuilder(new TermsQueryBuilder(STRING_FIELD_NAME, "should").toString()));
+            boolQueryBuilder.should(new WrapperQueryBuilder(new TermsQueryBuilder(TEXT_FIELD_NAME, "should").toString()));
         }
         if (randomBoolean()) {
             mustRewrite = true;
-            boolQueryBuilder.filter(new WrapperQueryBuilder(new TermsQueryBuilder(STRING_FIELD_NAME, "filter").toString()));
+            boolQueryBuilder.filter(new WrapperQueryBuilder(new TermsQueryBuilder(TEXT_FIELD_NAME, "filter").toString()));
         }
         if (randomBoolean()) {
             mustRewrite = true;
-            boolQueryBuilder.mustNot(new WrapperQueryBuilder(new TermsQueryBuilder(STRING_FIELD_NAME, "must_not").toString()));
+            boolQueryBuilder.mustNot(new WrapperQueryBuilder(new TermsQueryBuilder(TEXT_FIELD_NAME, "must_not").toString()));
         }
         if (mustRewrite == false && randomBoolean()) {
-            boolQueryBuilder.must(new TermsQueryBuilder(STRING_FIELD_NAME, "no_rewrite"));
+            boolQueryBuilder.must(new TermsQueryBuilder(TEXT_FIELD_NAME, "no_rewrite"));
         }
         QueryBuilder rewritten = boolQueryBuilder.rewrite(createShardContext());
         if (mustRewrite == false && boolQueryBuilder.must().isEmpty()) {
@@ -336,16 +336,16 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             if (mustRewrite) {
                 assertNotSame(rewrite, boolQueryBuilder);
                 if (boolQueryBuilder.must().isEmpty() == false) {
-                    assertEquals(new TermsQueryBuilder(STRING_FIELD_NAME, "must"), rewrite.must().get(0));
+                    assertEquals(new TermsQueryBuilder(TEXT_FIELD_NAME, "must"), rewrite.must().get(0));
                 }
                 if (boolQueryBuilder.should().isEmpty() == false) {
-                    assertEquals(new TermsQueryBuilder(STRING_FIELD_NAME, "should"), rewrite.should().get(0));
+                    assertEquals(new TermsQueryBuilder(TEXT_FIELD_NAME, "should"), rewrite.should().get(0));
                 }
                 if (boolQueryBuilder.mustNot().isEmpty() == false) {
-                    assertEquals(new TermsQueryBuilder(STRING_FIELD_NAME, "must_not"), rewrite.mustNot().get(0));
+                    assertEquals(new TermsQueryBuilder(TEXT_FIELD_NAME, "must_not"), rewrite.mustNot().get(0));
                 }
                 if (boolQueryBuilder.filter().isEmpty() == false) {
-                    assertEquals(new TermsQueryBuilder(STRING_FIELD_NAME, "filter"), rewrite.filter().get(0));
+                    assertEquals(new TermsQueryBuilder(TEXT_FIELD_NAME, "filter"), rewrite.filter().get(0));
                 }
             } else {
                 assertSame(rewrite, boolQueryBuilder);
@@ -378,14 +378,14 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         assertEquals(new MatchNoneQueryBuilder(), rewritten);
 
         boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.must(new TermQueryBuilder(STRING_FIELD_NAME,"bar"));
+        boolQueryBuilder.must(new TermQueryBuilder(TEXT_FIELD_NAME,"bar"));
         boolQueryBuilder.filter(new WrapperQueryBuilder(new WrapperQueryBuilder(new MatchNoneQueryBuilder().toString()).toString()));
         rewritten = boolQueryBuilder.rewrite(createShardContext());
         assertEquals(new MatchNoneQueryBuilder(), rewritten);
 
         boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.must(new TermQueryBuilder(STRING_FIELD_NAME,"bar"));
-        boolQueryBuilder.filter(new BoolQueryBuilder().should(new TermQueryBuilder(STRING_FIELD_NAME,"bar"))
+        boolQueryBuilder.must(new TermQueryBuilder(TEXT_FIELD_NAME,"bar"));
+        boolQueryBuilder.filter(new BoolQueryBuilder().should(new TermQueryBuilder(TEXT_FIELD_NAME,"bar"))
             .filter(new MatchNoneQueryBuilder()));
         rewritten = Rewriteable.rewrite(boolQueryBuilder, createShardContext());
         assertEquals(new MatchNoneQueryBuilder(), rewritten);
@@ -396,7 +396,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         assertEquals(new MatchNoneQueryBuilder(), rewritten);
 
         boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.should(new TermQueryBuilder(STRING_FIELD_NAME, "bar"));
+        boolQueryBuilder.should(new TermQueryBuilder(TEXT_FIELD_NAME, "bar"));
         boolQueryBuilder.should(new WrapperQueryBuilder(new MatchNoneQueryBuilder().toString()));
         rewritten = Rewriteable.rewrite(boolQueryBuilder, createShardContext());
         assertNotEquals(new MatchNoneQueryBuilder(), rewritten);

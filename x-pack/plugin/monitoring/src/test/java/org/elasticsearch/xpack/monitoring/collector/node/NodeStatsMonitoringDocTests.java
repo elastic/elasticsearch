@@ -167,6 +167,13 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
                 + "        \"evictions\": 14,"
                 + "        \"hit_count\": 15,"
                 + "        \"miss_count\": 16"
+                + "      },"
+                + "      \"bulk\": {"
+                + "        \"total_operations\": 0,"
+                + "        \"total_time_in_millis\": 0,"
+                + "        \"total_size_in_bytes\": 0,"
+                + "        \"avg_time_in_millis\": 0,"
+                + "        \"avg_size_in_bytes\": 0"
                 + "      }"
                 + "    },"
                 + "    \"os\": {"
@@ -369,6 +376,6 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
                                                                 emptySet(),
                                                                 Version.CURRENT);
 
-        return new NodeStats(discoveryNode, no, indices, os, process, jvm, threadPool, fs, null, null, null, null, null, null, null);
+        return new NodeStats(discoveryNode, no, indices, os, process, jvm, threadPool, fs, null, null, null, null, null, null, null, null);
     }
 }

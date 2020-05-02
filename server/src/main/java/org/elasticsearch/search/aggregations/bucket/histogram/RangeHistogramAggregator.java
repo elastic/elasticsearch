@@ -36,7 +36,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -57,13 +56,12 @@ public class RangeHistogramAggregator extends BucketsAggregator {
 
     private final LongHash bucketOrds;
 
-    RangeHistogramAggregator(String name, AggregatorFactories factories, double interval, double offset,
+    public RangeHistogramAggregator(String name, AggregatorFactories factories, double interval, double offset,
                              BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
                              @Nullable ValuesSource.Range valuesSource, DocValueFormat formatter,
-                             SearchContext context, Aggregator parent,
-                             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+                             SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
 
-        super(name, factories, context, parent, pipelineAggregators, metaData);
+        super(name, factories, context, parent, metadata);
         if (interval <= 0) {
             throw new IllegalArgumentException("interval must be positive, got: " + interval);
         }
@@ -154,8 +152,7 @@ public class RangeHistogramAggregator extends BucketsAggregator {
         if (minDocCount == 0) {
             emptyBucketInfo = new InternalHistogram.EmptyBucketInfo(interval, offset, minBound, maxBound, buildEmptySubAggregations());
         }
-        return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, pipelineAggregators(),
-            metaData());
+        return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, metadata());
     }
 
     @Override
@@ -164,8 +161,7 @@ public class RangeHistogramAggregator extends BucketsAggregator {
         if (minDocCount == 0) {
             emptyBucketInfo = new InternalHistogram.EmptyBucketInfo(interval, offset, minBound, maxBound, buildEmptySubAggregations());
         }
-        return new InternalHistogram(name, Collections.emptyList(), order, minDocCount, emptyBucketInfo, formatter, keyed,
-            pipelineAggregators(), metaData());
+        return new InternalHistogram(name, Collections.emptyList(), order, minDocCount, emptyBucketInfo, formatter, keyed, metadata());
     }
 
     @Override

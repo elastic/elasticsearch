@@ -327,7 +327,7 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
         logger.info(" OpenIDConnect authentication response {}", responseBody);
         assertNotNull(responseBody.get("access_token"));
         assertNotNull(responseBody.get("refresh_token"));
-        return new Tuple(responseBody.get("access_token"), responseBody.get("refresh_token"));
+        return Tuple.tuple(responseBody.get("access_token").toString(), responseBody.get("refresh_token").toString());
     }
 
     private Request buildRequest(String method, String endpoint, Map<String, ?> body, Header... headers) throws IOException {

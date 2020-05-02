@@ -1,7 +1,8 @@
 {
   "security.get_role_mapping":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-role-mapping.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-role-mapping.html",
+      "description":"Retrieves role mappings."
     },
     "stability":"stable",
     "url":{

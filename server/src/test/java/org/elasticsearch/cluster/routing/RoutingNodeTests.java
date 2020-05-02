@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.Index;
@@ -60,8 +60,8 @@ public class RoutingNodeTests extends ESTestCase {
             TestShardRouting.newShardRouting("test", 4, "node-1", "node-2",false, ShardRoutingState.RELOCATING);
         routingNode.add(initializingShard1);
         routingNode.add(relocatingShard0);
-        assertThat(routingNode.getByShardId(new ShardId("test", IndexMetaData.INDEX_UUID_NA_VALUE, 3)), equalTo(initializingShard1));
-        assertThat(routingNode.getByShardId(new ShardId("test", IndexMetaData.INDEX_UUID_NA_VALUE, 4)), equalTo(relocatingShard0));
+        assertThat(routingNode.getByShardId(new ShardId("test", IndexMetadata.INDEX_UUID_NA_VALUE, 3)), equalTo(initializingShard1));
+        assertThat(routingNode.getByShardId(new ShardId("test", IndexMetadata.INDEX_UUID_NA_VALUE, 4)), equalTo(relocatingShard0));
     }
 
     public void testUpdate() {
@@ -74,11 +74,11 @@ public class RoutingNodeTests extends ESTestCase {
         routingNode.update(unassignedShard0, startedShard0);
         routingNode.update(initializingShard0, startedShard1);
         routingNode.update(relocatingShard0, startedShard2);
-        assertThat(routingNode.getByShardId(new ShardId("test", IndexMetaData.INDEX_UUID_NA_VALUE, 0)).state(),
+        assertThat(routingNode.getByShardId(new ShardId("test", IndexMetadata.INDEX_UUID_NA_VALUE, 0)).state(),
             equalTo(ShardRoutingState.STARTED));
-        assertThat(routingNode.getByShardId(new ShardId("test", IndexMetaData.INDEX_UUID_NA_VALUE, 1)).state(),
+        assertThat(routingNode.getByShardId(new ShardId("test", IndexMetadata.INDEX_UUID_NA_VALUE, 1)).state(),
             equalTo(ShardRoutingState.RELOCATING));
-        assertThat(routingNode.getByShardId(new ShardId("test", IndexMetaData.INDEX_UUID_NA_VALUE, 2)).state(),
+        assertThat(routingNode.getByShardId(new ShardId("test", IndexMetadata.INDEX_UUID_NA_VALUE, 2)).state(),
             equalTo(ShardRoutingState.INITIALIZING));
     }
 
@@ -86,9 +86,9 @@ public class RoutingNodeTests extends ESTestCase {
         routingNode.remove(unassignedShard0);
         routingNode.remove(initializingShard0);
         routingNode.remove(relocatingShard0);
-        assertThat(routingNode.getByShardId(new ShardId("test", IndexMetaData.INDEX_UUID_NA_VALUE, 0)), is(nullValue()));
-        assertThat(routingNode.getByShardId(new ShardId("test", IndexMetaData.INDEX_UUID_NA_VALUE, 1)), is(nullValue()));
-        assertThat(routingNode.getByShardId(new ShardId("test", IndexMetaData.INDEX_UUID_NA_VALUE, 2)), is(nullValue()));
+        assertThat(routingNode.getByShardId(new ShardId("test", IndexMetadata.INDEX_UUID_NA_VALUE, 0)), is(nullValue()));
+        assertThat(routingNode.getByShardId(new ShardId("test", IndexMetadata.INDEX_UUID_NA_VALUE, 1)), is(nullValue()));
+        assertThat(routingNode.getByShardId(new ShardId("test", IndexMetadata.INDEX_UUID_NA_VALUE, 2)), is(nullValue()));
     }
 
     public void testNumberOfShardsWithState() {
@@ -123,10 +123,10 @@ public class RoutingNodeTests extends ESTestCase {
             TestShardRouting.newShardRouting("test2", 0, "node-1", "node-2", false, ShardRoutingState.RELOCATING);
         routingNode.add(test1Shard0);
         routingNode.add(test2Shard0);
-        assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test", IndexMetaData.INDEX_UUID_NA_VALUE)), equalTo(2));
-        assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test1", IndexMetaData.INDEX_UUID_NA_VALUE)), equalTo(1));
-        assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test2", IndexMetaData.INDEX_UUID_NA_VALUE)), equalTo(0));
-        assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test3", IndexMetaData.INDEX_UUID_NA_VALUE)), equalTo(0));
+        assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE)), equalTo(2));
+        assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test1", IndexMetadata.INDEX_UUID_NA_VALUE)), equalTo(1));
+        assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test2", IndexMetadata.INDEX_UUID_NA_VALUE)), equalTo(0));
+        assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test3", IndexMetadata.INDEX_UUID_NA_VALUE)), equalTo(0));
     }
 
 }

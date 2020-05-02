@@ -39,6 +39,7 @@ import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.replication.PendingReplicationActions;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
@@ -47,7 +48,7 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ReplicaResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.TransportWriteActionTestHelper;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.AllocationId;
@@ -63,6 +64,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -117,30 +119,30 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     }
 
     protected ReplicationGroup createGroup(int replicas, Settings settings) throws IOException {
-        IndexMetaData metaData = buildIndexMetaData(replicas, settings, indexMapping);
-        return new ReplicationGroup(metaData);
+        IndexMetadata metadata = buildIndexMetadata(replicas, settings, indexMapping);
+        return new ReplicationGroup(metadata);
     }
 
-    protected IndexMetaData buildIndexMetaData(int replicas) throws IOException {
-        return buildIndexMetaData(replicas, indexMapping);
+    protected IndexMetadata buildIndexMetadata(int replicas) throws IOException {
+        return buildIndexMetadata(replicas, indexMapping);
     }
 
-    protected IndexMetaData buildIndexMetaData(int replicas, String mappings) throws IOException {
-        return buildIndexMetaData(replicas, Settings.EMPTY, mappings);
+    protected IndexMetadata buildIndexMetadata(int replicas, String mappings) throws IOException {
+        return buildIndexMetadata(replicas, Settings.EMPTY, mappings);
     }
 
-    protected IndexMetaData buildIndexMetaData(int replicas, Settings indexSettings, String mappings) {
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, replicas)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+    protected IndexMetadata buildIndexMetadata(int replicas, Settings indexSettings, String mappings) {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000))
             .put(indexSettings)
             .build();
-        IndexMetaData.Builder metaData = IndexMetaData.builder(index.getName())
+        IndexMetadata.Builder metadata = IndexMetadata.builder(index.getName())
             .settings(settings)
             .putMapping(mappings)
             .primaryTerm(0, randomIntBetween(1, 100));
-        return metaData.build();
+        return metadata.build();
     }
 
     IndexRequest copyIndexRequest(IndexRequest inRequest) throws IOException {
@@ -159,7 +161,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
     protected class ReplicationGroup implements AutoCloseable, Iterable<IndexShard> {
         private IndexShard primary;
-        private IndexMetaData indexMetaData;
+        private IndexMetadata indexMetadata;
         private final List<IndexShard> replicas;
         private final AtomicInteger replicaId = new AtomicInteger();
         private final AtomicInteger docId = new AtomicInteger();
@@ -186,14 +188,14 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                         throw new AssertionError("failed to background sync retention lease", e);
                     })));
 
-        protected ReplicationGroup(final IndexMetaData indexMetaData) throws IOException {
+        protected ReplicationGroup(final IndexMetadata indexMetadata) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
             primary = newShard(
-                primaryRouting, indexMetaData, null, getEngineFactory(primaryRouting), () -> {}, retentionLeaseSyncer);
+                primaryRouting, indexMetadata, null, getEngineFactory(primaryRouting), () -> {}, retentionLeaseSyncer);
             replicas = new CopyOnWriteArrayList<>();
-            this.indexMetaData = indexMetaData;
+            this.indexMetadata = indexMetadata;
             updateAllocationIDsOnPrimary();
-            for (int i = 0; i < indexMetaData.getNumberOfReplicas(); i++) {
+            for (int i = 0; i < indexMetadata.getNumberOfReplicas(); i++) {
                 addReplica();
             }
         }
@@ -294,7 +296,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         public IndexShard addReplica() throws IOException {
             final ShardRouting replicaRouting = createShardRouting("s" + replicaId.incrementAndGet(), false);
             final IndexShard replica =
-                newShard(replicaRouting, indexMetaData, null, getEngineFactory(replicaRouting), () -> {}, retentionLeaseSyncer);
+                newShard(replicaRouting, indexMetadata, null, getEngineFactory(replicaRouting), () -> {}, retentionLeaseSyncer);
             addReplica(replica);
             return replica;
         }
@@ -323,7 +325,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                     RecoverySource.PeerRecoverySource.INSTANCE);
 
             final IndexShard newReplica =
-                    newShard(shardRouting, shardPath, indexMetaData, null, null, getEngineFactory(shardRouting),
+                    newShard(shardRouting, shardPath, indexMetadata, null, null, getEngineFactory(shardRouting),
                             () -> {}, retentionLeaseSyncer, EMPTY_EVENT_LISTENER);
             replicas.add(newReplica);
             if (replicationTargets != null) {
@@ -365,9 +367,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         public synchronized void promoteReplicaToPrimary(IndexShard replica,
                  BiConsumer<IndexShard, ActionListener<PrimaryReplicaSyncer.ResyncTask>> primaryReplicaSyncer)
             throws IOException {
-            final long newTerm = indexMetaData.primaryTerm(shardId.id()) + 1;
-            IndexMetaData.Builder newMetaData = IndexMetaData.builder(indexMetaData).primaryTerm(shardId.id(), newTerm);
-            indexMetaData = newMetaData.build();
+            final long newTerm = indexMetadata.primaryTerm(shardId.id()) + 1;
+            IndexMetadata.Builder newMetadata = IndexMetadata.builder(indexMetadata).primaryTerm(shardId.id(), newTerm);
+            indexMetadata = newMetadata.build();
             assertTrue(replicas.remove(replica));
             closeShards(primary);
             primary = replica;
@@ -603,7 +605,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                         adaptResponse(result.finalResponse, getPrimaryShard());
                         return result.finalResponse;
                     }),
-                    new ReplicasRef(), logger, opType, primaryTerm)
+                    new ReplicasRef(), logger, threadPool, opType, primaryTerm, TimeValue.timeValueMillis(20),
+                    TimeValue.timeValueSeconds(60))
                     .execute();
             } catch (Exception e) {
                 listener.onFailure(e);
@@ -675,6 +678,10 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 return getPrimaryShard().getReplicationGroup();
             }
 
+            @Override
+            public PendingReplicationActions getPendingReplicationActions() {
+                return getPrimaryShard().getPendingReplicationActions();
+            }
         }
 
         class ReplicasRef implements ReplicationOperation.Replicas<ReplicaRequest> {

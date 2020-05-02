@@ -38,4 +38,4 @@
   - match: { docs.1._index:     test_two_and_three      }
   - match: { docs.1._id:        "2"                     }
   - match: { docs.1.error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { docs.1.error.root_cause.0.reason: "/Alias.\\[test_two_and_three\\].has.more.than.one.indices.associated.with.it.\\[\\[test_[23]{1},.test_[23]{1}\\]\\],.can't.execute.a.single.index.op/" }
+  - match: { docs.1.error.root_cause.0.reason: "/[aA]lias.\\[test_two_and_three\\].has.more.than.one.indices.associated.with.it.\\[\\[test_[23]{1},.test_[23]{1}\\]\\],.can't.execute.a.single.index.op/" }

@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -845,25 +846,25 @@ public class RemoteClusterServiceTests extends ESTestCase {
     }
 
     public void testRemoteClusterServiceNotEnabledGetRemoteClusterConnection() {
-        final Settings settings = Settings.builder().put(RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(), false).build();
+        final Settings settings = Settings.builder().put(Node.NODE_REMOTE_CLUSTER_CLIENT.getKey(), false).build();
         try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
             service.start();
             service.acceptIncomingRequests();
             final IllegalArgumentException e =
                 expectThrows(IllegalArgumentException.class, () -> service.getRemoteClusterService().getRemoteClusterConnection("test"));
-            assertThat(e.getMessage(), equalTo("remote cluster service is not enabled"));
+            assertThat(e.getMessage(), equalTo("this node does not have the remote_cluster_client role"));
         }
     }
 
     public void testRemoteClusterServiceNotEnabledGetCollectNodes() {
-        final Settings settings = Settings.builder().put(RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(), false).build();
+        final Settings settings = Settings.builder().put(Node.NODE_REMOTE_CLUSTER_CLIENT.getKey(), false).build();
         try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
             service.start();
             service.acceptIncomingRequests();
             final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> service.getRemoteClusterService().collectNodes(Set.of(), ActionListener.wrap(r -> {}, r -> {})));
-            assertThat(e.getMessage(), equalTo("remote cluster service is not enabled"));
+            assertThat(e.getMessage(), equalTo("this node does not have the remote_cluster_client role"));
         }
     }
 

@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -71,7 +71,7 @@ public class ExportersTests extends ESTestCase {
     private ClusterState state;
     private SSLService sslService;
     private final ClusterBlocks blocks = mock(ClusterBlocks.class);
-    private final MetaData metadata = mock(MetaData.class);
+    private final Metadata metadata = mock(Metadata.class);
     private final XPackLicenseState licenseState = mock(XPackLicenseState.class);
     private ClusterSettings clusterSettings;
     private ThreadContext threadContext;
@@ -94,7 +94,7 @@ public class ExportersTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.state()).thenReturn(state);
         when(state.blocks()).thenReturn(blocks);
-        when(state.metaData()).thenReturn(metadata);
+        when(state.metadata()).thenReturn(metadata);
         sslService = mock(SSLService.class);
 
         // we always need to have the local exporter as it serves as the default one

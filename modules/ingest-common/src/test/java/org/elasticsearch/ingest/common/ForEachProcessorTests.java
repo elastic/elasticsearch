@@ -138,7 +138,7 @@ public class ForEachProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, document);
 
         ForEachProcessor processor = new ForEachProcessor(
-            "_tag", "values", new SetProcessor("_tag",
+            "_tag", "values", new SetProcessor("_tag", null,
             new TestTemplateService.MockTemplateScript.Factory("_ingest._value.new_field"),
             (model) -> model.get("other")), false);
         processor.execute(ingestDocument, (result, e) -> {});

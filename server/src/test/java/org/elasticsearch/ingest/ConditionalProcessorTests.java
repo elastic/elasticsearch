@@ -69,7 +69,7 @@ public class ConditionalProcessorTests extends ESTestCase {
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(1), 0L, TimeUnit.MILLISECONDS.toNanos(2));
         ConditionalProcessor processor = new ConditionalProcessor(
-            randomAlphaOfLength(10), "",
+            randomAlphaOfLength(10), null, null,
             new Script(
                 ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG,
                 scriptName, Collections.emptyMap()), scriptService,
@@ -162,7 +162,7 @@ public class ConditionalProcessorTests extends ESTestCase {
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(1), 0L, TimeUnit.MILLISECONDS.toNanos(2));
         ConditionalProcessor processor = new ConditionalProcessor(
-                randomAlphaOfLength(10), "",
+                randomAlphaOfLength(10), null, null,
                 new Script(
                         ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG,
                         scriptName, Collections.emptyMap()), scriptService,
@@ -218,7 +218,7 @@ public class ConditionalProcessorTests extends ESTestCase {
         );
         Map<String, Object> document = new HashMap<>();
         ConditionalProcessor processor = new ConditionalProcessor(
-            randomAlphaOfLength(10), "",
+            randomAlphaOfLength(10), null, null,
             new Script(
                 ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG,
                 scriptName, Collections.emptyMap()), scriptService, null

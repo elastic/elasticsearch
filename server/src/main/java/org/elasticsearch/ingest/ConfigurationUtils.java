@@ -442,7 +442,7 @@ public final class ConfigurationUtils {
                     processor = new CompoundProcessor(ignoreFailure, Collections.singletonList(processor), onFailureProcessors);
                 }
                 if (conditionalScript != null) {
-                    processor = new ConditionalProcessor(tag, conditionalAsString, conditionalScript, scriptService, processor);
+                    processor = new ConditionalProcessor(tag, description, conditionalAsString, conditionalScript, scriptService, processor);
                 }
                 return processor;
             } catch (Exception e) {

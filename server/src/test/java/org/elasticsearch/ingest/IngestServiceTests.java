@@ -342,11 +342,11 @@ public class IngestServiceTests extends ESTestCase {
             String field = (String) config.remove("field");
             String value = (String) config.remove("value");
 
-            return new ConditionalProcessor(randomAlphaOfLength(10), "",
+            return new ConditionalProcessor(randomAlphaOfLength(10), null, null,
                 new Script(
                     ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG,
                     scriptName, Collections.emptyMap()), scriptService,
-                new ConditionalProcessor(randomAlphaOfLength(10) + "-nested", "",
+                new ConditionalProcessor(randomAlphaOfLength(10) + "-nested", null, null,
                     new Script(
                         ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG,
                         scriptName, Collections.emptyMap()), scriptService,

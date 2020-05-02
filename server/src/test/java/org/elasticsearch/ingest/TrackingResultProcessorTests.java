@@ -168,7 +168,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         CompoundProcessor compoundProcessor = new CompoundProcessor(
             new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key1, randomInt()); }),
             new ConditionalProcessor(
-                randomAlphaOfLength(10), "",
+                randomAlphaOfLength(10), null, null,
                 new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap()), scriptService,
                 new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key2, randomInt()); })),
             new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key3, randomInt()); }));
@@ -265,7 +265,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
             pipelineId1, null, null, new CompoundProcessor(
             new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key1, randomInt()); }),
             new ConditionalProcessor(
-                randomAlphaOfLength(10), "",
+                randomAlphaOfLength(10), null, null,
                 new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap()), scriptService,
                 factory.create(Collections.emptyMap(), null, null, pipelineConfig2)),
             new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key3, randomInt()); })
@@ -334,7 +334,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
             pipelineId1, null, null, new CompoundProcessor(
             new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key1, randomInt()); }),
             new ConditionalProcessor(
-                randomAlphaOfLength(10), "",
+                randomAlphaOfLength(10), null, null,
                 new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap()), scriptService,
                 factory.create(Collections.emptyMap(), null, null, pipelineConfig2)),
             new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key3, randomInt()); })

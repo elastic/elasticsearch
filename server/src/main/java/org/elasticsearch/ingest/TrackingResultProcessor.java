@@ -58,10 +58,10 @@ public final class TrackingResultProcessor implements Processor {
                     //else do nothing, let the tracking processors throw the exception while recording the path up to the failure
                     if (elasticsearchException.getCause() instanceof IllegalStateException) {
                         if (ignoreFailure) {
-                            processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getTag(), null, null, true,
+                            processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getTag(), pipelineProcessor.getDescription(), null, true,
                                 new IngestDocument(ingestDocument), e));
                         } else {
-                            processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getTag(), null, null, e));
+                            processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getTag(), pipelineProcessor.getDescription(), null, e));
                         }
                         handler.accept(null, elasticsearchException);
                     }
@@ -82,7 +82,7 @@ public final class TrackingResultProcessor implements Processor {
         if (actualProcessor instanceof ConditionalProcessor) {
             ConditionalProcessor conditionalProcessor = (ConditionalProcessor) actualProcessor;
             if (conditionalProcessor.evaluate(ingestDocument) == false) {
-                processorResultList.add(new SimulateProcessorResult(conditionalProcessor.getTag(), conditionalProcessor.getDescription(), conditionalProcessor.getConditional(), false));
+                processorResultList.add(new SimulateProcessorResult(actualProcessor.getTag(), actualProcessor.getDescription(), conditionalProcessor.getConditional(), false));
                 handler.accept(ingestDocument, null);
                 return;
             } else{

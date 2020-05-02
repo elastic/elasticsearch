@@ -291,6 +291,11 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         return name().toLowerCase(Locale.ROOT);
     }
 
+    @Override
+    public String typeName() {
+        return value();
+    }
+
     /** List containing all members of the enumeration. */
     public static List<ValuesSourceType> ALL_CORE = Arrays.asList(CoreValuesSourceType.values());
 }

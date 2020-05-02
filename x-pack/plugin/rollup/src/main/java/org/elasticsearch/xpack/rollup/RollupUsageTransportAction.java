@@ -41,7 +41,7 @@ public class RollupUsageTransportAction extends XPackUsageFeatureTransportAction
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
-        boolean available = licenseState.isRollupAllowed();
+        boolean available = licenseState.isAllowed(XPackLicenseState.Feature.ROLLUP);
         // TODO expose the currently running rollup tasks on this node?  Unclear the best way to do that
         RollupFeatureSetUsage usage =
             new RollupFeatureSetUsage(available, XPackSettings.ROLLUP_ENABLED.get(settings));

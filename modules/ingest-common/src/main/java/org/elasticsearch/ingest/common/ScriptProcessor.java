@@ -94,7 +94,7 @@ public final class ScriptProcessor extends AbstractProcessor {
         }
 
         @Override
-        public ScriptProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+        public ScriptProcessor create(Map<String, Processor.Factory> registry, String processorTag, String description,
                                       Map<String, Object> config) throws Exception {
             try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(config);
                  InputStream stream = BytesReference.bytes(builder).streamInput();

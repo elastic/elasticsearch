@@ -20,6 +20,7 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -39,6 +40,9 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
 
     private static final String IGNORED_ERROR_FIELD = "ignored_error";
     private final String processorTag;
+    private final String conditional;
+    private final boolean executed;
+    private final String description;
     private final WriteableIngestDocument ingestDocument;
     private final Exception failure;
 
@@ -62,18 +66,25 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
             true,
             a -> {
                 String processorTag = a[0] == null ? null : (String)a[0];
-                IngestDocument document = a[1] == null ? null : ((WriteableIngestDocument)a[1]).getIngestDocument();
+                String conditional = a[1] == null ? null : (String)a[1];
+                Boolean executed = a[2] == null ? null : (Boolean) a[2];
+                String description = a[3] == null ? null : (String)a[3];
+                IngestDocument document = a[4] == null ? null : ((WriteableIngestDocument)a[4]).getIngestDocument();
                 Exception failure = null;
-                if (a[2] != null) {
-                    failure = (ElasticsearchException)a[2];
-                } else if (a[3] != null) {
-                    failure = (ElasticsearchException)a[3];
+                if (a[5] != null) {
+                    failure = (ElasticsearchException)a[5];
+                } else if (a[6] != null) {
+                    failure = (ElasticsearchException)a[6];
                 }
-                return new SimulateProcessorResult(processorTag, document, failure);
+                //TODO!!
+                return new SimulateProcessorResult(processorTag, description, conditional, executed, document, failure);
             }
         );
     static {
         PARSER.declareString(optionalConstructorArg(), new ParseField(ConfigurationUtils.TAG_KEY));
+        PARSER.declareString(optionalConstructorArg(), new ParseField(ConfigurationUtils.CONDITIONAL_KEY));
+        PARSER.declareBoolean(optionalConstructorArg(), new ParseField(ConfigurationUtils.EXECUTED_KEY));
+        PARSER.declareString(optionalConstructorArg(), new ParseField(ConfigurationUtils.DESCRIPTION_KEY));
         PARSER.declareObject(
             optionalConstructorArg(),
             WriteableIngestDocument.INGEST_DOC_PARSER,
@@ -91,23 +102,30 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         );
     }
 
-    public SimulateProcessorResult(String processorTag, IngestDocument ingestDocument, Exception failure) {
+    public SimulateProcessorResult(String processorTag, String description, String conditional, boolean executed, IngestDocument ingestDocument, Exception failure) {
         this.processorTag = processorTag;
+        this.description = description;
         this.ingestDocument = (ingestDocument == null) ? null : new WriteableIngestDocument(ingestDocument);
         this.failure = failure;
+        this.conditional = conditional;
+        this.executed = executed;
     }
 
-    public SimulateProcessorResult(String processorTag, IngestDocument ingestDocument) {
-        this(processorTag, ingestDocument, null);
+    public SimulateProcessorResult(String processorTag, String description, String conditional, IngestDocument ingestDocument) {
+        this(processorTag, description, conditional, true, ingestDocument, null);
     }
 
-    public SimulateProcessorResult(String processorTag, Exception failure) {
-        this(processorTag, null, failure);
+    public SimulateProcessorResult(String processorTag, String description, String conditional, Exception failure) {
+        this(processorTag, description, conditional, true, null, failure);
+    }
+    public SimulateProcessorResult(String processorTag, String description, String conditional, boolean executed) {
+        this(processorTag, description, conditional, executed, null, null);
     }
 
-    public SimulateProcessorResult(String processorTag) {
-        this(processorTag, null, null);
+    public SimulateProcessorResult(String processorTag, String description, String conditional) {
+        this(processorTag, description, conditional, true, null, null);
     }
+
 
     /**
      * Read from a stream.
@@ -116,6 +134,10 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         this.processorTag = in.readString();
         this.ingestDocument = in.readOptionalWriteable(WriteableIngestDocument::new);
         this.failure = in.readException();
+        //TODO: bwc protect ?
+        this.description = in.readString();
+        this.conditional = in.readString();
+        this.executed = in.readBoolean();
     }
 
     @Override
@@ -123,6 +145,10 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         out.writeString(processorTag);
         out.writeOptionalWriteable(ingestDocument);
         out.writeException(failure);
+        //TODO: bwc protect, optional String ?
+        out.writeString(description);
+        out.writeString(conditional);
+        out.writeBoolean(executed);
     }
 
     public IngestDocument getIngestDocument() {
@@ -152,6 +178,16 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         if (processorTag != null) {
             builder.field(ConfigurationUtils.TAG_KEY, processorTag);
         }
+
+        if(Strings.isNullOrEmpty(description) == false) {
+            builder.field(ConfigurationUtils.DESCRIPTION_KEY, description);
+        }
+
+        if(Strings.isNullOrEmpty(conditional) == false) {
+            builder.field(ConfigurationUtils.CONDITIONAL_KEY, conditional);
+        }
+
+        builder.field(ConfigurationUtils.EXECUTED_KEY, executed);
 
         if (failure != null && ingestDocument != null) {
             builder.startObject(IGNORED_ERROR_FIELD);

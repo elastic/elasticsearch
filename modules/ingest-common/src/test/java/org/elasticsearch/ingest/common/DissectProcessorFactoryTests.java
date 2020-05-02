@@ -47,7 +47,7 @@ public class DissectProcessorFactoryTests extends ESTestCase {
         config.put("append_separator", appendSeparator);
         config.put("ignore_missing", true);
 
-        DissectProcessor processor = factory.create(null, processorTag, config);
+        DissectProcessor processor = factory.create(null, processorTag, null, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.field, equalTo(fieldName));
         assertThat(processor.pattern, equalTo(pattern));
@@ -60,7 +60,7 @@ public class DissectProcessorFactoryTests extends ESTestCase {
         DissectProcessor.Factory factory = new DissectProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("pattern", "%{a},%{b},%{c}");
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", config));
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", null, config));
         assertThat(e.getMessage(), Matchers.equalTo("[field] required property is missing"));
     }
 
@@ -68,7 +68,7 @@ public class DissectProcessorFactoryTests extends ESTestCase {
         DissectProcessor.Factory factory = new DissectProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", randomAlphaOfLength(10));
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", config));
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", null, config));
         assertThat(e.getMessage(), Matchers.equalTo("[pattern] required property is missing"));
     }
 
@@ -77,7 +77,7 @@ public class DissectProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("pattern", "%{a},%{b},%{c}");
         config.put("field", randomAlphaOfLength(10));
-        DissectProcessor processor = factory.create(null, "_tag", config);
+        DissectProcessor processor = factory.create(null, "_tag", null, config);
         assertThat(processor.appendSeparator, equalTo(""));
         assertThat(processor.ignoreMissing, is(false));
     }
@@ -87,6 +87,6 @@ public class DissectProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("pattern", "no keys defined");
         config.put("field", randomAlphaOfLength(10));
-        expectThrows(DissectException.class, () -> factory.create(null, "_tag", config));
+        expectThrows(DissectException.class, () -> factory.create(null, "_tag", null, config));
     }
 }

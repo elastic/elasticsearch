@@ -77,7 +77,7 @@ public class PipelineProcessor extends AbstractProcessor {
         }
 
         @Override
-        public PipelineProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+        public PipelineProcessor create(Map<String, Processor.Factory> registry, String processorTag, String description,
             Map<String, Object> config) throws Exception {
             TemplateScript.Factory pipelineTemplate =
                 ConfigurationUtils.readTemplateProperty(TYPE, processorTag, config, "name", ingestService.getScriptService());

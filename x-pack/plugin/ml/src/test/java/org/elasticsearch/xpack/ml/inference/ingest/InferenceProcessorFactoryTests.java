@@ -149,7 +149,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         processorFactory.accept(buildClusterStateWithModelReferences("model1"));
 
         ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
-            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", Collections.emptyMap()));
+            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, Collections.emptyMap()));
 
         assertThat(ex.getMessage(), equalTo("Max number of inference processors reached, total inference processors [1]. " +
             "Adjust the setting [xpack.ml.max_inference_processors]: [1] if a greater number is desired."));
@@ -168,7 +168,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         }};
 
         ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
-            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", config));
+            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, config));
         assertThat(ex.getMessage(),
             equalTo("unrecognized inference configuration type [unknown_type]. Supported types [classification, regression]"));
 
@@ -179,7 +179,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap("regression", "boom"));
         }};
         ex = expectThrows(ElasticsearchStatusException.class,
-            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", config2));
+            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, config2));
         assertThat(ex.getMessage(),
             equalTo("inference_config must be an object with one inference type mapped to an object."));
 
@@ -190,7 +190,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             put(InferenceProcessor.INFERENCE_CONFIG, Collections.emptyMap());
         }};
         ex = expectThrows(ElasticsearchStatusException.class,
-            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", config3));
+            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, config3));
         assertThat(ex.getMessage(),
             equalTo("inference_config must be an object with one inference type mapped to an object."));
     }
@@ -210,7 +210,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         }};
 
         try {
-            processorFactory.create(Collections.emptyMap(), "my_inference_processor", regression);
+            processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, regression);
             fail("Should not have successfully created");
         } catch (ElasticsearchException ex) {
             assertThat(ex.getMessage(),
@@ -228,7 +228,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         }};
 
         try {
-            processorFactory.create(Collections.emptyMap(), "my_inference_processor", classification);
+            processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, classification);
             fail("Should not have successfully created");
         } catch (ElasticsearchException ex) {
             assertThat(ex.getMessage(),
@@ -252,7 +252,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         }};
 
         try {
-            processorFactory.create(Collections.emptyMap(), "my_inference_processor", regression);
+            processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, regression);
         } catch (Exception ex) {
             fail(ex.getMessage());
         }
@@ -266,7 +266,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         }};
 
         try {
-            processorFactory.create(Collections.emptyMap(), "my_inference_processor", classification);
+            processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, classification);
         } catch (Exception ex) {
             fail(ex.getMessage());
         }
@@ -286,7 +286,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         }};
 
         try {
-            processorFactory.create(Collections.emptyMap(), "my_inference_processor", regression);
+            processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, regression);
             fail("should not have succeeded creating with duplicate fields");
         } catch (Exception ex) {
             assertThat(ex.getMessage(), equalTo("Cannot create processor as configured. " +

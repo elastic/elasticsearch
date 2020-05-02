@@ -19,19 +19,32 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.common.Nullable;
+
 /**
  * An Abstract Processor that holds a processorTag field to be used
  * by other processors.
  */
 public abstract class AbstractProcessor implements Processor {
     protected final String tag;
+    protected final String description;
 
-    protected AbstractProcessor(String tag) {
+    protected AbstractProcessor(String tag, String description){
         this.tag = tag;
+        this.description = description;
+    }
+    protected AbstractProcessor(String tag) {
+        this(tag, null);
     }
 
     @Override
     public String getTag() {
         return tag;
+    }
+
+    @Override
+    @Nullable
+    public String getDescription() {
+        return description;
     }
 }

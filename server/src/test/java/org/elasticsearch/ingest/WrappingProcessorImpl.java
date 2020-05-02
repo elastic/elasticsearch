@@ -31,6 +31,7 @@ class WrappingProcessorImpl extends FakeProcessor implements WrappingProcessor {
     public Processor getInnerProcessor() {
         String theType = getType();
         String theTag = getTag();
+        String theDescription = getDescription();
         return new Processor() {
             @Override
             public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
@@ -45,6 +46,11 @@ class WrappingProcessorImpl extends FakeProcessor implements WrappingProcessor {
             @Override
             public String getTag() {
                 return theTag;
+            }
+
+            @Override
+            public String getDescription() {
+                return theDescription;
             }
         };
     }

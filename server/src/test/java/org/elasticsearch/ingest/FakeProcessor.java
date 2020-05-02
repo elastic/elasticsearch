@@ -24,12 +24,14 @@ import java.util.function.Consumer;
 class FakeProcessor implements Processor {
     private String type;
     private String tag;
+    private String description;
     private Consumer<IngestDocument> executor;
 
     FakeProcessor(String type, String tag, Consumer<IngestDocument> executor) {
         this.type = type;
         this.tag = tag;
         this.executor = executor;
+        this.description = null;
     }
 
     @Override
@@ -46,5 +48,10 @@ class FakeProcessor implements Processor {
     @Override
     public String getTag() {
         return tag;
+    }
+
+    @Override
+    public String getDescription() {
+        return null;
     }
 }

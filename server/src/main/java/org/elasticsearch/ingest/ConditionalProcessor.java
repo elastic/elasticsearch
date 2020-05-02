@@ -55,24 +55,24 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     static final String TYPE = "conditional";
 
     private final Script condition;
-
     private final ScriptService scriptService;
-
     private final Processor processor;
     private final IngestMetric metric;
     private final LongSupplier relativeTimeProvider;
+    private final String conditional;
 
-    ConditionalProcessor(String tag, Script script, ScriptService scriptService, Processor processor) {
-        this(tag, script, scriptService, processor, System::nanoTime);
+    ConditionalProcessor(String tag, String conditional, Script script, ScriptService scriptService, Processor processor) {
+        this(tag, conditional, script, scriptService, processor, System::nanoTime);
     }
 
-    ConditionalProcessor(String tag, Script script, ScriptService scriptService, Processor processor, LongSupplier relativeTimeProvider) {
+    ConditionalProcessor(String tag, String conditional, Script script, ScriptService scriptService, Processor processor, LongSupplier relativeTimeProvider) {
         super(tag);
         this.condition = script;
         this.scriptService = scriptService;
         this.processor = processor;
         this.metric = new IngestMetric();
         this.relativeTimeProvider = relativeTimeProvider;
+        this.conditional = conditional;
     }
 
     @Override
@@ -125,6 +125,10 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     @Override
     public String getType() {
         return TYPE;
+    }
+
+    public String getConditional() {
+        return conditional;
     }
 
     private static Object wrapUnmodifiable(Object raw) {

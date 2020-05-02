@@ -117,7 +117,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
     public void testReadProcessors() throws Exception {
         Processor processor = mock(Processor.class);
         Map<String, Processor.Factory> registry =
-            Collections.singletonMap("test_processor", (factories, tag, config) -> processor);
+            Collections.singletonMap("test_processor", (factories, tag, description, config) -> processor);
 
         List<Map<String, Object>> config = new ArrayList<>();
         Map<String, Object> emptyConfig = Collections.emptyMap();
@@ -167,7 +167,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
     public void testReadProcessorFromObjectOrMap() throws Exception {
         Processor processor = mock(Processor.class);
         Map<String, Processor.Factory> registry =
-            Collections.singletonMap("script", (processorFactories, tag, config) -> {
+            Collections.singletonMap("script", (processorFactories, tag, description, config) -> {
                 config.clear();
                 return processor;
             });

@@ -103,7 +103,7 @@ public final class RenameProcessor extends AbstractProcessor {
         }
 
         @Override
-        public RenameProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+        public RenameProcessor create(Map<String, Processor.Factory> registry, String processorTag, String description,
                                       Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             TemplateScript.Factory fieldTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,

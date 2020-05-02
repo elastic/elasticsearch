@@ -75,22 +75,26 @@ public interface Processor {
      */
     String getTag();
 
+    String getDescription();
+
     /**
      * A factory that knows how to construct a processor based on a map of maps.
      */
+    @FunctionalInterface
     interface Factory {
 
-        /**
+         /**
          * Creates a processor based on the specified map of maps config.
          *
          * @param processorFactories Other processors which may be created inside this processor
          * @param tag The tag for the processor
+         * @param description The description for the processor
          * @param config The configuration for the processor
          *
          * <b>Note:</b> Implementations are responsible for removing the used configuration keys, so that after
          * creating a pipeline ingest can verify if all configurations settings have been used.
          */
-        Processor create(Map<String, Processor.Factory> processorFactories, String tag,
+        Processor create(Map<String, Processor.Factory> processorFactories, String tag, String description,
                          Map<String, Object> config) throws Exception;
     }
 

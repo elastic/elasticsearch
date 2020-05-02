@@ -223,6 +223,6 @@ public class KeyValueProcessorTests extends ESTestCase {
         if (prefix != null) {
             config.put("prefix", prefix);
         }
-        return FACTORY.create(null, randomAlphaOfLength(10), config);
+        return FACTORY.create(null, randomAlphaOfLength(10), null, config);
     }
 }

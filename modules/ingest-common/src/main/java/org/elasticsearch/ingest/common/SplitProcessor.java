@@ -95,7 +95,7 @@ public final class SplitProcessor extends AbstractProcessor {
 
     public static class Factory implements Processor.Factory {
         @Override
-        public SplitProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+        public SplitProcessor create(Map<String, Processor.Factory> registry, String processorTag, String description,
                                      Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);

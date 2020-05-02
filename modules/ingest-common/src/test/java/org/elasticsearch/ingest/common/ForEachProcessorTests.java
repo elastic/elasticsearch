@@ -168,6 +168,11 @@ public class ForEachProcessorTests extends ESTestCase {
                 public String getTag() {
                     return null;
                 }
+
+                @Override
+                public String getDescription() {
+                    return null;
+                }
         };
         int numValues = randomIntBetween(1, 10000);
         List<String> values = IntStream.range(0, numValues).mapToObj(i->"").collect(Collectors.toList());
@@ -317,6 +322,11 @@ public class ForEachProcessorTests extends ESTestCase {
 
         @Override
         public String getTag() {
+            return getType();
+        }
+
+        @Override
+        public String getDescription() {
             return getType();
         }
     }

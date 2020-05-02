@@ -72,6 +72,11 @@ public class TestProcessor implements Processor {
     }
 
     @Override
+    public String getDescription() {
+        return null;
+    }
+
+    @Override
     public String getTag() {
         return tag;
     }
@@ -82,7 +87,7 @@ public class TestProcessor implements Processor {
 
     public static final class Factory implements Processor.Factory {
         @Override
-        public TestProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+        public TestProcessor create(Map<String, Processor.Factory> registry, String processorTag, String description,
                                     Map<String, Object> config) throws Exception {
             return new TestProcessor(processorTag, "test-processor", ingestDocument -> {});
         }

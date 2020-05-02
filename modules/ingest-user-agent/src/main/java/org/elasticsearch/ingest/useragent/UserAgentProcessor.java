@@ -178,7 +178,7 @@ public class UserAgentProcessor extends AbstractProcessor {
         }
 
         @Override
-        public UserAgentProcessor create(Map<String, Processor.Factory> factories, String processorTag,
+        public UserAgentProcessor create(Map<String, Processor.Factory> factories, String processorTag, String description,
                                          Map<String, Object> config) throws Exception {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "user_agent");

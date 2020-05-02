@@ -96,7 +96,7 @@ public final class DotExpanderProcessor extends AbstractProcessor {
     public static final class Factory implements Processor.Factory {
 
         @Override
-        public Processor create(Map<String, Processor.Factory> processorFactories, String tag,
+        public Processor create(Map<String, Processor.Factory> processorFactories, String tag, String description,
                                 Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");
             if (field.contains(".") == false) {

@@ -105,7 +105,7 @@ abstract class AbstractStringProcessor<T> extends AbstractProcessor {
         }
 
         @Override
-        public AbstractStringProcessor<?> create(Map<String, Processor.Factory> registry, String tag,
+        public AbstractStringProcessor<?> create(Map<String, Processor.Factory> registry, String tag, String description,
                                                  Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(processorType, tag, config, "field");
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(processorType, tag, config, "ignore_missing", false);

@@ -36,13 +36,13 @@ public class DotExpanderProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field.field");
         config.put("path", "_path");
-        DotExpanderProcessor processor = (DotExpanderProcessor) factory.create(null, "_tag", config);
+        DotExpanderProcessor processor = (DotExpanderProcessor) factory.create(null, "_tag", null, config);
         assertThat(processor.getField(), equalTo("_field.field"));
         assertThat(processor.getPath(), equalTo("_path"));
 
         config = new HashMap<>();
         config.put("field", "_field.field");
-        processor = (DotExpanderProcessor) factory.create(null, "_tag", config);
+        processor = (DotExpanderProcessor) factory.create(null, "_tag", null, config);
         assertThat(processor.getField(), equalTo("_field.field"));
         assertThat(processor.getPath(), nullValue());
     }
@@ -55,7 +55,7 @@ public class DotExpanderProcessorFactoryTests extends ESTestCase {
             Map<String, Object> config = new HashMap<>();
             config.put("field", field);
             config.put("path", "_path");
-            DotExpanderProcessor processor = (DotExpanderProcessor) factory.create(null, "_tag", config);
+            DotExpanderProcessor processor = (DotExpanderProcessor) factory.create(null, "_tag", null, config);
             assertThat(processor.getField(), equalTo(field));
             assertThat(processor.getPath(), equalTo("_path"));
         }
@@ -66,7 +66,7 @@ public class DotExpanderProcessorFactoryTests extends ESTestCase {
 
         Map<String, Object> config = new HashMap<>();
         config.put("path", "_path");
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", config));
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", null, config));
         assertThat(e.getMessage(), equalTo("[field] required property is missing"));
     }
 
@@ -76,7 +76,7 @@ public class DotExpanderProcessorFactoryTests extends ESTestCase {
         for (String field : fields) {
             Map<String, Object> config = new HashMap<>();
             config.put("field", field);
-            Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", config));
+            Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", null, config));
             assertThat(e.getMessage(), equalTo("[field] field does not contain a dot"));
         }
 
@@ -84,7 +84,7 @@ public class DotExpanderProcessorFactoryTests extends ESTestCase {
         for (String field : fields) {
             Map<String, Object> config = new HashMap<>();
             config.put("field", field);
-            Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", config));
+            Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", null, config));
             assertThat(e.getMessage(), equalTo("[field] Field can't start or end with a dot"));
         }
 
@@ -92,7 +92,7 @@ public class DotExpanderProcessorFactoryTests extends ESTestCase {
         for (String field : fields) {
             Map<String, Object> config = new HashMap<>();
             config.put("field", field);
-            Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", config));
+            Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", null, config));
             assertThat(e.getMessage(), equalTo("[field] No space between dots"));
         }
     }

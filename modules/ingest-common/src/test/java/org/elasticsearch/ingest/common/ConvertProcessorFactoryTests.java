@@ -39,7 +39,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("type", type.toString());
         String processorTag = randomAlphaOfLength(10);
-        ConvertProcessor convertProcessor = factory.create(null, processorTag, config);
+        ConvertProcessor convertProcessor = factory.create(null, processorTag, null, config);
         assertThat(convertProcessor.getTag(), equalTo(processorTag));
         assertThat(convertProcessor.getField(), equalTo("field1"));
         assertThat(convertProcessor.getTargetField(), equalTo("field1"));
@@ -54,7 +54,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("type", type);
         try {
-            factory.create(null, null, config);
+            factory.create(null, null, null, config);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), Matchers.equalTo("[type] type [" + type + "] not supported, cannot convert field."));
@@ -70,7 +70,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         String type = "type-" + randomAlphaOfLengthBetween(1, 10);
         config.put("type", type);
         try {
-            factory.create(null, null, config);
+            factory.create(null, null, null, config);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), Matchers.equalTo("[field] required property is missing"));
@@ -82,7 +82,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         try {
-            factory.create(null, null, config);
+            factory.create(null, null, null, config);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), Matchers.equalTo("[type] required property is missing"));
@@ -97,7 +97,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         config.put("target_field", "field2");
         config.put("type", type.toString());
         String processorTag = randomAlphaOfLength(10);
-        ConvertProcessor convertProcessor = factory.create(null, processorTag, config);
+        ConvertProcessor convertProcessor = factory.create(null, processorTag, null, config);
         assertThat(convertProcessor.getTag(), equalTo(processorTag));
         assertThat(convertProcessor.getField(), equalTo("field1"));
         assertThat(convertProcessor.getTargetField(), equalTo("field2"));
@@ -113,7 +113,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         config.put("type", type.toString());
         config.put("ignore_missing", true);
         String processorTag = randomAlphaOfLength(10);
-        ConvertProcessor convertProcessor = factory.create(null, processorTag, config);
+        ConvertProcessor convertProcessor = factory.create(null, processorTag, null, config);
         assertThat(convertProcessor.getTag(), equalTo(processorTag));
         assertThat(convertProcessor.getField(), equalTo("field1"));
         assertThat(convertProcessor.getTargetField(), equalTo("field1"));

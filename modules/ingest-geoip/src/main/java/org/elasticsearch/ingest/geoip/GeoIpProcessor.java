@@ -396,6 +396,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         public GeoIpProcessor create(
             final Map<String, Processor.Factory> registry,
             final String processorTag,
+            final String description,
             final Map<String, Object> config) throws IOException {
             String ipField = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "geoip");

@@ -112,7 +112,7 @@ public class AsyncIngestProcessorIT extends ESSingleNodeTestCase {
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
             return Map.of(
-                "test-async", (factories, tag, config) -> {
+                "test-async", (factories, tag, description, config) -> {
                     return new AbstractProcessor(tag) {
 
                         @Override
@@ -142,7 +142,7 @@ public class AsyncIngestProcessorIT extends ESSingleNodeTestCase {
                         }
                     };
                 },
-                "test", (processorFactories, tag, config) -> {
+                "test", (processorFactories, tag, description, config) -> {
                     return new AbstractProcessor(tag) {
                         @Override
                         public IngestDocument execute(IngestDocument ingestDocument) throws Exception {

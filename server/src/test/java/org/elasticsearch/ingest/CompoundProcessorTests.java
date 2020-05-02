@@ -149,6 +149,11 @@ public class CompoundProcessorTests extends ESTestCase {
             public String getTag() {
                 return null;
             }
+
+            @Override
+            public String getDescription() {
+                return null;
+            }
         };
 
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);

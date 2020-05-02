@@ -123,7 +123,7 @@ public final class JsonProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
         @Override
-        public JsonProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+        public JsonProcessor create(Map<String, Processor.Factory> registry, String processorTag, String description,
                                     Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "target_field");

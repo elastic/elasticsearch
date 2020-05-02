@@ -144,7 +144,7 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
         }
 
         @Override
-        public DateIndexNameProcessor create(Map<String, Processor.Factory> registry, String tag,
+        public DateIndexNameProcessor create(Map<String, Processor.Factory> registry, String tag, String description,
                                              Map<String, Object> config) throws Exception {
             String localeString = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "locale");
             String timezoneString = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "timezone");

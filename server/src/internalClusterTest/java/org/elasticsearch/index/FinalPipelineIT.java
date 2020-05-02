@@ -255,7 +255,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
             return Map.of(
                 "default",
-                (factories, tag, config) ->
+                (factories, tag, description, config) ->
                     new AbstractProcessor(tag) {
 
                         @Override
@@ -270,7 +270,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
                         }
                     },
                 "final",
-                (processorFactories, tag, config) -> {
+                (processorFactories, tag, description, config) -> {
                     final String exists = (String) config.remove("exists");
                     return new AbstractProcessor(tag) {
                         @Override
@@ -293,7 +293,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
                     };
                 },
                 "request",
-                (processorFactories, tag, config) ->
+                (processorFactories, tag, description, config) ->
                     new AbstractProcessor(tag) {
                         @Override
                         public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {

@@ -49,7 +49,7 @@ public class RemoveProcessorTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", fieldName);
         String processorTag = randomAlphaOfLength(10);
-        Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, config);
+        Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config);
         try {
             processor.execute(ingestDocument);
             fail("remove field should have failed");
@@ -65,7 +65,7 @@ public class RemoveProcessorTests extends ESTestCase {
         config.put("field", fieldName);
         config.put("ignore_missing", true);
         String processorTag = randomAlphaOfLength(10);
-        Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, config);
+        Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config);
         processor.execute(ingestDocument);
     }
 }

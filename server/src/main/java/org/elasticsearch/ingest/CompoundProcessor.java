@@ -115,6 +115,11 @@ public class CompoundProcessor implements Processor {
     }
 
     @Override
+    public String getDescription() {
+        return getTag();
+    }
+
+    @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         throw new UnsupportedOperationException("this method should not get executed");
     }

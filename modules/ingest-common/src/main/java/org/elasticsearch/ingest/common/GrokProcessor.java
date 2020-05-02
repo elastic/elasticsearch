@@ -141,7 +141,7 @@ public final class GrokProcessor extends AbstractProcessor {
         }
 
         @Override
-        public GrokProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+        public GrokProcessor create(Map<String, Processor.Factory> registry, String processorTag, String description,
                                     Map<String, Object> config) throws Exception {
             String matchField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             List<String> matchPatterns = ConfigurationUtils.readList(TYPE, processorTag, config, "patterns");

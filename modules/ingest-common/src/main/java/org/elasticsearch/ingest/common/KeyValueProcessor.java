@@ -200,7 +200,7 @@ public final class KeyValueProcessor extends AbstractProcessor {
 
     public static class Factory implements Processor.Factory {
         @Override
-        public KeyValueProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+        public KeyValueProcessor create(Map<String, Processor.Factory> registry, String processorTag, String description,
                                         Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "target_field");

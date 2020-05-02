@@ -169,15 +169,14 @@ FROM test_emp  ORDER BY 1 DESC NULLS LAST, 2 LIMIT 10;
 1963-06-01 00:00:00.000Z | 00:00:00.000Z
 ;
 
-// Wait time format function implement
-timeParseGroupBy-Ignore
-schema::count:l|df_birth_time:time
-SELECT count(*) AS count, TIME_FORMAT(TIME_PARSE(DATETIME_FORMAT(birth_date, 'HH:mm:ss'), 'HH:mm:ss'), 'HH') AS df_birth_time
+timeParseGroupBy
+schema::count:l|df_birth_time:s
+SELECT count(*) AS count, CAST(TIME_PARSE(DATETIME_FORMAT(birth_date, 'HH:mm:ss'), 'HH:mm:ss') AS VARCHAR) AS df_birth_time
 FROM test_emp GROUP BY df_birth_time ORDER BY 1 DESC, 2 DESC NULLS LAST LIMIT 10;
 
  count | df_birth_time
 -------+---------------
-90     | 00
+90     | 00:00:00.000Z
 10     | null
 ;
 

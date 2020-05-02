@@ -69,10 +69,10 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
             } catch (IllegalArgumentException | DateTimeException e) {
                 String msg = e.getMessage();
                 if (msg.contains("Unable to convert parsed text using any of the specified queries")) {
-                    msg = format(null,"Unable to convert parsed text into [{}]", this.parseType);
+                    msg = format(null, "Unable to convert parsed text into [{}]", this.parseType);
                 }
                 throw new SqlIllegalArgumentException(
-                    "Invalid {} string [{}] or pattern [{}] is received; {}",
+                    "Invalid [{}] string [{}] or pattern [{}] is received; {}",
                     this.parseType,
                     timestamp,
                     pattern,

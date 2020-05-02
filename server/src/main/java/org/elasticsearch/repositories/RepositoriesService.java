@@ -464,8 +464,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     private static void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
         if (isRepositoryInUse(clusterState, repository)) {
-            throw new RepositoryConflictException(repository, "repository conflict," +
-                " trying to modify or unregister repository that is currently used");
+            throw new RepositoryConflictException(repository, "trying to modify or unregister repository that is currently used");
         }
     }
 

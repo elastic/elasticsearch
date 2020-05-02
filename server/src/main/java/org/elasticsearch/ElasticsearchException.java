@@ -1046,7 +1046,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.repositories.RepositoryConflictException.class,
                 org.elasticsearch.repositories.RepositoryConflictException::new,
                 158,
-                UNKNOWN_VERSION_ADDED);
+                Version.V_8_0_0);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

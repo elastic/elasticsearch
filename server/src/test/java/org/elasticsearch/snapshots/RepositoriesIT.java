@@ -250,7 +250,6 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         refresh();
         final String snapshot1 = "test-snap1";
         client().admin().cluster().prepareCreateSnapshot(repo, snapshot1).setWaitForCompletion(true).get();
-
         String blockedNode = internalCluster().getMasterName();
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, blockedNode).repository(repo)).blockOnDataFiles(true);
         logger.info("--> start deletion of snapshot");
@@ -259,26 +258,17 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         waitForBlock(blockedNode, repo, TimeValue.timeValueSeconds(10));
 
         logger.info("--> try deleting the repository, should fail because the deletion of the snapshot is in progress");
-        try {
-            client().admin().cluster().prepareDeleteRepository(repo).get();
-            fail("should not be able to delete a repository while it is being used");
-        } catch (RepositoryConflictException e) {
-            assertThat(e.status(),  equalTo(RestStatus.CONFLICT));
-            assertThat(e.getMessage(), containsString("repository conflict," +
-                " trying to modify or unregister repository that is currently used"));
-        }
+        RepositoryConflictException e1 = expectThrows(RepositoryConflictException.class, () ->
+            client().admin().cluster().prepareDeleteRepository(repo).get());
+        assertThat(e1.status(),  equalTo(RestStatus.CONFLICT));
+        assertThat(e1.getMessage(), containsString("trying to modify or unregister repository that is currently used"));
 
         logger.info("--> try updating the repository, should fail because the deletion of the snapshot is in progress");
-        try {
+        RepositoryConflictException e2 = expectThrows(RepositoryConflictException.class, () ->
             client().admin().cluster().preparePutRepository(repo).setType("mock").setSettings(
-                Settings.builder()
-                    .put("location", randomRepoPath())).get();
-            fail("should not be able to update a repository while it is being used");
-        } catch (RepositoryConflictException e) {
-            assertThat(e.status(),  equalTo(RestStatus.CONFLICT));
-            assertThat(e.getMessage(), containsString("repository conflict," +
-                " trying to modify or unregister repository that is currently used"));
-        }
+                Settings.builder().put("location", randomRepoPath())).get());
+        assertThat(e2.status(),  equalTo(RestStatus.CONFLICT));
+        assertThat(e2.getMessage(), containsString("trying to modify or unregister repository that is currently used"));
 
         logger.info("--> unblocking blocked node [{}]", blockedNode);
         unblockNode(repo, blockedNode);

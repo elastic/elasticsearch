@@ -30,6 +30,8 @@ import java.io.OutputStream;
  */
 public class Streams {
 
+    private static final ThreadLocal<byte[]> tempBuffer = ThreadLocal.withInitial(() -> new byte[8 * 1024]);
+
     private Streams() {
 
     }
@@ -45,9 +47,7 @@ public class Streams {
     public static long copy(final InputStream in, final OutputStream out) throws IOException {
         Exception err = null;
         try {
-            final long byteCount = in.transferTo(out);
-            out.flush();
-            return byteCount;
+            return doCopy(in, out, getTemporaryBuffer());
         } catch (IOException | RuntimeException e) {
             err = e;
             throw e;
@@ -56,4 +56,21 @@ public class Streams {
         }
     }
 
+    /**
+     * Returns a temporary thread local buffer.
+     */
+    public static byte[] getTemporaryBuffer() {
+        return tempBuffer.get();
+    }
+
+    public static long doCopy(InputStream in, OutputStream out, byte[] buffer) throws IOException {
+        long byteCount = 0;
+        int bytesRead;
+        while ((bytesRead = in.read(buffer)) != -1) {
+            out.write(buffer, 0, bytesRead);
+            byteCount += bytesRead;
+        }
+        out.flush();
+        return byteCount;
+    }
 }

@@ -41,6 +41,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTimeZone;
 
@@ -404,9 +405,6 @@ public abstract class StreamInput extends InputStream {
     // Maximum char-count to de-serialize via the thread-local CharsRef buffer
     private static final int SMALL_STRING_LIMIT = 1024;
 
-    // Reusable bytes for deserializing strings
-    private static final ThreadLocal<byte[]> stringReadBuffer = ThreadLocal.withInitial(() -> new byte[1024]);
-
     // Thread-local buffer for smaller strings
     private static final ThreadLocal<CharsRef> smallSpare = ThreadLocal.withInitial(() -> new CharsRef(SMALL_STRING_LIMIT));
 
@@ -434,7 +432,7 @@ public abstract class StreamInput extends InputStream {
         int offsetByteArray = 0;
         int sizeByteArray = 0;
         int missingFromPartial = 0;
-        final byte[] byteBuffer = stringReadBuffer.get();
+        final byte[] byteBuffer = Streams.getTemporaryBuffer();
         final char[] charBuffer = charsRef.chars;
         for (; charsOffset < charCount; ) {
             final int charsLeft = charCount - charsOffset;

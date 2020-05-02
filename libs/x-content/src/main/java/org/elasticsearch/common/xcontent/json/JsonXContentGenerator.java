@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.filtering.FilterPathBasedFilter;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.internal.io.Streams;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -364,22 +365,9 @@ public class JsonXContentGenerator implements XContentGenerator {
                 generator.writeRaw(':');
             }
             flush();
-            transfer(stream, os);
+            Streams.doCopy(stream, os, Streams.getTemporaryBuffer());
             writeEndRaw();
         }
-    }
-
-    // A basic copy of Java 9's InputStream#transferTo
-    private static long transfer(InputStream in, OutputStream out) throws IOException {
-        Objects.requireNonNull(out, "out");
-        long transferred = 0;
-        byte[] buffer = new byte[8192];
-        int read;
-        while ((read = in.read(buffer, 0, 8192)) >= 0) {
-            out.write(buffer, 0, read);
-            transferred += read;
-        }
-        return transferred;
     }
 
     private boolean mayWriteRawData(XContentType contentType) {
@@ -487,24 +475,15 @@ public class JsonXContentGenerator implements XContentGenerator {
      *
      * @param in  the stream to copy from
      * @param out the stream to copy to
-     * @return the number of bytes copied
      * @throws IOException in case of I/O errors
      */
-    private static long copyStream(InputStream in, OutputStream out) throws IOException {
+    private static void copyStream(InputStream in, OutputStream out) throws IOException {
         Objects.requireNonNull(in, "No InputStream specified");
         Objects.requireNonNull(out, "No OutputStream specified");
-        final byte[] buffer = new byte[8192];
         boolean success = false;
         try {
-            long byteCount = 0;
-            int bytesRead;
-            while ((bytesRead = in.read(buffer)) != -1) {
-                out.write(buffer, 0, bytesRead);
-                byteCount += bytesRead;
-            }
-            out.flush();
+            Streams.doCopy(in, out, Streams.getTemporaryBuffer());
             success = true;
-            return byteCount;
         } finally {
             if (success) {
                 IOUtils.close(in, out);

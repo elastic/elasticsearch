@@ -22,6 +22,7 @@ package org.elasticsearch.index.translog;
 import org.apache.lucene.store.BufferedChecksum;
 import org.elasticsearch.common.io.stream.FilterStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.internal.io.Streams;
 
 import java.io.IOException;
 import java.util.zip.CRC32;
@@ -32,8 +33,6 @@ import java.util.zip.Checksum;
  * {@link StreamInput} so anything read will update the checksum
  */
 public final class BufferedChecksumStreamInput extends FilterStreamInput {
-    private static final int SKIP_BUFFER_SIZE = 1024;
-    private byte[] skipBuffer;
     private final Checksum digest;
     private final String source;
 
@@ -45,7 +44,6 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
         } else {
             this.digest = reuse.digest;
             digest.reset();
-            this.skipBuffer = reuse.skipBuffer;
         }
     }
 
@@ -70,25 +68,23 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
         digest.update(b, offset, len);
     }
 
-    private static final ThreadLocal<byte[]> buffer = ThreadLocal.withInitial(() -> new byte[8]);
-
     @Override
     public short readShort() throws IOException {
-        final byte[] buf = buffer.get();
+        final byte[] buf = Streams.getTemporaryBuffer();
         readBytes(buf, 0, 2);
         return (short) (((buf[0] & 0xFF) << 8) | (buf[1] & 0xFF));
     }
 
     @Override
     public int readInt() throws IOException {
-        final byte[] buf = buffer.get();
+        final byte[] buf = Streams.getTemporaryBuffer();
         readBytes(buf, 0, 4);
         return ((buf[0] & 0xFF) << 24) | ((buf[1] & 0xFF) << 16) | ((buf[2] & 0xFF) << 8) | (buf[3] & 0xFF);
     }
 
     @Override
     public long readLong() throws IOException {
-        final byte[] buf = buffer.get();
+        final byte[] buf = Streams.getTemporaryBuffer();
         readBytes(buf, 0, 8);
         return (((long) (((buf[0] & 0xFF) << 24) | ((buf[1] & 0xFF) << 16) | ((buf[2] & 0xFF) << 8) | (buf[3] & 0xFF))) << 32)
             | ((((buf[4] & 0xFF) << 24) | ((buf[5] & 0xFF) << 16) | ((buf[6] & 0xFF) << 8) | (buf[7] & 0xFF)) & 0xFFFFFFFFL);
@@ -115,14 +111,11 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
         if (numBytes < 0) {
             throw new IllegalArgumentException("numBytes must be >= 0, got " + numBytes);
         }
-        if (skipBuffer == null) {
-            skipBuffer = new byte[SKIP_BUFFER_SIZE];
-        }
-        assert skipBuffer.length == SKIP_BUFFER_SIZE;
         long skipped = 0;
+        final byte[] buf = Streams.getTemporaryBuffer();
         for (; skipped < numBytes; ) {
-            final int step = (int) Math.min(SKIP_BUFFER_SIZE, numBytes - skipped);
-            readBytes(skipBuffer, 0, step);
+            final int step = (int) Math.min(buf.length, numBytes - skipped);
+            readBytes(buf, 0, step);
             skipped += step;
         }
         return skipped;

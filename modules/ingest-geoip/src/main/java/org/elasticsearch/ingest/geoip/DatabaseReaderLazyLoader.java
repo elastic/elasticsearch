@@ -25,6 +25,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.internal.io.Streams;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -80,7 +81,7 @@ class DatabaseReaderLazyLoader implements Closeable {
                         if (skipped != fileSize - 512) {
                             throw new IOException("failed to skip [" + (fileSize - 512) + "] bytes while reading [" + databasePath + "]");
                         }
-                        final byte[] tail = new byte[512];
+                        final byte[] tail = Streams.getTemporaryBuffer();
                         int read = 0;
                         do {
                             final int actualBytesRead = in.read(tail, read, 512 - read);

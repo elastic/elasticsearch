@@ -156,8 +156,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     protected final ThreadPool threadPool;
 
-    private static final int BUFFER_SIZE = 4096;
-
     public static final String SNAPSHOT_PREFIX = "snap-";
 
     public static final String SNAPSHOT_CODEC = "snapshot";
@@ -1878,7 +1876,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     return container.readBlob(fileInfo.partName(slice));
                                 }
                             }, restoreRateLimiter, restoreRateLimitingTimeInNanos)) {
-                                final byte[] buffer = new byte[BUFFER_SIZE];
+                                final byte[] buffer = org.elasticsearch.core.internal.io.Streams.getTemporaryBuffer();
                                 int length;
                                 while ((length = stream.read(buffer)) > 0) {
                                     indexOutput.writeBytes(buffer, 0, length);

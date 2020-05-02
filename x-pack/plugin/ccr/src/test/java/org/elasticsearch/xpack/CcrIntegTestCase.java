@@ -76,6 +76,7 @@ import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.RemoteClusterConnection;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
@@ -139,7 +140,11 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     }
 
     protected Settings followerClusterSettings() {
-        return Settings.EMPTY;
+        final Settings.Builder builder = Settings.builder();
+        if (randomBoolean()) {
+            builder.put(RemoteClusterConnection.REMOTE_MAX_PENDING_CONNECTION_LISTENERS.getKey(), randomIntBetween(1, 100));
+        }
+        return builder.build();
     }
 
     @Before

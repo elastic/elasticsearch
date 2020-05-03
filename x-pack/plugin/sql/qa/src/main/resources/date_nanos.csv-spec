@@ -157,6 +157,7 @@ SELECT id, timestamp::string FROM logs_nanos WHERE timestamp IS NULL ORDER BY id
 47             |null
 57             |null
 64             |null
+80             |null
 84             |null
 99             |null
 ;
@@ -284,13 +285,13 @@ SELECT id, timestamp::string AS ts_string FROM logs_nanos ORDER BY timestamp DES
 47             |null
 57             |null
 64             |null
+80             |null
 84             |null
 99             |null
 31             |2017-11-10T23:56:36.000Z
 61             |2017-11-10T23:43:10.00001Z
 30             |2017-11-10T23:36:41.000Z
 28             |2017-11-10T23:36:33.012345678Z
-27             |2017-11-10T23:36:32.000Z
 ;
 
 orderByDesc2
@@ -337,7 +338,7 @@ SELECT max(id) AS max, count(*) AS count FROM logs_nanos GROUP BY timestamp ORDE
 
    max  | count
 --------+------
-99      |7
+99      |8
 74      |6
 41      |4
 94      |3
@@ -359,8 +360,8 @@ FROM logs_nanos GROUP BY 3 ORDER BY 2 DESC, 3 ASC LIMIT 15;
     max    |   count   |   date_part
 -----------+-----------+---------------
 100        |40         |0
+99         |8          |null
 89         |8          |123456
-99         |7          |null
 53         |7          |12345
 79         |7          |987654
 43         |4          |987000
@@ -435,7 +436,7 @@ SELECT HISTOGRAM(timestamp, INTERVAL 1 HOUR) AS h, COUNT(*) as c FROM logs_nanos
 2017-11-10T17:00:00.000Z|3
 2017-11-10T03:00:00.000Z|1
 2017-11-10T00:00:00.000Z|6
-null                    |7
+null                    |8
 ;
 
 histogram2
@@ -446,7 +447,7 @@ SELECT HISTOGRAM(timestamp, INTERVAL 99 SECONDS) AS h, COUNT(*) as c FROM logs_n
 ------------------------+---------------
 2017-11-10T20:34:39.000Z|28
 2017-11-10T21:14:15.000Z|10
-null                    |7
+null                    |8
 2017-11-10T21:17:33.000Z|5
 2017-11-10T00:00:27.000Z|3
 2017-11-10T19:50:06.000Z|3
@@ -468,5 +469,5 @@ SELECT HISTOGRAM(DATE_PART('ns', timestamp), 11111111) AS h, COUNT(*) as c FROM 
 88888888       |2
 11111111       |13
 0              |45
-null           |7
+null           |8
 ;

@@ -3715,7 +3715,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> creating {} snapshots ", numberOfSnapshots);
         for (int i = 0; i < numberOfSnapshots; i++) {
             for (int j = 0; j < 10; j++) {
-                index(randomFrom(indices), Integer.toString(i * 10 + j), "foo", "bar" + i * 10 + j);
+                index(randomFrom(indices), "_doc", Integer.toString(i * 10 + j), "foo", "bar" + i * 10 + j);
             }
             refresh();
             logger.info("--> snapshot {}", i);

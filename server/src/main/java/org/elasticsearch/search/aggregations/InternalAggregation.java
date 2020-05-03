@@ -31,7 +31,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Pipelin
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -332,41 +331,5 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     public double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
         // subclasses will override this with a real implementation if you can sort on a descendant
         throw new IllegalArgumentException("Can't sort by a descendant of a [" + getType() + "] aggregation [" + head + "]");
-    }
-
-    /**
-     * Replace any deferred aggregations rooted at this one with their
-     * un-deferred version.
-     * @see Aggregator#buildAggregation(long)
-     */
-    public InternalAggregation undefer() {
-        return this;
-    }
-
-    /**
-     * A basic implementation of {@link #undefer()} for bucket aggregations.
-     */
-    protected InternalAggregation undeferBuckets() {
-        return copyWithRewritenBuckets(ia -> {
-            List<InternalAggregation> results = null;
-            for (int a = 0; a < ia.aggregations.size(); a++) {
-                InternalAggregation orig = ((InternalAggregation) ia.aggregations.get(a));
-                InternalAggregation undeferred = orig.undefer();
-                if (undeferred == orig) {
-                    if (results != null) {
-                        results.add(orig);
-                    }
-                    continue;
-                }
-                if (results == null) {
-                    results = new ArrayList<>(ia.aggregations.size());
-                    for (int fillIn = 0; fillIn < a; fillIn++) {
-                        results.add((InternalAggregation) ia.aggregations.get(fillIn));
-                    }
-                }
-                results.add(undeferred);
-            }
-            return results == null ? null : new InternalAggregations(results);
-        });
     }
 }

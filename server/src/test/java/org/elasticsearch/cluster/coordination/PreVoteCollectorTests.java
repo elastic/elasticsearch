@@ -26,8 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.monitor.fs.FsInfo;
-import org.elasticsearch.monitor.fs.FsService;
+import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -68,15 +67,12 @@ public class PreVoteCollectorTests extends ESTestCase {
     private Map<DiscoveryNode, PreVoteResponse> responsesByNode = new HashMap<>();
     private long currentTerm, lastAcceptedTerm, lastAcceptedVersion;
     private TransportService transportService;
-    private FsService fsService;
+    private NodeHealthService.Status healthStatus;
 
     @Before
     public void createObjects() {
         Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
         deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
-        fsService = Mockito.mock(FsService.class);
-        FsInfo mockFsStats = mockFsStats(Boolean.TRUE);
-        Mockito.when(fsService.stats()).thenReturn(mockFsStats);
         final MockTransport mockTransport = new MockTransport() {
             @Override
             protected void onSendRequest(final long requestId, final String action, final TransportRequest request,
@@ -116,6 +112,7 @@ public class PreVoteCollectorTests extends ESTestCase {
 
         localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
         responsesByNode.put(localNode, new PreVoteResponse(currentTerm, lastAcceptedTerm, lastAcceptedVersion));
+        healthStatus = NodeHealthService.Status.UNKNOWN;
         transportService = mockTransport.createTransportService(settings,
             deterministicTaskQueue.getThreadPool(), TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundTransportAddress -> localNode, null, emptySet());
@@ -126,7 +123,7 @@ public class PreVoteCollectorTests extends ESTestCase {
             assert electionOccurred == false;
             electionOccurred = true;
         }, l -> {
-        }, ElectionStrategy.DEFAULT_INSTANCE, fsService); // TODO need tests that check that the max term seen is updated
+        }, ElectionStrategy.DEFAULT_INSTANCE, () -> healthStatus); // TODO need tests that check that the max term seen is updated
         preVoteCollector.update(getLocalPreVoteResponse(), null);
     }
 
@@ -163,8 +160,8 @@ public class PreVoteCollectorTests extends ESTestCase {
     }
 
     public void testNoElectionStartIfLocalNodeIsOnlyNodeAndNonWritable() {
-        FsInfo mockFsStats = mockFsStats(Boolean.FALSE);
-        Mockito.when(fsService.stats()).thenReturn(mockFsStats);
+        healthStatus = NodeHealthService.Status.UNHEALTHY;
+        preVoteCollector.update(getLocalPreVoteResponse(), null);
         startAndRunCollector(localNode);
         assertFalse(electionOccurred);
     }
@@ -184,14 +181,20 @@ public class PreVoteCollectorTests extends ESTestCase {
         assertTrue(electionOccurred);
     }
 
+    public void testDoesNotStartsElectionIfOtherNodeIsQuorumAndDoesNotRespond() {
+        final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        responsesByNode.put(otherNode, null);
+        startAndRunCollector(otherNode);
+        assertFalse(electionOccurred);
+    }
+
     public void testNonWritableNodeDoesNotOfferPreVote() {
         final long term = randomNonNegativeLong();
-        FsInfo mockFsStats = mockFsStats(Boolean.FALSE);
-        Mockito.when(fsService.stats()).thenReturn(mockFsStats);
+        healthStatus = NodeHealthService.Status.UNHEALTHY;
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         RemoteTransportException remoteTransportException = expectThrows(RemoteTransportException.class, () ->
             handlePreVoteRequestViaTransportService(new PreVoteRequest(otherNode, term)));
-        assertThat(remoteTransportException.getCause(), instanceOf(CoordinationStateRejectedException.class));
+        assertThat(remoteTransportException.getCause(), instanceOf(FsHealthcheckFailureException.class));
     }
 
     public void testDoesNotStartElectionIfStopped() {

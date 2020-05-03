@@ -75,7 +75,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
     }
 
     private static FsInfo.Path setDiskUsage(FsInfo.Path original, long totalBytes, long freeBytes) {
-        return new FsInfo.Path(original.getPath(), original.getMount(), totalBytes, freeBytes, freeBytes, true);
+        return new FsInfo.Path(original.getPath(), original.getMount(), totalBytes, freeBytes, freeBytes);
     }
 
     public void testRerouteOccursOnDiskPassingHighWatermark() throws Exception {

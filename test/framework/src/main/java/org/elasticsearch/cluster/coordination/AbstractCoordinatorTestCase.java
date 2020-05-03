@@ -65,7 +65,7 @@ import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MockGatewayMetaState;
 import org.elasticsearch.gateway.PersistedClusterStateService;
-import org.elasticsearch.monitor.fs.FsService;
+import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
@@ -257,7 +257,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         private final Map<Long, ClusterState> committedStatesByVersion = new HashMap<>();
         private final LinearizabilityChecker linearizabilityChecker = new LinearizabilityChecker();
         private final History history = new History();
-        private FsService fsService;
+        private NodeHealthService nodeHealthService;
 
         private final Function<DiscoveryNode, MockPersistedState> defaultPersistedStateSupplier = MockPersistedState::new;
 
@@ -269,11 +269,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         }
 
         Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings) {
-            this(initialNodeCount, allNodesMasterEligible, nodeSettings, setUpFsService(Boolean.TRUE));
+            this(initialNodeCount, allNodesMasterEligible, nodeSettings, () -> NodeHealthService.Status.HEALTHY);
         }
 
-        Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings, FsService fsService) {
-            this.fsService = fsService;
+        Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
+            this.nodeHealthService = nodeHealthService;
             deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
 
             assertThat(initialNodeCount, greaterThan(0));
@@ -282,7 +282,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             clusterNodes = new ArrayList<>(initialNodeCount);
             for (int i = 0; i < initialNodeCount; i++) {
                 final ClusterNode clusterNode = new ClusterNode(nextNodeIndex.getAndIncrement(),
-                    allNodesMasterEligible || i == 0 || randomBoolean(), nodeSettings, fsService);
+                    allNodesMasterEligible || i == 0 || randomBoolean(), nodeSettings, nodeHealthService);
                 clusterNodes.add(clusterNode);
                 if (clusterNode.getLocalNode().isMasterNode()) {
                     masterEligibleNodeIds.add(clusterNode.getId());
@@ -315,7 +315,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             final List<ClusterNode> addedNodes = new ArrayList<>();
             for (int i = 0; i < newNodesCount; i++) {
-                final ClusterNode clusterNode = new ClusterNode(nextNodeIndex.getAndIncrement(), true, Settings.EMPTY, fsService);
+                final ClusterNode clusterNode = new ClusterNode(nextNodeIndex.getAndIncrement(), true, Settings.EMPTY,
+                    nodeHealthService);
                 addedNodes.add(clusterNode);
             }
             clusterNodes.addAll(addedNodes);
@@ -897,16 +898,17 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private ClusterService clusterService;
             TransportService transportService;
             private DisruptableMockTransport mockTransport;
-            private FsService fsService;
+            private NodeHealthService nodeHealthService;
             List<BiConsumer<DiscoveryNode, ClusterState>> extraJoinValidators = new ArrayList<>();
 
-            ClusterNode(int nodeIndex, boolean masterEligible, Settings nodeSettings, FsService fsService) {
-                this(nodeIndex, createDiscoveryNode(nodeIndex, masterEligible), defaultPersistedStateSupplier, nodeSettings, fsService);
+
+            ClusterNode(int nodeIndex, boolean masterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
+                this(nodeIndex, createDiscoveryNode(nodeIndex, masterEligible), defaultPersistedStateSupplier, nodeSettings, nodeHealthService);
             }
 
             ClusterNode(int nodeIndex, DiscoveryNode localNode, Function<DiscoveryNode, MockPersistedState> persistedStateSupplier,
-                        Settings nodeSettings, FsService fsService) {
-                this.fsService = fsService;
+                        Settings nodeSettings, NodeHealthService nodeHealthService) {
+                this.nodeHealthService = nodeHealthService;
                 this.nodeIndex = nodeIndex;
                 this.localNode = localNode;
                 this.nodeSettings = nodeSettings;
@@ -962,7 +964,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 coordinator = new Coordinator("test_node", settings, clusterSettings, transportService, writableRegistry(),
                     allocationService, masterService, this::getPersistedState,
                     Cluster.this::provideSeedHosts, clusterApplierService, onJoinValidators, Randomness.get(), (s, p, r) -> {},
-                    getElectionStrategy(), fsService, setUpNodeClient(null));
+                    getElectionStrategy(), nodeHealthService);
                 masterService.setClusterStatePublisher(coordinator);
                 final GatewayService gatewayService
                     = new GatewayService(settings, allocationService, clusterService, threadPool, coordinator, null);
@@ -1002,7 +1004,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     localNode.isMasterNode() && Node.NODE_MASTER_SETTING.get(nodeSettings)
                         ? DiscoveryNodeRole.BUILT_IN_ROLES : emptySet(), Version.CURRENT);
                 return new ClusterNode(nodeIndex, newLocalNode,
-                    node -> new MockPersistedState(newLocalNode, persistedState, adaptGlobalMetaData, adaptCurrentTerm), nodeSettings, fsService);
+                    node -> new MockPersistedState(newLocalNode, persistedState, adaptGlobalMetaData, adaptCurrentTerm), nodeSettings,
+                    nodeHealthService);
             }
 
             private CoordinationState.PersistedState getPersistedState() {

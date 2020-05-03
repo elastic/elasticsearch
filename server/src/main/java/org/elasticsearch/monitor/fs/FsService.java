@@ -23,7 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -31,10 +30,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.cluster.ClusterInfoService;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.function.LongSupplier;
 
 public class FsService {
 
@@ -44,7 +41,6 @@ public class FsService {
     private final TimeValue refreshInterval;
     private final SingleObjectCache<FsInfo> cache;
     private final ClusterInfoService clusterInfoService;
-    private final FsHealthService fsHealthService;
 
     public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING =
         Setting.timeSetting(
@@ -53,10 +49,8 @@ public class FsService {
             TimeValue.timeValueSeconds(1),
             Property.NodeScope);
 
-    public FsService(final Settings settings, ClusterSettings clusterSettings, final NodeEnvironment nodeEnvironment,
-                     ClusterInfoService clusterInfoService, ThreadPool threadpool, LongSupplier currentTimeMillisSupplier) {
-        this.fsHealthService = new FsHealthService(settings, clusterSettings, threadpool, nodeEnvironment, currentTimeMillisSupplier);
-        this.probe = new FsProbe(nodeEnvironment, fsHealthService);
+    public FsService(final Settings settings, final NodeEnvironment nodeEnvironment, ClusterInfoService clusterInfoService) {
+        this.probe = new FsProbe(nodeEnvironment);
         this.clusterInfoService = clusterInfoService;
         refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
         logger.debug("using refresh_interval [{}]", refreshInterval);
@@ -66,8 +60,6 @@ public class FsService {
     public FsInfo stats() {
         return cache.getOrRefresh();
     }
-
-    public FsHealthService getFsHealthService() { return fsHealthService; }
 
     private static FsInfo stats(FsProbe probe, FsInfo initialValue, Logger logger, @Nullable ClusterInfo clusterInfo) {
         try {

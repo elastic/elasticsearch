@@ -408,7 +408,7 @@ public class NodeStatsTests extends ESTestCase {
             FsInfo.Path[] paths = new FsInfo.Path[numPaths];
             for (int i = 0; i < numPaths; i++) {
                 paths[i] = new FsInfo.Path(randomAlphaOfLengthBetween(3, 10), randomBoolean() ? randomAlphaOfLengthBetween(3, 10) : null,
-                        randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), true);
+                        randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
             }
             fsInfo = new FsInfo(randomNonNegativeLong(), ioStats, paths);
         }

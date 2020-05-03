@@ -42,7 +42,8 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.monitor.fs.FsService;
+import org.elasticsearch.monitor.NodeHealthService;
+import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.MockLogAppender;
 
@@ -158,9 +159,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    public void testDoesNotElectLeaderForNonWritableNodes() {
-        FsService fsService = setUpFsService(Boolean.FALSE);
-        try (Cluster cluster = new Cluster(randomIntBetween(1, 5), true, Settings.EMPTY, fsService)) {
+    public void testNoElectedLeaderForNonWritableNodes() {
+        try (Cluster cluster = new Cluster(randomIntBetween(1, 5), true, Settings.EMPTY, () -> NodeHealthService.Status.UNHEALTHY)) {
             cluster.runRandomly();
             cluster.runFor(DEFAULT_STABILISATION_TIME, "allowing time for stabilization");
             final List<ClusterNode> leaders = cluster.getAllLeaders();
@@ -175,7 +175,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             final ClusterNode leader = cluster.getAnyLeader();
             ClusterNode nonWritableNode = cluster.new ClusterNode(nextNodeIndex.getAndIncrement(), true, leader.nodeSettings,
-                setUpFsService(Boolean.FALSE));
+                () -> NodeHealthService.Status.UNHEALTHY);
             cluster.clusterNodes.add(nonWritableNode);
             cluster.runFor(DEFAULT_STABILISATION_TIME, "allowing time for stabilization");
             assertThat(nonWritableNode.getId() + " should be a candidate", nonWritableNode.coordinator.getMode(), equalTo(CANDIDATE));
@@ -191,7 +191,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             assertThat(newLeader, not(nonWritableNode));
 
             ClusterNode anotherNode = cluster.new ClusterNode(nextNodeIndex.getAndIncrement(), true, leader.nodeSettings,
-                setUpFsService(Boolean.TRUE));
+                () -> NodeHealthService.Status.HEALTHY);
             cluster.clusterNodes.add(anotherNode);
             cluster.runFor(DEFAULT_STABILISATION_TIME, "allowing time for stabilization");
 
@@ -1050,7 +1050,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             final ClusterNode newNode = cluster1.new ClusterNode(nextNodeIndex.getAndIncrement(),
                 nodeInOtherCluster.getLocalNode(), n -> cluster1.new MockPersistedState(n, nodeInOtherCluster.persistedState,
-                Function.identity(), Function.identity()), nodeInOtherCluster.nodeSettings, setUpFsService(Boolean.TRUE));
+                Function.identity(), Function.identity()), nodeInOtherCluster.nodeSettings, () -> NodeHealthService.Status.HEALTHY);
 
             cluster1.clusterNodes.add(newNode);
 

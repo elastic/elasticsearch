@@ -42,7 +42,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.monitor.fs.FsService;
+import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportChannel;
@@ -89,7 +89,7 @@ public class JoinHelper {
 
     @Nullable // if using single-node discovery
     private final TimeValue joinTimeout;
-    private final FsService fsService;
+    private final NodeHealthService nodeHealthService;
 
 
     private final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = Collections.synchronizedSet(new HashSet<>());
@@ -99,10 +99,10 @@ public class JoinHelper {
     JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService,
                TransportService transportService, LongSupplier currentTermSupplier, Supplier<ClusterState> currentStateSupplier,
                BiConsumer<JoinRequest, JoinCallback> joinHandler, Function<StartJoinRequest, Join> joinLeaderInTerm,
-               Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators, RerouteService rerouteService, FsService fsService) {
+               Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators, RerouteService rerouteService, NodeHealthService nodeHealthService) {
         this.masterService = masterService;
         this.transportService = transportService;
-        this.fsService = fsService;
+        this.nodeHealthService = nodeHealthService;
         this.joinTimeout = DiscoveryModule.isSingleNodeDiscovery(settings) ? null : JOIN_TIMEOUT_SETTING.get(settings);
         this.joinTaskExecutor = new JoinTaskExecutor(allocationService, logger, rerouteService) {
 
@@ -236,7 +236,7 @@ public class JoinHelper {
 
     public void sendJoinRequest(DiscoveryNode destination, long term, Optional<Join> optionalJoin) {
         assert destination.isMasterNode() : "trying to join master-ineligible " + destination;
-        if (fsService.stats().getTotal().isWritable() == Boolean.FALSE) {
+        if (nodeHealthService.getHealth() == NodeHealthService.Status.UNHEALTHY) {
             logger.warn("All paths are not writable. Blocking join request");
             return;
         }

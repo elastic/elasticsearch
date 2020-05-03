@@ -137,17 +137,17 @@ public class DiskUsageTests extends ESTestCase {
         ImmutableOpenMap.Builder<String, DiskUsage> newLeastAvaiableUsages = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, DiskUsage> newMostAvaiableUsages = ImmutableOpenMap.builder();
         FsInfo.Path[] node1FSInfo =  new FsInfo.Path[] {
-                new FsInfo.Path("/middle", "/dev/sda", 100, 90, 80, true),
-                new FsInfo.Path("/least", "/dev/sdb", 200, 190, 70, true),
-                new FsInfo.Path("/most", "/dev/sdc", 300, 290, 280, true),
+                new FsInfo.Path("/middle", "/dev/sda", 100, 90, 80),
+                new FsInfo.Path("/least", "/dev/sdb", 200, 190, 70),
+                new FsInfo.Path("/most", "/dev/sdc", 300, 290, 280),
         };
         FsInfo.Path[] node2FSInfo = new FsInfo.Path[] {
-                new FsInfo.Path("/least_most", "/dev/sda", 100, 90, 80, true),
+                new FsInfo.Path("/least_most", "/dev/sda", 100, 90, 80),
         };
 
         FsInfo.Path[] node3FSInfo =  new FsInfo.Path[] {
-                new FsInfo.Path("/least", "/dev/sda", 100, 90, 70, true),
-                new FsInfo.Path("/most", "/dev/sda", 100, 90, 80, true),
+                new FsInfo.Path("/least", "/dev/sda", 100, 90, 70),
+                new FsInfo.Path("/most", "/dev/sda", 100, 90, 80),
         };
         List<NodeStats> nodeStats = Arrays.asList(
                 new NodeStats(new DiscoveryNode("node_1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT), 0,
@@ -178,17 +178,17 @@ public class DiskUsageTests extends ESTestCase {
         ImmutableOpenMap.Builder<String, DiskUsage> newLeastAvailableUsages = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, DiskUsage> newMostAvailableUsages = ImmutableOpenMap.builder();
         FsInfo.Path[] node1FSInfo =  new FsInfo.Path[] {
-                new FsInfo.Path("/middle", "/dev/sda", 100, 90, 80, true),
-                new FsInfo.Path("/least", "/dev/sdb", -1, -1, -1, true),
-                new FsInfo.Path("/most", "/dev/sdc", 300, 290, 280, true),
+                new FsInfo.Path("/middle", "/dev/sda", 100, 90, 80),
+                new FsInfo.Path("/least", "/dev/sdb", -1, -1, -1),
+                new FsInfo.Path("/most", "/dev/sdc", 300, 290, 280),
         };
         FsInfo.Path[] node2FSInfo = new FsInfo.Path[] {
-                new FsInfo.Path("/least_most", "/dev/sda", -1, -1, -1, true),
+                new FsInfo.Path("/least_most", "/dev/sda", -1, -1, -1),
         };
 
         FsInfo.Path[] node3FSInfo =  new FsInfo.Path[] {
-                new FsInfo.Path("/most", "/dev/sda", 100, 90, 70, true),
-                new FsInfo.Path("/least", "/dev/sda", 10, -1, 0, true),
+                new FsInfo.Path("/most", "/dev/sda", 100, 90, 70),
+                new FsInfo.Path("/least", "/dev/sda", 10, -1, 0),
         };
         List<NodeStats> nodeStats = Arrays.asList(
                 new NodeStats(new DiscoveryNode("node_1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT), 0,

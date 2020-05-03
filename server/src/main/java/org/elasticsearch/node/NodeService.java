@@ -36,6 +36,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
+import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -59,6 +60,7 @@ public class NodeService implements Closeable {
     private final HttpServerTransport httpServerTransport;
     private final ResponseCollectorService responseCollectorService;
     private final SearchTransportService searchTransportService;
+    private final FsHealthService fsHealthService;
 
     private final Discovery discovery;
 
@@ -67,7 +69,7 @@ public class NodeService implements Closeable {
                 CircuitBreakerService circuitBreakerService, ScriptService scriptService,
                 @Nullable HttpServerTransport httpServerTransport, IngestService ingestService, ClusterService clusterService,
                 SettingsFilter settingsFilter, ResponseCollectorService responseCollectorService,
-                SearchTransportService searchTransportService) {
+                SearchTransportService searchTransportService, FsHealthService fsHealthService) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.monitorService = monitorService;
@@ -82,6 +84,7 @@ public class NodeService implements Closeable {
         this.scriptService = scriptService;
         this.responseCollectorService = responseCollectorService;
         this.searchTransportService = searchTransportService;
+        this.fsHealthService = fsHealthService;
         clusterService.addStateApplier(ingestService);
     }
 
@@ -129,6 +132,10 @@ public class NodeService implements Closeable {
 
     public MonitorService getMonitorService() {
         return monitorService;
+    }
+
+    public FsHealthService getFsHealthService() {
+        return fsHealthService;
     }
 
     @Override

@@ -47,14 +47,8 @@ import org.apache.lucene.util.TestRuleMarkFailure;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.bootstrap.JavaVersion;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -102,10 +96,6 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.monitor.fs.FsHealthService;
-import org.elasticsearch.monitor.fs.FsInfo;
-import org.elasticsearch.monitor.fs.FsProbe;
-import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
@@ -124,11 +114,9 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
@@ -163,9 +151,6 @@ import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -1446,35 +1431,4 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    protected Client setUpNodeClient(NodesStatsResponse nodesStatsResponse){
-        final Client client = mock(Client.class);
-        final AdminClient adminClient = mock(AdminClient.class);
-        final ClusterAdminClient clusterAdminClient = mock(ClusterAdminClient.class);
-        final ActionFuture<NodesStatsResponse> future = (ActionFuture<NodesStatsResponse>) mock(ActionFuture.class);
-        when(client.admin()).thenReturn(adminClient);
-        when(adminClient.cluster()).thenReturn(clusterAdminClient);
-        when(clusterAdminClient.nodesStats(any(NodesStatsRequest.class))).thenReturn(future);
-        when(future.actionGet()).thenReturn(nodesStatsResponse);
-        return client;
-    }
-
-    protected FsService setUpFsService(Boolean isWritable){
-        FsService fsService = Mockito.mock(FsService.class);
-        FsInfo stats = mockFsStats(isWritable);
-        Mockito.when(fsService.stats()).thenReturn(stats);
-        return fsService;
-    }
-
-    protected FsInfo mockFsStats(Boolean isWritable){
-        FsInfo stats;
-        try (NodeEnvironment env = newNodeEnvironment()){
-            FsHealthService fsHealthService = mock(FsHealthService.class);
-            when(fsHealthService.isWritable(any(Path.class))).thenReturn(isWritable);
-            FsProbe probe = new FsProbe(env, fsHealthService);
-            stats = probe.stats(null, null);
-        }catch (IOException e){
-            throw new UncheckedIOException(e);
-        }
-        return stats;
-    }
 }

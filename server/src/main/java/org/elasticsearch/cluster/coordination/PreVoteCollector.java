@@ -29,7 +29,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.monitor.fs.FsService;
+import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -52,18 +52,18 @@ public class PreVoteCollector {
     private final Runnable startElection;
     private final LongConsumer updateMaxTermSeen;
     private final ElectionStrategy electionStrategy;
-    private FsService fsService;
+    private NodeHealthService nodeHealthService;
 
     // Tuple for simple atomic updates. null until the first call to `update()`.
     private volatile Tuple<DiscoveryNode, PreVoteResponse> state; // DiscoveryNode component is null if there is currently no known leader.
 
     PreVoteCollector(final TransportService transportService, final Runnable startElection, final LongConsumer updateMaxTermSeen,
-                     final ElectionStrategy electionStrategy, FsService fsService) {
+                     final ElectionStrategy electionStrategy, NodeHealthService nodeHealthService) {
         this.transportService = transportService;
         this.startElection = startElection;
         this.updateMaxTermSeen = updateMaxTermSeen;
         this.electionStrategy = electionStrategy;
-        this.fsService = fsService;
+        this.nodeHealthService = nodeHealthService;
 
         // TODO does this need to be on the generic threadpool or can it use SAME?
         transportService.registerRequestHandler(REQUEST_PRE_VOTE_ACTION_NAME, Names.GENERIC, false, false,
@@ -110,9 +110,9 @@ public class PreVoteCollector {
         final PreVoteResponse response = state.v2();
 
         //TODO verify if the placement makes sense
-        if(fsService.stats().getTotal().isWritable() == Boolean.FALSE){
+        if (nodeHealthService.getHealth() == NodeHealthService.Status.UNHEALTHY) {
             logger.warn("Reject offering pre-vote as all paths are not writable");
-            throw new CoordinationStateRejectedException("rejecting " + request + " as not all paths are writable");
+            throw new FsHealthcheckFailureException("rejecting " + request + " as not all paths are writable");
         }
 
         if (leader == null) {

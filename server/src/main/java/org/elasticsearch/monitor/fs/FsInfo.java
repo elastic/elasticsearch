@@ -48,19 +48,16 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         long total = -1;
         long free = -1;
         long available = -1;
-        @Nullable
-        Boolean isWritable;
 
         public Path() {
         }
 
-        public Path(String path, @Nullable String mount, long total, long free, long available, @Nullable Boolean isWritable) {
+        public Path(String path, @Nullable String mount, long total, long free, long available) {
             this.path = path;
             this.mount = mount;
             this.total = total;
             this.free = free;
             this.available = available;
-            this.isWritable = isWritable;
         }
 
         /**
@@ -73,8 +70,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             total = in.readLong();
             free = in.readLong();
             available = in.readLong();
-            //TODO handle backward compatibility
-            isWritable = in.readOptionalBoolean();
         }
 
         @Override
@@ -85,8 +80,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             out.writeLong(total);
             out.writeLong(free);
             out.writeLong(available);
-            //TODO handle backward compatibility
-            out.writeOptionalBoolean(isWritable);
         }
 
         public String getPath() {
@@ -113,9 +106,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             return new ByteSizeValue(available);
         }
 
-        public Boolean isWritable() { return isWritable; }
-
-
         private long addLong(long current, long other) {
             if (other == -1) {
                 return current;
@@ -136,21 +126,10 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             return current + other;
         }
 
-        private Boolean andBool(Boolean current, Boolean other) {
-            if (other == null) {
-                return current;
-            }
-            if (current == null) {
-                return other;
-            }
-            return current && other;
-        }
-
         public void add(Path path) {
             total = FsProbe.adjustForHugeFilesystems(addLong(total, path.total));
             free = FsProbe.adjustForHugeFilesystems(addLong(free, path.free));
             available = FsProbe.adjustForHugeFilesystems(addLong(available, path.available));
-            isWritable = andBool(isWritable, path.isWritable);
         }
 
         static final class Fields {
@@ -163,7 +142,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             static final String FREE_IN_BYTES = "free_in_bytes";
             static final String AVAILABLE = "available";
             static final String AVAILABLE_IN_BYTES = "available_in_bytes";
-            static final String IS_WRITABLE = "is_writable";
         }
 
         @Override
@@ -188,7 +166,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             if (available != -1) {
                 builder.humanReadableField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE, getAvailable());
             }
-            builder.field(Fields.IS_WRITABLE, isWritable());
 
             builder.endObject();
             return builder;

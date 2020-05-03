@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -37,18 +38,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Random;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 /**
  * Runs periodically and attempts to create a temp file to see if the filesystem is writable. If not then it marks the
  * path as unhealthy.
  */
-public class FsHealthService extends AbstractLifecycleComponent {
+public class FsHealthService extends AbstractLifecycleComponent implements NodeHealthService {
 
     private static final Logger logger = LogManager.getLogger(FsHealthService.class);
 
@@ -58,46 +58,42 @@ public class FsHealthService extends AbstractLifecycleComponent {
     private volatile TimeValue healthCheckTimeoutInterval;
     private final NodeEnvironment nodeEnv;
     private final LongSupplier currentTimeMillisSupplier;
-    private Map<Path, TimeStampedStatus> pathHealthStats;
-    private volatile Set<Scheduler.Cancellable> scheduledFutures;
+    private Map<Path, Status> pathHealthStats;
+    private volatile Scheduler.Cancellable scheduledFuture;
+    private final AtomicLong lastRunTimeMillis = new AtomicLong();
 
-    enum Status { HEALTHY, UNHEALTHY, UNKNOWN }
 
     public static final Setting<Boolean> ENABLED_SETTING =
         Setting.boolSetting("monitor.fs.health.enabled", true, Setting.Property.NodeScope, Setting.Property.Dynamic);
     public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING =
-        Setting.timeSetting("monitor.fs.health.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1),
+        Setting.timeSetting("monitor.fs.health.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueMillis(10),
             Setting.Property.NodeScope);
     public static final Setting<TimeValue> HEALTHY_TIMEOUT_SETTING =
-        Setting.timeSetting("monitor.fs.health.healthy_timeout", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1),
+        Setting.timeSetting("monitor.fs.health.healthy_timeout", TimeValue.timeValueSeconds(1), TimeValue.timeValueMillis(1),
             Setting.Property.NodeScope, Setting.Property.Dynamic);
 
-    FsHealthService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, NodeEnvironment nodeEnv,
-                    LongSupplier currentTimeMillisSupplier) {
-        this.scheduledFutures = new HashSet<>();
+    public FsHealthService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, NodeEnvironment nodeEnv) {
         this.threadPool = threadPool;
         this.enabled = ENABLED_SETTING.get(settings);
         this.refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
         this.healthCheckTimeoutInterval = HEALTHY_TIMEOUT_SETTING.get(settings);
-        this.currentTimeMillisSupplier = currentTimeMillisSupplier;
+        this.currentTimeMillisSupplier = threadPool::relativeTimeInMillis;
         this.nodeEnv = nodeEnv;
-        this.pathHealthStats = new HashMap<>();
+        this.pathHealthStats = new HashMap<>(1);
         clusterSettings.addSettingsUpdateConsumer(HEALTHY_TIMEOUT_SETTING, this::setHealthCheckTimeoutInterval);
         clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, this::setEnabled);
     }
 
     @Override
     protected void doStart() {
-        for (Path path : nodeEnv.nodeDataPaths()) {
-            scheduledFutures.add(threadPool.scheduleWithFixedDelay(new FsPathHealthMonitor(path), refreshInterval,
-                ThreadPool.Names.GENERIC));
-        }
+        scheduledFuture = threadPool.scheduleWithFixedDelay(FsHealthMonitor::new, refreshInterval,
+                ThreadPool.Names.GENERIC);
     }
 
 
     @Override
     protected void doStop() {
-        scheduledFutures.forEach(s -> s.cancel());
+        scheduledFuture.cancel();
     }
 
     @Override
@@ -112,32 +108,26 @@ public class FsHealthService extends AbstractLifecycleComponent {
         this.healthCheckTimeoutInterval = healthCheckTimeoutInterval;
     }
 
-    // visible for testing
-    Map<Path, TimeStampedStatus> getPathHealthStats(){
-        return this.pathHealthStats;
+    @Override
+    public Status getHealth() {
+        if (enabled == false) {
+            return Status.UNKNOWN;
+        }
+        else if (currentTimeMillisSupplier.getAsLong() - lastRunTimeMillis.get() > refreshInterval.millis() + healthCheckTimeoutInterval.millis()) {
+            return Status.UNHEALTHY;
+        }
+        return pathHealthStats.entrySet().stream().anyMatch(map -> map.getValue() == Status.UNHEALTHY) ? Status.UNHEALTHY
+            : Status.HEALTHY;
     }
 
-    public Boolean isWritable(Path path){
-        Map<Path, TimeStampedStatus> pathHealthStats = getPathHealthStats();
-        if (enabled == false || pathHealthStats.containsKey(path) == false){
-            return null;
-        }
-        else if (pathHealthStats.get(path).timestamp + healthCheckTimeoutInterval.getMillis() < currentTimeMillisSupplier.getAsLong()){
-            return Boolean.FALSE;
-        }
-        return pathHealthStats.get(path).status == Status.HEALTHY;
-    }
+     class FsHealthMonitor implements Runnable {
 
-     class FsPathHealthMonitor implements Runnable {
-
-        private static final String TEMP_FILE_NAME = ".es_temp_file";
-        private Path path;
+        static final String TEMP_FILE_NAME = ".es_temp_file";
         private byte[] byteToWrite;
         private AtomicBoolean checkInProgress;
 
-        FsPathHealthMonitor(Path path){
+        FsHealthMonitor(){
             this.byteToWrite = new byte[20];
-            this.path = path;
             this.checkInProgress = new AtomicBoolean();
         }
         @Override
@@ -152,44 +142,32 @@ public class FsHealthService extends AbstractLifecycleComponent {
             }
         }
 
-        public Path getPath(){
-            return this.path;
-        }
-
         private void monitorFSHealth() {
             if (checkInProgress.compareAndSet(false, true) == false) {
-                logger.info("Skipping Monitor for disk health as a check is already in progress");
+                logger.warn("Skipping Monitor for disk health as a check is already in progress");
                 return;
             }
-            try {
-                if (Files.exists(path)) {
-                    Path tempDataPath = path.resolve(TEMP_FILE_NAME);
-                    Files.deleteIfExists(tempDataPath);
-                    try (OutputStream os = Files.newOutputStream(tempDataPath, StandardOpenOption.CREATE_NEW)) {
-                        new Random().nextBytes(byteToWrite);
-                        os.write(byteToWrite);
-                        IOUtils.fsync(tempDataPath,false);
-                        pathHealthStats.put(path,new TimeStampedStatus(Status.HEALTHY));
+            for (Path path : nodeEnv.nodeDataPaths()) {
+                try {
+                    if (Files.exists(path)) {
+                        Path tempDataPath = path.resolve(TEMP_FILE_NAME);
+                        Files.deleteIfExists(tempDataPath);
+                        try (OutputStream os = Files.newOutputStream(tempDataPath, StandardOpenOption.CREATE_NEW)) {
+                            new Random().nextBytes(byteToWrite);
+                            os.write(byteToWrite);
+                            IOUtils.fsync(tempDataPath, false);
+                            pathHealthStats.put(path, Status.HEALTHY);
+                        }
+                        Files.delete(tempDataPath);
                     }
-                    Files.delete(tempDataPath);
+                } catch (Exception ex) {
+                    logger.error("Failed to perform writes on path {} due to {}", path, ex);
+                    pathHealthStats.put(path,  Status.UNHEALTHY);
                 }
-            } catch (Exception ex) {
-                logger.error("Failed to perform writes on path {} due to {}", path, ex);
-                pathHealthStats.put(path, new TimeStampedStatus(Status.UNHEALTHY));
             }
+            lastRunTimeMillis.getAndUpdate(l -> Math.max(l, currentTimeMillisSupplier.getAsLong()));
             final boolean checkFinished = checkInProgress.compareAndSet(true, false);
             assert checkFinished;
-        }
-    }
-
-    static class TimeStampedStatus{
-
-        private Status status;
-        private long timestamp;
-
-        TimeStampedStatus(Status status){
-            this.status = status;
-            this.timestamp = System.currentTimeMillis();
         }
     }
 

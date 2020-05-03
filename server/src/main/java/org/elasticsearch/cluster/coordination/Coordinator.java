@@ -1204,7 +1204,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
                         if (nodeHealthService.getHealth() == NodeHealthService.Status.UNHEALTHY) {
                             logger.warn("skip prevoting as local node is not writable: {}",
-                                lastAcceptedState.coordinationMetaData());
+                                lastAcceptedState.coordinationMetadata());
                             return;
                         }
 

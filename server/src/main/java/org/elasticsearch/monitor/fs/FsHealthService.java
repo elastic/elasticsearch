@@ -61,6 +61,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     private Map<Path, Status> pathHealthStats;
     private volatile Scheduler.Cancellable scheduledFuture;
     private final AtomicLong lastRunTimeMillis = new AtomicLong();
+    private AtomicBoolean checkInProgress = new AtomicBoolean();
 
 
     public static final Setting<Boolean> ENABLED_SETTING =
@@ -86,7 +87,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
     @Override
     protected void doStart() {
-        scheduledFuture = threadPool.scheduleWithFixedDelay(FsHealthMonitor::new, refreshInterval,
+        scheduledFuture = threadPool.scheduleWithFixedDelay(new FsHealthMonitor(), refreshInterval,
                 ThreadPool.Names.GENERIC);
     }
 
@@ -113,7 +114,8 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         if (enabled == false) {
             return Status.UNKNOWN;
         }
-        else if (currentTimeMillisSupplier.getAsLong() - lastRunTimeMillis.get() > refreshInterval.millis() + healthCheckTimeoutInterval.millis()) {
+        else if ((currentTimeMillisSupplier.getAsLong() - lastRunTimeMillis.get()) >
+            (refreshInterval.millis() + healthCheckTimeoutInterval.millis())) {
             return Status.UNHEALTHY;
         }
         return pathHealthStats.entrySet().stream().anyMatch(map -> map.getValue() == Status.UNHEALTHY) ? Status.UNHEALTHY
@@ -124,11 +126,9 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
         static final String TEMP_FILE_NAME = ".es_temp_file";
         private byte[] byteToWrite;
-        private AtomicBoolean checkInProgress;
 
         FsHealthMonitor(){
             this.byteToWrite = new byte[20];
-            this.checkInProgress = new AtomicBoolean();
         }
         @Override
         public void run() {

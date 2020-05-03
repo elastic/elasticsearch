@@ -39,7 +39,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.monitor.NodeHealthService;
-import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -405,7 +404,8 @@ public class NodeJoinTests extends ESTestCase {
                                                         CoordinationMetadata.VotingConfigExclusion.MISSING_VALUE_MARKER, "knownNodeName");
 
         setupFakeMasterServiceAndCoordinator(initialTerm, buildStateWithVotingConfigExclusion(initialNode, initialTerm,
-                                                                                                initialVersion, votingConfigExclusion));
+                                                                                                initialVersion, votingConfigExclusion),
+                                                                                                () -> NodeHealthService.Status.UNKNOWN);
 
         DiscoveryNode knownJoiningNode = new DiscoveryNode("knownNodeName", "newNodeId", buildNewFakeTransportAddress(),
                                                             emptyMap(), Set.of(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);

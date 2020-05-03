@@ -49,6 +49,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 
@@ -61,7 +62,6 @@ public class FsHealthServiceTests extends ESTestCase {
     public void createObjects() {
         Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
         deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
-
     }
 
     public void testReturnsUnhealthyAfterTimeout() throws Exception {
@@ -126,6 +126,7 @@ public class FsHealthServiceTests extends ESTestCase {
             FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, deterministicTaskQueue.getThreadPool(), env);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(fsHealthService.getHealth(), NodeHealthService.Status.HEALTHY);
+
             //disrupt File system
             disruptFileSystemProvider.injectIOException.set(true);
             fsHealthService = new FsHealthService(settings, clusterSettings, deterministicTaskQueue.getThreadPool(), env);
@@ -134,64 +135,58 @@ public class FsHealthServiceTests extends ESTestCase {
         } finally {
             disruptFileSystemProvider.injectIOException.set(false);
         }
-
     }
 
     public void testFailsHealthOnIOHang() throws IOException{
         long refreshInterval = randomLongBetween(10, 20);
-        long healthcheckTimeout = randomLongBetween(50, 60);
-        final Settings settings = Settings.builder().put(FsHealthService.HEALTHY_TIMEOUT_SETTING.getKey(), healthcheckTimeout + "ms")
+        long healthCheckTimeout = randomLongBetween(50, 60);
+        int iteration = randomIntBetween(20, 50);
+        AtomicLong disruptionStartTime = new AtomicLong();
+        AtomicInteger counter = new AtomicInteger();
+        AtomicBoolean isHealthy = new AtomicBoolean();
+        CountDownLatch latch = new CountDownLatch(iteration);
+        final Settings settings = Settings.builder().put(FsHealthService.HEALTHY_TIMEOUT_SETTING.getKey(), healthCheckTimeout + "ms")
             .put(FsHealthService.REFRESH_INTERVAL_SETTING.getKey(), refreshInterval + "ms")
             .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0).build();
         FileSystem current = PathUtils.getDefaultFileSystem();
-        FileSystemIOHangProvider disruptFileSystemProvider = new FileSystemIOHangProvider(current, randomLongBetween(refreshInterval+ 1000, 5000));
+        FileSystemIOHangProvider disruptFileSystemProvider = new FileSystemIOHangProvider(current,
+            randomLongBetween(refreshInterval + 1000, 5000));
         PathUtilsForTesting.installMock(disruptFileSystemProvider.getFileSystem(null));
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        ScheduledExecutorService monitorThreadpool = null;
-        ScheduledExecutorService healthcheckThreadpool = null;
+        ScheduledExecutorService healthCheckThreadpool = Executors.newScheduledThreadPool(1);
+        final ThreadPool testThreadpool = new TestThreadPool(getClass().getName(), settings);
         try (NodeEnvironment env = newNodeEnvironment()) {
-            ThreadPool testThreadpool = new TestThreadPool(getClass().getName(), settings);
             final FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadpool, env);
-            FsHealthService.FsHealthMonitor monitor = fsHealthService.new FsHealthMonitor();
 
-            // run the monitor without IO hang in place
-            monitor.run();
-            assertEquals(fsHealthService.getHealth(), NodeHealthService.Status.HEALTHY);
-
-            //disrupt File system
-            final long disruptionStartTime = testThreadpool.relativeTimeInMillis();
-            disruptFileSystemProvider.injectIOHang.set(true);
-
-            AtomicInteger counter = new AtomicInteger();
-            AtomicBoolean isHealthy = new AtomicBoolean();
-            CountDownLatch latch = new CountDownLatch(50);
-            monitorThreadpool = Executors.newScheduledThreadPool(1);
-            healthcheckThreadpool = Executors.newScheduledThreadPool(1);
-
-            monitorThreadpool.scheduleAtFixedRate(() -> {
-                counter.incrementAndGet();
-                monitor.run();
-            },0, refreshInterval, TimeUnit.MILLISECONDS);
-
-            healthcheckThreadpool.scheduleAtFixedRate(() -> {
+            fsHealthService.doStart();
+            healthCheckThreadpool.scheduleAtFixedRate(() -> {
                 latch.countDown();
-                isHealthy.getAndSet(fsHealthService.getHealth() == NodeHealthService.Status.HEALTHY);
-                if (testThreadpool.relativeTimeInMillis() - disruptionStartTime < refreshInterval) {
+                isHealthy.set(fsHealthService.getHealth() == NodeHealthService.Status.HEALTHY);
+                logger.debug("Reported health is : {}", isHealthy.get());
+                //disrupt IO half way through
+                if (counter.getAndIncrement() == iteration/2) {
+                    disruptionStartTime.set(testThreadpool.relativeTimeInMillis());
+                    disruptFileSystemProvider.injectIOHang.compareAndSet(false, true);
+                }
+                // healthy before disruption
+                if (disruptFileSystemProvider.injectIOHang.get() == false) {
                     assertTrue(isHealthy.get());
-                } else if (testThreadpool.relativeTimeInMillis() - disruptionStartTime > refreshInterval + healthcheckTimeout) {
+                }
+                //unhealthy after disruption and then the timeout interval
+                if (disruptFileSystemProvider.injectIOHang.get() && testThreadpool.relativeTimeInMillis() - disruptionStartTime.get() >
+                    (refreshInterval + healthCheckTimeout)) {
                     assertFalse(isHealthy.get());
                 }
-            }, 0, 5, TimeUnit.MILLISECONDS);
-
-            latch.await(200, TimeUnit.MILLISECONDS);
-            //assert when IO is hung, the monitor can't run again as the thread is blocked on IO
-            assertEquals(counter.get(), 1);
+            }, 50, 10, TimeUnit.MILLISECONDS);
+            latch.await(1000, TimeUnit.MILLISECONDS);
+            assertEquals(latch.getCount(),0);
+            fsHealthService.doStop();
 
         } catch (InterruptedException ex){
             Thread.currentThread().interrupt();
         } finally {
-            ThreadPool.terminate(healthcheckThreadpool, 500, TimeUnit.MILLISECONDS);
-            ThreadPool.terminate(monitorThreadpool, 500, TimeUnit.MILLISECONDS);
+            ThreadPool.terminate(healthCheckThreadpool, 500, TimeUnit.MILLISECONDS);
+            ThreadPool.terminate(testThreadpool, 500, TimeUnit.MILLISECONDS);
             disruptFileSystemProvider.injectIOHang.set(false);
         }
     }

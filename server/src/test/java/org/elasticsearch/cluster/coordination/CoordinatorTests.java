@@ -45,7 +45,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.monitor.NodeHealthService;
-import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.MockLogAppender;
 

@@ -899,7 +899,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
 
             ClusterNode(int nodeIndex, boolean masterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
-                this(nodeIndex, createDiscoveryNode(nodeIndex, masterEligible), defaultPersistedStateSupplier, nodeSettings, nodeHealthService);
+                this(nodeIndex, createDiscoveryNode(nodeIndex, masterEligible), defaultPersistedStateSupplier, nodeSettings,
+                    nodeHealthService);
             }
 
             ClusterNode(int nodeIndex, DiscoveryNode localNode, Function<DiscoveryNode, MockPersistedState> persistedStateSupplier,
@@ -1000,7 +1001,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     localNode.isMasterNode() && Node.NODE_MASTER_SETTING.get(nodeSettings)
                         ? DiscoveryNodeRole.BUILT_IN_ROLES : emptySet(), Version.CURRENT);
                 return new ClusterNode(nodeIndex, newLocalNode,
-                    node -> new MockPersistedState(newLocalNode, persistedState, adaptGlobalMetadata, adaptCurrentTerm), nodeSettings, nodeHealthService);
+                    node -> new MockPersistedState(newLocalNode, persistedState, adaptGlobalMetadata, adaptCurrentTerm), nodeSettings,
+                    nodeHealthService);
             }
 
             private CoordinationState.PersistedState getPersistedState() {

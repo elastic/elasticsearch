@@ -55,7 +55,7 @@ public final class EnrichStatsCollector extends Collector {
         return isElectedMaster
             && super.shouldCollect(isElectedMaster)
             && XPackSettings.ENRICH_ENABLED_SETTING.get(settings)
-            && licenseState.isEnrichAllowed();
+            && licenseState.isAllowed(XPackLicenseState.Feature.ENRICH);
     }
 
     @Override

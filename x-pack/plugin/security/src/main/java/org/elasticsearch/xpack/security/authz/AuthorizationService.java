@@ -292,15 +292,8 @@ public class AuthorizationService {
         }
         //if we are creating an index we need to authorize potential aliases created at the same time
         if (IndexPrivilege.CREATE_INDEX_MATCHER.test(action)) {
-            final Set<Alias> aliases;
-            if (request instanceof CreateIndexRequest) {
-                aliases = ((CreateIndexRequest) request).aliases();
-            } else if (request instanceof AutoCreateAction.Request) {
-                aliases = Set.of();
-            } else {
-                aliases = Set.of();
-                assert false;
-            }
+            assert request instanceof CreateIndexRequest;
+            Set<Alias> aliases = ((CreateIndexRequest) request).aliases();
             if (aliases.isEmpty()) {
                 runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener);
             } else {

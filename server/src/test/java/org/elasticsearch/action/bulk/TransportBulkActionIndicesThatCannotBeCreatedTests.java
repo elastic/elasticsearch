@@ -21,7 +21,6 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -140,16 +139,9 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
 
             @Override
             void createIndex(String index, Boolean preferV2Templates,
-                             TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
+                             TimeValue timeout, Version minNodeVersion, ActionListener<CreateIndexResponse> listener) {
                 // If we try to create an index just immediately assume it worked
                 listener.onResponse(new CreateIndexResponse(true, true, index) {});
-            }
-
-            @Override
-            void autoCreate(Set<String> names, Boolean preferV2Templates, TimeValue timeout,
-                            ActionListener<AutoCreateAction.Response> listener) {
-                // If we try to create an index just immediately assume it worked
-                listener.onResponse(new AutoCreateAction.Response(Map.of()));
             }
         };
         action.doExecute(null, bulkRequest, null);

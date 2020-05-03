@@ -19,170 +19,45 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 /**
- * Proxy action for auto creating an indexable resource.
- * Currently only auto creates indices by redirecting to {@link AutoCreateIndexAction}.
+ * Api that auto creates an index that originate from requests that write into an index that doesn't yet exist.
  */
-public final class AutoCreateAction extends ActionType<AutoCreateAction.Response> {
+public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
     public static final AutoCreateAction INSTANCE = new AutoCreateAction();
     public static final String NAME = "indices:admin/auto_create";
 
     private AutoCreateAction() {
-        super(NAME, Response::new);
+        super(NAME, CreateIndexResponse::new);
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> implements CompositeIndicesRequest {
+    public static final class TransportAction extends TransportMasterNodeAction<CreateIndexRequest, CreateIndexResponse> {
 
-        private final Set<String> names;
-        private final String cause;
-        private final Boolean preferV2Templates;
-
-        public Request(Set<String> names, String cause, Boolean preferV2Templates) {
-            this.names = Objects.requireNonNull(names);
-            this.cause = Objects.requireNonNull(cause);
-            this.preferV2Templates = preferV2Templates;
-            assert names.size() != 0;
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            this.names = in.readSet(StreamInput::readString);
-            this.cause = in.readString();
-            this.preferV2Templates = in.readOptionalBoolean();
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeStringCollection(names);
-            out.writeString(cause);
-            out.writeOptionalBoolean(preferV2Templates);
-        }
-
-        public Set<String> getNames() {
-            return names;
-        }
-
-        public String getCause() {
-            return cause;
-        }
-
-        public Boolean getPreferV2Templates() {
-            return preferV2Templates;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
-            return names.equals(request.names) &&
-                Objects.equals(preferV2Templates, request.preferV2Templates);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(names, preferV2Templates);
-        }
-    }
-
-    public static class Response extends ActionResponse {
-
-        private final Map<String, Exception> failureByNames;
-
-        public Response(Map<String, Exception> failureByNames) {
-            this.failureByNames = failureByNames;
-        }
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            failureByNames = in.readMap(StreamInput::readString, StreamInput::readException);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(failureByNames, StreamOutput::writeString, StreamOutput::writeException);
-        }
-
-        public Map<String, Exception> getFailureByNames() {
-            return failureByNames;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            /*
-             * Exception does not implement equals(...) so we will compute the hash code based on the key set and the
-             * messages.
-             */
-            return Objects.equals(getKeys(failureByNames), getKeys(response.failureByNames)) &&
-                Objects.equals(getExceptionMessages(failureByNames), getExceptionMessages(response.failureByNames));
-        }
-
-        @Override
-        public int hashCode() {
-            /*
-             * Exception does not implement hash code so we will compute the hash code based on the key set and the
-             * messages.
-             */
-            return Objects.hash(getKeys(failureByNames), getExceptionMessages(failureByNames));
-        }
-
-        private static List<String> getExceptionMessages(final Map<String, Exception> map) {
-            return map.values().stream().map(Throwable::getMessage).sorted(String::compareTo).collect(Collectors.toList());
-        }
-
-        private static List<String> getKeys(final Map<String, Exception> map) {
-            return map.keySet().stream().sorted(String::compareTo).collect(Collectors.toList());
-        }
-    }
-
-    public static final class TransportAction extends TransportMasterNodeAction<Request, Response> {
-
-        private final Client client;
+        private final MetadataCreateIndexService createIndexService;
 
         @Inject
         public TransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Client client) {
-            super(NAME, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
-            this.client = client;
+                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                               MetadataCreateIndexService createIndexService) {
+            super(NAME, transportService, clusterService, threadPool, actionFilters, CreateIndexRequest::new, indexNameExpressionResolver);
+            this.createIndexService = createIndexService;
         }
 
         @Override
@@ -191,53 +66,21 @@ public final class AutoCreateAction extends ActionType<AutoCreateAction.Response
         }
 
         @Override
-        protected Response read(StreamInput in) throws IOException {
-            return new Response(in);
+        protected CreateIndexResponse read(StreamInput in) throws IOException {
+            return new CreateIndexResponse(in);
         }
 
         @Override
         protected void masterOperation(Task task,
-                                       Request request,
+                                       CreateIndexRequest request,
                                        ClusterState state,
-                                       ActionListener<Response> listener) {
-            autoCreate(request, listener, client);
+                                       ActionListener<CreateIndexResponse> listener) {
+            TransportCreateIndexAction.innerCreateIndex(request, listener, indexNameExpressionResolver, createIndexService);
         }
 
         @Override
-        protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-            return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, request.names.toArray(new String[0]));
-        }
-    }
-
-    static void autoCreate(Request request, ActionListener<Response> listener, Client client) {
-        // For now always redirect to the auto create index action, because only indices get auto created.
-        final AtomicInteger counter = new AtomicInteger(request.getNames().size());
-        final Map<String, Exception> results = new HashMap<>();
-        for (String name : request.getNames()) {
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest();
-            createIndexRequest.index(name);
-            createIndexRequest.cause(request.getCause());
-            createIndexRequest.masterNodeTimeout(request.masterNodeTimeout());
-            createIndexRequest.preferV2Templates(request.getPreferV2Templates());
-            client.execute(AutoCreateIndexAction.INSTANCE, createIndexRequest, ActionListener.wrap(
-                createIndexResponse -> {
-                    // Maybe a bit overkill to ensure visibility of results map across threads...
-                    synchronized (results) {
-                        results.put(name, null);
-                        if (counter.decrementAndGet() == 0) {
-                            listener.onResponse(new Response(results));
-                        }
-                    }
-                },
-                e -> {
-                    synchronized (results) {
-                        results.put(name, e);
-                        if (counter.decrementAndGet() == 0) {
-                            listener.onResponse(new Response(results));
-                        }
-                    }
-                }
-            ));
+        protected ClusterBlockException checkBlock(CreateIndexRequest request, ClusterState state) {
+            return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.index());
         }
     }
 

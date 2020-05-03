@@ -201,7 +201,6 @@ public class RBACEngine implements AuthorizationEngine {
 
     private static boolean shouldAuthorizeIndexActionNameOnly(String action, TransportRequest request) {
         switch (action) {
-            case AutoCreateAction.NAME:
             case BulkAction.NAME:
             case IndexAction.NAME:
             case DeleteAction.NAME:

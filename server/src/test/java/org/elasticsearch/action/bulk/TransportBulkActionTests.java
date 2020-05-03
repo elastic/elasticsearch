@@ -21,7 +21,6 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.bulk.TransportBulkActionTookTests.Resolver;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -54,8 +53,6 @@ import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
@@ -88,16 +85,9 @@ public class TransportBulkActionTests extends ESTestCase {
 
         @Override
         void createIndex(String index, Boolean preferV2Templates,
-                         TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
+                         TimeValue timeout, Version minNodeVersion, ActionListener<CreateIndexResponse> listener) {
             indexCreated = true;
             listener.onResponse(null);
-        }
-
-        @Override
-        void autoCreate(Set<String> names, Boolean preferV2Templates, TimeValue timeout,
-                        ActionListener<AutoCreateAction.Response> listener) {
-            indexCreated = true;
-            listener.onResponse(new AutoCreateAction.Response(Map.of()));
         }
     }
 

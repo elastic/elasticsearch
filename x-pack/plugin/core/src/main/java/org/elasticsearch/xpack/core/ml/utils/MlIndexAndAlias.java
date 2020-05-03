@@ -19,7 +19,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Nullable;
 
@@ -83,8 +83,8 @@ public final class MlIndexAndAlias {
         String firstConcreteIndex = indexPatternPrefix + "-000001";
         String[] concreteIndexNames =
             resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), indexPattern);
-        Optional<IndexMetaData> indexPointedByCurrentWriteAlias = clusterState.getMetaData().hasAlias(alias)
-            ? clusterState.getMetaData().getAliasAndIndexLookup().get(alias).getIndices().stream().findFirst()
+        Optional<IndexMetadata> indexPointedByCurrentWriteAlias = clusterState.getMetadata().hasAlias(alias)
+            ? clusterState.getMetadata().getIndicesLookup().get(alias).getIndices().stream().findFirst()
             : Optional.empty();
 
         if (concreteIndexNames.length == 0) {
@@ -132,6 +132,7 @@ public final class MlIndexAndAlias {
                                                  String alias,
                                                  boolean addAlias,
                                                  ActionListener<Boolean> listener) {
+        logger.info("About to create first concrete index [{}] with alias [{}]", index, alias);
         CreateIndexRequestBuilder requestBuilder = client.admin()
             .indices()
             .prepareCreate(index);
@@ -163,6 +164,7 @@ public final class MlIndexAndAlias {
                                          @Nullable String currentIndex,
                                          String newIndex,
                                          ActionListener<Boolean> listener) {
+        logger.info("About to move write alias [{}] from index [{}] to index [{}]", alias, currentIndex, newIndex);
         IndicesAliasesRequestBuilder requestBuilder = client.admin()
             .indices()
             .prepareAliases()

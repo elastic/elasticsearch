@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.bytes;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.BytesStream;
@@ -61,7 +62,7 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
         if (bytesRef.offset == 0 && bytesRef.length == bytesRef.bytes.length) {
             return bytesRef.bytes;
         }
-        return BytesRef.deepCopyOf(bytesRef).bytes;
+        return ArrayUtil.copyOfSubArray(bytesRef.bytes, bytesRef.offset, bytesRef.offset + bytesRef.length);
     }
 
     /**
@@ -91,7 +92,7 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
         if (bufferCount == 0) {
             return BytesArray.EMPTY;
         } else if (bufferCount == 1) {
-            return new ByteBufferReference(buffers[0]);
+            return fromByteBuffer(buffers[0]);
         } else {
             ByteBufferReference[] references = new ByteBufferReference[bufferCount];
             for (int i = 0; i < bufferCount; ++i) {
@@ -100,6 +101,13 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
 
             return new CompositeBytesReference(references);
         }
+    }
+
+    /**
+     * Returns BytesReference composed of the provided ByteBuffer.
+     */
+    static BytesReference fromByteBuffer(ByteBuffer buffer) {
+        return new ByteBufferReference(buffer);
     }
 
     /**

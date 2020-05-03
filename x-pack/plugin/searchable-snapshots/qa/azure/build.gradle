@@ -1,0 +1,102 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+import org.elasticsearch.gradle.info.BuildParams
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+final Project fixture = project(':test:fixtures:azure-fixture')
+final Project repositoryPlugin = project(':plugins:repository-azure')
+
+dependencies {
+  testCompile project(path: xpackModule('searchable-snapshots'), configuration: 'testArtifacts')
+  testCompile repositoryPlugin
+}
+
+restResources {
+  restApi {
+    includeCore 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common'
+    includeXpack 'searchable_snapshots'
+  }
+}
+
+boolean useFixture = false
+String azureAccount = System.getenv("azure_storage_account")
+String azureKey = System.getenv("azure_storage_key")
+String azureContainer = System.getenv("azure_storage_container")
+String azureBasePath = System.getenv("azure_storage_base_path")
+String azureSasToken = System.getenv("azure_storage_sas_token")
+
+if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSasToken) {
+  azureAccount = 'azure_integration_test_account'
+  azureKey = 'YXp1cmVfaW50ZWdyYXRpb25fdGVzdF9rZXk=' // The key is "azure_integration_test_key" encoded using base64
+  azureContainer = 'container'
+  azureBasePath = ''
+  azureSasToken = ''
+  useFixture = true
+
+}
+
+if (useFixture) {
+  apply plugin: 'elasticsearch.test.fixtures'
+  testFixtures.useFixture(fixture.path, 'azure-fixture-other')
+}
+
+integTest {
+  dependsOn repositoryPlugin.bundlePlugin
+  runner {
+    systemProperty 'test.azure.container', azureContainer
+    systemProperty 'test.azure.base_path', azureBasePath + "/searchable_snapshots_tests"
+  }
+}
+
+testClusters.integTest {
+  testDistribution = 'DEFAULT'
+  plugin repositoryPlugin.bundlePlugin.archiveFile
+
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
+  }
+
+  keystore 'azure.client.searchable_snapshots.account', azureAccount
+  if (azureKey != null && azureKey.isEmpty() == false) {
+    keystore 'azure.client.searchable_snapshots.key', azureKey
+  }
+  if (azureSasToken != null && azureSasToken.isEmpty() == false) {
+    keystore 'azure.client.searchable_snapshots.sas_token', azureSasToken
+  }
+
+  setting 'xpack.license.self_generated.type', 'trial'
+
+  if (useFixture) {
+    def fixtureAddress = { fixtureName ->
+      assert useFixture: 'closure should not be used without a fixture'
+      int ephemeralPort =  fixture.postProcessFixture.ext."test.fixtures.${fixtureName}.tcp.8091"
+      assert ephemeralPort > 0
+      '127.0.0.1:' + ephemeralPort
+    }
+    setting 'azure.client.searchable_snapshots.endpoint_suffix',
+      { "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://${-> fixtureAddress('azure-fixture-other')}" }, IGNORE_VALUE
+
+  } else {
+    println "Using an external service to test " + project.name
+  }
+}
+

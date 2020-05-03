@@ -237,7 +237,6 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomIndicesOptions(getFieldMappingsRequest::indicesOptions, getFieldMappingsRequest::indicesOptions,
             expectedParams);
-        RequestConvertersTests.setRandomLocal(getFieldMappingsRequest::local, expectedParams);
 
         Request request = IndicesRequestConverters.getFieldMapping(getFieldMappingsRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");

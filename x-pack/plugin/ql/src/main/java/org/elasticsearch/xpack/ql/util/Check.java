@@ -35,4 +35,16 @@ public abstract class Check {
             throw new QlIllegalArgumentException(message, values);
         }
     }
+
+    public static void isString(Object obj) {
+        if (!(obj instanceof String || obj instanceof Character)) {
+            throw new QlIllegalArgumentException("A string/char is required; received [{}]", obj);
+        }
+    }
+
+    public static void isBoolean(Object obj) {
+        if (!(obj instanceof Boolean)) {
+            throw new QlIllegalArgumentException("A boolean is required; received [{}]", obj);
+        }
+    }
 }

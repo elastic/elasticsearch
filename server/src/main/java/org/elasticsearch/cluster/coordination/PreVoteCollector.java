@@ -65,7 +65,6 @@ public class PreVoteCollector {
         this.electionStrategy = electionStrategy;
         this.nodeHealthService = nodeHealthService;
 
-        // TODO does this need to be on the generic threadpool or can it use SAME?
         transportService.registerRequestHandler(REQUEST_PRE_VOTE_ACTION_NAME, Names.GENERIC, false, false,
             PreVoteRequest::new,
             (request, channel, task) -> channel.sendResponse(handlePreVoteRequest(request)));

@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -77,7 +77,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         }
         assertAcked(prepareCreate("idx_single_shard")
                 .setMapping(STRING_FIELD_NAME, "type=keyword")
-                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)));
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)));
         for (int i = 0; i < numDocs; i++) {
             builders.add(client().prepareIndex("idx_single_shard").setId(""+i).setSource(jsonBuilder()
                     .startObject()
@@ -100,7 +100,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                     .endObject()));
         }
         assertAcked(prepareCreate("idx_fixed_docs_0").setMapping(STRING_FIELD_NAME, "type=keyword")
-                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)));
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)));
         Map<String, Integer> shard0DocsPerTerm = new HashMap<>();
         shard0DocsPerTerm.put("A", 25);
         shard0DocsPerTerm.put("B", 18);
@@ -121,7 +121,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         }
 
         assertAcked(prepareCreate("idx_fixed_docs_1").setMapping(STRING_FIELD_NAME, "type=keyword")
-                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)));
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)));
         Map<String, Integer> shard1DocsPerTerm = new HashMap<>();
         shard1DocsPerTerm.put("A", 30);
         shard1DocsPerTerm.put("B", 25);
@@ -143,7 +143,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
 
         assertAcked(prepareCreate("idx_fixed_docs_2")
                 .setMapping(STRING_FIELD_NAME, "type=keyword")
-                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)));
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)));
         Map<String, Integer> shard2DocsPerTerm = new HashMap<>();
         shard2DocsPerTerm.put("A", 45);
         shard2DocsPerTerm.put("C", 44);

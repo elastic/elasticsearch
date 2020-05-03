@@ -383,4 +383,23 @@ public class XContentHelper {
         BytesRef br = bytes.toBytesRef();
         return XContentFactory.xContentType(br.bytes, br.offset, br.length);
     }
+
+    /**
+     * Returns the contents of an object as an unparsed BytesReference
+     *
+     * This is useful for things like mappings where we're copying bytes around but don't
+     * actually need to parse their contents, and so avoids building large maps of maps
+     * unnecessarily
+     */
+    public static BytesReference childBytes(XContentParser parser) throws IOException {
+        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw new XContentParseException(parser.getTokenLocation(),
+                    "Expected [START_OBJECT] but got [" + parser.currentToken() + "]");
+            }
+        }
+        XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
+        builder.copyCurrentStructure(parser);
+        return BytesReference.bytes(builder);
+    }
 }

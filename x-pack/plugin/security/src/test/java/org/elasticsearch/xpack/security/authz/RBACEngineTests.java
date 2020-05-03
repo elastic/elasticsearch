@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
@@ -291,7 +292,7 @@ public class RBACEngineTests extends ESTestCase {
         final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
         when(authentication.getUser()).thenReturn(user);
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
-        when(authenticatedBy.getType()).thenReturn(ApiKeyService.API_KEY_REALM_TYPE);
+        when(authentication.getAuthenticationType()).thenReturn(AuthenticationType.API_KEY);
         when(authentication.getMetadata()).thenReturn(Map.of(ApiKeyService.API_KEY_ID_KEY, apiKeyId));
 
         assertTrue(engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
@@ -321,7 +322,7 @@ public class RBACEngineTests extends ESTestCase {
         when(authentication.getUser()).thenReturn(user);
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
         when(authentication.getLookedUpBy()).thenReturn(lookedupBy);
-        when(authenticatedBy.getType()).thenReturn(ApiKeyService.API_KEY_REALM_TYPE);
+        when(authentication.getAuthenticationType()).thenReturn(AuthenticationType.API_KEY);
         when(authentication.getMetadata()).thenReturn(Map.of(ApiKeyService.API_KEY_ID_KEY, randomAlphaOfLengthBetween(4, 7)));
 
         final AssertionError assertionError = expectThrows(AssertionError.class, () -> engine.checkSameUserPermissions(GetApiKeyAction.NAME,

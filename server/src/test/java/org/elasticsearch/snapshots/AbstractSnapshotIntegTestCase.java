@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
@@ -75,9 +76,9 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     @After
     public void assertRepoConsistency() {
         if (skipRepoConsistencyCheckReason == null) {
-            client().admin().cluster().prepareGetRepositories().get().repositories().forEach(repositoryMetaData -> {
-                final String name = repositoryMetaData.name();
-                if (repositoryMetaData.settings().getAsBoolean("readonly", false) == false) {
+            client().admin().cluster().prepareGetRepositories().get().repositories().forEach(repositoryMetadata -> {
+                final String name = repositoryMetadata.name();
+                if (repositoryMetadata.settings().getAsBoolean("readonly", false) == false) {
                     client().admin().cluster().prepareCleanupRepository(name).get();
                 }
                 BlobStoreTestUtil.assertRepoConsistency(internalCluster(), name);
@@ -236,5 +237,12 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     public static void unblockNode(final String repository, final String node) {
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repository)).unblock();
+    }
+
+    protected void createRepository(String repoName, String type, Path location) {
+        logger.info("-->  creating repository");
+        assertAcked(client().admin().cluster().preparePutRepository(repoName)
+                .setType(type)
+                .setSettings(Settings.builder().put("location", location)));
     }
 }

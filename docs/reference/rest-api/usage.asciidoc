@@ -16,7 +16,7 @@ Provides usage information about the installed {xpack} features.
 === {api-description-title}
 
 This API provides information about which features are currently enabled and
-available under the current license and some usage statistics. 
+available under the current license and some usage statistics.
 
 [discrete]
 [[usage-api-query-parms]]
@@ -263,7 +263,14 @@ GET /_xpack/usage
   },
   "analytics" : {
     "available" : true,
-    "enabled" : true
+    "enabled" : true,
+    "stats": {
+      "boxplot_usage" : 0,
+      "top_metrics_usage" : 0,
+      "cumulative_cardinality_usage" : 0,
+      "t_test_usage" : 0,
+      "string_stats_usage" : 0
+    }
   }
 }
 ------------------------------------------------------------

@@ -34,6 +34,7 @@ public class RestSamlInitiateSingleSignOnAction extends IdpBaseRestHandler {
 
     static {
         PARSER.declareString(SamlInitiateSingleSignOnRequest::setSpEntityId, new ParseField("entity_id"));
+        PARSER.declareString(SamlInitiateSingleSignOnRequest::setAssertionConsumerService, new ParseField("acs"));
         PARSER.declareObject(SamlInitiateSingleSignOnRequest::setSamlAuthenticationState, (p, c) -> SamlAuthenticationState.fromXContent(p),
             new ParseField("authn_state"));
     }
@@ -65,6 +66,8 @@ public class RestSamlInitiateSingleSignOnAction extends IdpBaseRestHandler {
                         builder.startObject();
                         builder.field("post_url", response.getPostUrl());
                         builder.field("saml_response", response.getSamlResponse());
+                        builder.field("saml_status", response.getSamlStatus());
+                        builder.field("error", response.getError());
                         builder.startObject("service_provider");
                         builder.field("entity_id", response.getEntityId());
                         builder.endObject();

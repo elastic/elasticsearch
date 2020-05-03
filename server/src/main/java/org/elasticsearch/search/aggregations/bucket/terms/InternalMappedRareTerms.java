@@ -30,7 +30,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,10 +51,9 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
 
     protected final Logger logger = LogManager.getLogger(getClass());
 
-    InternalMappedRareTerms(String name, BucketOrder order, List<PipelineAggregator> pipelineAggregators,
-                            Map<String, Object> metaData, DocValueFormat format,
+    InternalMappedRareTerms(String name, BucketOrder order, Map<String, Object> metadata, DocValueFormat format,
                             List<B> buckets, long maxDocCount, SetBackedScalingCuckooFilter filter) {
-        super(name, order, maxDocCount, pipelineAggregators, metaData);
+        super(name, order, maxDocCount, metadata);
         this.format = format;
         this.buckets = buckets;
         this.filter = filter;

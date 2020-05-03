@@ -31,7 +31,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
@@ -181,7 +181,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         doc.add(new SortedNumericDocValuesField("scaled_float2", 12));
         w.addDocument(doc);
         try (DirectoryReader reader = DirectoryReader.open(w)) {
-            IndexMetaData indexMetadata = new IndexMetaData.Builder("index").settings(
+            IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(
                     Settings.builder()
                     .put("index.version.created", Version.CURRENT)
                     .put("index.number_of_shards", 1)

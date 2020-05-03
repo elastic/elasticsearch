@@ -39,8 +39,8 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -118,7 +118,7 @@ public class SplitIndexIT extends ESIntegTestCase {
             useRoutingPartition = randomBoolean();
         }
         if (useRouting && useMixedRouting == false && useRoutingPartition) {
-            int numRoutingShards = MetaDataCreateIndexService.calculateNumRoutingShards(secondSplitShards, Version.CURRENT)-1;
+            int numRoutingShards = MetadataCreateIndexService.calculateNumRoutingShards(secondSplitShards, Version.CURRENT)-1;
             settings.put("index.routing_partition_size",
                 randomIntBetween(1, numRoutingShards));
             if (useNested) {
@@ -327,8 +327,8 @@ public class SplitIndexIT extends ESIntegTestCase {
         client().admin().indices().prepareUpdateSettings("source").setSettings(prepareSplitSettings).get();
         ensureYellow();
 
-        final IndexMetaData indexMetaData = indexMetaData(client(), "source");
-        final long beforeSplitPrimaryTerm = IntStream.range(0, numberOfShards).mapToLong(indexMetaData::primaryTerm).max().getAsLong();
+        final IndexMetadata indexMetadata = indexMetadata(client(), "source");
+        final long beforeSplitPrimaryTerm = IntStream.range(0, numberOfShards).mapToLong(indexMetadata::primaryTerm).max().getAsLong();
 
         // now split source into target
         final Settings splitSettings =
@@ -343,15 +343,15 @@ public class SplitIndexIT extends ESIntegTestCase {
 
         ensureGreen(TimeValue.timeValueSeconds(120)); // needs more than the default to relocate many shards
 
-        final IndexMetaData aftersplitIndexMetaData = indexMetaData(client(), "target");
+        final IndexMetadata aftersplitIndexMetadata = indexMetadata(client(), "target");
         for (int shardId = 0; shardId < numberOfTargetShards; shardId++) {
-            assertThat(aftersplitIndexMetaData.primaryTerm(shardId), equalTo(beforeSplitPrimaryTerm + 1));
+            assertThat(aftersplitIndexMetadata.primaryTerm(shardId), equalTo(beforeSplitPrimaryTerm + 1));
         }
     }
 
-    private static IndexMetaData indexMetaData(final Client client, final String index) {
+    private static IndexMetadata indexMetadata(final Client client, final String index) {
         final ClusterStateResponse clusterStateResponse = client.admin().cluster().state(new ClusterStateRequest()).actionGet();
-        return clusterStateResponse.getState().metaData().index(index);
+        return clusterStateResponse.getState().metadata().index(index);
     }
 
     public void testCreateSplitIndex() throws Exception {

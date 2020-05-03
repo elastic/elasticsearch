@@ -40,6 +40,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -203,9 +204,11 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             return null;
         }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
         when(securityIndex.isAvailable()).thenReturn(true);
+        when(securityIndex.freeze()).thenReturn(securityIndex);
 
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isTokenServiceAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         final SecurityContext securityContext = new SecurityContext(settings, threadContext);
         tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityContext, securityIndex, securityIndex,
@@ -231,22 +234,22 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
     public void testLogoutInvalidatesToken() throws Exception {
         final String session = randomAlphaOfLengthBetween(12, 18);
         final String nameId = randomAlphaOfLengthBetween(6, 16);
-        final Map<String, Object> userMetaData = MapBuilder.<String, Object>newMapBuilder()
+        final Map<String, Object> userMetadata = MapBuilder.<String, Object>newMapBuilder()
                 .put(SamlRealm.USER_METADATA_NAMEID_FORMAT, NameID.TRANSIENT)
                 .put(SamlRealm.USER_METADATA_NAMEID_VALUE, nameId)
                 .map();
-        final User user = new User("punisher", new String[]{"superuser"}, null, null, userMetaData, true);
+        final User user = new User("punisher", new String[]{"superuser"}, null, null, userMetadata, true);
         final Authentication.RealmRef realmRef = new Authentication.RealmRef(samlRealm.name(), SamlRealmSettings.TYPE, "node01");
-        final Map<String, Object> tokenMetaData = samlRealm.createTokenMetadata(
+        final Map<String, Object> tokenMetadata = samlRealm.createTokenMetadata(
             new SamlNameId(NameID.TRANSIENT, nameId, null, null, null), session);
         final Authentication authentication = new Authentication(user, realmRef, null, null, Authentication.AuthenticationType.REALM,
-            tokenMetaData);
+            tokenMetadata);
 
 
         final PlainActionFuture<Tuple<String, String>> future = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();
         final String refreshToken = UUIDs.randomBase64UUID();
-        tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, tokenMetaData, future);
+        tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, tokenMetadata, future);
         final String accessToken = future.actionGet().v1();
         mockGetTokenFromId(tokenService, userTokenId, authentication, false, client);
 

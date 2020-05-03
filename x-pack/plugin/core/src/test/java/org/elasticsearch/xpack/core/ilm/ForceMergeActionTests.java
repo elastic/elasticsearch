@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
@@ -71,7 +71,7 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         SegmentCountStep thirdStep = (SegmentCountStep) steps.get(2);
         assertThat(firstStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ReadOnlyAction.NAME)));
         assertThat(firstStep.getNextStepKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
-        assertTrue(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.get(firstStep.getSettings()));
+        assertTrue(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(firstStep.getSettings()));
         assertThat(secondStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
         assertThat(secondStep.getNextStepKey(), equalTo(thirdStep.getKey()));
         assertThat(thirdStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, SegmentCountStep.NAME)));
@@ -106,7 +106,7 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(0);
         UpdateSettingsStep thirdStep = (UpdateSettingsStep) steps.get(2);
 
-        assertTrue(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.get(firstStep.getSettings()));
+        assertTrue(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(firstStep.getSettings()));
         assertThat(thirdStep.getSettings().get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(CodecService.BEST_COMPRESSION_CODEC));
     }
 

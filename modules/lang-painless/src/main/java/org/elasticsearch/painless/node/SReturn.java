@@ -73,9 +73,4 @@ public class SReturn extends AStatement {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        return expression == null ? singleLineToString() : singleLineToString(expression);
-    }
 }

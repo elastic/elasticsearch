@@ -1,13 +1,14 @@
 {
   "rollup.rollup_search":{
     "documentation":{
-      "url":""
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-search.html",
+      "description":"Enables searching rolled-up data using the standard query DSL."
     },
     "stability":"experimental",
     "url":{
       "paths":[
         {
-          "path":"{index}/_rollup_search",
+          "path":"/{index}/_rollup_search",
           "methods":[
             "GET",
             "POST"
@@ -20,7 +21,7 @@
           }
         },
         {
-          "path":"{index}/{type}/_rollup_search",
+          "path":"/{index}/{type}/_rollup_search",
           "methods":[
             "GET",
             "POST"

@@ -329,8 +329,12 @@ end
 
 def sles_common(config, name)
   extra = <<-SHELL
-    zypper rr systemsmanagement_puppet puppetlabs-pc1
+    zypper rr systemsmanagement_puppet puppetlabs-pc1 devel_tools_scm
+    zypper ar http://download.opensuse.org/distribution/12.3/repo/oss/ oss
+    zypper --non-interactive  --gpg-auto-import-keys refresh
     zypper --non-interactive install git-core
+    # choose to "ignore some dependencies" of expect, which has a problem with tcl... 
+    zypper --non-interactive install --force-resolution expect
   SHELL
   suse_common config, name, extra: extra
 end

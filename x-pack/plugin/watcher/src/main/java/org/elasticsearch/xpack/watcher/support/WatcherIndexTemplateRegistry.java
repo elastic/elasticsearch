@@ -11,11 +11,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
+import org.elasticsearch.xpack.watcher.Watcher;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -55,9 +55,9 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
     public WatcherIndexTemplateRegistry(Settings nodeSettings, ClusterService clusterService, ThreadPool threadPool, Client client,
                                         NamedXContentRegistry xContentRegistry) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
-        boolean ilmEnabled = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(settings);
+        boolean ilmManagementEnabled = Watcher.USE_ILM_INDEX_MANAGEMENT.get(nodeSettings);
         templatesToUse = Arrays.asList(
-            ilmEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM,
+            ilmManagementEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM,
             TEMPLATE_CONFIG_TRIGGERED_WATCHES,
             TEMPLATE_CONFIG_WATCHES
         );
@@ -68,8 +68,14 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
         return templatesToUse;
     }
 
+    /**
+     * If Watcher is configured not to use ILM, we don't return a policy.
+     */
     @Override
     protected List<LifecyclePolicyConfig> getPolicyConfigs() {
+        if (Watcher.USE_ILM_INDEX_MANAGEMENT.get(settings) == false) {
+            return Collections.emptyList();
+        }
         return Collections.singletonList(POLICY_WATCH_HISTORY);
     }
 
@@ -79,10 +85,10 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
     }
 
     public static boolean validate(ClusterState state) {
-        return (state.getMetaData().getTemplates().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME) ||
-            state.getMetaData().getTemplates().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM)) &&
-            state.getMetaData().getTemplates().containsKey(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME) &&
-            state.getMetaData().getTemplates().containsKey(WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME);
+        return (state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME) ||
+            state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM)) &&
+            state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME) &&
+            state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME);
     }
 
 }

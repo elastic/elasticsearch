@@ -9,9 +9,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -65,7 +65,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.hamcrest.Matchers.containsString;
@@ -130,7 +130,7 @@ public class SecurityTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
         return security.createComponents(client, threadPool, clusterService, mock(ResourceWatcherService.class), mock(ScriptService.class),
-            xContentRegistry(), new IndexNameExpressionResolver());
+            xContentRegistry(), env, new IndexNameExpressionResolver());
     }
 
     private static <T> T findComponent(Class<T> type, Collection<Object> components) {
@@ -243,13 +243,13 @@ public class SecurityTests extends ESTestCase {
     public void testJoinValidatorForFIPSOnAllowedLicense() throws Exception {
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
             VersionUtils.randomVersionBetween(random(), null, Version.CURRENT));
-        MetaData.Builder builder = MetaData.builder();
+        Metadata.Builder builder = Metadata.builder();
         License license =
             TestUtils.generateSignedLicense(
                 randomFrom(License.OperationMode.ENTERPRISE, License.OperationMode.PLATINUM, License.OperationMode.TRIAL).toString(),
                 TimeValue.timeValueHours(24));
         TestUtils.putLicense(builder, license);
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(builder.build()).build();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder.build()).build();
         new Security.ValidateLicenseForFIPS(false).accept(node, state);
         // no exception thrown
         new Security.ValidateLicenseForFIPS(true).accept(node, state);
@@ -259,13 +259,13 @@ public class SecurityTests extends ESTestCase {
     public void testJoinValidatorForFIPSOnForbiddenLicense() throws Exception {
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
             VersionUtils.randomVersionBetween(random(), null, Version.CURRENT));
-        MetaData.Builder builder = MetaData.builder();
+        Metadata.Builder builder = Metadata.builder();
         final String forbiddenLicenseType =
             randomFrom(List.of(License.OperationMode.values()).stream()
                 .filter(l -> XPackLicenseState.isFipsAllowedForOperationMode(l) == false).collect(Collectors.toList())).toString();
         License license = TestUtils.generateSignedLicense(forbiddenLicenseType, TimeValue.timeValueHours(24));
         TestUtils.putLicense(builder, license);
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(builder.build()).build();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder.build()).build();
         new Security.ValidateLicenseForFIPS(false).accept(node, state);
         // no exception thrown
         IllegalStateException e = expectThrows(IllegalStateException.class,
@@ -280,7 +280,7 @@ public class SecurityTests extends ESTestCase {
         assertNotNull(joinValidator);
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
         int indexFormat = randomBoolean() ? INTERNAL_MAIN_INDEX_FORMAT : INTERNAL_MAIN_INDEX_FORMAT - 1;
-        IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_MAIN_ALIAS)
+        IndexMetadata indexMetadata = IndexMetadata.builder(SECURITY_MAIN_ALIAS)
             .settings(settings(VersionUtils.randomIndexCompatibleVersion(random())).put(INDEX_FORMAT_SETTING.getKey(), indexFormat))
             .numberOfShards(1).numberOfReplicas(0)
             .build();
@@ -288,7 +288,7 @@ public class SecurityTests extends ESTestCase {
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes)
-            .metaData(MetaData.builder().put(indexMetaData, true).build()).build();
+            .metadata(Metadata.builder().put(indexMetadata, true).build()).build();
         joinValidator.accept(node, clusterState);
     }
 
@@ -298,7 +298,7 @@ public class SecurityTests extends ESTestCase {
         assertNotNull(joinValidator);
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
-        IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_MAIN_ALIAS)
+        IndexMetadata indexMetadata = IndexMetadata.builder(SECURITY_MAIN_ALIAS)
             .settings(settings(version).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_MAIN_INDEX_FORMAT))
             .numberOfShards(1).numberOfReplicas(0)
             .build();
@@ -306,7 +306,7 @@ public class SecurityTests extends ESTestCase {
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes)
-            .metaData(MetaData.builder().put(indexMetaData, true).build()).build();
+            .metadata(Metadata.builder().put(indexMetadata, true).build()).build();
         joinValidator.accept(node, clusterState);
     }
 
@@ -451,6 +451,14 @@ public class SecurityTests extends ESTestCase {
             .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
                 randomFrom(Hasher.getAvailableAlgoStoredHash().stream()
                     .filter(alg -> alg.startsWith("pbkdf2")).collect(Collectors.toList())))
+            .build();
+        Security.validateForFips(settings);
+        // no exception thrown
+    }
+
+    public void testValidateForFipsNoErrorsForDefaultSettings() {
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
             .build();
         Security.validateForFips(settings);
         // no exception thrown

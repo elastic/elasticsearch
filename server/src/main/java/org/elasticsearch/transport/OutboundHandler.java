@@ -31,7 +31,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -45,17 +44,17 @@ final class OutboundHandler {
 
     private static final Logger logger = LogManager.getLogger(OutboundHandler.class);
 
-    private final MeanMetric transmittedBytesMetric = new MeanMetric();
-
     private final String nodeName;
     private final Version version;
+    private final StatsTracker statsTracker;
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
-    OutboundHandler(String nodeName, Version version, ThreadPool threadPool, BigArrays bigArrays) {
+    OutboundHandler(String nodeName, Version version, StatsTracker statsTracker, ThreadPool threadPool, BigArrays bigArrays) {
         this.nodeName = nodeName;
         this.version = version;
+        this.statsTracker = statsTracker;
         this.threadPool = threadPool;
         this.bigArrays = bigArrays;
     }
@@ -133,10 +132,6 @@ final class OutboundHandler {
 
     }
 
-    MeanMetric getTransmittedBytes() {
-        return transmittedBytesMetric;
-    }
-
     void setMessageListener(TransportMessageListener listener) {
         if (messageListener == TransportMessageListener.NOOP_LISTENER) {
             messageListener = listener;
@@ -205,7 +200,7 @@ final class OutboundHandler {
         @Override
         protected void innerOnResponse(Void v) {
             assert messageSize != -1 : "If onResponse is being called, the message should have been serialized";
-            transmittedBytesMetric.inc(messageSize);
+            statsTracker.markBytesWritten(messageSize);
             closeAndCallback(() -> listener.onResponse(v));
         }
 

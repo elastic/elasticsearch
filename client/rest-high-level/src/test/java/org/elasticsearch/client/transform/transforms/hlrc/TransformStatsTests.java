@@ -153,13 +153,13 @@ public class TransformStatsTests extends AbstractResponseTestCase<
         assertThat(serverTestInstance.getExpAvgCheckpointDurationMs(), equalTo(clientInstance.getExpAvgCheckpointDurationMs()));
         assertThat(serverTestInstance.getExpAvgDocumentsProcessed(), equalTo(clientInstance.getExpAvgDocumentsProcessed()));
         assertThat(serverTestInstance.getExpAvgDocumentsIndexed(), equalTo(clientInstance.getExpAvgDocumentsIndexed()));
-        assertThat(serverTestInstance.getNumPages(), equalTo(clientInstance.getNumPages()));
+        assertThat(serverTestInstance.getNumPages(), equalTo(clientInstance.getPagesProcessed()));
         assertThat(serverTestInstance.getIndexFailures(), equalTo(clientInstance.getIndexFailures()));
         assertThat(serverTestInstance.getIndexTime(), equalTo(clientInstance.getIndexTime()));
         assertThat(serverTestInstance.getIndexTotal(), equalTo(clientInstance.getIndexTotal()));
-        assertThat(serverTestInstance.getNumDocuments(), equalTo(clientInstance.getNumDocuments()));
-        assertThat(serverTestInstance.getNumInvocations(), equalTo(clientInstance.getNumInvocations()));
-        assertThat(serverTestInstance.getOutputDocuments(), equalTo(clientInstance.getOutputDocuments()));
+        assertThat(serverTestInstance.getNumDocuments(), equalTo(clientInstance.getDocumentsProcessed()));
+        assertThat(serverTestInstance.getNumInvocations(), equalTo(clientInstance.getTriggerCount()));
+        assertThat(serverTestInstance.getOutputDocuments(), equalTo(clientInstance.getDocumentsIndexed()));
         assertThat(serverTestInstance.getSearchFailures(), equalTo(clientInstance.getSearchFailures()));
         assertThat(serverTestInstance.getSearchTime(), equalTo(clientInstance.getSearchTime()));
         assertThat(serverTestInstance.getSearchTotal(), equalTo(clientInstance.getSearchTotal()));

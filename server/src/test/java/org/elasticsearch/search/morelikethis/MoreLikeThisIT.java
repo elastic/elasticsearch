@@ -45,8 +45,8 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.client.Requests.refreshRequest;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;

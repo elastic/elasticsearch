@@ -43,7 +43,7 @@
       async_search.submit:
         index: test-*
         batched_reduce_size: 2
-        wait_for_completion: 10s
+        wait_for_completion_timeout: 10s
         body:
           query:
             match_all: {}
@@ -63,8 +63,8 @@
       async_search.submit:
         index: test-*
         batched_reduce_size: 2
-        wait_for_completion: 10s
-        clean_on_completion: false
+        wait_for_completion_timeout: 10s
+        keep_on_completion: true
         body:
           aggs:
             max:
@@ -82,8 +82,8 @@
       async_search.submit:
         index: test-*
         batched_reduce_size: 2
-        wait_for_completion: 10s
-        clean_on_completion: false
+        wait_for_completion_timeout: 10s
+        keep_on_completion: true
         typed_keys: true
         body:
           aggs:

@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.transport.RemoteConnectionInfo;
+import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
@@ -34,16 +35,28 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         return false;
     }
 
+    @Override
+    protected Settings followerClusterSettings() {
+        final Settings.Builder settings = Settings.builder().put(super.followerClusterSettings());
+        if (randomBoolean()) {
+            settings.put(RemoteConnectionStrategy.REMOTE_MAX_PENDING_CONNECTION_LISTENERS.getKey(), 1);
+        }
+        return settings.build();
+    }
+
     public void testFollowIndex() throws Exception {
-        final String leaderIndexSettings = getIndexSettings(1, 0);
+        final String leaderIndexSettings = getIndexSettings(randomIntBetween(1, 10), 0);
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderGreen("index1");
         setupRemoteCluster();
 
         final PutFollowAction.Request followRequest = putFollow("index1", "index2");
+        if (randomBoolean()) {
+            followRequest.getParameters().setMaxReadRequestOperationCount(randomIntBetween(5, 10));
+        }
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
-        final long firstBatchNumDocs = randomIntBetween(2, 64);
+        final long firstBatchNumDocs = randomIntBetween(10, 200);
         logger.info("Indexing [{}] docs as first batch", firstBatchNumDocs);
         for (int i = 0; i < firstBatchNumDocs; i++) {
             final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
@@ -57,15 +70,10 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         getFollowerCluster().fullRestart();
         ensureFollowerGreen("index2");
 
-        final long secondBatchNumDocs = randomIntBetween(2, 64);
+        final long secondBatchNumDocs = randomIntBetween(10, 200);
         for (int i = 0; i < secondBatchNumDocs; i++) {
             leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON).get();
         }
-
-        assertBusy(() -> {
-            assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value,
-                equalTo(firstBatchNumDocs + secondBatchNumDocs));
-        });
 
         cleanRemoteCluster();
         getLeaderCluster().fullRestart();
@@ -73,7 +81,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         // Remote connection needs to be re-configured, because all the nodes in leader cluster have been restarted:
         setupRemoteCluster();
 
-        final long thirdBatchNumDocs = randomIntBetween(2, 64);
+        final long thirdBatchNumDocs = randomIntBetween(10, 200);
         for (int i = 0; i < thirdBatchNumDocs; i++) {
             leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON).get();
         }

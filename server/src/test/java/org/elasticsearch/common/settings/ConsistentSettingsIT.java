@@ -49,16 +49,16 @@ public class ConsistentSettingsIT extends ESIntegTestCase {
             assertTrue("Empty settings list always consistent.",
                     new ConsistentSettingsService(environment.settings(), clusterService, Collections.emptyList()).areAllConsistent());
             assertTrue(
-                    "Simple consistent secure setting is consistent [" + clusterService.state().metaData().hashesOfConsistentSettings()
+                    "Simple consistent secure setting is consistent [" + clusterService.state().metadata().hashesOfConsistentSettings()
                             + "].",
                     new ConsistentSettingsService(environment.settings(), clusterService,
                             Collections.singletonList(DUMMY_STRING_CONSISTENT_SETTING)).areAllConsistent());
             assertTrue(
-                    "Affix consistent secure setting is consistent [" + clusterService.state().metaData().hashesOfConsistentSettings()
+                    "Affix consistent secure setting is consistent [" + clusterService.state().metadata().hashesOfConsistentSettings()
                             + "].",
                     new ConsistentSettingsService(environment.settings(), clusterService,
                             Collections.singletonList(DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
-            assertTrue("All secure settings are consistent [" + clusterService.state().metaData().hashesOfConsistentSettings() + "].",
+            assertTrue("All secure settings are consistent [" + clusterService.state().metadata().hashesOfConsistentSettings() + "].",
                     new ConsistentSettingsService(environment.settings(), clusterService,
                             List.of(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
         }
@@ -87,16 +87,16 @@ public class ConsistentSettingsIT extends ESIntegTestCase {
         assertTrue("Empty settings list always consistent.",
                 new ConsistentSettingsService(environment.settings(), clusterService, Collections.emptyList()).areAllConsistent());
         assertFalse(
-                "Simple consistent secure setting is NOT consistent [" + clusterService.state().metaData().hashesOfConsistentSettings()
+                "Simple consistent secure setting is NOT consistent [" + clusterService.state().metadata().hashesOfConsistentSettings()
                         + "].",
                 new ConsistentSettingsService(environment.settings(), clusterService,
                         Collections.singletonList(DUMMY_STRING_CONSISTENT_SETTING)).areAllConsistent());
         assertTrue(
-                "Affix consistent secure setting is consistent [" + clusterService.state().metaData().hashesOfConsistentSettings()
+                "Affix consistent secure setting is consistent [" + clusterService.state().metadata().hashesOfConsistentSettings()
                         + "].",
                 new ConsistentSettingsService(environment.settings(), clusterService,
                         Collections.singletonList(DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        assertFalse("All secure settings are NOT consistent [" + clusterService.state().metaData().hashesOfConsistentSettings() + "].",
+        assertFalse("All secure settings are NOT consistent [" + clusterService.state().metadata().hashesOfConsistentSettings() + "].",
                 new ConsistentSettingsService(environment.settings(), clusterService,
                         List.of(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
         nodeSettingsOverride.set(nodeOrdinal -> {
@@ -131,16 +131,16 @@ public class ConsistentSettingsIT extends ESIntegTestCase {
         assertTrue("Empty settings list always consistent.",
                 new ConsistentSettingsService(environment.settings(), clusterService, Collections.emptyList()).areAllConsistent());
         assertTrue(
-                "Simple consistent secure setting is consistent [" + clusterService.state().metaData().hashesOfConsistentSettings()
+                "Simple consistent secure setting is consistent [" + clusterService.state().metadata().hashesOfConsistentSettings()
                         + "].",
                 new ConsistentSettingsService(environment.settings(), clusterService,
                         Collections.singletonList(DUMMY_STRING_CONSISTENT_SETTING)).areAllConsistent());
         assertFalse(
-                "Affix consistent secure setting is NOT consistent [" + clusterService.state().metaData().hashesOfConsistentSettings()
+                "Affix consistent secure setting is NOT consistent [" + clusterService.state().metadata().hashesOfConsistentSettings()
                         + "].",
                 new ConsistentSettingsService(environment.settings(), clusterService,
                         Collections.singletonList(DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        assertFalse("All secure settings are NOT consistent [" + clusterService.state().metaData().hashesOfConsistentSettings() + "].",
+        assertFalse("All secure settings are NOT consistent [" + clusterService.state().metadata().hashesOfConsistentSettings() + "].",
                 new ConsistentSettingsService(environment.settings(), clusterService,
                         List.of(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
         nodeSettingsOverride.set(null);

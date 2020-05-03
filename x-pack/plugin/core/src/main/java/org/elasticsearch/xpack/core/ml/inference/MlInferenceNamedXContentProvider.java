@@ -13,9 +13,14 @@ import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInference
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
@@ -100,10 +105,19 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             LogisticRegression::fromXContentStrict));
 
         // Inference Configs
-        namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfig.class, ClassificationConfig.NAME,
-                ClassificationConfig::fromXContent));
-        namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfig.class, RegressionConfig.NAME,
-                RegressionConfig::fromXContent));
+        namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedInferenceConfig.class, ClassificationConfig.NAME,
+                ClassificationConfig::fromXContentLenient));
+        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedInferenceConfig.class, ClassificationConfig.NAME,
+            ClassificationConfig::fromXContentStrict));
+        namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedInferenceConfig.class, RegressionConfig.NAME,
+                RegressionConfig::fromXContentLenient));
+        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedInferenceConfig.class, RegressionConfig.NAME,
+            RegressionConfig::fromXContentStrict));
+
+        namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfigUpdate.class, ClassificationConfigUpdate.NAME,
+            ClassificationConfigUpdate::fromXContentStrict));
+        namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfigUpdate.class, RegressionConfigUpdate.NAME,
+            RegressionConfigUpdate::fromXContentStrict));
 
         return namedXContent;
     }
@@ -149,9 +163,14 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
 
         // Inference Configs
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class,
-                ClassificationConfig.NAME.getPreferredName(), ClassificationConfig::new));
+            ClassificationConfig.NAME.getPreferredName(), ClassificationConfig::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class,
-                RegressionConfig.NAME.getPreferredName(), RegressionConfig::new));
+            RegressionConfig.NAME.getPreferredName(), RegressionConfig::new));
+
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class,
+            ClassificationConfigUpdate.NAME.getPreferredName(), ClassificationConfigUpdate::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class,
+            RegressionConfigUpdate.NAME.getPreferredName(), RegressionConfigUpdate::new));
 
         return namedWriteables;
     }

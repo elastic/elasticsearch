@@ -102,4 +102,8 @@ public class Iterables {
             return it.next();
         }
     }
+
+    public static long size(Iterable<?> iterable) {
+        return StreamSupport.stream(iterable.spliterator(), true).count();
+    }
 }

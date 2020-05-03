@@ -50,6 +50,40 @@ public interface BlobContainer {
     InputStream readBlob(String blobName) throws IOException;
 
     /**
+     * Creates a new {@link InputStream} that can be used to read the given blob starting from
+     * a specific {@code position} in the blob. The {@code length} is an indication of the
+     * number of bytes that are expected to be read from the {@link InputStream}.
+     *
+     * @param blobName The name of the blob to get an {@link InputStream} for.
+     * @param position The position in the blob where the next byte will be read.
+     * @param length   An indication of the number of bytes to be read.
+     * @return The {@code InputStream} to read the blob.
+     * @throws NoSuchFileException if the blob does not exist
+     * @throws IOException         if the blob can not be read.
+     */
+    default InputStream readBlob(final String blobName, final long position, final long length) throws IOException {
+        throw new UnsupportedOperationException(); // NORELEASE
+    }
+
+    /**
+     * Provides a hint to clients for a suitable length to use with {@link BlobContainer#readBlob(String, long, long)}.
+     *
+     * Some blob containers have nontrivial costs attached to each readBlob call, so it is a good idea for consumers to speculatively
+     * request more data than they need right now and to re-use this stream for future needs if possible.
+     *
+     * Also, some blob containers return streams that are expensive to close before the stream has been fully consumed, and the cost may
+     * depend on the length of the data that was left unconsumed. For these containers it's best to bound the cost of a partial read by
+     * bounding the length of the data requested.
+     *
+     * @return a hint to consumers regarding the length of data to request if there is a good chance that future reads can be satisfied from
+     * the same stream.
+     *
+     */
+    default long readBlobPreferredLength() {
+        throw new UnsupportedOperationException(); // NORELEASE
+    }
+
+    /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name.
      * This method assumes the container does not already contain a blob of the same blobName.  If a blob by the
      * same name already exists, the operation will fail and an {@link IOException} will be thrown.
@@ -110,10 +144,10 @@ public interface BlobContainer {
      * Lists all blobs in the container.
      *
      * @return  A map of all the blobs in the container.  The keys in the map are the names of the blobs and
-     *          the values are {@link BlobMetaData}, containing basic information about each blob.
+     *          the values are {@link BlobMetadata}, containing basic information about each blob.
      * @throws  IOException if there were any failures in reading from the blob container.
      */
-    Map<String, BlobMetaData> listBlobs() throws IOException;
+    Map<String, BlobMetadata> listBlobs() throws IOException;
 
     /**
      * Lists all child containers under this container. A child container is defined as a container whose {@link #path()} method returns
@@ -131,8 +165,8 @@ public interface BlobContainer {
      * @param   blobNamePrefix
      *          The prefix to match against blob names in the container.
      * @return  A map of the matching blobs in the container.  The keys in the map are the names of the blobs
-     *          and the values are {@link BlobMetaData}, containing basic information about each blob.
+     *          and the values are {@link BlobMetadata}, containing basic information about each blob.
      * @throws  IOException if there were any failures in reading from the blob container.
      */
-    Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException;
+    Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException;
 }

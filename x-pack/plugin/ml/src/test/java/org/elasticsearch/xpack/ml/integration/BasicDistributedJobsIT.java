@@ -16,8 +16,8 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
@@ -213,7 +213,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-            PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
             PersistentTask<?> task = tasks.getTask(MlTasks.jobTaskId(jobId));
 
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
@@ -264,7 +264,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         // Sample each cs update and keep track each time a node holds more than `maxConcurrentJobAllocations` opening jobs.
         List<String> violations = new CopyOnWriteArrayList<>();
         internalCluster().clusterService(nonMlNode).addListener(event -> {
-            PersistentTasksCustomMetaData tasks = event.state().metaData().custom(PersistentTasksCustomMetaData.TYPE);
+            PersistentTasksCustomMetadata tasks = event.state().metadata().custom(PersistentTasksCustomMetadata.TYPE);
             if (tasks == null) {
                 return;
             }
@@ -312,7 +312,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         ensureStableCluster(1, nonMlNode);
         assertBusy(() -> {
             ClusterState state = client(nonMlNode).admin().cluster().prepareState().get().getState();
-            PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+            PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
             assertEquals(numJobs, tasks.taskMap().size());
             for (PersistentTask<?> task : tasks.taskMap().values()) {
                 assertNull(task.getExecutorNode());
@@ -393,7 +393,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         client().execute(CloseJobAction.INSTANCE, closeJobRequest).actionGet();
         assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-            PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
             assertEquals(0, tasks.taskMap().size());
         });
         logger.info("Stop non ml node");
@@ -481,7 +481,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
     private void assertJobTask(String jobId, JobState expectedState, boolean hasExecutorNode) {
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-        PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         assertEquals(1, tasks.taskMap().size());
         PersistentTask<?> task = MlTasks.getJobTask(jobId, tasks);
         assertNotNull(task);
@@ -503,7 +503,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
     private CheckedRunnable<Exception> checkAllJobsAreAssignedAndOpened(int numJobs) {
         return () -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
-            PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+            PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
             assertEquals(numJobs, tasks.taskMap().size());
             for (PersistentTask<?> task : tasks.taskMap().values()) {
                 assertNotNull(task.getExecutorNode());

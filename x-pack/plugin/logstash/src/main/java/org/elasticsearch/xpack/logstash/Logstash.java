@@ -9,7 +9,8 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -45,7 +46,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
         );
     }
 
-    public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
+    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return templates -> {
             templates.keySet().removeIf(OLD_LOGSTASH_INDEX_NAME::equals);
             TemplateUtils.loadTemplateIntoMap(
@@ -62,7 +63,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
     }
 
     @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return Collections.singletonList(
             new SystemIndexDescriptor(LOGSTASH_CONCRETE_INDEX_NAME, "Contains data for Logstash Central Management")
         );

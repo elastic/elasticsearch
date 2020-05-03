@@ -903,6 +903,36 @@ setup:
   - match: { data_frame_analytics.0.state: "stopped" }
 
 ---
+"Test get stats on newly created congig":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo-1"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-foo-1_dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+  - match: { id: "foo-1" }
+
+  - do:
+      ml.get_data_frame_analytics_stats:
+        id: "foo-1"
+  - match: { count: 1 }
+  - length: { data_frame_analytics: 1 }
+  - match: { data_frame_analytics.0.id: "foo-1" }
+  - match: { data_frame_analytics.0.state: "stopped" }
+  - match: { data_frame_analytics.0.data_counts.training_docs_count: 0 }
+  - match: { data_frame_analytics.0.data_counts.test_docs_count: 0 }
+  - match: { data_frame_analytics.0.data_counts.skipped_docs_count: 0 }
+  - match: { data_frame_analytics.0.memory_usage.peak_usage_bytes: 0 }
+
+---
 "Test delete given stopped config":
 
   - do:

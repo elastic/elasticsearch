@@ -30,14 +30,12 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTermsAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
@@ -54,10 +52,10 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
     public SignificantStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource, DocValueFormat format,
             BucketCountThresholds bucketCountThresholds, IncludeExclude.StringFilter includeExclude, SearchContext aggregationContext,
             Aggregator parent, SignificanceHeuristic significanceHeuristic, SignificantTermsAggregatorFactory termsAggFactory,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+            Map<String, Object> metadata) throws IOException {
 
         super(name, factories, valuesSource, null, format, bucketCountThresholds, includeExclude, aggregationContext, parent,
-                SubAggCollectionMode.BREADTH_FIRST, false, pipelineAggregators, metaData);
+                SubAggCollectionMode.BREADTH_FIRST, false, metadata);
         this.significanceHeuristic = significanceHeuristic;
         this.termsAggFactory = termsAggFactory;
     }
@@ -130,8 +128,8 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         }
 
         return new SignificantStringTerms( name, bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(), pipelineAggregators(),
-                metaData(), format, subsetSize, supersetSize, significanceHeuristic, Arrays.asList(list));
+                bucketCountThresholds.getMinDocCount(),
+                metadata(), format, subsetSize, supersetSize, significanceHeuristic, Arrays.asList(list));
     }
 
     @Override
@@ -141,7 +139,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
         return new SignificantStringTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                pipelineAggregators(), metaData(), format, 0, supersetSize, significanceHeuristic, emptyList());
+                metadata(), format, 0, supersetSize, significanceHeuristic, emptyList());
     }
 
     @Override

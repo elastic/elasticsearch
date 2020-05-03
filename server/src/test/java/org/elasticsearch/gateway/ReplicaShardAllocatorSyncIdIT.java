@@ -21,7 +21,7 @@ package org.elasticsearch.gateway;
 
 import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -156,8 +156,8 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
         assertAcked(
             client().admin().indices().prepareCreate(indexName)
                 .setSettings(Settings.builder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                     .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(), "1ms") // expire PRRLs quickly
                     .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
                     .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")
@@ -213,8 +213,8 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
         assertAcked(
             client().admin().indices().prepareCreate(indexName)
                 .setSettings(Settings.builder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
                     .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), randomIntBetween(10, 100) + "kb")
                     .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(), "1ms") // expire PRRLs quickly
                     .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")

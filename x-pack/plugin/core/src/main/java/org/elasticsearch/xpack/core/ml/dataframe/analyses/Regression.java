@@ -163,6 +163,7 @@ public class Regression implements DataFrameAnalysis {
         if (predictionFieldName != null) {
             params.put(PREDICTION_FIELD_NAME.getPreferredName(), predictionFieldName);
         }
+        params.put(TRAINING_PERCENT.getPreferredName(), trainingPercent);
         return params;
     }
 
@@ -210,6 +211,11 @@ public class Regression implements DataFrameAnalysis {
     @Override
     public String getStateDocId(String jobId) {
         return jobId + STATE_DOC_ID_SUFFIX;
+    }
+
+    @Override
+    public List<String> getProgressPhases() {
+        return Collections.singletonList("analyzing");
     }
 
     public static String extractJobIdFromStateDoc(String stateDocId) {

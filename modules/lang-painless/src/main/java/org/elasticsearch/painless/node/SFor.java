@@ -26,10 +26,6 @@ import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ForLoopNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
-import java.util.Arrays;
-
-import static java.util.Collections.emptyList;
-
 /**
  * Represents a for loop.
  */
@@ -65,10 +61,6 @@ public class SFor extends AStatement {
                 AExpression.Input initializerInput = new AExpression.Input();
                 initializerInput.read = false;
                 initializerExpressionOutput = initializer.analyze(classNode, scriptRoot, scope, initializerInput);
-
-                if (initializerExpressionOutput.statement == false) {
-                    throw createError(new IllegalArgumentException("Not a statement."));
-                }
 
                 initializerInput.expected = initializerExpressionOutput.actual;
                 initializer.cast(initializerInput, initializerExpressionOutput);
@@ -108,10 +100,6 @@ public class SFor extends AStatement {
             AExpression.Input afterthoughtInput = new AExpression.Input();
             afterthoughtInput.read = false;
             afterthoughtOutput = afterthought.analyze(classNode, scriptRoot, scope, afterthoughtInput);
-
-            if (afterthoughtOutput.statement == false) {
-                throw createError(new IllegalArgumentException("Not a statement."));
-            }
 
             afterthoughtInput.expected = afterthoughtOutput.actual;
             afterthought.cast(afterthoughtInput, afterthoughtOutput);
@@ -154,10 +142,5 @@ public class SFor extends AStatement {
         output.statementNode = forLoopNode;
 
         return output;
-    }
-
-    @Override
-    public String toString() {
-        return multilineToString(emptyList(), Arrays.asList(initializer, condition, afterthought, block));
     }
 }

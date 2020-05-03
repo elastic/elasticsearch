@@ -8,23 +8,24 @@ package org.elasticsearch.xpack.idp.action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.idp.saml.support.SamlAuthenticationState;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-
 import java.io.IOException;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class SamlInitiateSingleSignOnRequest extends ActionRequest {
 
     private String spEntityId;
+    private String assertionConsumerService;
     private SamlAuthenticationState samlAuthenticationState;
 
     public SamlInitiateSingleSignOnRequest(StreamInput in) throws IOException {
         super(in);
         spEntityId = in.readString();
+        assertionConsumerService = in.readString();
         samlAuthenticationState = in.readOptionalWriteable(SamlAuthenticationState::new);
     }
 
@@ -37,13 +38,8 @@ public class SamlInitiateSingleSignOnRequest extends ActionRequest {
         if (Strings.isNullOrEmpty(spEntityId)) {
             validationException = addValidationError("entity_id is missing", validationException);
         }
-        if (samlAuthenticationState != null) {
-            final ValidationException authnStateException = samlAuthenticationState.validate();
-            if (validationException != null) {
-                ActionRequestValidationException actionRequestValidationException = new ActionRequestValidationException();
-                actionRequestValidationException.addValidationErrors(authnStateException.validationErrors());
-                validationException = addValidationError("entity_id is missing", actionRequestValidationException);
-            }
+        if (Strings.isNullOrEmpty(assertionConsumerService)) {
+            validationException = addValidationError("acs is missing", validationException);
         }
         return validationException;
     }
@@ -54,6 +50,14 @@ public class SamlInitiateSingleSignOnRequest extends ActionRequest {
 
     public void setSpEntityId(String spEntityId) {
         this.spEntityId = spEntityId;
+    }
+
+    public String getAssertionConsumerService() {
+        return assertionConsumerService;
+    }
+
+    public void setAssertionConsumerService(String assertionConsumerService) {
+        this.assertionConsumerService = assertionConsumerService;
     }
 
     public SamlAuthenticationState getSamlAuthenticationState() {
@@ -68,11 +72,13 @@ public class SamlInitiateSingleSignOnRequest extends ActionRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(spEntityId);
+        out.writeString(assertionConsumerService);
         out.writeOptionalWriteable(samlAuthenticationState);
     }
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "{spEntityId='" + spEntityId + "'}";
+        return getClass().getSimpleName() + "{spEntityId='" + spEntityId + "', acs='" + assertionConsumerService + "'}";
     }
+
 }

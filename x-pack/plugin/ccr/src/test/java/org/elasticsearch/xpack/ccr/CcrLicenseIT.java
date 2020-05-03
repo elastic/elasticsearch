@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -172,7 +172,7 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
                         Collections.emptyMap());
 
                     ClusterState.Builder newState = ClusterState.builder(currentState);
-                    newState.metaData(MetaData.builder(currentState.getMetaData())
+                    newState.metadata(Metadata.builder(currentState.getMetadata())
                         .putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)
                         .build());
                     return newState.build();

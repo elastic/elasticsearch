@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
@@ -174,7 +175,6 @@ public class Pivot {
         Map<String, String> fieldTypeMap,
         TransformIndexerStats transformIndexerStats
     ) {
-
         GroupConfig groups = config.getGroupConfig();
         Collection<AggregationBuilder> aggregationBuilders = config.getAggregationConfig().getAggregatorFactories();
         Collection<PipelineAggregationBuilder> pipelineAggregationBuilders = config.getAggregationConfig().getPipelineAggregatorFactories();
@@ -189,44 +189,31 @@ public class Pivot {
         );
     }
 
-    public QueryBuilder filterBuckets(Map<String, Set<String>> changedBuckets) {
-
-        if (changedBuckets == null || changedBuckets.isEmpty()) {
-            return null;
-        }
+    public QueryBuilder filterBuckets(
+        Map<String, Set<String>> changedBuckets,
+        String synchronizationField,
+        long lastSynchronizationCheckpoint
+    ) {
+        assert changedBuckets != null;
 
         if (config.getGroupConfig().getGroups().size() == 1) {
             Entry<String, SingleGroupSource> entry = config.getGroupConfig().getGroups().entrySet().iterator().next();
-            // it should not be possible to get into this code path
-            assert (entry.getValue().supportsIncrementalBucketUpdate());
-
-            logger.trace("filter by bucket: " + entry.getKey() + "/" + entry.getValue().getField());
-            if (changedBuckets.containsKey(entry.getKey())) {
-                return entry.getValue().getIncrementalBucketUpdateFilterQuery(changedBuckets.get(entry.getKey()));
-            } else {
-                // should never happen
-                throw new RuntimeException("Could not find bucket value for key " + entry.getKey());
-            }
+            logger.trace(() -> new ParameterizedMessage("filter by bucket: {}/{}", entry.getKey(), entry.getValue().getField()));
+            Set<String> changedBucketsByGroup = changedBuckets.get(entry.getKey());
+            return entry.getValue()
+                .getIncrementalBucketUpdateFilterQuery(changedBucketsByGroup, synchronizationField, lastSynchronizationCheckpoint);
         }
 
         // else: more than 1 group by, need to nest it
         BoolQueryBuilder filteredQuery = new BoolQueryBuilder();
         for (Entry<String, SingleGroupSource> entry : config.getGroupConfig().getGroups().entrySet()) {
-            if (entry.getValue().supportsIncrementalBucketUpdate() == false) {
-                continue;
+            Set<String> changedBucketsByGroup = changedBuckets.get(entry.getKey());
+            QueryBuilder sourceQueryFilter = entry.getValue()
+                .getIncrementalBucketUpdateFilterQuery(changedBucketsByGroup, synchronizationField, lastSynchronizationCheckpoint);
+            // the source might not define a filter optimization
+            if (sourceQueryFilter != null) {
+                filteredQuery.filter(sourceQueryFilter);
             }
-
-            if (changedBuckets.containsKey(entry.getKey())) {
-                QueryBuilder sourceQueryFilter = entry.getValue().getIncrementalBucketUpdateFilterQuery(changedBuckets.get(entry.getKey()));
-                // the source might not define an filter optimization
-                if (sourceQueryFilter != null) {
-                    filteredQuery.filter(sourceQueryFilter);
-                }
-            } else {
-                // should never happen
-                throw new RuntimeException("Could not find bucket value for key " + entry.getKey());
-            }
-
         }
 
         return filteredQuery;

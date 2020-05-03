@@ -1,7 +1,8 @@
 {
   "ml.delete_job":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-job.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-job.html",
+      "description":"Deletes an existing anomaly detection job."
     },
     "stability":"stable",
     "url":{

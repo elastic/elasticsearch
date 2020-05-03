@@ -156,7 +156,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             // Build the list of shards for which recoveries will be blocked
             final Set<ShardId> blockedShards = commands.commands().stream()
                 .map(c -> (MoveAllocationCommand) c)
-                .map(c -> new ShardId(clusterService.state().metaData().index(c.index()).getIndex(), c.shardId()))
+                .map(c -> new ShardId(clusterService.state().metadata().index(c.index()).getIndex(), c.shardId()))
                 .collect(Collectors.toSet());
             assertThat(blockedShards, hasSize(indices.length));
 

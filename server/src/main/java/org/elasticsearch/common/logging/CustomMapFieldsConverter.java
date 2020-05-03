@@ -26,8 +26,6 @@ import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
 
-import java.util.Set;
-
 /**
  * Pattern converter to populate CustomMapFields in a pattern.
  * This is to be used with custom ElasticSearch log messages
@@ -37,32 +35,22 @@ import java.util.Set;
 @ConverterKeys({"CustomMapFields"})
 public final class CustomMapFieldsConverter extends LogEventPatternConverter {
 
-
-    private Set<String> overridenFields;
-
-    public CustomMapFieldsConverter(Set<String> overridenFields) {
+    public CustomMapFieldsConverter() {
         super("CustomMapFields", "CustomMapFields");
-        this.overridenFields = overridenFields;
     }
 
     /**
      * Called by log4j2 to initialize this converter.
      */
     public static CustomMapFieldsConverter newInstance(final Configuration config, final String[] options) {
-        Set<String> overridenFields = csvToSet(options[0]);
-        return new CustomMapFieldsConverter(overridenFields);
-    }
-
-    private static Set<String> csvToSet(String csv) {
-        String[] split = csv.split(",");
-        return Set.of(split);
+        return new CustomMapFieldsConverter();
     }
 
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
         if(event.getMessage() instanceof ESLogMessage) {
             ESLogMessage logMessage = (ESLogMessage) event.getMessage();
-            logMessage.asJson(toAppendTo);
+            logMessage.addJsonNoBrackets(toAppendTo);
         }
     }
 }

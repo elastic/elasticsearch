@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -24,6 +25,7 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.junit.Before;
@@ -57,7 +59,7 @@ public class TransformInfoTransportActionTests extends ESTestCase {
             licenseState
         );
         boolean available = randomBoolean();
-        when(licenseState.isTransformAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 
@@ -72,6 +74,7 @@ public class TransformInfoTransportActionTests extends ESTestCase {
             licenseState
         );
         assertThat(featureSet.enabled(), is(enabled));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.TRANSFORM_ENABLED } );
     }
 
     public void testEnabledDefault() {
@@ -129,7 +132,7 @@ public class TransformInfoTransportActionTests extends ESTestCase {
     }
 
     public void testUsageDisabled() throws IOException, InterruptedException, ExecutionException {
-        when(licenseState.isTransformAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM)).thenReturn(true);
         Settings.Builder settings = Settings.builder();
         settings.put("xpack.transform.enabled", false);
         var usageAction = new TransformUsageTransportAction(
@@ -158,5 +161,6 @@ public class TransformInfoTransportActionTests extends ESTestCase {
             assertEquals(null, XContentMapValues.extractValue("transforms", usageAsMap));
             assertEquals(null, XContentMapValues.extractValue("stats", usageAsMap));
         }
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.TRANSFORM_ENABLED } );
     }
 }

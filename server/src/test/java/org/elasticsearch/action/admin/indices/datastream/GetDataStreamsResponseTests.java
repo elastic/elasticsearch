@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.indices.datastream;
 
 import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction.Response;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTests;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -52,8 +53,7 @@ public class GetDataStreamsResponseTests extends AbstractSerializingTestCase<Res
         int numDataStreams = randomIntBetween(0, 8);
         List<DataStream> dataStreams = new ArrayList<>();
         for (int i = 0; i < numDataStreams; i++) {
-            dataStreams.add(new DataStream(randomAlphaOfLength(4), randomAlphaOfLength(4),
-                List.of(generateRandomStringArray(8, 4, false))));
+            dataStreams.add(DataStreamTests.randomInstance());
         }
         return new Response(dataStreams);
     }

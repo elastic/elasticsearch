@@ -84,8 +84,8 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
-        return new CumulativeSumPipelineAggregator(name, bucketsPaths, formatter(), metaData);
+    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
+        return new CumulativeSumPipelineAggregator(name, bucketsPaths, formatter(), metadata);
     }
 
     @Override

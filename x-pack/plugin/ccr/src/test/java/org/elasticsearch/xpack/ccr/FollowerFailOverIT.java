@@ -10,7 +10,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -221,7 +221,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         flushingOnFollower.start();
         awaitGlobalCheckpointAtLeast(followerClient(), new ShardId(resolveFollowerIndex("follower-index"), 0), 50);
         followerClient().admin().indices().prepareUpdateSettings("follower-index")
-            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas + 1).build()).get();
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas + 1).build()).get();
         ensureFollowerGreen("follower-index");
         awaitGlobalCheckpointAtLeast(followerClient(), new ShardId(resolveFollowerIndex("follower-index"), 0), 100);
         stopped.set(true);
@@ -238,8 +238,8 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         assertAcked(
             leaderClient().admin().indices().prepareCreate("leader-index")
                 .setSettings(Settings.builder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put("index.routing.allocation.require.box", "large"))
                 .get()
         );
@@ -254,7 +254,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         // have an older mapping version than the actual mapping version that IndexService will use to index "doc1".
         final CountDownLatch latch = new CountDownLatch(1);
         clusterService.addLowPriorityApplier(event -> {
-            IndexMetaData imd = event.state().metaData().index("leader-index");
+            IndexMetadata imd = event.state().metadata().index("leader-index");
             if (imd != null && imd.mapping() != null &&
                 XContentMapValues.extractValue("properties.balance.type", imd.mapping().sourceAsMap()) != null) {
                 try {

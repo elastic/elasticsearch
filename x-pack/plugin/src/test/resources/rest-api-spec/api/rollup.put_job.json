@@ -1,7 +1,8 @@
 {
   "rollup.put_job":{
     "documentation":{
-      "url":""
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-put-job.html",
+      "description":"Creates a rollup job."
     },
     "stability":"experimental",
     "url":{

@@ -145,9 +145,9 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             if (source == null) {
                 if (ignoreEmpty || Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
                     if (Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
-                        deprecationLogger.deprecated("empty templates should no longer be used");
+                        deprecationLogger.deprecatedAndMaybeLog("empty_templates", "empty templates should no longer be used");
                     } else {
-                        deprecationLogger.deprecated("empty scripts should no longer be used");
+                        deprecationLogger.deprecatedAndMaybeLog("empty_scripts", "empty scripts should no longer be used");
                     }
                 } else {
                     throw new IllegalArgumentException("must specify source for stored script");
@@ -155,9 +155,9 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             } else if (source.isEmpty()) {
                 if (ignoreEmpty || Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
                     if (Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
-                        deprecationLogger.deprecated("empty templates should no longer be used");
+                        deprecationLogger.deprecatedAndMaybeLog("empty_templates", "empty templates should no longer be used");
                     } else {
-                        deprecationLogger.deprecated("empty scripts should no longer be used");
+                        deprecationLogger.deprecatedAndMaybeLog("empty_scripts", "empty scripts should no longer be used");
                     }
                 } else {
                     throw new IllegalArgumentException("source cannot be empty");
@@ -192,7 +192,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * }
      *
      * The above format requires the lang to be specified using the deprecated stored script namespace
-     * (as a url parameter during a put request).  See {@link ScriptMetaData} for more information about
+     * (as a url parameter during a put request).  See {@link ScriptMetadata} for more information about
      * the stored script namespaces.
      *
      * The complex script format using the new stored script namespace
@@ -257,7 +257,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             token = parser.nextToken();
 
             if (token == Token.END_OBJECT) {
-                deprecationLogger.deprecated("empty templates should no longer be used");
+                deprecationLogger.deprecatedAndMaybeLog("empty_templates", "empty templates should no longer be used");
 
                 return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, "", Collections.emptyMap());
             }
@@ -314,7 +314,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     }
 
     /**
-     * Required for {@link ScriptMetaData.ScriptMetadataDiff}.  Uses
+     * Required for {@link ScriptMetadata.ScriptMetadataDiff}.  Uses
      * the {@link StoredScriptSource#StoredScriptSource(StreamInput)}
      * constructor.
      */

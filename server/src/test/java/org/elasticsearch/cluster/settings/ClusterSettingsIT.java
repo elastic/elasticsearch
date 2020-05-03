@@ -24,7 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -301,10 +301,10 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         // Cluster settings updates are blocked when the cluster is read only
         try {
             setClusterReadOnly(true);
-            assertBlocked(request, MetaData.CLUSTER_READ_ONLY_BLOCK);
+            assertBlocked(request, Metadata.CLUSTER_READ_ONLY_BLOCK);
 
             // But it's possible to update the settings to update the "cluster.blocks.read_only" setting
-            Settings settings = Settings.builder().putNull(MetaData.SETTING_READ_ONLY_SETTING.getKey()).build();
+            Settings settings = Settings.builder().putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey()).build();
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
 
         } finally {
@@ -314,12 +314,12 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         // Cluster settings updates are blocked when the cluster is read only
         try {
             // But it's possible to update the settings to update the "cluster.blocks.read_only" setting
-            Settings settings = Settings.builder().put(MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true).build();
+            Settings settings = Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true).build();
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
-            assertBlocked(request, MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
+            assertBlocked(request, Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
         } finally {
             // But it's possible to update the settings to update the "cluster.blocks.read_only" setting
-            Settings s = Settings.builder().putNull(MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey()).build();
+            Settings s = Settings.builder().putNull(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey()).build();
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(s).get());
         }
 
@@ -389,20 +389,20 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
             client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).execute().actionGet();
             ClusterStateResponse state = client().admin().cluster().prepareState().execute().actionGet();
-            assertEquals(value, state.getState().getMetaData().persistentSettings().get(key));
+            assertEquals(value, state.getState().getMetadata().persistentSettings().get(key));
 
             client().admin().cluster().prepareUpdateSettings().setPersistentSettings(updatedSettings).execute().actionGet();
             ClusterStateResponse updatedState = client().admin().cluster().prepareState().execute().actionGet();
-            assertEquals(updatedValue, updatedState.getState().getMetaData().persistentSettings().get(key));
+            assertEquals(updatedValue, updatedState.getState().getMetadata().persistentSettings().get(key));
         } else {
             logger.info("Using transient settings");
             client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).execute().actionGet();
             ClusterStateResponse state = client().admin().cluster().prepareState().execute().actionGet();
-            assertEquals(value, state.getState().getMetaData().transientSettings().get(key));
+            assertEquals(value, state.getState().getMetadata().transientSettings().get(key));
 
             client().admin().cluster().prepareUpdateSettings().setTransientSettings(updatedSettings).execute().actionGet();
             ClusterStateResponse updatedState = client().admin().cluster().prepareState().execute().actionGet();
-            assertEquals(updatedValue, updatedState.getState().getMetaData().transientSettings().get(key));
+            assertEquals(updatedValue, updatedState.getState().getMetadata().transientSettings().get(key));
         }
     }
 

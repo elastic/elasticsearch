@@ -53,12 +53,15 @@ public class EMapInit extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        Output output = new Output();
-
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException("Must read from map initializer."));
+        if (input.write) {
+            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to map initializer"));
         }
 
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException("not a statement: result not used from map initializer"));
+        }
+
+        Output output = new Output();
         output.actual = HashMap.class;
 
         PainlessConstructor constructor = scriptRoot.getPainlessLookup().lookupPainlessConstructor(output.actual, 0);
@@ -115,10 +118,5 @@ public class EMapInit extends AExpression {
         output.expressionNode = mapInitializationNode;
 
         return output;
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(pairwiseToString(keys, values));
     }
 }

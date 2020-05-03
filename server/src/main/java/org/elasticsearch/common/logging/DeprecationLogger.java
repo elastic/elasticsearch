@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.BitSet;
@@ -110,15 +111,8 @@ public class DeprecationLogger {
         this.logger = LogManager.getLogger(name);
     }
 
-    /**
-     * Logs a deprecation message, adding a formatted warning message as a response header on the thread context.
-     */
-    public void deprecated(String msg, Object... params) {
-        deprecated(THREAD_CONTEXT, msg, params);
-    }
-
     // LRU set of keys used to determine if a deprecation message should be emitted to the deprecation logs
-    private Set<String> keys = Collections.newSetFromMap(Collections.synchronizedMap(new LinkedHashMap<String, Boolean>() {
+    private final Set<String> keys = Collections.newSetFromMap(Collections.synchronizedMap(new LinkedHashMap<>() {
         @Override
         protected boolean removeEldestEntry(final Map.Entry<String, Boolean> eldest) {
             return size() > 128;
@@ -135,8 +129,8 @@ public class DeprecationLogger {
      */
     public void deprecatedAndMaybeLog(final String key, final String msg, final Object... params) {
         String xOpaqueId = getXOpaqueId(THREAD_CONTEXT);
-        boolean log = keys.add(xOpaqueId + key);
-        deprecated(THREAD_CONTEXT, msg, log, params);
+        boolean shouldLog = keys.add(xOpaqueId + key);
+        deprecated(THREAD_CONTEXT, msg, shouldLog, params);
     }
 
     /*
@@ -234,7 +228,7 @@ public class DeprecationLogger {
         deprecated(threadContexts, message, true, params);
     }
 
-    void deprecated(final Set<ThreadContext> threadContexts, final String message, final boolean log, final Object... params) {
+    void deprecated(final Set<ThreadContext> threadContexts, final String message, final boolean shouldLog, final Object... params) {
         final Iterator<ThreadContext> iterator = threadContexts.iterator();
         if (iterator.hasNext()) {
             final String formattedMessage = LoggerMessageFormat.format(message, params);
@@ -251,12 +245,12 @@ public class DeprecationLogger {
             }
         }
 
-        if (log) {
+        if (shouldLog) {
             AccessController.doPrivileged(new PrivilegedAction<Void>() {
                 @SuppressLoggerChecks(reason = "safely delegates to logger")
                 @Override
                 public Void run() {
-                    /**
+                    /*
                      * There should be only one threadContext (in prod env), @see DeprecationLogger#setThreadContext
                      */
                     String opaqueId = getXOpaqueId(threadContexts);
@@ -360,7 +354,7 @@ public class DeprecationLogger {
         assert doesNotNeedEncoding.get('%') == false : doesNotNeedEncoding;
     }
 
-    private static final Charset UTF_8 = Charset.forName("UTF-8");
+    private static final Charset UTF_8 = StandardCharsets.UTF_8;
 
     /**
      * Encode a string containing characters outside of the legal characters for an RFC 7230 quoted-string.

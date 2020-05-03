@@ -12,6 +12,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.client.ml.inference.TrainedModelInput;
+import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.Ensemble;
@@ -193,6 +194,7 @@ public class TrainedModelIT extends ESRestTestCase {
                 .setTrainedModel(buildRegression());
             TrainedModelConfig.builder()
                 .setDefinition(definition)
+                .setInferenceConfig(new RegressionConfig())
                 .setModelId(modelId)
                 .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3")))
                 .build().toXContent(builder, ToXContent.EMPTY_PARAMS);

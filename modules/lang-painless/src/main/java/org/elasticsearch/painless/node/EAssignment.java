@@ -36,8 +36,6 @@ import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -73,21 +71,13 @@ public class EAssignment extends AExpression {
         PainlessCast there = null;
         PainlessCast back = null;
 
-        Output leftOutput;
+        Input leftInput = new Input();
+        leftInput.read = input.read;
+        leftInput.write = true;
+        Output leftOutput = lhs.analyze(classNode, scriptRoot, scope, leftInput);
 
         Input rightInput = new Input();
         Output rightOutput;
-
-        if (lhs instanceof AStoreable) {
-            AStoreable lhs = (AStoreable)this.lhs;
-            AStoreable.Input leftInput = new AStoreable.Input();
-
-            leftInput.read = input.read;
-            leftInput.write = true;
-            leftOutput = lhs.analyze(classNode, scriptRoot, scope, leftInput);
-        } else {
-            throw new IllegalArgumentException("Left-hand side cannot be assigned a value.");
-        }
 
         if (pre && post) {
             throw createError(new IllegalStateException("Illegal tree structure."));
@@ -195,11 +185,8 @@ public class EAssignment extends AExpression {
 
 
         } else if (rhs != null) {
-            AStoreable lhs = (AStoreable)this.lhs;
-
-            // TODO: move this optimization to a later phase
             // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
-            if (lhs.isDefOptimized()) {
+            if (leftOutput.isDefOptimized) {
                 rightOutput = rhs.analyze(classNode, scriptRoot, scope, rightInput);
 
                 if (rightOutput.actual == void.class) {
@@ -228,7 +215,6 @@ public class EAssignment extends AExpression {
             throw new IllegalStateException("Illegal tree structure.");
         }
 
-        output.statement = true;
         output.actual = input.read ? leftOutput.actual : void.class;
 
         AssignmentNode assignmentNode = new AssignmentNode();
@@ -250,25 +236,5 @@ public class EAssignment extends AExpression {
         output.expressionNode = assignmentNode;
 
         return output;
-    }
-
-    @Override
-    public String toString() {
-        List<Object> subs = new ArrayList<>();
-        subs.add(lhs);
-        if (rhs != null) {
-            // Make sure "=" is in the symbol so this is easy to read at a glance
-            subs.add(operation == null ? "=" : operation.symbol + "=");
-            subs.add(rhs);
-            return singleLineToString(subs);
-        }
-        subs.add(operation.symbol);
-        if (pre) {
-            subs.add("pre");
-        }
-        if (post) {
-            subs.add("post");
-        }
-        return singleLineToString(subs);
     }
 }

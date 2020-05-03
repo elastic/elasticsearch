@@ -89,14 +89,15 @@ public abstract class IdpSamlTestCase extends ESTestCase {
     protected static void mockRegisteredServiceProvider(SamlIdentityProvider idp, String entityId, SamlServiceProvider sp) {
         Mockito.doAnswer(inv -> {
             final Object[] args = inv.getArguments();
-            assertThat(args, Matchers.arrayWithSize(3));
+            assertThat(args, Matchers.arrayWithSize(4));
             assertThat(args[0], Matchers.equalTo(entityId));
-            assertThat(args[args.length-1], Matchers.instanceOf(ActionListener.class));
-            ActionListener<SamlServiceProvider> listener = (ActionListener<SamlServiceProvider>) args[args.length-1];
+            assertThat(args[args.length - 1], Matchers.instanceOf(ActionListener.class));
+            ActionListener<SamlServiceProvider> listener = (ActionListener<SamlServiceProvider>) args[args.length - 1];
 
             listener.onResponse(sp);
             return null;
-        }).when(idp).getRegisteredServiceProvider(Mockito.eq(entityId), Mockito.anyBoolean(), Mockito.any(ActionListener.class));
+        }).when(idp).resolveServiceProvider(Mockito.eq(entityId), Mockito.anyString(), Mockito.anyBoolean(),
+            Mockito.any(ActionListener.class));
     }
 
     protected static void mockRegisteredServiceProvider(SamlServiceProviderResolver resolverMock, String entityId,

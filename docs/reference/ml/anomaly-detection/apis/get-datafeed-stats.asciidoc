@@ -60,7 +60,7 @@ all {dfeeds}.
 (Optional, boolean)
 include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
 
-
+[role="child_attributes"]
 [[ml-get-datafeed-stats-results]]
 ==== {api-response-body-title}
 
@@ -78,18 +78,31 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 `node`::
 (object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=node-datafeeds]
++
+--
+[%collapsible%open]
+====
+`attributes`:::
+(object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=node-attributes]
 
-`node`.`id`:::
-include::{docdir}/ml/ml-shared.asciidoc[tag=node-id]
-
-`node`.`name`::: The node name. For example, `0-o0tOo`.
-
-`node`.`ephemeral_id`:::
+`ephemeral_id`:::
+(string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
 
-`node`.`transport_address`::: The host and port where transport HTTP connections are
-accepted. For example, `127.0.0.1:9300`.
-`node`.`attributes`::: For example, `{"ml.machine_memory": "17179869184"}`.
+`id`:::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=node-id]
+
+`name`:::
+(string)
+The node name. For example, `0-o0tOo`.
+
+`transport_address`:::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=node-transport-address]
+====
+--
 
 `state`::
 (string)
@@ -98,27 +111,32 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=state-datafeed]
 `timing_stats`::
 (object) An object that provides statistical information about timing aspect of
 this {dfeed}.
-
-`timing_stats`.`average_search_time_per_bucket_ms`:::
++
+--
+[%collapsible%open]
+====
+`average_search_time_per_bucket_ms`:::
 (double)
 include::{docdir}/ml/ml-shared.asciidoc[tag=search-bucket-avg]
 
-`timing_stats`.`bucket_count`:::
+`bucket_count`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-count]
 
-`timing_stats`.`exponential_average_search_time_per_hour_ms`:::
+`exponential_average_search_time_per_hour_ms`:::
 (double)
 include::{docdir}/ml/ml-shared.asciidoc[tag=search-exp-avg-hour]
 
-`timing_stats`.`job_id`:::
+`job_id`:::
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
-`timing_stats`.`search_count`:::
+`search_count`:::
 include::{docdir}/ml/ml-shared.asciidoc[tag=search-count]
 
-`timing_stats`.`total_search_time_ms`:::
+`total_search_time_ms`:::
 include::{docdir}/ml/ml-shared.asciidoc[tag=search-time]
+====
+--
 
 
 [[ml-get-datafeed-stats-response-codes]]

@@ -27,7 +27,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -168,11 +168,11 @@ public class TruncateTranslogAction {
         try {
             final Path translogPath = shardPath.resolveTranslog();
             final long translogGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
-            final IndexMetaData indexMetaData = clusterState.metaData().getIndexSafe(shardPath.getShardId().getIndex());
-            final IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
+            final IndexMetadata indexMetadata = clusterState.metadata().getIndexSafe(shardPath.getShardId().getIndex());
+            final IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
             final TranslogConfig translogConfig = new TranslogConfig(shardPath.getShardId(), translogPath,
                 indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
-            long primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardPath.getShardId().id());
+            long primaryTerm = indexSettings.getIndexMetadata().primaryTerm(shardPath.getShardId().id());
             final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
             try (Translog translog = new Translog(translogConfig, translogUUID,
                 translogDeletionPolicy, () -> translogGlobalCheckpoint, () -> primaryTerm, seqNo -> {});

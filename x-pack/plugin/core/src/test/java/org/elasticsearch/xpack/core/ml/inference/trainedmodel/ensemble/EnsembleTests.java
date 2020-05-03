@@ -65,6 +65,10 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
     }
 
     public static Ensemble createRandom() {
+        return createRandom(randomFrom(TargetType.values()));
+    }
+
+    public static Ensemble createRandom(TargetType targetType) {
         int numberOfFeatures = randomIntBetween(1, 10);
         List<String> featureNames = Stream.generate(() -> randomAlphaOfLength(10)).limit(numberOfFeatures).collect(Collectors.toList());
         int numberOfModels = randomIntBetween(1, 10);
@@ -74,7 +78,6 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         double[] weights = randomBoolean() ?
             null :
             Stream.generate(ESTestCase::randomDouble).limit(numberOfModels).mapToDouble(Double::valueOf).toArray();
-        TargetType targetType = randomFrom(TargetType.values());
         List<String> categoryLabels = null;
         if (randomBoolean() && targetType == TargetType.CLASSIFICATION) {
             categoryLabels = randomList(2, randomIntBetween(3, 10), () -> randomAlphaOfLength(10));

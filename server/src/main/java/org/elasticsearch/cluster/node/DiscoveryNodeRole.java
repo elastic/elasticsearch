@@ -20,15 +20,17 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.node.Node;
 
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedSet;
 
 /**
  * Represents a node role.
  */
-public abstract class DiscoveryNodeRole {
+public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
 
     private final String roleName;
 
@@ -90,6 +92,11 @@ public abstract class DiscoveryNodeRole {
     }
 
     @Override
+    public final int compareTo(final DiscoveryNodeRole o) {
+        return roleName.compareTo(o.roleName);
+    }
+
+    @Override
     public final String toString() {
         return "DiscoveryNodeRole{" +
                 "roleName='" + roleName + '\'' +
@@ -146,9 +153,11 @@ public abstract class DiscoveryNodeRole {
     /**
      * The built-in node roles.
      */
-    public static Set<DiscoveryNodeRole> BUILT_IN_ROLES = Set.of(DATA_ROLE, INGEST_ROLE, MASTER_ROLE, REMOTE_CLUSTER_CLIENT_ROLE);
+    public static SortedSet<DiscoveryNodeRole> BUILT_IN_ROLES =
+        Set.of(DATA_ROLE, INGEST_ROLE, MASTER_ROLE, REMOTE_CLUSTER_CLIENT_ROLE).stream().collect(Sets.toUnmodifiableSortedSet());
 
-    static Set<DiscoveryNodeRole> LEGACY_ROLES = Set.of(DATA_ROLE, INGEST_ROLE, MASTER_ROLE);
+    static SortedSet<DiscoveryNodeRole> LEGACY_ROLES =
+        Set.of(DATA_ROLE, INGEST_ROLE, MASTER_ROLE).stream().collect(Sets.toUnmodifiableSortedSet());
 
     /**
      * Represents an unknown role. This can occur if a newer version adds a role that an older version does not know about, or a newer

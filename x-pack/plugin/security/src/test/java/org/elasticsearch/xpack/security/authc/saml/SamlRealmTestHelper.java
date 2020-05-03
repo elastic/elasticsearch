@@ -46,7 +46,7 @@ public class SamlRealmTestHelper {
                 mock(SamlLogoutRequestHandler.class), () -> idpDescriptor, spConfiguration);
     }
 
-    public static void writeIdpMetaData(Path path, String idpEntityId) throws IOException {
+    public static void writeIdpMetadata(Path path, String idpEntityId) throws IOException {
         Files.write(path, Arrays.asList(
             "<?xml version=\"1.0\"?>",
             "<md:EntityDescriptor xmlns:md='urn:oasis:names:tc:SAML:2.0:metadata' entityID='" + idpEntityId + "'>",

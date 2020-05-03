@@ -43,7 +43,7 @@ public class GetFieldMappingsResponse {
 
     private static final ParseField MAPPINGS = new ParseField("mappings");
 
-    private static final ObjectParser<Map<String, FieldMappingMetaData>, String> PARSER =
+    private static final ObjectParser<Map<String, FieldMappingMetadata>, String> PARSER =
         new ObjectParser<>(MAPPINGS.getPreferredName(), true, HashMap::new);
 
     static {
@@ -51,16 +51,16 @@ public class GetFieldMappingsResponse {
             p.nextToken();
             while (p.currentToken() == XContentParser.Token.FIELD_NAME) {
                 final String fieldName = p.currentName();
-                final FieldMappingMetaData fieldMappingMetaData = FieldMappingMetaData.fromXContent(p);
-                fieldMappings.put(fieldName, fieldMappingMetaData);
+                final FieldMappingMetadata fieldMappingMetadata = FieldMappingMetadata.fromXContent(p);
+                fieldMappings.put(fieldName, fieldMappingMetadata);
                 p.nextToken();
             }
         }, MAPPINGS, ObjectParser.ValueType.OBJECT);
     }
 
-    private Map<String, Map<String, FieldMappingMetaData>> mappings;
+    private Map<String, Map<String, FieldMappingMetadata>> mappings;
 
-    GetFieldMappingsResponse(Map<String, Map<String, FieldMappingMetaData>> mappings) {
+    GetFieldMappingsResponse(Map<String, Map<String, FieldMappingMetadata>> mappings) {
         this.mappings = mappings;
     }
 
@@ -68,7 +68,7 @@ public class GetFieldMappingsResponse {
      /**
      * Returns the fields mapping. The return map keys are indexes and fields (as specified in the request).
      */
-    public Map<String, Map<String, FieldMappingMetaData>> mappings() {
+    public Map<String, Map<String, FieldMappingMetadata>> mappings() {
         return mappings;
     }
 
@@ -76,10 +76,10 @@ public class GetFieldMappingsResponse {
      * Returns the mappings of a specific index and field.
      *
      * @param field field name as specified in the {@link GetFieldMappingsRequest}
-     * @return FieldMappingMetaData for the requested field or null if not found.
+     * @return FieldMappingMetadata for the requested field or null if not found.
      */
-    public FieldMappingMetaData fieldMappings(String index, String field) {
-        Map<String, FieldMappingMetaData> indexMapping = mappings.get(index);
+    public FieldMappingMetadata fieldMappings(String index, String field) {
+        Map<String, FieldMappingMetadata> indexMapping = mappings.get(index);
         if (indexMapping == null) {
             return null;
         }
@@ -89,11 +89,11 @@ public class GetFieldMappingsResponse {
 
     public static GetFieldMappingsResponse fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-        final Map<String, Map<String, FieldMappingMetaData>> mappings = new HashMap<>();
+        final Map<String, Map<String, FieldMappingMetadata>> mappings = new HashMap<>();
         if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
             while (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
                 final String index = parser.currentName();
-                final Map<String, FieldMappingMetaData> fieldMappings = PARSER.parse(parser, index);
+                final Map<String, FieldMappingMetadata> fieldMappings = PARSER.parse(parser, index);
                 mappings.put(index, fieldMappings);
                 parser.nextToken();
             }
@@ -101,13 +101,13 @@ public class GetFieldMappingsResponse {
         return new GetFieldMappingsResponse(mappings);
     }
 
-    public static class FieldMappingMetaData {
+    public static class FieldMappingMetadata {
         private static final ParseField FULL_NAME = new ParseField("full_name");
         private static final ParseField MAPPING = new ParseField("mapping");
 
-        private static final ConstructingObjectParser<FieldMappingMetaData, String> PARSER =
+        private static final ConstructingObjectParser<FieldMappingMetadata, String> PARSER =
             new ConstructingObjectParser<>("field_mapping_meta_data", true,
-                a -> new FieldMappingMetaData((String)a[0], (BytesReference)a[1])
+                a -> new FieldMappingMetadata((String)a[0], (BytesReference)a[1])
             );
 
         static {
@@ -124,7 +124,7 @@ public class GetFieldMappingsResponse {
         private String fullName;
         private BytesReference source;
 
-        public FieldMappingMetaData(String fullName, BytesReference source) {
+        public FieldMappingMetadata(String fullName, BytesReference source) {
             this.fullName = fullName;
             this.source = source;
         }
@@ -145,20 +145,20 @@ public class GetFieldMappingsResponse {
             return source;
         }
 
-        public static FieldMappingMetaData fromXContent(XContentParser parser) throws IOException {
+        public static FieldMappingMetadata fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
         }
 
        @Override
         public String toString() {
-            return "FieldMappingMetaData{fullName='" + fullName + '\'' + ", source=" + source + '}';
+            return "FieldMappingMetadata{fullName='" + fullName + '\'' + ", source=" + source + '}';
         }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof FieldMappingMetaData)) return false;
-            FieldMappingMetaData that = (FieldMappingMetaData) o;
+            if (!(o instanceof FieldMappingMetadata)) return false;
+            FieldMappingMetadata that = (FieldMappingMetadata) o;
             return Objects.equals(fullName, that.fullName) && Objects.equals(source, that.source);
         }
 

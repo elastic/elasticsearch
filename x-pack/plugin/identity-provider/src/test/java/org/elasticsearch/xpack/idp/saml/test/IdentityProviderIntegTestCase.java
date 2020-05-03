@@ -214,9 +214,9 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
             "       resources: [ '" + SP_ENTITY_ID + "' ]\n" +
             "       privileges: [ 'sso:superuser' ]\n" +
             "\n" +
-            // Console user should be able to call all IDP related endpoints
+            // Console user should be able to call all IDP related endpoints and register application privileges
             CONSOLE_USER_ROLE + ":\n" +
-            "  cluster: ['cluster:admin/idp/*']\n" +
+            "  cluster: ['cluster:admin/idp/*', 'cluster:admin/xpack/security/privilege/*' ]\n" +
             "  indices: []\n";
     }
 

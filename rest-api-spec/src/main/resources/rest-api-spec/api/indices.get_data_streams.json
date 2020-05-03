@@ -20,8 +20,8 @@
           ],
           "parts":{
             "name":{
-              "type":"list",
-              "description":"The comma separated names of data streams"
+              "type":"string",
+              "description":"The name or wildcard expression of the requested data streams"
             }
           }
         }

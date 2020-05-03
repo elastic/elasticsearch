@@ -26,7 +26,7 @@ import java.util.function.ToIntFunction;
 
 import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isDate;
 
-public class DatePart extends BinaryDateTimeFunction {
+public class DatePart extends BinaryDateTimeDatePartFunction {
 
     public enum Part implements DateTimeField {
         YEAR(DateTimeExtractor.YEAR::extract, "years", "yyyy", "yy"),

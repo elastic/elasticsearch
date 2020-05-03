@@ -33,10 +33,10 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasAction;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
@@ -65,7 +65,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
 
     private static final Logger logger = LogManager.getLogger(TransportIndicesAliasesAction.class);
 
-    private final MetaDataIndexAliasesService indexAliasesService;
+    private final MetadataIndexAliasesService indexAliasesService;
     private final RequestValidators<IndicesAliasesRequest> requestValidators;
 
     @Inject
@@ -73,7 +73,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
             final TransportService transportService,
             final ClusterService clusterService,
             final ThreadPool threadPool,
-            final MetaDataIndexAliasesService indexAliasesService,
+            final MetadataIndexAliasesService indexAliasesService,
             final ActionFilters actionFilters,
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final RequestValidators<IndicesAliasesRequest> requestValidators) {
@@ -124,13 +124,13 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
             for (final Index index : concreteIndices) {
                 switch (action.actionType()) {
                 case ADD:
-                    for (String alias : concreteAliases(action, state.metaData(), index.getName())) {
+                    for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
                         finalActions.add(new AliasAction.Add(index.getName(), alias, action.filter(), action.indexRouting(),
                             action.searchRouting(), action.writeIndex(), action.isHidden()));
                     }
                     break;
                 case REMOVE:
-                    for (String alias : concreteAliases(action, state.metaData(), index.getName())) {
+                    for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
                         finalActions.add(new AliasAction.Remove(index.getName(), alias));
                     }
                     break;
@@ -163,14 +163,14 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         });
     }
 
-    private static String[] concreteAliases(AliasActions action, MetaData metaData, String concreteIndex) {
+    private static String[] concreteAliases(AliasActions action, Metadata metadata, String concreteIndex) {
         if (action.expandAliasesWildcards()) {
             //for DELETE we expand the aliases
             String[] indexAsArray = {concreteIndex};
-            ImmutableOpenMap<String, List<AliasMetaData>> aliasMetaData = metaData.findAliases(action, indexAsArray);
+            ImmutableOpenMap<String, List<AliasMetadata>> aliasMetadata = metadata.findAliases(action, indexAsArray);
             List<String> finalAliases = new ArrayList<>();
-            for (ObjectCursor<List<AliasMetaData>> curAliases : aliasMetaData.values()) {
-                for (AliasMetaData aliasMeta: curAliases.value) {
+            for (ObjectCursor<List<AliasMetadata>> curAliases : aliasMetadata.values()) {
+                for (AliasMetadata aliasMeta: curAliases.value) {
                     finalAliases.add(aliasMeta.alias());
                 }
             }

@@ -166,6 +166,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
         if (owningBucketOrd == 0) {
             return buildTopLevel();
         }
+        // TODO remove this method and redaclare in MetricAggregator as protected abstract
         throw new UnsupportedOperationException();
     }
 

@@ -51,7 +51,7 @@ public abstract class DeferringBucketCollector extends BucketCollector {
     /**
      * Replay some selected buckets.
      */
-    public abstract void prepareSelectedBuckets(long[] selectedBuckets) throws IOException;
+    public abstract void prepareSelectedBuckets(long... selectedBuckets) throws IOException;
 
     /**
      * Wrap the provided aggregator so that it behaves (almost) as if it had

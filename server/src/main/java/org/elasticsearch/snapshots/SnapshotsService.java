@@ -108,7 +108,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     public static final Version OLD_SNAPSHOT_FORMAT = Version.V_7_5_0;
 
-    public static final Version MULTI_DELETE_VERSION = Version.V_8_0_0;
+    public static final Version MULTI_DELETE_VERSION = Version.V_7_8_0;
 
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
 

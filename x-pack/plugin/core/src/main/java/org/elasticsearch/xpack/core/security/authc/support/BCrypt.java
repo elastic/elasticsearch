@@ -18,6 +18,8 @@ import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.settings.SecureString;
 
 import java.security.SecureRandom;
+import java.util.Arrays;
+import java.util.Set;
 
 /**
  * BCrypt implements OpenBSD-style Blowfish password hashing using
@@ -31,17 +33,17 @@ import java.security.SecureRandom;
  * computers get faster.
  * <p>
  * Usage is really simple. To hash a password for the first time,
- * call the hashpw method with a random salt, like this:
+ * call the generateHash method with a random salt, like this:
  * <p>
  * <code>
- * String pw_hash = BCrypt.hashpw(plain_password, BCrypt.gensalt()); <br>
+ * String pw_hash = BCrypt.generateHash(plain_password, BCrypt.gensalt()); <br>
  * </code>
  * <p>
  * To check whether a plaintext password matches one that has been
- * hashed previously, use the checkpw method:
+ * hashed previously, use the verifyHash method:
  * <p>
  * <code>
- * if (BCrypt.checkpw(candidate_password, stored_hash))<br>
+ * if (BCrypt.verifyHash(candidate_password, stored_hash))<br>
  * &nbsp;&nbsp;&nbsp;&nbsp;System.out.println("It matches");<br>
  * else<br>
  * &nbsp;&nbsp;&nbsp;&nbsp;System.out.println("It does not match");<br>
@@ -64,7 +66,11 @@ import java.security.SecureRandom;
  */
 public class BCrypt {
     // BCrypt parameters
-    private static final int GENSALT_DEFAULT_LOG2_ROUNDS = 10;
+    public static final Set<Character> REVISIONS = Set.of('a', 'b', 'y');
+    public static final int DEFAULT_LOG2_ROUNDS = 10;
+
+    private static final String STRING_WITH_VALID_PREFIX_REGEX =
+        "^\\$2[" + REVISIONS.stream().map(c -> c.toString()).reduce("", (s1, s2) -> s1 + s2) + "]\\$.*";
     private static final int BCRYPT_SALT_LEN = 16;
 
     // Blowfish parameters
@@ -652,7 +658,7 @@ public class BCrypt {
      *                  using BCrypt.gensalt)
      * @return          the hashed password
      */
-    public static String hashpw(SecureString password, String salt) {
+    public static String generateHash(SecureString password, String salt) {
         BCrypt B;
         String real_salt;
         byte passwordb[], saltb[], hashed[];
@@ -666,7 +672,7 @@ public class BCrypt {
             off = 3;
         else {
             minor = salt.charAt(2);
-            if (minor != 'a' || salt.charAt(3) != '$')
+            if ((REVISIONS.contains(minor) == false) || (salt.charAt(3) != '$'))
                 throw new IllegalArgumentException ("Invalid salt revision");
             off = 4;
         }
@@ -727,7 +733,7 @@ public class BCrypt {
     }
 
     /**
-     * Generate a salt for use with the BCrypt.hashpw() method
+     * Generate a salt for use with the BCrypt.generateHash() method
      * @param log_rounds  the log2 of the number of rounds of
      *                    hashing to apply - the work factor therefore increases as
      *                    2**log_rounds.
@@ -754,7 +760,7 @@ public class BCrypt {
     }
 
     /**
-     * Generate a salt for use with the BCrypt.hashpw() method
+     * Generate a salt for use with the BCrypt.generateHash() method
      * @param log_rounds  the log2 of the number of rounds of
      *                    hashing to apply - the work factor therefore increases as
      *                    2**log_rounds.
@@ -765,28 +771,45 @@ public class BCrypt {
     }
 
     /**
-     * Generate a salt for use with the BCrypt.hashpw() method,
+     * Generate a salt for use with the BCrypt.generateHash() method,
      * selecting a reasonable default for the number of hashing
      * rounds to apply
      * @return  an encoded salt value
      */
     public static String gensalt() {
-        return gensalt(GENSALT_DEFAULT_LOG2_ROUNDS);
+        return gensalt(DEFAULT_LOG2_ROUNDS);
     }
 
-    /**
-     * Check that a plaintext password matches a previously hashed
-     * one.
-     *
-     * Modified from the original to take a SecureString plaintext and use a constant time comparison
-     * @param plaintext  the plaintext password to verify
-     * @param hashed     the previously-hashed password
-     * @return           true if the passwords match, false otherwise
-     */
-    public static boolean checkpw(SecureString plaintext, String hashed) {
-        /*************************** ES CHANGE START *************************/
-        // this method previously took a string and did its own constant time comparison
-        return CharArrays.constantTimeEquals(hashed, hashpw(plaintext, hashed));
-        /*************************** ES CHANGE END *************************/
+    public static boolean verifyHash(SecureString plaintext, char[] hash) {
+        if (isPrefixValid(hash) == false) {
+            return false;
+        }
+        String hashStr = new String(hash);
+        return CharArrays.constantTimeEquals(hashStr, generateHash(plaintext, hashStr));
+    }
+
+    public static boolean isPrefixValid(char[] hash) {
+        if (hash == null) {
+            return false;
+        }
+        return new String(hash).matches(STRING_WITH_VALID_PREFIX_REGEX);
+    }
+
+    public static int getLogRounds(char[] hash) throws IllegalArgumentException {
+        final int LOG_ROUNDS_START_INDEX = 4;
+        final int LOG_ROUNDS_LENGTH = 2;
+        final int MINIMUM_LENGTH = LOG_ROUNDS_START_INDEX + LOG_ROUNDS_LENGTH + 1;
+        if (hash.length < MINIMUM_LENGTH) {
+            throw new IllegalArgumentException("Invalid hash length. Expected at least " +
+                MINIMUM_LENGTH + " chars and got " + hash.length + " chars instead.");
+        }
+        final String logRounds = new String(
+            Arrays.copyOfRange(hash, LOG_ROUNDS_START_INDEX, LOG_ROUNDS_START_INDEX + LOG_ROUNDS_LENGTH));
+        try {
+            return Integer.parseInt(logRounds);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Hash log rounds should be a two digit integer. Got " +
+                logRounds + " instead.");
+        }
     }
 }

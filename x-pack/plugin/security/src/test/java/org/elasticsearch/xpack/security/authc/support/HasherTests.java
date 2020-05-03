@@ -9,6 +9,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
+import static org.elasticsearch.xpack.core.security.test.BcryptTestSupport.runWithInvalidRevisions;
+import static org.elasticsearch.xpack.core.security.test.BcryptTestSupport.runWithValidRevisions;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -90,30 +92,28 @@ public class HasherTests extends ESTestCase {
     }
 
     public void testResolveFromHash() {
-        assertThat(Hasher.resolveFromHash("$2a$10$1oZj.8KmlwiCy4DWKvDH3OU0Ko4WRF4FknyvCh3j/ZtaRCNYA6Xzm".toCharArray()),
-            sameInstance(Hasher.BCRYPT));
-        assertThat(Hasher.resolveFromHash("$2a$04$GwJtIQiGMHASEYphMiCpjeZh1cDyYC5U.DKfNKa4i/y0IbOvc2LiG".toCharArray()),
-            sameInstance(Hasher.BCRYPT4));
-        assertThat(Hasher.resolveFromHash("$2a$05$xLmwSB7Nw7PcqP.6hXdc4eUZbT.4.iAZ3CTPzSaUibrrYjC6Vwq1m".toCharArray()),
-            sameInstance(Hasher.BCRYPT5));
-        assertThat(Hasher.resolveFromHash("$2a$06$WQX1MALAjVOhR2YKmLcHYed2oROzBl3OZPtvq3FkVZYwm9X2LVKYm".toCharArray()),
-            sameInstance(Hasher.BCRYPT6));
-        assertThat(Hasher.resolveFromHash("$2a$07$Satxnu2fCvwYXpHIk8A2sO2uwROrsV7WrNiRJPq1oXEl5lc9FE.7S".toCharArray()),
-            sameInstance(Hasher.BCRYPT7));
-        assertThat(Hasher.resolveFromHash("$2a$08$LLfkTt2C9TUl5sDtgqmE3uRw9nHt748d3eMSGfbFYgQQQhjbXHFo2".toCharArray()),
-            sameInstance(Hasher.BCRYPT8));
-        assertThat(Hasher.resolveFromHash("$2a$09$.VCWA3yFVdd6gfI526TUrufb4TvxMuhW0jIuMfhd4/fy1Ak/zrSFe".toCharArray()),
-            sameInstance(Hasher.BCRYPT9));
-        assertThat(Hasher.resolveFromHash("$2a$10$OEiXFrUUY02Nm7YsEgzFuuJ3yO3HAYzJUU7omseluy28s7FYaictu".toCharArray()),
-            sameInstance(Hasher.BCRYPT));
-        assertThat(Hasher.resolveFromHash("$2a$11$Ya53LCozFlKABu05xsAbj.9xmrczyuAY/fTvxKkDiHOJc5GYcaNRy".toCharArray()),
-            sameInstance(Hasher.BCRYPT11));
-        assertThat(Hasher.resolveFromHash("$2a$12$oUW2hiWBHYwbJamWi6YDPeKS2NBCvD4GR50zh9QZCcgssNFcbpg/a".toCharArray()),
-            sameInstance(Hasher.BCRYPT12));
-        assertThat(Hasher.resolveFromHash("$2a$13$0PDx6mxKK4bLSgpc5H6eaeylWub7UFghjxV03lFYSz4WS4slDT30q".toCharArray()),
-            sameInstance(Hasher.BCRYPT13));
-        assertThat(Hasher.resolveFromHash("$2a$14$lFyXmX7p9/FHr7W4nxTnfuCkjAoBHv6awQlv8jlKZ/YCMI65i38e6".toCharArray()),
-            sameInstance(Hasher.BCRYPT14));
+        testResolveBcryptFromHash("$2a$04$GwJtIQiGMHASEYphMiCpjeZh1cDyYC5U.DKfNKa4i/y0IbOvc2LiG",
+            Hasher.BCRYPT4);
+        testResolveBcryptFromHash("$2a$05$xLmwSB7Nw7PcqP.6hXdc4eUZbT.4.iAZ3CTPzSaUibrrYjC6Vwq1m",
+            Hasher.BCRYPT5);
+        testResolveBcryptFromHash("$2a$06$WQX1MALAjVOhR2YKmLcHYed2oROzBl3OZPtvq3FkVZYwm9X2LVKYm",
+            Hasher.BCRYPT6);
+        testResolveBcryptFromHash("$2a$07$Satxnu2fCvwYXpHIk8A2sO2uwROrsV7WrNiRJPq1oXEl5lc9FE.7S",
+            Hasher.BCRYPT7);
+        testResolveBcryptFromHash("$2a$08$LLfkTt2C9TUl5sDtgqmE3uRw9nHt748d3eMSGfbFYgQQQhjbXHFo2",
+            Hasher.BCRYPT8);
+        testResolveBcryptFromHash("$2a$09$.VCWA3yFVdd6gfI526TUrufb4TvxMuhW0jIuMfhd4/fy1Ak/zrSFe",
+            Hasher.BCRYPT9);
+        testResolveBcryptFromHash("$2a$10$OEiXFrUUY02Nm7YsEgzFuuJ3yO3HAYzJUU7omseluy28s7FYaictu",
+            Hasher.BCRYPT);
+        testResolveBcryptFromHash("$2a$11$Ya53LCozFlKABu05xsAbj.9xmrczyuAY/fTvxKkDiHOJc5GYcaNRy",
+            Hasher.BCRYPT11);
+        testResolveBcryptFromHash("$2a$12$oUW2hiWBHYwbJamWi6YDPeKS2NBCvD4GR50zh9QZCcgssNFcbpg/a",
+            Hasher.BCRYPT12);
+        testResolveBcryptFromHash("$2a$13$0PDx6mxKK4bLSgpc5H6eaeylWub7UFghjxV03lFYSz4WS4slDT30q",
+            Hasher.BCRYPT13);
+        testResolveBcryptFromHash("$2a$14$lFyXmX7p9/FHr7W4nxTnfuCkjAoBHv6awQlv8jlKZ/YCMI65i38e6",
+            Hasher.BCRYPT14);
         assertThat(Hasher.resolveFromHash(
             "{PBKDF2}1000$oNl3JWiDZhXqhrpk9Kl+T0tKpVNNV3UHNxENPePpo2M=$g9lERDX5op20eX534bHdQy7ySRwobxwtaxxsz3AYPIU=".toCharArray()),
             sameInstance(Hasher.PBKDF2_1000));
@@ -133,6 +133,11 @@ public class HasherTests extends ESTestCase {
             "{PBKDF2}1000000$UuyhtjDEzWmE2wyY80akZKPWWpy2r2X50so41YML82U=$WFasYLelqbjQwt3EqFlUcwHiC38EZC45Iu/Iz0xL1GQ=".toCharArray()),
             sameInstance(Hasher.PBKDF2_1000000));
         assertThat(Hasher.resolveFromHash("notavalidhashformat".toCharArray()), sameInstance(Hasher.NOOP));
+    }
+
+    private void testResolveBcryptFromHash(String baseHash, Hasher hasher) {
+        runWithValidRevisions(baseHash, hash -> assertThat(Hasher.resolveFromHash(hash), sameInstance(hasher)));
+        runWithInvalidRevisions(baseHash, hash -> assertThat(Hasher.resolveFromHash(hash), sameInstance(Hasher.NOOP)));
     }
 
     private static void testHasherSelfGenerated(Hasher hasher) {

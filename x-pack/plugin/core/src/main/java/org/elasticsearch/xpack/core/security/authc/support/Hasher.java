@@ -30,12 +30,12 @@ public enum Hasher {
         @Override
         public char[] hash(SecureString text) {
             String salt = BCrypt.gensalt();
-            return BCrypt.hashpw(text, salt).toCharArray();
+            return BCrypt.generateHash(text, salt).toCharArray();
         }
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            return verifyBcryptHash(text, hash);
+            return BCrypt.verifyHash(text, hash);
         }
     },
 
@@ -43,12 +43,12 @@ public enum Hasher {
         @Override
         public char[] hash(SecureString text) {
             String salt = BCrypt.gensalt(4);
-            return BCrypt.hashpw(text, salt).toCharArray();
+            return BCrypt.generateHash(text, salt).toCharArray();
         }
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            return verifyBcryptHash(text, hash);
+            return BCrypt.verifyHash(text, hash);
         }
     },
 
@@ -56,12 +56,12 @@ public enum Hasher {
         @Override
         public char[] hash(SecureString text) {
             String salt = BCrypt.gensalt(5);
-            return BCrypt.hashpw(text, salt).toCharArray();
+            return BCrypt.generateHash(text, salt).toCharArray();
         }
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            return verifyBcryptHash(text, hash);
+            return BCrypt.verifyHash(text, hash);
         }
     },
 
@@ -69,12 +69,12 @@ public enum Hasher {
         @Override
         public char[] hash(SecureString text) {
             String salt = BCrypt.gensalt(6);
-            return BCrypt.hashpw(text, salt).toCharArray();
+            return BCrypt.generateHash(text, salt).toCharArray();
         }
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            return verifyBcryptHash(text, hash);
+            return BCrypt.verifyHash(text, hash);
         }
     },
 
@@ -82,12 +82,12 @@ public enum Hasher {
         @Override
         public char[] hash(SecureString text) {
             String salt = BCrypt.gensalt(7);
-            return BCrypt.hashpw(text, salt).toCharArray();
+            return BCrypt.generateHash(text, salt).toCharArray();
         }
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            return verifyBcryptHash(text, hash);
+            return BCrypt.verifyHash(text, hash);
         }
     },
 
@@ -95,12 +95,12 @@ public enum Hasher {
         @Override
         public char[] hash(SecureString text) {
             String salt = BCrypt.gensalt(8);
-            return BCrypt.hashpw(text, salt).toCharArray();
+            return BCrypt.generateHash(text, salt).toCharArray();
         }
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            return verifyBcryptHash(text, hash);
+            return BCrypt.verifyHash(text, hash);
         }
     },
 
@@ -108,12 +108,12 @@ public enum Hasher {
         @Override
         public char[] hash(SecureString text) {
             String salt = BCrypt.gensalt(9);
-            return BCrypt.hashpw(text, salt).toCharArray();
+            return BCrypt.generateHash(text, salt).toCharArray();
         }
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            return verifyBcryptHash(text, hash);
+            return BCrypt.verifyHash(text, hash);
         }
     },
 
@@ -121,12 +121,12 @@ public enum Hasher {
         @Override
         public char[] hash(SecureString text) {
             String salt = BCrypt.gensalt(10);
-            return BCrypt.hashpw(text, salt).toCharArray();
+            return BCrypt.generateHash(text, salt).toCharArray();
         }
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            return verifyBcryptHash(text, hash);
+            return BCrypt.verifyHash(text, hash);
         }
     },
 
@@ -134,12 +134,12 @@ public enum Hasher {
         @Override
         public char[] hash(SecureString text) {
             String salt = BCrypt.gensalt(11);
-            return BCrypt.hashpw(text, salt).toCharArray();
+            return BCrypt.generateHash(text, salt).toCharArray();
         }
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            return verifyBcryptHash(text, hash);
+            return BCrypt.verifyHash(text, hash);
         }
     },
 
@@ -147,12 +147,12 @@ public enum Hasher {
         @Override
         public char[] hash(SecureString text) {
             String salt = BCrypt.gensalt(12);
-            return BCrypt.hashpw(text, salt).toCharArray();
+            return BCrypt.generateHash(text, salt).toCharArray();
         }
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            return verifyBcryptHash(text, hash);
+            return BCrypt.verifyHash(text, hash);
         }
     },
 
@@ -160,12 +160,12 @@ public enum Hasher {
         @Override
         public char[] hash(SecureString text) {
             String salt = BCrypt.gensalt(13);
-            return BCrypt.hashpw(text, salt).toCharArray();
+            return BCrypt.generateHash(text, salt).toCharArray();
         }
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            return verifyBcryptHash(text, hash);
+            return BCrypt.verifyHash(text, hash);
         }
     },
 
@@ -173,12 +173,12 @@ public enum Hasher {
         @Override
         public char[] hash(SecureString text) {
             String salt = BCrypt.gensalt(14);
-            return BCrypt.hashpw(text, salt).toCharArray();
+            return BCrypt.generateHash(text, salt).toCharArray();
         }
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            return verifyBcryptHash(text, hash);
+            return BCrypt.verifyHash(text, hash);
         }
     },
 
@@ -383,14 +383,12 @@ public enum Hasher {
         }
     };
 
-    private static final String BCRYPT_PREFIX = "$2a$";
     private static final String SHA1_PREFIX = "{SHA}";
     private static final String MD5_PREFIX = "{MD5}";
     private static final String SSHA256_PREFIX = "{SSHA256}";
     private static final String PBKDF2_PREFIX = "{PBKDF2}";
     private static final int PBKDF2_DEFAULT_COST = 10000;
     private static final int PBKDF2_KEY_LENGTH = 256;
-    private static final int BCRYPT_DEFAULT_COST = 10;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     /**
@@ -465,9 +463,11 @@ public enum Hasher {
      * @return the hasher that can be used for validation
      */
     public static Hasher resolveFromHash(char[] hash) {
-        if (CharArrays.charsBeginsWith(BCRYPT_PREFIX, hash)) {
-            int cost = Integer.parseInt(new String(Arrays.copyOfRange(hash, BCRYPT_PREFIX.length(), hash.length - 54)));
-            return cost == BCRYPT_DEFAULT_COST ? Hasher.BCRYPT : resolve("bcrypt" + cost);
+        if (BCrypt.isPrefixValid(hash)) {
+            final int cost = BCrypt.getLogRounds(hash);
+            return cost == BCrypt.DEFAULT_LOG2_ROUNDS
+                ? Hasher.BCRYPT
+                : resolve("bcrypt" + cost);
         } else if (CharArrays.charsBeginsWith(PBKDF2_PREFIX, hash)) {
             int cost = Integer.parseInt(new String(Arrays.copyOfRange(hash, PBKDF2_PREFIX.length(), hash.length - 90)));
             return cost == PBKDF2_DEFAULT_COST ? Hasher.PBKDF2 : resolve("pbkdf2_" + cost);
@@ -551,14 +551,6 @@ public enum Hasher {
                 Arrays.fill(computedPwdHash, '\u0000');
             }
         }
-    }
-
-    private static boolean verifyBcryptHash(SecureString text, char[] hash) {
-        String hashStr = new String(hash);
-        if (hashStr.startsWith(BCRYPT_PREFIX) == false) {
-            return false;
-        }
-        return BCrypt.checkpw(text, hashStr);
     }
 
     /**

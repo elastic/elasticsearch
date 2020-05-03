@@ -178,7 +178,13 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      */
     public abstract InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException;
 
-    public InternalAggregation buildTopLevel() throws IOException {
+    /**
+     * Build the result of this aggregation if it is at the "top level"
+     * of the aggregation tree. If, instead, it is a sub-aggregation of
+     * another aggregation then the aggregation that contains it will call
+     * {@link #buildAggregations(long[])}.
+     */
+    public final InternalAggregation buildTopLevel() throws IOException {
         assert parent() == null;
         return buildAggregations(new long[] {0})[0];
     }

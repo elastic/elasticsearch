@@ -94,9 +94,9 @@ public abstract class Types {
             } else if (esDataType == CONSTANT_KEYWORD) {
                 field = new ConstantKeywordEsField(name);
             } else if (esDataType == DATETIME) {
-                field = new DateEsField(name, properties, docValues);
+                field = DateEsField.dateEsField(name, properties, docValues);
             } else if (esDataType == DATETIME_NANOS) {
-                field = new DateNanosEsField(name, properties, docValues);
+                field = DateEsField.dateNanosEsField(name, properties, docValues);
             } else if (esDataType == UNSUPPORTED) {
                 String type = content.get("type").toString();
                 field = new UnsupportedEsField(name, type, null, properties);

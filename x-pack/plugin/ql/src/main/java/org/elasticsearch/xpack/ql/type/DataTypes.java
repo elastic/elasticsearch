@@ -160,6 +160,10 @@ public final class DataTypes {
         return t.isNumeric();
     }
 
+    public static boolean isDateTime(DataType type) {
+        return type == DATETIME || type == DATETIME_NANOS;
+    }
+
     public static boolean areCompatible(DataType left, DataType right) {
         if (left == right) {
             return true;
@@ -168,7 +172,7 @@ public final class DataTypes {
                 (left == NULL || right == NULL)
                     || (isString(left) && isString(right))
                     || (left.isNumeric() && right.isNumeric())
-                    || ((left == DATETIME || left == DATETIME_NANOS) && (right == DATETIME || right == DATETIME_NANOS));
+                    || (isDateTime(left) && isDateTime(right));
         }
     }
 }

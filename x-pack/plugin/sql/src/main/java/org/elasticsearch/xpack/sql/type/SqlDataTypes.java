@@ -48,6 +48,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.mapSize;
 
 public class SqlDataTypes {
@@ -252,7 +253,7 @@ public class SqlDataTypes {
     }
 
     public static boolean isDateBased(DataType type) {
-        return type == DATE || type == DATETIME || type == DATETIME_NANOS;
+        return isDateTime(type) || type == DATE;
     }
 
     public static boolean isTimeBased(DataType type) {
@@ -352,7 +353,7 @@ public class SqlDataTypes {
         if (dataType == CONSTANT_KEYWORD) {
             return JDBCType.VARCHAR;
         }
-        if (dataType == DATETIME || dataType == DATETIME_NANOS) {
+        if (isDateTime(dataType)) {
             return JDBCType.TIMESTAMP;
         }
         if (dataType == IP) {
@@ -478,7 +479,7 @@ public class SqlDataTypes {
         if (dataType == CONSTANT_KEYWORD) {
             return 15;
         }
-        if (dataType == DATETIME || dataType == DATETIME_NANOS) {
+        if (isDateTime(dataType)) {
             return 9;
         }
         if (dataType == IP) {
@@ -601,7 +602,7 @@ public class SqlDataTypes {
         if (dataType == CONSTANT_KEYWORD) {
             return 32766;
         }
-        if (dataType == DATETIME || dataType == DATETIME_NANOS) {
+        if (isDateTime(dataType)) {
             return 34;
         }
         if (dataType == IP) {
@@ -651,7 +652,7 @@ public class SqlDataTypes {
     // https://docs.microsoft.com/en-us/sql/relational-databases/native-client-odbc-date-time/metadata-catalog
     // https://github.com/elastic/elasticsearch/issues/30386
     public static Integer metaSqlDataType(DataType t) {
-        if (t == DATETIME || t == DATETIME_NANOS) {
+        if (isDateTime(t)) {
             // ODBC SQL_DATETME
             return Integer.valueOf(9);
         }
@@ -662,7 +663,7 @@ public class SqlDataTypes {
     // https://github.com/elastic/elasticsearch/issues/30386
     // https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function
     public static Integer metaSqlDateTimeSub(DataType t) {
-        if (t == DATETIME || t == DATETIME_NANOS) {
+        if (isDateTime(t)) {
             // ODBC SQL_CODE_TIMESTAMP
             return Integer.valueOf(3);
         } else if (t == DATE) {
@@ -693,7 +694,7 @@ public class SqlDataTypes {
         if (t.isInteger()) {
             return Short.valueOf((short) 0);
         }
-        if (t == DATETIME || t == DATETIME_NANOS || t == TIME || t.isRational()) {
+        if (isDateTime(t) || t == TIME || t.isRational()) {
             return Short.valueOf((short) defaultPrecision(t));
         }
         return null;

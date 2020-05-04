@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -38,7 +39,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.CONSTANT_KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
@@ -47,6 +47,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
@@ -97,7 +98,7 @@ public final class SqlDataTypeConverter {
                 return right;
             }
         }
-        if (left == DATETIME || left == DATETIME_NANOS) {
+        if (isDateTime(left)) {
             if (right == DATE || right == TIME) {
                 return DATETIME;
             }
@@ -105,7 +106,7 @@ public final class SqlDataTypeConverter {
                 return DATETIME;
             }
         }
-        if (right == DATETIME || right == DATETIME_NANOS) {
+        if (isDateTime(right)) {
             if (left == DATE || left == TIME) {
                 return DATETIME;
             }
@@ -113,11 +114,8 @@ public final class SqlDataTypeConverter {
                 return DATETIME;
             }
         }
-        if (left == DATETIME && right == DATETIME_NANOS) {
-            return left;
-        }
-        if (left == DATETIME_NANOS && right == DATETIME) {
-            return right;
+        if (isDateTime(left) && isDateTime(right)) {
+            return DATETIME;
         }
 
         // Interval * integer is a valid operation
@@ -301,7 +299,7 @@ public final class SqlDataTypeConverter {
         if (isString(from)) {
             return SqlConverter.STRING_TO_DATE;
         }
-        if (from == DATETIME || from == DATETIME_NANOS) {
+        if (DataTypes.isDateTime(from)) {
             return SqlConverter.DATETIME_TO_DATE;
         }
         return null;
@@ -323,7 +321,7 @@ public final class SqlDataTypeConverter {
         if (from == DATE) {
             return SqlConverter.DATE_TO_TIME;
         }
-        if (from == DATETIME || from == DATETIME_NANOS) {
+        if (DataTypes.isDateTime(from)) {
             return SqlConverter.DATETIME_TO_TIME;
         }
         return null;

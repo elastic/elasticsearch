@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.ql.type.ConstantKeywordEsField;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeRegistry;
 import org.elasticsearch.xpack.ql.type.DateEsField;
-import org.elasticsearch.xpack.ql.type.DateNanosEsField;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.type.KeywordEsField;
@@ -448,10 +447,10 @@ public class IndexResolver {
             return new KeywordEsField(fieldName, props, isAggregateable, length, normalized, isAlias);
         }
         if (esType == DATETIME) {
-            return new DateEsField(fieldName, props, isAggregateable);
+            return DateEsField.dateEsField(fieldName, props, isAggregateable);
         }
         if (esType == DATETIME_NANOS) {
-            return new DateNanosEsField(fieldName, props, isAggregateable);
+            return DateEsField.dateNanosEsField(fieldName, props, isAggregateable);
         }
         if (esType == CONSTANT_KEYWORD) {
             return new ConstantKeywordEsField(fieldName);

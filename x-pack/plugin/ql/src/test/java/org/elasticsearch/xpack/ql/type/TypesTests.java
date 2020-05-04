@@ -111,7 +111,7 @@ public class TypesTests extends ESTestCase {
         EsField field = mapping.get("date_nanos");
         assertThat(field.getDataType(), is(DATETIME_NANOS));
         assertThat(field.isAggregatable(), is(true));
-        assertThat(field, is(instanceOf(DateNanosEsField.class)));
+        assertThat(field, is(instanceOf(DateEsField.class)));
     }
 
     public void testDocValueField() {

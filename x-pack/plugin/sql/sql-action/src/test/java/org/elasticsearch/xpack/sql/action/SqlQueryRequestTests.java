@@ -65,7 +65,7 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
                 randomBoolean(), randomBoolean()
         );
     }
-    
+
     @Override
     protected Writeable.Reader<SqlQueryRequest> instanceReader() {
         return SqlQueryRequest::new;
@@ -92,7 +92,7 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
         mutator.accept(newRequest);
         return newRequest;
     }
-    
+
     private AbstractSqlQueryRequest mutateRequestInfo(SqlQueryRequest oldRequest, SqlQueryRequest newRequest) {
         RequestInfo requestInfo = randomValueOtherThan(newRequest.requestInfo(), this::randomRequestInfo);
         newRequest.requestInfo(requestInfo);
@@ -106,10 +106,10 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
                 param.hasExplicitType(true);
             }
         }
-        
+
         return newRequest;
     }
-    
+
     public void testFromXContent() throws IOException {
         xContentTester(this::createParser, this::createTestInstance, SqlQueryRequestTests::toXContent, this::doParseInstance)
             .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
@@ -126,11 +126,11 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> sqlQueryRequest.zoneId(null));
         assertEquals("time zone may not be null.", e.getMessage());
     }
-    
+
     private RequestInfo randomRequestInfo() {
         return new RequestInfo(randomFrom(Mode.values()), randomFrom(randomFrom(CLIENT_IDS), requestInfo.clientId()));
     }
-    
+
     private TimeValue randomTV() {
         return TimeValue.parseTimeValue(randomTimeValue(), null, "test");
     }

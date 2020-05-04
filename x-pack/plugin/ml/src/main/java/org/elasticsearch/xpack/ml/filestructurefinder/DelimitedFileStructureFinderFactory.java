@@ -71,7 +71,8 @@ public class DelimitedFileStructureFinderFactory implements FileStructureFinderF
     public FileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker,
                                                 int lineMergeSizeLimit, FileStructureOverrides overrides, TimeoutChecker timeoutChecker)
         throws IOException {
+        CsvPreference adjustedCsvPreference = new CsvPreference.Builder(csvPreference).maxLinesPerRow(lineMergeSizeLimit).build();
         return DelimitedFileStructureFinder.makeDelimitedFileStructureFinder(explanation, sample, charsetName, hasByteOrderMarker,
-            csvPreference, trimFields, overrides, timeoutChecker);
+            adjustedCsvPreference, trimFields, overrides, timeoutChecker);
     }
 }

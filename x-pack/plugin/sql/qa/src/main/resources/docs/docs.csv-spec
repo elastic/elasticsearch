@@ -2746,7 +2746,8 @@ SELECT DATETIME_FORMAT(CAST('11:22:33.987' AS TIME), 'HH mm ss.S') AS "time";
 // end::dateTimeFormatTime
 ;
 
-dateTimeParse1
+// Cannot assert millis: https://github.com/elastic/elasticsearch/issues/54947
+dateTimeParse1-Ignore
 schema::datetime:ts
 // tag::dateTimeParse1
 SELECT DATETIME_PARSE('07/04/2020 10:20:30.123', 'dd/MM/uuuu HH:mm:ss.SSS') AS "datetime";

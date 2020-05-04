@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
 import java.time.DateTimeException;
@@ -53,7 +54,7 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
             TemporalAccessor ta = DateTimeFormatter.ofPattern((String) pattern, Locale.ROOT)
                 .parseBest((String) timestampStr, ZonedDateTime::from, LocalDateTime::from);
             if (ta instanceof LocalDateTime) {
-                return ZonedDateTime.ofInstant((LocalDateTime) ta, zoneId.getRules().getValidOffsets(((LocalDateTime) ta)).get(0), zoneId);
+                return DateUtils.atTimeZone((LocalDateTime) ta, zoneId);
             } else {
                 return ((ZonedDateTime) ta).withZoneSameInstant(zoneId);
             }

@@ -85,6 +85,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -345,6 +346,12 @@ public class MetadataCreateIndexService {
                 final List<IndexTemplateMetadata> v1Templates = MetadataIndexTemplateService.findV1Templates(currentState.metadata(),
                     request.index(), isHiddenFromRequest);
 
+                if (v1Templates.size() > 1) {
+                    deprecationLogger.deprecatedAndMaybeLog("index_template_multiple_match", "index [{}] matches multiple v1 templates " +
+                        "[{}], v2 index templates will only match a single index template", request.index(),
+                        v1Templates.stream().map(IndexTemplateMetadata::name).sorted().collect(Collectors.joining(", ")));
+                }
+
                 return applyCreateIndexRequestWithV1Templates(currentState, request, silent, v1Templates, metadataTransformer);
             }
         }
@@ -456,7 +463,7 @@ public class MetadataCreateIndexService {
         logger.info("applying create index request using v1 templates {}",
             templates.stream().map(IndexTemplateMetadata::name).collect(Collectors.toList()));
 
-        final Map<String, Object> mappings = Collections.unmodifiableMap(parseMappings(request.mappings(),
+        final Map<String, Object> mappings = Collections.unmodifiableMap(parseV1Mappings(request.mappings(),
             templates.stream().map(IndexTemplateMetadata::getMappings).collect(toList()), xContentRegistry));
 
         final Settings aggregatedIndexSettings =
@@ -483,8 +490,7 @@ public class MetadataCreateIndexService {
                                                                                     throws Exception {
         logger.info("applying create index request using v2 template [{}]", templateName);
 
-        final Map<String, Object> mappings = Collections.unmodifiableMap(parseMappings(request.mappings(),
-            MetadataIndexTemplateService.resolveMappings(currentState, templateName), xContentRegistry));
+        final Map<String, Object> mappings = resolveV2Mappings(request.mappings(), currentState, templateName, xContentRegistry);
 
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request,
@@ -501,6 +507,15 @@ public class MetadataCreateIndexService {
                 // shard id and the current timestamp
                 xContentRegistry, indexService.newQueryShardContext(0, null, () -> 0L, null)),
             Collections.singletonList(templateName), metadataTransformer);
+    }
+
+    public static Map<String, Object> resolveV2Mappings(final String requestMappings,
+                                                        final ClusterState currentState,
+                                                        final String templateName,
+                                                        final NamedXContentRegistry xContentRegistry) throws Exception {
+        final Map<String, Object> mappings = Collections.unmodifiableMap(parseV2Mappings(requestMappings,
+            MetadataIndexTemplateService.resolveMappings(currentState, templateName), xContentRegistry));
+        return mappings;
     }
 
     private ClusterState applyCreateIndexRequestWithExistingMetadata(final ClusterState currentState,
@@ -529,13 +544,97 @@ public class MetadataCreateIndexService {
     }
 
     /**
-     * Parses the provided mappings json and the inheritable mappings from the templates (if any) into a map.
+     * Parses the provided mappings json and the inheritable mappings from the templates (if any)
+     * into a map.
      *
-     * The template mappings are applied in the order they are encountered in the list (clients should make sure the lower index, closer
-     * to the head of the list, templates have the highest {@link IndexTemplateMetadata#order()})
+     * The template mappings are applied in the order they are encountered in the list, with the
+     * caveat that mapping fields are only merged at the top-level, meaning that field settings are
+     * not merged, instead they replace any previous field definition.
      */
-    static Map<String, Object> parseMappings(String mappingsJson, List<CompressedXContent> templateMappings,
-                                             NamedXContentRegistry xContentRegistry) throws Exception {
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> parseV2Mappings(String mappingsJson, List<CompressedXContent> templateMappings,
+                                               NamedXContentRegistry xContentRegistry) throws Exception {
+        Map<String, Object> requestMappings = MapperService.parseMapping(xContentRegistry, mappingsJson);
+        // apply templates, merging the mappings into the request mapping if exists
+        Map<String, Object> properties = new HashMap<>();
+        Map<String, Object> nonProperties = new HashMap<>();
+        for (CompressedXContent mapping : templateMappings) {
+            if (mapping != null) {
+                Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mapping.string());
+                if (templateMapping.isEmpty()) {
+                    // Someone provided an empty '{}' for mappings, which is okay, but to avoid
+                    // tripping the below assertion, we can safely ignore it
+                    continue;
+                }
+                assert templateMapping.size() == 1 : "expected exactly one mapping value, got: " + templateMapping;
+                if (templateMapping.get(MapperService.SINGLE_MAPPING_NAME) instanceof Map == false) {
+                    throw new IllegalStateException("invalid mapping definition, expected a single map underneath [" +
+                        MapperService.SINGLE_MAPPING_NAME + "] but it was: [" + templateMapping + "]");
+                }
+
+                Map<String, Object> innerTemplateMapping = (Map<String, Object>) templateMapping.get(MapperService.SINGLE_MAPPING_NAME);
+                Map<String, Object> innerTemplateNonProperties = new HashMap<>(innerTemplateMapping);
+                Map<String, Object> maybeProperties = (Map<String, Object>) innerTemplateNonProperties.remove("properties");
+
+                XContentHelper.mergeDefaults(innerTemplateNonProperties, nonProperties);
+                nonProperties = innerTemplateNonProperties;
+
+                if (maybeProperties != null) {
+                    properties = mergeIgnoringDots(properties, maybeProperties);
+                }
+            }
+        }
+
+        if (requestMappings.get(MapperService.SINGLE_MAPPING_NAME) != null) {
+            Map<String, Object> innerRequestMappings = (Map<String, Object>) requestMappings.get(MapperService.SINGLE_MAPPING_NAME);
+            Map<String, Object> innerRequestNonProperties = new HashMap<>(innerRequestMappings);
+            Map<String, Object> maybeRequestProperties = (Map<String, Object>) innerRequestNonProperties.remove("properties");
+
+            XContentHelper.mergeDefaults(innerRequestNonProperties, nonProperties);
+            nonProperties = innerRequestNonProperties;
+
+            if (maybeRequestProperties != null) {
+                properties = mergeIgnoringDots(properties, maybeRequestProperties);
+            }
+        }
+
+        Map<String, Object> finalMappings = new HashMap<>(nonProperties);
+        finalMappings.put("properties", properties);
+        return Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, finalMappings);
+    }
+
+    /**
+     * Add the objects in the second map to the first, where the keys in the {@code second} map have
+     * higher predecence and overwrite the keys in the {@code first} map. In the event of a key with
+     * a dot in it (ie, "foo.bar"), the keys are treated as only the prefix counting towards
+     * equality. If the {@code second} map has a key such as "foo", all keys starting from "foo." in
+     * the {@code first} map are discarded.
+     */
+    static Map<String, Object> mergeIgnoringDots(Map<String, Object> first, Map<String, Object> second) {
+        Objects.requireNonNull(first, "merging requires two non-null maps but the first map was null");
+        Objects.requireNonNull(second, "merging requires two non-null maps but the second map was null");
+        Map<String, Object> results = new HashMap<>(first);
+        Set<String> prefixes = second.keySet().stream().map(MetadataCreateIndexService::prefix).collect(Collectors.toSet());
+        results.keySet().removeIf(k -> prefixes.contains(prefix(k)));
+        results.putAll(second);
+        return results;
+    }
+
+    private static String prefix(String s) {
+        return s.split("\\.", 2)[0];
+    }
+
+    /**
+     * Parses the provided mappings json and the inheritable mappings from the templates (if any)
+     * into a map.
+     *
+     * The template mappings are applied in the order they are encountered in the list (clients
+     * should make sure the lower index, closer to the head of the list, templates have the highest
+     * {@link IndexTemplateMetadata#order()}). This merging makes no distinction between field
+     * definitions, as may result in an invalid field definition
+     */
+    static Map<String, Object> parseV1Mappings(String mappingsJson, List<CompressedXContent> templateMappings,
+                                               NamedXContentRegistry xContentRegistry) throws Exception {
         Map<String, Object> mappings = MapperService.parseMapping(xContentRegistry, mappingsJson);
         // apply templates, merging the mappings into the request mapping if exists
         for (CompressedXContent mapping : templateMappings) {
@@ -664,9 +763,10 @@ public class MetadataCreateIndexService {
      * @return the list of resolved aliases, with the explicitly provided aliases occurring first (having a higher priority) followed by
      * the ones inherited from the templates
      */
-    static List<AliasMetadata> resolveAndValidateAliases(String index, Set<Alias> aliases, List<Map<String, AliasMetadata>> templateAliases,
-                                                         Metadata metadata, AliasValidator aliasValidator,
-                                                         NamedXContentRegistry xContentRegistry, QueryShardContext queryShardContext) {
+    public static List<AliasMetadata> resolveAndValidateAliases(String index, Set<Alias> aliases,
+                                                                List<Map<String, AliasMetadata>> templateAliases, Metadata metadata,
+                                                                AliasValidator aliasValidator, NamedXContentRegistry xContentRegistry,
+                                                                QueryShardContext queryShardContext) {
         List<AliasMetadata> resolvedAliases = new ArrayList<>();
         for (Alias alias : aliases) {
             aliasValidator.validateAlias(alias, index, metadata);

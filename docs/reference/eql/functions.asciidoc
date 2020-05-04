@@ -9,11 +9,13 @@ experimental::[]
 {es} supports the following EQL functions:
 
 * <<eql-fn-between>>
+* <<eql-fn-cidrmatch>>
 * <<eql-fn-endswith>>
 * <<eql-fn-indexof>>
 * <<eql-fn-length>>
 * <<eql-fn-startswith>>
 * <<eql-fn-string>>
+* <<eql-fn-stringcontains>>
 * <<eql-fn-substring>>
 * <<eql-fn-wildcard>>
 
@@ -126,6 +128,55 @@ in regular expressions. Defaults to `false`.
 If `true`, matching is case-sensitive. Defaults to `false`.
 
 *Returns:* string or `null`
+====
+
+[discrete]
+[[eql-fn-cidrmatch]]
+=== `cidrMatch`
+
+Returns `true` if an IP address is contained in one or more provided
+https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing[CIDR] blocks.
+
+[%collapsible]
+====
+*Example*
+
+[source,eql]
+----
+// source.address = "192.168.152.12"
+cidrMatch(source.address, "192.168.0.0/16")               // returns true
+cidrMatch(source.address, "192.168.0.0/16", "10.0.0.0/8") // returns true
+cidrMatch(source.address, "10.0.0.0/8")                   // returns false
+cidrMatch(source.address, "10.0.0.0/8", "10.128.0.0/9")   // returns false
+
+// null handling
+cidrMatch(null, "10.0.0.0/8")                             // returns null
+cidrMatch(source.address, null)                           // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+`cidrMatch(<ip_address>, <cidr_block>[, ...])`
+----
+
+*Parameters*
+
+`<ip_address>`::
+(Required, string or `null`)
+IP address. Supports
+https://en.wikipedia.org/wiki/IPv4[IPv4] and
+https://en.wikipedia.org/wiki/IPv6[IPv6] addresses. If `null`, the function
+returns `null`.
++
+If using a field as the argument, this parameter supports only the <<ip,`ip`>>
+field datatype.
+
+`<cidr_block>`::
+(Required{multi-arg}, string or `null`)
+CIDR block you wish to search. If `null`, the function returns `null`.
+
+*Returns:* boolean or `null`
 ====
 
 [discrete]
@@ -483,6 +534,69 @@ If using a field as the argument, this parameter does not support the
 ====
 
 [discrete]
+[[eql-fn-stringcontains]]
+=== `stringContains`
+
+Returns `true` if a source string contains a provided substring.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+// process.command_line = "start regsvr32.exe"
+stringContains(process.command_line, "regsvr32")  // returns true
+stringContains(process.command_line, "start ")    // returns true
+stringContains(process.command_line, "explorer")  // returns false
+
+// process.name = "regsvr32.exe"
+stringContains(command_line, process.name)        // returns true
+
+// empty strings
+stringContains("", "")                            // returns false
+stringContains(process.command_line, "")          // returns false
+
+// null handling
+stringContains(null, "regsvr32")                  // returns null
+stringContains(process.command_line, null)        // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+stringContains(<source>, <substring>)
+----
+
+*Parameters*
+
+`<source>`::
+(Required, string or `null`)
+Source string to search. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+
+`<substring>`::
+(Required, string or `null`)
+Substring to search for. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+
+*Returns:* boolean or `null`
+====
+
+[discrete]
 [[eql-fn-substring]]
 === `substring`
 
@@ -593,7 +707,7 @@ field datatypes:
 `<wildcard_exp>`::
 +
 --
-(Required{multi-arg}, string)
+(Required{multi-arg-ref}, string)
 Wildcard expression used to match the source string. If `null`, the function
 returns `null`. Fields are not supported as arguments.
 -- 

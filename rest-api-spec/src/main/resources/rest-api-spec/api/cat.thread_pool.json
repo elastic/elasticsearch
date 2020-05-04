@@ -42,7 +42,11 @@
           "g",
           "t",
           "p"
-        ]
+        ],
+        "deprecated":{
+          "version":"7.8.0",
+          "description":"Setting this value has no effect and will be removed from the specification."
+        }
       },
       "local":{
         "type":"boolean",

@@ -187,13 +187,24 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         CloseJobAction.Response closeJobResponse = client().execute(CloseJobAction.INSTANCE, closeJobRequest).actionGet();
         assertTrue(closeJobResponse.isClosed());
 
-        // We should have an audit message indicating that the job was closed
-        String expectedAuditMessage = closeWithForce ? "Job is closing (forced)" : "Job is closing";
-        SearchRequest searchRequest = new SearchRequest(NotificationsIndex.NOTIFICATIONS_INDEX);
-        searchRequest.source().query(new TermsQueryBuilder("message.raw", expectedAuditMessage));
+        // We should have an audit message indicating that the datafeed was stopped
+        SearchRequest datafeedAuditSearchRequest = new SearchRequest(NotificationsIndex.NOTIFICATIONS_INDEX);
+        datafeedAuditSearchRequest.source().query(new TermsQueryBuilder("message.raw", "Datafeed stopped"));
         assertBusy(() -> {
             assertTrue(indexExists(NotificationsIndex.NOTIFICATIONS_INDEX));
-            SearchResponse searchResponse = client().search(searchRequest).actionGet();
+            SearchResponse searchResponse = client().search(datafeedAuditSearchRequest).actionGet();
+            assertThat(searchResponse.getHits(), notNullValue());
+            assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
+            assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("job_id"), is(jobId));
+        });
+
+        // We should have an audit message indicating that the job was closed
+        String expectedAuditMessage = closeWithForce ? "Job is closing (forced)" : "Job is closing";
+        SearchRequest jobAuditSearchRequest = new SearchRequest(NotificationsIndex.NOTIFICATIONS_INDEX);
+        jobAuditSearchRequest.source().query(new TermsQueryBuilder("message.raw", expectedAuditMessage));
+        assertBusy(() -> {
+            assertTrue(indexExists(NotificationsIndex.NOTIFICATIONS_INDEX));
+            SearchResponse searchResponse = client().search(jobAuditSearchRequest).actionGet();
             assertThat(searchResponse.getHits(), notNullValue());
             assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
             assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("job_id"), is(jobId));

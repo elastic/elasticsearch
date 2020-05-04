@@ -143,7 +143,7 @@ public abstract class TransportInstanceSingleOperationAction<
                         throw blockException;
                     }
                 }
-                request.concreteIndex(indexNameExpressionResolver.concreteWriteIndex(clusterState, request).getName());
+                request.concreteIndex(indexNameExpressionResolver.concreteWriteIndex(clusterState, request, false).getName());
                 resolveRequest(clusterState, request);
                 blockException = checkRequestBlock(clusterState, request);
                 if (blockException != null) {

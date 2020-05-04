@@ -168,8 +168,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         queryC.limit(),
                         queryC.shouldTrackHits(),
                         queryC.shouldIncludeFrozen(),
-                        queryC.minPageSize(),
-                        queryC.zoneId());
+                        queryC.minPageSize());
                 return new EsQueryExec(exec.source(), exec.index(), project.output(), clone);
             }
             return project;
@@ -184,7 +183,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 EsQueryExec exec = (EsQueryExec) plan.child();
                 QueryContainer qContainer = exec.queryContainer();
 
-                QueryTranslation qt = toQuery(plan.condition(), plan.isHaving(), qContainer.zoneId());
+                QueryTranslation qt = toQuery(plan.condition(), plan.isHaving());
 
                 Query query = null;
                 if (qContainer.query() != null || qt.query != null) {
@@ -200,8 +199,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         qContainer.limit(),
                         qContainer.shouldTrackHits(),
                         qContainer.shouldIncludeFrozen(),
-                        qContainer.minPageSize(),
-                        qContainer.zoneId());
+                        qContainer.minPageSize());
 
                 return exec.with(qContainer);
             }
@@ -829,8 +827,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         query.limit(),
                         query.shouldTrackHits(),
                         query.shouldIncludeFrozen(),
-                        values.size(),
-                        query.zoneId()));
+                        values.size()));
             }
             return plan;
         }

@@ -79,7 +79,6 @@ import org.elasticsearch.xpack.sql.querydsl.agg.TopHitsAgg;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 import org.elasticsearch.xpack.sql.util.Check;
 
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -142,9 +141,9 @@ final class QueryTranslator {
         }
     }
 
-    static QueryTranslation toQuery(Expression e, boolean onAggs, ZoneId zoneId) {
+    static QueryTranslation toQuery(Expression e, boolean onAggs) {
         QueryTranslation translation = null;
-        TranslatorHandler handler = new SqlTranslatorHandler(onAggs, zoneId);
+        TranslatorHandler handler = new SqlTranslatorHandler(onAggs);
         for (SqlExpressionTranslator<?> translator : QUERY_TRANSLATORS) {
             translation = translator.translate(e, onAggs, handler);
             if (translation != null) {
@@ -313,10 +312,10 @@ final class QueryTranslator {
         protected QueryTranslation asQuery(org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic e, boolean onAggs,
                                            TranslatorHandler handler) {
             if (e instanceof And) {
-                return and(e.source(), toQuery(e.left(), onAggs, handler.zoneId()), toQuery(e.right(), onAggs, handler.zoneId()));
+                return and(e.source(), toQuery(e.left(), onAggs), toQuery(e.right(), onAggs));
             }
             if (e instanceof Or) {
-                return or(e.source(), toQuery(e.left(), onAggs, handler.zoneId()), toQuery(e.right(), onAggs, handler.zoneId()));
+                return or(e.source(), toQuery(e.left(), onAggs), toQuery(e.right(), onAggs));
             }
 
             return null;

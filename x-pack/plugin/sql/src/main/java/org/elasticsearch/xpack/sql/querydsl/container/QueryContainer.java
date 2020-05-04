@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.sql.querydsl.agg.LeafAgg;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.io.IOException;
-import java.time.ZoneId;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -52,7 +51,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
-import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
 /**
  * Container for various references of the built ES query.
@@ -93,11 +91,10 @@ public class QueryContainer {
     private Boolean customSort;
     // associate Attributes with aliased FieldAttributes (since they map directly to ES fields)
     private Map<Attribute, FieldAttribute> fieldAlias;
-    // used for date-range queries
-    private ZoneId zoneId;
+
 
     public QueryContainer() {
-        this(null, null, null, null, null, null, null, -1, false, false, -1, UTC);
+        this(null, null, null, null, null, null, null, -1, false, false, -1);
     }
 
     public QueryContainer(Query query,
@@ -110,8 +107,7 @@ public class QueryContainer {
             int limit,
             boolean trackHits,
             boolean includeFrozen,
-            int minPageSize,
-            ZoneId zoneId) {
+            int minPageSize) {
         this.query = query;
         this.aggs = aggs == null ? Aggs.EMPTY : aggs;
         this.fields = fields == null || fields.isEmpty() ? emptyList() : fields;
@@ -123,7 +119,6 @@ public class QueryContainer {
         this.trackHits = trackHits;
         this.includeFrozen = includeFrozen;
         this.minPageSize = minPageSize;
-        this.zoneId = zoneId;
     }
 
     /**
@@ -267,59 +262,53 @@ public class QueryContainer {
         return minPageSize;
     }
 
-    public ZoneId zoneId() {
-        return zoneId;
-    }
-
     //
     // copy methods
     //
 
     public QueryContainer with(Query q) {
         return new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
-                minPageSize, zoneId);
+                minPageSize);
     }
 
     public QueryContainer withAliases(AttributeMap<Expression> a) {
         return new QueryContainer(query, aggs, fields, a, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
-                minPageSize, zoneId);
+                minPageSize);
     }
 
     public QueryContainer withPseudoFunctions(Map<String, GroupByKey> p) {
-        return new QueryContainer(query, aggs, fields, aliases, p, scalarFunctions, sort, limit, trackHits, includeFrozen, minPageSize,
-            zoneId);
+        return new QueryContainer(query, aggs, fields, aliases, p, scalarFunctions, sort, limit, trackHits, includeFrozen, minPageSize);
     }
 
     public QueryContainer with(Aggs a) {
         return new QueryContainer(query, a, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
-                minPageSize, zoneId);
+                minPageSize);
     }
 
     public QueryContainer withLimit(int l) {
         return l == limit ? this : new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, l, trackHits,
-                includeFrozen, minPageSize, zoneId);
+                includeFrozen, minPageSize);
     }
 
     public QueryContainer withTrackHits() {
         return trackHits ? this : new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, true,
-                includeFrozen, minPageSize, zoneId);
+                includeFrozen, minPageSize);
     }
 
     public QueryContainer withFrozen() {
         return includeFrozen ? this : new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit,
-                trackHits, true, minPageSize, zoneId);
+                trackHits, true, minPageSize);
     }
 
     public QueryContainer withScalarProcessors(AttributeMap<Pipe> procs) {
-        return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, procs, sort, limit, trackHits, includeFrozen, minPageSize,
-            zoneId);
+        return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, procs, sort, limit, trackHits, includeFrozen, minPageSize);
     }
 
     public QueryContainer addSort(String expressionId, Sort sortable) {
         Map<String, Sort> newSort = new LinkedHashMap<>(this.sort);
         newSort.put(expressionId, sortable);
         return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, newSort, limit, trackHits, includeFrozen,
-                minPageSize, zoneId);
+                minPageSize);
     }
 
     private String aliasName(Attribute attr) {
@@ -386,7 +375,7 @@ public class QueryContainer {
 
         return new Tuple<>(
                 new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
-                        minPageSize, zoneId),
+                        minPageSize),
                 nestedFieldRef);
     }
 
@@ -491,7 +480,8 @@ public class QueryContainer {
 
     public QueryContainer addColumn(FieldExtraction ref, String id) {
         return new QueryContainer(query, aggs, combine(fields, new Tuple<>(ref, id)), aliases, pseudoFunctions,
-                scalarFunctions,sort, limit, trackHits, includeFrozen, minPageSize, zoneId);
+                scalarFunctions,
+                sort, limit, trackHits, includeFrozen, minPageSize);
     }
 
     public AttributeMap<Pipe> scalarFunctions() {

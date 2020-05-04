@@ -15,15 +15,7 @@ import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 
-import java.time.ZoneId;
-
 public class QlTranslatorHandler implements TranslatorHandler {
-
-    private final ZoneId zoneId;
-
-    public QlTranslatorHandler(ZoneId zoneId) {
-        this.zoneId = zoneId;
-    }
 
     @Override
     public Query asQuery(Expression e) {
@@ -55,10 +47,5 @@ public class QlTranslatorHandler implements TranslatorHandler {
     @Override
     public Object convert(Object value, DataType dataType) {
         return DataTypeConverter.convert(value, dataType);
-    }
-
-    @Override
-    public ZoneId zoneId() {
-        return zoneId;
     }
 }

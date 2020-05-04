@@ -52,14 +52,12 @@ import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.time.OffsetTime;
-import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAccessor;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 
 public final class ExpressionTranslators {
 
@@ -80,8 +78,8 @@ public final class ExpressionTranslators {
             new Scalars()
             );
 
-    public static Query toQuery(Expression e, ZoneId zoneId) {
-        return toQuery(e, new QlTranslatorHandler(zoneId));
+    public static Query toQuery(Expression e) {
+        return toQuery(e, new QlTranslatorHandler());
     }
 
     public static Query toQuery(Expression e, TranslatorHandler handler) {
@@ -251,21 +249,17 @@ public final class ExpressionTranslators {
                 isDateLiteralComparison = true;
             }
 
-            ZoneId zoneId = null;
-            if (bc.left().dataType() == DATETIME) {
-                zoneId = handler.zoneId();
-            }
             if (bc instanceof GreaterThan) {
-                return new RangeQuery(source, name, value, false, null, false, format, zoneId);
+                return new RangeQuery(source, name, value, false, null, false, format);
             }
             if (bc instanceof GreaterThanOrEqual) {
-                return new RangeQuery(source, name, value, true, null, false, format, zoneId);
+                return new RangeQuery(source, name, value, true, null, false, format);
             }
             if (bc instanceof LessThan) {
-                return new RangeQuery(source, name, null, false, value, false, format, zoneId);
+                return new RangeQuery(source, name, null, false, value, false, format);
             }
             if (bc instanceof LessThanOrEqual) {
-                return new RangeQuery(source, name, null, false, value, true, format, zoneId);
+                return new RangeQuery(source, name, null, false, value, true, format);
             }
             if (bc instanceof Equals || bc instanceof NullEquals || bc instanceof NotEquals) {
                 if (bc.left() instanceof FieldAttribute) {
@@ -276,7 +270,7 @@ public final class ExpressionTranslators {
                 Query query;
                 if (isDateLiteralComparison) {
                     // dates equality uses a range query because it's the one that has a "format" parameter
-                    query = new RangeQuery(source, name, value, true, value, true, format, zoneId);
+                    query = new RangeQuery(source, name, value, true, value, true, format);
                 } else {
                     query = new TermQuery(source, name, value);
                 }
@@ -329,12 +323,8 @@ public final class ExpressionTranslators {
                 }
             }
 
-            ZoneId zoneId = null;
-            if (r.value().dataType() == DATETIME) {
-                zoneId = handler.zoneId();
-            }
             query = handler.wrapFunctionQuery(r, val, new RangeQuery(r.source(), handler.nameOf(val), lower.get(), r.includeLower(),
-                                                                     upper.get(), r.includeUpper(), format.get(), zoneId));
+                                                                     upper.get(), r.includeUpper(), format.get()));
 
             return query;
         }

@@ -2405,7 +2405,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
                 .name("my-template");
             IndexTemplateV2 indexTemplateV2 =
-                new IndexTemplateV2(List.of("pattern-1", "log-*"), null, List.of("ct1"), null,  null, null); // <1>
+                new IndexTemplateV2(List.of("pattern-1", "log-*"), null, List.of("ct1"), null, null, null); // <1>
             request.indexTemplate(indexTemplateV2);
 
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
@@ -2563,7 +2563,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::simulate-index-template-request
 
         // tag::simulate-index-template-response
-        SimulateIndexTemplateResponse simulateIndexTemplateResponse = client.indices().simulateIndexTemplate(simulateRequest, RequestOptions.DEFAULT);
+        SimulateIndexTemplateResponse simulateIndexTemplateResponse = client.indices().simulateIndexTemplate(simulateRequest,
+            RequestOptions.DEFAULT);
         assertThat(simulateIndexTemplateResponse.resolvedTemplate().settings().get("index.number_of_shards"), is("6")); // <1>
         assertThat(simulateIndexTemplateResponse.overlappingTemplates().get("my-template"),
             containsInAnyOrder("pattern-1", "log-*")); // <2>

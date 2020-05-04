@@ -31,6 +31,9 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Properties;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.watcher.WatcherField.EMAIL_NOTIFICATION_SSL_PREFIX;
 
 public class Account {
 
@@ -187,7 +190,7 @@ public class Account {
         final Smtp smtp;
         final EmailDefaults defaults;
 
-        Config(String name, Settings settings, @Nullable SSLSocketFactory sslSocketFactory) {
+        Config(String name, Settings settings, @Nullable SSLSocketFactory sslSocketFactory, Logger logger) {
             this.name = name;
             profile = Profile.resolve(settings.get("profile"), Profile.STANDARD);
             defaults = new EmailDefaults(name, settings.getAsSettings("email_defaults"));
@@ -197,6 +200,15 @@ public class Account {
                 throw new SettingsException(msg);
             }
             if (sslSocketFactory != null) {
+                String sslKeys = smtp.properties.keySet().stream()
+                    .map(String::valueOf)
+                    .filter(key -> key.startsWith("mail.smtp.ssl."))
+                    .collect(Collectors.joining(","));
+                if (sslKeys.isEmpty() == false) {
+                    logger.warn("Account [{}] has explicit SSL settings [{}] which will be ignored" +
+                            " due to notification SSL settings in [{}]",
+                        name, sslKeys, EMAIL_NOTIFICATION_SSL_PREFIX);
+                }
                 smtp.setSocketFactory(sslSocketFactory);
             }
         }

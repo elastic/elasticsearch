@@ -38,6 +38,7 @@ public final class SSLConfiguration {
     private final List<String> supportedProtocols;
     private final SSLClientAuth sslClientAuth;
     private final VerificationMode verificationMode;
+    private final boolean explicitlyConfigured;
 
     /**
      * Creates a new SSLConfiguration from the given settings. There is no fallback configuration when invoking this constructor so
@@ -52,6 +53,7 @@ public final class SSLConfiguration {
         this.supportedProtocols = getListOrDefault(SETTINGS_PARSER.supportedProtocols, settings, XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS);
         this.sslClientAuth = SETTINGS_PARSER.clientAuth.get(settings).orElse(XPackSettings.CLIENT_AUTH_DEFAULT);
         this.verificationMode = SETTINGS_PARSER.verificationMode.get(settings).orElse(XPackSettings.VERIFICATION_MODE_DEFAULT);
+        this.explicitlyConfigured = settings.isEmpty() == false;
     }
 
     /**
@@ -106,6 +108,10 @@ public final class SSLConfiguration {
         List<Path> paths = new ArrayList<>(keyConfig().filesToMonitor(environment));
         paths.addAll(trustConfig().filesToMonitor(environment));
         return paths;
+    }
+
+    public boolean isExplicitlyConfigured() {
+        return explicitlyConfigured;
     }
 
     @Override

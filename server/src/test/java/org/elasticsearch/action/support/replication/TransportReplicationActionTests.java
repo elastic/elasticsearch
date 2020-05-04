@@ -290,7 +290,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             assertIndexShardUninitialized();
         }
         {
-            Request requestWithTimeout = new Request(new ShardId("unknown", "_na_", 0)).index("unknown").timeout("5ms");
+            Request requestWithTimeout = new Request(new ShardId("unknown", "_na_", 0)).timeout("5ms");
             PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
             ReplicationTask task = maybeTask();
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -47,6 +48,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public abstract class ReplicationRequest<Request extends ReplicationRequest<Request>> extends ActionRequest
         implements IndicesRequest {
 
+    private static final Version COMPACT_INDEX_NAME_VERSION = Version.V_8_0_0;
+
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
     /**
@@ -68,14 +71,19 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
 
     public ReplicationRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.readBoolean()) {
+        boolean hasShardId = in.readBoolean();
+        if (hasShardId) {
             shardId = new ShardId(in);
         } else {
             shardId = null;
         }
         waitForActiveShards = ActiveShardCount.readFrom(in);
         timeout = in.readTimeValue();
-        index = in.readString();
+        if (hasShardId && in.getVersion().onOrAfter(COMPACT_INDEX_NAME_VERSION)) {
+            index = shardId.getIndexName();
+        } else {
+            index = in.readString();
+        }
         routedBasedOnClusterVersion = in.readVLong();
     }
 
@@ -114,6 +122,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
 
     @SuppressWarnings("unchecked")
     public final Request index(String index) {
+        assert shardId == null : "Tried setting index but already has set shard id [" + shardId + "]";
         this.index = index;
         return (Request) this;
     }
@@ -193,7 +202,9 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         out.writeOptionalWriteable(shardId);
         waitForActiveShards.writeTo(out);
         out.writeTimeValue(timeout);
-        out.writeString(index);
+        if (shardId == null || out.getVersion().before(COMPACT_INDEX_NAME_VERSION)) {
+            out.writeString(index);
+        }
         out.writeVLong(routedBasedOnClusterVersion);
     }
 

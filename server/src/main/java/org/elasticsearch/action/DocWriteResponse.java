@@ -276,17 +276,17 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
 
     public void writeThin(StreamOutput out) throws IOException {
         super.writeTo(out);
-        doWrite(out);
+        writeWithoutShardId(out);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         shardId.writeTo(out);
-        doWrite(out);
+        writeWithoutShardId(out);
     }
 
-    private void doWrite(StreamOutput out) throws IOException {
+    private void writeWithoutShardId(StreamOutput out) throws IOException {
         if (out.getVersion().before(Version.V_8_0_0)) {
             out.writeString(MapperService.SINGLE_MAPPING_NAME);
         }

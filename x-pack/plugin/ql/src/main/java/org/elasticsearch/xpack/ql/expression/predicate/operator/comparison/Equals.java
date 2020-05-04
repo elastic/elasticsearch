@@ -15,6 +15,10 @@ import java.time.ZoneId;
 
 public class Equals extends BinaryComparison implements Negatable<BinaryComparison> {
 
+    public Equals(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryComparisonOperation.EQ, null);
+    }
+
     public Equals(Source source, Expression left, Expression right, ZoneId zoneId) {
         super(source, left, right, BinaryComparisonOperation.EQ, zoneId);
     }

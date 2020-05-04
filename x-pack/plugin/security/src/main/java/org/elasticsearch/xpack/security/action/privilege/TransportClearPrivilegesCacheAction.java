@@ -6,9 +6,12 @@
 
 package org.elasticsearch.xpack.security.action.privilege;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,6 +25,7 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 public class TransportClearPrivilegesCacheAction extends TransportNodesAction<ClearPrivilegesCacheRequest, ClearPrivilegesCacheResponse,
@@ -79,5 +83,14 @@ public class TransportClearPrivilegesCacheAction extends TransportNodesAction<Cl
             rolesStore.invalidateAll();
         }
         return new ClearPrivilegesCacheResponse.Node(clusterService.localNode());
+    }
+
+    @Override
+    protected void resolveRequest(ClearPrivilegesCacheRequest request, ClusterState clusterState) {
+        assert request.concreteNodes() == null : "request concreteNodes shouldn't be set";
+        String[] nodesIds = clusterState.nodes().resolveNodes(request.nodesIds());
+        // TODO: version needs to be updated once 7.x backport is in place
+        request.setConcreteNodes(Arrays.stream(nodesIds).map(clusterState.nodes()::get)
+            .filter(node -> node.getVersion().onOrAfter(Version.V_8_0_0)).toArray(DiscoveryNode[]::new));
     }
 }

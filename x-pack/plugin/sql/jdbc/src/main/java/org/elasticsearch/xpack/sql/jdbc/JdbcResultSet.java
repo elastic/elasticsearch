@@ -550,9 +550,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     @Override
     @Deprecated
     public BigDecimal getBigDecimal(String columnLabel, int scale) throws SQLException {
-        BigDecimal bd = getBigDecimal(columnLabel);
-        // see comment in {@link #getBigDecimal(int columnIndex, int scale)}
-        return bd == null ? null : bd.setScale(scale);
+        return getBigDecimal(column(columnLabel), scale);
     }
 
     @Override

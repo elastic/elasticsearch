@@ -170,12 +170,14 @@ public class GetIndexResponse {
                     case "defaults":
                         indexDefaultSettings = Settings.fromXContent(parser);
                         break;
-                    case "data_stream":
-                        dataStream = parser.text();
-                        break;
                     default:
                         parser.skipChildren();
                 }
+            } else if (parser.currentToken() == Token.VALUE_STRING) {
+                if (parser.currentName().equals("data_stream")) {
+                    dataStream = parser.text();
+                }
+                parser.skipChildren();
             } else if (parser.currentToken() == Token.START_ARRAY) {
                 parser.skipChildren();
             }

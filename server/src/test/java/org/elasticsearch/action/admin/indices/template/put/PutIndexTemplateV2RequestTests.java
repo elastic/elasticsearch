@@ -83,7 +83,7 @@ public class PutIndexTemplateV2RequestTests extends AbstractWireSerializingTestC
 
     public void testValidationOfPriority() {
         PutIndexTemplateV2Action.Request req = new PutIndexTemplateV2Action.Request("test");
-        req.indexTemplate(new IndexTemplateV2(Arrays.asList("foo", "bar"), null, null, -5L, null, null));
+        req.indexTemplate(new IndexTemplateV2(Arrays.asList("foo", "bar"), null, null, -5L, null, null, null));
         ActionRequestValidationException validationException = req.validate();
         assertThat(validationException, is(notNullValue()));
         List<String> validationErrors = validationException.validationErrors();

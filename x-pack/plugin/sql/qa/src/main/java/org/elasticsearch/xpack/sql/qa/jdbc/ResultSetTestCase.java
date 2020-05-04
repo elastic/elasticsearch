@@ -917,7 +917,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
 
         doWithQuery(SELECT_WILDCARD, (results) -> {
             results.next();
-            for(Entry<String, Number> e : map.entrySet()) {
+            for (Entry<String, Number> e : map.entrySet()) {
                 BigDecimal actualByObj = results.getObject(e.getKey(), BigDecimal.class);
                 BigDecimal actualByType = results.getBigDecimal(e.getKey());
 

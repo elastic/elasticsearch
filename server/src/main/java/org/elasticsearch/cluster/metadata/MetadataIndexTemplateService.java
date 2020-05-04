@@ -1002,6 +1002,9 @@ public class MetadataIndexTemplateService {
             if (indexPattern.contains("#")) {
                 validationErrors.add("index_pattern [" + indexPattern + "] must not contain a '#'");
             }
+            if (indexPattern.contains(":")) {
+                validationErrors.add("index_pattern [" + indexPattern + "] must not contain a ':'");
+            }
             if (indexPattern.startsWith("_")) {
                 validationErrors.add("index_pattern [" + indexPattern + "] must not start with '_'");
             }

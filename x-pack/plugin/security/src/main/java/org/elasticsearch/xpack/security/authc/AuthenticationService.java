@@ -466,11 +466,11 @@ public class AuthenticationService {
                                 request.realmAuthenticationFailed(authenticationToken, realm.name());
                                 if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
                                     if (result.getException() != null) {
-                                        logger.info(new ParameterizedMessage("Authentication of [{}] was exceptionally terminated by " +
-                                                        "realm [{}] - {}", authenticationToken.principal(), realm.name(),
-                                                        result.getMessage()), result.getException());
+                                        logger.info(new ParameterizedMessage(
+                                                "Authentication of [{}] was terminated by realm [{}] - {}",
+                                                authenticationToken.principal(), realm.name(), result.getMessage()), result.getException());
                                     } else {
-                                        logger.info("Authentication of [{}] was gracefully terminated by realm [{}] - {}",
+                                        logger.info("Authentication of [{}] was terminated by realm [{}] - {}",
                                                 authenticationToken.principal(), realm.name(), result.getMessage());
                                     }
                                     userListener.onFailure(result.getException());
@@ -499,7 +499,7 @@ public class AuthenticationService {
                             if (e != null) {
                                 listener.onFailure(request.exceptionProcessingRequest(e, token));
                             } else {
-                                listener.onFailure(request.authenticationFailed(authenticationToken));
+                                listener.onFailure(request.authenticationFailed(token));
                             }
                         }), threadContext),
                         realmAuthenticatingConsumer, realmsList, threadContext);

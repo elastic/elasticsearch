@@ -64,6 +64,7 @@ import org.elasticsearch.client.indices.CloseIndexResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.client.indices.DeleteAliasRequest;
+import org.elasticsearch.client.indices.DeleteIndexTemplateV2Request;
 import org.elasticsearch.client.indices.DetailAnalyzeResponse;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
@@ -2472,6 +2473,66 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
+    }
+
+    public void testDeleteIndexTemplateV2() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+                .name("my-template");
+            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), null, null, null, null, null); // <2>
+            request.indexTemplate(indexTemplateV2);
+            assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+        }
+
+        // tag::delete-index-template-v2-request
+        DeleteIndexTemplateV2Request deleteRequest = new DeleteIndexTemplateV2Request("my-template"); // <1>
+        // end::delete-index-template-v2-request
+
+        // tag::delete-index-template-v2-request-masterTimeout
+        deleteRequest.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        // end::delete-index-template-v2-request-masterTimeout
+
+        // tag::delete-index-template-v2-execute
+        AcknowledgedResponse deleteTemplateAcknowledge = client.indices().deleteIndexTemplate(deleteRequest, RequestOptions.DEFAULT);
+        // end::delete-index-template-v2-execute
+
+        // tag::delete-index-template-v2-response
+        boolean acknowledged = deleteTemplateAcknowledge.isAcknowledged(); // <1>
+        // end::delete-index-template-v2-response
+        assertThat(acknowledged, equalTo(true));
+
+        {
+            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+                .name("my-template");
+            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), null, null, null, null, null); // <2>
+            request.indexTemplate(indexTemplateV2);
+            assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+        }
+
+        // tag::delete-index-template-v2-execute-listener
+        ActionListener<AcknowledgedResponse> listener =
+            new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::delete-index-template-v2-execute-listener
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::delete-index-template-v2-execute-async
+        client.indices().deleteIndexTemplateAsync(deleteRequest, RequestOptions.DEFAULT, listener); // <1>
+        // end::delete-index-template-v2-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
     public void testTemplatesExist() throws Exception {

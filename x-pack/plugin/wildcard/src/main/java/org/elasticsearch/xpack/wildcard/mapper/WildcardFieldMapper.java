@@ -548,9 +548,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
         List<IndexableField> fields = new ArrayList<>();
         createFields(value, parseDoc, fields);
-        for (IndexableField field : fields) {
-            parseDoc.add(field);
-        }
+        parseDoc.addAll(fields);
     }
 
     // For internal use by Lucene only - used to define ngram index

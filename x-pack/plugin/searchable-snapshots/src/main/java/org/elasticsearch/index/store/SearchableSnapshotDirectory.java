@@ -30,7 +30,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.SizeBlockingQueue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -369,7 +368,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             final Executor executor = threadPool.executor(SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME);
             logger.debug("{} warming shard cache for [{}] files", shardId, cacheFiles.size());
 
-            final BlockingQueue<ActionRunnable<Void>> queue = new SizeBlockingQueue<>(new LinkedBlockingQueue<>(), Integer.MAX_VALUE);
+            final BlockingQueue<ActionRunnable<Void>> queue = new LinkedBlockingQueue<>();
             for (BlobStoreIndexShardSnapshot.FileInfo cacheFile : cacheFiles) {
                 final String fileName = cacheFile.physicalName();
 
@@ -380,35 +379,31 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     assert input instanceof CachedBlobContainerIndexInput : "expected cached index input but got " + input.getClass();
 
                     final int numberOfParts = Math.toIntExact(cacheFile.numberOfParts());
-                    if (queue.remainingCapacity() >= numberOfParts) {
-                        final CachedBlobContainerIndexInput cachedIndexInput = (CachedBlobContainerIndexInput) input;
-                        final GroupedActionListener<Void> listener = new GroupedActionListener<>(
-                            ActionListener.wrap(() -> IOUtils.closeWhileHandlingException(cachedIndexInput)),
-                            numberOfParts
-                        );
-                        for (int p = 0; p < numberOfParts; p++) {
-                            final int part = p;
-                            queue.add(ActionRunnable.run(listener, () -> {
-                                ensureOpen();
+                    final CachedBlobContainerIndexInput cachedIndexInput = (CachedBlobContainerIndexInput) input;
+                    final GroupedActionListener<Void> listener = new GroupedActionListener<>(
+                        ActionListener.wrap(() -> IOUtils.closeWhileHandlingException(cachedIndexInput)),
+                        numberOfParts
+                    );
+                    for (int p = 0; p < numberOfParts; p++) {
+                        final int part = p;
+                        queue.add(ActionRunnable.run(listener, () -> {
+                            ensureOpen();
 
-                                logger.trace("warming cache for [{}] part [{}/{}]", fileName, part, numberOfParts);
-                                final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
-                                cachedIndexInput.prefetchPart(part); // TODO does not include any rate limitation
+                            logger.trace("warming cache for [{}] part [{}/{}]", fileName, part, numberOfParts);
+                            final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
+                            cachedIndexInput.prefetchPart(part); // TODO does not include any rate limitation
 
-                                logger.trace(
-                                    () -> new ParameterizedMessage(
-                                        "part [{}/{}] of [{}] warmed in [{}] ms",
-                                        part,
-                                        numberOfParts,
-                                        fileName,
-                                        TimeValue.timeValueNanos(statsCurrentTimeNanosSupplier.getAsLong() - startTimeInNanos).millis()
-                                    )
-                                );
-                            }));
-                        }
+                            logger.trace(
+                                () -> new ParameterizedMessage(
+                                    "part [{}/{}] of [{}] warmed in [{}] ms",
+                                    part,
+                                    numberOfParts,
+                                    fileName,
+                                    TimeValue.timeValueNanos(statsCurrentTimeNanosSupplier.getAsLong() - startTimeInNanos).millis()
+                                )
+                            );
+                        }));
                         enqueued = true;
-                    } else {
-                        logger.warn("{} too many files ({}) to warm in cache, skipping file [{}]", shardId, queue.size(), fileName);
                     }
                 } catch (Exception e) {
                     logger.warn(

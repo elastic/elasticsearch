@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.vectors.mapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ArrayUtil;
@@ -30,7 +29,6 @@ import org.elasticsearch.xpack.vectors.query.VectorDVIndexFieldData;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -194,7 +192,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) {
+    protected void parseCreateField(ParseContext context) {
         throw new AssertionError("parse is implemented directly");
     }
 

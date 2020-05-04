@@ -33,7 +33,6 @@ import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper.DeprecatedParame
 
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -298,9 +297,8 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
                 shape = geometryIndexer.prepareForIndexing(geometry);
             }
 
-            List<IndexableField> fields = new ArrayList<>();
-            fields.addAll(geometryIndexer.indexShape(context, shape));
-            createFieldNamesField(context, fields);
+            List<IndexableField> fields = geometryIndexer.indexShape(context, shape);
+            createFieldNamesField(context);
             for (IndexableField field : fields) {
                 context.doc().add(field);
             }

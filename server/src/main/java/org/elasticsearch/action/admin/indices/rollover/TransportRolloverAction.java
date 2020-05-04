@@ -89,13 +89,10 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     @Override
     protected ClusterBlockException checkBlock(RolloverRequest request, ClusterState state) {
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, true,
-            request.indicesOptions().expandWildcardsOpen(), request.indicesOptions().expandWildcardsClosed(),
-            request.indicesOptions().expandWildcardsHidden(), true,
-            request.indicesOptions().forbidClosedIndices(), request.indicesOptions().ignoreAliases(),
-            request.indicesOptions().ignoreThrottled(), request.indicesOptions().includeDataStreams());
+            request.indicesOptions().expandWildcardsOpen(), request.indicesOptions().expandWildcardsClosed());
 
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
-            indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request.indices()));
+            indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, true, request.indices()));
     }
 
     @Override
@@ -110,7 +107,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         String rolloverIndexName = preResult.rolloverIndexName;
         IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getRolloverTarget())
             .clear()
-            .indicesOptions(IndicesOptions.fromOptions(true, false, true, true, false, true, false, false, false, true))
+            .indicesOptions(IndicesOptions.fromOptions(true, false, true, true))
             .docs(true);
         statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
         client.execute(IndicesStatsAction.INSTANCE, statsRequest,

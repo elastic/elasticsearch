@@ -23,7 +23,7 @@ import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.services.s3.AmazonS3;
@@ -224,7 +224,7 @@ class S3Service implements Closeable {
 
         private PrivilegedInstanceProfileCredentialsProvider() {
             // InstanceProfileCredentialsProvider as last item of chain
-            this.credentials = new EC2ContainerCredentialsProviderWrapper();
+            this.credentials = new DefaultAWSCredentialsProviderChain();
         }
 
         @Override

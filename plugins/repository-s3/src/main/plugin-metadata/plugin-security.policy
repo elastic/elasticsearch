@@ -36,6 +36,13 @@ grant {
   // See https://github.com/aws/aws-sdk-java/issues/766
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 
+  // AWS sdk reads configuration files in home directory
+  permission java.io.FilePermission "${user.home}${/}.aws${/}-", "read";
+  permission javax.management.MBeanServerPermission "findMBeanServer";
+  permission javax.management.MBeanServerPermission "createMBeanServer";
+  permission javax.management.MBeanPermission "com.amazonaws.metrics.MetricAdmin#-[com.amazonaws.management:type=AwsSdkMetrics]", "registerMBean";
+  permission javax.management.MBeanTrustPermission "register";
+
   // s3 client opens socket connections for to access repository
   permission java.net.SocketPermission "*", "connect";
 

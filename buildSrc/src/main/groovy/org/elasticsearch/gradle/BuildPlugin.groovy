@@ -503,7 +503,12 @@ class BuildPlugin implements Plugin<Project> {
             result.rethrowFailure()
             result.assertNormalExitValue() // assert exit value in case the failure cause is null
         }
-        return (captureStdErr ? stderr : stdout).toString('UTF-8').trim()
+        String[] lines = (captureStdErr ? stderr : stdout).toString('UTF-8').trim().split('\n')
+        if (lines.length == 0) {
+            throw new GradleException("Expected command to produce output but it did not.")
+        }
+
+        return lines[lines.length - 1]
     }
 
     /** Return the configuration name used for finding transitive deps of the given dependency. */

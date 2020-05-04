@@ -12,21 +12,19 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import java.io.IOException;
 import java.time.DateTimeException;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.ql.util.DateUtils.UTC;
-
 public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
 
     public static final String NAME = "dtparse";
 
-    public DateTimeParseProcessor(Processor source1, Processor source2) {
-        super(source1, source2, null);
+    public DateTimeParseProcessor(Processor source1, Processor source2, ZoneId zoneId) {
+        super(source1, source2, zoneId);
     }
 
     public DateTimeParseProcessor(StreamInput in) throws IOException {
@@ -36,7 +34,7 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
     /**
      * Used in Painless scripting
      */
-    public static Object process(Object timestampStr, Object pattern) {
+    public static Object process(Object timestampStr, Object pattern, ZoneId zoneId) {
         if (timestampStr == null || pattern == null) {
             return null;
         }
@@ -55,9 +53,9 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
             TemporalAccessor ta = DateTimeFormatter.ofPattern((String) pattern, Locale.ROOT)
                 .parseBest((String) timestampStr, ZonedDateTime::from, LocalDateTime::from);
             if (ta instanceof LocalDateTime) {
-                return ZonedDateTime.ofInstant((LocalDateTime) ta, ZoneOffset.UTC, UTC);
+                return ZonedDateTime.ofInstant((LocalDateTime) ta, zoneId.getRules().getValidOffsets(((LocalDateTime) ta)).get(0), zoneId);
             } else {
-                return ta;
+                return ((ZonedDateTime) ta).withZoneSameInstant(zoneId);
             }
         } catch (IllegalArgumentException | DateTimeException e) {
             String msg = e.getMessage();
@@ -80,7 +78,7 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
 
     @Override
     protected Object doProcess(Object timestamp, Object pattern) {
-        return process(timestamp, pattern);
+        return process(timestamp, pattern, zoneId());
     }
 
     @Override

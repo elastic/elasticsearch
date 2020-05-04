@@ -137,6 +137,10 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         assertThat(processorFactory.numInferenceProcessors(), equalTo(3));
     }
 
+    public void testNumInferenceWhenLevelExceedsMaxRecurions() {
+        assertThat(InferenceProcessor.Factory.numInferenceProcessors(InferenceProcessor.TYPE, Collections.emptyMap(), 100), equalTo(0));
+    }
+
     public void testCreateProcessorWithTooManyExisting() throws Exception {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,

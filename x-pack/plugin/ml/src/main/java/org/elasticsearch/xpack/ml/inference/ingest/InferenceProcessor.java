@@ -231,7 +231,7 @@ public class InferenceProcessor extends AbstractProcessor {
         static int numInferenceProcessors(String processorType, Map<String, Object> processorDefinition, int level) {
             int count = 0;
             // arbitrary, but we must limit this somehow
-            if (MAX_INFERENCE_PROCESSOR_SEARCH_RECURSIONS > 10) {
+            if (level > MAX_INFERENCE_PROCESSOR_SEARCH_RECURSIONS) {
                 return count;
             }
             if (processorType == null || processorDefinition == null) {

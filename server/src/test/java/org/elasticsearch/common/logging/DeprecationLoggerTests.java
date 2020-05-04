@@ -43,7 +43,6 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-//TODO fix this
 public class DeprecationLoggerTests extends ESTestCase {
     @SuppressLoggerChecks(reason = "Safe as this is using mockito")
     public void testLogPermissions() {
@@ -84,6 +83,8 @@ public class DeprecationLoggerTests extends ESTestCase {
                 return null;
             }, noPermissionsAcc);
             assertThat("supplier called", supplierCalled.get(), is(true));
+
+            assertWarnings("foo");
         } finally {
             LogManager.setFactory(originalFactory);
         }

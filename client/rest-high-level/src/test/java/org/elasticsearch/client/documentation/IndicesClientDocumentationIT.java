@@ -86,6 +86,8 @@ import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersResponse;
 import org.elasticsearch.client.indices.ReloadAnalyzersResponse.ReloadDetails;
+import org.elasticsearch.client.indices.SimulateIndexTemplateRequest;
+import org.elasticsearch.client.indices.SimulateIndexTemplateResponse;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.indices.rollover.RolloverResponse;
@@ -116,6 +118,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -2531,6 +2534,62 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // tag::delete-index-template-v2-execute-async
         client.indices().deleteIndexTemplateAsync(deleteRequest, RequestOptions.DEFAULT, listener); // <1>
         // end::delete-index-template-v2-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testSimulateIndexTemplate() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+                .name("my-template"); // <1>
+            Template template = new Template(Settings.builder().put("index.number_of_replicas", 3).build(), null, null);
+            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), template, null, null, null, null);
+            request.indexTemplate(indexTemplateV2);
+            assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+        }
+
+        // tag::simulate-index-template-request
+        SimulateIndexTemplateRequest simulateRequest = new SimulateIndexTemplateRequest("log-000001"); // <1>
+        PutIndexTemplateV2Request newIndexTemplateRequest = new PutIndexTemplateV2Request()
+            .name("used-for-simulation");
+        Settings settings = Settings.builder().put("index.number_of_shards", 6).build();
+        Template template = new Template(settings, null, null); // <2>
+        IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("log-*"), template, null, 90L, null, null);
+        newIndexTemplateRequest.indexTemplate(indexTemplateV2);
+
+        simulateRequest.indexTemplateV2Request(newIndexTemplateRequest); // <2>
+        // end::simulate-index-template-request
+
+        // tag::simulate-index-template-response
+        SimulateIndexTemplateResponse simulateIndexTemplateResponse = client.indices().simulateIndexTemplate(simulateRequest, RequestOptions.DEFAULT);
+        assertThat(simulateIndexTemplateResponse.resolvedTemplate().settings().get("index.number_of_shards"), is("6")); // <1>
+        assertThat(simulateIndexTemplateResponse.overlappingTemplates().get("my-template"),
+            containsInAnyOrder("pattern-1", "log-*")); // <2>
+        // end::simulate-index-template-response
+
+        // tag::simulate-index-template-execute-listener
+        ActionListener<SimulateIndexTemplateResponse> listener =
+            new ActionListener<SimulateIndexTemplateResponse>() {
+                @Override
+                public void onResponse(SimulateIndexTemplateResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::simulate-index-template-execute-listener
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::simulate-index-template-execute-async
+        client.indices().simulateIndexTemplateAsync(simulateRequest, RequestOptions.DEFAULT, listener); // <1>
+        // end::simulate-index-template-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }

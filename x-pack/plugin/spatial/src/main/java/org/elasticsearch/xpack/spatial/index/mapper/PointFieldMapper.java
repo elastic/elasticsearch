@@ -9,7 +9,6 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.XYDocValuesField;
 import org.apache.lucene.document.XYPointField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
@@ -27,9 +26,7 @@ import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryPointProcessor;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
@@ -174,11 +171,7 @@ public class PointFieldMapper extends AbstractGeometryFieldMapper implements Arr
         if (fieldType.hasDocValues()) {
             context.doc().add(new XYDocValuesField(fieldType().name(), point.getX(), point.getY()));
         } else if (fieldType().stored() || fieldType().indexOptions() != IndexOptions.NONE) {
-            List<IndexableField> fields = new ArrayList<>(1);
             createFieldNamesField(context);
-            for (IndexableField field : fields) {
-                context.doc().add(field);
-            }
         }
         // if the mapping contains multi-fields then throw an error?
         if (multiFields.iterator().hasNext()) {

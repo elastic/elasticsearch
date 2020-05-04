@@ -72,13 +72,13 @@ teardown:
 ---
 "Throw exception when adding voting config exclusion without specifying nodes":
   - do:
-      catch: /You must set \[node_names\] or \[node_ids\] but not both/
+      catch: /(You must set \[node_names\] or \[node_ids\] but not both|Please set node identifiers correctly. One and only one of \[node_name\], \[node_names\] and \[node_ids\] has to be set)/
       cluster.post_voting_config_exclusions: {}
 
 ---
 "Throw exception when adding voting config exclusion and specifying both node_ids and node_names":
   - do:
-      catch: /You must set \[node_names\] or \[node_ids\] but not both/
+      catch: /(You must set \[node_names\] or \[node_ids\] but not both|Please set node identifiers correctly. One and only one of \[node_name\], \[node_names\] and \[node_ids\] has to be set)/
       cluster.post_voting_config_exclusions:
         node_ids: nodeId
         node_names: nodeName

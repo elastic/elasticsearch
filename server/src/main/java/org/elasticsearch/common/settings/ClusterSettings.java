@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
@@ -310,6 +311,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING,
             HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING,
             HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING,
+            TransportReplicationAction.REPLICATION_INITIAL_RETRY_BACKOFF_BOUND,
+            TransportReplicationAction.REPLICATION_RETRY_TIMEOUT,
             TransportSettings.HOST,
             TransportSettings.PUBLISH_HOST,
             TransportSettings.PUBLISH_HOST_PROFILE,

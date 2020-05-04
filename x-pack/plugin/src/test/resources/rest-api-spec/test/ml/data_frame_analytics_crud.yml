@@ -1622,7 +1622,7 @@ setup:
                 "feature_bag_fraction": 0.3,
                 "training_percent": 60.3,
                 "randomize_seed": 42,
-                "loss_function": "mlse",
+                "loss_function": "msle",
                 "loss_function_parameter": 2.0
               }
             }
@@ -2068,7 +2068,8 @@ setup:
       "dependent_variable": "foo",
       "prediction_field_name": "foo_prediction",
       "training_percent": 100.0,
-      "randomize_seed": 42
+      "randomize_seed": 42,
+      "loss_function": "mse"
     }
   }}
   - is_true: create_time

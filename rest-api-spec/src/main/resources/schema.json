@@ -198,7 +198,7 @@
             },
             "required": ["accept"],
             "title": "Headers the API understands",
-            "description": "Documents the headers the API supports, at a minimum this should document the Accept header and Content-Type header if the API supports a body"
+            "description": "Documents the headers the API supports, at a minimum this must document the Accept header. The Content-Type header should be documented if the API supports a body"
         },
         "Parts": {
             "type": "object",

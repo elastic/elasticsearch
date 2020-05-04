@@ -1,3 +1,56 @@
+[[release-notes-6.8.9]]
+== {es} version 6.8.9
+
+[[enhancement-6.8.9]]
+[float]
+=== Enhancements
+
+Authorization::
+* Remove synthetic role names of API keys as they confuse users {pull}56005[#56005]
+
+Infra/Core::
+* Enable helpful null pointer exceptions {pull}54853[#54853]
+
+Snapshot/Restore::
+* Update the HDFS version used by HDFS Repo {pull}53693[#53693]
+
+[[bug-6.8.9]]
+[float]
+=== Bug fixes
+
+CCR::
+* Retry follow task when remote connection queue full {pull}55314[#55314]
+* Clear recent errors when auto-follow successfully {pull}54997[#54997]
+* Handle no such remote cluster exception in ccr {pull}53415[#53415] (issue: {issue}53225[#53225])
+
+CRUD::
+* Reduce deprecation warnings from bulk OCC {pull}53911[#53911]
+
+Engine::
+* Ensure no circular reference in translog tragic exception {pull}55959[#55959] (issue: {issue}55893[#55893])
+
+Features/CAT APIs::
+* Cat tasks output should respect time display settings {pull}54536[#54536]
+
+Infra/Core::
+* Avoid StackOverflowError if write circular reference exception {pull}54147[#54147] (issue: {issue}53589[#53589])
+* Disallow negative TimeValues {pull}53913[#53913] (issue: {issue}54041[#54041])
+
+Network::
+* Fix use of password protected PKCS#8 keys for SSL {pull}55457[#55457] (issue: {issue}8[#8])
+* Add support for more named curves {pull}55179[#55179] (issue: {issue}55031[#55031])
+
+Reindex::
+* Reindex negative TimeValue fix {pull}54057[#54057] (issue: {issue}53913[#53913])
+
+[[upgrade-6.8.9]]
+[float]
+=== Upgrades
+
+Engine::
+* Upgrade to Lucene 7.7.3 {pull}55897[#55897]
+
+
 [[release-notes-6.8.8]]
 == {es} version 6.8.8
 

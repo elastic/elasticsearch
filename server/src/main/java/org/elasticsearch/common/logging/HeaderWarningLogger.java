@@ -40,9 +40,68 @@ import java.util.regex.Pattern;
  * Warning values are formatted according to RFC7234.
  */
 public class HeaderWarningLogger {
-    public void log(String msg, Object... params) {
-        addWarningToHeaders(THREAD_CONTEXT, msg, params);
+    /**
+     * Regular expression to test if a string matches the RFC7234 specification for warning headers. This pattern assumes that the warn code
+     * is always 299. Further, this pattern assumes that the warn agent represents a version of Elasticsearch including the build hash.
+     */
+    public static final Pattern WARNING_HEADER_PATTERN = Pattern.compile(
+        "299 " + // warn code
+            "Elasticsearch-" + // warn agent
+            "\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-" + // warn agent
+            "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent
+            "\"((?:\t| |!|[\\x23-\\x5B]|[\\x5D-\\x7E]|[\\x80-\\xFF]|\\\\|\\\\\")*)\"( " + // quoted warning value, captured
+            // quoted RFC 1123 date format
+            "\"" + // opening quote
+            "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
+            "\\d{2} " + // 2-digit day
+            "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) " + // month
+            "\\d{4} " + // 4-digit year
+            "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
+            "GMT" + // GMT
+            "\")?"); // closing quote (optional, since an older version can still send a warn-date)
+    public static final Pattern WARNING_XCONTENT_LOCATION_PATTERN = Pattern.compile("^\\[.*?]\\[-?\\d+:-?\\d+] ");
+
+    /*
+     * RFC7234 specifies the warning format as warn-code <space> warn-agent <space> "warn-text" [<space> "warn-date"]. Here, warn-code is a
+     * three-digit number with various standard warn codes specified. The warn code 299 is apt for our purposes as it represents a
+     * miscellaneous persistent warning (can be presented to a human, or logged, and must not be removed by a cache). The warn-agent is an
+     * arbitrary token; here we use the Elasticsearch version and build hash. The warn text must be quoted. The warn-date is an optional
+     * quoted field that can be in a variety of specified date formats; here we use RFC 1123 format.
+     */
+    private static final String WARNING_PREFIX =
+        String.format(
+            Locale.ROOT,
+            "299 Elasticsearch-%s%s-%s",
+            Version.CURRENT.toString(),
+            Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
+            Build.CURRENT.hash());
+
+    private static BitSet doesNotNeedEncoding;
+
+    static {
+        doesNotNeedEncoding = new BitSet(1 + 0xFF);
+        doesNotNeedEncoding.set('\t');
+        doesNotNeedEncoding.set(' ');
+        doesNotNeedEncoding.set('!');
+        doesNotNeedEncoding.set('\\');
+        doesNotNeedEncoding.set('"');
+        // we have to skip '%' which is 0x25 so that it is percent-encoded too
+        for (int i = 0x23; i <= 0x24; i++) {
+            doesNotNeedEncoding.set(i);
+        }
+        for (int i = 0x26; i <= 0x5B; i++) {
+            doesNotNeedEncoding.set(i);
+        }
+        for (int i = 0x5D; i <= 0x7E; i++) {
+            doesNotNeedEncoding.set(i);
+        }
+        for (int i = 0x80; i <= 0xFF; i++) {
+            doesNotNeedEncoding.set(i);
+        }
+        assert doesNotNeedEncoding.get('%') == false : doesNotNeedEncoding;
     }
+
+    private static final Charset UTF_8 = StandardCharsets.UTF_8;
 
     /**
      * This is set once by the {@code Node} constructor, but it uses {@link CopyOnWriteArraySet} to ensure that tests can run in parallel.
@@ -88,61 +147,6 @@ public class HeaderWarningLogger {
             throw new IllegalStateException("Removing unknown ThreadContext not allowed!");
         }
     }
-
-    public static void addWarningToHeaders(Set<ThreadContext> threadContexts, String message, Object... params) {
-        final Iterator<ThreadContext> iterator = threadContexts.iterator();
-        if (iterator.hasNext()) {
-            final String formattedMessage = LoggerMessageFormat.format(message, params);
-            final String warningHeaderValue = formatWarning(formattedMessage);
-            assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
-            assert extractWarningValueFromWarningHeader(warningHeaderValue, false)
-                .equals(escapeAndEncode(formattedMessage));
-            while (iterator.hasNext()) {
-                try {
-                    final ThreadContext next = iterator.next();
-                    next.addResponseHeader("Warning", warningHeaderValue);
-                } catch (final IllegalStateException e) {
-                    // ignored; it should be removed shortly
-                }
-            }
-        }
-    }
-
-    /**
-     * Regular expression to test if a string matches the RFC7234 specification for warning headers. This pattern assumes that the warn code
-     * is always 299. Further, this pattern assumes that the warn agent represents a version of Elasticsearch including the build hash.
-     */
-    public static final Pattern WARNING_HEADER_PATTERN = Pattern.compile(
-        "299 " + // warn code
-            "Elasticsearch-" + // warn agent
-            "\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-" + // warn agent
-            "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent
-            "\"((?:\t| |!|[\\x23-\\x5B]|[\\x5D-\\x7E]|[\\x80-\\xFF]|\\\\|\\\\\")*)\"( " + // quoted warning value, captured
-            // quoted RFC 1123 date format
-            "\"" + // opening quote
-            "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
-            "\\d{2} " + // 2-digit day
-            "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) " + // month
-            "\\d{4} " + // 4-digit year
-            "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
-            "GMT" + // GMT
-            "\")?"); // closing quote (optional, since an older version can still send a warn-date)
-    public static final Pattern WARNING_XCONTENT_LOCATION_PATTERN = Pattern.compile("^\\[.*?]\\[-?\\d+:-?\\d+] ");
-
-    /*
-     * RFC7234 specifies the warning format as warn-code <space> warn-agent <space> "warn-text" [<space> "warn-date"]. Here, warn-code is a
-     * three-digit number with various standard warn codes specified. The warn code 299 is apt for our purposes as it represents a
-     * miscellaneous persistent warning (can be presented to a human, or logged, and must not be removed by a cache). The warn-agent is an
-     * arbitrary token; here we use the Elasticsearch version and build hash. The warn text must be quoted. The warn-date is an optional
-     * quoted field that can be in a variety of specified date formats; here we use RFC 1123 format.
-     */
-    private static final String WARNING_PREFIX =
-        String.format(
-            Locale.ROOT,
-            "299 Elasticsearch-%s%s-%s",
-            Version.CURRENT.toString(),
-            Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
-            Build.CURRENT.hash());
 
     /**
      * Extracts the warning value from the value of a warning header that is formatted according to RFC 7234. That is, given a string
@@ -250,33 +254,6 @@ public class HeaderWarningLogger {
         }
     }
 
-    private static BitSet doesNotNeedEncoding;
-
-    static {
-        doesNotNeedEncoding = new BitSet(1 + 0xFF);
-        doesNotNeedEncoding.set('\t');
-        doesNotNeedEncoding.set(' ');
-        doesNotNeedEncoding.set('!');
-        doesNotNeedEncoding.set('\\');
-        doesNotNeedEncoding.set('"');
-        // we have to skip '%' which is 0x25 so that it is percent-encoded too
-        for (int i = 0x23; i <= 0x24; i++) {
-            doesNotNeedEncoding.set(i);
-        }
-        for (int i = 0x26; i <= 0x5B; i++) {
-            doesNotNeedEncoding.set(i);
-        }
-        for (int i = 0x5D; i <= 0x7E; i++) {
-            doesNotNeedEncoding.set(i);
-        }
-        for (int i = 0x80; i <= 0xFF; i++) {
-            doesNotNeedEncoding.set(i);
-        }
-        assert doesNotNeedEncoding.get('%') == false : doesNotNeedEncoding;
-    }
-
-    private static final Charset UTF_8 = StandardCharsets.UTF_8;
-
     /**
      * Encode a string containing characters outside of the legal characters for an RFC 7230 quoted-string.
      *
@@ -332,6 +309,29 @@ public class HeaderWarningLogger {
             return Character.toUpperCase(ch);
         } else {
             return ch;
+        }
+    }
+
+    public void log(String msg, Object... params) {
+        addWarningToHeaders(THREAD_CONTEXT, msg, params);
+    }
+
+    public static void addWarningToHeaders(Set<ThreadContext> threadContexts, String message, Object... params) {
+        final Iterator<ThreadContext> iterator = threadContexts.iterator();
+        if (iterator.hasNext()) {
+            final String formattedMessage = LoggerMessageFormat.format(message, params);
+            final String warningHeaderValue = formatWarning(formattedMessage);
+            assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
+            assert extractWarningValueFromWarningHeader(warningHeaderValue, false)
+                .equals(escapeAndEncode(formattedMessage));
+            while (iterator.hasNext()) {
+                try {
+                    final ThreadContext next = iterator.next();
+                    next.addResponseHeader("Warning", warningHeaderValue);
+                } catch (final IllegalStateException e) {
+                    // ignored; it should be removed shortly
+                }
+            }
         }
     }
 }

@@ -1047,6 +1047,70 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(innerInnerResolved.get("foo"), equalTo(fooMappings));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testMappingsMergingHandlesDots() throws Exception {
+        Template ctt1 = new Template(null,
+            new CompressedXContent("{\"_doc\":{\"properties\":{\"foo\":{\"properties\":{\"bar\":{\"type\": \"long\"}}}}}}"), null);
+        Template ctt2 = new Template(null,
+            new CompressedXContent("{\"_doc\":{\"properties\":{\"foo.bar\":{\"type\": \"text\",\"analyzer\":\"english\"}}}}"), null);
+
+        ComponentTemplate ct1 = new ComponentTemplate(ctt1, null, null);
+        ComponentTemplate ct2 = new ComponentTemplate(ctt2, null, null);
+
+        IndexTemplateV2 template = new IndexTemplateV2(Collections.singletonList("index"), null, Arrays.asList("ct2", "ct1"),
+            null, null, null);
+
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
+                .put("ct1", ct1)
+                .put("ct2", ct2)
+                .put("index-template", template)
+                .build())
+            .build();
+
+        Map<String, Object> resolved =
+            MetadataCreateIndexService.resolveV2Mappings("{}", state,
+                "index-template", new NamedXContentRegistry(Collections.emptyList()));
+
+        assertThat("expected exactly one type but was: " + resolved, resolved.size(), equalTo(1));
+        Map<String, Object> innerResolved = (Map<String, Object>) resolved.get(MapperService.SINGLE_MAPPING_NAME);
+        assertThat("was: " + innerResolved, innerResolved.size(), equalTo(1));
+
+        Map<String, Object> innerInnerResolved = (Map<String, Object>) innerResolved.get("properties");
+        assertThat(innerInnerResolved.size(), equalTo(1));
+        assertThat(innerInnerResolved.get("foo"),
+            equalTo(Collections.singletonMap("properties", Collections.singletonMap("bar", Collections.singletonMap("type", "long")))));
+    }
+
+    public void testMergeIgnoringDots() throws Exception {
+        Map<String, Object> first = new HashMap<>();
+        first.put("foo", Collections.singletonMap("type", "long"));
+        Map<String, Object> second = new HashMap<>();
+        second.put("foo.bar", Collections.singletonMap("type", "long"));
+        Map<String, Object> results = MetadataCreateIndexService.mergeIgnoringDots(first, second);
+        assertThat(results, equalTo(second));
+
+        results = MetadataCreateIndexService.mergeIgnoringDots(second, first);
+        assertThat(results, equalTo(first));
+
+        second.clear();
+        Map<String, Object> inner = new HashMap<>();
+        inner.put("type", "text");
+        inner.put("analyzer", "english");
+        second.put("foo", inner);
+
+        results = MetadataCreateIndexService.mergeIgnoringDots(first, second);
+        assertThat(results, equalTo(second));
+
+        first.put("baz", 3);
+        second.put("egg", 7);
+
+        results = MetadataCreateIndexService.mergeIgnoringDots(first, second);
+        Map<String, Object> expected = new HashMap<>(second);
+        expected.put("baz", 3);
+        assertThat(results, equalTo(expected));
+    }
+
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {
         IndexTemplateMetadata.Builder builder = templateMetadataBuilder("template1", "te*");
         configurator.accept(builder);

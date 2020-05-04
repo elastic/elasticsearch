@@ -33,6 +33,8 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -83,7 +85,9 @@ public class TransportBulkActionTookTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        clusterService = createClusterService(threadPool, VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
+        DiscoveryNode discoveryNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
+            DiscoveryNodeRole.BUILT_IN_ROLES, VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
+        clusterService = createClusterService(threadPool, discoveryNode);
     }
 
     @After

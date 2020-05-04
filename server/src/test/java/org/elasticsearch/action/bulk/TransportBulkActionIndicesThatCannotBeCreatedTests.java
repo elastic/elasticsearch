@@ -140,7 +140,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
 
             @Override
             void createIndex(String index, Boolean preferV2Templates,
-                             TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
+                             TimeValue timeout, Version minNodeVersion, ActionListener<CreateIndexResponse> listener) {
                 // If we try to create an index just immediately assume it worked
                 listener.onResponse(new CreateIndexResponse(true, true, index) {});
             }

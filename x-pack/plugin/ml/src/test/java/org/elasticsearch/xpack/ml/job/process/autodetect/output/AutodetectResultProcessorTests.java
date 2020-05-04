@@ -365,7 +365,8 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         AutodetectResult result = mock(AutodetectResult.class);
         ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(JOB_ID)
             .setSnapshotId("a_snapshot_id")
-            .setTimestamp(Date.from(Instant.ofEpochMilli(1000000000)))
+            .setLatestResultTimeStamp(Date.from(Instant.ofEpochMilli(1000_000_000)))
+            .setTimestamp(Date.from(Instant.ofEpochMilli(2000_000_000)))
             .setMinVersion(Version.CURRENT)
             .build();
         when(result.getModelSnapshot()).thenReturn(modelSnapshot);
@@ -389,8 +390,8 @@ public class AutodetectResultProcessorTests extends ESTestCase {
                 "Job model snapshot with id [a_snapshot_id] stored",
                 Date.from(CURRENT_TIME),
                 XPackUser.NAME,
-                modelSnapshot.getTimestamp(),
-                modelSnapshot.getTimestamp(),
+                Date.from(Instant.ofEpochMilli(1000_000_000)),
+                Date.from(Instant.ofEpochMilli(1000_000_000)),
                 JOB_ID,
                 Date.from(CURRENT_TIME),
                 XPackUser.NAME,

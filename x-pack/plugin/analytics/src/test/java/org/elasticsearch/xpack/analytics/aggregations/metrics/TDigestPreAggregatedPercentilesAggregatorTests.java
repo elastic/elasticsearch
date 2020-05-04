@@ -3,10 +3,10 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.analytics.mapper;
+package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
-import org.HdrHistogram.DoubleHistogram;
-import org.HdrHistogram.DoubleHistogramIterationValue;
+import com.tdunning.math.stats.Centroid;
+import com.tdunning.math.stats.TDigest;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -23,24 +23,27 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentiles;
+import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
+import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
+import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
 
-public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCase {
+public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
@@ -49,9 +52,9 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
 
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
-        return new PercentilesAggregationBuilder("hdr_percentiles")
+        return new PercentilesAggregationBuilder("tdigest_percentiles")
             .field(fieldName)
-            .percentilesConfig(new PercentilesConfig.Hdr());
+            .percentilesConfig(new PercentilesConfig.TDigest());
     }
 
     @Override
@@ -64,23 +67,18 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
     }
 
     private BinaryDocValuesField getDocValue(String fieldName, double[] values) throws IOException {
-       DoubleHistogram histogram = new DoubleHistogram(3);//default
+       TDigest histogram = new TDigestState(100.0); //default
        for (double value : values) {
-           histogram.recordValue(value);
+           histogram.add(value);
        }
        BytesStreamOutput streamOutput = new BytesStreamOutput();
-       DoubleHistogram.RecordedValues recordedValues = histogram.recordedValues();
-       Iterator<DoubleHistogramIterationValue> iterator = recordedValues.iterator();
-       while (iterator.hasNext()) {
-
-           DoubleHistogramIterationValue value = iterator.next();
-           long count = value.getCountAtValueIteratedTo();
-           if (count != 0) {
-               streamOutput.writeVInt(Math.toIntExact(count));
-               double d = value.getValueIteratedTo();
-               streamOutput.writeDouble(d);
-           }
-
+       histogram.compress();
+       Collection<Centroid> centroids = histogram.centroids();
+       Iterator<Centroid> iterator = centroids.iterator();
+       while ( iterator.hasNext()) {
+           Centroid centroid = iterator.next();
+           streamOutput.writeVInt(centroid.count());
+           streamOutput.writeDouble(centroid.mean());
        }
        return new BinaryDocValuesField(fieldName, streamOutput.bytes().toBytesRef());
     }
@@ -108,9 +106,9 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
         }, hdr -> {
             //assertEquals(4L, hdr.state.getTotalCount());
             double approximation = 0.05d;
-            assertEquals(10.0d, hdr.percentile(25), approximation);
-            assertEquals(20.0d, hdr.percentile(50), approximation);
-            assertEquals(40.0d, hdr.percentile(75), approximation);
+            assertEquals(15.0d, hdr.percentile(25), approximation);
+            assertEquals(30.0d, hdr.percentile(50), approximation);
+            assertEquals(50.0d, hdr.percentile(75), approximation);
             assertEquals(60.0d, hdr.percentile(99), approximation);
             assertTrue(AggregationInspectionHelper.hasValue(hdr));
         });
@@ -125,16 +123,16 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
         }, hdr -> {
             //assertEquals(16L, hdr.state.getTotalCount());
             double approximation = 0.05d;
-            assertEquals(10.0d, hdr.percentile(25), approximation);
-            assertEquals(20.0d, hdr.percentile(50), approximation);
-            assertEquals(40.0d, hdr.percentile(75), approximation);
+            assertEquals(15.0d, hdr.percentile(25), approximation);
+            assertEquals(30.0d, hdr.percentile(50), approximation);
+            assertEquals(50.0d, hdr.percentile(75), approximation);
             assertEquals(60.0d, hdr.percentile(99), approximation);
             assertTrue(AggregationInspectionHelper.hasValue(hdr));
         });
     }
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<InternalHDRPercentiles> verify) throws IOException {
+                          Consumer<InternalTDigestPercentiles> verify) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 buildIndex.accept(indexWriter);
@@ -144,7 +142,7 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
                 PercentilesAggregationBuilder builder =
-                        new PercentilesAggregationBuilder("test").field("number").method(PercentilesMethod.HDR);
+                        new PercentilesAggregationBuilder("test").field("number").method(PercentilesMethod.TDIGEST);
 
                 MappedFieldType fieldType = new HistogramFieldMapper.Builder("number").fieldType();
                 fieldType.setName("number");
@@ -152,7 +150,7 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
                 aggregator.preCollection();
                 indexSearcher.search(query, aggregator);
                 aggregator.postCollection();
-                verify.accept((InternalHDRPercentiles) aggregator.buildAggregation(0L));
+                verify.accept((InternalTDigestPercentiles) aggregator.buildAggregation(0L));
 
             }
         }

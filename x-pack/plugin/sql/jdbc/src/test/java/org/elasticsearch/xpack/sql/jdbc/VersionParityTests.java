@@ -26,7 +26,7 @@ import java.sql.SQLException;
 public class VersionParityTests extends WebServerTestCase {
 
     public void testExceptionThrownOnIncompatibleVersions() throws IOException, SQLException {
-        Version version = VersionUtils.randomVersionBetween(random(), null, VersionUtils.getPreviousVersion());
+        Version version = VersionUtils.randomVersionBetween(random(), null, VersionUtils.getPreviousVersion(Version.V_7_7_0));
         logger.info("Checking exception is thrown for version {}", version);
         prepareResponse(version);
         
@@ -38,14 +38,19 @@ public class VersionParityTests extends WebServerTestCase {
     }
     
     public void testNoExceptionThrownForCompatibleVersions() throws IOException {
-        prepareResponse(null);
-        
-        String url = JdbcConfiguration.URL_PREFIX + webServerAddress();
-        try {
-            new JdbcHttpClient(JdbcConfiguration.create(url, null, 0));
-        } catch (SQLException sqle) {
-            fail("JDBC driver version and Elasticsearch server version should be compatible. Error: " + sqle);
-        }
+        Version version = Version.CURRENT;
+        do {
+            prepareResponse(version);
+
+            String url = JdbcConfiguration.URL_PREFIX + webServerAddress();
+            try {
+                new JdbcHttpClient(JdbcConfiguration.create(url, null, 0));
+            } catch (SQLException sqle) {
+                fail("JDBC driver version and Elasticsearch server version should be compatible. Error: " + sqle);
+            }
+
+            version = VersionUtils.getPreviousVersion(version);
+        } while (version.compareTo(Version.V_7_7_0) >= 0);
     }
     
     void prepareResponse(Version version) throws IOException {

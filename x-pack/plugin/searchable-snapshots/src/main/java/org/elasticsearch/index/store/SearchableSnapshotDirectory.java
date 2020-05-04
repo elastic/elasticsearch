@@ -379,40 +379,42 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             @Override
             protected void doRun() throws Exception {
                 final BlobStoreIndexShardSnapshot.FileInfo file = queue.poll(0L, TimeUnit.MILLISECONDS);
-                if (file != null) {
-                    final IndexInput input = openInput(file.physicalName(), CachedBlobContainerIndexInput.CACHE_WARMING_CONTEXT);
-                    assert input instanceof CachedBlobContainerIndexInput : "expected cached index input but got " + input.getClass();
+                if (file == null) {
+                    return;
+                }
 
-                    final int numberOfParts = Math.toIntExact(file.numberOfParts());
-                    final GroupedActionListener<Void> listener = new GroupedActionListener<>(
-                        ActionListener.runAfter(
-                            ActionListener.wrap(() -> IOUtils.closeWhileHandlingException(input)),
-                            () -> prewarmNextFile(executor, queue)
-                        ),
-                        numberOfParts
-                    );
+                final IndexInput input = openInput(file.physicalName(), CachedBlobContainerIndexInput.CACHE_WARMING_CONTEXT);
+                assert input instanceof CachedBlobContainerIndexInput : "expected cached index input but got " + input.getClass();
 
-                    for (int p = 0; p < numberOfParts; p++) {
-                        final int part = p;
-                        executor.execute(ActionRunnable.run(listener, () -> {
-                            ensureOpen();
+                final int numberOfParts = Math.toIntExact(file.numberOfParts());
+                final GroupedActionListener<Void> listener = new GroupedActionListener<>(
+                    ActionListener.runAfter(
+                        ActionListener.wrap(() -> IOUtils.closeWhileHandlingException(input)),
+                        () -> prewarmNextFile(executor, queue)
+                    ),
+                    numberOfParts
+                );
 
-                            logger.trace("{} warming cache for [{}] part [{}/{}]", shardId, file.physicalName(), part, numberOfParts);
-                            final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
-                            ((CachedBlobContainerIndexInput) input).prefetchPart(part); // TODO does not include any rate limitation
+                for (int p = 0; p < numberOfParts; p++) {
+                    final int part = p;
+                    executor.execute(ActionRunnable.run(listener, () -> {
+                        ensureOpen();
 
-                            logger.trace(
-                                () -> new ParameterizedMessage(
-                                    "{} part [{}/{}] of [{}] warmed in [{}] ms",
-                                    shardId,
-                                    part,
-                                    numberOfParts,
-                                    file.physicalName(),
-                                    TimeValue.timeValueNanos(statsCurrentTimeNanosSupplier.getAsLong() - startTimeInNanos).millis()
-                                )
-                            );
-                        }));
-                    }
+                        logger.trace("{} warming cache for [{}] part [{}/{}]", shardId, file.physicalName(), part, numberOfParts);
+                        final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
+                        ((CachedBlobContainerIndexInput) input).prefetchPart(part); // TODO does not include any rate limitation
+
+                        logger.trace(
+                            () -> new ParameterizedMessage(
+                                "{} part [{}/{}] of [{}] warmed in [{}] ms",
+                                shardId,
+                                part,
+                                numberOfParts,
+                                file.physicalName(),
+                                TimeValue.timeValueNanos(statsCurrentTimeNanosSupplier.getAsLong() - startTimeInNanos).millis()
+                            )
+                        );
+                    }));
                 }
             }
 

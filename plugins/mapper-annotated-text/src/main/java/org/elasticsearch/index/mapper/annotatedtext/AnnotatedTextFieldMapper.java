@@ -30,7 +30,6 @@ import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -574,7 +573,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         final String value;
         if (context.externalValueSet()) {
             value = context.externalValue().toString();
@@ -588,9 +587,9 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
             Field field = new Field(fieldType().name(), value, fieldType());
-            fields.add(field);
+            context.doc().add(field);
             if (fieldType().omitNorms()) {
-                createFieldNamesField(context, fields);
+                createFieldNamesField(context);
             }
         }
     }

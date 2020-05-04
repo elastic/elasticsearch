@@ -63,3 +63,10 @@ deprecated in 7.6, and are now removed in 8.x. The form
 The `indices_boost` option in the search request used to accept the boosts
 both as an object and as an array. The object format has been deprecated since
 5.2 and is now removed in 8.0.
+
+[float]
+==== Removal of `use_field_mapping` for docvalues fields
+In 7.0, we began formatting `docvalue_fields` by default using each field's
+mapping definition. To ease the transition from 6.x, we added the format
+option `use_field_mapping`. This parameter was deprecated in 7.0, and is now
+removed in 8.0.

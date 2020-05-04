@@ -123,7 +123,7 @@ classes to the `probabilities` field. Both fields are contained in the
 
 Update your index mapping of the {feat-imp} result field as you can see below to 
 get the full benefit of aggregating and searching for 
-{ml-docs}/dfa-classification.html#dfa-classification-feature-importance[{feat-imp}].
+{ml-docs}/ml-feature-importance.html[{feat-imp}].
 
 [source,js]
 --------------------------------------------------

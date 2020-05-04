@@ -46,6 +46,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
+import org.elasticsearch.action.support.replication.PendingReplicationActions;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.bulk.stats.ShardBulkStats;
@@ -213,6 +214,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final ShardBulkStats bulkOperationListener;
     private final GlobalCheckpointListeners globalCheckpointListeners;
+    private final PendingReplicationActions pendingReplicationActions;
     private final ReplicationTracker replicationTracker;
 
     protected volatile ShardRouting shardRouting;
@@ -272,6 +274,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final AtomicLong lastSearcherAccess = new AtomicLong();
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
+    private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
 
     public IndexShard(
@@ -338,6 +341,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.pendingPrimaryTerm = primaryTerm;
         this.globalCheckpointListeners =
                 new GlobalCheckpointListeners(shardId, threadPool.scheduler(), logger);
+        this.pendingReplicationActions = new PendingReplicationActions(shardId, threadPool);
         this.replicationTracker = new ReplicationTracker(
                 shardId,
                 aId,
@@ -347,7 +351,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 globalCheckpointListeners::globalCheckpointUpdated,
                 threadPool::absoluteTimeInMillis,
                 (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, aId, getPendingPrimaryTerm(), retentionLeases, listener),
-                this::getSafeCommitInfo);
+                this::getSafeCommitInfo,
+                pendingReplicationActions);
 
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
@@ -371,6 +376,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
+        this.refreshPendingLocationListener = new RefreshPendingLocationListener();
     }
 
     public ThreadPool getThreadPool() {
@@ -1316,7 +1322,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 } finally {
                     // playing safe here and close the engine even if the above succeeds - close can be called multiple times
                     // Also closing refreshListeners to prevent us from accumulating any more listeners
-                    IOUtils.close(engine, globalCheckpointListeners, refreshListeners);
+                    IOUtils.close(engine, globalCheckpointListeners, refreshListeners, pendingReplicationActions);
                     indexShardOperationPermits.close();
                 }
             }
@@ -2321,7 +2327,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public ReplicationGroup getReplicationGroup() {
         assert assertPrimaryMode();
         verifyNotClosed();
-        return replicationTracker.getReplicationGroup();
+        ReplicationGroup replicationGroup = replicationTracker.getReplicationGroup();
+        // PendingReplicationActions is dependent on ReplicationGroup. Every time we expose ReplicationGroup,
+        // ensure PendingReplicationActions is updated with the newest version to prevent races.
+        pendingReplicationActions.accept(replicationGroup);
+        return replicationGroup;
+    }
+
+    /**
+     * Returns the pending replication actions for the shard.
+     *
+     * @return the pending replication actions
+     */
+    public PendingReplicationActions getPendingReplicationActions() {
+        assert assertPrimaryMode();
+        verifyNotClosed();
+        return pendingReplicationActions;
     }
 
     /**
@@ -2686,7 +2707,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 similarityService.similarity(mapperService), codecService, shardEventListener,
                 indexCache != null ? indexCache.query() : null, cachingPolicy, translogConfig,
                 IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
-                Collections.singletonList(refreshListeners),
+                List.of(refreshListeners, refreshPendingLocationListener),
                 Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
                 indexSort, circuitBreakerService, globalCheckpointSupplier, replicationTracker::getRetentionLeases,
                 () -> getOperationPrimaryTerm(), tombstoneDocSupplier());
@@ -3186,7 +3207,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Returns true if this shards is search idle
      */
-    final boolean isSearchIdle() {
+    public final boolean isSearchIdle() {
         return (threadPool.relativeTimeInMillis() - lastSearcherAccess.get()) >= indexSettings.getSearchIdleAfter().getMillis();
     }
 
@@ -3197,15 +3218,49 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return lastSearcherAccess.get();
     }
 
+    /**
+     * Returns true if this shard has some scheduled refresh that is pending because of search-idle.
+     */
+    public final boolean hasRefreshPending() {
+        return pendingRefreshLocation.get() != null;
+    }
+
     private void setRefreshPending(Engine engine) {
-        Translog.Location lastWriteLocation = engine.getTranslogLastWriteLocation();
-        Translog.Location location;
-        do {
-            location = this.pendingRefreshLocation.get();
-            if (location != null && lastWriteLocation.compareTo(location) <= 0) {
-                break;
+        final Translog.Location lastWriteLocation = engine.getTranslogLastWriteLocation();
+        pendingRefreshLocation.updateAndGet(curr -> {
+            if (curr == null || curr.compareTo(lastWriteLocation) <= 0) {
+                return lastWriteLocation;
+            } else {
+                return curr;
             }
-        } while (pendingRefreshLocation.compareAndSet(location, lastWriteLocation) == false);
+        });
+    }
+
+    private class RefreshPendingLocationListener implements ReferenceManager.RefreshListener {
+        Translog.Location lastWriteLocation;
+
+        @Override
+        public void beforeRefresh() {
+            try {
+                lastWriteLocation = getEngine().getTranslogLastWriteLocation();
+            } catch (AlreadyClosedException exc) {
+                // shard is closed - no location is fine
+                lastWriteLocation = null;
+            }
+        }
+
+        @Override
+        public void afterRefresh(boolean didRefresh) {
+            if (didRefresh && lastWriteLocation != null) {
+                pendingRefreshLocation.updateAndGet(pendingLocation -> {
+                    if (pendingLocation == null || pendingLocation.compareTo(lastWriteLocation) <= 0) {
+                        return null;
+                    } else {
+                        return pendingLocation;
+                    }
+                });
+            }
+        }
     }
 
     /**

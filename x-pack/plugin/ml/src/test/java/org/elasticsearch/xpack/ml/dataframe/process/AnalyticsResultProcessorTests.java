@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
+import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsPersister;
 import org.elasticsearch.xpack.ml.extractor.DocValueField;
@@ -67,7 +68,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
 
     private AnalyticsProcess<AnalyticsResult> process;
     private DataFrameRowsJoiner dataFrameRowsJoiner;
-    private StatsHolder statsHolder = new StatsHolder();
+    private StatsHolder statsHolder = new StatsHolder(ProgressTracker.fromZeroes(Collections.singletonList("analyzing")).report());
     private TrainedModelProvider trainedModelProvider;
     private DataFrameAnalyticsAuditor auditor;
     private StatsPersister statsPersister;
@@ -114,7 +115,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
 
         verify(dataFrameRowsJoiner).close();
         Mockito.verifyNoMoreInteractions(dataFrameRowsJoiner);
-        assertThat(statsHolder.getProgressTracker().writingResultsPercent.get(), equalTo(100));
+        assertThat(statsHolder.getProgressTracker().getWritingResultsProgressPercent(), equalTo(100));
     }
 
     public void testProcess_GivenRowResults() {
@@ -132,7 +133,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         inOrder.verify(dataFrameRowsJoiner).processRowResults(rowResults1);
         inOrder.verify(dataFrameRowsJoiner).processRowResults(rowResults2);
 
-        assertThat(statsHolder.getProgressTracker().writingResultsPercent.get(), equalTo(100));
+        assertThat(statsHolder.getProgressTracker().getWritingResultsProgressPercent(), equalTo(100));
     }
 
     public void testProcess_GivenDataFrameRowsJoinerFails() {
@@ -155,7 +156,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         verify(auditor).error(eq(JOB_ID), auditCaptor.capture());
         assertThat(auditCaptor.getValue(), containsString("Error processing results; some failure"));
 
-        assertThat(statsHolder.getProgressTracker().writingResultsPercent.get(), equalTo(0));
+        assertThat(statsHolder.getProgressTracker().getWritingResultsProgressPercent(), equalTo(0));
     }
 
     @SuppressWarnings("unchecked")
@@ -251,7 +252,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(auditor);
 
         assertThat(resultProcessor.getFailure(), startsWith("error processing results; error storing trained model with id [" + JOB_ID));
-        assertThat(statsHolder.getProgressTracker().writingResultsPercent.get(), equalTo(0));
+        assertThat(statsHolder.getProgressTracker().getWritingResultsProgressPercent(), equalTo(0));
     }
 
     private void givenProcessResults(List<AnalyticsResult> results) {

@@ -67,6 +67,11 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
     String getStateDocId(String jobId);
 
     /**
+     * Returns the progress phases the analysis goes through in order
+     */
+    List<String> getProgressPhases();
+
+    /**
      * Summarizes information about the fields that is necessary for analysis to generate
      * the parameters needed for the process configuration.
      */

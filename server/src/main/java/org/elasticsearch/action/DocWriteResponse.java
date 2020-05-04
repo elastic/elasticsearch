@@ -146,7 +146,10 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         result = Result.readFrom(in);
     }
 
-    // needed for deserialization
+    /**
+     * Needed for deserialization of single item requests in {@link org.elasticsearch.action.index.IndexAction} and BwC
+     * deserialization path
+     */
     protected DocWriteResponse(StreamInput in) throws IOException {
         super(in);
         shardId = new ShardId(in);

@@ -35,6 +35,8 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.function.LongSupplier;
 
@@ -42,6 +44,7 @@ import java.util.function.LongSupplier;
  * {@link CoreValuesSourceType} holds the {@link ValuesSourceType} implementations for the core aggregations package.
  */
 public enum CoreValuesSourceType implements ValuesSourceType {
+
     NUMERIC() {
         @Override
         public ValuesSource getEmpty() {
@@ -74,6 +77,22 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                                            LongSupplier nowSupplier) {
             Number missing = docValueFormat.parseDouble(rawMissing.toString(), false, nowSupplier);
             return MissingValues.replaceMissing((ValuesSource.Numeric) valuesSource, missing);
+        }
+
+        @Override
+        public DocValueFormat getFormatter(String format, ZoneId tz) {
+            /* TODO: this silently ignores a timezone argument, whereas NumberFieldType#docValueFormat throws if given a time zone.
+                     Before we can solve this, we need to resolve https://github.com/elastic/elasticsearch/issues/47469 which deals
+                     with the fact that the same formatter is used for input and output values.  We want to support a use case in SQL
+                     (and elsewhere) that allows for passing a long value milliseconds since epoch into date aggregations.  In that case,
+                     the timezone is sensible as part of the bucket key format.
+             */
+            if (format == null) {
+                return DocValueFormat.RAW;
+            } else {
+                return new DocValueFormat.Decimal(format);
+            }
+
         }
     },
     BYTES() {
@@ -272,4 +291,11 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         return name().toLowerCase(Locale.ROOT);
     }
 
+    @Override
+    public String typeName() {
+        return value();
+    }
+
+    /** List containing all members of the enumeration. */
+    public static List<ValuesSourceType> ALL_CORE = Arrays.asList(CoreValuesSourceType.values());
 }

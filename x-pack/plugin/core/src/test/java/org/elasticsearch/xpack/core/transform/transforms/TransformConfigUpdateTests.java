@@ -12,8 +12,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.action.AbstractWireSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 
 import java.io.IOException;
@@ -21,12 +22,13 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests.randomTransformConfig;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TransformConfigUpdateTests extends AbstractSerializingTransformTestCase<TransformConfigUpdate> {
+public class TransformConfigUpdateTests extends AbstractWireSerializingTransformTestCase<TransformConfigUpdate> {
 
     public static TransformConfigUpdate randomTransformConfigUpdate() {
         return new TransformConfigUpdate(
@@ -40,11 +42,6 @@ public class TransformConfigUpdateTests extends AbstractSerializingTransformTest
 
     public static SyncConfig randomSyncConfig() {
         return TimeSyncConfigTests.randomTimeSyncConfig();
-    }
-
-    @Override
-    protected TransformConfigUpdate doParseInstance(XContentParser parser) throws IOException {
-        return TransformConfigUpdate.fromXContent(parser);
     }
 
     @Override
@@ -160,6 +157,38 @@ public class TransformConfigUpdateTests extends AbstractSerializingTransformTest
             equalTo("Cannot change the current sync configuration of transform [time-transform] from [time] to [foo]")
         );
 
+    }
+
+    public void testFromXContent() throws IOException {
+        xContentTester(
+            this::createParser,
+            TransformConfigUpdateTests::randomTransformConfigUpdate,
+            this::toXContent,
+            TransformConfigUpdate::fromXContent
+        ).supportsUnknownFields(false).assertEqualsConsumer(this::assertEqualInstances).test();
+    }
+
+    private void toXContent(TransformConfigUpdate update, XContentBuilder builder) throws IOException {
+        builder.startObject();
+        if (update.getSource() != null) {
+            builder.field(TransformField.SOURCE.getPreferredName(), update.getSource());
+        }
+        if (update.getDestination() != null) {
+            builder.field(TransformField.DESTINATION.getPreferredName(), update.getDestination());
+        }
+        if (update.getFrequency() != null) {
+            builder.field(TransformField.FREQUENCY.getPreferredName(), update.getFrequency().getStringRep());
+        }
+        if (update.getSyncConfig() != null) {
+            builder.startObject(TransformField.SYNC.getPreferredName());
+            builder.field(update.getSyncConfig().getWriteableName(), update.getSyncConfig());
+            builder.endObject();
+        }
+        if (update.getDescription() != null) {
+            builder.field(TransformField.DESCRIPTION.getPreferredName(), update.getDescription());
+        }
+
+        builder.endObject();
     }
 
     static class FooSync implements SyncConfig {

@@ -106,6 +106,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
     @Override
     protected Settings followerClusterSettings() {
         return Settings.builder()
+                .put(super.followerClusterSettings())
                 .put(CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(200))
                 .build();
     }

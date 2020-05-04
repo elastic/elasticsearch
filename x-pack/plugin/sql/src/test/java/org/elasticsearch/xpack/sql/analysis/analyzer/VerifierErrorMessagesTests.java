@@ -36,12 +36,12 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 
-
 public class VerifierErrorMessagesTests extends ESTestCase {
 
-    private SqlParser parser = new SqlParser();
-    private IndexResolution indexResolution = IndexResolution.valid(new EsIndex("test",
-            loadMapping("mapping-multi-field-with-nested.json")));
+    private final SqlParser parser = new SqlParser();
+    private final IndexResolution indexResolution = IndexResolution.valid(
+        new EsIndex("test", loadMapping("mapping-multi-field-with-nested.json"))
+    );
 
     private String error(String sql) {
         return error(indexResolution, sql);
@@ -334,6 +334,22 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals(
             "1:8: second argument of [DATETIME_FORMAT(date, int)] must be [string], found value [int] type [integer]",
             error("SELECT DATETIME_FORMAT(date, int) FROM test")
+        );
+    }
+
+    public void testDateTimeParseValidArgs() {
+        accept("SELECT DATETIME_PARSE(keyword, 'MM/dd/uuuu HH:mm:ss') FROM test");
+        accept("SELECT DATETIME_PARSE('04/07/2020 10:20:30 Europe/Berlin', 'MM/dd/uuuu HH:mm:ss VV') FROM test");
+    }
+
+    public void testDateTimeParseInvalidArgs() {
+        assertEquals(
+            "1:8: first argument of [DATETIME_PARSE(int, keyword)] must be [string], found value [int] type [integer]",
+            error("SELECT DATETIME_PARSE(int, keyword) FROM test")
+        );
+        assertEquals(
+            "1:8: second argument of [DATETIME_PARSE(keyword, int)] must be [string], found value [int] type [integer]",
+            error("SELECT DATETIME_PARSE(keyword, int) FROM test")
         );
     }
 
@@ -1081,5 +1097,12 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testPivotValuesWithMultipleDifferencesThanColumn() {
         assertEquals("1:81: Literal ['bla'] of type [keyword] does not match type [boolean] of PIVOT column [bool]",
                 error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(AVG(int) FOR bool IN ('bla', true))"));
+    }
+
+    public void testErrorMessageForMatrixStatsWithScalars() {
+        assertEquals("1:17: [KURTOSIS()] cannot be used on top of operators or scalars",
+                error("SELECT KURTOSIS(ABS(int * 10.123)) FROM test"));
+        assertEquals("1:17: [SKEWNESS()] cannot be used on top of operators or scalars",
+                error("SELECT SKEWNESS(ABS(int * 10.123)) FROM test"));
     }
 }

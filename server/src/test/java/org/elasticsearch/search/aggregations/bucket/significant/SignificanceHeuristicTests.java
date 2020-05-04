@@ -46,7 +46,6 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHSc
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.PercentageScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.TestSearchContext;
@@ -102,15 +101,13 @@ public class SignificanceHeuristicTests extends ESTestCase {
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
         out.setVersion(version);
-        if (version.before(Version.V_7_8_0)) {
-            sigTerms.mergePipelineTreeForBWCSerialization(PipelineAggregator.PipelineTree.EMPTY);
-        }
         out.writeNamedWriteable(sigTerms);
 
         // read
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         StreamInput in = new InputStreamStreamInput(inBuffer);
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList()); // populates the registry through side effects
+        // populates the registry through side effects
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         NamedWriteableRegistry registry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
         in = new NamedWriteableAwareStreamInput(in, registry);
         in.setVersion(version);

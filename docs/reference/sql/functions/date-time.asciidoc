@@ -427,7 +427,7 @@ pattern used is the one from
 https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`java.time.format.DateTimeFormatter`].
 If any of the two arguments is `null` or the pattern is an empty string `null` is returned.
 
-NOTE::
+[NOTE]
 If the 1st argument is of type `time`, then pattern specified by the 2nd argument cannot contain date related units
 (e.g. 'dd', 'MM', 'YYYY', etc.). If it contains such units an error is returned.
 
@@ -444,6 +444,47 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeFormatDateTime]
 [source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeFormatTime]
+--------------------------------------------------
+
+[[sql-functions-datetime-datetimeparse]]
+==== `DATETIME_PARSE`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DATETIME_PARSE(
+    string_exp, <1>
+    string_exp) <2>
+--------------------------------------------------
+
+*Input*:
+
+<1> datetime expression as a string
+<2> parsing pattern
+
+*Output*: datetime
+
+*Description*: Returns a datetime by parsing the 1st argument using the format specified in the 2nd argument. The parsing
+format pattern used is the one from
+https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`java.time.format.DateTimeFormatter`].
+If any of the two arguments is `null` or an empty string `null` is returned.
+
+[NOTE]
+If timezone is not specified in the datetime string expression and the parsing pattern, the resulting `datetime` will
+be in `UTC` timezone.
+
+[NOTE]
+If the parsing pattern contains only date or only time units (e.g. 'dd/MM/uuuu', 'HH:mm:ss', etc.) an error is returned
+as the function needs to return a value of `datetime` type which must contain both.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeParse1]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeParse2]
 --------------------------------------------------
 
 [[sql-functions-datetime-part]]

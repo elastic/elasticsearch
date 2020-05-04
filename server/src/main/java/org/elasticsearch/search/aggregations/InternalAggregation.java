@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -146,8 +145,6 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
 
     protected final Map<String, Object> metadata;
 
-    private List<PipelineAggregator> pipelineAggregatorsForBwcSerialization;
-
     /**
      * Constructs an aggregation result with a given name.
      *
@@ -159,36 +156,17 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     }
 
     /**
-     * Merge a {@linkplain PipelineAggregator.PipelineTree} into this
-     * aggregation result tree before serializing to a node older than
-     * 7.8.0.
-     */
-    public final void mergePipelineTreeForBWCSerialization(PipelineAggregator.PipelineTree pipelineTree) {
-        pipelineAggregatorsForBwcSerialization = pipelineTree.aggregators();
-        forEachBucket(bucketAggs -> bucketAggs.mergePipelineTreeForBWCSerialization(pipelineTree));
-    }
-
-
-    /**
      * Read from a stream.
      */
     protected InternalAggregation(StreamInput in) throws IOException {
         name = in.readString();
         metadata = in.readMap();
-        if (in.getVersion().before(Version.V_7_8_0)) {
-            in.readNamedWriteableList(PipelineAggregator.class);
-        }
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeGenericValue(metadata);
-        if (out.getVersion().before(Version.V_7_8_0)) {
-            assert pipelineAggregatorsForBwcSerialization != null :
-                "serializing to pre-7.8.0 versions should have called mergePipelineTreeForBWCSerialization";
-            out.writeNamedWriteableList(pipelineAggregatorsForBwcSerialization);
-        }
         doWriteTo(out);
     }
 
@@ -291,15 +269,6 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     @Override
     public Map<String, Object> getMetadata() {
         return metadata;
-    }
-
-    /**
-     * The {@linkplain PipelineAggregator}s sent to older versions of Elasticsearch.
-     * @deprecated only use these for serializing to older Elasticsearch versions
-     */
-    @Deprecated
-    public List<PipelineAggregator> pipelineAggregatorsForBwcSerialization() {
-        return pipelineAggregatorsForBwcSerialization;
     }
 
     @Override

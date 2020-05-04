@@ -204,7 +204,6 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -1326,7 +1325,7 @@ public class InternalEngineTests extends EngineTestCase {
                     Translog.Operation op = ops.get(seqno);
                     if (op != null) {
                         assertThat(op, instanceOf(Translog.Index.class));
-                        assertThat(msg, ((Translog.Index) op).id(), isIn(liveDocs));
+                        assertThat(msg, ((Translog.Index) op).id(), is(in(liveDocs)));
                         assertEquals(msg, ((Translog.Index) op).source(), B_1);
                     }
                 } else {
@@ -1413,7 +1412,7 @@ public class InternalEngineTests extends EngineTestCase {
                     Translog.Operation op = ops.get(seqno);
                     if (op != null) {
                         assertThat(op, instanceOf(Translog.Index.class));
-                        assertThat(msg, ((Translog.Index) op).id(), isIn(liveDocs));
+                        assertThat(msg, ((Translog.Index) op).id(), is(in(liveDocs)));
                     }
                 } else {
                     Translog.Operation op = ops.get(seqno);
@@ -4525,9 +4524,11 @@ public class InternalEngineTests extends EngineTestCase {
 
         final EngineConfig engineConfig = config(defaultSettings, store, translogPath,
             NoMergePolicy.INSTANCE, null, null, () -> globalCheckpoint.get());
+        final AtomicLong lastSyncedGlobalCheckpointBeforeCommit = new AtomicLong(Translog.readGlobalCheckpoint(translogPath, translogUUID));
         try (InternalEngine engine = new InternalEngine(engineConfig) {
                 @Override
                 protected void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
+                    lastSyncedGlobalCheckpointBeforeCommit.set(Translog.readGlobalCheckpoint(translogPath, translogUUID));
                     // Advance the global checkpoint during the flush to create a lag between a persisted global checkpoint in the translog
                     // (this value is visible to the deletion policy) and an in memory global checkpoint in the SequenceNumbersService.
                     if (rarely()) {
@@ -4548,21 +4549,20 @@ public class InternalEngineTests extends EngineTestCase {
                 }
                 if (frequently()) {
                     engine.flush(randomBoolean(), true);
-                    final long lastSyncedGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
                     final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
                     // Keep only one safe commit as the oldest commit.
                     final IndexCommit safeCommit = commits.get(0);
-                    if (lastSyncedGlobalCheckpoint == UNASSIGNED_SEQ_NO) {
+                    if (lastSyncedGlobalCheckpointBeforeCommit.get() == UNASSIGNED_SEQ_NO) {
                         // If the global checkpoint is still unassigned, we keep an empty(eg. initial) commit as a safe commit.
                         assertThat(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
                             equalTo(SequenceNumbers.NO_OPS_PERFORMED));
                     } else {
                         assertThat(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
-                            lessThanOrEqualTo(lastSyncedGlobalCheckpoint));
+                            lessThanOrEqualTo(lastSyncedGlobalCheckpointBeforeCommit.get()));
                     }
                     for (int i = 1; i < commits.size(); i++) {
                         assertThat(Long.parseLong(commits.get(i).getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
-                            greaterThan(lastSyncedGlobalCheckpoint));
+                            greaterThan(lastSyncedGlobalCheckpointBeforeCommit.get()));
                     }
                     // Make sure we keep all translog operations after the local checkpoint of the safe commit.
                     long localCheckpointFromSafeCommit = Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));

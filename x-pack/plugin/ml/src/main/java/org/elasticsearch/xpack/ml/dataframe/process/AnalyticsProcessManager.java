@@ -11,10 +11,10 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -116,7 +116,8 @@ public class AnalyticsProcessManager {
                     return;
                 }
                 if (processContextByAllocation.putIfAbsent(task.getAllocationId(), processContext) != null) {
-                    task.setFailed("[" + config.getId() + "] Could not create process as one already exists");
+                    task.setFailed(ExceptionsHelper.serverError(
+                        "[" + config.getId() + "] Could not create process as one already exists"));
                     return;
                 }
             }
@@ -155,14 +156,14 @@ public class AnalyticsProcessManager {
         LOGGER.info("[{}] Started loading data", processContext.config.getId());
         auditor.info(processContext.config.getId(), Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_STARTED_LOADING_DATA));
 
+        ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, task.getParentTaskId());
         DataFrameAnalyticsConfig config = processContext.config;
         DataFrameDataExtractor dataExtractor = processContext.dataExtractor.get();
         AnalyticsProcess<AnalyticsResult> process = processContext.process.get();
         AnalyticsResultProcessor resultProcessor = processContext.resultProcessor.get();
         try {
             writeHeaderRecord(dataExtractor, process);
-            writeDataRows(dataExtractor, process, config, task.getStatsHolder().getProgressTracker(),
-                task.getStatsHolder().getDataCountsTracker());
+            writeDataRows(dataExtractor, process, config, task);
             processContext.statsPersister.persistWithRetry(task.getStatsHolder().getDataCountsTracker().report(config.getId()),
                 DataCounts::documentId);
             process.writeEndOfDataMessage();
@@ -177,8 +178,8 @@ public class AnalyticsProcessManager {
             resultProcessor.awaitForCompletion();
             processContext.setFailureReason(resultProcessor.getFailure());
 
-            refreshDest(config);
-            refreshIndices(config.getId());
+            refreshDest(parentTaskClient, config);
+            refreshIndices(parentTaskClient, config.getId());
             LOGGER.info("[{}] Result processor has completed", config.getId());
         } catch (Exception e) {
             if (task.isStopping()) {
@@ -207,18 +208,19 @@ public class AnalyticsProcessManager {
                 task.markAsCompleted();
             } else {
                 LOGGER.error("[{}] Marking task failed; {}", config.getId(), processContext.getFailureReason());
-                task.setFailed(processContext.getFailureReason());
+                task.setFailed(ExceptionsHelper.serverError(processContext.getFailureReason()));
                 // Note: We are not marking the task as failed here as we want the user to be able to inspect the failure reason.
             }
         }
     }
 
     private void writeDataRows(DataFrameDataExtractor dataExtractor, AnalyticsProcess<AnalyticsResult> process,
-                               DataFrameAnalyticsConfig config, ProgressTracker progressTracker, DataCountsTracker dataCountsTracker)
-        throws IOException {
-
-        CrossValidationSplitter crossValidationSplitter = new CrossValidationSplitterFactory(client, config, dataExtractor.getFieldNames())
-            .create();
+                               DataFrameAnalyticsConfig config, DataFrameAnalyticsTask task) throws IOException {
+        ProgressTracker progressTracker = task.getStatsHolder().getProgressTracker();
+        DataCountsTracker dataCountsTracker = task.getStatsHolder().getDataCountsTracker();
+        CrossValidationSplitter crossValidationSplitter = new CrossValidationSplitterFactory(
+                new ParentTaskAssigningClient(client, task.getParentTaskId()), config, dataExtractor.getFieldNames())
+                .create();
 
         // The extra fields are for the doc hash and the control field (should be an empty string)
         String[] record = new String[dataExtractor.getFieldNames().size() + 2];
@@ -244,7 +246,7 @@ public class AnalyticsProcessManager {
                     }
                 }
                 rowsProcessed += rows.get().size();
-                progressTracker.loadingDataPercent.set(rowsProcessed >= totalRows ? 100 : (int) (rowsProcessed * 100.0 / totalRows));
+                progressTracker.updateLoadingDataProgress(rowsProcessed >= totalRows ? 100 : (int) (rowsProcessed * 100.0 / totalRows));
             }
         }
     }
@@ -263,10 +265,6 @@ public class AnalyticsProcessManager {
         headerRecord[headerRecord.length - 2] = ".";
         headerRecord[headerRecord.length - 1] = ".";
         process.writeRecord(headerRecord);
-    }
-
-    private void indexDataCounts(DataCounts dataCounts) {
-        IndexRequest indexRequest = new IndexRequest(MlStatsIndex.writeAlias());
     }
 
     private void restoreState(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config, @Nullable BytesReference state,
@@ -288,7 +286,7 @@ public class AnalyticsProcessManager {
             process.restoreState(state);
         } catch (Exception e) {
             LOGGER.error(new ParameterizedMessage("[{}] Failed to restore state", process.getConfig().jobId()), e);
-            task.setFailed("Failed to restore state: " + e.getMessage());
+            task.setFailed(ExceptionsHelper.serverError("Failed to restore state: " + e.getMessage()));
         }
     }
 
@@ -312,12 +310,12 @@ public class AnalyticsProcessManager {
         };
     }
 
-    private void refreshDest(DataFrameAnalyticsConfig config) {
-        ClientHelper.executeWithHeaders(config.getHeaders(), ClientHelper.ML_ORIGIN, client,
-            () -> client.execute(RefreshAction.INSTANCE, new RefreshRequest(config.getDest().getIndex())).actionGet());
+    private void refreshDest(ParentTaskAssigningClient parentTaskClient, DataFrameAnalyticsConfig config) {
+        ClientHelper.executeWithHeaders(config.getHeaders(), ClientHelper.ML_ORIGIN, parentTaskClient,
+            () -> parentTaskClient.execute(RefreshAction.INSTANCE, new RefreshRequest(config.getDest().getIndex())).actionGet());
     }
 
-    private void refreshIndices(String jobId) {
+    private void refreshIndices(ParentTaskAssigningClient parentTaskClient, String jobId) {
         RefreshRequest refreshRequest = new RefreshRequest(
             AnomalyDetectorsIndex.jobStateIndexPattern(),
             MlStatsIndex.indexPattern()
@@ -327,8 +325,8 @@ public class AnalyticsProcessManager {
         LOGGER.debug(() -> new ParameterizedMessage("[{}] Refreshing indices {}",
             jobId, Arrays.toString(refreshRequest.indices())));
 
-        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
-            client.admin().indices().refresh(refreshRequest).actionGet();
+        try (ThreadContext.StoredContext ignore = parentTaskClient.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
+            parentTaskClient.admin().indices().refresh(refreshRequest).actionGet();
         }
     }
 
@@ -455,7 +453,8 @@ public class AnalyticsProcessManager {
         private AnalyticsResultProcessor createResultProcessor(DataFrameAnalyticsTask task,
                                                                DataFrameDataExtractorFactory dataExtractorFactory) {
             DataFrameRowsJoiner dataFrameRowsJoiner =
-                new DataFrameRowsJoiner(config.getId(), dataExtractorFactory.newExtractor(true), resultsPersisterService);
+                new DataFrameRowsJoiner(config.getId(), task.getParentTaskId(),
+                        dataExtractorFactory.newExtractor(true), resultsPersisterService);
             return new AnalyticsResultProcessor(
                 config, dataFrameRowsJoiner, task.getStatsHolder(), trainedModelProvider, auditor, statsPersister,
                 dataExtractor.get().getAllExtractedFields());

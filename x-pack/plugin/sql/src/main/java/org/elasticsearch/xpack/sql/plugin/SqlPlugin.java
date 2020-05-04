@@ -23,6 +23,7 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
@@ -57,18 +58,18 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
             XPackLicenseState licenseState = getLicenseState();
             switch (mode) {
                 case JDBC:
-                    if (licenseState.isJdbcAllowed() == false) {
+                    if (licenseState.isAllowed(XPackLicenseState.Feature.JDBC) == false) {
                         throw LicenseUtils.newComplianceException("jdbc");
                     }
                     break;
                 case ODBC:
-                    if (licenseState.isOdbcAllowed() == false) {
+                    if (licenseState.isAllowed(XPackLicenseState.Feature.ODBC) == false) {
                         throw LicenseUtils.newComplianceException("odbc");
                     }
                     break;
                 case PLAIN:
                 case CLI:
-                    if (licenseState.isSqlAllowed() == false) {
+                    if (licenseState.isAllowed(XPackLicenseState.Feature.SQL) == false) {
                         throw LicenseUtils.newComplianceException(XPackField.SQL);
                     }
                     break;
@@ -90,7 +91,8 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver) {
+                                               IndexNameExpressionResolver expressionResolver,
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
 
         return createComponents(client, clusterService.getClusterName().value(), namedWriteableRegistry);
     }

@@ -16,6 +16,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
@@ -28,11 +29,13 @@ import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 
 public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
@@ -65,11 +68,10 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 null,
                 null)
         );
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(jobId);
-        assertProgress(jobId, 0, 0, 0, 0);
+        assertProgressIsZero(jobId);
 
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
@@ -98,7 +100,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 isPresent());
         }
 
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
@@ -123,11 +125,10 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         indexData(sourceIndex, 350, 0);
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Regression(DEPENDENT_VARIABLE_FIELD));
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(jobId);
-        assertProgress(jobId, 0, 0, 0, 0);
+        assertProgressIsZero(jobId);
 
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
@@ -141,7 +142,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat(resultsObject.get("is_training"), is(true));
         }
 
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
 
         GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(jobId);
@@ -179,11 +180,10 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 destIndex,
                 null,
                 new Regression(DEPENDENT_VARIABLE_FIELD, BoostedTreeParams.builder().build(), null, 50.0, null));
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(jobId);
-        assertProgress(jobId, 0, 0, 0, 0);
+        assertProgressIsZero(jobId);
 
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
@@ -214,7 +214,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(stats.getDataCounts().getTestDocsCount(), lessThan(350L));
         assertThat(stats.getDataCounts().getSkippedDocsCount(), equalTo(0L));
 
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
@@ -239,13 +239,13 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         indexData(sourceIndex, 350, 0);
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Regression(DEPENDENT_VARIABLE_FIELD));
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(jobId);
-        assertProgress(jobId, 0, 0, 0, 0);
+        assertProgressIsZero(jobId);
 
-        startAnalytics(jobId);
+        NodeAcknowledgedResponse response = startAnalytics(jobId);
+        assertThat(response.getNode(), not(emptyString()));
 
         // Wait until state is one of REINDEXING or ANALYZING, or until it is STOPPED.
         assertBusy(() -> {
@@ -262,7 +262,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         // Now let's start it again
         try {
-            startAnalytics(jobId);
+            response = startAnalytics(jobId);
+            assertThat(response.getNode(), not(emptyString()));
         } catch (Exception e) {
             if (e.getMessage().equals("Cannot start because the job has already finished")) {
                 // That means the job had managed to complete
@@ -282,7 +283,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat(resultsObject.get("is_training"), is(true));
         }
 
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
@@ -306,7 +307,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         DataFrameAnalyticsConfig firstJob = buildAnalytics(firstJobId, sourceIndex, firstJobDestIndex, null,
             new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0, null));
-        registerAnalytics(firstJob);
         putAnalytics(firstJob);
 
         String secondJobId = "regression_two_jobs_with_same_randomize_seed_2";
@@ -316,7 +316,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         DataFrameAnalyticsConfig secondJob = buildAnalytics(secondJobId, sourceIndex, secondJobDestIndex, null,
             new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0, randomizeSeed));
 
-        registerAnalytics(secondJob);
         putAnalytics(secondJob);
 
         // Let's run both jobs in parallel and wait until they are finished
@@ -338,12 +337,11 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         indexData(sourceIndex, 100, 0);
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Regression(DEPENDENT_VARIABLE_FIELD));
-        registerAnalytics(config);
         putAnalytics(config);
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
@@ -378,15 +376,14 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 destIndex,
                 null,
                 new Regression(DISCRETE_NUMERICAL_FEATURE_FIELD, BoostedTreeParams.builder().build(), null, null, null));
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(jobId);
-        assertProgress(jobId, 0, 0, 0, 0);
+        assertProgressIsZero(jobId);
 
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
 
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
     }

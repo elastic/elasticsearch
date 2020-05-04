@@ -62,8 +62,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -231,8 +232,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             for (Decision d : result.getCanAllocateDecision().getDecisions()) {
                 if (d.label().equals("same_shard") && nodeHoldingPrimary) {
                     assertEquals(Decision.Type.NO, d.type());
-                    assertThat(d.getExplanation(), startsWith(
-                        "the shard cannot be allocated to the same node on which a copy of the shard already exists"));
+                    assertThat(d.getExplanation(), startsWith("a copy of this shard is already allocated to this node ["));
                 } else {
                     assertEquals(Decision.Type.YES, d.type());
                     assertNotNull(d.getExplanation());
@@ -350,8 +350,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             for (Decision d : result.getCanAllocateDecision().getDecisions()) {
                 if (d.label().equals("same_shard") && nodeHoldingPrimary) {
                     assertEquals(Decision.Type.NO, d.type());
-                    assertThat(d.getExplanation(), startsWith(
-                        "the shard cannot be allocated to the same node on which a copy of the shard already exists"));
+                    assertThat(d.getExplanation(), startsWith("a copy of this shard is already allocated to this node ["));
                 } else if (d.label().equals("filter") && nodeHoldingPrimary == false) {
                     assertEquals(Decision.Type.NO, d.type());
                     assertEquals("node does not match index setting [index.routing.allocation.include] " +
@@ -980,7 +979,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             }
             for (Decision d : result.getCanAllocateDecision().getDecisions()) {
                 if (d.type() == Decision.Type.NO) {
-                    assertThat(d.label(), isOneOf("filter", "same_shard"));
+                    assertThat(d.label(), is(oneOf("filter", "same_shard")));
                 }
                 assertNotNull(d.getExplanation());
             }
@@ -1253,10 +1252,10 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                     assertNotEquals("delayed", parser.currentName()); // we should never display "delayed" from unassigned info
                     if (parser.currentName().equals("last_allocation_status")) {
                         parser.nextToken();
-                        assertThat(parser.text(), isOneOf(AllocationDecision.NO.toString(),
+                        assertThat(parser.text(), is(oneOf(AllocationDecision.NO.toString(),
                             AllocationDecision.NO_VALID_SHARD_COPY.toString(),
                             AllocationDecision.AWAITING_INFO.toString(),
-                            AllocationDecision.NO_ATTEMPT.toString()));
+                            AllocationDecision.NO_ATTEMPT.toString())));
                     }
                 }
             }

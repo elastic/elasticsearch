@@ -141,7 +141,7 @@ public class TransportPutDataFrameAnalyticsAction
                 .setVersion(Version.CURRENT)
                 .build();
 
-        if (licenseState.isAuthAllowed()) {
+        if (licenseState.isSecurityEnabled()) {
             useSecondaryAuthIfAvailable(securityContext, () -> {
                 final String username = securityContext.getUser().principal();
                 RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
@@ -231,7 +231,7 @@ public class TransportPutDataFrameAnalyticsAction
     @Override
     protected void doExecute(Task task, PutDataFrameAnalyticsAction.Request request,
                              ActionListener<PutDataFrameAnalyticsAction.Response> listener) {
-        if (licenseState.isMachineLearningAllowed()) {
+        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)) {
             super.doExecute(task, request, listener);
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));

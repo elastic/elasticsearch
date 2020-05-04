@@ -48,6 +48,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -71,7 +72,7 @@ import java.util.function.IntConsumer;
 /**
  * Holder class for several ingest related services.
  */
-public class IngestService implements ClusterStateApplier {
+public class IngestService implements ClusterStateApplier, ReportingService<IngestInfo> {
 
     public static final String NOOP_PIPELINE_NAME = "_none";
 
@@ -254,6 +255,7 @@ public class IngestService implements ClusterStateApplier {
         return processorFactories;
     }
 
+    @Override
     public IngestInfo info() {
         Map<String, Processor.Factory> processorFactories = getProcessorFactories();
         List<ProcessorInfo> processorInfoList = new ArrayList<>(processorFactories.size());

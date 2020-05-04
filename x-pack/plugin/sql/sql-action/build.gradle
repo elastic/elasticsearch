@@ -28,7 +28,7 @@ dependencies {
   testCompile project(":test:framework")
 }
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   //sql does not depend on server, so only jdk signatures should be checked
   replaceSignatureFiles 'jdk-signatures'
 }

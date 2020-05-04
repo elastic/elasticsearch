@@ -11,6 +11,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.client.node.NodeClient;
@@ -52,6 +53,7 @@ import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
@@ -209,6 +211,7 @@ import org.elasticsearch.xpack.ml.action.TransportUpdateModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateProcessAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigAutoUpdater;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
@@ -332,6 +335,7 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 
 public class MachineLearning extends Plugin implements SystemIndexPlugin, AnalysisPlugin, IngestPlugin, PersistentTaskPlugin {
     public static final String NAME = "ml";
@@ -428,6 +432,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
     private final SetOnce<DataFrameAnalyticsManager> dataFrameAnalyticsManager = new SetOnce<>();
     private final SetOnce<DataFrameAnalyticsAuditor> dataFrameAnalyticsAuditor = new SetOnce<>();
     private final SetOnce<MlMemoryTracker> memoryTracker = new SetOnce<>();
+    private final SetOnce<ActionFilter> mlUpgradeModeActionFilter = new SetOnce<>();
 
     public MachineLearning(Settings settings, Path configPath) {
         this.settings = settings;
@@ -527,11 +532,14 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver indexNameExpressionResolver) {
+                                               IndexNameExpressionResolver indexNameExpressionResolver,
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
         if (enabled == false) {
             // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager, empty if ML is disabled
-            return Collections.singletonList(new JobManagerHolder());
+            return singletonList(new JobManagerHolder());
         }
+
+        this.mlUpgradeModeActionFilter.set(new MlUpgradeModeActionFilter(clusterService));
 
         new MlIndexTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
 
@@ -673,6 +681,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
         MlAssignmentNotifier mlAssignmentNotifier = new MlAssignmentNotifier(anomalyDetectionAuditor, dataFrameAnalyticsAuditor, threadPool,
             new MlConfigMigrator(settings, client, clusterService, indexNameExpressionResolver), clusterService);
 
+        MlAutoUpdateService mlAutoUpdateService = new MlAutoUpdateService(threadPool,
+            List.of(new DatafeedConfigAutoUpdater(datafeedConfigProvider, indexNameExpressionResolver)));
+        clusterService.addListener(mlAutoUpdateService);
         // this object registers as a license state listener, and is never removed, so there's no need to retain another reference to it
         final InvalidLicenseEnforcer enforcer =
                 new InvalidLicenseEnforcer(getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);
@@ -698,6 +709,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
                 dataFrameAnalyticsAuditor,
                 inferenceAuditor,
                 mlAssignmentNotifier,
+                mlAutoUpdateService,
                 memoryTracker,
                 analyticsProcessManager,
                 memoryEstimationProcessManager,
@@ -879,6 +891,15 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
                 new ActionHandler<>(PutTrainedModelAction.INSTANCE, TransportPutTrainedModelAction.class),
                 usageAction,
                 infoAction);
+    }
+
+    @Override
+    public List<ActionFilter> getActionFilters() {
+        if (enabled == false) {
+            return emptyList();
+        }
+
+        return singletonList(this.mlUpgradeModeActionFilter.get());
     }
 
     @Override

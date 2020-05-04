@@ -25,11 +25,13 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateV2;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.regex.Regex;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -85,8 +87,22 @@ public class PutIndexTemplateV2Action extends ActionType<AcknowledgedResponse> {
             if (name == null || Strings.hasText(name) == false) {
                 validationException = addValidationError("name is missing", validationException);
             }
+            validationException = validateIndexTemplate(validationException);
+            return validationException;
+        }
+
+        public ActionRequestValidationException validateIndexTemplate(@Nullable ActionRequestValidationException validationException) {
             if (indexTemplate == null) {
                 validationException = addValidationError("an index template is required", validationException);
+            } else {
+                if (indexTemplate.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)) {
+                    if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(indexTemplate.template().settings())) {
+                        validationException = addValidationError("global V2 templates may not specify the setting "
+                                + IndexMetadata.INDEX_HIDDEN_SETTING.getKey(),
+                            validationException
+                        );
+                    }
+                }
             }
             return validationException;
         }

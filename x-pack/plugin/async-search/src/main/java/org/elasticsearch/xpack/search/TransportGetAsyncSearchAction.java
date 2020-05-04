@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -17,19 +19,23 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
 public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsyncSearchAction.Request, AsyncSearchResponse> {
     private final Logger logger = LogManager.getLogger(TransportGetAsyncSearchAction.class);
     private final ClusterService clusterService;
     private final TransportService transportService;
-    private final AsyncSearchIndexService store;
+    private final AsyncTaskIndexService<AsyncSearchResponse> store;
 
     @Inject
     public TransportGetAsyncSearchAction(TransportService transportService,
@@ -41,14 +47,15 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
         super(GetAsyncSearchAction.NAME, transportService, actionFilters, GetAsyncSearchAction.Request::new);
         this.clusterService = clusterService;
         this.transportService = transportService;
-        this.store = new AsyncSearchIndexService(clusterService, threadPool.getThreadContext(), client, registry);
+        this.store = new AsyncTaskIndexService<>(AsyncSearch.INDEX, clusterService, threadPool.getThreadContext(), client,
+            ASYNC_SEARCH_ORIGIN, AsyncSearchResponse::new, registry);
     }
 
     @Override
     protected void doExecute(Task task, GetAsyncSearchAction.Request request, ActionListener<AsyncSearchResponse> listener) {
         try {
             long nowInMillis = System.currentTimeMillis();
-            AsyncSearchId searchId = AsyncSearchId.decode(request.getId());
+            AsyncExecutionId searchId = AsyncExecutionId.decode(request.getId());
             DiscoveryNode node = clusterService.state().nodes().get(searchId.getTaskId().getNodeId());
             if (clusterService.localNode().getId().equals(searchId.getTaskId().getNodeId()) || node == null) {
                 if (request.getKeepAlive().getMillis() > 0) {
@@ -57,8 +64,12 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
                         ActionListener.wrap(
                             p -> getSearchResponseFromTask(searchId, request, nowInMillis, expirationTime, listener),
                             exc -> {
-                                if (exc.getCause() instanceof DocumentMissingException == false) {
-                                    logger.error("failed to retrieve " + searchId.getEncoded(), exc);
+                                //don't log when: the async search document or its index is not found. That can happen if an invalid
+                                //search id is provided or no async search initial response has been stored yet.
+                                RestStatus status = ExceptionsHelper.status(ExceptionsHelper.unwrapCause(exc));
+                                if (status != RestStatus.NOT_FOUND) {
+                                    logger.error(() -> new ParameterizedMessage("failed to update expiration time for async-search [{}]",
+                                        searchId.getEncoded()), exc);
                                 }
                                 listener.onFailure(new ResourceNotFoundException(searchId.getEncoded()));
                             }
@@ -76,13 +87,13 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
         }
     }
 
-    private void getSearchResponseFromTask(AsyncSearchId searchId,
+    private void getSearchResponseFromTask(AsyncExecutionId searchId,
                                            GetAsyncSearchAction.Request request,
                                            long nowInMillis,
                                            long expirationTimeMillis,
                                            ActionListener<AsyncSearchResponse> listener) {
         try {
-            final AsyncSearchTask task = store.getTask(taskManager, searchId);
+            final AsyncSearchTask task = store.getTask(taskManager, searchId, AsyncSearchTask.class);
             if (task == null) {
                 getSearchResponseFromIndex(searchId, request, nowInMillis, listener);
                 return;
@@ -112,7 +123,7 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
         }
     }
 
-   private void getSearchResponseFromIndex(AsyncSearchId searchId,
+   private void getSearchResponseFromIndex(AsyncExecutionId searchId,
                                            GetAsyncSearchAction.Request request,
                                            long nowInMillis,
                                            ActionListener<AsyncSearchResponse> listener) {

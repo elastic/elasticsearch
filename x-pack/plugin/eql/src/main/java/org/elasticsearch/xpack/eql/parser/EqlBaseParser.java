@@ -17,42 +17,42 @@ class EqlBaseParser extends Parser {
   protected static final PredictionContextCache _sharedContextCache =
     new PredictionContextCache();
   public static final int
-    AND=1, ANY=2, BY=3, FALSE=4, FORK=5, IN=6, JOIN=7, MAXSPAN=8, NOT=9, NULL=10,
-    OF=11, OR=12, SEQUENCE=13, TRUE=14, UNTIL=15, WHERE=16, WITH=17, EQ=18,
-    NEQ=19, LT=20, LTE=21, GT=22, GTE=23, PLUS=24, MINUS=25, ASTERISK=26,
-    SLASH=27, PERCENT=28, DOT=29, COMMA=30, LB=31, RB=32, LP=33, RP=34, PIPE=35,
-    ESCAPED_IDENTIFIER=36, STRING=37, INTEGER_VALUE=38, DECIMAL_VALUE=39,
+    AND=1, ANY=2, BY=3, FALSE=4, FORK=5, IN=6, JOIN=7, MAXSPAN=8, NOT=9, NULL=10, 
+    OF=11, OR=12, SEQUENCE=13, TRUE=14, UNTIL=15, WHERE=16, WITH=17, EQ=18, 
+    NEQ=19, LT=20, LTE=21, GT=22, GTE=23, PLUS=24, MINUS=25, ASTERISK=26, 
+    SLASH=27, PERCENT=28, DOT=29, COMMA=30, LB=31, RB=32, LP=33, RP=34, PIPE=35, 
+    ESCAPED_IDENTIFIER=36, STRING=37, INTEGER_VALUE=38, DECIMAL_VALUE=39, 
     IDENTIFIER=40, LINE_COMMENT=41, BRACKETED_COMMENT=42, WS=43;
   public static final int
-    RULE_singleStatement = 0, RULE_singleExpression = 1, RULE_statement = 2,
-    RULE_query = 3, RULE_sequenceParams = 4, RULE_sequence = 5, RULE_join = 6,
-    RULE_pipe = 7, RULE_joinKeys = 8, RULE_joinTerm = 9, RULE_sequenceTerm = 10,
-    RULE_subquery = 11, RULE_eventQuery = 12, RULE_expression = 13, RULE_booleanExpression = 14,
-    RULE_valueExpression = 15, RULE_predicate = 16, RULE_primaryExpression = 17,
-    RULE_functionExpression = 18, RULE_constant = 19, RULE_comparisonOperator = 20,
-    RULE_booleanValue = 21, RULE_qualifiedName = 22, RULE_identifier = 23,
+    RULE_singleStatement = 0, RULE_singleExpression = 1, RULE_statement = 2, 
+    RULE_query = 3, RULE_sequenceParams = 4, RULE_sequence = 5, RULE_join = 6, 
+    RULE_pipe = 7, RULE_joinKeys = 8, RULE_joinTerm = 9, RULE_sequenceTerm = 10, 
+    RULE_subquery = 11, RULE_eventQuery = 12, RULE_expression = 13, RULE_booleanExpression = 14, 
+    RULE_valueExpression = 15, RULE_predicate = 16, RULE_primaryExpression = 17, 
+    RULE_functionExpression = 18, RULE_constant = 19, RULE_comparisonOperator = 20, 
+    RULE_booleanValue = 21, RULE_qualifiedName = 22, RULE_identifier = 23, 
     RULE_timeUnit = 24, RULE_number = 25, RULE_string = 26;
   public static final String[] ruleNames = {
-    "singleStatement", "singleExpression", "statement", "query", "sequenceParams",
-    "sequence", "join", "pipe", "joinKeys", "joinTerm", "sequenceTerm", "subquery",
-    "eventQuery", "expression", "booleanExpression", "valueExpression", "predicate",
-    "primaryExpression", "functionExpression", "constant", "comparisonOperator",
+    "singleStatement", "singleExpression", "statement", "query", "sequenceParams", 
+    "sequence", "join", "pipe", "joinKeys", "joinTerm", "sequenceTerm", "subquery", 
+    "eventQuery", "expression", "booleanExpression", "valueExpression", "predicate", 
+    "primaryExpression", "functionExpression", "constant", "comparisonOperator", 
     "booleanValue", "qualifiedName", "identifier", "timeUnit", "number", "string"
   };
 
   private static final String[] _LITERAL_NAMES = {
-    null, "'and'", "'any'", "'by'", "'false'", "'fork'", "'in'", "'join'",
-    "'maxspan'", "'not'", "'null'", "'of'", "'or'", "'sequence'", "'true'",
-    "'until'", "'where'", "'with'", null, "'!='", "'<'", "'<='", "'>'", "'>='",
-    "'+'", "'-'", "'*'", "'/'", "'%'", "'.'", "','", "'['", "']'", "'('",
+    null, "'and'", "'any'", "'by'", "'false'", "'fork'", "'in'", "'join'", 
+    "'maxspan'", "'not'", "'null'", "'of'", "'or'", "'sequence'", "'true'", 
+    "'until'", "'where'", "'with'", null, "'!='", "'<'", "'<='", "'>'", "'>='", 
+    "'+'", "'-'", "'*'", "'/'", "'%'", "'.'", "','", "'['", "']'", "'('", 
     "')'", "'|'"
   };
   private static final String[] _SYMBOLIC_NAMES = {
-    null, "AND", "ANY", "BY", "FALSE", "FORK", "IN", "JOIN", "MAXSPAN", "NOT",
-    "NULL", "OF", "OR", "SEQUENCE", "TRUE", "UNTIL", "WHERE", "WITH", "EQ",
-    "NEQ", "LT", "LTE", "GT", "GTE", "PLUS", "MINUS", "ASTERISK", "SLASH",
-    "PERCENT", "DOT", "COMMA", "LB", "RB", "LP", "RP", "PIPE", "ESCAPED_IDENTIFIER",
-    "STRING", "INTEGER_VALUE", "DECIMAL_VALUE", "IDENTIFIER", "LINE_COMMENT",
+    null, "AND", "ANY", "BY", "FALSE", "FORK", "IN", "JOIN", "MAXSPAN", "NOT", 
+    "NULL", "OF", "OR", "SEQUENCE", "TRUE", "UNTIL", "WHERE", "WITH", "EQ", 
+    "NEQ", "LT", "LTE", "GT", "GTE", "PLUS", "MINUS", "ASTERISK", "SLASH", 
+    "PERCENT", "DOT", "COMMA", "LB", "RB", "LP", "RP", "PIPE", "ESCAPED_IDENTIFIER", 
+    "STRING", "INTEGER_VALUE", "DECIMAL_VALUE", "IDENTIFIER", "LINE_COMMENT", 
     "BRACKETED_COMMENT", "WS"
   };
   public static final Vocabulary VOCABULARY = new VocabularyImpl(_LITERAL_NAMES, _SYMBOLIC_NAMES);
@@ -393,6 +393,7 @@ class EqlBaseParser extends Parser {
 
   public static class SequenceContext extends ParserRuleContext {
     public JoinKeysContext by;
+    public JoinKeysContext disallowed;
     public SequenceTermContext until;
     public TerminalNode SEQUENCE() { return getToken(EqlBaseParser.SEQUENCE, 0); }
     public List<SequenceTermContext> sequenceTerm() {
@@ -462,7 +463,7 @@ class EqlBaseParser extends Parser {
         if (_la==BY) {
           {
           setState(83);
-          ((SequenceContext)_localctx).by = joinKeys();
+          ((SequenceContext)_localctx).disallowed = joinKeys();
           }
         }
 
@@ -475,7 +476,7 @@ class EqlBaseParser extends Parser {
       }
       setState(88);
       sequenceTerm();
-      setState(90);
+      setState(90); 
       _errHandler.sync(this);
       _la = _input.LA(1);
       do {
@@ -485,7 +486,7 @@ class EqlBaseParser extends Parser {
         sequenceTerm();
         }
         }
-        setState(92);
+        setState(92); 
         _errHandler.sync(this);
         _la = _input.LA(1);
       } while ( _la==LB );
@@ -566,7 +567,7 @@ class EqlBaseParser extends Parser {
 
       setState(102);
       joinTerm();
-      setState(104);
+      setState(104); 
       _errHandler.sync(this);
       _la = _input.LA(1);
       do {
@@ -576,7 +577,7 @@ class EqlBaseParser extends Parser {
         joinTerm();
         }
         }
-        setState(106);
+        setState(106); 
         _errHandler.sync(this);
         _la = _input.LA(1);
       } while ( _la==LB );
@@ -1067,7 +1068,7 @@ class EqlBaseParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_booleanExpression; }
-
+   
     public BooleanExpressionContext() { }
     public void copyFrom(BooleanExpressionContext ctx) {
       super.copyFrom(ctx);
@@ -1254,7 +1255,7 @@ class EqlBaseParser extends Parser {
             }
             break;
           }
-          }
+          } 
         }
         setState(180);
         _errHandler.sync(this);
@@ -1278,7 +1279,7 @@ class EqlBaseParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_valueExpression; }
-
+   
     public ValueExpressionContext() { }
     public void copyFrom(ValueExpressionContext ctx) {
       super.copyFrom(ctx);
@@ -1517,7 +1518,7 @@ class EqlBaseParser extends Parser {
             }
             break;
           }
-          }
+          } 
         }
         setState(204);
         _errHandler.sync(this);
@@ -1629,7 +1630,7 @@ class EqlBaseParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_primaryExpression; }
-
+   
     public PrimaryExpressionContext() { }
     public void copyFrom(PrimaryExpressionContext ctx) {
       super.copyFrom(ctx);
@@ -1860,7 +1861,7 @@ class EqlBaseParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_constant; }
-
+   
     public ConstantContext() { }
     public void copyFrom(ConstantContext ctx) {
       super.copyFrom(ctx);
@@ -2170,7 +2171,7 @@ class EqlBaseParser extends Parser {
             {
             setState(256);
             match(LB);
-            setState(258);
+            setState(258); 
             _errHandler.sync(this);
             _la = _input.LA(1);
             do {
@@ -2180,7 +2181,7 @@ class EqlBaseParser extends Parser {
               match(INTEGER_VALUE);
               }
               }
-              setState(260);
+              setState(260); 
               _errHandler.sync(this);
               _la = _input.LA(1);
             } while ( _la==INTEGER_VALUE );
@@ -2191,7 +2192,7 @@ class EqlBaseParser extends Parser {
           default:
             throw new NoViableAltException(this);
           }
-          }
+          } 
         }
         setState(267);
         _errHandler.sync(this);
@@ -2320,7 +2321,7 @@ class EqlBaseParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_number; }
-
+   
     public NumberContext() { }
     public void copyFrom(NumberContext ctx) {
       super.copyFrom(ctx);

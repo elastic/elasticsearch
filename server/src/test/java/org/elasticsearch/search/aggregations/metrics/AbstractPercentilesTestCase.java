@@ -35,32 +35,33 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractPercentilesTestCase<T extends InternalAggregation & Iterable<Percentile>>
         extends InternalAggregationTestCase<T> {
-
-    private double[] percents;
-    private boolean keyed;
-    private DocValueFormat docValueFormat;
-
     @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        percents = randomPercents(false);
-        keyed = randomBoolean();
-        docValueFormat = randomNumericDocValueFormat();
+    protected T createTestInstance(String name, Map<String, Object> metadata) {
+        return createTestInstance(name, metadata, randomBoolean(), randomNumericDocValueFormat(), randomPercents(false));
     }
 
     @Override
-    protected T createTestInstance(String name, Map<String, Object> metadata) {
+    protected List<T> randomResultsToReduce(String name, int size) {
+        boolean keyed = randomBoolean();
+        DocValueFormat format = randomNumericDocValueFormat();
+        double[] percents = randomPercents(false);
+        return Stream.generate(() -> createTestInstance(name, null, keyed, format, percents)).limit(size).collect(toList());
+    }
+
+    private T createTestInstance(String name, Map<String, Object> metadata, boolean keyed, DocValueFormat format, double[] percents) {
         int numValues = frequently() ? randomInt(100) : 0;
         double[] values = new double[numValues];
         for (int i = 0; i < numValues; ++i) {
             values[i] = randomDouble();
         }
-        return createTestInstance(name, metadata, keyed, docValueFormat, percents, values);
+        return createTestInstance(name, metadata, keyed, format, percents, values);
     }
 
     protected abstract T createTestInstance(String name, Map<String, Object> metadata,

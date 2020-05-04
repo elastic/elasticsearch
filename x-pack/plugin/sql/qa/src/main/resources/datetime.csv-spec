@@ -580,6 +580,108 @@ HAVING DATETIME_FORMAT(MAX(birth_date), 'dd')::integer > 20  ORDER BY 1 DESC;
 1961-02-26 00:00:00.000Z | 02
 ;
 
+selectDateTimeParse
+schema::dp_date1:ts|dp_date2:ts
+SELECT DATETIME_PARSE('07/04/2020___11:22:33 Europe/Berlin', 'dd/MM/uuuu___HH:mm:ss VV') AS dp_date1,
+DATETIME_PARSE('11:22:33 2020__04__07 -05:33', 'HH:mm:ss uuuu__MM__dd zz') AS dp_date2;
+
+       dp_date1             |    dp_date2
+----------------------------+----------------------------
+2020-04-07T09:22:33:00.000Z | 2020-04-07T16:55:33:00.000Z
+;
+
+selectDateTimeParseWithField
+schema::birth_date:ts|dp_birth_date:ts
+SELECT birth_date, DATETIME_PARSE(DATETIME_FORMAT(birth_date, 'MM/dd/ HH uuuu mm SSS ss'), concat(gender, 'M/dd/ HH uuuu mm SSS ss')) AS dp_birth_date
+FROM test_emp WHERE gender = 'M' AND emp_no BETWEEN 10037 AND 10052 ORDER BY emp_no;
+
+       birth_date        | dp_birth_date
+-------------------------+-------------------------
+1963-07-22 00:00:00.000Z | 1963-07-22 00:00:00.000Z
+1960-07-20 00:00:00.000Z | 1960-07-20 00:00:00.000Z
+1959-10-01 00:00:00.000Z | 1959-10-01 00:00:00.000Z
+null                     | null
+null                     | null
+null                     | null
+null                     | null
+null                     | null
+1958-05-21 00:00:00.000Z | 1958-05-21 00:00:00.000Z
+1953-07-28 00:00:00.000Z | 1953-07-28 00:00:00.000Z
+1961-02-26 00:00:00.000Z | 1961-02-26 00:00:00.000Z
+;
+
+dateTimeParseWhere
+schema::birth_date:ts|dp_birth_date:ts
+SELECT birth_date, DATETIME_PARSE(DATETIME_FORMAT(birth_date, 'MM_dd_uuuu HH.mm.ss:SSS'), 'MM_dd_uuuu HH.mm.ss:SSS') AS dp_birth_date
+FROM test_emp WHERE dp_birth_date > '1963-10-20'::date ORDER BY emp_no;
+
+       birth_date        |     dp_birth_date
+-------------------------+------------------------
+1964-06-02 00:00:00.000Z | 1964-06-02 00:00:00.000Z
+1963-11-26 00:00:00.000Z | 1963-11-26 00:00:00.000Z
+1964-04-18 00:00:00.000Z | 1964-04-18 00:00:00.000Z
+1964-10-18 00:00:00.000Z | 1964-10-18 00:00:00.000Z
+1964-06-11 00:00:00.000Z | 1964-06-11 00:00:00.000Z
+1965-01-03 00:00:00.000Z | 1965-01-03 00:00:00.000Z
+;
+
+dateTimeParseOrderBy
+schema::birth_date:ts|dp_birth_date:ts
+SELECT birth_date, DATETIME_PARSE(DATETIME_FORMAT(birth_date, 'HH:mm:ss.SSS MM/dd/uuuu'), 'HH:mm:ss.SSS MM/dd/uuuu') AS dp_birth_date
+FROM test_emp ORDER BY 2 DESC NULLS LAST LIMIT 10;
+
+       birth_date        | dp_birth_date
+-------------------------+-------------------------
+1965-01-03 00:00:00.000Z | 1965-01-03 00:00:00.000Z
+1964-10-18 00:00:00.000Z | 1964-10-18 00:00:00.000Z
+1964-06-11 00:00:00.000Z | 1964-06-11 00:00:00.000Z
+1964-06-02 00:00:00.000Z | 1964-06-02 00:00:00.000Z
+1964-04-18 00:00:00.000Z | 1964-04-18 00:00:00.000Z
+1963-11-26 00:00:00.000Z | 1963-11-26 00:00:00.000Z
+1963-09-09 00:00:00.000Z | 1963-09-09 00:00:00.000Z
+1963-07-22 00:00:00.000Z | 1963-07-22 00:00:00.000Z
+1963-06-07 00:00:00.000Z | 1963-06-07 00:00:00.000Z
+1963-06-01 00:00:00.000Z | 1963-06-01 00:00:00.000Z
+;
+
+dateTimeParseGroupBy
+schema::count:l|df_birth_date:s
+SELECT count(*) AS count, DATETIME_FORMAT(DATETIME_PARSE(DATETIME_FORMAT(birth_date, 'dd/MM/uuuu HH:mm:ss'), 'dd/MM/uuuu HH:mm:ss'), 'MM') AS df_birth_date
+FROM test_emp GROUP BY df_birth_date ORDER BY 1 DESC, 2 DESC NULLS LAST LIMIT 10;
+
+ count | df_birth_date
+-------+---------------
+10     | 09
+10     | 05
+10     | null
+9      | 10
+9      | 07
+8      | 11
+8      | 04
+8      | 02
+7      | 12
+7      | 06
+;
+
+dateTimeParseHaving
+schema::max:ts|df_birth_date:s
+SELECT MAX(birth_date) AS max, DATETIME_FORMAT(birth_date, 'MM') AS df_birth_date FROM test_emp GROUP BY df_birth_date
+HAVING DATETIME_PARSE(DATETIME_FORMAT(MAX(birth_date), 'dd/MM/uuuu HH:mm:ss'), 'dd/MM/uuuu HH:mm:ss') > '1961-10-20'::date  ORDER BY 1 DESC NULLS LAST;
+
+          max            | df_birth_date
+-------------------------+---------------
+1965-01-03 00:00:00.000Z | 01
+1964-10-18 00:00:00.000Z | 10
+1964-06-11 00:00:00.000Z | 06
+1964-04-18 00:00:00.000Z | 04
+1963-11-26 00:00:00.000Z | 11
+1963-09-09 00:00:00.000Z | 09
+1963-07-22 00:00:00.000Z | 07
+1963-03-21 00:00:00.000Z | 03
+1962-12-29 00:00:00.000Z | 12
+null                     | null
+;
+
 selectDateTruncWithDateTime
 schema::dt_hour:ts|dt_min:ts|dt_sec:ts|dt_millis:s|dt_micro:s|dt_nano:s
 SELECT DATE_TRUNC('hour', '2019-09-04T11:22:33.123Z'::datetime) as dt_hour, DATE_TRUNC('minute', '2019-09-04T11:22:33.123Z'::datetime) as dt_min,

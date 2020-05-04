@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateV2;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.regex.Regex;
@@ -32,6 +33,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -76,8 +78,9 @@ public class RestTemplatesAction extends AbstractCatAction {
         table.startHeaders();
         table.addCell("name", "alias:n;desc:template name");
         table.addCell("index_patterns", "alias:t;desc:template index patterns");
-        table.addCell("order", "alias:o;desc:template application order number");
+        table.addCell("order", "alias:o,p;desc:template application order/priority number");
         table.addCell("version", "alias:v;desc:version");
+        table.addCell("composed_of", "alias:c;desc:component templates comprising index template");
         table.endHeaders();
         return table;
     }
@@ -93,6 +96,21 @@ public class RestTemplatesAction extends AbstractCatAction {
                 table.addCell("[" + String.join(", ", indexData.patterns()) + "]");
                 table.addCell(indexData.getOrder());
                 table.addCell(indexData.getVersion());
+                table.addCell("");
+                table.endRow();
+            }
+        }
+
+        for (Map.Entry<String, IndexTemplateV2> entry : metadata.templatesV2().entrySet()) {
+            String name = entry.getKey();
+            IndexTemplateV2 template = entry.getValue();
+            if (patternString == null || Regex.simpleMatch(patternString, name)) {
+                table.startRow();
+                table.addCell(name);
+                table.addCell("[" + String.join(", ", template.indexPatterns()) + "]");
+                table.addCell(template.priority());
+                table.addCell(template.version());
+                table.addCell("[" + String.join(", ", template.composedOf()) + "]");
                 table.endRow();
             }
         }

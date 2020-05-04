@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.transport.TransportInfo;
 
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
@@ -51,7 +52,8 @@ public class SettingsBasedSeedHostsProviderIT extends ESIntegTestCase {
         final String seedNodeName = internalCluster().startNode();
         final NodesInfoResponse nodesInfoResponse
             = client(seedNodeName).admin().cluster().nodesInfo(new NodesInfoRequest("_local")).actionGet();
-        final String seedNodeAddress = nodesInfoResponse.getNodes().get(0).getTransport().getAddress().publishAddress().toString();
+        final String seedNodeAddress =
+            nodesInfoResponse.getNodes().get(0).getInfo(TransportInfo.class).getAddress().publishAddress().toString();
         logger.info("--> using seed node address {}", seedNodeAddress);
 
         int extraNodes = randomIntBetween(1, 5);

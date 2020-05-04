@@ -9,10 +9,15 @@ experimental::[]
 {es} supports the following EQL functions:
 
 * <<eql-fn-between>>
+* <<eql-fn-cidrmatch>>
 * <<eql-fn-endswith>>
+* <<eql-fn-indexof>>
 * <<eql-fn-length>>
 * <<eql-fn-startswith>>
+* <<eql-fn-string>>
+* <<eql-fn-stringcontains>>
 * <<eql-fn-substring>>
+* <<eql-fn-wildcard>>
 
 [discrete]
 [[eql-fn-between]]
@@ -51,7 +56,6 @@ between(null, "system32\\\\", ".exe")                   // returns null
 ----
 
 *Syntax*
-
 [source,txt]
 ----
 between(<source>, <left>, <right>[, <greedy_matching>, <case_sensitive>])
@@ -66,7 +70,7 @@ between(<source>, <left>, <right>[, <greedy_matching>, <case_sensitive>])
 Source string. Empty strings return an empty string (`""`), regardless of the
 `<left>` or `<right>` parameters. If `null`, the function returns `null`.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -84,7 +88,7 @@ Fields containing <<array,array values>> use the first array item only.
 Text to the left of the substring to extract. This text should include
 whitespace.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -102,7 +106,7 @@ field datatypes:
 Text to the right of the substring to extract. This text should include
 whitespace.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -124,6 +128,55 @@ in regular expressions. Defaults to `false`.
 If `true`, matching is case-sensitive. Defaults to `false`.
 
 *Returns:* string or `null`
+====
+
+[discrete]
+[[eql-fn-cidrmatch]]
+=== `cidrMatch`
+
+Returns `true` if an IP address is contained in one or more provided
+https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing[CIDR] blocks.
+
+[%collapsible]
+====
+*Example*
+
+[source,eql]
+----
+// source.address = "192.168.152.12"
+cidrMatch(source.address, "192.168.0.0/16")               // returns true
+cidrMatch(source.address, "192.168.0.0/16", "10.0.0.0/8") // returns true
+cidrMatch(source.address, "10.0.0.0/8")                   // returns false
+cidrMatch(source.address, "10.0.0.0/8", "10.128.0.0/9")   // returns false
+
+// null handling
+cidrMatch(null, "10.0.0.0/8")                             // returns null
+cidrMatch(source.address, null)                           // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+`cidrMatch(<ip_address>, <cidr_block>[, ...])`
+----
+
+*Parameters*
+
+`<ip_address>`::
+(Required, string or `null`)
+IP address. Supports
+https://en.wikipedia.org/wiki/IPv4[IPv4] and
+https://en.wikipedia.org/wiki/IPv6[IPv6] addresses. If `null`, the function
+returns `null`.
++
+If using a field as the argument, this parameter supports only the <<ip,`ip`>>
+field datatype.
+
+`<cidr_block>`::
+(Required{multi-arg}, string or `null`)
+CIDR block you wish to search. If `null`, the function returns `null`.
+
+*Returns:* boolean or `null`
 ====
 
 [discrete]
@@ -163,7 +216,6 @@ endsWith(null, null)                      // returns null
 ----
 
 *Syntax*
-
 [source,txt]
 ----
 endsWith(<source>, <substring>)
@@ -177,7 +229,7 @@ endsWith(<source>, <substring>)
 (Required, string or `null`)
 Source string. If `null`, the function returns `null`.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -194,7 +246,7 @@ Fields containing <<array,array values>> use the first array item only.
 (Required, string or `null`)
 Substring to search for. If `null`, the function returns `null`.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -204,6 +256,114 @@ field datatypes:
 --
 
 *Returns:* boolean or `null`
+====
+
+[discrete]
+[[eql-fn-indexof]]
+=== `indexOf`
+
+Returns the first position of a provided substring in a source string.
+
+If an optional start position is provided, this function returns the first
+occurrence of the substring at or after the start position.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+// url.domain = "subdomain.example.com"
+indexOf(url.domain, ".")        // returns 9
+indexOf(url.domain, ".", 9)     // returns 9
+indexOf(url.domain, ".", 10)    // returns 17
+indexOf(url.domain, ".", -6)    // returns 9
+
+// empty strings
+indexOf("", "")                 // returns 0
+indexOf(url.domain, "")         // returns 0
+indexOf(url.domain, "", 9)      // returns 9
+indexOf(url.domain, "", 10)     // returns 10
+indexOf(url.domain, "", -6)     // returns 0
+
+// missing substrings
+indexOf(url.domain, "z")        // returns null
+indexOf(url.domain, "z", 9)     // returns null
+
+// start position is higher than string length
+indexOf(url.domain, ".", 30)    // returns null
+
+// null handling
+indexOf(null, ".", 9)           // returns null
+indexOf(url.domain, null, 9)    // returns null
+indexOf(url.domain, ".", null)  // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+indexOf(<source>, <substring>[, <start_pos>])
+----
+
+*Parameters*
+
+`<source>`::
++
+--
+(Required, string or `null`)
+Source string. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+--
+
+`<substring>`::
++
+--
+(Required, string or `null`)
+Substring to search for.
+
+If this argument is `null` or the `<source>` string does not contain this
+substring, the function returns `null`.
+
+If the `<start_pos>` is positive, empty strings (`""`) return the `<start_pos>`.
+Otherwise, empty strings return `0`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+--
+
+`<start_pos>`::
++
+--
+(Optional, integer or `null`)
+Starting position for matching. The function will not return positions before
+this one. Defaults to `0`.
+
+Positions are zero-indexed. Negative offsets are treated as `0`.
+
+If this argument is `null` or higher than the length of the `<source>` string,
+the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+<<number,numeric>> field datatypes:
+
+* `long`
+* `integer`
+* `short`
+* `byte`
+--
+
+*Returns:* integer or `null`
 ====
 
 [discrete]
@@ -242,7 +402,7 @@ length(<string>)
 String for which to return the character length. If `null`, the function returns
 `null`. Empty strings return `0`.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -293,7 +453,6 @@ startsWith(null, null)                  // returns null
 ----
 
 *Syntax*
-
 [source,txt]
 ----
 startsWith(<source>, <substring>)
@@ -307,7 +466,7 @@ startsWith(<source>, <substring>)
 (Required, string or `null`)
 Source string. If `null`, the function returns `null`.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -324,7 +483,7 @@ Fields containing <<array,array values>> use the first array item only.
 (Required, string or `null`)
 Substring to search for. If `null`, the function returns `null`.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -332,6 +491,107 @@ field datatypes:
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
 --
+
+*Returns:* boolean or `null`
+====
+
+[discrete]
+[[eql-fn-string]]
+=== `string`
+
+Converts a value to a string.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+string(42)               // returns "42"
+string(42.5)             // returns "42.5"
+string("regsvr32.exe")   // returns "regsvr32.exe"
+string(true)             // returns "true"
+
+// null handling
+string(null)             // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+string(<value>)
+----
+
+*Parameters*
+
+`<value>`::
+(Required)
+Value to convert to a string. If `null`, the function returns `null`.
++
+If using a field as the argument, this parameter does not support the
+<<text,`text`>> field datatype.
+
+*Returns:* string or `null`
+====
+
+[discrete]
+[[eql-fn-stringcontains]]
+=== `stringContains`
+
+Returns `true` if a source string contains a provided substring.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+// process.command_line = "start regsvr32.exe"
+stringContains(process.command_line, "regsvr32")  // returns true
+stringContains(process.command_line, "start ")    // returns true
+stringContains(process.command_line, "explorer")  // returns false
+
+// process.name = "regsvr32.exe"
+stringContains(command_line, process.name)        // returns true
+
+// empty strings
+stringContains("", "")                            // returns false
+stringContains(process.command_line, "")          // returns false
+
+// null handling
+stringContains(null, "regsvr32")                  // returns null
+stringContains(process.command_line, null)        // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+stringContains(<source>, <substring>)
+----
+
+*Parameters*
+
+`<source>`::
+(Required, string or `null`)
+Source string to search. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+
+`<substring>`::
+(Required, string or `null`)
+Substring to search for. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
 
 *Returns:* boolean or `null`
 ====
@@ -357,7 +617,6 @@ substring("start regsvr32.exe", -4, -1)   // returns ".ex"
 ----
 
 *Syntax*
-
 [source,txt]
 ----
 substring(<source>, <start_pos>[, <end_pos>])
@@ -389,4 +648,69 @@ function returns the remaining string.
 Positions are zero-indexed. Negative offsets are supported.
 
 *Returns:* string
+====
+
+[discrete]
+[[eql-fn-wildcard]]
+=== `wildcard`
+Returns `true` if a source string matches one or more provided wildcard
+expressions.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+// The two following expressions are equivalent.
+process.name == "*regsvr32*" or process.name == "*explorer*"
+wildcard(process.name, "*regsvr32*", "*explorer*")
+
+// process.name = "regsvr32.exe"
+wildcard(process.name, "*regsvr32*")                // returns true
+wildcard(process.name, "*regsvr32*", "*explorer*")  // returns true
+wildcard(process.name, "*explorer*")                // returns false
+wildcard(process.name, "*explorer*", "*scrobj*")    // returns false
+
+// empty strings
+wildcard("", "*start*")                             // returns false
+wildcard("", "*")                                   // returns true
+wildcard("", "")                                    // returns true
+
+// null handling
+wildcard(null, "*regsvr32*")                        // returns null
+wildcard(process.name, null)                        // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+wildcard(<source>, <wildcard_exp>[, ...])
+----
+
+*Parameters*
+
+`<source>`::
++
+--
+(Required, string)
+Source string. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+--
+
+`<wildcard_exp>`::
++
+--
+(Required{multi-arg-ref}, string)
+Wildcard expression used to match the source string. If `null`, the function
+returns `null`. Fields are not supported as arguments.
+-- 
+
+*Returns:* boolean
 ====

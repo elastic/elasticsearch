@@ -45,6 +45,12 @@ public abstract class AExpression extends ANode {
         boolean read = true;
 
         /**
+         * Set to true when this node is an lhs-expression and will be storing
+         * a value from an rhs-expression.
+         */
+        boolean write = false;
+
+        /**
          * Set to the expected type this node needs to be.  Note this variable
          * is always set by the parent as input and should never be read from.
          */
@@ -79,6 +85,12 @@ public abstract class AExpression extends ANode {
          * is required.
          */
         PainlessCast painlessCast = null;
+
+        /**
+         * {@code true} if this node or a sub-node of this node can be optimized with
+         * rhs actual type to avoid an unnecessary cast.
+         */
+        boolean isDefOptimized = false;
 
         /**
          * The {@link ExpressionNode}(s) generated from this expression.

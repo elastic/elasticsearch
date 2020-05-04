@@ -149,6 +149,11 @@ public class IndicesStatsRequestBuilder
         return this;
     }
 
+    public IndicesStatsRequestBuilder setBulk(boolean bulk) {
+        request.bulk(bulk);
+        return this;
+    }
+
     public IndicesStatsRequestBuilder setIncludeSegmentFileSizes(boolean includeSegmentFileSizes) {
         request.includeSegmentFileSizes(includeSegmentFileSizes);
         return this;

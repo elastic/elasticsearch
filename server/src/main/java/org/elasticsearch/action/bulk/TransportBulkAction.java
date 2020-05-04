@@ -392,7 +392,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         createIndexRequest.cause("auto(bulk api)");
         createIndexRequest.masterNodeTimeout(timeout);
         createIndexRequest.preferV2Templates(preferV2Templates);
-        if (minNodeVersion.onOrAfter(Version.V_8_0_0)) {
+        if (minNodeVersion.onOrAfter(Version.V_7_8_0)) {
             client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
         } else {
             client.admin().indices().create(createIndexRequest, listener);

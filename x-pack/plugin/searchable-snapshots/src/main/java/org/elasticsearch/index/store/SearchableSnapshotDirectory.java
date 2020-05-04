@@ -28,6 +28,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -395,9 +396,12 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     numberOfParts
                 );
 
+                // if the file to prewarm is composed of a single part then it is prewarmed using the current thread
+                final Executor warmExecutor = (numberOfParts > 1) ? executor : EsExecutors.newDirectExecutorService();
+
                 for (int p = 0; p < numberOfParts; p++) {
                     final int part = p;
-                    executor.execute(ActionRunnable.run(listener, () -> {
+                    warmExecutor.execute(ActionRunnable.run(listener, () -> {
                         ensureOpen();
 
                         logger.trace("{} warming cache for [{}] part [{}/{}]", shardId, file.physicalName(), part, numberOfParts);

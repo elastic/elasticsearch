@@ -19,7 +19,7 @@ has been limited to 10.
 
 *Impact* +
 Use a maximum of 10 completion contexts in a completion field. Specifying more
-than 10 completions context will return an error.
+than 10 completion contexts will return an error.
 ====
 
 

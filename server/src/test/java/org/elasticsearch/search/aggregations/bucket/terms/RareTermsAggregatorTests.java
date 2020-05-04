@@ -431,7 +431,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
                 fieldType.setHasDocValues(true);
                 fieldType.setName("nested_value");
-                try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
+                try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                     InternalNested result = searchAndReduce(newIndexSearcher(indexReader),
                         // match root document only
                         new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME), nested, fieldType);
@@ -470,7 +470,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                     MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
                     fieldType.setHasDocValues(true);
                     fieldType.setName("nested_value");
-                    try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
+                    try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
 
                         if (withScore) {
 

@@ -208,6 +208,9 @@ public abstract class LongKeyedBucketOrds implements Releasable {
 
         @Override
         public long bucketsInOrd(long owningBucketOrd) {
+            if (owningBucketOrd >= owningOrdToBuckets.size()) {
+                return 0;
+            }
             Buckets buckets = owningOrdToBuckets.get(owningBucketOrd);
             if (buckets == null) {
                 return 0;

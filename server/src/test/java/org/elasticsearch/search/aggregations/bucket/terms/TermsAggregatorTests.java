@@ -1246,7 +1246,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
                         fieldType.setHasDocValues(true);
                         fieldType.setName("nested_value");
-                        try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
+                        try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                             {
                                 InternalNested result = search(newSearcher(indexReader, false, true),
                                     // match root document only

@@ -73,6 +73,10 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
             assertThat(ords.add(0, 0), equalTo(-1L));
             assertThat(ords.add(0, 1000), equalTo(-2L));
 
+            // Check counting values
+            assertThat(ords.bucketsInOrd(0), equalTo(values.length + 2L));
+
+            // Check iteration
             LongKeyedBucketOrds.BucketOrdsEnum ordEnum = ords.ordsEnum(0);
             assertTrue(ordEnum.next());
             assertThat(ordEnum.ord(), equalTo(0L));
@@ -124,23 +128,30 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
             assertThat(ords.add(0, 0), equalTo(-1L));
             assertThat(ords.add(1, 0), equalTo(-2L));
 
+
             for (long owningBucketOrd = 0; owningBucketOrd <= maxOwningBucketOrd; owningBucketOrd++) {
+                long expectedCount = 0;
                 LongKeyedBucketOrds.BucketOrdsEnum ordEnum = ords.ordsEnum(owningBucketOrd);
                 if (owningBucketOrd <= 1) {
+                    expectedCount++;
                     assertTrue(ordEnum.next());
                     assertThat(ordEnum.ord(), equalTo(owningBucketOrd));
                     assertThat(ordEnum.value(), equalTo(0L));
                 }
                 for (int i = 0; i < values.length; i++) {
                     if (values[i].owningBucketOrd == owningBucketOrd) {
+                        expectedCount++;
                         assertTrue(ordEnum.next());
                         assertThat(ordEnum.ord(), equalTo(i + 2L));
                         assertThat(ordEnum.value(), equalTo(values[i].value));
                     }
                 }
                 assertFalse(ordEnum.next());
+
+                assertThat(ords.bucketsInOrd(owningBucketOrd), equalTo(expectedCount));
             }
             assertFalse(ords.ordsEnum(randomLongBetween(maxOwningBucketOrd + 1, Long.MAX_VALUE)).next());
+            assertThat(ords.bucketsInOrd(randomLongBetween(maxOwningBucketOrd + 1, Long.MAX_VALUE)), equalTo(0L));
         }
     }
 

@@ -57,7 +57,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
             XPackLicenseState licenseState = mock(XPackLicenseState.class);
-            when(licenseState.isMachineLearningAllowed()).thenReturn(true);
+            when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
             return Collections.singletonMap(InferenceProcessor.TYPE,
                 new InferenceProcessor.Factory(parameters.client,
                     parameters.ingestService.getClusterService(),
@@ -87,7 +87,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         ingestService = new IngestService(clusterService, tp, null, null,
             null, Collections.singletonList(SKINNY_PLUGIN), client);
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isMachineLearningAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
     }
 
     public void testNumInferenceProcessors() throws Exception {

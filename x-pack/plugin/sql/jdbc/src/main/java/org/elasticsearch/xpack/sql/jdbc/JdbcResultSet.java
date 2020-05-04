@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.common.SuppressForbidden;
+
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
@@ -549,6 +551,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     @Deprecated
+    @SuppressForbidden(reason="implementing deprecated method")
     public BigDecimal getBigDecimal(String columnLabel, int scale) throws SQLException {
         return getBigDecimal(column(columnLabel), scale);
     }

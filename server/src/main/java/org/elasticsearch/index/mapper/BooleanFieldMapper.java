@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
@@ -46,7 +45,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
@@ -229,7 +227,7 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored() && !fieldType().hasDocValues()) {
             return;
         }
@@ -250,12 +248,12 @@ public class BooleanFieldMapper extends FieldMapper {
             return;
         }
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            fields.add(new Field(fieldType().name(), value ? "T" : "F", fieldType()));
+            context.doc().add(new Field(fieldType().name(), value ? "T" : "F", fieldType()));
         }
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
+            context.doc().add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
         } else {
-            createFieldNamesField(context, fields);
+            createFieldNamesField(context);
         }
     }
 

@@ -146,7 +146,7 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
     @Override
     protected void masterOperation(Request request, ClusterState clusterState, ActionListener<Response> listener) {
 
-        if (!licenseState.isTransformAllowed()) {
+        if (!licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM)) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.TRANSFORM));
             return;
         }

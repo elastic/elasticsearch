@@ -203,7 +203,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
     protected void masterOperation(Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
 
-        if (!licenseState.isTransformAllowed()) {
+        if (!licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM)) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.TRANSFORM));
             return;
         }

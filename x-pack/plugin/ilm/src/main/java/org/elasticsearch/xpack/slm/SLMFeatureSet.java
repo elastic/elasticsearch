@@ -41,7 +41,7 @@ public class SLMFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isIndexLifecycleAllowed();
+        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.ILM);
     }
 
     @Override
@@ -57,7 +57,7 @@ public class SLMFeatureSet implements XPackFeatureSet {
     @Override
     public void usage(ActionListener<Usage> listener) {
         final ClusterState state = clusterService.state();
-        boolean available = licenseState.isIndexLifecycleAllowed();
+        boolean available = licenseState.isAllowed(XPackLicenseState.Feature.ILM);
         final SnapshotLifecycleMetadata slmMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
         final SLMFeatureSetUsage usage = new SLMFeatureSetUsage(available, enabled,
             slmMeta == null ? null : slmMeta.getStats());

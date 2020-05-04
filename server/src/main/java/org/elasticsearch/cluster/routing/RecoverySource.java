@@ -64,7 +64,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         Type type = Type.values()[in.readByte()];
         switch (type) {
             case EMPTY_STORE: return EmptyStoreRecoverySource.INSTANCE;
-            case EXISTING_STORE: return new ExistingStoreRecoverySource(in);
+            case EXISTING_STORE: return ExistingStoreRecoverySource.read(in);
             case PEER: return PeerRecoverySource.INSTANCE;
             case SNAPSHOT: return new SnapshotRecoverySource(in);
             case LOCAL_SHARDS: return LocalShardsRecoverySource.INSTANCE;
@@ -153,12 +153,8 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             this.bootstrapNewHistoryUUID = bootstrapNewHistoryUUID;
         }
 
-        private ExistingStoreRecoverySource(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
-                bootstrapNewHistoryUUID = in.readBoolean();
-            } else {
-                bootstrapNewHistoryUUID = false;
-            }
+        private static ExistingStoreRecoverySource read(StreamInput in) throws IOException {
+            return in.readBoolean() ? FORCE_STALE_PRIMARY_INSTANCE : INSTANCE;
         }
 
         @Override
@@ -168,9 +164,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         @Override
         protected void writeAdditionalFields(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
-                out.writeBoolean(bootstrapNewHistoryUUID);
-            }
+            out.writeBoolean(bootstrapNewHistoryUUID);
         }
 
         @Override

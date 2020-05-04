@@ -133,7 +133,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoDocs() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testAggregation(new MatchAllDocsQuery(), iw -> {
             // Intentionally not writing any docs
         }, avg -> {
             assertEquals(Double.NaN, avg.getValue(), 0);
@@ -142,7 +142,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoMatchingField() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testAggregation(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 3)));
         }, avg -> {
@@ -152,7 +152,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesSortedNumericDocValues() throws IOException {
-        testCase(new DocValuesFieldExistsQuery("number"), iw -> {
+        testAggregation(new DocValuesFieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 2)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 3)));
@@ -163,7 +163,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesNumericDocValues() throws IOException {
-        testCase(new DocValuesFieldExistsQuery("number"), iw -> {
+        testAggregation(new DocValuesFieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 2)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 3)));
@@ -174,7 +174,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testQueryFiltering() throws IOException {
-        testCase(IntPoint.newRangeQuery("number", 0, 3), iw -> {
+        testAggregation(IntPoint.newRangeQuery("number", 0, 3), iw -> {
             iw.addDocument(Arrays.asList(new IntPoint("number", 7), new SortedNumericDocValuesField("number", 7)));
             iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 2)));
             iw.addDocument(Arrays.asList(new IntPoint("number", 3), new SortedNumericDocValuesField("number", 3)));
@@ -185,7 +185,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testQueryFiltersAll() throws IOException {
-        testCase(IntPoint.newRangeQuery("number", -1, 0), iw -> {
+        testAggregation(IntPoint.newRangeQuery("number", -1, 0), iw -> {
             iw.addDocument(Arrays.asList(new IntPoint("number", 7), new SortedNumericDocValuesField("number", 7)));
             iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 2)));
             iw.addDocument(Arrays.asList(new IntPoint("number", 3), new SortedNumericDocValuesField("number", 7)));
@@ -228,31 +228,31 @@ public class AvgAggregatorTests extends AggregatorTestCase {
 
     public void testUnmappedField() throws IOException {
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("number");
-        testCase(aggregationBuilder, new DocValuesFieldExistsQuery("number"), iw -> {
+        testAggregation(aggregationBuilder, new DocValuesFieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, avg -> {
             assertEquals(Double.NaN, avg.getValue(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(avg));
-        }, null);
+        }, (MappedFieldType) null);
     }
 
     public void testUnmappedWithMissingField() throws IOException {
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("number").missing(0L);
-        testCase(aggregationBuilder, new DocValuesFieldExistsQuery("number"), iw -> {
+        testAggregation(aggregationBuilder, new DocValuesFieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, avg -> {
             assertEquals(0.0, avg.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(avg));
-        }, null);
+        }, (MappedFieldType) null);
     }
 
     private void verifyAvgOfDoubles(double[] values, double expected, double delta) throws IOException {
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("number");
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
         fieldType.setName("number");
-        testCase(aggregationBuilder, new MatchAllDocsQuery(),
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(),
             iw -> {
                 for (double value : values) {
                     iw.addDocument(singleton(new NumericDocValuesField("number", NumericUtils.doubleToSortableLong(value))));
@@ -302,7 +302,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSingleValuedField() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testAggregation(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 2)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 3)));
@@ -322,7 +322,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             .field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
@@ -342,7 +342,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             .field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
@@ -360,7 +360,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_FIELD_SCRIPT, Collections.emptyMap()));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
@@ -382,7 +382,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SUM_FIELD_PARAMS_SCRIPT, params));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
@@ -394,7 +394,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMultiValuedField() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testAggregation(new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
@@ -415,7 +415,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SUM_VALUES_FIELD_SCRIPT, Collections.emptyMap()));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
@@ -440,7 +440,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SUM_FIELD_PARAMS_SCRIPT, params));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
@@ -463,7 +463,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             .field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, params));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
@@ -483,7 +483,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             .field("values")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, params));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
@@ -505,7 +505,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             .field("values")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
@@ -571,34 +571,22 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         directory.close();
     }
 
-    private void testCase(Query query,
+    private void testAggregation(Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
                           Consumer<InternalAvg> verify) throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
         fieldType.setName("number");
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("number");
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+        testAggregation(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
 
-    private void testCase(AvgAggregationBuilder aggregationBuilder, Query query,
-                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<InternalAvg> verify, MappedFieldType fieldType) throws IOException {
-        Directory directory = newDirectory();
-        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-        buildIndex.accept(indexWriter);
-        indexWriter.close();
-
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-        AvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        aggregator.preCollection();
-        indexSearcher.search(query, aggregator);
-        aggregator.postCollection();
-        verify.accept((InternalAvg) aggregator.buildAggregation(0L));
-
-        indexReader.close();
-        directory.close();
+    private void testAggregation(
+        AggregationBuilder aggregationBuilder,
+        Query query,
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        Consumer<InternalAvg> verify,
+        MappedFieldType fieldType)  throws IOException {
+        testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
 
     /**

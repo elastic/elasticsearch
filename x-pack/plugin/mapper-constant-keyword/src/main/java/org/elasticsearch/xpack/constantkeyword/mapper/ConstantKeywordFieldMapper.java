@@ -185,6 +185,11 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query existsQuery(QueryShardContext context) {
+            return value != null ? new MatchAllDocsQuery() : new MatchNoDocsQuery();
+        }
+
+        @Override
         public Query rangeQuery(
                 Object lowerTerm, Object upperTerm,
                 boolean includeLower, boolean includeUpper,

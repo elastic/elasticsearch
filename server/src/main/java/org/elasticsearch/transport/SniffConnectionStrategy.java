@@ -211,7 +211,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     private final int maxNumRemoteConnections;
     private final Predicate<DiscoveryNode> nodePredicate;
     private final SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
-    private volatile String proxyAddress;
+    private final String proxyAddress;
 
     SniffConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
                             Settings settings) {

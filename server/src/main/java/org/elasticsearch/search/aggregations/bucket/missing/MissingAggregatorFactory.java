@@ -23,15 +23,22 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
 
 public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
+
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(MissingAggregationBuilder.NAME, CoreValuesSourceType.ALL_CORE,
+            (MissingAggregatorSupplier) MissingAggregator::new);
+    }
 
     public MissingAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
                                     AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,

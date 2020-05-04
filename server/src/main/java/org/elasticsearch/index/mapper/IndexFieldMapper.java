@@ -21,6 +21,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -109,13 +111,17 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public Query existsQuery(QueryShardContext context) {
+            return new MatchAllDocsQuery();
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             return new ConstantIndexFieldData.Builder(mapperService -> fullyQualifiedIndexName);
         }
 
         @Override
         public ValuesSourceType getValuesSourceType() {
-            // TODO: Should Index fields be aggregatable?  What even is an IndexField?
             return CoreValuesSourceType.BYTES;
         }
     }

@@ -8,6 +8,7 @@ package org.elasticsearch.index.store.cache;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -87,6 +88,7 @@ public class SparseFileTrackerTests extends ESTestCase {
         for (long i = start; i < end; i++) {
             if (fileContents[Math.toIntExact(i)] == UNAVAILABLE) {
                 pending = true;
+                break;
             }
         }
 
@@ -134,14 +136,18 @@ public class SparseFileTrackerTests extends ESTestCase {
         deterministicTaskQueue.setExecutionDelayVariabilityMillis(1000);
 
         for (int i = between(1, 1000); i > 0; i--) {
-            deterministicTaskQueue.scheduleNow(
-                () -> waitForRandomRange(
-                    fileContents,
-                    sparseFileTracker,
-                    listenersCalled::add,
-                    gap -> deterministicTaskQueue.scheduleNow(() -> processGap(fileContents, gap))
-                )
-            );
+            if (rarely() && fileContents.length > 0) {
+                deterministicTaskQueue.scheduleNow(() -> checkRandomAbsentRange(fileContents, sparseFileTracker, true));
+            } else {
+                deterministicTaskQueue.scheduleNow(
+                    () -> waitForRandomRange(
+                        fileContents,
+                        sparseFileTracker,
+                        listenersCalled::add,
+                        gap -> deterministicTaskQueue.scheduleNow(() -> processGap(fileContents, gap))
+                    )
+                );
+            }
         }
 
         deterministicTaskQueue.runAllTasks();
@@ -174,6 +180,13 @@ public class SparseFileTrackerTests extends ESTestCase {
             thread.start();
         }
 
+        final Thread checkThread = new Thread(() -> {
+            while (countDown.availablePermits() > 0 && fileContents.length > 0) {
+                checkRandomAbsentRange(fileContents, sparseFileTracker, false);
+            }
+        });
+        checkThread.start();
+
         startLatch.countDown();
 
         for (Thread thread : threads) {
@@ -182,6 +195,35 @@ public class SparseFileTrackerTests extends ESTestCase {
 
         assertThat(countDown.availablePermits(), equalTo(0));
         assertTrue(listenersCalled.stream().allMatch(AtomicBoolean::get));
+
+        checkThread.join();
+    }
+
+    private static void checkRandomAbsentRange(byte[] fileContents, SparseFileTracker sparseFileTracker, boolean expectExact) {
+        final long checkStart = randomLongBetween(0, fileContents.length - 1);
+        final long checkEnd = randomLongBetween(0, fileContents.length);
+
+        final Tuple<Long, Long> freeRange = sparseFileTracker.getAbsentRangeWithin(checkStart, checkEnd);
+        if (freeRange == null) {
+            for (long i = checkStart; i < checkEnd; i++) {
+                assertThat(fileContents[Math.toIntExact(i)], equalTo(AVAILABLE));
+            }
+        } else {
+            assertThat(freeRange.v1(), greaterThanOrEqualTo(checkStart));
+            assertTrue(freeRange.toString(), freeRange.v1() < freeRange.v2());
+            assertThat(freeRange.v2(), lessThanOrEqualTo(checkEnd));
+            for (long i = checkStart; i < freeRange.v1(); i++) {
+                assertThat(fileContents[Math.toIntExact(i)], equalTo(AVAILABLE));
+            }
+            for (long i = freeRange.v2(); i < checkEnd; i++) {
+                assertThat(fileContents[Math.toIntExact(i)], equalTo(AVAILABLE));
+            }
+            if (expectExact) {
+                // without concurrent activity, the returned range is as small as possible
+                assertThat(fileContents[Math.toIntExact(freeRange.v1())], equalTo(UNAVAILABLE));
+                assertThat(fileContents[Math.toIntExact(freeRange.v2() - 1)], equalTo(UNAVAILABLE));
+            }
+        }
     }
 
     private static void waitForRandomRange(
@@ -211,6 +253,9 @@ public class SparseFileTrackerTests extends ESTestCase {
         });
 
         for (final SparseFileTracker.Gap gap : gaps) {
+            for (long i = gap.start; i < gap.end; i++) {
+                assertThat(Long.toString(i), fileContents[Math.toIntExact(i)], equalTo(UNAVAILABLE));
+            }
             gapConsumer.accept(gap);
         }
     }

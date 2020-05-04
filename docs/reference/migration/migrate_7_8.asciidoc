@@ -92,6 +92,42 @@ To avoid deprecation warnings, discontinue use of the `node.local_storage`
 setting.
 ====
 
+[float]
+[[builtin-users-changes]]
+==== Changes to built-in users
+
+[float]
+===== The `kibana` user has been deprecated in favor of the `kibana_system` user
+
+The `kibana` user was historically used to authenticate {kib} to {es}.
+The name of this user was confusing, and was often mistakenly used to login to {kib}.
+This has been renamed to `kibana_system` in order to reduce confusion, and to better
+align with other built-in system accounts.
+
+If your `kibana.yml` used to contain:
+[source,yaml]
+--------------------------------------------------
+elasticsearch.username: kibana
+--------------------------------------------------
+
+then you should update to use the new `kibana_system` user instead:
+[source,yaml]
+--------------------------------------------------
+elasticsearch.username: kibana_system
+--------------------------------------------------
+
+
+[float]
+[[builtin-roles-changes]]
+==== Changes to built-in roles
+
+[float]
+===== The `kibana_user` role has been deprecated in favor of the `kibana_admin` role
+
+Users who were previously assigned the `kibana_user` role should instead be assigned
+the `kibana_admin` role. This role grants the same set of privileges as `kibana_user`, but has been
+renamed to better reflect its intended use.
+
 [[deprecate-general-script-cache-size]]
 .The `script.cache.max_size` setting is deprecated.
 
@@ -138,7 +174,7 @@ set per-context.
 *Impact* +
 To avoid deprecation warnings, discontinue use of the `script.max_compilations_rate`
 setting. You may use `script.context.$CONTEXT.max_compilations_rate` for the particular
-context.  For example, for the `processor_conditional` context, use 
+context.  For example, for the `processor_conditional` context, use
 `script.context.processor_conditional.context_max_size`.
 
 See [[painless-contexts]] for more about painless contexts.

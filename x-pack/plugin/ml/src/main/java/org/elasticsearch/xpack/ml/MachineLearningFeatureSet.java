@@ -134,7 +134,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isMachineLearningAllowed();
+        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING);
     }
 
     @Override

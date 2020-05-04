@@ -30,7 +30,7 @@ import java.util.Map;
 @FunctionalInterface
 public interface GeoCentroidAggregatorSupplier extends AggregatorSupplier {
 
-    GeoCentroidAggregator build(String name, SearchContext context, Aggregator parent,
+    MetricsAggregator build(String name, SearchContext context, Aggregator parent,
                           ValuesSource valuesSource,
                           Map<String, Object> metadata) throws IOException;
 }

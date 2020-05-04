@@ -332,9 +332,8 @@ public class MetadataIndexTemplateService {
         }
     }
 
-    // Package visible for testing
-    ClusterState addIndexTemplateV2(final ClusterState currentState, final boolean create,
-                                    final String name, final IndexTemplateV2 template) throws Exception {
+    public ClusterState addIndexTemplateV2(final ClusterState currentState, final boolean create,
+                                           final String name, final IndexTemplateV2 template) throws Exception {
         if (create && currentState.metadata().templatesV2().containsKey(name)) {
             throw new IllegalArgumentException("index template [" + name + "] already exists");
         }
@@ -368,7 +367,7 @@ public class MetadataIndexTemplateService {
                     .collect(Collectors.joining(",")),
                 name);
             logger.warn(warning);
-            deprecationLogger.deprecated(warning);
+            deprecationLogger.deprecatedAndMaybeLog("index_template_pattern_overlap", warning);
         }
 
         IndexTemplateV2 finalIndexTemplate = template;
@@ -413,8 +412,8 @@ public class MetadataIndexTemplateService {
      * Return a map of v1 template names to their index patterns for v1 templates that would overlap
      * with the given v2 template's index patterns.
      */
-    static Map<String, List<String>> findConflictingV1Templates(final ClusterState state, final String candidateName,
-                                                                final List<String> indexPatterns) {
+    public static Map<String, List<String>> findConflictingV1Templates(final ClusterState state, final String candidateName,
+                                                                       final List<String> indexPatterns) {
         Automaton v2automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
         Map<String, List<String>> overlappingTemplates = new HashMap<>();
         for (ObjectObjectCursor<String, IndexTemplateMetadata> cursor : state.metadata().templates()) {
@@ -432,16 +431,22 @@ public class MetadataIndexTemplateService {
 
     /**
      * Return a map of v2 template names to their index patterns for v2 templates that would overlap
-     * with the given v1 template's index patterns.
+     * with the given template's index patterns.
      */
-    static Map<String, List<String>> findConflictingV2Templates(final ClusterState state, final String candidateName,
-                                                                final List<String> indexPatterns) {
+    public static Map<String, List<String>> findConflictingV2Templates(final ClusterState state, final String candidateName,
+                                                                       final List<String> indexPatterns) {
         return findConflictingV2Templates(state, candidateName, indexPatterns, false, null);
     }
 
     /**
      * Return a map of v2 template names to their index patterns for v2 templates that would overlap
      * with the given template's index patterns.
+     *
+     * Based on the provided checkPriority and priority parameters this aims to report the overlapping
+     * index templates regardless of the priority (ie. checkPriority == false) or otherwise overlapping
+     * templates with the same priority as the given priority parameter (this is useful when trying to
+     * add a new template, as we don't support multiple overlapping, from an index pattern perspective,
+     * index templates with the same priority).
      */
     static Map<String, List<String>> findConflictingV2Templates(final ClusterState state, final String candidateName,
                                                                 final List<String> indexPatterns, boolean checkPriority, Long priority) {
@@ -459,6 +464,9 @@ public class MetadataIndexTemplateService {
                 }
             }
         }
+        // if the candidate was a V2 template that already exists in the cluster state it will "overlap" with itself so remove it from the
+        // results
+        overlappingTemplates.remove(candidateName);
         return overlappingTemplates;
     }
 
@@ -575,38 +583,21 @@ public class MetadataIndexTemplateService {
         if (request.create && isUpdate) {
             throw new IllegalArgumentException("index_template [" + request.name + "] already exists");
         }
-        boolean isUpdateAndPatternsAreUnchanged = isUpdate &&
-            currentState.metadata().templates().get(request.name).patterns().equals(request.indexPatterns);
 
         Map<String, List<String>> overlaps = findConflictingV2Templates(currentState, request.name, request.indexPatterns);
         if (overlaps.size() > 0) {
-            // Be less strict (just a warning) if we're updating an existing template or this is a match-all template
-            if (isUpdateAndPatternsAreUnchanged || request.indexPatterns.stream().anyMatch(Regex::isMatchAllPattern)) {
-                String warning = String.format(Locale.ROOT, "template [%s] has index patterns %s matching patterns" +
-                        " from existing index templates [%s] with patterns (%s); this template [%s] may be ignored in favor of " +
-                        "an index template at index creation time",
-                    request.name,
-                    request.indexPatterns,
-                    Strings.collectionToCommaDelimitedString(overlaps.keySet()),
-                    overlaps.entrySet().stream()
-                        .map(e -> e.getKey() + " => " + e.getValue())
-                        .collect(Collectors.joining(",")),
-                    request.name);
-                logger.warn(warning);
-                deprecationLogger.deprecated(warning);
-            } else {
-                // Otherwise, this is a hard error, the user should use V2 index templates instead
-                String error = String.format(Locale.ROOT, "template [%s] has index patterns %s matching patterns" +
-                        " from existing index templates [%s] with patterns (%s), use index templates (/_index_template) instead",
-                    request.name,
-                    request.indexPatterns,
-                    Strings.collectionToCommaDelimitedString(overlaps.keySet()),
-                    overlaps.entrySet().stream()
-                        .map(e -> e.getKey() + " => " + e.getValue())
-                        .collect(Collectors.joining(",")));
-                logger.error(error);
-                throw new IllegalArgumentException(error);
-            }
+            String warning = String.format(Locale.ROOT, "template [%s] has index patterns %s matching patterns" +
+                    " from existing index templates [%s] with patterns (%s); this template [%s] may be ignored in favor of " +
+                    "an index template at index creation time",
+                request.name,
+                request.indexPatterns,
+                Strings.collectionToCommaDelimitedString(overlaps.keySet()),
+                overlaps.entrySet().stream()
+                    .map(e -> e.getKey() + " => " + e.getValue())
+                    .collect(Collectors.joining(",")),
+                request.name);
+            logger.warn(warning);
+            deprecationLogger.deprecatedAndMaybeLog("index_template_pattern_overlap", warning);
         }
 
         templateBuilder.order(request.order);

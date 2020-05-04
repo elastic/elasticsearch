@@ -86,10 +86,20 @@ public final class AnalysisUtils {
                             "Cannot use field [" + fa.name() + "] with unsupported type [" + unsupportedField.getOriginalType() + "]");
                 }
             }
-            // compound fields
-            else if (allowCompound == false && DataTypes.isPrimitive(fa.dataType()) == false) {
+            // compound fields that are not of "nested" type
+            else if (allowCompound == false && DataTypes.isPrimitive(fa.dataType()) == false && fa.dataType() != DataTypes.NESTED) {
                 named = u.withUnresolvedMessage(
                         "Cannot use field [" + fa.name() + "] type [" + fa.dataType().typeName() + "] only its subfields");
+            }
+            // "nested" fields
+            else if (fa.dataType() == DataTypes.NESTED) {
+                named = u.withUnresolvedMessage("Cannot use field [" + fa.name() + "] type [" + fa.dataType().typeName() + "] "
+                    + "due to nested fields not being supported yet");
+            }
+            // fields having nested parents
+            else if (fa.isNested()) {
+                named = u.withUnresolvedMessage("Cannot use field [" + fa.name() + "] type [" + fa.dataType().typeName() + "] "
+                    + "with unsupported nested type in hierarchy (field [" + fa.nestedParent().name() +"])");
             }
         }
         return named;

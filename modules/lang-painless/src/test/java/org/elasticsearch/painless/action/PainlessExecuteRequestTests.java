@@ -73,7 +73,8 @@ public class PainlessExecuteRequestTests extends AbstractWireSerializingTestCase
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
+        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()
+        ).getNamedWriteables());
     }
 
     @Override

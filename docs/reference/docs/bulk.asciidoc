@@ -593,7 +593,7 @@ error type and reason.
 {
   "took": 486,
   "errors": true,
-  "items_omitted" : false
+  "items_omitted" : false,
   "items": [
     {
       "update": {

@@ -27,16 +27,16 @@ public class GeoHashGridTiler implements GeoGridTiler {
 
         MultiGeoShapeValues.BoundingBox bounds = geoValue.boundingBox();
         assert bounds.minX() <= bounds.maxX();
-        long numLonCells = (long) ((bounds.maxX() - bounds.minX()) / Geohash.lonWidthInDegrees(precision));
-        long numLatCells = (long) ((bounds.maxY() - bounds.minY()) / Geohash.latHeightInDegrees(precision));
-        long count = (numLonCells + 1) * (numLatCells + 1);
-        if (count == 1) {
+
+        // TODO: optimize for when a whole shape (not just point) fits in a single tile an
+        //  for when brute-force is expected to be faster than rasterization, which
+        //  is when the number of tiles expected is less than the precision
+
+        // optimization for setting just one value for when the shape represents a point
+        if (bounds.minX() == bounds.maxX() && bounds.minY() == bounds.maxY()) {
             return setValue(values, geoValue, bounds, precision);
-        } else if (count <= precision) {
-            return setValuesByBruteForceScan(values, geoValue, precision, bounds);
-        } else {
-            return setValuesByRasterization("", values, 0, precision, geoValue);
         }
+        return setValuesByRasterization("", values, 0, precision, geoValue);
     }
 
     /**

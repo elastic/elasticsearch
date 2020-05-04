@@ -136,6 +136,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
                     GeoShapeCellIdSource cellIdSource = new GeoShapeCellIdSource((GeoShapeValuesSource) valuesSource, precision, tiler);
                     GeoShapeHashGridAggregator agg = new GeoShapeHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize,
                         aggregationContext, parent, metadata);
+                    // this would ideally be something set in an immutable way on the ValuesSource
                     cellIdSource.setCircuitBreakerConsumer(agg::addRequestBytes);
                     return agg;
                 }
@@ -155,6 +156,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
                     GeoShapeCellIdSource cellIdSource = new GeoShapeCellIdSource((GeoShapeValuesSource) valuesSource, precision, tiler);
                     GeoShapeTileGridAggregator agg = new GeoShapeTileGridAggregator(name, factories, cellIdSource, requiredSize, shardSize,
                         aggregationContext, parent, metadata);
+                    // this would ideally be something set in an immutable way on the ValuesSource
                     cellIdSource.setCircuitBreakerConsumer(agg::addRequestBytes);
                     return agg;
                 }

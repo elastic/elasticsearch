@@ -45,12 +45,12 @@ Defaults to `true`.
 [[search-partial-responses]]
 `allow_partial_search_results`::
 (Optional, boolean)
-If `true`, partial results are returned for request timeouts one or
-<<shard-failures,partial shard failures>>. If `false`, an error is returned with
+If `true`, returns partial results if there are request timeouts or
+<<shard-failures,shard failures>>. If `false`, returns an error with
 no partial results. Defaults to `true`.
 +
-You can override the default for this field by setting
-`search.default_allow_partial_results` to `false` in your cluster settings.
+To override the default for this field, set the 
+`search.default_allow_partial_results` cluster setting to `false`.
 
 `batched_reduce_size`::
   (Optional, integer) The number of shard results that should be reduced at once

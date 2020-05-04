@@ -44,14 +44,15 @@ class MutableSearchResponse {
     /**
      * How we get the reduced aggs when {@link #finalResponse} isn't populated.
      * We default to returning no aggs, this {@code -> null}. We'll replace
-     * this as we receive updates on the search progress listener. 
+     * this as we receive updates on the search progress listener.
      */
     private Supplier<InternalAggregations> reducedAggsSource = () -> null;
     private int reducePhase;
     /**
      * The response produced by the search API. Once we receive it we stop
-     * building our own {@linkplain SearchResponse}s when you get the status
-     * and instead return this.
+     * building our own {@linkplain SearchResponse}s when get async search
+     * is called, and instead return this.
+     * @see #findOrBuildResponse(AsyncSearchTask)
      */
     private SearchResponse finalResponse;
     private ElasticsearchException failure;
@@ -77,6 +78,7 @@ class MutableSearchResponse {
         this.shardFailures = totalShards == -1 ? null : new AtomicArray<>(totalShards-skippedShards);
         this.isPartial = true;
         this.threadContext = threadContext;
+        this.totalHits = new TotalHits(0L, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
     }
 
     /**
@@ -150,16 +152,15 @@ class MutableSearchResponse {
             return finalResponse;
         }
         if (clusters == null) {
-            // An error occurred before we got the shard list 
+            // An error occurred before we got the shard list
             return null;
         }
         /*
          * Build the response, reducing aggs if we haven't already and
          * storing the result of the reduction so we won't have to reduce
-         * a second time if you get the response again and nothing has
-         * changed. This does cost memory because we have a reference
-         * to the reduced aggs sitting around so it can't be GCed until
-         * we get an update.
+         * the same aggregation results a second time if nothing has changed.
+         * This does cost memory because we have a reference to the finally
+         * reduced aggs sitting around which can't be GCed until we get an update.
          */
         InternalAggregations reducedAggs = reducedAggsSource.get();
         reducedAggsSource = () -> reducedAggs;
@@ -181,8 +182,6 @@ class MutableSearchResponse {
         }
         return resp;
     }
-
-
 
     private void failIfFrozen() {
         if (frozen) {

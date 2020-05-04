@@ -73,7 +73,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             listener::onFailure
         );
 
-        if (licenseState.isMachineLearningAllowed()) {
+        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)) {
             responseBuilder.setLicensed(true);
             this.modelLoadingService.getModel(request.getModelId(), getModelListener);
         } else {

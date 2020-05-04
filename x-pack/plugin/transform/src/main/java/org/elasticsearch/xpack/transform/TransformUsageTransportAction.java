@@ -84,7 +84,7 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        boolean available = licenseState.isTransformAllowed();
+        boolean available = licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM);
         if (enabled == false) {
             var usage = new TransformFeatureSetUsage(available, enabled, Collections.emptyMap(), new TransformIndexerStats());
             listener.onResponse(new XPackUsageFeatureResponse(usage));

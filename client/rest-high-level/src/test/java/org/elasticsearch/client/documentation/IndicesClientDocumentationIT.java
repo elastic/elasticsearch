@@ -2294,7 +2294,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // tag::get-index-templates-v2-request-masterTimeout
         request.setMasterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
         request.setMasterNodeTimeout("1m"); // <2>
-        // end::get-templates-request-masterTimeout
+        // end::get-index-templates-v2-request-masterTimeout
 
         // tag::get-index-templates-v2-execute
         GetIndexTemplatesV2Response getTemplatesResponse = client.indices().getIndexTemplate(request, RequestOptions.DEFAULT);
@@ -2378,7 +2378,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.indexTemplate(indexTemplateV2);
 
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
-            // end::put-template-request-mappings-json
+            // end::put-index-template-v2-request-mappings-json
         }
 
         {

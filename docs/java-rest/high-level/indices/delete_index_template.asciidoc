@@ -1,5 +1,5 @@
 --
-:api: delete-template-v2
+:api: delete-index-template-v2
 :request: DeleteIndexTemplateV2Request
 :response: AcknowledgedResponse
 --

@@ -1,11 +1,11 @@
 [role="xpack"]
 [[security-api-clear-privilege-cache]]
-=== Clear application privileges cache API
+=== Clear privileges cache API
 ++++
 <titleabbrev>Clear privileges cache</titleabbrev>
 ++++
 
-Evicts application privileges from the native application privilege cache.
+Evicts privileges from the native application privilege cache.
 
 [[security-api-clear-privilege-cache-request]]
 ==== {api-request-title}
@@ -33,7 +33,7 @@ For more information about the native realm, see
 [[security-api-clear-privilege-cache-example]]
 ==== {api-examples-title}
 
-The clear privileges cache API evicts application privileges from the native application privilege cache.
+The clear privileges cache API evicts privileges from the native application privilege cache.
 For example, to clear the cache for `myapp`:
 
 [source,console]

@@ -532,7 +532,7 @@ public class WildcardFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         final String value;
         if (context.externalValueSet()) {
             value = context.externalValue().toString();
@@ -546,7 +546,11 @@ public class WildcardFieldMapper extends FieldMapper {
         }
         ParseContext.Document parseDoc = context.doc();
 
+        List<IndexableField> fields = new ArrayList<>();
         createFields(value, parseDoc, fields);
+        for (IndexableField field : fields) {
+            parseDoc.add(field);
+        }
     }
 
     // For internal use by Lucene only - used to define ngram index

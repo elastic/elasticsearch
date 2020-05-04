@@ -68,6 +68,10 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
             return this;
         }
 
+        public RequestObjectBuilder mode(Mode mode) {
+            return mode != null ? mode(mode.toString()) : this;
+        }
+
         public RequestObjectBuilder fetchSize(Integer fetchSize) {
             request.append(field(FETCH_SIZE_NAME, fetchSize));
             return this;

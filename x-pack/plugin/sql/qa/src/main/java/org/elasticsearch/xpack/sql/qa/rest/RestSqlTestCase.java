@@ -560,7 +560,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             request.setOptions(options);
         }
         request.setEntity(new StringEntity(
-                query("SELECT * FROM test").mode(Mode.PLAIN.toString()).columnar(columnarValue(columnar)).toString(),
+                query("SELECT * FROM test").mode(Mode.PLAIN).columnar(columnarValue(columnar)).toString(),
                 ContentType.APPLICATION_JSON));
 
         Response response = client().performRequest(request);

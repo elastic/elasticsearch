@@ -53,7 +53,7 @@ public abstract class CustomDateFormatTestCase extends BaseRestSqlTestCase {
         
         Request request = new Request("POST", RestSqlTestCase.SQL_QUERY_REST_ENDPOINT);
         final String query = "SELECT COUNT(*) AS c FROM test WHERE " + datesConditions.toString();
-        request.setEntity(new StringEntity(query(query).mode(Mode.PLAIN.toString()).timeZone(zID).toString(),
+        request.setEntity(new StringEntity(query(query).mode(Mode.PLAIN).timeZone(zID).toString(),
             ContentType.APPLICATION_JSON));
 
         Response response = client().performRequest(request);

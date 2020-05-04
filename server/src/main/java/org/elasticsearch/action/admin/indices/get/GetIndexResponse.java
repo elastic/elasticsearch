@@ -132,12 +132,14 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         }
         defaultSettings = defaultSettingsMapBuilder.build();
 
-        ImmutableOpenMap.Builder<String, String> dataStreamsMapBuilder = ImmutableOpenMap.builder();
-        int dataStreamsSize = in.readVInt();
-        for (int i = 0; i < dataStreamsSize; i++) {
-            dataStreamsMapBuilder.put(in.readString(), in.readOptionalString());
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            ImmutableOpenMap.Builder<String, String> dataStreamsMapBuilder = ImmutableOpenMap.builder();
+            int dataStreamsSize = in.readVInt();
+            for (int i = 0; i < dataStreamsSize; i++) {
+                dataStreamsMapBuilder.put(in.readString(), in.readOptionalString());
+            }
+            dataStreams = dataStreamsMapBuilder.build();
         }
-        dataStreams = dataStreamsMapBuilder.build();
     }
 
     public String[] indices() {
@@ -253,10 +255,12 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             out.writeString(indexEntry.key);
             Settings.writeSettingsToStream(indexEntry.value, out);
         }
-        out.writeVInt(dataStreams.size());
-        for (ObjectObjectCursor<String, String> indexEntry : dataStreams) {
-            out.writeString(indexEntry.key);
-            out.writeOptionalString(indexEntry.value);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeVInt(dataStreams.size());
+            for (ObjectObjectCursor<String, String> indexEntry : dataStreams) {
+                out.writeString(indexEntry.key);
+                out.writeOptionalString(indexEntry.value);
+            }
         }
     }
 

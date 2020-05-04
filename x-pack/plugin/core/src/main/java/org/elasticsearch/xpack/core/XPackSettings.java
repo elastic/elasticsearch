@@ -55,7 +55,12 @@ public class XPackSettings {
     /** Setting for enabling or disabling security. Defaults to true. */
     public static final Setting<Boolean> SECURITY_ENABLED = Setting.boolSetting("xpack.security.enabled", true, Setting.Property.NodeScope);
 
-    /** Setting for enabling or disabling monitoring. */
+    /**
+     * Setting for enabling or disabling monitoring.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
+     */
+    @Deprecated(since = "7.8.0")
     public static final Setting<Boolean> MONITORING_ENABLED = Setting.boolSetting("xpack.monitoring.enabled", true,
         Property.NodeScope, Property.Deprecated);
 
@@ -87,7 +92,10 @@ public class XPackSettings {
 
     /**
      * Setting for enabling or disabling the index lifecycle extension. Defaults to true.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
      */
+    @Deprecated(since = "7.8.0")
     public static final Setting<Boolean> INDEX_LIFECYCLE_ENABLED = Setting.boolSetting("xpack.ilm.enabled", true,
         Property.NodeScope, Property.Deprecated);
 
@@ -170,20 +178,29 @@ public class XPackSettings {
      * Do not allow insecure hashing algorithms to be used for password hashing
      */
     public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
-        "xpack.security.authc.password_hashing.algorithm", "bcrypt", Function.identity(), v -> {
-        if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
-            throw new IllegalArgumentException("Invalid algorithm: " + v + ". Valid values for password hashing are " +
-                Hasher.getAvailableAlgoStoredHash().toString());
-        } else if (v.regionMatches(true, 0, "pbkdf2", 0, "pbkdf2".length())) {
-            try {
-                SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
-            } catch (NoSuchAlgorithmException e) {
-                throw new IllegalArgumentException(
-                    "Support for PBKDF2WithHMACSHA512 must be available in order to use any of the " +
-                        "PBKDF2 algorithms for the [xpack.security.authc.password_hashing.algorithm] setting.", e);
+        new Setting.SimpleKey("xpack.security.authc.password_hashing.algorithm"),
+        (s) -> {
+            if (XPackSettings.FIPS_MODE_ENABLED.get(s)) {
+                return "PBKDF2";
+            } else {
+                return "BCRYPT";
             }
-        }
-    }, Setting.Property.NodeScope);
+        },
+        Function.identity(),
+        v -> {
+            if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
+                throw new IllegalArgumentException("Invalid algorithm: " + v + ". Valid values for password hashing are " +
+                    Hasher.getAvailableAlgoStoredHash().toString());
+            } else if (v.regionMatches(true, 0, "pbkdf2", 0, "pbkdf2".length())) {
+                try {
+                    SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
+                } catch (NoSuchAlgorithmException e) {
+                    throw new IllegalArgumentException(
+                        "Support for PBKDF2WithHMACSHA512 must be available in order to use any of the " +
+                            "PBKDF2 algorithms for the [xpack.security.authc.password_hashing.algorithm] setting.", e);
+                }
+            }
+        }, Property.NodeScope);
 
     public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS;
 

@@ -172,7 +172,8 @@ public class SearchModuleTests extends ESTestCase {
     }
 
     private ThrowingRunnable registryForPlugin(SearchPlugin plugin) {
-        return () -> new NamedXContentRegistry(new SearchModule(Settings.EMPTY, singletonList(plugin)).getNamedXContents());
+        return () -> new NamedXContentRegistry(new SearchModule(Settings.EMPTY, singletonList(plugin))
+            .getNamedXContents());
     }
 
     public void testRegisterSuggester() {

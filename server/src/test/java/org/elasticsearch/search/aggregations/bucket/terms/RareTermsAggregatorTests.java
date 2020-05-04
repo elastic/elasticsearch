@@ -69,7 +69,6 @@ import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
-import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -239,15 +238,13 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             agg -> assertEquals(0, agg.getBuckets().size()), ValueType.STRING
         );
 
-        // Note: the search and reduce test will generate no segments (due to no docs)
-        // and so will return a null agg because the aggs aren't run/reduced
         testSearchAndReduceCase(query, Collections.emptyList(),
             aggregation -> aggregation.field(LONG_FIELD).maxDocCount(1),
-            Assert::assertNull, ValueType.NUMERIC
+            agg -> assertEquals(0, agg.getBuckets().size()), ValueType.NUMERIC
         );
         testSearchAndReduceCase(query, Collections.emptyList(),
             aggregation -> aggregation.field(KEYWORD_FIELD).maxDocCount(1),
-            Assert::assertNull, ValueType.STRING
+            agg -> assertEquals(0, agg.getBuckets().size()), ValueType.STRING
         );
     }
 

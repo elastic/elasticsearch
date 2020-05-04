@@ -6,7 +6,7 @@
     },
     "stability":"stable",
     "headers":{
-      "accept": [ "text/plain", "application/json"]
+      "accept": [ "text/plain" ]
     },
     "url":{
       "paths":[

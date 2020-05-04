@@ -223,13 +223,14 @@ GET /user_logs_000001,user_logs_000002/_search
 // TEST[s/^/PUT user_logs_000002\n/]
 ====
 
-You can also search multiple indices using a glob or wildcard expression.
+You can also search multiple indices using an index pattern.
 
 .*Example*
 [%collapsible]
 ====
-The following request uses the glob `user_logs*` in place of the index name.
-The request searches any indices in the cluster that start with `user_logs`.
+The following request uses the index pattern `user_logs*` in place of the index
+name. The request searches any indices in the cluster that start with
+`user_logs`.
 
 [source,console]
 ----

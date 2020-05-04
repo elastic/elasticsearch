@@ -507,7 +507,7 @@ public final class SecurityClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable clearRolesCacheAsync(ClearRolesCacheRequest request, RequestOptions options,
-        ActionListener<ClearRolesCacheResponse> listener) {
+                                            ActionListener<ClearRolesCacheResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::clearRolesCache, options,
             ClearRolesCacheResponse::fromXContent, listener, emptySet());
     }
@@ -522,7 +522,8 @@ public final class SecurityClient {
      * @return the response from the clear privileges cache call
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public ClearPrivilegesCacheResponse clearPrivilegesCache(ClearPrivilegesCacheRequest request, RequestOptions options) throws IOException {
+    public ClearPrivilegesCacheResponse clearPrivilegesCache(ClearPrivilegesCacheRequest request,
+                                                             RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::clearPrivilegesCache, options,
             ClearPrivilegesCacheResponse::fromXContent, emptySet());
     }
@@ -538,7 +539,7 @@ public final class SecurityClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable clearPrivilegesCacheAsync(ClearPrivilegesCacheRequest request, RequestOptions options,
-        ActionListener<ClearPrivilegesCacheResponse> listener) {
+                                                 ActionListener<ClearPrivilegesCacheResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::clearPrivilegesCache, options,
             ClearPrivilegesCacheResponse::fromXContent, listener, emptySet());
     }

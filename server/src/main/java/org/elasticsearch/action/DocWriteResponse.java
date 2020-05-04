@@ -131,6 +131,22 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     // needed for deserialization
+    protected DocWriteResponse(ShardId shardId, StreamInput in) throws IOException {
+        super(in);
+        this.shardId = shardId;
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            String type = in.readString();
+            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
+        }
+        id = in.readString();
+        version = in.readZLong();
+        seqNo = in.readZLong();
+        primaryTerm = in.readVLong();
+        forcedRefresh = in.readBoolean();
+        result = Result.readFrom(in);
+    }
+
+    // needed for deserialization
     protected DocWriteResponse(StreamInput in) throws IOException {
         super(in);
         shardId = new ShardId(in);
@@ -258,10 +274,19 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         return location.toString();
     }
 
+    public void writeThin(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        doWrite(out);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         shardId.writeTo(out);
+        doWrite(out);
+    }
+
+    private void doWrite(StreamOutput out) throws IOException {
         if (out.getVersion().before(Version.V_8_0_0)) {
             out.writeString(MapperService.SINGLE_MAPPING_NAME);
         }

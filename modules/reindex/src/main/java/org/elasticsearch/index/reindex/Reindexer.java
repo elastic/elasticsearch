@@ -221,6 +221,8 @@ public class Reindexer {
         protected RequestWrapper<IndexRequest> buildRequest(ScrollableHitSource.Hit doc) {
             IndexRequest index = new IndexRequest();
 
+            index.preferV2Templates(mainRequest.preferV2Templates());
+
             // Copy the index from the request so we always write where it asked to write
             index.index(mainRequest.getDestination().index());
 

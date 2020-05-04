@@ -40,7 +40,7 @@ public class FlattenedFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isFlattenedAllowed();
+        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.FLATTENED);
     }
 
     @Override

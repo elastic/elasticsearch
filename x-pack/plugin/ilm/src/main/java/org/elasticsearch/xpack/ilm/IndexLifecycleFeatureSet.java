@@ -43,7 +43,7 @@ public class IndexLifecycleFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isIndexLifecycleAllowed();
+        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.ILM);
     }
 
     @Override

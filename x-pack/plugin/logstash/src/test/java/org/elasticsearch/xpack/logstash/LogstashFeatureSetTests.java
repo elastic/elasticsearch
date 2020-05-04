@@ -49,7 +49,7 @@ public class LogstashFeatureSetTests extends ESTestCase {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         LogstashFeatureSet featureSet = new LogstashFeatureSet(Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
-        when(licenseState.isLogstashAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.LOGSTASH)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
 
         PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();

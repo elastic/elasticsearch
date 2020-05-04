@@ -4,6 +4,7 @@
  - skip:
       version: " - 6.6.99"
       reason: Merging typeless/typed mappings/templates was added in 6.7
+      features: allowed_warnings
 
  - do:
       indices.put_template:
@@ -18,6 +19,8 @@
                               type: keyword
 
  - do:
+      allowed_warnings:
+          - "index [test-1] matches multiple v1 templates [global, test_template], v2 index templates will only match a single index template"
       indices.create:
           index: test-1
           body:
@@ -42,6 +45,7 @@
  - skip:
       version: " - 6.6.99"
       reason: Merging typeless/typed mappings/templates was added in 6.7
+      features: allowed_warnings
 
  - do:
       indices.put_template:
@@ -55,6 +59,8 @@
                           type: keyword
 
  - do:
+      allowed_warnings:
+          - "index [test-1] matches multiple v1 templates [global, test_template], v2 index templates will only match a single index template"
       indices.create: 
           include_type_name: true
           index: test-1
@@ -106,6 +112,7 @@
  - skip:
       version: " - 6.99.99"
       reason: needs typeless index operations to work on typed indices
+      features: allowed_warnings
 
  - do:
       indices.put_template:
@@ -120,6 +127,8 @@
                               type: keyword
 
  - do:
+      allowed_warnings:
+          - "index [test-1] matches multiple v1 templates [global, test_template], v2 index templates will only match a single index template"
       index:
           index: test-1
           body: { bar: 42 }

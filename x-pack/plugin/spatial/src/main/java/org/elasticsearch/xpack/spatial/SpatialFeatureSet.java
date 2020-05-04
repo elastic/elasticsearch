@@ -31,7 +31,7 @@ public class SpatialFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isSpatialAllowed();
+        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.SPATIAL);
     }
 
     @Override

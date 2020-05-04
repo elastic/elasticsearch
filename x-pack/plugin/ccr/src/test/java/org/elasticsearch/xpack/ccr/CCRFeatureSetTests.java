@@ -45,10 +45,10 @@ public class CCRFeatureSetTests extends ESTestCase {
     public void testAvailable() {
         CCRFeatureSet featureSet = new CCRFeatureSet(Settings.EMPTY, licenseState, clusterService);
 
-        when(licenseState.isCcrAllowed()).thenReturn(false);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.CCR)).thenReturn(false);
         assertThat(featureSet.available(), equalTo(false));
 
-        when(licenseState.isCcrAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.CCR)).thenReturn(true);
         assertThat(featureSet.available(), equalTo(true));
 
         featureSet = new CCRFeatureSet(Settings.EMPTY, null, clusterService);

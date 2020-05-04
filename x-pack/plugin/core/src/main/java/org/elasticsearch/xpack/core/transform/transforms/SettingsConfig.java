@@ -140,7 +140,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
          * @return the {@link Builder} with the paging maxPageSearchSize set.
          */
         public Builder setMaxPageSearchSize(Integer maxPageSearchSize) {
-            this.maxPageSearchSize = maxPageSearchSize;
+            this.maxPageSearchSize = maxPageSearchSize == null ? DEFAULT_MAX_PAGE_SEARCH_SIZE : maxPageSearchSize;
             return this;
         }
 
@@ -154,7 +154,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
          * @return the {@link Builder} with requestsPerSecond set.
          */
         public Builder setRequestsPerSecond(Float docsPerSecond) {
-            this.docsPerSecond = docsPerSecond;
+            this.docsPerSecond = docsPerSecond == null ? DEFAULT_DOCS_PER_SECOND : docsPerSecond;
             return this;
         }
 

@@ -34,6 +34,8 @@ public class SettingsConfig implements ToXContentObject {
 
     private static final ParseField MAX_PAGE_SEARCH_SIZE = new ParseField("max_page_search_size");
     private static final ParseField DOCS_PER_SECOND = new ParseField("docs_per_second");
+    private static final int DEFAULT_MAX_PAGE_SEARCH_SIZE = -1;
+    private static final float DEFAULT_DOCS_PER_SECOND = -1F;
 
     private final Integer maxPageSearchSize;
     private final Float docsPerSecond;
@@ -45,8 +47,8 @@ public class SettingsConfig implements ToXContentObject {
     );
 
     static {
-        PARSER.declareInt(optionalConstructorArg(), MAX_PAGE_SEARCH_SIZE);
-        PARSER.declareFloat(optionalConstructorArg(), DOCS_PER_SECOND);
+        PARSER.declareIntOrNull(optionalConstructorArg(), DEFAULT_MAX_PAGE_SEARCH_SIZE, MAX_PAGE_SEARCH_SIZE);
+        PARSER.declareFloatOrNull(optionalConstructorArg(), DEFAULT_DOCS_PER_SECOND, DOCS_PER_SECOND);
     }
 
     public static SettingsConfig fromXContent(final XContentParser parser) {
@@ -62,10 +64,18 @@ public class SettingsConfig implements ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (maxPageSearchSize != null) {
-            builder.field(MAX_PAGE_SEARCH_SIZE.getPreferredName(), maxPageSearchSize);
+            if (maxPageSearchSize.equals(DEFAULT_MAX_PAGE_SEARCH_SIZE)) {
+                builder.field(MAX_PAGE_SEARCH_SIZE.getPreferredName(), (Integer) null);
+            } else {
+                builder.field(MAX_PAGE_SEARCH_SIZE.getPreferredName(), maxPageSearchSize);
+            }
         }
         if (docsPerSecond != null) {
-            builder.field(DOCS_PER_SECOND.getPreferredName(), docsPerSecond);
+            if (docsPerSecond.equals(DEFAULT_DOCS_PER_SECOND)) {
+                builder.field(DOCS_PER_SECOND.getPreferredName(), (Float) null);
+            } else {
+                builder.field(DOCS_PER_SECOND.getPreferredName(), docsPerSecond);
+            }
         }
         builder.endObject();
         return builder;
@@ -115,7 +125,7 @@ public class SettingsConfig implements ToXContentObject {
          * @return the {@link Builder} with the paging maxPageSearchSize set.
          */
         public Builder setMaxPageSearchSize(Integer maxPageSearchSize) {
-            this.maxPageSearchSize = maxPageSearchSize;
+            this.maxPageSearchSize = maxPageSearchSize == null ? DEFAULT_MAX_PAGE_SEARCH_SIZE : maxPageSearchSize;
             return this;
         }
 
@@ -129,7 +139,7 @@ public class SettingsConfig implements ToXContentObject {
          * @return the {@link Builder} with requestsPerSecond set.
          */
         public Builder setRequestsPerSecond(Float docsPerSecond) {
-            this.docsPerSecond = docsPerSecond;
+            this.docsPerSecond = docsPerSecond == null ? DEFAULT_DOCS_PER_SECOND : docsPerSecond;
             return this;
         }
 

@@ -22,7 +22,6 @@ import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
@@ -42,9 +41,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
@@ -225,11 +222,7 @@ public class GeoPointFieldMapper extends AbstractGeometryFieldMapper implements 
         if (fieldType.hasDocValues()) {
             context.doc().add(new LatLonDocValuesField(fieldType().name(), point.lat(), point.lon()));
         } else if (fieldType().stored() || fieldType().indexOptions() != IndexOptions.NONE) {
-            List<IndexableField> fields = new ArrayList<>(1);
             createFieldNamesField(context);
-            for (IndexableField field : fields) {
-                context.doc().add(field);
-            }
         }
         // if the mapping contains multifields then use the geohash string
         if (multiFields.iterator().hasNext()) {

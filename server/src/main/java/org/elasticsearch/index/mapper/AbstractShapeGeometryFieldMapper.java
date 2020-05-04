@@ -298,10 +298,8 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
             }
 
             List<IndexableField> fields = geometryIndexer.indexShape(context, shape);
+            context.doc().addAll(fields);
             createFieldNamesField(context);
-            for (IndexableField field : fields) {
-                context.doc().add(field);
-            }
         } catch (Exception e) {
             if (ignoreMalformed.value() == false) {
                 throw new MapperParsingException("failed to parse field [{}] of type [{}]", e, fieldType().name(),

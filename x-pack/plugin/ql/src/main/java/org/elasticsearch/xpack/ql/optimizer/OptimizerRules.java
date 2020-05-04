@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutionException;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
@@ -60,6 +61,57 @@ public final class OptimizerRules {
         @Override
         public Expression rule(Expression e) {
             return e.foldable() ? Literal.of(e) : e;
+        }
+    }
+
+    public static final class BooleanEqualsSimplification extends OptimizerExpressionRule {
+
+        public BooleanEqualsSimplification() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected Expression rule(Expression e) {
+            if (e instanceof Equals || e instanceof NotEquals) {
+                Expression newLeft = null;
+                Expression newRight = null;
+
+                // transform a "==" or "!=" TRUE/FALSE into an "AND TRUE" by negating (if necessary) the other side of the expression
+                if (e instanceof Equals) {
+                    Equals eq = (Equals) e;
+                    // ex == TRUE -> AND(ex, TRUE)
+                    if (TRUE.equals(eq.left()) || TRUE.equals(eq.right())) {
+                        newLeft = eq.left();
+                        newRight = eq.right();
+                    }
+                    // ex == FALSE -> AND(NOT(ex), TRUE)
+                    if (FALSE.equals(eq.left()) || FALSE.equals(eq.right())) {
+                        boolean isLeftFalse = FALSE.equals(eq.left());
+                        newLeft = isLeftFalse ? TRUE : new Not(eq.left().source(), eq.left());
+                        newRight = isLeftFalse ? new Not(eq.right().source(), eq.right()) : TRUE;
+                    }
+                } else {
+                    NotEquals neq = (NotEquals) e;
+                    // ex != TRUE -> AND(NOT(x), TRUE)
+                    if (TRUE.equals(neq.left()) || TRUE.equals(neq.right())) {
+                        boolean isLeftTrue = TRUE.equals(neq.left());
+                        newLeft = isLeftTrue ? TRUE : new Not(neq.left().source(), neq.left());
+                        newRight = isLeftTrue ? new Not(neq.right().source(), neq.right()) : TRUE;
+                    }
+                    // ex != FALSE -> AND(ex, TRUE)
+                    if (FALSE.equals(neq.left()) || FALSE.equals(neq.right())) {
+                        boolean isLeftFalse = FALSE.equals(neq.left());
+                        newLeft = isLeftFalse ? TRUE : neq.left();
+                        newRight = isLeftFalse ? neq.right() : TRUE;
+                    }
+                }
+                
+                if (newLeft != null) {
+                    return new And(e.source(), newLeft, newRight);
+                }
+            }
+
+            return e;
         }
     }
     
@@ -255,7 +307,7 @@ public final class OptimizerRules {
                                     if (comp != null) {
                                         // var cannot be equal to two different values at the same time
                                         if (comp != 0) {
-                                        return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                                            return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
                                         }
                                     }
                                 }
@@ -263,7 +315,7 @@ public final class OptimizerRules {
                         equals.add(otherEq);
                     } else {
                         exps.add(otherEq);
-                        }
+                    }
                 } else if (ex instanceof GreaterThan || ex instanceof GreaterThanOrEqual ||
                     ex instanceof LessThan || ex instanceof LessThanOrEqual) {
                     BinaryComparison bc = (BinaryComparison) ex;

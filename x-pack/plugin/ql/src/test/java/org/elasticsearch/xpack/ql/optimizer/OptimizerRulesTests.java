@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanEqualsSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
@@ -261,6 +262,30 @@ public class OptimizerRulesTests extends ESTestCase {
         Expression expected = new And(EMPTY, a1, new Or(EMPTY, b, c));
 
         assertEquals(expected, simplification.rule(actual));
+    }
+
+    public void testBoolEqualsSimplification() {
+        BooleanEqualsSimplification s = new BooleanEqualsSimplification();
+
+        assertEquals(new And(EMPTY, DUMMY_EXPRESSION, TRUE), s.rule(new Equals(EMPTY, DUMMY_EXPRESSION, TRUE)));
+        assertEquals(new And(EMPTY, new Not(EMPTY, DUMMY_EXPRESSION), TRUE), s.rule(new Equals(EMPTY, DUMMY_EXPRESSION, FALSE)));
+        assertEquals(new And(EMPTY, TRUE, DUMMY_EXPRESSION), s.rule(new Equals(EMPTY, TRUE, DUMMY_EXPRESSION)));
+        assertEquals(new And(EMPTY, TRUE, new Not(EMPTY, DUMMY_EXPRESSION)), s.rule(new Equals(EMPTY, FALSE, DUMMY_EXPRESSION)));
+
+        assertEquals(new And(EMPTY, new Not(EMPTY, DUMMY_EXPRESSION), TRUE), s.rule(new NotEquals(EMPTY, DUMMY_EXPRESSION, TRUE)));
+        assertEquals(new And(EMPTY, DUMMY_EXPRESSION, TRUE), s.rule(new NotEquals(EMPTY, DUMMY_EXPRESSION, FALSE)));
+        assertEquals(new And(EMPTY, TRUE, new Not(EMPTY, DUMMY_EXPRESSION)), s.rule(new NotEquals(EMPTY, TRUE, DUMMY_EXPRESSION)));
+        assertEquals(new And(EMPTY, TRUE, DUMMY_EXPRESSION), s.rule(new NotEquals(EMPTY, FALSE, DUMMY_EXPRESSION)));
+
+        assertEquals(new And(EMPTY, NULL, TRUE), s.rule(new Equals(EMPTY, NULL, TRUE)));
+        assertEquals(new And(EMPTY, new Not(EMPTY, NULL), TRUE), s.rule(new Equals(EMPTY, NULL, FALSE)));
+        assertEquals(new And(EMPTY, TRUE, NULL), s.rule(new Equals(EMPTY, TRUE, NULL)));
+        assertEquals(new And(EMPTY, TRUE, new Not(EMPTY, NULL)), s.rule(new Equals(EMPTY, FALSE, NULL)));
+
+        assertEquals(new And(EMPTY, new Not(EMPTY, NULL), TRUE), s.rule(new NotEquals(EMPTY, NULL, TRUE)));
+        assertEquals(new And(EMPTY, NULL, TRUE), s.rule(new NotEquals(EMPTY, NULL, FALSE)));
+        assertEquals(new And(EMPTY, TRUE, new Not(EMPTY, NULL)), s.rule(new NotEquals(EMPTY, TRUE, NULL)));
+        assertEquals(new And(EMPTY, TRUE, NULL), s.rule(new NotEquals(EMPTY, FALSE, NULL)));
     }
 
     //

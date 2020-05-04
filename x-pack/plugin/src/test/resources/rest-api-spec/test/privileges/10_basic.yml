@@ -233,14 +233,6 @@ teardown:
       }
     }
 
-  # Invalidate the cache for "app"
-  - skip:
-      version: " - 7.99.99"
-      reason:  "Backport pending"
-  - do:
-      security.clear_cached_privileges:
-        application: "app"
-
 ---
 "Test put and delete privileges":
   # Store some privileges
@@ -333,10 +325,14 @@ teardown:
       }
     }
 
-  # Invalidate the cache for all applications
+---
+"Test clear privileges cache":
   - skip:
       version: " - 7.99.99"
       reason:  "Backport pending"
+  - do:
+      security.clear_cached_privileges:
+        application: "app"
   - do:
       security.clear_cached_privileges:
         application: ""

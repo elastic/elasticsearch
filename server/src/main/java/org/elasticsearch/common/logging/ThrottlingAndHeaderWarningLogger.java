@@ -21,6 +21,10 @@ package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.LogManager;
 
+/**
+ * This class wraps both <code>HeaderWarningLogger</code> and <code>ThrottlingLogger</code>
+ * which is a common use case across Elasticsearch
+ */
 public class ThrottlingAndHeaderWarningLogger {
     private final HeaderWarningLogger headerWarningLogger = new HeaderWarningLogger();
     private final ThrottlingLogger throttlingLogger;
@@ -30,7 +34,7 @@ public class ThrottlingAndHeaderWarningLogger {
     }
 
     /**
-     * Logs a deprecation message, adding a formatted warning message as a response header on the thread context.
+     * Logs a message, adding a formatted warning message as a response header on the thread context.
      */
     public void headerWarnAndLog(String msg, Object... params) {
         headerWarningLogger.log(msg, params);
@@ -38,10 +42,10 @@ public class ThrottlingAndHeaderWarningLogger {
     }
 
     /**
-     * Adds a formatted warning message as a response header on the thread context, and logs a deprecation message if the associated key has
+     * Adds a formatted warning message as a response header on the thread context, and logs a message if the associated key has
      * not recently been seen.
      *
-     * @param key    the key used to determine if this deprecation should be logged
+     * @param key    the key used to determine if this message should be logged
      * @param msg    the message to log
      * @param params parameters to the message
      */

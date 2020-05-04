@@ -34,6 +34,11 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * This is a simplistic logger that adds warning messages to HTTP headers.
+ * It uses ThreadContext - which is assumed to be one per JVM (except for tests) - to store warning headers.
+ * Warning values are formatted according to RFC7234.
+ */
 public class HeaderWarningLogger {
     public void log(String msg, Object... params) {
         addWarningToHeaders(THREAD_CONTEXT, msg, params);

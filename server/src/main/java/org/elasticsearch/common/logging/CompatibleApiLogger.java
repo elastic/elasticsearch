@@ -22,7 +22,7 @@ package org.elasticsearch.common.logging;
 import org.apache.logging.log4j.Logger;
 
 /**
- * A logger that logs deprecation notices.
+ * A logger that logs compatible API notices.
  */
 public class CompatibleApiLogger extends ThrottlingAndHeaderWarningLogger{
 

@@ -176,7 +176,8 @@ public class HeaderWarningLoggerTests extends ESTestCase {
     }
 
     public void testFailsWithoutThreadContextSet() {
-        expectThrows(NullPointerException.class, () -> HeaderWarningLogger.addWarningToHeaders((Set<ThreadContext>)null, "Does not explode"));
+        expectThrows(NullPointerException.class,
+            () -> HeaderWarningLogger.addWarningToHeaders((Set<ThreadContext>)null, "Does not explode"));
     }
 
     public void testFailsWhenDoubleSettingSameThreadContext() throws IOException {

@@ -64,7 +64,11 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
     public DeleteRequest(StreamInput in) throws IOException {
-        super(in);
+        this(null, in);
+    }
+
+    public DeleteRequest(ShardId shardId, StreamInput in) throws IOException {
+        super(shardId, in);
         if (in.getVersion().before(Version.V_8_0_0)) {
             String type = in.readString();
             assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
@@ -242,6 +246,21 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         out.writeZLong(ifSeqNo);
         out.writeVLong(ifPrimaryTerm);
     }
+
+    @Override
+    public void writeThin(StreamOutput out) throws IOException {
+        super.writeThin(out);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeString(MapperService.SINGLE_MAPPING_NAME);
+        }
+        out.writeString(id);
+        out.writeOptionalString(routing());
+        out.writeLong(version);
+        out.writeByte(versionType.getValue());
+        out.writeZLong(ifSeqNo);
+        out.writeVLong(ifPrimaryTerm);
+    }
+
 
     @Override
     public String toString() {

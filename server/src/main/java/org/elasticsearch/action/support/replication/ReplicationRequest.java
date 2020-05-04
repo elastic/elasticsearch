@@ -67,15 +67,27 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     private long routedBasedOnClusterVersion = 0;
 
     public ReplicationRequest(StreamInput in) throws IOException {
+        this(null, in);
+    }
+
+    public ReplicationRequest(ShardId shardId, StreamInput in) throws IOException {
         super(in);
-        if (in.readBoolean()) {
-            shardId = new ShardId(in);
+        if (shardId == null) {
+            if (in.readBoolean()) {
+                this.shardId = new ShardId(in);
+            } else {
+                this.shardId = null;
+            }
         } else {
-            shardId = null;
+            this.shardId = shardId;
         }
         waitForActiveShards = ActiveShardCount.readFrom(in);
         timeout = in.readTimeValue();
-        index = in.readString();
+        if (shardId == null) {
+            index = in.readString();
+        } else {
+            index = shardId.getIndexName();
+        }
         routedBasedOnClusterVersion = in.readVLong();
     }
 
@@ -194,6 +206,13 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         waitForActiveShards.writeTo(out);
         out.writeTimeValue(timeout);
         out.writeString(index);
+        out.writeVLong(routedBasedOnClusterVersion);
+    }
+
+    public void writeThin(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        waitForActiveShards.writeTo(out);
+        out.writeTimeValue(timeout);
         out.writeVLong(routedBasedOnClusterVersion);
     }
 

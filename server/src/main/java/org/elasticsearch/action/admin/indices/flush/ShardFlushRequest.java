@@ -38,7 +38,7 @@ public class ShardFlushRequest extends ReplicationRequest<ShardFlushRequest> {
     }
 
     public ShardFlushRequest(StreamInput in) throws IOException {
-        super(in);
+        super(null, in);
         request = new FlushRequest(in);
     }
 

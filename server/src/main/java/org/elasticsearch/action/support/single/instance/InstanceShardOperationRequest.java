@@ -48,13 +48,18 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
     protected InstanceShardOperationRequest() {
     }
 
-    protected InstanceShardOperationRequest(StreamInput in) throws IOException {
+    protected InstanceShardOperationRequest(ShardId shardId, StreamInput in) throws IOException {
         super(in);
-        index = in.readString();
-        if (in.readBoolean()) {
-            shardId = new ShardId(in);
+        if (shardId == null) {
+            index = in.readString();
+            if (in.readBoolean()) {
+                this.shardId = new ShardId(in);
+            } else {
+                this.shardId = null;
+            }
         } else {
-            shardId = null;
+            this.shardId = shardId;
+            this.index = shardId.getIndexName();
         }
         timeout = in.readTimeValue();
         concreteIndex = in.readOptionalString();
@@ -126,6 +131,12 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
         super.writeTo(out);
         out.writeString(index);
         out.writeOptionalWriteable(shardId);
+        out.writeTimeValue(timeout);
+        out.writeOptionalString(concreteIndex);
+    }
+
+    public void writeThin(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeTimeValue(timeout);
         out.writeOptionalString(concreteIndex);
     }

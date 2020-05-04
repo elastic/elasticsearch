@@ -128,7 +128,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     public UpdateRequest() {}
 
     public UpdateRequest(StreamInput in) throws IOException {
-        super(in);
+        this(null, in);
+    }
+
+    public UpdateRequest(ShardId shardId, StreamInput in) throws IOException {
+        super(shardId, in);
         waitForActiveShards = ActiveShardCount.readFrom(in);
         if (in.getVersion().before(Version.V_8_0_0)) {
             String type = in.readString();
@@ -142,11 +146,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         retryOnConflict = in.readVInt();
         refreshPolicy = RefreshPolicy.readFrom(in);
         if (in.readBoolean()) {
-            doc = new IndexRequest(in);
+            doc = new IndexRequest(shardId, in);
         }
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         if (in.readBoolean()) {
-            upsertRequest = new IndexRequest(in);
+            upsertRequest = new IndexRequest(shardId, in);
         }
         docAsUpsert = in.readBoolean();
         ifSeqNo = in.readZLong();
@@ -849,6 +853,51 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             upsertRequest.index(index);
             upsertRequest.id(id);
             upsertRequest.writeTo(out);
+        }
+        out.writeBoolean(docAsUpsert);
+        out.writeZLong(ifSeqNo);
+        out.writeVLong(ifPrimaryTerm);
+        out.writeBoolean(detectNoop);
+        out.writeBoolean(scriptedUpsert);
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+            out.writeOptionalBoolean(preferV2Templates);
+        }
+    }
+
+    public void writeThin(StreamOutput out) throws IOException {
+        super.writeThin(out);
+        waitForActiveShards.writeTo(out);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeString(MapperService.SINGLE_MAPPING_NAME);
+        }
+        out.writeString(id);
+        out.writeOptionalString(routing);
+
+        boolean hasScript = script != null;
+        out.writeBoolean(hasScript);
+        if (hasScript) {
+            script.writeTo(out);
+        }
+        out.writeVInt(retryOnConflict);
+        refreshPolicy.writeTo(out);
+        if (doc == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            // make sure the basics are set
+            doc.index(index);
+            doc.id(id);
+            doc.writeThin(out);
+        }
+        out.writeOptionalWriteable(fetchSourceContext);
+        if (upsertRequest == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            // make sure the basics are set
+            upsertRequest.index(index);
+            upsertRequest.id(id);
+            upsertRequest.writeThin(out);
         }
         out.writeBoolean(docAsUpsert);
         out.writeZLong(ifSeqNo);

@@ -40,8 +40,8 @@ public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>
     /**
      * Constructor for deserialization.
      */
-    public ReplicatedWriteRequest(StreamInput in) throws IOException {
-        super(in);
+    public ReplicatedWriteRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+        super(shardId, in);
         refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
@@ -64,6 +64,11 @@ public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        refreshPolicy.writeTo(out);
+    }
+
+    public void writeThin(StreamOutput out) throws IOException {
+        super.writeThin(out);
         refreshPolicy.writeTo(out);
     }
 }

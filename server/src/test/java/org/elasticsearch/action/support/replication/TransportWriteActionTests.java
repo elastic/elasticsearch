@@ -480,7 +480,7 @@ public class TransportWriteActionTests extends ESTestCase {
 
     private static class TestRequest extends ReplicatedWriteRequest<TestRequest> {
         TestRequest(StreamInput in) throws IOException {
-            super(in);
+            super(null, in);
         }
 
         TestRequest() {

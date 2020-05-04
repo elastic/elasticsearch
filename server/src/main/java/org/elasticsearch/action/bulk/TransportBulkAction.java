@@ -242,7 +242,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             } else {
                 final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size());
                 for (String index : autoCreateIndices) {
-                    createIndex(index, bulkRequest.preferV2Templates(), bulkRequest.timeout(), minNodeVersion, new ActionListener<CreateIndexResponse>() {
+                    createIndex(index, bulkRequest.preferV2Templates(), bulkRequest.timeout(), minNodeVersion,
+                        new ActionListener<CreateIndexResponse>() {
                         @Override
                         public void onResponse(CreateIndexResponse result) {
                             if (counter.decrementAndGet() == 0) {

@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -71,10 +70,9 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         }
 
         @Override
-        protected void masterOperation(Task task,
-                                       CreateIndexRequest request,
+        protected void masterOperation(CreateIndexRequest request,
                                        ClusterState state,
-                                       ActionListener<CreateIndexResponse> listener) {
+                                       ActionListener<CreateIndexResponse> listener) throws Exception {
             TransportCreateIndexAction.innerCreateIndex(request, listener, indexNameExpressionResolver, createIndexService);
         }
 

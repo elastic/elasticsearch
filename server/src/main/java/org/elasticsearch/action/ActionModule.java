@@ -394,20 +394,6 @@ public class ActionModule extends AbstractModule {
 
     private static final Logger logger = LogManager.getLogger(ActionModule.class);
 
-    private static final boolean ITV2_FEATURE_ENABLED;
-
-    static {
-        final String property = System.getProperty("es.itv2_feature_enabled");
-        if (Build.CURRENT.isSnapshot() || "true".equals(property)) {
-            ITV2_FEATURE_ENABLED = true;
-        } else if ("false".equals(property) || property == null) {
-            ITV2_FEATURE_ENABLED = false;
-        } else {
-            throw new IllegalArgumentException("expected es.itv2_feature_enabled to be unset, true, or false but was [" +
-                property + "]");
-        }
-    }
-
     private static final boolean DATASTREAMS_FEATURE_ENABLED;
 
     static {
@@ -550,15 +536,13 @@ public class ActionModule extends AbstractModule {
         actions.register(PutIndexTemplateAction.INSTANCE, TransportPutIndexTemplateAction.class);
         actions.register(GetIndexTemplatesAction.INSTANCE, TransportGetIndexTemplatesAction.class);
         actions.register(DeleteIndexTemplateAction.INSTANCE, TransportDeleteIndexTemplateAction.class);
-        if (ITV2_FEATURE_ENABLED) {
-            actions.register(PutComponentTemplateAction.INSTANCE, TransportPutComponentTemplateAction.class);
-            actions.register(GetComponentTemplateAction.INSTANCE, TransportGetComponentTemplateAction.class);
-            actions.register(DeleteComponentTemplateAction.INSTANCE, TransportDeleteComponentTemplateAction.class);
-            actions.register(PutIndexTemplateV2Action.INSTANCE, TransportPutIndexTemplateV2Action.class);
-            actions.register(GetIndexTemplateV2Action.INSTANCE, TransportGetIndexTemplateV2Action.class);
-            actions.register(DeleteIndexTemplateV2Action.INSTANCE, TransportDeleteIndexTemplateV2Action.class);
-            actions.register(SimulateIndexTemplateAction.INSTANCE, TransportSimulateIndexTemplateAction.class);
-        }
+        actions.register(PutComponentTemplateAction.INSTANCE, TransportPutComponentTemplateAction.class);
+        actions.register(GetComponentTemplateAction.INSTANCE, TransportGetComponentTemplateAction.class);
+        actions.register(DeleteComponentTemplateAction.INSTANCE, TransportDeleteComponentTemplateAction.class);
+        actions.register(PutIndexTemplateV2Action.INSTANCE, TransportPutIndexTemplateV2Action.class);
+        actions.register(GetIndexTemplateV2Action.INSTANCE, TransportGetIndexTemplateV2Action.class);
+        actions.register(DeleteIndexTemplateV2Action.INSTANCE, TransportDeleteIndexTemplateV2Action.class);
+        actions.register(SimulateIndexTemplateAction.INSTANCE, TransportSimulateIndexTemplateAction.class);
         actions.register(ValidateQueryAction.INSTANCE, TransportValidateQueryAction.class);
         actions.register(RefreshAction.INSTANCE, TransportRefreshAction.class);
         actions.register(FlushAction.INSTANCE, TransportFlushAction.class);
@@ -702,15 +686,13 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetIndexTemplateAction());
         registerHandler.accept(new RestPutIndexTemplateAction());
         registerHandler.accept(new RestDeleteIndexTemplateAction());
-        if (ITV2_FEATURE_ENABLED) {
-            registerHandler.accept(new RestPutComponentTemplateAction());
-            registerHandler.accept(new RestGetComponentTemplateAction());
-            registerHandler.accept(new RestDeleteComponentTemplateAction());
-            registerHandler.accept(new RestPutIndexTemplateV2Action());
-            registerHandler.accept(new RestGetIndexTemplateV2Action());
-            registerHandler.accept(new RestDeleteIndexTemplateV2Action());
-            registerHandler.accept(new RestSimulateIndexTemplateAction());
-        }
+        registerHandler.accept(new RestPutComponentTemplateAction());
+        registerHandler.accept(new RestGetComponentTemplateAction());
+        registerHandler.accept(new RestDeleteComponentTemplateAction());
+        registerHandler.accept(new RestPutIndexTemplateV2Action());
+        registerHandler.accept(new RestGetIndexTemplateV2Action());
+        registerHandler.accept(new RestDeleteIndexTemplateV2Action());
+        registerHandler.accept(new RestSimulateIndexTemplateAction());
 
         registerHandler.accept(new RestPutMappingAction());
         registerHandler.accept(new RestGetMappingAction());

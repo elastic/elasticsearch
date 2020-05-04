@@ -80,7 +80,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
             Settings.EMPTY);
-        processorFactory.accept(buildClusterState(metadata));
+        processorFactory.accept(buildClusterState(metaData));
 
         assertThat(processorFactory.numInferenceProcessors(), equalTo(0));
         metaData = MetaData.builder().build();
@@ -93,7 +93,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
     }
 
     public void testNumInferenceProcessorsRecursivelyDefined() throws Exception {
-        Metadata metadata = null;
+        MetaData metadata = null;
 
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
@@ -123,7 +123,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         IngestMetadata ingestMetadata = new IngestMetadata(configurations);
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
+            .metaData(MetaData.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
             .nodes(DiscoveryNodes.builder()
                 .add(new DiscoveryNode("min_node",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),

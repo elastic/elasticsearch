@@ -441,9 +441,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         boolean docValued = fieldType().hasDocValues();
         boolean stored = fieldType().stored();
         List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, docValued, stored);
-        for (Field field : fields) {
-            context.doc().add(field);
-        }
+        context.doc().addAll(fields);
 
         if (docValued == false && (indexed || stored)) {
             createFieldNamesField(context);

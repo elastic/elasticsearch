@@ -10,7 +10,6 @@ experimental::[]
 
 EQL is schema-less and works well with most common log formats.
 
-
 [TIP]
 ====
 While no schema is required to use EQL in {es}, we recommend the
@@ -34,3 +33,10 @@ A field containing the event classification, such as `process`, `file`, or
 Timestamp::
 A field containing the date and/or time the event occurred. This is typically
 mapped as a <<date,`date`>> field.
+
+[NOTE]
+====
+You cannot use EQL to search the values of a <<nested,`nested`>> field or the
+sub-fields of a `nested` field. However, indices containing `nested` field
+mappings are otherwise supported.
+====

@@ -170,10 +170,10 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
         }
         builder.field(ERRORS, hasFailures());
         boolean noItems = noItemsOnSuccess != null && noItemsOnSuccess;
-        boolean noFailuresAnNoItemsRequested = noItems && this.hasFailures() == false;
-        builder.field(ITEMS_OMITTED, noFailuresAnNoItemsRequested);
+        boolean noFailuresAndNoItemsRequested = noItems && this.hasFailures() == false;
+        builder.field(ITEMS_OMITTED, noFailuresAndNoItemsRequested);
         builder.startArray(ITEMS);
-        if (noFailuresAnNoItemsRequested == false) {
+        if (noFailuresAndNoItemsRequested == false) {
             for (BulkItemResponse item : this) {
                 item.toXContent(builder, params);
             }

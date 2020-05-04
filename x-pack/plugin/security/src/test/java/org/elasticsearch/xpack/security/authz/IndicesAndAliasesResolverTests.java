@@ -1538,7 +1538,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             assertThat(resolvedIndices.getLocal(), contains("logs-foobar"));
             assertThat(resolvedIndices.getRemote(), emptyIterable());
 
-            // Ignore data streams:
+            // Data streams with allow no indices:
             searchRequest = new SearchRequest();
             searchRequest.indices("logs-*");
             searchRequest.indicesOptions(IndicesOptions.fromOptions(false, true, true, false, false, true, true, true, true));

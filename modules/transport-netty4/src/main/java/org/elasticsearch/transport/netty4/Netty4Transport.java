@@ -307,15 +307,14 @@ public class Netty4Transport extends TcpTransport {
     @SuppressForbidden(reason = "debug")
     protected void stopInternal() {
         Releasables.close(() -> {
-            Future<?> shutdownFuture = eventLoopGroup.shutdownGracefully(0, 5, TimeUnit.SECONDS);
-            shutdownFuture.awaitUninterruptibly();
-            if (shutdownFuture.isSuccess() == false) {
-                logger.warn("Error closing netty event loop group", shutdownFuture.cause());
+            if (eventLoopGroup != null) {
+                Future<?> shutdownFuture = eventLoopGroup.shutdownGracefully(0, 5, TimeUnit.SECONDS);
+                shutdownFuture.awaitUninterruptibly();
+                if (shutdownFuture.isSuccess() == false) {
+                    logger.warn("Error closing netty event loop group", shutdownFuture.cause());
+                }
             }
-
-            serverBootstraps.clear();
-            clientBootstrap = null;
-        });
+        }, serverBootstraps::clear, () -> clientBootstrap = null);
     }
 
     protected class ClientChannelInitializer extends ChannelInitializer<Channel> {

@@ -234,6 +234,9 @@ teardown:
     }
 
   # Invalidate the cache for "app"
+  - skip:
+      version: " - 7.99.99"
+      reason:  "Backport pending"
   - do:
       security.clear_cached_privileges:
         application: "app"
@@ -331,6 +334,9 @@ teardown:
     }
 
   # Invalidate the cache for all applications
+  - skip:
+      version: " - 7.99.99"
+      reason:  "Backport pending"
   - do:
       security.clear_cached_privileges:
         application: ""

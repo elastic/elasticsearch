@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -145,12 +146,12 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         givenSearchResponses(Collections.singletonList(JobTests.buildJobBuilder(jobId).setResultsRetentionDays(1L).build()),
                 new Bucket(jobId, latest, 60));
 
-        ActionListener<Long> cutoffListener = mock(ActionListener.class);
+        ActionListener<Tuple<Long, Long>> cutoffListener = mock(ActionListener.class);
         createExpiredResultsRemover().calcCutoffEpochMs(jobId, 1L, cutoffListener);
 
         long dayInMills = 60 * 60 * 24 * 1000;
         long expectedCutoffTime = latest.getTime() - dayInMills;
-        verify(cutoffListener).onResponse(eq(expectedCutoffTime));
+        verify(cutoffListener).onResponse(eq(new Tuple<>(latest.getTime(), expectedCutoffTime)));
     }
 
     private void givenDBQRequestsSucceed() {

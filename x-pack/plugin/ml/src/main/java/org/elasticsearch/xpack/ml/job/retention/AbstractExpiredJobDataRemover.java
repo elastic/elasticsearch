@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.job.retention;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -66,12 +67,14 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
         }
 
         calcCutoffEpochMs(job.getId(), retentionDays, ActionListener.wrap(
-                cutoffEpochMs -> {
-                    if (cutoffEpochMs == null) {
+                response -> {
+                    if (response == null) {
                         removeData(jobIterator, listener, isTimedOutSupplier);
                     } else {
-                        removeDataBefore(job, cutoffEpochMs, ActionListener.wrap(
-                                response -> removeData(jobIterator, listener, isTimedOutSupplier),
+                        long latestTimeMs = response.v1();
+                        long cutoffEpochMs = response.v2();
+                        removeDataBefore(job, latestTimeMs, cutoffEpochMs, ActionListener.wrap(
+                                r -> removeData(jobIterator, listener, isTimedOutSupplier),
                                 listener::onFailure));
                     }
                 },
@@ -84,7 +87,7 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
         return new WrappedBatchedJobsIterator(jobsIterator);
     }
 
-    abstract void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<Long> listener);
+    abstract void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<Tuple<Long, Long>> listener);
 
     abstract Long getRetentionDays(Job job);
 
@@ -92,7 +95,7 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
      * Template method to allow implementation details of various types of data (e.g. results, model snapshots).
      * Implementors need to call {@code listener.onResponse} when they are done in order to continue to the next job.
      */
-    abstract void removeDataBefore(Job job, long cutoffEpochMs, ActionListener<Boolean> listener);
+    abstract void removeDataBefore(Job job, long latestTimeMs, long cutoffEpochMs, ActionListener<Boolean> listener);
 
     static BoolQueryBuilder createQuery(String jobId, long cutoffEpochMs) {
         return QueryBuilders.boolQuery()

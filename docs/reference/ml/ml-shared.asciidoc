@@ -361,6 +361,19 @@ example, it can contain custom URL information as shown in
 {ml-docs}/ml-configuring-url.html[Adding custom URLs to {ml} results].
 end::custom-settings[]
 
+tag::daily-model-snapshot-retention-after-days[]
+Advanced configuration option. A number of days in between 0 and the value of
+`model_snapshot_retention_days` after which only one model snapshot per day
+is retained instead of all model snapshots. Age is calculated relative to the
+timestamp of the newest model snapshot. The default value is `1` for newly
+created jobs, which means that all snapshots are retained for one day but
+older snapshots are thinned out such that only one per day is retained until
+`model_snapshot_retention_days`. For jobs that were created before this
+setting was available, the default is the same as that job's
+`model_snapshot_retention_days` setting, to preserve the original behavior
+that no thinning out of model snapshots is done.
+end::daily-model-snapshot-retention-after-days[]
+
 tag::data-description[]
 The data description defines the format of the input data when you send data to
 the job by using the <<ml-post-data,post data>> API. Note that when configure

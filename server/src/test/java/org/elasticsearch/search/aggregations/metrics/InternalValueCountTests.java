@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
@@ -37,11 +36,6 @@ public class InternalValueCountTests extends InternalAggregationTestCase<Interna
     @Override
     protected void assertReduced(InternalValueCount reduced, List<InternalValueCount> inputs) {
         assertEquals(inputs.stream().mapToLong(InternalValueCount::getValue).sum(), reduced.getValue(), 0);
-    }
-
-    @Override
-    protected Writeable.Reader<InternalValueCount> instanceReader() {
-        return InternalValueCount::new;
     }
 
     @Override

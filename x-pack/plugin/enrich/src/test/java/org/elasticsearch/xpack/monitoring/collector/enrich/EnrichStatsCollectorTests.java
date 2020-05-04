@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.monitoring.collector.enrich;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -45,14 +46,14 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
         whenLocalNodeElectedMaster(isElectedMaster);
 
         // this controls the blockage
-        when(licenseState.isMonitoringAllowed()).thenReturn(false);
-        when(licenseState.isEnrichAllowed()).thenReturn(enrichAllowed);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING)).thenReturn(false);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.ENRICH)).thenReturn(enrichAllowed);
 
         final EnrichStatsCollector collector = createCollector(settings, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
         if (isElectedMaster) {
-            verify(licenseState).isMonitoringAllowed();
+            verify(licenseState).isAllowed(XPackLicenseState.Feature.MONITORING);
         }
     }
 
@@ -60,8 +61,8 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
         // regardless of enrich being enabled
         final Settings settings = randomFrom(enrichEnabledSettings(), enrichDisabledSettings());
 
-        when(licenseState.isMonitoringAllowed()).thenReturn(randomBoolean());
-        when(licenseState.isEnrichAllowed()).thenReturn(randomBoolean());
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING)).thenReturn(randomBoolean());
+        when(licenseState.isAllowed(XPackLicenseState.Feature.ENRICH)).thenReturn(randomBoolean());
         // this controls the blockage
         final boolean isElectedMaster = false;
 
@@ -74,8 +75,9 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
         // this is controls the blockage
         final Settings settings = enrichDisabledSettings();
 
-        when(licenseState.isMonitoringAllowed()).thenReturn(randomBoolean());
-        when(licenseState.isEnrichAllowed()).thenReturn(randomBoolean());
+        boolean isMonitoringAllowed = randomBoolean();
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING)).thenReturn(isMonitoringAllowed);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.ENRICH)).thenReturn(randomBoolean());
 
         final boolean isElectedMaster = randomBoolean();
         whenLocalNodeElectedMaster(isElectedMaster);
@@ -85,16 +87,22 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
 
         if (isElectedMaster) {
-            verify(licenseState).isMonitoringAllowed();
+            verify(licenseState).isAllowed(XPackLicenseState.Feature.MONITORING);
+        }
+        if (isElectedMaster && isMonitoringAllowed) {
+            // The enrich setting is only checked if the node is master and monitoring is allowed,
+            // so in other cases we won't have a deprecation warning.
+            assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.ENRICH_ENABLED_SETTING });
         }
     }
 
     public void testShouldCollectReturnsFalseIfEnrichIsNotAllowed() {
         final Settings settings = randomFrom(enrichEnabledSettings(), enrichDisabledSettings());
 
-        when(licenseState.isMonitoringAllowed()).thenReturn(randomBoolean());
+        boolean isMonitoringAllowed = randomBoolean();
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING)).thenReturn(isMonitoringAllowed);
         // this is controls the blockage
-        when(licenseState.isEnrichAllowed()).thenReturn(false);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.ENRICH)).thenReturn(false);
         final boolean isElectedMaster = randomBoolean();
         whenLocalNodeElectedMaster(isElectedMaster);
 
@@ -103,22 +111,28 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
 
         if (isElectedMaster) {
-            verify(licenseState).isMonitoringAllowed();
+            verify(licenseState).isAllowed(XPackLicenseState.Feature.MONITORING);
+        }
+        if (isElectedMaster && isMonitoringAllowed && settings.get(XPackSettings.ENRICH_ENABLED_SETTING.getKey()) != null) {
+            assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.ENRICH_ENABLED_SETTING });
         }
     }
 
     public void testShouldCollectReturnsTrue() {
         final Settings settings = enrichEnabledSettings();
 
-        when(licenseState.isMonitoringAllowed()).thenReturn(true);
-        when(licenseState.isEnrichAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING)).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.ENRICH)).thenReturn(true);
         final boolean isElectedMaster = true;
 
         final EnrichStatsCollector collector = createCollector(settings, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(true));
 
-        verify(licenseState).isMonitoringAllowed();
+        verify(licenseState).isAllowed(XPackLicenseState.Feature.MONITORING);
+        if (settings.get(XPackSettings.ENRICH_ENABLED_SETTING.getKey()) != null) {
+            assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.ENRICH_ENABLED_SETTING });
+        }
     }
 
     public void testDoCollect() throws Exception {

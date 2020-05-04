@@ -22,7 +22,6 @@ package org.elasticsearch.join.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -46,7 +45,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -188,15 +186,15 @@ public final class ParentIdFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         if (context.externalValueSet() == false) {
             throw new IllegalStateException("external value not set");
         }
         String refId = (String) context.externalValue();
         BytesRef binaryValue = new BytesRef(refId);
         Field field = new Field(fieldType().name(), binaryValue, fieldType());
-        fields.add(field);
-        fields.add(new SortedDocValuesField(fieldType().name(), binaryValue));
+        context.doc().add(field);
+        context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
     }
 
 

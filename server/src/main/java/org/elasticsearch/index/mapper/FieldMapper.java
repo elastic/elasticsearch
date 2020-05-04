@@ -21,11 +21,9 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.Lucene;
@@ -45,10 +43,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.stream.StreamSupport;
@@ -279,17 +277,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * Parse the field value using the provided {@link ParseContext}.
      */
     public void parse(ParseContext context) throws IOException {
-        final List<IndexableField> fields = new ArrayList<>(2);
         try {
-            parseCreateField(context, fields);
-            for (IndexableField field : fields) {
-                context.doc().add(field);
-            }
+            parseCreateField(context);
         } catch (Exception e) {
             String valuePreview = "";
             try {
                 XContentParser parser = context.parser();
-                Object complexValue = AbstractXContentParser.readValue(parser, ()-> new HashMap<String, Object>());
+                Object complexValue = AbstractXContentParser.readValue(parser, HashMap::new);
                 if (complexValue == null) {
                     valuePreview = "null";
                 } else {
@@ -309,19 +303,18 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     /**
-     * Parse the field value and populate <code>fields</code>.
+     * Parse the field value and populate the fields on {@link ParseContext#doc()}.
      *
      * Implementations of this method should ensure that on failing to parse parser.currentToken() must be the
      * current failing token
      */
-    protected abstract void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException;
+    protected abstract void parseCreateField(ParseContext context) throws IOException;
 
-    protected void createFieldNamesField(ParseContext context, List<IndexableField> fields) {
-        FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context.docMapper()
-                .metadataMapper(FieldNamesFieldMapper.class).fieldType();
+    protected void createFieldNamesField(ParseContext context) {
+        FieldNamesFieldType fieldNamesFieldType = context.docMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType();
         if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
             for (String fieldName : FieldNamesFieldMapper.extractFieldNames(fieldType().name())) {
-                fields.add(new Field(FieldNamesFieldMapper.NAME, fieldName, fieldNamesFieldType));
+                context.doc().add(new Field(FieldNamesFieldMapper.NAME, fieldName, fieldNamesFieldType));
             }
         }
     }

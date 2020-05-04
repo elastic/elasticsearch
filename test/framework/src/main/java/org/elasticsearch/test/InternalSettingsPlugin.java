@@ -26,6 +26,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.transport.RemoteConnectionStrategy;
 
 import java.util.Arrays;
 import java.util.List;
@@ -50,6 +51,7 @@ public final class InternalSettingsPlugin extends Plugin {
                 INDEX_CREATION_DATE_SETTING,
                 PROVIDED_NAME_SETTING,
                 TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING,
+                RemoteConnectionStrategy.REMOTE_MAX_PENDING_CONNECTION_LISTENERS,
                 IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING,
                 IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING,
                 IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING,

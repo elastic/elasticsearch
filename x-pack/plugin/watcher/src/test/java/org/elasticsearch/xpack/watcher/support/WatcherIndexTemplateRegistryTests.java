@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
@@ -45,6 +44,7 @@ import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
+import org.elasticsearch.xpack.watcher.Watcher;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -133,12 +133,12 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         assertThat(req.settings().get("index.lifecycle.name"), equalTo("watch-history-ilm-policy"));
     }
 
-    public void testThatNonExistingTemplatesAreAddedEvenWithILMDisabled() {
+    public void testThatNonExistingTemplatesAreAddedEvenWithILMUsageDisabled() {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         registry = new WatcherIndexTemplateRegistry(Settings.builder()
-            .put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), false).build(),
+            .put(Watcher.USE_ILM_INDEX_MANAGEMENT.getKey(), false).build(),
             clusterService, threadPool, client, xContentRegistry);
         ClusterChangedEvent event = createClusterChangedEvent(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
@@ -187,7 +187,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         registry = new WatcherIndexTemplateRegistry(Settings.builder()
-            .put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), false).build(),
+            .put(Watcher.USE_ILM_INDEX_MANAGEMENT.getKey(), false).build(),
             clusterService, threadPool, client, xContentRegistry);
         ClusterChangedEvent event = createClusterChangedEvent(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);

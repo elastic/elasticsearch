@@ -48,7 +48,7 @@ public class FrozenEngineTests extends EngineTestCase {
                 int numDocs = Math.min(10, addDocuments(globalCheckpoint, engine));
                 engine.flushAndClose();
                 listener.reset();
-                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig)) {
+                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig, true)) {
                     assertFalse(frozenEngine.isReaderOpen());
                     Engine.Searcher searcher = frozenEngine.acquireSearcher("test");
                     assertEquals(config.getShardId(), ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(searcher
@@ -82,7 +82,7 @@ public class FrozenEngineTests extends EngineTestCase {
                 int numDocs = Math.min(10, addDocuments(globalCheckpoint, engine));
                 engine.flushAndClose();
                 listener.reset();
-                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig)) {
+                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig, true)) {
                     assertFalse(frozenEngine.isReaderOpen());
                     Engine.Searcher searcher1 = frozenEngine.acquireSearcher("test");
                     assertTrue(frozenEngine.isReaderOpen());
@@ -118,7 +118,7 @@ public class FrozenEngineTests extends EngineTestCase {
                 addDocuments(globalCheckpoint, engine);
                 engine.flushAndClose();
                 listener.reset();
-                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig)) {
+                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig, true)) {
                     Engine.Searcher searcher = frozenEngine.acquireSearcher("test");
                     SegmentsStats segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
                     assertEquals(frozenEngine.segments(randomBoolean()).size(), segmentsStats.getCount());
@@ -156,7 +156,7 @@ public class FrozenEngineTests extends EngineTestCase {
                 engine.refresh("test"); // pull the reader to account for RAM in the breaker.
             }
             final long expectedUse;
-            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, i -> i)) {
+            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, i -> i, true)) {
                 expectedUse = breaker.getUsed();
                 DocsStats docsStats = readOnlyEngine.docStats();
                 assertEquals(docs, docsStats.getCount());
@@ -164,7 +164,7 @@ public class FrozenEngineTests extends EngineTestCase {
             assertTrue(expectedUse > 0);
             assertEquals(0, breaker.getUsed());
             listener.reset();
-            try (FrozenEngine frozenEngine = new FrozenEngine(config)) {
+            try (FrozenEngine frozenEngine = new FrozenEngine(config, true)) {
                 Engine.Searcher searcher = frozenEngine.acquireSearcher("test");
                 assertEquals(expectedUse, breaker.getUsed());
                 FrozenEngine.unwrapLazyReader(searcher.getDirectoryReader()).release();
@@ -209,7 +209,7 @@ public class FrozenEngineTests extends EngineTestCase {
                 int numDocsAdded = addDocuments(globalCheckpoint, engine);
                 engine.flushAndClose();
                 int numIters = randomIntBetween(100, 1000);
-                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig)) {
+                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig, true)) {
                     int numThreads = randomIntBetween(2, 4);
                     Thread[] threads = new Thread[numThreads];
                     CyclicBarrier barrier = new CyclicBarrier(numThreads);
@@ -305,7 +305,7 @@ public class FrozenEngineTests extends EngineTestCase {
                 addDocuments(globalCheckpoint, engine);
                 engine.flushAndClose();
                 listener.reset();
-                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig)) {
+                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig, true)) {
                     DirectoryReader reader;
                     try (Engine.Searcher searcher = frozenEngine.acquireSearcher("can_match")) {
                         assertNotNull(ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(searcher.getDirectoryReader()));
@@ -350,7 +350,7 @@ public class FrozenEngineTests extends EngineTestCase {
                     totalDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE).scoreDocs.length;
                 }
             }
-            try (FrozenEngine frozenEngine = new FrozenEngine(config)) {
+            try (FrozenEngine frozenEngine = new FrozenEngine(config, true)) {
                 try (Engine.Searcher searcher = frozenEngine.acquireSearcher("test")) {
                     TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
                     assertThat(topDocs.scoreDocs.length, equalTo(totalDocs));

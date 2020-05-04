@@ -423,7 +423,8 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                     throw new IllegalArgumentException(
                         "Limit of completion field contexts [" + COMPLETION_CONTEXTS_LIMIT + "] has been exceeded");
                 } else {
-                    deprecationLogger.deprecated("You have defined more than [" + COMPLETION_CONTEXTS_LIMIT + "] completion contexts" +
+                    deprecationLogger.deprecatedAndMaybeLog("excessive_completion_contexts",
+                        "You have defined more than [" + COMPLETION_CONTEXTS_LIMIT + "] completion contexts" +
                         " in the mapping for index [" + context.indexSettings().get(IndexMetadata.SETTING_INDEX_PROVIDED_NAME) + "]. " +
                         "The maximum allowed number of completion contexts in a mapping will be limited to " +
                         "[" + COMPLETION_CONTEXTS_LIMIT + "] starting in version [8.0].");
@@ -503,7 +504,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         }
 
         List<IndexableField> fields = new ArrayList<>(1);
-        createFieldNamesField(context, fields);
+        createFieldNamesField(context);
         for (IndexableField field : fields) {
             context.doc().add(field);
         }
@@ -666,7 +667,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         // no-op
     }
 

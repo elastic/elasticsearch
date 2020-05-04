@@ -18,6 +18,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
@@ -61,7 +62,8 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
 
     @Override
     public DirectoryReader apply(final DirectoryReader reader) {
-        if (licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
+        if (licenseState.isSecurityEnabled() == false ||
+            licenseState.isAllowed(Feature.SECURITY_DLS_FLS) == false) {
             return reader;
         }
 

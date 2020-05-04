@@ -23,11 +23,9 @@ task 'leader-cluster'(type: RestIntegTestTask) {
 testClusters.'leader-cluster' {
   testDistribution = 'DEFAULT'
   setting 'path.repo', repoDir.absolutePath
-  setting 'xpack.ilm.enabled', 'true'
   setting 'xpack.ccr.enabled', 'true'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'indices.lifecycle.poll_interval', '1000ms'
@@ -50,11 +48,9 @@ task 'follow-cluster'(type: RestIntegTestTask) {
 testClusters.'follow-cluster' {
   testDistribution = 'DEFAULT'
   setting 'path.repo', repoDir.absolutePath
-  setting 'xpack.ilm.enabled', 'true'
   setting 'xpack.ccr.enabled', 'true'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'indices.lifecycle.poll_interval', '1000ms'

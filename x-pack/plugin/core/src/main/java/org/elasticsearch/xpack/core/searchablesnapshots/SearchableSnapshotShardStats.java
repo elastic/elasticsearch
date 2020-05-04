@@ -77,6 +77,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             builder.field("index_uuid", getIndexId().getId());
             builder.startObject("shard");
             {
+                builder.field("id", shardRouting.shardId());
                 builder.field("state", shardRouting.state());
                 builder.field("primary", shardRouting.primary());
                 builder.field("node", shardRouting.currentNodeId());

@@ -70,6 +70,11 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_0_0;
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeMap(jobsUsage);

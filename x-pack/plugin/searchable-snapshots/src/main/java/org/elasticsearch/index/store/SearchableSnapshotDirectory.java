@@ -390,7 +390,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     final int numberOfParts = Math.toIntExact(file.numberOfParts());
                     final GroupedActionListener<Void> listener = new GroupedActionListener<>(
                         ActionListener.runAfter(
-                            ActionListener.wrap(() -> IOUtils.closeWhileHandlingException(input)),
+                            ActionListener.wrap(voids -> input.close(), e -> IOUtils.closeWhileHandlingException(input)),
                             () -> prewarmNextFile(executor, queue)
                         ),
                         numberOfParts

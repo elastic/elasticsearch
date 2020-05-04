@@ -181,7 +181,7 @@ public class EDot extends AExpression {
                         if (getter != null && setter != null && setter.typeParameters.get(0) != getter.returnType) {
                             throw createError(new IllegalArgumentException("Shortcut argument types must match."));
                         }
-                        
+
                         if ((input.read == false || getter != null) && (input.write == false || setter != null)) {
                             output.actual = setter != null ? setter.typeParameters.get(0) : getter.returnType;
                         } else {
@@ -218,8 +218,7 @@ public class EDot extends AExpression {
                             Output indexOutput;
                             PainlessCast indexCast;
 
-                            if ((input.read || input.write)
-                                    && (input.read == false || getter != null) && (input.write == false || setter != null)) {
+                            if ((input.read == false || getter != null) && (input.write == false || setter != null)) {
                                 Input indexInput = new Input();
                                 indexInput.expected = setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0);
                                 EString index = new EString(location, value);
@@ -265,8 +264,7 @@ public class EDot extends AExpression {
                             Output indexOutput;
                             PainlessCast indexCast;
 
-                            if ((input.read || input.write)
-                                    && (input.read == false || getter != null) && (input.write == false || setter != null)) {
+                            if ((input.read == false || getter != null) && (input.write == false || setter != null)) {
                                 ENumeric index = new ENumeric(location, value, 10);
                                 Input indexInput = new Input();
                                 indexInput.expected = int.class;

@@ -17,6 +17,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -129,15 +130,18 @@ public class HistoBackedValueCountAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return List.of(new AnalyticsPlugin());
+        return org.elasticsearch.common.collect.List.of(new AnalyticsPlugin(Settings.EMPTY));
     }
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         // Note: this is the same list as Core, plus Analytics
-        return List.of(
+        return org.elasticsearch.common.collect.List.of(
             CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.BOOLEAN,
             CoreValuesSourceType.BYTES,
+            CoreValuesSourceType.IP,
             CoreValuesSourceType.GEOPOINT,
             CoreValuesSourceType.RANGE,
             AnalyticsValuesSourceType.HISTOGRAM

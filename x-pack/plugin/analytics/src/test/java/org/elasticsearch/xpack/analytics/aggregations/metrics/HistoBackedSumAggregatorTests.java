@@ -129,14 +129,16 @@ public class HistoBackedSumAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return Arrays.asList(new AnalyticsPlugin(Settings.EMPTY));
+        return org.elasticsearch.common.collect.List.of(new AnalyticsPlugin(Settings.EMPTY));
     }
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         // Note: this is the same list as Core, plus Analytics
-        return Arrays.asList(
+        return org.elasticsearch.common.collect.List.of(
             CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.BOOLEAN,
             AnalyticsValuesSourceType.HISTOGRAM
         );
     }

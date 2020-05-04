@@ -35,10 +35,7 @@ public class TransportValidateQueryActionTests extends ESSingleNodeTestCase {
      * them garbled together, or trying to write one after the channel had closed, etc.
      */
     public void testListenerOnlyInvokedOnceWhenIndexDoesNotExist() {
-        final ValidateQueryRequest request = new ValidateQueryRequest("non-existent-index");
-
         final AtomicBoolean invoked = new AtomicBoolean();
-
         final ActionListener<ValidateQueryResponse> listener = new ActionListener<>() {
 
             @Override
@@ -54,7 +51,7 @@ public class TransportValidateQueryActionTests extends ESSingleNodeTestCase {
             }
 
         };
-        client().admin().indices().validateQuery(request, listener);
+        client().admin().indices().validateQuery(new ValidateQueryRequest("non-existent-index"), listener);
         assertThat(invoked.get(), equalTo(true)); // ensure that onFailure was invoked
     }
 

@@ -57,19 +57,16 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
             return this;
         }
 
-        public RequestObjectBuilder mode(String mode) {
-            request.append(field(MODE_NAME, mode));
+        public RequestObjectBuilder mode(Object m) {
+            String modeString = m.toString();
+            request.append(field(MODE_NAME, modeString));
             if (isQuery) {
-                Mode m = Mode.fromString(mode);
-                if (Mode.isDedicatedClient(m)) {
+                Mode mode = (m instanceof Mode) ? (Mode)m : Mode.fromString(modeString);
+                if (Mode.isDedicatedClient(mode)) {
                     version(Version.CURRENT.toString());
                 }
             }
             return this;
-        }
-
-        public RequestObjectBuilder mode(Mode mode) {
-            return mode != null ? mode(mode.toString()) : this;
         }
 
         public RequestObjectBuilder fetchSize(Integer fetchSize) {

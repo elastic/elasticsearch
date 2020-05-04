@@ -504,7 +504,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         }
 
         List<IndexableField> fields = new ArrayList<>(1);
-        createFieldNamesField(context, fields);
+        createFieldNamesField(context);
         for (IndexableField field : fields) {
             context.doc().add(field);
         }
@@ -667,7 +667,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         // no-op
     }
 

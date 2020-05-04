@@ -19,6 +19,37 @@ query = 'process where string(serial_event_id) = "1"'
 expected_event_ids  = [1]
 
 [[queries]]
+expected_event_ids  = [98]
+notes = "regexp doesn't support character classes"
+query = '''
+//
+//                                ?'.*?net1\s+localgroup.*?')
+process where match(command_line, ?'.*?net1[ ]+localgroup.*?')
+'''
+
+[[queries]]
+expected_event_ids  = [98]
+query = '''
+process where matchLite(command_line, ?'.*?net1.*?')
+'''
+
+[[queries]]
+expected_event_ids  = [98]
+notes = "regexp doesn't support predefined character classes (like \\s)"
+query = '''
+//                                ?'.*?net1\s+\w{4,15}\s+.*?'
+process where match(command_line, ?'.*?net1[ ]+[a-z]{4,15}[ ]+.*?')
+'''
+
+
+
+[[queries]]
+expected_event_ids  = [50, 97, 98]
+query = '''
+process where match(command_line, '.*?net[1]?  localgroup.*?', '.*? myappserver.py .*?')
+'''
+
+[[queries]]
 # Basic test for modulo function
 query = '''
 process where modulo(11, 10) == serial_event_id'''

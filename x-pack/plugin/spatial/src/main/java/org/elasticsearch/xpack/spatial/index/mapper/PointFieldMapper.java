@@ -175,7 +175,7 @@ public class PointFieldMapper extends AbstractGeometryFieldMapper implements Arr
             context.doc().add(new XYDocValuesField(fieldType().name(), point.getX(), point.getY()));
         } else if (fieldType().stored() || fieldType().indexOptions() != IndexOptions.NONE) {
             List<IndexableField> fields = new ArrayList<>(1);
-            createFieldNamesField(context, fields);
+            createFieldNamesField(context);
             for (IndexableField field : fields) {
                 context.doc().add(field);
             }

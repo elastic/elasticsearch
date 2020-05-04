@@ -280,10 +280,13 @@ public class VerifierTests extends ESTestCase {
 
     public void testNested() {
         final IndexResolution idxr = loadIndexResolution("mapping-nested.json");
-        accept(idxr, "foo where processes.pid == 0");
-
+        assertEquals("1:11: Cannot use field [processes] type [nested] due to nested fields not being supported yet",
+            error(idxr, "foo where processes == 0"));
+        assertEquals("1:11: Cannot use field [processes.pid] type [long] with unsupported nested type in hierarchy (field [processes])",
+            error(idxr, "foo where processes.pid == 0"));
         assertEquals("1:11: Unknown column [processe.pid], did you mean any of [processes.pid, processes.path, processes.path.keyword]?",
                 error(idxr, "foo where processe.pid == 0"));
+        accept(idxr, "foo where long_field == 123");
     }
 
     public void testGeo() {
@@ -314,20 +317,24 @@ public class VerifierTests extends ESTestCase {
 
         accept(idxr, "foo where multi_field_options.raw == 'bar'");
         accept(idxr, "foo where multi_field_options.key == 'bar'");
-
         accept(idxr, "foo where multi_field_ambiguous.one == 'bar'");
         accept(idxr, "foo where multi_field_ambiguous.two == 'bar'");
+
         assertEquals("1:11: [multi_field_ambiguous.normalized == 'bar'] cannot operate on first argument field of data type [keyword]: " +
                         "Normalized keyword field cannot be used for exact match operations",
                 error(idxr, "foo where multi_field_ambiguous.normalized == 'bar'"));
-
-        assertEquals("1:11: [multi_field_nested.dep_name == 'bar'] cannot operate on first argument field of data type [text]: " +
-                        "No keyword/multi-field defined exact matches for [dep_name]; define one or use MATCH/QUERY instead",
+        assertEquals("1:11: Cannot use field [multi_field_nested.dep_name] type [text] with unsupported nested type in hierarchy " +
+                        "(field [multi_field_nested])",
                 error(idxr, "foo where multi_field_nested.dep_name == 'bar'"));
-
-        accept(idxr, "foo where multi_field_nested.dep_id.keyword == 'bar'");
-        accept(idxr, "foo where multi_field_nested.end_date == ''");
-        accept(idxr, "foo where multi_field_nested.start_date == 'bar'");
+        assertEquals("1:11: Cannot use field [multi_field_nested.dep_id.keyword] type [keyword] with unsupported nested type in " + 
+                        "hierarchy (field [multi_field_nested])",
+                error(idxr, "foo where multi_field_nested.dep_id.keyword == 'bar'"));
+        assertEquals("1:11: Cannot use field [multi_field_nested.end_date] type [datetime] with unsupported nested type in " + 
+                        "hierarchy (field [multi_field_nested])",
+                error(idxr, "foo where multi_field_nested.end_date == ''"));
+        assertEquals("1:11: Cannot use field [multi_field_nested.start_date] type [datetime] with unsupported nested type in " + 
+                        "hierarchy (field [multi_field_nested])",
+                error(idxr, "foo where multi_field_nested.start_date == 'bar'"));
     }
 
     public void testStringFunctionWithText() {

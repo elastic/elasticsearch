@@ -106,7 +106,7 @@ public class TransformConfigUpdate implements Writeable {
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {  // todo: V_7_8_0
             settings = in.readOptionalWriteable(SettingsConfig::new);
         } else {
-            settings = new SettingsConfig();
+            settings = null;
         }
 
     }

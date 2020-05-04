@@ -15,8 +15,8 @@ import java.io.IOException;
 
 public class EnrichFeatureSetUsage extends XPackFeatureSet.Usage {
 
-    public EnrichFeatureSetUsage(boolean available, boolean enabled) {
-        super(XPackField.ENRICH, available, enabled);
+    public EnrichFeatureSetUsage(boolean available) {
+        super(XPackField.ENRICH, available, true);
     }
 
     public EnrichFeatureSetUsage(StreamInput input) throws IOException {

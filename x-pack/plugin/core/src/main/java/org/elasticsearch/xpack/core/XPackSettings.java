@@ -39,7 +39,10 @@ public class XPackSettings {
 
     /**
      * Setting for controlling whether or not enrich is enabled.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
      */
+    @Deprecated(since = "7.8.0")
     public static final Setting<Boolean> ENRICH_ENABLED_SETTING = Setting.boolSetting("xpack.enrich.enabled", true,
         Property.NodeScope, Property.Deprecated);
 
@@ -48,7 +51,12 @@ public class XPackSettings {
      */
     public static final Setting<Boolean> CCR_ENABLED_SETTING = Setting.boolSetting("xpack.ccr.enabled", true, Property.NodeScope);
 
-    /** Setting for enabling or disabling data frame. Defaults to true. */
+    /**
+     * Setting for enabling or disabling data frame. Defaults to true.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
+     */
+    @Deprecated(since = "7.8.0")
     public static final Setting<Boolean> TRANSFORM_ENABLED = Setting.boolSetting("xpack.transform.enabled", true,
         Property.NodeScope, Property.Deprecated);
 
@@ -74,7 +82,12 @@ public class XPackSettings {
     public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting("xpack.ml.enabled", true,
             Setting.Property.NodeScope);
 
-    /** Setting for enabling or disabling rollup. Defaults to true. */
+    /**
+     * Setting for enabling or disabling rollup. Defaults to true.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
+     */
+    @Deprecated(since = "7.8.0")
     public static final Setting<Boolean> ROLLUP_ENABLED = Setting.boolSetting("xpack.rollup.enabled", true,
         Property.NodeScope, Property.Deprecated);
 
@@ -86,7 +99,12 @@ public class XPackSettings {
     public static final Setting<Boolean> DLS_FLS_ENABLED = Setting.boolSetting("xpack.security.dls_fls.enabled", true,
             Setting.Property.NodeScope);
 
-    /** Setting for enabling or disabling Logstash extensions. Defaults to true. */
+    /**
+     * Setting for enabling or disabling Logstash extensions. Defaults to true.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
+     */
+    @Deprecated(since = "7.8.0")
     public static final Setting<Boolean> LOGSTASH_ENABLED = Setting.boolSetting("xpack.logstash.enabled", true,
             Setting.Property.NodeScope, Property.Deprecated);
 
@@ -101,7 +119,10 @@ public class XPackSettings {
 
     /**
      * Setting for enabling or disabling the snapshot lifecycle extension. Defaults to true.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
      */
+    @Deprecated(since = "7.8.0")
     public static final Setting<Boolean> SNAPSHOT_LIFECYCLE_ENABLED = Setting.boolSetting("xpack.slm.enabled", true,
         Property.NodeScope, Property.Deprecated);
 
@@ -129,15 +150,30 @@ public class XPackSettings {
     public static final Setting<Boolean> FIPS_MODE_ENABLED =
         Setting.boolSetting("xpack.security.fips_mode.enabled", false, Property.NodeScope);
 
-    /** Setting for enabling or disabling sql. Defaults to true. */
+    /**
+     * Setting for enabling or disabling sql. Defaults to true.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
+     */
+    @Deprecated(since = "7.8.0")
     public static final Setting<Boolean> SQL_ENABLED = Setting.boolSetting("xpack.sql.enabled", true,
         Property.NodeScope, Property.Deprecated);
 
-    /** Setting for enabling or disabling flattened fields. Defaults to true. */
+    /**
+     * Setting for enabling or disabling flattened fields. Defaults to true.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
+     */
+    @Deprecated(since = "7.8.0")
     public static final Setting<Boolean> FLATTENED_ENABLED = Setting.boolSetting("xpack.flattened.enabled", true,
         Property.NodeScope, Property.Deprecated);
 
-    /** Setting for enabling or disabling vectors. Defaults to true. */
+    /**
+     * Setting for enabling or disabling vectors. Defaults to true.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
+     */
+    @Deprecated(since = "7.8.0")
     public static final Setting<Boolean> VECTORS_ENABLED = Setting.boolSetting("xpack.vectors.enabled", true,
         Property.NodeScope, Property.Deprecated);
 
@@ -256,6 +292,7 @@ public class XPackSettings {
         settings.add(TRANSFORM_ENABLED);
         settings.add(FLATTENED_ENABLED);
         settings.add(VECTORS_ENABLED);
+        settings.add(ENRICH_ENABLED_SETTING);
         return Collections.unmodifiableList(settings);
     }
 

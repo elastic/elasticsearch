@@ -132,6 +132,7 @@ public class TransformConfigUpdate implements Writeable {
         return description;
     }
 
+    @Nullable
     public SettingsConfig getSettings() {
         return settings;
     }

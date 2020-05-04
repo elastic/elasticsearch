@@ -177,74 +177,71 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                     new ActionListenerResponseHandler<>(listener, Response::fromStreamWithBWC)
                 );
             }
-        } else {
-            // set headers to run transform as calling user
-            Map<String, String> filteredHeaders = threadPool.getThreadContext()
-                .getHeaders()
-                .entrySet()
-                .stream()
-                .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            return;
+        }
+        // set headers to run transform as calling user
+        Map<String, String> filteredHeaders = threadPool.getThreadContext()
+            .getHeaders()
+            .entrySet()
+            .stream()
+            .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-            TransformConfigUpdate update = request.getUpdate();
-            update.setHeaders(filteredHeaders);
+        TransformConfigUpdate update = request.getUpdate();
+        update.setHeaders(filteredHeaders);
 
-            // GET transform and attempt to update
-            // We don't want the update to complete if the config changed between GET and INDEX
-            transformConfigManager.getTransformConfigurationForUpdate(request.getId(), ActionListener.wrap(configAndVersion -> {
-                final TransformConfig config = configAndVersion.v1();
-                // If it is a noop don't bother even writing the doc, save the cycles, just return here.
-                if (update.isNoop(config)) {
-                    listener.onResponse(new Response(config));
-                    return;
-                }
-                TransformConfig updatedConfig = update.apply(config);
+        // GET transform and attempt to update
+        // We don't want the update to complete if the config changed between GET and INDEX
+        transformConfigManager.getTransformConfigurationForUpdate(request.getId(), ActionListener.wrap(configAndVersion -> {
+            final TransformConfig config = configAndVersion.v1();
+            // If it is a noop don't bother even writing the doc, save the cycles, just return here.
+            if (update.isNoop(config)) {
+                listener.onResponse(new Response(config));
+                return;
+            }
+            TransformConfig updatedConfig = update.apply(config);
 
-                final ActionListener<Response> updateListener;
-                if (update.changesSettings(config)) {
-                    PersistentTasksCustomMetadata tasksMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(
-                        clusterState
-                    );
-                    PersistentTasksCustomMetadata.PersistentTask<?> transformTask = tasksMetadata.getTask(request.getId());
+            final ActionListener<Response> updateListener;
+            if (update.changesSettings(config)) {
+                PersistentTasksCustomMetadata tasksMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterState);
+                PersistentTasksCustomMetadata.PersistentTask<?> transformTask = tasksMetadata.getTask(request.getId());
 
-                    // to send a request to apply new settings at runtime, several requirements must be met:
-                    // - transform must be running, meaning a task exists
-                    // - transform is not failed (stopped transforms do not have a task)
-                    // - the node where transform is executed on is at least 7.8.0 in order to understand the request
-                    if (transformTask != null
-                        && transformTask.getState() instanceof TransformState
-                        && ((TransformState) transformTask.getState()).getTaskState() != TransformTaskState.FAILED
-                        && clusterState.nodes().get(transformTask.getExecutorNode()).getVersion().onOrAfter(Version.V_8_0_0) // todo:
-                                                                                                                             // V_7_8_0
-                    ) {
-                        request.setNodes(transformTask.getExecutorNode());
-                        updateListener = ActionListener.wrap(updateResponse -> {
-                            request.setConfig(updateResponse.getConfig());
-                            super.doExecute(task, request, listener);
-                        }, listener::onFailure);
-                    } else {
-                        updateListener = listener;
-                    }
+                // to send a request to apply new settings at runtime, several requirements must be met:
+                // - transform must be running, meaning a task exists
+                // - transform is not failed (stopped transforms do not have a task)
+                // - the node where transform is executed on is at least 7.8.0 in order to understand the request
+                if (transformTask != null
+                    && transformTask.getState() instanceof TransformState
+                    && ((TransformState) transformTask.getState()).getTaskState() != TransformTaskState.FAILED
+                    && clusterState.nodes().get(transformTask.getExecutorNode()).getVersion().onOrAfter(Version.V_8_0_0) // todo:
+                                                                                                                         // V_7_8_0
+                ) {
+                    request.setNodes(transformTask.getExecutorNode());
+                    updateListener = ActionListener.wrap(updateResponse -> {
+                        request.setConfig(updateResponse.getConfig());
+                        super.doExecute(task, request, listener);
+                    }, listener::onFailure);
                 } else {
                     updateListener = listener;
                 }
+            } else {
+                updateListener = listener;
+            }
 
-                sourceDestValidator.validate(
-                    clusterState,
-                    updatedConfig.getSource().getIndex(),
-                    updatedConfig.getDestination().getIndex(),
-                    request.isDeferValidation() ? SourceDestValidations.NON_DEFERABLE_VALIDATIONS : SourceDestValidations.ALL_VALIDATIONS,
-                    ActionListener.wrap(
-                        validationResponse -> {
-                            checkPriviledgesAndUpdateTransform(request, clusterState, updatedConfig, configAndVersion.v2(), updateListener);
-                        },
-                        listener::onFailure
-                    )
-                );
+            sourceDestValidator.validate(
+                clusterState,
+                updatedConfig.getSource().getIndex(),
+                updatedConfig.getDestination().getIndex(),
+                request.isDeferValidation() ? SourceDestValidations.NON_DEFERABLE_VALIDATIONS : SourceDestValidations.ALL_VALIDATIONS,
+                ActionListener.wrap(
+                    validationResponse -> {
+                        checkPriviledgesAndUpdateTransform(request, clusterState, updatedConfig, configAndVersion.v2(), updateListener);
+                    },
+                    listener::onFailure
+                )
+            );
 
-            }, listener::onFailure));
-
-        }
+        }, listener::onFailure));
     }
 
     @Override

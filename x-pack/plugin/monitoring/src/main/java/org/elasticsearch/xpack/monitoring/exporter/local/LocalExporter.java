@@ -682,7 +682,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     }
 
     public static List<Setting.AffixSetting<?>> getSettings() {
-        return List.of(WAIT_MASTER_TIMEOUT_SETTING);
+        return org.elasticsearch.common.collect.List.of(WAIT_MASTER_TIMEOUT_SETTING);
     }
 
 }

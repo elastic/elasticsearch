@@ -146,7 +146,9 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
         return Arrays.asList(
             AnalyticsAggregatorFactory::registerPercentilesAggregator,
             AnalyticsAggregatorFactory::registerPercentileRanksAggregator,
-            AnalyticsAggregatorFactory::registerHistoBackedSumAggregator
+            AnalyticsAggregatorFactory::registerHistoBackedSumAggregator,
+            AnalyticsAggregatorFactory::registerHistoBackedValueCountAggregator,
+            AnalyticsAggregatorFactory::registerHistoBackedAverageAggregator
         );
     }
 

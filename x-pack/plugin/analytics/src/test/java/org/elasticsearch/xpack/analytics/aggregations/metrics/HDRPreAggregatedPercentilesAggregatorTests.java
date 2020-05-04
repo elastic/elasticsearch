@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.analytics.mapper;
+package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
 import org.HdrHistogram.DoubleHistogram;
 import org.HdrHistogram.DoubleHistogramIterationValue;
@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
+import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 
 import java.io.IOException;
 import java.util.Arrays;

@@ -17,14 +17,13 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.InternalSum;
-import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalValueCount;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -40,18 +39,18 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.count;
 
-public class HistoBackedSumAggregatorTests extends AggregatorTestCase {
+public class HistoBackedValueCountAggregatorTests extends AggregatorTestCase {
 
     private static final String FIELD_NAME = "field";
 
     public void testNoDocs() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
             // Intentionally not writing any docs
-        }, sum -> {
-            assertEquals(0L, sum.getValue(), 0d);
-            assertFalse(AggregationInspectionHelper.hasValue(sum));
+        }, count -> {
+            assertEquals(0L, count.getValue(), 0d);
+            assertFalse(AggregationInspectionHelper.hasValue(count));
         });
     }
 
@@ -59,9 +58,9 @@ public class HistoBackedSumAggregatorTests extends AggregatorTestCase {
         testCase(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(getDocValue("wrong_field", new double[] {3, 1.2, 10})));
             iw.addDocument(singleton(getDocValue("wrong_field", new double[] {5.3, 6, 20})));
-        }, sum -> {
-            assertEquals(0L, sum.getValue(), 0d);
-            assertFalse(AggregationInspectionHelper.hasValue(sum));
+        }, count -> {
+            assertEquals(0L, count.getValue());
+            assertFalse(AggregationInspectionHelper.hasValue(count));
         });
     }
 
@@ -70,9 +69,9 @@ public class HistoBackedSumAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {3, 1.2, 10})));
             iw.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {5.3, 6, 6, 20})));
             iw.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {-10, 0.01, 1, 90})));
-        }, sum -> {
-            assertEquals(132.51d, sum.getValue(), 0.01d);
-            assertTrue(AggregationInspectionHelper.hasValue(sum));
+        }, count -> {
+            assertEquals(11, count.getValue());
+            assertTrue(AggregationInspectionHelper.hasValue(count));
         });
     }
 
@@ -98,16 +97,17 @@ public class HistoBackedSumAggregatorTests extends AggregatorTestCase {
                 new StringField("match", "yes", Field.Store.NO),
                 getDocValue(FIELD_NAME, new double[] {-10, 0.01, 1, 90}))
             );
-        }, sum -> {
-            assertEquals(126.51d, sum.getValue(), 0.01d);
-            assertTrue(AggregationInspectionHelper.hasValue(sum));
+        }, count -> {
+            assertEquals(10, count.getValue());
+            assertTrue(AggregationInspectionHelper.hasValue(count));
         });
     }
 
-    private void testCase(Query query,
-                          CheckedConsumer<RandomIndexWriter, IOException> indexer,
-                          Consumer<InternalSum> verify) throws IOException {
-        testCase(sum("_name").field(FIELD_NAME), query, indexer, verify, defaultFieldType(FIELD_NAME));
+    private void testCase(
+        Query query,
+        CheckedConsumer<RandomIndexWriter, IOException> indexer,
+        Consumer<InternalValueCount> verify) throws IOException {
+        testCase(count("_name").field(FIELD_NAME), query, indexer, verify, defaultFieldType(FIELD_NAME));
     }
 
     private BinaryDocValuesField getDocValue(String fieldName, double[] values) throws IOException {
@@ -129,21 +129,24 @@ public class HistoBackedSumAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return Arrays.asList(new AnalyticsPlugin(Settings.EMPTY));
+        return List.of(new AnalyticsPlugin());
     }
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         // Note: this is the same list as Core, plus Analytics
-        return Arrays.asList(
+        return List.of(
             CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.BYTES,
+            CoreValuesSourceType.GEOPOINT,
+            CoreValuesSourceType.RANGE,
             AnalyticsValuesSourceType.HISTOGRAM
         );
     }
 
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
-        return new SumAggregationBuilder("_name").field(fieldName);
+        return new ValueCountAggregationBuilder("_name").field(fieldName);
     }
 
     private MappedFieldType defaultFieldType(String fieldName) {

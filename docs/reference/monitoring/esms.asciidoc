@@ -119,8 +119,6 @@ Add the following setting in the {kib} configuration file (`kibana.yml`):
 xpack.monitoring.kibana.collection.enabled: false
 ----------------------------------
 
-Leave the `xpack.monitoring.enabled` set to its default value (`true`). 
-
 For more information, see 
 {kibana-ref}/monitoring-settings-kb.html[Monitoring settings in {kib}].
 --

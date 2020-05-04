@@ -1532,7 +1532,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(progress.size(), equalTo(4));
         assertThat(progress.get(0), equalTo(new PhaseProgress("reindexing", 0)));
         assertThat(progress.get(1), equalTo(new PhaseProgress("loading_data", 0)));
-        assertThat(progress.get(2), equalTo(new PhaseProgress("analyzing", 0)));
+        assertThat(progress.get(2), equalTo(new PhaseProgress("computing_outliers", 0)));
         assertThat(progress.get(3), equalTo(new PhaseProgress("writing_results", 0)));
         assertThat(stats.getMemoryUsage().getPeakUsageBytes(), equalTo(0L));
         assertThat(stats.getDataCounts(), equalTo(new DataCounts(0, 0, 0)));

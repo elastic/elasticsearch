@@ -39,8 +39,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.search.aggregations.support.AggregationUsageService.OTHER_SUBTYPE;
-
 public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {

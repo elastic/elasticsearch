@@ -142,7 +142,6 @@ To avoid deprecation warnings, discontinue use of the `script.cache.max_size`
 setting. You may use `script.context.$CONTEXT.context_max_size` for the particular context.
 For example, for the `ingest` context, use `script.context.ingest.context_max_size`.
 
-See <<painless-contexts, Painless context>> for more about painless contexts.
 ====
 
 [[deprecate-general-script-expire]]
@@ -159,7 +158,6 @@ To avoid deprecation warnings, discontinue use of the `script.cache.expire`
 setting. You may use `script.context.$CONTEXT.cache_expire` for the particular context.
 For example, for the `update` context, use `script.context.update.context_max_size`.
 
-See <<painless-contexts, Painless context>> for more about painless contexts.
 ====
 
 [[deprecate-general-script-compile-rate]]
@@ -177,7 +175,6 @@ setting. You may use `script.context.$CONTEXT.max_compilations_rate` for the par
 context.  For example, for the `processor_conditional` context, use
 `script.context.processor_conditional.context_max_size`.
 
-See <<painless-contexts, Painless context>> for more about painless contexts.
 ====
 
 //end::notable-breaking-changes[]

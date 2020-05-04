@@ -37,8 +37,9 @@ public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
         = new DeprecationLogger(LogManager.getLogger(NGramTokenFilterFactory.class));
 
     private final int minGram;
-
     private final int maxGram;
+    private final boolean preserveOriginal;
+    private static final String PRESERVE_ORIG_KEY = "preserve_original";
 
     NGramTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
@@ -58,12 +59,12 @@ public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
                     + "expected difference must be less than or equal to: [" + maxAllowedNgramDiff + "]");
             }
         }
+        preserveOriginal = settings.getAsBoolean(PRESERVE_ORIG_KEY, false);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        // TODO: Expose preserveOriginal
-        return new NGramTokenFilter(tokenStream, minGram, maxGram, false);
+        return new NGramTokenFilter(tokenStream, minGram, maxGram, preserveOriginal);
     }
 
     @Override

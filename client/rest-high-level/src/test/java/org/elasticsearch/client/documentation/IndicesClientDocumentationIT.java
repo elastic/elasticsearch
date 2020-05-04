@@ -70,13 +70,16 @@ import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexResponse;
+import org.elasticsearch.client.indices.GetIndexTemplateV2Request;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
+import org.elasticsearch.client.indices.GetIndexTemplatesV2Response;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
 import org.elasticsearch.client.indices.IndexTemplateMetadata;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
+import org.elasticsearch.client.indices.PutIndexTemplateV2Request;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersResponse;
@@ -85,7 +88,10 @@ import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.indices.rollover.RolloverResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateV2;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -109,6 +115,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -2254,6 +2262,67 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // tag::get-templates-execute-async
         client.indices().getIndexTemplateAsync(request, RequestOptions.DEFAULT, listener); // <1>
         // end::get-templates-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testGetIndexTemplatesV2() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            Template template = new Template(Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1).build(),
+                new CompressedXContent("{ \"properties\": { \"message\": { \"type\": \"text\" } } }"),
+                null);
+            PutIndexTemplateV2Request putRequest = new PutIndexTemplateV2Request()
+                .name("my-template")
+                .indexTemplate(
+                    new IndexTemplateV2(List.of("pattern-1", "log-*"), template, null, null, null, null)
+                );
+            assertTrue(client.indices().putIndexTemplate(putRequest, RequestOptions.DEFAULT).isAcknowledged());
+        }
+
+        // tag::get-index-templates-v2-request
+        GetIndexTemplateV2Request request = new GetIndexTemplateV2Request("my-template"); // <1>
+        request = new GetIndexTemplateV2Request("my-*"); // <2>
+        // end::get-index-templates-v2-request
+
+        // tag::get-index-templates-v2-request-masterTimeout
+        request.setMasterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.setMasterNodeTimeout("1m"); // <2>
+        // end::get-templates-request-masterTimeout
+
+        // tag::get-index-templates-v2-execute
+        GetIndexTemplatesV2Response getTemplatesResponse = client.indices().getIndexTemplate(request, RequestOptions.DEFAULT);
+        // end::get-index-templates-v2-execute
+
+        // tag::get-index-templates-v2-response
+        Map<String, IndexTemplateV2> templates = getTemplatesResponse.getIndexTemplates(); // <1>
+        // end::get-index-templates-v2-response
+
+        assertThat(templates.size(), is(1));
+        assertThat(templates.get("my-template"), is(notNullValue()));
+
+        // tag::get-index-templates-v2-execute-listener
+        ActionListener<GetIndexTemplatesV2Response> listener =
+            new ActionListener<GetIndexTemplatesV2Response>() {
+                @Override
+                public void onResponse(GetIndexTemplatesV2Response response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::get-index-templates-v2-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::get-index-templates-v2-execute-async
+        client.indices().getIndexTemplateAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::get-index-templates-v2-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }

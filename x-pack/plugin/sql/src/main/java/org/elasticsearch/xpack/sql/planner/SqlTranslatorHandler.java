@@ -19,17 +19,26 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeF
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistance;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
+import java.time.ZoneId;
+
 public class SqlTranslatorHandler implements TranslatorHandler {
 
     private final boolean onAggs;
+    private final ZoneId zoneId;
 
-    public SqlTranslatorHandler(boolean onAggs) {
+    public SqlTranslatorHandler(boolean onAggs, ZoneId zoneId) {
         this.onAggs = onAggs;
+        this.zoneId = zoneId;
+    }
+
+    @Override
+    public ZoneId zoneId() {
+        return zoneId;
     }
 
     @Override
     public Query asQuery(Expression e) {
-        return QueryTranslator.toQuery(e, onAggs).query;
+        return QueryTranslator.toQuery(e, onAggs, zoneId).query;
     }
 
     @Override

@@ -11,6 +11,8 @@ import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.type.DataType;
 
+import java.time.ZoneId;
+
 /**
  * Parameterized handler used during query translation.
  *
@@ -27,4 +29,6 @@ public interface TranslatorHandler {
     String dateFormat(Expression e);
 
     Object convert(Object value, DataType dataType);
+
+    ZoneId zoneId();
 }

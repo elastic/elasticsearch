@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,7 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.ql.type.DateUtils.UTC;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
 public class QueryContainer {
@@ -77,6 +79,11 @@ public class QueryContainer {
 
     public boolean shouldTrackHits() {
         return trackHits;
+    }
+
+    public ZoneId zoneId() {
+        // FIXME: Pass zoneId to the QueryContainer
+        return UTC;
     }
 
     public QueryContainer with(Query q) {

@@ -31,11 +31,12 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 
 public class QueryContainerTests extends ESTestCase {
-    private Source source = SourceTests.randomSource();
-    private String path = randomAlphaOfLength(5);
-    private String name = randomAlphaOfLength(5);
-    private String format = null;
-    private boolean hasDocValues = randomBoolean();
+
+    private final Source source = SourceTests.randomSource();
+    private final String path = randomAlphaOfLength(5);
+    private final String name = randomAlphaOfLength(5);
+    private final String format = null;
+    private final boolean hasDocValues = randomBoolean();
 
     public void testRewriteToContainNestedFieldNoQuery() {
         Query expected = new NestedQuery(source, path, singletonMap(name, new SimpleImmutableEntry<>(hasDocValues, format)),
@@ -47,12 +48,12 @@ public class QueryContainerTests extends ESTestCase {
         Query original = new BoolQuery(source, true,
             new NestedQuery(source, path, singletonMap(name, new SimpleImmutableEntry<>(hasDocValues, format)),
                     new MatchAll(source)),
-            new RangeQuery(source, randomAlphaOfLength(5), 0, randomBoolean(), 100, randomBoolean()));
+            new RangeQuery(source, randomAlphaOfLength(5), 0, randomBoolean(), 100, randomBoolean(), randomZone()));
         assertSame(original, QueryContainer.rewriteToContainNestedField(original, source, path, name, format, randomBoolean()));
     }
 
     public void testRewriteToContainsNestedFieldWhenCanAddNestedField() {
-        Query buddy = new RangeQuery(source, randomAlphaOfLength(5), 0, randomBoolean(), 100, randomBoolean());
+        Query buddy = new RangeQuery(source, randomAlphaOfLength(5), 0, randomBoolean(), 100, randomBoolean(), randomZone());
         Query original = new BoolQuery(source, true,
             new NestedQuery(source, path, emptyMap(), new MatchAll(source)),
             buddy);
@@ -64,7 +65,7 @@ public class QueryContainerTests extends ESTestCase {
     }
 
     public void testRewriteToContainsNestedFieldWhenDoesNotContainNestedFieldAndCantAdd() {
-        Query original = new RangeQuery(source, randomAlphaOfLength(5), 0, randomBoolean(), 100, randomBoolean());
+        Query original = new RangeQuery(source, randomAlphaOfLength(5), 0, randomBoolean(), 100, randomBoolean(), randomZone());
         Query expected = new BoolQuery(source, true,
             original,
             new NestedQuery(source, path, singletonMap(name, new SimpleImmutableEntry<>(hasDocValues, format)),

@@ -83,11 +83,6 @@ Client libraries using this protocol should try and strive to do
 something similar on the client side, and reduce buffering as much as
 possible.
 
-The response to a bulk action is a large JSON structure with
-the individual results of each action performed,
-in the same order as the actions that appeared in the request.
-The failure of a single action does not affect the remaining actions.
-
 There is no "correct" number of actions to perform in a single bulk request.
 Experiment with different settings to find the optimal size for your particular workload.
 
@@ -200,12 +195,6 @@ participate in the `_bulk` request at all.
 ===== Security
 
 See <<url-access-control>>.
-
-[float]
-[[bulk-partial-responses]]
-===== Partial responses
-To ensure fast responses, the bulk API will respond with partial results if one or more shards fail.
-See <<shard-failures, Shard failures>> for more information.
 
 [[docs-bulk-api-path-params]]
 ==== {api-path-parms-title}

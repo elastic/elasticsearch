@@ -358,11 +358,11 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                    }
                    SearchResponse searchResponse = item.getResponse();
                    if (searchResponse.getHits().getTotalHits().value > 0 || indexNames.get()[i].equals(defaultSharedIndex)) {
-                       ++i;
                        needToRunDBQTemp = true;
                    } else {
-                       indicesToDelete.add(indexNames.get()[i++]);
+                       indicesToDelete.add(indexNames.get()[i]);
                    }
+                   ++i;
                }
                final boolean needToRunDBQ = needToRunDBQTemp;
                if (indicesToDelete.isEmpty()) {
@@ -404,8 +404,8 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                 }
                 MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
                 // It is important that the requests are in the same order as the index names.
-                // This is because responses are ordered according to their request's.
-                for(String indexName : indexNames.get()) {
+                // This is because responses are ordered according to their requests.
+                for (String indexName : indexNames.get()) {
                     SearchSourceBuilder source = new SearchSourceBuilder()
                         .size(0)
                         // if we have just one hit we cannot delete the index

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.OriginSettingClient;
@@ -43,9 +42,7 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -57,7 +54,7 @@ import static org.mockito.Mockito.mock;
  */
 public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
 
-    private long bucketSpan = AnalysisConfig.Builder.DEFAULT_BUCKET_SPAN.getMillis();
+    private static long bucketSpan = AnalysisConfig.Builder.DEFAULT_BUCKET_SPAN.getMillis();
     private static final String UNRELATED_INDEX = "unrelated-data";
 
     private JobResultsProvider jobResultsProvider;
@@ -113,8 +110,7 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
         ensureStableCluster(1);
         String jobIdDedicated = "delete-test-job-dedicated";
 
-        Job.Builder job = createJob(jobIdDedicated, new ByteSizeValue(2, ByteSizeUnit.MB))
-            .setResultsIndexName("delete-test-job-dedicated");
+        Job.Builder job = createJob(jobIdDedicated, new ByteSizeValue(2, ByteSizeUnit.MB)).setResultsIndexName(jobIdDedicated);
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(job)).actionGet();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).actionGet();
         String dedicatedIndex = job.build().getInitialResultsIndexName();
@@ -129,8 +125,8 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
         createBuckets(jobIdShared, 1, 10);
 
         // Manually switching over alias info
-        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();
-        aliasesRequest.addAliasAction(IndicesAliasesRequest.AliasActions
+        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest()
+            .addAliasAction(IndicesAliasesRequest.AliasActions
                 .add()
                 .alias(AnomalyDetectorsIndex.jobResultsAliasedName(jobIdDedicated))
                 .isHidden(true)
@@ -210,21 +206,4 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
         builder.executeRequest();
     }
 
-    protected <T> void blockingCall(Consumer<ActionListener<T>> function, AtomicReference<T> response,
-                                    AtomicReference<Exception> error) throws InterruptedException {
-        CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<T> listener = ActionListener.wrap(
-            r -> {
-                response.set(r);
-                latch.countDown();
-            },
-            e -> {
-                error.set(e);
-                latch.countDown();
-            }
-        );
-
-        function.accept(listener);
-        latch.await();
-    }
 }

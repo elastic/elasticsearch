@@ -689,7 +689,7 @@ public class MlJobIT extends ESRestTestCase {
 
         refreshAllIndices();
 
-        // check that the default shared index still exist but is empty
+        // check that the default shared index still exists but is empty
         String indicesAfterDelete = EntityUtils.toString(client().performRequest(
             new Request("GET", "/_cat/indices/" + AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "*")).getEntity());
         assertThat(indicesAfterDelete, containsString(indexName));

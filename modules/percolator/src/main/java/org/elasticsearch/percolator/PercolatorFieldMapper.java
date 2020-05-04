@@ -25,7 +25,6 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
@@ -460,11 +459,8 @@ public class PercolatorFieldMapper extends FieldMapper {
         } else {
             doc.add(new Field(extractionResultField.name(), EXTRACTION_PARTIAL, extractionResultField.fieldType()));
         }
-        List<IndexableField> fields = new ArrayList<>(1);
+
         createFieldNamesField(context);
-        for (IndexableField field : fields) {
-            context.doc().add(field);
-        }
         doc.add(new NumericDocValuesField(minimumShouldMatchFieldMapper.name(), result.minimumShouldMatch));
     }
 

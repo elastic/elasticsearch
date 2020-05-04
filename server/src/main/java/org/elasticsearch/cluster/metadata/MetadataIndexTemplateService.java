@@ -339,7 +339,7 @@ public class MetadataIndexTemplateService {
         }
 
         Map<String, List<String>> overlaps = findConflictingV2Templates(currentState, name, template.indexPatterns(), true,
-            template.priority());
+            template.priorityOrZero());
         overlaps.remove(name);
         if (overlaps.size() > 0) {
             String error = String.format(Locale.ROOT, "index template [%s] has index patterns %s matching patterns from " +
@@ -351,7 +351,7 @@ public class MetadataIndexTemplateService {
                 overlaps.entrySet().stream()
                     .map(e -> e.getKey() + " => " + e.getValue())
                     .collect(Collectors.joining(",")),
-                template.priority());
+                template.priorityOrZero());
             throw new IllegalArgumentException(error);
         }
 
@@ -435,7 +435,7 @@ public class MetadataIndexTemplateService {
      */
     public static Map<String, List<String>> findConflictingV2Templates(final ClusterState state, final String candidateName,
                                                                        final List<String> indexPatterns) {
-        return findConflictingV2Templates(state, candidateName, indexPatterns, false, null);
+        return findConflictingV2Templates(state, candidateName, indexPatterns, false, 0L);
     }
 
     /**
@@ -449,7 +449,7 @@ public class MetadataIndexTemplateService {
      * index templates with the same priority).
      */
     static Map<String, List<String>> findConflictingV2Templates(final ClusterState state, final String candidateName,
-                                                                final List<String> indexPatterns, boolean checkPriority, Long priority) {
+                                                                final List<String> indexPatterns, boolean checkPriority, long priority) {
         Automaton v1automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
         Map<String, List<String>> overlappingTemplates = new HashMap<>();
         for (Map.Entry<String, IndexTemplateV2> entry : state.metadata().templatesV2().entrySet()) {
@@ -457,7 +457,7 @@ public class MetadataIndexTemplateService {
             IndexTemplateV2 template = entry.getValue();
             Automaton v2automaton = Regex.simpleMatchToAutomaton(template.indexPatterns().toArray(Strings.EMPTY_ARRAY));
             if (Operations.isEmpty(Operations.intersection(v1automaton, v2automaton)) == false) {
-                if (checkPriority == false || Objects.equals(priority, template.priority())) {
+                if (checkPriority == false || priority == template.priorityOrZero()) {
                     logger.debug("old template {} and index template {} would overlap: {} <=> {}",
                         candidateName, name, indexPatterns, template.indexPatterns());
                     overlappingTemplates.put(name, template.indexPatterns());
@@ -733,8 +733,7 @@ public class MetadataIndexTemplateService {
         }
 
         final List<IndexTemplateV2> candidates = new ArrayList<>(matchedTemplates.keySet());
-        CollectionUtil.timSort(candidates, Comparator.comparing(IndexTemplateV2::priority,
-            Comparator.nullsLast(Comparator.reverseOrder())));
+        CollectionUtil.timSort(candidates, Comparator.comparing(IndexTemplateV2::priorityOrZero, Comparator.reverseOrder()));
 
         assert candidates.size() > 0 : "we should have returned early with no candidates";
         IndexTemplateV2 winner = candidates.get(0);

@@ -5,6 +5,7 @@
       "description":"Retrieves anomaly detection job results for one or more buckets."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

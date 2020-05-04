@@ -31,7 +31,15 @@
                 },
                 "stability": {
                     "type": "string",
-                    "enum": ["stable", "beta", "experimental", "private"]
+                    "enum": ["stable", "beta", "experimental"]
+                },
+                "visibility": {
+                    "type": "string",
+                    "enum": ["private", "feature_flag", "public"]
+                },
+                "feature_flag": {
+                    "type": "string",
+                    "title": "If visibility of the API is set to `feature_flag` this documents the feature_flag to use"
                 },
                 "headers": {
                   "$ref": "#/definitions/Headers"
@@ -80,6 +88,7 @@
             "required": [
                 "documentation",
                 "stability",
+                "visibility",
                 "headers",
                 "url"
             ],

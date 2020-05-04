@@ -5,6 +5,7 @@
       "description":"Deletes an autoscaling policy."
     },
     "stability":"experimental",
+    "visibility":"feature_flag",
     "headers":{
       "accept": [ "application/json"]
     },

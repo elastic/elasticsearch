@@ -473,7 +473,6 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 threadPool);
 
             AtomicBoolean onFailureCalled = new AtomicBoolean(false);
-            AtomicReference<Exception> errHandlerCalled = new AtomicReference<>(null);
             task.deleteSnapshot("policy", "foo", new SnapshotId("name", "uuid"),
                 new SnapshotLifecycleStats(0, 0, 0, 0, new HashMap<>()), new ActionListener<AcknowledgedResponse>() {
                     @Override

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.elasticsearch.common.collect.Tuple;
 
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.JDBCType;
 import java.sql.ParameterMetaData;
@@ -16,16 +17,12 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.SQLSyntaxErrorException;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
 
     public void testSupportedTypes() throws Exception {
-        index("library", builder -> {
-            builder.field("name", "Don Quixote");
-            builder.field("page_count", 1072);
-        });
-
         String stringVal = randomAlphaOfLength(randomIntBetween(0, 1000));
         int intVal = randomInt();
         long longVal = randomLong();
@@ -34,10 +31,11 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
         boolean booleanVal = randomBoolean();
         byte byteVal = randomByte();
         short shortVal = randomShort();
+        BigDecimal bigDecimalVal = BigDecimal.valueOf(randomDouble());
 
         try (Connection connection = esJdbc()) {
             try (PreparedStatement statement = connection.prepareStatement(
-                    "SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, name FROM library WHERE page_count=?")) {
+                    "SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?")) {
                 statement.setString(1, stringVal);
                 statement.setInt(2, intVal);
                 statement.setLong(3, longVal);
@@ -47,7 +45,7 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
                 statement.setBoolean(7, booleanVal);
                 statement.setByte(8, byteVal);
                 statement.setShort(9, shortVal);
-                statement.setInt(10, 1072);
+                statement.setBigDecimal(10, bigDecimalVal);
 
                 try (ResultSet results = statement.executeQuery()) {
                     ResultSetMetaData resultSetMetaData = results.getMetaData();
@@ -67,9 +65,19 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
                     assertEquals(booleanVal, results.getBoolean(7));
                     assertEquals(byteVal, results.getByte(8));
                     assertEquals(shortVal, results.getShort(9));
-                    assertEquals("Don Quixote", results.getString(10));
+                    assertEquals(bigDecimalVal, results.getBigDecimal(10));
                     assertFalse(results.next());
                 }
+            }
+        }
+    }
+
+    public void testOutOfRangeBigDecimal() throws Exception {
+        try (Connection connection = esJdbc()) {
+            try (PreparedStatement statement = connection.prepareStatement("SELECT ?")) {
+                BigDecimal tooLarge = BigDecimal.valueOf(Double.MAX_VALUE).add(BigDecimal.ONE);
+                SQLException ex = expectThrows(SQLException.class, () -> statement.setBigDecimal(1, tooLarge));
+                assertThat(ex.getMessage(), equalTo("BigDecimal value [" + tooLarge + "] out of supported double's range."));
             }
         }
     }

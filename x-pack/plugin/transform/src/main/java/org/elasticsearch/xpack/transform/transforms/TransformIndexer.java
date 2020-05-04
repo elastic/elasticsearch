@@ -51,6 +51,7 @@ import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -99,6 +100,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private final Map<String, String> fieldMappings;
 
     private Pivot pivot;
+    private volatile Integer initialConfiguredPageSize;
     private volatile int pageSize = 0;
     private long logEvery = 1;
     private long logCount = 0;
@@ -240,14 +242,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
                 // if we haven't set the page size yet, if it is set we might have reduced it after running into an out of memory
                 if (pageSize == 0) {
-                    Integer initialConfiguredPageSize = getConfig().getSettings().getMaxPageSearchSize();
-
-                    // if the user explicitly set a page size, take it from the config, otherwise let the function decide
-                    if (initialConfiguredPageSize != null && initialConfiguredPageSize > 0) {
-                        pageSize = initialConfiguredPageSize;
-                    } else {
-                        pageSize = pivot.getInitialPageSize();
-                    }
+                    configurePageSize(getConfig().getSettings().getMaxPageSearchSize());
                 }
 
                 runState = determineRunStateAtStart();
@@ -468,10 +463,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         logger.info("[{}] transform settings have been updated.", transformConfig.getId());
 
         docsPerSecond = newSettings.getDocsPerSecond() != null ? newSettings.getDocsPerSecond() : -1;
-        if (newSettings.getMaxPageSearchSize() != null) {
-            pageSize = newSettings.getMaxPageSearchSize();
+        if (Objects.equals(newSettings.getMaxPageSearchSize(), initialConfiguredPageSize) == false) {
+            configurePageSize(newSettings.getMaxPageSearchSize());
         }
-
         rethrottle();
     }
 
@@ -918,6 +912,17 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         // continuous mode: we need to get the changed buckets first
         return RunState.IDENTIFY_CHANGES;
+    }
+
+    private void configurePageSize(Integer newPageSize) {
+        initialConfiguredPageSize = newPageSize;
+
+        // if the user explicitly set a page size, take it from the config, otherwise let the function decide
+        if (initialConfiguredPageSize != null && initialConfiguredPageSize > 0) {
+            pageSize = initialConfiguredPageSize;
+        } else {
+            pageSize = pivot.getInitialPageSize();
+        }
     }
 
     /**

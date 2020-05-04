@@ -7,12 +7,10 @@ package org.elasticsearch.xpack.logstash;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.logstash.LogstashFeatureSetUsage;
 
 import static org.mockito.Mockito.mock;
@@ -24,7 +22,7 @@ public class LogstashFeatureSetTests extends ESTestCase {
     public void testEnabledSetting() throws Exception {
         boolean enabled = randomBoolean();
         Settings settings = Settings.builder().put("path.home", createTempDir()).put("xpack.logstash.enabled", enabled).build();
-        LogstashFeatureSet featureSet = new LogstashFeatureSet(settings, null);
+        LogstashFeatureSet featureSet = new LogstashFeatureSet(null);
         assertThat(featureSet.enabled(), is(enabled));
 
         PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
@@ -34,20 +32,18 @@ public class LogstashFeatureSetTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         usage.writeTo(out);
         XPackFeatureSet.Usage serializedUsage = new LogstashFeatureSetUsage(out.bytes().streamInput());
-        assertThat(serializedUsage.enabled(), is(enabled));
-
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.LOGSTASH_ENABLED });
+        assertThat(serializedUsage.enabled(), is(true));
     }
 
     public void testEnabledDefault() throws Exception {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        LogstashFeatureSet featureSet = new LogstashFeatureSet(settings, null);
+        LogstashFeatureSet featureSet = new LogstashFeatureSet(null);
         assertThat(featureSet.enabled(), is(true));
     }
 
     public void testAvailable() throws Exception {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        LogstashFeatureSet featureSet = new LogstashFeatureSet(Settings.EMPTY, licenseState);
+        LogstashFeatureSet featureSet = new LogstashFeatureSet(licenseState);
         boolean available = randomBoolean();
         when(licenseState.isAllowed(XPackLicenseState.Feature.LOGSTASH)).thenReturn(available);
         assertThat(featureSet.available(), is(available));

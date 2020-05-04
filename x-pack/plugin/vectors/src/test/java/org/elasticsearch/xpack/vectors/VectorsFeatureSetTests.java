@@ -13,12 +13,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.vectors.VectorsFeatureSetUsage;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -38,7 +35,7 @@ public class VectorsFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() throws Exception {
-        VectorsFeatureSet featureSet = new VectorsFeatureSet(Settings.EMPTY, licenseState, clusterService);
+        VectorsFeatureSet featureSet = new VectorsFeatureSet(licenseState, clusterService);
         boolean available = randomBoolean();
         when(licenseState.isAllowed(XPackLicenseState.Feature.VECTORS)).thenReturn(available);
         assertEquals(available, featureSet.available());
@@ -52,35 +49,6 @@ public class VectorsFeatureSetTests extends ESTestCase {
         usage.writeTo(out);
         XPackFeatureSet.Usage serializedUsage = new VectorsFeatureSetUsage(out.bytes().streamInput());
         assertEquals(available, serializedUsage.available());
-    }
-
-    public void testEnabled() throws Exception {
-        boolean enabled = randomBoolean();
-        Settings.Builder settings = Settings.builder();
-        boolean isExplicitlySet = false;
-        if (enabled) {
-            if (randomBoolean()) {
-                settings.put("xpack.vectors.enabled", enabled);
-                isExplicitlySet = true;
-            }
-        } else {
-            settings.put("xpack.vectors.enabled", enabled);
-            isExplicitlySet = true;
-        }
-        VectorsFeatureSet featureSet = new VectorsFeatureSet(settings.build(), licenseState, clusterService);
-        assertEquals(enabled, featureSet.enabled());
-        PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
-        featureSet.usage(future);
-        XPackFeatureSet.Usage usage = future.get();
-        assertEquals(enabled, usage.enabled());
-
-        BytesStreamOutput out = new BytesStreamOutput();
-        usage.writeTo(out);
-        XPackFeatureSet.Usage serializedUsage = new VectorsFeatureSetUsage(out.bytes().streamInput());
-        assertEquals(enabled, serializedUsage.enabled());
-        if (isExplicitlySet) {
-            assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.VECTORS_ENABLED } );
-        }
     }
 
     public void testUsageStats() throws Exception {
@@ -103,7 +71,7 @@ public class VectorsFeatureSetTests extends ESTestCase {
         when(licenseState.isAllowed(XPackLicenseState.Feature.VECTORS)).thenReturn(true);
 
         PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
-        VectorsFeatureSet vectorsFeatureSet = new VectorsFeatureSet(Settings.EMPTY, licenseState, clusterService);
+        VectorsFeatureSet vectorsFeatureSet = new VectorsFeatureSet(licenseState, clusterService);
         vectorsFeatureSet.usage(future);
         VectorsFeatureSetUsage vectorUsage = (VectorsFeatureSetUsage) future.get();
         assertEquals(true, vectorUsage.enabled());

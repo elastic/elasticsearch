@@ -47,7 +47,6 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.TransformNamedXContentProvider;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
@@ -128,7 +127,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     private static final Logger logger = LogManager.getLogger(Transform.class);
 
-    private final boolean enabled;
     private final Settings settings;
     private final boolean transportClientMode;
     private final SetOnce<TransformServices> transformServices = new SetOnce<>();
@@ -152,12 +150,11 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     public static final String TRANSFORM_ENABLED_NODE_ATTR = "transform.node";
 
     /**
-     * Setting whether transform (the coordinator task) can run on this node and REST API's are available,
-     * respects xpack.transform.enabled (for the whole plugin) as fallback
+     * Setting whether transform (the coordinator task) can run on this node.
      */
     public static final Setting<Boolean> TRANSFORM_ENABLED_NODE = Setting.boolSetting(
         "node.transform",
-        settings -> Boolean.toString(XPackSettings.TRANSFORM_ENABLED.get(settings) && DiscoveryNode.isDataNode(settings)),
+        settings -> Boolean.toString(DiscoveryNode.isDataNode(settings)),
         Property.NodeScope
     );
 
@@ -172,7 +169,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     public Transform(Settings settings) {
         this.settings = settings;
-        this.enabled = XPackSettings.TRANSFORM_ENABLED.get(settings);
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
     }
 
@@ -203,10 +199,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         final Supplier<DiscoveryNodes> nodesInCluster
     ) {
 
-        if (!enabled) {
-            return emptyList();
-        }
-
         return Arrays.asList(
             new RestPutTransformAction(),
             new RestStartTransformAction(),
@@ -232,10 +224,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        if (!enabled) {
-            return emptyList();
-        }
-
         return Arrays.asList(
             new ActionHandler<>(PutTransformAction.INSTANCE, TransportPutTransformAction.class),
             new ActionHandler<>(StartTransformAction.INSTANCE, TransportStartTransformAction.class),
@@ -260,7 +248,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (false == enabled || transportClientMode) {
+        if (transportClientMode) {
             return emptyList();
         }
 
@@ -289,7 +277,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        if (enabled == false || transportClientMode) {
+        if (transportClientMode) {
             return emptyList();
         }
 
@@ -339,7 +327,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         SettingsModule settingsModule,
         IndexNameExpressionResolver expressionResolver
     ) {
-        if (enabled == false || transportClientMode) {
+        if (transportClientMode) {
             return emptyList();
         }
 
@@ -371,10 +359,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             throw new IllegalArgumentException(
                 "Directly setting transform node attributes is not permitted, please use the documented node settings instead"
             );
-        }
-
-        if (enabled == false) {
-            return Settings.EMPTY;
         }
 
         Settings.Builder additionalSettings = Settings.builder();

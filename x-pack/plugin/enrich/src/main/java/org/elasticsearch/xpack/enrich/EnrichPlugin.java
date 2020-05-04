@@ -67,8 +67,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
-import static org.elasticsearch.xpack.core.XPackSettings.ENRICH_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.ENRICH_INDEX_PATTERN;
 
 public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlugin {
@@ -126,21 +124,15 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     }, val -> Setting.parseInt(val, 1, Integer.MAX_VALUE, QUEUE_CAPACITY_SETTING_NAME), Setting.Property.NodeScope);
 
     private final Settings settings;
-    private final Boolean enabled;
     private final boolean transportClientMode;
 
     public EnrichPlugin(final Settings settings) {
         this.settings = settings;
-        this.enabled = ENRICH_ENABLED_SETTING.get(settings);
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
     }
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        if (enabled == false) {
-            return emptyMap();
-        }
-
         EnrichProcessorFactory factory = new EnrichProcessorFactory(parameters.client, parameters.scriptService);
         parameters.ingestService.addIngestClusterStateListener(factory);
         return Collections.singletonMap(EnrichProcessorFactory.TYPE, factory);
@@ -151,10 +143,6 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     }
 
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        if (enabled == false) {
-            return emptyList();
-        }
-
         return Arrays.asList(
             new ActionHandler<>(GetEnrichPolicyAction.INSTANCE, TransportGetEnrichPolicyAction.class),
             new ActionHandler<>(DeleteEnrichPolicyAction.INSTANCE, TransportDeleteEnrichPolicyAction.class),
@@ -176,10 +164,6 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        if (enabled == false) {
-            return emptyList();
-        }
-
         return Arrays.asList(
             new RestGetEnrichPolicyAction(),
             new RestDeleteEnrichPolicyAction(),
@@ -203,7 +187,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        if (enabled == false || transportClientMode) {
+        if (transportClientMode) {
             return emptyList();
         }
 
@@ -253,7 +237,6 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
-            ENRICH_ENABLED_SETTING,
             ENRICH_FETCH_SIZE_SETTING,
             ENRICH_MAX_CONCURRENT_POLICY_EXECUTIONS,
             ENRICH_CLEANUP_PERIOD,

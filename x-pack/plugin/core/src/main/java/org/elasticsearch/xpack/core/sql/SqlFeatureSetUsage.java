@@ -25,8 +25,8 @@ public class SqlFeatureSetUsage extends XPackFeatureSet.Usage {
         stats = in.readMap();
     }
 
-    public SqlFeatureSetUsage(boolean available, boolean enabled, Map<String, Object> stats) {
-        super(XPackField.SQL, available, enabled);
+    public SqlFeatureSetUsage(boolean available, Map<String, Object> stats) {
+        super(XPackField.SQL, available, true);
         this.stats = stats;
     }
 

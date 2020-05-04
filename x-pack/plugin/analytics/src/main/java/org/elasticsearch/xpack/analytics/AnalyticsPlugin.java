@@ -52,7 +52,6 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -86,7 +85,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public List<AggregationSpec> getAggregations() {
-        return Arrays.asList(
+        return org.elasticsearch.common.collect.List.of(
             new AggregationSpec(
                 StringStatsAggregationBuilder.NAME,
                 StringStatsAggregationBuilder::new,
@@ -143,10 +142,12 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
-        return Arrays.asList(
+        return org.elasticsearch.common.collect.List.of(
             AnalyticsAggregatorFactory::registerPercentilesAggregator,
             AnalyticsAggregatorFactory::registerPercentileRanksAggregator,
-            AnalyticsAggregatorFactory::registerHistoBackedSumAggregator
+            AnalyticsAggregatorFactory::registerHistoBackedSumAggregator,
+            AnalyticsAggregatorFactory::registerHistoBackedValueCountAggregator,
+            AnalyticsAggregatorFactory::registerHistoBackedAverageAggregator
         );
     }
 
@@ -160,7 +161,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return Arrays.asList(
+        return org.elasticsearch.common.collect.List.of(
             new NamedWriteableRegistry.Entry(TTestState.class, PairedTTestState.NAME, PairedTTestState::new),
             new NamedWriteableRegistry.Entry(TTestState.class, UnpairedTTestState.NAME, UnpairedTTestState::new)
         );

@@ -10,6 +10,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -18,7 +19,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
-import org.elasticsearch.search.aggregations.metrics.InternalSum;
+import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSource;
@@ -27,27 +28,28 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * Sum aggregator operating over histogram datatypes {@link HistogramValuesSource}
- *
- * The aggregator sums each histogram value multiplied by its count.
- * Eg for a histogram of response times, this is an approximate "total time spent".
+ * Average aggregator operating over histogram datatypes {@link HistogramValuesSource}
+ * The aggregation computes weighted average by taking counts into consideration for each value
  */
-class HistoBackedSumAggregator extends NumericMetricsAggregator.SingleValue {
+class HistoBackedAvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final HistogramValuesSource.Histogram valuesSource;
-    private final DocValueFormat format;
 
-    private DoubleArray sums;
-    private DoubleArray compensations;
+    LongArray counts;
+    DoubleArray sums;
+    DoubleArray compensations;
+    DocValueFormat format;
 
-    HistoBackedSumAggregator(String name, HistogramValuesSource.Histogram valuesSource, DocValueFormat formatter, SearchContext context,
+    HistoBackedAvgAggregator(String name, HistogramValuesSource.Histogram valuesSource, DocValueFormat formatter, SearchContext context,
             Aggregator parent, Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
         this.valuesSource = valuesSource;
         this.format = formatter;
         if (valuesSource != null) {
-            sums = context.bigArrays().newDoubleArray(1, true);
-            compensations = context.bigArrays().newDoubleArray(1, true);
+            final BigArrays bigArrays = context.bigArrays();
+            counts = bigArrays.newLongArray(1, true);
+            sums = bigArrays.newDoubleArray(1, true);
+            compensations = bigArrays.newDoubleArray(1, true);
         }
     }
 
@@ -64,26 +66,30 @@ class HistoBackedSumAggregator extends NumericMetricsAggregator.SingleValue {
         }
         final BigArrays bigArrays = context.bigArrays();
         final HistogramValues values = valuesSource.getHistogramValues(ctx);
-
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
+                counts = bigArrays.grow(counts, bucket + 1);
                 sums = bigArrays.grow(sums, bucket + 1);
                 compensations = bigArrays.grow(compensations, bucket + 1);
 
                 if (values.advanceExact(doc)) {
                     final HistogramValue sketch = values.histogram();
+
+                    // Compute the sum of double values with Kahan summation algorithm which is more accurate than naive summation
                     final double sum = sums.get(bucket);
                     final double compensation = compensations.get(bucket);
                     kahanSummation.reset(sum, compensation);
                     while (sketch.next()) {
                         double d = sketch.value() * sketch.count();
                         kahanSummation.add(d);
+                        counts.increment(bucket, sketch.count());
                     }
 
-                    compensations.set(bucket, kahanSummation.delta());
                     sums.set(bucket, kahanSummation.value());
+                    compensations.set(bucket, kahanSummation.delta());
                 }
             }
         };
@@ -92,9 +98,9 @@ class HistoBackedSumAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public double metric(long owningBucketOrd) {
         if (valuesSource == null || owningBucketOrd >= sums.size()) {
-            return 0.0;
+            return Double.NaN;
         }
-        return sums.get(owningBucketOrd);
+        return sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
     }
 
     @Override
@@ -102,16 +108,17 @@ class HistoBackedSumAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null || bucket >= sums.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalSum(name, sums.get(bucket), format, metadata());
+        return new InternalAvg(name, sums.get(bucket), counts.get(bucket), format, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalSum(name, 0.0, format, metadata());
+        return new InternalAvg(name, 0.0, 0L, format, metadata());
     }
 
     @Override
     public void doClose() {
-        Releasables.close(sums, compensations);
+        Releasables.close(counts, sums, compensations);
     }
+
 }

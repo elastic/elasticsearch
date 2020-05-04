@@ -243,6 +243,7 @@ public class InferenceProcessor extends AbstractProcessor {
             if (FOREACH_PROCESSOR_NAME.equals(processorType)) {
                 Map<String, Object> innerProcessor = (Map<String, Object>)processorDefinition.get("processor");
                 if (innerProcessor != null) {
+                    // a foreach processor should only have a SINGLE nested processor. Iteration is for simplicity's sake.
                     for (Map.Entry<String, Object> innerProcessorWithName : innerProcessor.entrySet()) {
                         count += numInferenceProcessors(innerProcessorWithName.getKey(),
                             (Map<String, Object>) innerProcessorWithName.getValue(),

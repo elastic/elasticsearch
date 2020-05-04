@@ -78,6 +78,7 @@ import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
 import org.elasticsearch.client.indices.IndexTemplateMetadata;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
+import org.elasticsearch.client.indices.PutComponentTemplateRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateV2Request;
 import org.elasticsearch.client.indices.PutMappingRequest;
@@ -88,6 +89,7 @@ import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.indices.rollover.RolloverResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.IndexTemplateV2;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Template;
@@ -2325,6 +2327,151 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::get-index-templates-v2-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testPutIndexTemplateV2() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::put-index-template-v2-request
+            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+                .name("my-template"); // <1>
+            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), null, null, null, null, null); // <2>
+            request.indexTemplate(indexTemplateV2);
+            assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+            // end::put-index-template-v2-request
+        }
+
+        {
+            // tag::put-index-template-v2-request-settings
+            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+                .name("my-template");
+            Settings settings = Settings.builder() // <1>
+                .put("index.number_of_shards", 3)
+                .put("index.number_of_replicas", 1)
+                .build();
+            Template template = new Template(settings, null, null); // <2>
+            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), template, null, null, null, null); // <3>
+            request.indexTemplate(indexTemplateV2);
+
+            assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+            // end::put-index-template-v2-request-settings
+        }
+
+        {
+            // tag::put-index-template-v2-request-mappings-json
+            String mappingJson = "{\n" +
+                "  \"properties\": {\n" +
+                "    \"message\": {\n" +
+                "      \"type\": \"text\"\n" +
+                "    }\n" +
+                "  }\n" +
+                "}"; // <1>
+            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+                .name("my-template");
+            Template template = new Template(null, new CompressedXContent(mappingJson), null); // <2>
+            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), template, null, null, null, null); // <3>
+            request.indexTemplate(indexTemplateV2);
+
+            assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+            // end::put-template-request-mappings-json
+        }
+
+        {
+            // tag::put-index-template-v2-request-aliases
+            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+                .name("my-template");
+            AliasMetadata twitterAlias = AliasMetadata.builder("twitter_alias").build(); // <1>
+            AliasMetadata placeholderAlias = AliasMetadata.builder("{index}_alias").searchRouting("xyz").build(); // <2>
+            Template template = new Template(null, null, Map.of("twitter_alias", twitterAlias, "{index}_alias", placeholderAlias)); // <3>
+            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), template, null, null, null, null); // <3>
+            request.indexTemplate(indexTemplateV2);
+
+            assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+            // end::put-index-template-v2-request-aliases
+        }
+
+        {
+            Template template = new Template(Settings.builder().put("index.number_of_replicas", 3).build(), null, null);
+            ComponentTemplate componentTemplate = new ComponentTemplate(template, null, null);
+            client.cluster().putComponentTemplate(new PutComponentTemplateRequest().name("ct1").componentTemplate(componentTemplate),
+                RequestOptions.DEFAULT);
+
+            // tag::put-index-template-v2-request-component-template
+            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+                .name("my-template");
+            IndexTemplateV2 indexTemplateV2 =
+                new IndexTemplateV2(List.of("pattern-1", "log-*"), null, List.of("ct1"), null,  null, null); // <1>
+            request.indexTemplate(indexTemplateV2);
+
+            assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+            // end::put-index-template-v2-request-component-template
+        }
+
+        {
+            // tag::put-index-template-v2-request-priority
+            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+                .name("my-template");
+            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), null, null, 20L, null, null); // <1>
+            request.indexTemplate(indexTemplateV2);
+
+            assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+            // end::put-index-template-v2-request-priority
+        }
+
+        {
+            // tag::put-index-template-v2-request-version
+            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+                .name("my-template");
+            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), null, null, null, 3L, null); // <1>
+            request.indexTemplate(indexTemplateV2);
+
+            assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+            // end::put-index-template-v2-request-version
+
+            // tag::put-index-template-v2-request-create
+            request.create(true);  // <1>
+            // end::put-index-template-v2-request-create
+
+            // tag::put-index-template-v2-request-masterTimeout
+            request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            // end::put-index-template-v2-request-masterTimeout
+
+            request.create(false); // make test happy
+
+            // tag::put-index-template-v2-execute
+            AcknowledgedResponse putTemplateResponse = client.indices().putIndexTemplate(request, RequestOptions.DEFAULT);
+            // end::put-index-template-v2-execute
+
+            // tag::put-index-template-v2-response
+            boolean acknowledged = putTemplateResponse.isAcknowledged(); // <1>
+            // end::put-index-template-v2-response
+            assertTrue(acknowledged);
+
+            // tag::put-index-template-v2-execute-listener
+            ActionListener<AcknowledgedResponse> listener =
+                new ActionListener<AcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse putIndexTemplateResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::put-index-template-v2-execute-listener
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::put-index-template-v2-execute-async
+            client.indices().putIndexTemplateAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::put-index-template-v2-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
     }
 
     public void testTemplatesExist() throws Exception {

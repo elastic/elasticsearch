@@ -116,7 +116,11 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     private LogicalPlan plan(String sql) {
-        return analyzer.analyze(parser.createStatement(sql), true);
+        return plan(sql, UTC);
+    }
+
+    private LogicalPlan plan(String sql, ZoneId zoneId) {
+        return analyzer.analyze(parser.createStatement(sql, zoneId), true);
     }
 
     private PhysicalPlan optimizeAndPlan(String sql) {
@@ -124,15 +128,11 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     private QueryTranslation translate(Expression condition) {
-        return translate(condition, randomZone());
-    }
-
-    private QueryTranslation translate(Expression condition, ZoneId zoneId) {
-        return QueryTranslator.toQuery(condition, false, zoneId);
+        return QueryTranslator.toQuery(condition, false);
     }
 
     private QueryTranslation translateWithAggs(Expression condition) {
-        return QueryTranslator.toQuery(condition, true, randomZone());
+        return QueryTranslator.toQuery(condition, true);
     }
 
     public void testTermEqualityAnalyzer() {
@@ -206,13 +206,13 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testTermEqualityForDateWithLiteralDate() {
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE date = CAST('2019-08-08T12:34:56' AS DATETIME)");
+        ZoneId zoneId = randomZone();
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date = CAST('2019-08-08T12:34:56' AS DATETIME)", zoneId);
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        ZoneId zoneId = randomZone();
-        QueryTranslation translation = translate(condition, zoneId);
+        QueryTranslation translation = translate(condition);
         Query query = translation.query;
         assertTrue(query instanceof RangeQuery);
         RangeQuery rq = (RangeQuery) query;
@@ -226,13 +226,13 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testTermEqualityForDateWithLiteralTime() {
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE date = CAST('12:34:56' AS TIME)");
+        ZoneId zoneId = randomZone();
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date = CAST('12:34:56' AS TIME)", zoneId);
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        ZoneId zoneId = randomZone();
-        QueryTranslation translation = translate(condition, zoneId);
+        QueryTranslation translation = translate(condition);
         Query query = translation.query;
         assertTrue(query instanceof RangeQuery);
         RangeQuery rq = (RangeQuery) query;
@@ -256,13 +256,13 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testDateRange() {
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE date > 1969-05-13");
+        ZoneId zoneId = randomZone();
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date > 1969-05-13", zoneId);
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        ZoneId zoneId = randomZone();
-        QueryTranslation translation = translate(condition, zoneId);
+        QueryTranslation translation = translate(condition);
         Query query = translation.query;
         assertTrue(query instanceof RangeQuery);
         RangeQuery rq = (RangeQuery) query;
@@ -272,13 +272,13 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testDateRangeLiteral() {
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE date > '1969-05-13'");
+        ZoneId zoneId = randomZone();
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date > '1969-05-13'", zoneId);
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        ZoneId zoneId = randomZone();
-        QueryTranslation translation = translate(condition, zoneId);
+        QueryTranslation translation = translate(condition);
         Query query = translation.query;
         assertTrue(query instanceof RangeQuery);
         RangeQuery rq = (RangeQuery) query;
@@ -288,13 +288,13 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testDateRangeCast() {
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE date > CAST('1969-05-13T12:34:56Z' AS DATETIME)");
+        ZoneId zoneId = randomZone();
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date > CAST('1969-05-13T12:34:56Z' AS DATETIME)", zoneId);
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        ZoneId zoneId = randomZone();
-        QueryTranslation translation = translate(condition, zoneId);
+        QueryTranslation translation = translate(condition);
         Query query = translation.query;
         assertTrue(query instanceof RangeQuery);
         RangeQuery rq = (RangeQuery) query;
@@ -339,14 +339,14 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     private void testDateRangeWithCurrentFunctions(String function, String pattern, ZonedDateTime now) {
+        ZoneId zoneId = randomZone();
         String operator = randomFrom(">", ">=", "<", "<=", "=", "!=");
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE date" + operator + function);
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date" + operator + function, zoneId);
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        ZoneId zoneId = randomZone();
-        QueryTranslation translation = translate(condition, zoneId);
+        QueryTranslation translation = translate(condition);
         Query query = translation.query;
         RangeQuery rq;
 
@@ -410,15 +410,15 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testDateRangeWithESDateMath() {
+        ZoneId zoneId = randomZone();
         String operator = randomFrom(">", ">=", "<", "<=", "=", "!=");
         String dateMath = randomFrom("now", "now/d", "now/h", "now-2h", "now+2h", "now-5d", "now+5d");
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE date" + operator + "'" + dateMath + "'");
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date" + operator + "'" + dateMath + "'", zoneId);
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        ZoneId zoneId = randomZone();
-        QueryTranslation translation = translate(condition, zoneId);
+        QueryTranslation translation = translate(condition);
         Query query = translation.query;
 
         if ("=".equals(operator) || "!=".equals(operator)) {
@@ -749,7 +749,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, true, randomZone());
+        QueryTranslation translation = translateWithAggs(condition);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
         assertEquals(
@@ -1950,7 +1950,7 @@ public class QueryTranslatorTests extends ESTestCase {
 
                 Expression condition = ((Filter) p).condition();
                 assertFalse(condition.foldable());
-                QueryTranslation translation = QueryTranslator.toQuery(condition, true, randomZone());
+                QueryTranslation translation = translateWithAggs(condition);
                 assertNull(translation.query);
                 AggFilter aggFilter = translation.aggFilter;
                 assertEquals(

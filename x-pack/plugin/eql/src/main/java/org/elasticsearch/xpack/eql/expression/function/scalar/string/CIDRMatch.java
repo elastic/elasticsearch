@@ -25,6 +25,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isIPAndExact;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.ql.util.DateUtils.UTC;
 
 /**
  * EQL specific cidrMatch function
@@ -105,7 +106,7 @@ public class CIDRMatch extends BaseSurrogateFunction {
         ScalarFunction func = null;
 
         for (Expression address : addresses) {
-            final Equals eq = new Equals(source(), field, address);
+            final Equals eq = new Equals(source(), field, address, UTC);
             func = (func == null) ? eq : new Or(source(), func, eq);
         }
 

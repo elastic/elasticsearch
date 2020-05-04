@@ -52,6 +52,12 @@ import static java.util.Collections.emptyList;
 
 public class ExpressionBuilder extends IdentifierBuilder {
 
+    protected final ParserParams params;
+
+    public ExpressionBuilder(ParserParams params) {
+        this.params = params;
+    }
+
     protected Expression expression(ParseTree ctx) {
         return typedParsing(ctx, Expression.class);
     }
@@ -118,17 +124,17 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
         switch (op.getSymbol().getType()) {
             case EqlBaseParser.EQ:
-                return new Equals(source, left, right);
+                return new Equals(source, left, right, params.zoneId());
             case EqlBaseParser.NEQ:
-                return new NotEquals(source, left, right);
+                return new NotEquals(source, left, right, params.zoneId());
             case EqlBaseParser.LT:
-                return new LessThan(source, left, right);
+                return new LessThan(source, left, right, params.zoneId());
             case EqlBaseParser.LTE:
-                return new LessThanOrEqual(source, left, right);
+                return new LessThanOrEqual(source, left, right, params.zoneId());
             case EqlBaseParser.GT:
-                return new GreaterThan(source, left, right);
+                return new GreaterThan(source, left, right, params.zoneId());
             case EqlBaseParser.GTE:
-                return new GreaterThanOrEqual(source, left, right);
+                return new GreaterThanOrEqual(source, left, right, params.zoneId());
             default:
                 throw new ParsingException(source, "Unknown operator {}", source.text());
         }

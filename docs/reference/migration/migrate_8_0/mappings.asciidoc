@@ -18,8 +18,8 @@ The number of completion contexts within a single completion field
 has been limited to 10.
 
 *Impact* +
-To avoid errors, use no more than 10 completion contexts within a single
-completion field.
+Use a maximum of 10 completion contexts in a completion field. Specifying more
+than 10 completions context will return an error.
 ====
 
 
@@ -32,8 +32,8 @@ APIs have been removed in favour of their typeless REST endpoints, since indexes
 no longer contain types, these typed endpoints are obsolete.
 
 *Impact* +
-To avoid errors, discontinue use of mapping API endpoints that contain document
-types in their path. Use the replacement mapping API endpoints instead.
+Use the typeless REST endpoints to update and retrieve mappings. Requests
+submitted to the typed mapping API endpoints will return an error.
 ====
 
 .Multi-fields within multi-fields is no longer supported.

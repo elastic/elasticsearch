@@ -19,7 +19,8 @@ and `POST /_cluster/voting_config_exclusions?node_ids=...` which allow you to
 specify the names or IDs of the nodes to exclude.
 
 *Impact* +
-To avoid errors, discontinue use of the `POST
-/_cluster/voting_config_exclusions/{node_filter}` API endpoint.
-Use `POST /_cluster/voting_config_exclusions?node_ids=...` instead.
+Use `POST /_cluster/voting_config_exclusions?node_ids=...` and specify the nodes
+to exclude instead of using a node filter. Requests submitted to the
+`/_cluster/voting_config_exclusions/{node_filter}` endpoint will return an
+error.
 ====

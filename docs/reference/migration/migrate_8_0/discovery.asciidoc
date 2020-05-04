@@ -41,5 +41,6 @@ are no longer supported. In particular, this includes:
 - `discovery.zen.publish.max_pending_cluster_states`
 
 *Impact* +
-To avoid errors, unset and discontinue use of any `discovery.zen.` settings.
+Discontinue use of the `discovery.zen` settings. Specifying these settings in
+`elasticsearch.yml` will result in an error on startup.
 ====

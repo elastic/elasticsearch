@@ -19,28 +19,20 @@
 
 package org.elasticsearch.script;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.logging.DeprecationLogger;
-
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
-public final class DeprecationMap implements Map<String, Object> {
-
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(DeprecationMap.class));
+public final class DynamicMap implements Map<String, Object> {
 
     private final Map<String, Object> delegate;
 
-    private final Map<String, String> deprecations;
+    private final Map<String, Function<Object, Object>> functions;
 
-    private final String logKeyPrefix;
-
-    public DeprecationMap(Map<String, Object> delegate, Map<String, String> deprecations, String logKeyPrefix) {
+    public DynamicMap(Map<String, Object> delegate, Map<String, Function<Object, Object>> functions) {
         this.delegate = delegate;
-        this.deprecations = deprecations;
-        this.logKeyPrefix = logKeyPrefix;
+        this.functions = functions;
     }
 
     @Override
@@ -65,11 +57,12 @@ public final class DeprecationMap implements Map<String, Object> {
 
     @Override
     public Object get(final Object key) {
-        String deprecationMessage = deprecations.get(key);
-        if (deprecationMessage != null) {
-            deprecationLogger.deprecatedAndMaybeLog(logKeyPrefix + "_" + key, deprecationMessage);
+        Object value = delegate.get(key);
+        Function<Object, Object> function = functions.get(key);
+        if (function != null) {
+            value = function.apply(value);
         }
-        return delegate.get(key);
+        return value;
     }
 
     @Override

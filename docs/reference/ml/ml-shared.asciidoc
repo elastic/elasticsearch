@@ -278,6 +278,19 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=time-span]
 ====
 end::chunking-config[]
 
+tag::class-assignment-objective[]
+Defines the objective to optimize when assigning class labels:
+`maximize_accuracy` or `maximize_minimum_recall`. When maximizing accuracy,
+class labels are chosen to maximize the number of correct predictions. When
+maximizing minimum recall, labels are chosen to maximize the minimum recall for
+any class. Defaults to `maximize_minimum_recall`.
+end::class-assignment-objective[]
+
+tag::compute-feature-influence[]
+Specifies whether the feature influence calculation is enabled. Defaults to
+`true`.
+end::compute-feature-influence[]
+
 tag::custom-rules[]
 An array of custom rule objects, which enable you to customize the way detectors
 operate. For example, a rule may dictate to the detector conditions under which
@@ -479,10 +492,6 @@ tag::dfas-downsample-factor[]
 The value of the downsample factor.
 end::dfas-downsample-factor[]
 
-tag::dfas-eta[]
-The value of the eta hyperparameter.
-end::dfas-eta[]
-
 tag::dfas-eta-growth[]
 Specifies the rate at which the `eta` increases for each new tree that is added
 to the forest. For example, a rate of `1.05` increases `eta` by 5%.
@@ -493,17 +502,9 @@ The fraction of features that is used when selecting a random bag for each
 candidate split.
 end::dfas-feature-bag-fraction[]
 
-tag::dfas-gamma[]
-Regularization factor to penalize trees with large numbers of nodes.
-end::dfas-gamma[]
-
 tag::dfas-iteration[]
 The number of iterations on the analysis.
 end::dfas-iteration[]
-
-tag::dfas-lambda[]
-Regularization factor to penalize large leaf weights.
-end::dfas-lambda[]
 
 tag::dfas-max-attempts[]
 If the algorithm fails to determine a non-trivial tree (more than a single 
@@ -518,10 +519,6 @@ hyperparameter optimization steps in the Bayesian optimization procedure.
 The maximum number of steps is determined based on the number of undefined 
 hyperparameters times the maximum optimization rounds per hyperparameter.
 end::dfas-max-optimization-rounds[]
-
-tag::dfas-max-trees[]
-The maximum number of trees in the forest.
-end::dfas-max-trees[]
 
 tag::dfas-num-folds[]
 The maximum number of folds for the cross-validation procedure.
@@ -584,10 +581,11 @@ end::empty-bucket-count[]
 
 tag::eta[]
 Advanced configuration option. The shrinkage applied to the weights. Smaller
-values result in larger forests which have a better generalization error. However,
-the smaller the value the longer the training will take. For more information
-about shrinkage, see
+values result in larger forests which have a better generalization error.
+However, the smaller the value the longer the training will take. For more
+information about shrinkage, see
 https://en.wikipedia.org/wiki/Gradient_boosting#Shrinkage[this wiki article].
+By default, this value is calculated during hyperparameter optimization.
 end::eta[]
 
 tag::exclude-frequent[]
@@ -612,8 +610,14 @@ end::failed-category-count[]
 
 tag::feature-bag-fraction[]
 Advanced configuration option. Defines the fraction of features that will be
-used when selecting a random bag for each candidate split. 
+used when selecting a random bag for each candidate split. By default, this
+value is calculated during hyperparameter optimization.
 end::feature-bag-fraction[]
+
+tag::feature-influence-threshold[]
+The minimum {olscore} that a document needs to have in order to calculate its 
+{fiscore}. Value range: 0-1 (`0.1` by default).
+end::feature-influence-threshold[]
 
 tag::filter[]
 One or more <<analysis-tokenfilters,token filters>>. In addition to the built-in 
@@ -660,7 +664,8 @@ Advanced configuration option. Regularization parameter to prevent overfitting
 on the training data set. Multiplies a linear penalty associated with the size of 
 individual trees in the forest. The higher the value the more training will 
 prefer smaller trees. The smaller this parameter the larger individual trees
-will be and the longer training will take.
+will be and the longer training will take. By default, this value is calculated
+during hyperparameter optimization.
 end::gamma[]
 
 tag::groups[]
@@ -819,6 +824,7 @@ more training will attempt to keep leaf weights small. This makes the prediction
 function smoother at the expense of potentially not being able to capture 
 relevant relationships between the features and the {depvar}. The smaller this 
 parameter the larger individual trees will be and the longer training will take.
+By default, this value is calculated during hyperparameter optimization.
 end::lambda[]
 
 tag::last-data-time[]
@@ -862,8 +868,17 @@ end::max-empty-searches[]
 
 tag::max-trees[]
 Advanced configuration option. Defines the maximum number of trees the forest is
-allowed to contain. The maximum value is 2000.
+allowed to contain. The maximum value is 2000. By default, this value is
+calculated during hyperparameter optimization.
 end::max-trees[]
+
+tag::method[]
+The method that {oldetection} uses. Available methods are `lof`, `ldof`,
+`distance_kth_nn`, `distance_knn`, and `ensemble`. The default value is
+`ensemble`, which means that {oldetection} uses an ensemble of different methods
+and normalises and combines their individual {olscores} to obtain the overall
+{olscore}. 
+end::method[]
 
 tag::missing-field-count[]
 The number of input documents that are missing a field that the {anomaly-job} is
@@ -1012,6 +1027,14 @@ NOTE: To use the `multivariate_by_fields` property, you must also specify
 --
 end::multivariate-by-fields[]
 
+tag::n-neighbors[]
+Defines the value for how many nearest neighbors each method of {oldetection}
+uses to calculate its {olscore}. When the value is not set, different values are
+used for different ensemble members. This default behavior helps improve the
+diversity in the ensemble; only override it if you are confident that the value
+you choose is appropriate for the data set.
+end::n-neighbors[]
+
 tag::node-address[]
 The network address of the node.
 end::node-address[]
@@ -1053,6 +1076,12 @@ to the {anomaly-job} by using the <<ml-post-data,post data API>>. These out of
 order documents are  discarded, since jobs require time series data to be in
 ascending chronological order.
 end::out-of-order-timestamp-count[]
+
+tag::outlier-fraction[]
+The proportion of the data set that is assumed to be outlying prior to 
+{oldetection}. For example, 0.05 means it is assumed that 5% of values are real 
+outliers and 95% are inliers.
+end::outlier-fraction[]
 
 tag::over-field-name[]
 The field used to split the data. In particular, this property is used for 
@@ -1181,6 +1210,13 @@ The number of buckets that contained few data points compared to the expected
 number of data points. If your data contains many sparse buckets, consider using
 a longer `bucket_span`.
 end::sparse-bucket-count[]
+
+tag::standardization-enabled[]
+If `true`, the following operation is performed on the columns before computing 
+outlier scores: (x_i - mean(x_i)) / sd(x_i). Defaults to `true`. For more 
+information about this concept, see 
+{wikipedia}/Feature_scaling#Standardization_(Z-score_Normalization)[Wikipedia].
+end::standardization-enabled[]
 
 tag::state-anomaly-job[]
 The status of the {anomaly-job}, which can be one of the following values:

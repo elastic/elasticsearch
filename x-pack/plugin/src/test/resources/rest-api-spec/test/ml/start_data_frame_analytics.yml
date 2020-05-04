@@ -36,7 +36,7 @@
         id: "missing_index"
 
 ---
-"Test start given source index has no compatible fields":
+"Test start outlier_detection given source index has no fields":
 
   - do:
       indices.create:
@@ -57,7 +57,41 @@
           }
 
   - do:
-      catch: /No compatible fields could be detected in index \[empty-index\]/
+      catch: /at least one field must be included in the analysis/
+      ml.start_data_frame_analytics:
+        id: "foo"
+
+---
+"Test start regression given source index only has dependent variable":
+
+  - do:
+      indices.create:
+        index: index-with-dep-var-only
+        body:
+          mappings:
+            properties:
+              my_dep_var: { type: "long" }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo"
+        body: >
+          {
+            "source": {
+              "index": "index-with-dep-var-only"
+            },
+            "dest": {
+              "index": "results"
+            },
+            "analysis": {
+              "regression":{
+                "dependent_variable": "my_dep_var"
+              }
+            }
+          }
+
+  - do:
+      catch: /at least one field must be included in the analysis \(excluding fields \[my_dep_var\]\)/
       ml.start_data_frame_analytics:
         id: "foo"
 

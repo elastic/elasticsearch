@@ -123,7 +123,13 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
 
     @Override
     public void setBigDecimal(int parameterIndex, BigDecimal x) throws SQLException {
-        setObject(parameterIndex, x, Types.BIGINT);
+        // ES lacks proper BigDecimal support, so this function simply maps a BigDecimal to a double, while verifying that no definition
+        // is lost (i.e. the original value can be conveyed as a double).
+        // While long (i.e. BIGINT) has a larger scale (than double), double has the higher precision more appropriate for BigDecimal.
+        if (x.compareTo(BigDecimal.valueOf(x.doubleValue())) != 0) {
+            throw new SQLException("BigDecimal value [" + x + "] out of supported double's range.");
+        }
+        setDouble(parameterIndex, x.doubleValue());
     }
 
     @Override

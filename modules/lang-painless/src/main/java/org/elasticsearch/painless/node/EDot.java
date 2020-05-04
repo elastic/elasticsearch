@@ -181,7 +181,7 @@ public class EDot extends AExpression {
                         if (getter != null && setter != null && setter.typeParameters.get(0) != getter.returnType) {
                             throw createError(new IllegalArgumentException("Shortcut argument types must match."));
                         }
-
+                        
                         if ((input.read == false || getter != null) && (input.write == false || setter != null)) {
                             output.actual = setter != null ? setter.typeParameters.get(0) : getter.returnType;
                         } else {

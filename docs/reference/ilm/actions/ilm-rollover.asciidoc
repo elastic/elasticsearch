@@ -38,9 +38,9 @@ PUT my_index-000001
 --------------------------------------------------
 
 [[ilm-rollover-options]]
-==== Rollover options
+==== Options
 
-You must specify at least one rollover option. 
+You must specify at least one rollover condition. 
 An empty rollover action is invalid.
 
 `max_size`::
@@ -55,10 +55,10 @@ Triggers roll over after the specified maximum number of documents in the index 
 (Optional,  <<time-units, time units>>)  
 Triggers roll over after the maximum elapsed time from index creation is reached. 
 
-[[ilm-rollover-examples]]
-==== Examples
+[[ilm-rollover-ex]]
+==== Example
 
-[[ilm-rollover-size]]
+[[ilm-rollover-size-ex]]
 ===== Roll over based on index size
 
 This example rolls the index over when it is at least 100 gigabytes.
@@ -81,11 +81,10 @@ PUT _ilm/policy/my_policy
 }
 --------------------------------------------------
 
-[ilm-rollover-documents]]
+[ilm-rollover-documents-ex]]
 ===== Roll over based on document count
 
-This example rolls the index over when it contains at least
-one hundred million documents.
+This example rolls the index over when it contains at least one hundred million documents.
 
 [source,console]
 --------------------------------------------------
@@ -105,11 +104,10 @@ PUT _ilm/policy/my_policy
 }
 --------------------------------------------------
  
-[ilm-rollover-age]]
+[ilm-rollover-age-ex]]
 ===== Roll over based on index age
 
-This example rolls the index over when it has been created at least
-7 days ago.
+This example rolls the index over if it was created at least 7 days ago.
 
 [source,console]
 --------------------------------------------------
@@ -129,12 +127,12 @@ PUT _ilm/policy/my_policy
 }
 --------------------------------------------------
 
-[ilm-rollover-conditions]]
+[ilm-rollover-conditions-ex]]
 ===== Roll over using multiple conditions
 
-When you specify multiple rollover options, 
-the index is rolled over when any of the conditions are met.
-This example rolls the index over if it is at least 7 days old or at least 100 GB. 
+When you specify multiple rollover conditions, 
+the index is rolled over when _any_ of the conditions are met.
+This example rolls the index over if it is at least 7 days old or at least 100 gigabytes. 
 
 [source,console]
 --------------------------------------------------
@@ -155,7 +153,7 @@ PUT _ilm/policy/my_policy
 }
 --------------------------------------------------
 
-[ilm-rollover-block]]
+[ilm-rollover-block-ex]]
 ===== Rollover condition blocks phase transition
 
 The rollover action only completes if one of its conditions is met. 

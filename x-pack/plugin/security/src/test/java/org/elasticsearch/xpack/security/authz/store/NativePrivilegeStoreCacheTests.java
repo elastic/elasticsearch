@@ -6,9 +6,15 @@
 
 package org.elasticsearch.xpack.security.authz.store;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheAction;
@@ -19,9 +25,14 @@ import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesReque
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.junit.Before;
@@ -43,14 +54,14 @@ import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor.DOC_TYPE_VALUE;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 
-public class NativeRolesStoreCacheTests extends SecuritySingleNodeTestCase {
+public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
 
     private static final String APP_USER_NAME = "app_user";
 
     @Override
     protected String configUsers() {
         return super.configUsers()
-            + APP_USER_NAME + ":" + TEST_PASSWORD_HASHED;
+            + APP_USER_NAME + ":" + TEST_PASSWORD_HASHED + "\n";
     }
 
     @Override
@@ -97,7 +108,7 @@ public class NativeRolesStoreCacheTests extends SecuritySingleNodeTestCase {
         assertEquals(6, putPrivilegesResponse.created().values().stream().mapToInt(List::size).sum());
     }
 
-    public void testCacheBehaviourWithGetPrivileges() {
+    public void testGetPrivileges() {
         final Client client = client();
 
         ApplicationPrivilegeDescriptor[] privileges = new GetPrivilegesRequestBuilder(client)
@@ -138,7 +149,7 @@ public class NativeRolesStoreCacheTests extends SecuritySingleNodeTestCase {
         assertEquals(0, privileges.length);
     }
 
-    public void testCacheBehaviourWithWildcard() {
+    public void testWildcard() {
         final Client client = client();
 
         ApplicationPrivilegeDescriptor[] privileges = new GetPrivilegesRequestBuilder(client)
@@ -180,7 +191,7 @@ public class NativeRolesStoreCacheTests extends SecuritySingleNodeTestCase {
             .application("app-1").privileges("write").execute().actionGet().privileges().length);
     }
 
-    public void testCacheBehaviourWithSuffixWildcard() {
+    public void testSuffixWildcard() {
         final Client client = client();
 
         // Populate the cache with suffix wildcard
@@ -195,8 +206,7 @@ public class NativeRolesStoreCacheTests extends SecuritySingleNodeTestCase {
             .privileges("read").execute().actionGet().privileges().length);
     }
 
-    public void testCacheBehaviourWithHasPrivileges() {
-
+    public void testHasPrivileges() {
         assertTrue(checkPrivilege("app-1", "read").getApplicationPrivileges()
             .get("app-1").stream().findFirst().orElseThrow().getPrivileges().get("read"));
 
@@ -216,6 +226,50 @@ public class NativeRolesStoreCacheTests extends SecuritySingleNodeTestCase {
         // TODO: This is a bug
         assertTrue(checkPrivilege("app-2", "check").getApplicationPrivileges()
             .get("app-2").stream().findFirst().orElseThrow().getPrivileges().get("check"));
+    }
+
+    public void testRolesCacheIsClearedWhenPrivilegesIsChanged() {
+        final Client client = client();
+
+        // Add a new user and role so they do not interfere existing tests
+        final String testRole = "test_role_cache_role";
+        final String testRoleCacheUser = "test_role_cache_user";
+        final PutRoleResponse putRoleResponse = new PutRoleRequestBuilder(client).name(testRole).
+            cluster("all")
+            .addIndices(new String[] { "*" }, new String[] { "read" }, null, null, null, false)
+            .get();
+        assertTrue(putRoleResponse.isCreated());
+
+        final PutUserResponse putUserResponse = new PutUserRequestBuilder(client)
+            .username(testRoleCacheUser)
+            .roles(testRole)
+            .password(new SecureString("password".toCharArray()),
+                Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt9", "bcrypt8", "bcrypt")))
+            .get();
+        assertTrue(putUserResponse.created());
+
+        // The created user can access cluster health because its role grants access
+        final Client testRoleCacheUserClient = client.filterWithHeader(singletonMap("Authorization",
+                "Basic " + Base64.getEncoder().encodeToString((testRoleCacheUser + ":password").getBytes(StandardCharsets.UTF_8))));
+        new ClusterHealthRequestBuilder(testRoleCacheUserClient, ClusterHealthAction.INSTANCE).get();
+
+        // Directly deleted the role document
+        final DeleteResponse deleteResponse = client.prepareDelete(SECURITY_MAIN_ALIAS, "role-" + testRole).get();
+        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
+
+        // The cluster health action can still success since the role is cached
+        new ClusterHealthRequestBuilder(testRoleCacheUserClient, ClusterHealthAction.INSTANCE).get();
+
+        // Change an application privilege which triggers role cache invalidation as well
+        if (randomBoolean()) {
+            deleteApplicationPrivilege("app-1", "read");
+        } else {
+            addApplicationPrivilege("app-3", "read", "t:u:v");
+        }
+        // Since role cache is cleared, the cluster health action is no longer authorized
+        expectThrows(ElasticsearchSecurityException.class,
+            () -> new ClusterHealthRequestBuilder(testRoleCacheUserClient, ClusterHealthAction.INSTANCE).get());
+
     }
 
     private HasPrivilegesResponse checkPrivilege(String applicationName, String privilegeName) {

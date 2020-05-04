@@ -12,8 +12,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -29,7 +27,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -39,7 +36,6 @@ import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCac
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -62,7 +58,6 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -120,42 +115,27 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     }
 
     public void testGetSinglePrivilegeByName() throws Exception {
-        final ApplicationPrivilegeDescriptor sourcePrivilege = new ApplicationPrivilegeDescriptor("myapp", "admin",
-            newHashSet("action:admin/*", "action:login", "data:read/*"), emptyMap()
-        );
-
-        final PlainActionFuture<ApplicationPrivilegeDescriptor> future = new PlainActionFuture<>();
-        store.getPrivilege("myapp", "admin", future);
-        assertThat(requests, iterableWithSize(1));
-        assertThat(requests.get(0), instanceOf(GetRequest.class));
-        GetRequest request = (GetRequest) requests.get(0);
-        assertThat(request.index(), equalTo(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
-        assertThat(request.id(), equalTo("application-privilege_myapp:admin"));
-
-        final String docSource = Strings.toString(sourcePrivilege);
-        listener.get().onResponse(new GetResponse(
-            new GetResult(request.index(), request.id(), 0, 1, 1L, true,
-                new BytesArray(docSource), emptyMap(), emptyMap())
+        final List<ApplicationPrivilegeDescriptor> sourcePrivileges = List.of(
+            new ApplicationPrivilegeDescriptor("myapp", "admin",
+                newHashSet("action:admin/*", "action:login", "data:read/*"), emptyMap()
         ));
-        final ApplicationPrivilegeDescriptor getPrivilege = future.get(1, TimeUnit.SECONDS);
-        assertThat(getPrivilege, equalTo(sourcePrivilege));
-    }
 
-    public void testGetMissingPrivilege() throws Exception {
-        final PlainActionFuture<ApplicationPrivilegeDescriptor> future = new PlainActionFuture<>();
-        store.getPrivilege("myapp", "admin", future);
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
+        store.getPrivileges(List.of("myapp"), List.of("admin"), future);
         assertThat(requests, iterableWithSize(1));
-        assertThat(requests.get(0), instanceOf(GetRequest.class));
-        GetRequest request = (GetRequest) requests.get(0);
-        assertThat(request.index(), equalTo(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
-        assertThat(request.id(), equalTo("application-privilege_myapp:admin"));
+        assertThat(requests.get(0), instanceOf(SearchRequest.class));
+        SearchRequest request = (SearchRequest) requests.get(0);
+        final String query = Strings.toString(request.source().query());
+        assertThat(query, containsString("{\"terms\":{\"application\":[\"myapp\"]"));
+        assertThat(query, containsString("{\"term\":{\"type\":{\"value\":\"application-privilege\""));
 
-        listener.get().onResponse(new GetResponse(
-            new GetResult(request.index(), request.id(), UNASSIGNED_SEQ_NO, 0, -1,
-                false, null, emptyMap(), emptyMap())
-        ));
-        final ApplicationPrivilegeDescriptor getPrivilege = future.get(1, TimeUnit.SECONDS);
-        assertThat(getPrivilege, Matchers.nullValue());
+        final SearchHit[] hits = buildHits(sourcePrivileges);
+        listener.get().onResponse(new SearchResponse(new SearchResponseSections(
+            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+            null, null, false, false, null, 1),
+            "_scrollId1", 1, 1, 0, 1, null, null));
+
+        assertResult(sourcePrivileges, future);
     }
 
     public void testGetPrivilegesByApplicationName() throws Exception {
@@ -259,7 +239,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         );
 
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
-        store.getPrivileges(Arrays.asList("myapp", "yourapp"), null, future);
+        store.getPrivileges(List.of("myapp", "yourapp"), null, future);
 
         final SearchHit[] hits = buildHits(sourcePrivileges);
         listener.get().onResponse(new SearchResponse(new SearchResponseSections(
@@ -273,13 +253,13 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
         // The 2nd call should use cache and success
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future2 = new PlainActionFuture<>();
-        store.getPrivileges(Arrays.asList("myapp", "yourapp"), null, future2);
+        store.getPrivileges(List.of("myapp", "yourapp"), null, future2);
         listener.get().onResponse(null);
         assertResult(sourcePrivileges, future2);
 
         // The 3rd call should use cache when the application name is part of the original query
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future3 = new PlainActionFuture<>();
-        store.getPrivileges(Arrays.asList("myapp"), null, future3);
+        store.getPrivileges(List.of("myapp"), null, future3);
         listener.get().onResponse(null);
         // Does not cache the name expansion if descriptors of the literal name is already cached
         assertNull(store.getApplicationNamesCache().get(Set.of("myapp")));
@@ -287,7 +267,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     }
 
     public void testGetPrivilegesCacheWithApplicationAndPrivilegeName() throws Exception {
-        final List<ApplicationPrivilegeDescriptor> sourcePrivileges = Arrays.asList(
+        final List<ApplicationPrivilegeDescriptor> sourcePrivileges = List.of(
             new ApplicationPrivilegeDescriptor("myapp", "admin", newHashSet("action:admin/*", "action:login", "data:read/*"), emptyMap()),
             new ApplicationPrivilegeDescriptor("myapp", "user", newHashSet("action:login", "data:read/*"), emptyMap()),
             new ApplicationPrivilegeDescriptor("myapp", "author", newHashSet("action:login", "data:read/*", "data:write/*"), emptyMap())
@@ -310,29 +290,9 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
         // 2nd call with more privilege names can still use the cache
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future2 = new PlainActionFuture<>();
-        store.getPrivileges(Collections.singletonList("myapp"), Arrays.asList("user", "author"), future2);
+        store.getPrivileges(Collections.singletonList("myapp"), List.of("user", "author"), future2);
         listener.get().onResponse(null);
         assertResult(sourcePrivileges.subList(1, 3), future2);
-    }
-
-    public void testGetPrivilegesCacheWithNonExistentApplicationWildcard() throws Exception {
-        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
-        store.getPrivileges(Collections.singletonList("*"), null, future);
-        final SearchHit[] hits = buildHits(emptyList());
-        listener.get().onResponse(new SearchResponse(new SearchResponseSections(
-            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
-            null, null, false, false, null, 1),
-            "_scrollId1", 1, 1, 0, 1, null, null) );
-
-        assertEquals(emptySet(), store.getApplicationNamesCache().get(singleton("*")));
-        assertEquals(0, store.getDescriptorsCache().count());
-        assertResult(emptyList(), future);
-
-        // The 2nd call should use cache
-        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future2 = new PlainActionFuture<>();
-        store.getPrivileges(Collections.singletonList("*"), null, future2);
-        listener.get().onResponse(null);
-        assertResult(emptyList(), future2);
     }
 
     public void testGetPrivilegesCacheWithNonExistentApplicationName() throws Exception {
@@ -353,6 +313,40 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         store.getPrivileges(Collections.singletonList("no-such-app"), null, future2);
         listener.get().onResponse(null);
         assertResult(emptyList(), future2);
+    }
+
+    public void testGetPrivilegesCacheWithDifferentMatchAllApplicationNames() throws Exception {
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
+        store.getPrivileges(emptyList(), null, future);
+        final SearchHit[] hits = buildHits(emptyList());
+        listener.get().onResponse(new SearchResponse(new SearchResponseSections(
+            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+            null, null, false, false, null, 1),
+            "_scrollId1", 1, 1, 0, 1, null, null) );
+        assertEquals(emptySet(), store.getApplicationNamesCache().get(singleton("*")));
+        assertEquals(1, store.getApplicationNamesCache().count());
+        assertResult(emptyList(), future);
+
+        // The 2nd call should use cache should translated to match all since it has a "*"
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future2 = new PlainActionFuture<>();
+        store.getPrivileges(List.of("a", "b", "*", "c"), null, future2);
+        assertEquals(emptySet(), store.getApplicationNamesCache().get(singleton("*")));
+        assertEquals(1, store.getApplicationNamesCache().count());
+        assertResult(emptyList(), future2);
+
+        // The 3rd call also translated to match all
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future3 = new PlainActionFuture<>();
+        store.getPrivileges(null, null, future3);
+        assertEquals(emptySet(), store.getApplicationNamesCache().get(singleton("*")));
+        assertEquals(1, store.getApplicationNamesCache().count());
+        assertResult(emptyList(), future3);
+
+        // The 4th call is also match all
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future4 = new PlainActionFuture<>();
+        store.getPrivileges(List.of("*"), null, future4);
+        assertEquals(emptySet(), store.getApplicationNamesCache().get(singleton("*")));
+        assertEquals(1, store.getApplicationNamesCache().count());
+        assertResult(emptyList(), future4);
     }
 
     public void testPutPrivileges() throws Exception {

@@ -75,7 +75,9 @@ public class TransportClearPrivilegesCacheAction extends TransportNodesAction<Cl
         } else {
             privilegesStore.invalidate(List.of(request.getApplicationNames()));
         }
-        rolesStore.invalidateAll();
+        if (request.isClearRolesCache()) {
+            rolesStore.invalidateAll();
+        }
         return new ClearPrivilegesCacheResponse.Node(clusterService.localNode());
     }
 }

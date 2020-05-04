@@ -12,12 +12,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
@@ -53,8 +51,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -63,7 +61,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
@@ -128,60 +125,43 @@ public class NativePrivilegeStore {
 
         // TODO: We should have a way to express true Zero applications
         final Set<String> applicationNamesCacheKey = (isEmpty(applications) || applications.contains("*")) ?
-            Set.of("*") : Set.copyOf(applications);
+            Set.of("*") : new LinkedHashSet<>(applications);
 
-        // Always fetch for the concrete application names even when the passed in application names do not
-        // contain any wildcard. This serves as a negative lookup.
+        // Always fetch for the concrete application names even when the passed-in application names has no wildcard.
+        // This serves as a negative lookup, i.e. when a passed-in non-wildcard application does not exist.
         Set<String> concreteApplicationNames = applicationNamesCache.get(applicationNamesCacheKey);
 
         if (concreteApplicationNames != null && concreteApplicationNames.size() == 0) {
             logger.debug("returning empty application privileges as application names result in empty list");
             listener.onResponse(Collections.emptySet());
         } else {
-            final Tuple<Set<String>, Map<String, Set<ApplicationPrivilegeDescriptor>>> cacheStatus;
-            if (concreteApplicationNames == null) {
-                cacheStatus = cacheStatusForApplicationNames(applicationNamesCacheKey);
-            } else {
-                cacheStatus = cacheStatusForApplicationNames(concreteApplicationNames);
-            }
-            Set<String> uncachedApplicationNames = cacheStatus.v1();
-            Map<String, Set<ApplicationPrivilegeDescriptor>> cachedDescriptors = cacheStatus.v2();
-
-            if (uncachedApplicationNames.isEmpty()) {
+            final Set<ApplicationPrivilegeDescriptor> cachedDescriptors = cachedDescriptorsForApplicationNames(
+                concreteApplicationNames != null ? concreteApplicationNames : applicationNamesCacheKey);
+            if (cachedDescriptors != null) {
                 logger.debug("All application privileges found in cache");
-                listener.onResponse(filterDescriptorsForNames(
-                    cachedDescriptors.values().stream().flatMap(Collection::stream).collect(Collectors.toUnmodifiableSet()), names));
+                listener.onResponse(filterDescriptorsForPrivilegeNames(cachedDescriptors, names));
             } else {
                 final long invalidationCounter = numInvalidation.get();
                 // Always fetch all privileges of an application for caching purpose
-                logger.debug("Fetching application privilege documents for: {}", uncachedApplicationNames);
-                innerGetPrivileges(uncachedApplicationNames, ActionListener.wrap(fetchedDescriptors -> {
+                logger.debug("Fetching application privilege documents for: {}", applicationNamesCacheKey);
+                innerGetPrivileges(applicationNamesCacheKey, ActionListener.wrap(fetchedDescriptors -> {
                     final Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors = fetchedDescriptors.stream()
                         .collect(Collectors.groupingBy(ApplicationPrivilegeDescriptor::getApplication, Collectors.toUnmodifiableSet()));
-                    final Set<String> allApplicationNames =
-                        Stream.concat(cachedDescriptors.keySet().stream(), mapOfFetchedDescriptors.keySet().stream())
-                            .collect(Collectors.toUnmodifiableSet());
                     // Avoid caching potential stale results.
                     // TODO: It is still possible that cache gets invalidated immediately after the if check
                     if (invalidationCounter == numInvalidation.get()) {
+                        final Set<String> fetchedApplicationNames = Collections.unmodifiableSet(mapOfFetchedDescriptors.keySet());
                         // Do not cache the names if expansion has no effect
-                        if (allApplicationNames.equals(applicationNamesCacheKey) == false) {
-                            applicationNamesCache.computeIfAbsent(applicationNamesCacheKey, (k) -> {
-                                logger.debug("Caching application names query: {} = {}", k, allApplicationNames);
-                                return allApplicationNames;
-                            });
+                        if (fetchedApplicationNames.equals(applicationNamesCacheKey) == false) {
+                            logger.debug("Caching application names query: {} = {}", applicationNamesCacheKey, fetchedApplicationNames);
+                            applicationNamesCache.put(applicationNamesCacheKey, fetchedApplicationNames);
                         }
                         for (Map.Entry<String, Set<ApplicationPrivilegeDescriptor>> entry : mapOfFetchedDescriptors.entrySet()) {
-                            descriptorsCache.computeIfAbsent(entry.getKey(), (k) -> {
-                                logger.debug("Caching descriptors for application: {}", k);
-                                return entry.getValue();
-                            });
+                            logger.debug("Caching descriptors for application: {}", entry.getKey());
+                            descriptorsCache.put(entry.getKey(), entry.getValue());
                         }
                     }
-                    final Set<ApplicationPrivilegeDescriptor> allDescriptors =
-                        Stream.concat(cachedDescriptors.values().stream().flatMap(Collection::stream), fetchedDescriptors.stream())
-                            .collect(Collectors.toUnmodifiableSet());
-                    listener.onResponse(filterDescriptorsForNames(allDescriptors, names));
+                    listener.onResponse(filterDescriptorsForPrivilegeNames(fetchedDescriptors, names));
                 }, listener::onFailure));
             }
         }
@@ -240,50 +220,41 @@ public class NativePrivilegeStore {
         descriptorsCache.invalidateAll();
     }
 
-    private Tuple<Set<String>, Map<String, Set<ApplicationPrivilegeDescriptor>>> cacheStatusForApplicationNames(
-        Set<String> applicationNames) {
+    /**
+     * Try resolve all privileges for given application names from the cache.
+     * It returns non-null result only when privileges of ALL applications are
+     * found in the cache, i.e. it returns null if any of application name is
+     * NOT found in the cache. Since the cached is keyed by concrete application
+     * name, this means any wildcard will result in null.
+     */
+    private Set<ApplicationPrivilegeDescriptor> cachedDescriptorsForApplicationNames(Set<String> applicationNames) {
 
-        final Set<String> uncachedApplicationNames = new HashSet<>();
-        final Map<String, Set<ApplicationPrivilegeDescriptor>> cachedDescriptors = new HashMap<>();
-
+        final Set<ApplicationPrivilegeDescriptor> cachedDescriptors = new HashSet<>();
         for (String applicationName: applicationNames) {
             if (applicationName.endsWith("*")) {
-                uncachedApplicationNames.add(applicationName);
+                return null;
             } else {
                 final Set<ApplicationPrivilegeDescriptor> descriptors = descriptorsCache.get(applicationName);
                 if (descriptors == null) {
-                    uncachedApplicationNames.add(applicationName);
+                    return null;
                 } else {
-                    cachedDescriptors.put(applicationName, descriptors);
+                    cachedDescriptors.addAll(descriptors);
                 }
             }
         }
-        if (cachedDescriptors.isEmpty() == false) {
-            logger.debug("Application privileges found in cache: {}", cachedDescriptors.keySet());
-        }
-        return Tuple.tuple(uncachedApplicationNames, cachedDescriptors);
+        return Collections.unmodifiableSet(cachedDescriptors);
     }
 
-    private Collection<ApplicationPrivilegeDescriptor> filterDescriptorsForNames(
-        Collection<ApplicationPrivilegeDescriptor> descriptors, Collection<String> names) {
+    /**
+     * Filter to get all privilege descriptors that have any of the given privilege names.
+     */
+    private Collection<ApplicationPrivilegeDescriptor> filterDescriptorsForPrivilegeNames(
+        Collection<ApplicationPrivilegeDescriptor> descriptors, Collection<String> privilegeNames) {
         // empty set of names equals to retrieve everything
-        if (isEmpty(names)) {
+        if (isEmpty(privilegeNames)) {
             return descriptors;
         }
-        final Set<String> uniqueNameSuffix = new HashSet<>(names);
-        return descriptors.stream().filter(d -> uniqueNameSuffix.contains(d.getName())).collect(Collectors.toUnmodifiableSet());
-    }
-
-    private boolean isSinglePrivilegeMatch(Collection<String> applications) {
-        return applications != null && applications.size() == 1 && hasWildcard(applications) == false;
-    }
-
-    private boolean hasWildcard(Collection<String> applications) {
-        return applications.stream().anyMatch(n -> n.endsWith("*"));
-    }
-
-    private QueryBuilder getPrivilegeNameQuery(Collection<String> names) {
-        return QueryBuilders.termsQuery(ApplicationPrivilegeDescriptor.Fields.NAME.getPreferredName(), names);
+        return descriptors.stream().filter(d -> privilegeNames.contains(d.getName())).collect(Collectors.toUnmodifiableSet());
     }
 
     private QueryBuilder getApplicationNameQuery(Collection<String> applications) {
@@ -320,43 +291,6 @@ public class NativePrivilegeStore {
 
     private static boolean isEmpty(Collection<String> collection) {
         return collection == null || collection.isEmpty();
-    }
-
-    void getPrivilege(String application, String name, ActionListener<ApplicationPrivilegeDescriptor> listener) {
-        final SecurityIndexManager frozenSecurityIndex = securityIndexManager.freeze();
-        if (frozenSecurityIndex.isAvailable() == false) {
-            logger.warn(new ParameterizedMessage("failed to load privilege [{}] index not available", name),
-                frozenSecurityIndex.getUnavailableReason());
-            listener.onResponse(null);
-        } else {
-            securityIndexManager.checkIndexVersionThenExecute(listener::onFailure,
-                () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareGet(SECURITY_MAIN_ALIAS, toDocId(application, name))
-                            .request(),
-                    new ActionListener<GetResponse>() {
-                        @Override
-                        public void onResponse(GetResponse response) {
-                            if (response.isExists()) {
-                                listener.onResponse(buildPrivilege(response.getId(), response.getSourceAsBytesRef()));
-                            } else {
-                                listener.onResponse(null);
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            // if the index or the shard is not there / available we just claim the privilege is not there
-                            if (TransportActions.isShardNotAvailableException(e)) {
-                                logger.warn(new ParameterizedMessage("failed to load privilege [{}] index not available", name), e);
-                                listener.onResponse(null);
-                            } else {
-                                logger.error(new ParameterizedMessage("failed to load privilege [{}]", name), e);
-                                listener.onFailure(e);
-                            }
-                        }
-                    },
-                    client::get));
-        }
     }
 
     public void putPrivileges(Collection<ApplicationPrivilegeDescriptor> privileges, WriteRequest.RefreshPolicy refreshPolicy,
@@ -426,7 +360,7 @@ public class NativePrivilegeStore {
     private <T> void clearCaches(ActionListener<T> listener, Set<String> applicationNames, T value) {
         // This currently clears _all_ roles, but could be improved to clear only those roles that reference the affected application
         final ClearPrivilegesCacheRequest request = new ClearPrivilegesCacheRequest()
-            .applicationNames(applicationNames.toArray(String[]::new));
+            .applicationNames(applicationNames.toArray(String[]::new)).clearRolesCache(true);
         executeAsyncWithOrigin(client, SECURITY_ORIGIN, ClearPrivilegesCacheAction.INSTANCE, request,
             new ActionListener<>() {
                 @Override

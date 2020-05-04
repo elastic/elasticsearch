@@ -10,9 +10,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.eql.action.EqlSearchTask;
 
 import java.time.ZoneId;
-import java.util.function.Supplier;
 
 public class Configuration extends org.elasticsearch.xpack.ql.session.Configuration {
 
@@ -21,14 +21,14 @@ public class Configuration extends org.elasticsearch.xpack.ql.session.Configurat
     private final int size;
     private final String clientId;
     private final boolean includeFrozenIndices;
-    private final Supplier<Boolean> isCancelled;
     private final TaskId taskId;
+    private final EqlSearchTask task;
 
     @Nullable
     private final QueryBuilder filter;
 
     public Configuration(String[] indices, ZoneId zi, String username, String clusterName, QueryBuilder filter, TimeValue requestTimeout,
-                         int size, boolean includeFrozen, String clientId, TaskId taskId, Supplier<Boolean> isCancelled) {
+                         int size, boolean includeFrozen, String clientId, TaskId taskId, EqlSearchTask task) {
 
         super(zi, username, clusterName);
 
@@ -39,7 +39,7 @@ public class Configuration extends org.elasticsearch.xpack.ql.session.Configurat
         this.clientId = clientId;
         this.includeFrozenIndices = includeFrozen;
         this.taskId = taskId;
-        this.isCancelled = isCancelled;
+        this.task = task;
     }
 
     public String[] indices() {
@@ -67,7 +67,7 @@ public class Configuration extends org.elasticsearch.xpack.ql.session.Configurat
     }
 
     public boolean isCancelled() {
-        return isCancelled.get();
+        return task.isCancelled();
     }
 
     public TaskId getTaskId() {

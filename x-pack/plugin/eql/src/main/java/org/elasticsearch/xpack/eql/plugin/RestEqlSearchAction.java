@@ -46,6 +46,14 @@ public class RestEqlSearchAction extends BaseRestHandler {
             eqlRequest = EqlSearchRequest.fromXContent(parser);
             eqlRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
             eqlRequest.indicesOptions(IndicesOptions.fromRequest(request, eqlRequest.indicesOptions()));
+            if (request.hasParam("wait_for_completion_timeout")) {
+                eqlRequest.waitForCompletionTimeout(
+                    request.paramAsTime("wait_for_completion_timeout", eqlRequest.waitForCompletionTimeout()));
+            }
+            if (request.hasParam("keep_alive")) {
+                eqlRequest.keepAlive(request.paramAsTime("keep_alive", eqlRequest.keepAlive()));
+            }
+            eqlRequest.keepOnCompletion(request.paramAsBoolean("keep_on_completion", eqlRequest.keepOnCompletion()));
         }
 
         return channel -> client.execute(EqlSearchAction.INSTANCE, eqlRequest, new RestResponseListener<>(channel) {

@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public class EqlPlugin extends Plugin implements ActionPlugin {
+    public static final String INDEX = ".async-eql-search";
 
     private final boolean enabled;
 

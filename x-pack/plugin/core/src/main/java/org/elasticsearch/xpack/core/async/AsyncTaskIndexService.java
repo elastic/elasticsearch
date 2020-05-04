@@ -163,10 +163,10 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Stores the initial response with the original headers of the authenticated user
      * and the expected expiration time.
      */
-    public void storeInitialResponse(String docId,
-                              Map<String, String> headers,
-                              R response,
-                              ActionListener<IndexResponse> listener) throws IOException {
+    public void createResponse(String docId,
+                               Map<String, String> headers,
+                               R response,
+                               ActionListener<IndexResponse> listener) throws IOException {
         Map<String, Object> source = new HashMap<>();
         source.put(HEADERS_FIELD, headers);
         source.put(EXPIRATION_TIME_FIELD, response.getExpirationTime());
@@ -181,10 +181,10 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     /**
      * Stores the final response if the place-holder document is still present (update).
      */
-    public void storeFinalResponse(String docId,
-                            Map<String, List<String>> responseHeaders,
-                            R response,
-                            ActionListener<UpdateResponse> listener) throws IOException {
+    public void updateResponse(String docId,
+                               Map<String, List<String>> responseHeaders,
+                               R response,
+                               ActionListener<UpdateResponse> listener) throws IOException {
         Map<String, Object> source = new HashMap<>();
         source.put(RESPONSE_HEADERS_FIELD, responseHeaders);
         source.put(RESULT_FIELD, encodeResponse(response));

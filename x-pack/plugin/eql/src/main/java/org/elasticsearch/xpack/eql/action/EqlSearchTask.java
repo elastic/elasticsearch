@@ -8,17 +8,23 @@ package org.elasticsearch.xpack.eql.action;
 
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 
 import java.util.Map;
-import java.util.function.Supplier;
 
 public class EqlSearchTask extends CancellableTask {
-    private final Supplier<String> descriptionSupplier;
+    private final String description;
+    private final AsyncExecutionId asyncExecutionId;
 
-    public EqlSearchTask(long id, String type, String action, Supplier<String> descriptionSupplier, TaskId parentTaskId,
-                         Map<String, String> headers) {
+    public EqlSearchTask(long id, String type, String action, String description, TaskId parentTaskId,
+                         Map<String, String> headers, AsyncExecutionId asyncExecutionId) {
         super(id, type, action, null, parentTaskId, headers);
-        this.descriptionSupplier = descriptionSupplier;
+        this.description = description;
+        this.asyncExecutionId = asyncExecutionId;
+    }
+
+    public AsyncExecutionId getAsyncExecutionId() {
+        return asyncExecutionId;
     }
 
     @Override
@@ -28,6 +34,6 @@ public class EqlSearchTask extends CancellableTask {
 
     @Override
     public String getDescription() {
-        return descriptionSupplier.get();
+        return description;
     }
 }

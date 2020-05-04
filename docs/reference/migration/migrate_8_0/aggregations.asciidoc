@@ -16,7 +16,8 @@ If you specify the `percents` parameter with the
 its values must be unique. Otherwise, an exception occurs.
 
 *Impact* +
-To avoid errors, use unique values in the `percents` parameter of the
-`percentiles` aggregation.
+Use unique values in the `percents` parameter of the `percentiles` aggregation.
+Requests containing duplicate values in the `percents` parameter will return
+an error.
 ====
 // end::notable-breaking-changes[]

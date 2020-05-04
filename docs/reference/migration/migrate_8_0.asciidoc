@@ -62,8 +62,8 @@ is replaced with a new endpoint that does not contain `_xpack`. As an example,
 `/{index}/_xpack/graph/_explore` is replaced by `/{index}/_graph/explore`.
 
 *Impact* +
-To avoid errors, discontinue use of REST API endpoints that contain `_xpack` in
-their path. Use the replacement REST API endpoints instead.
+Use the replacement REST API endpoints. Requests submitted to the `_xpack`
+API endpoints will return an error.
 ====
 
 

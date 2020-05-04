@@ -23,8 +23,9 @@ again, but this behaviour could be disabled by setting the system property
 longer optional, and this system property must now not be set.
 
 *Impact* +
-To avoid errors, unset the `es.disk.auto_release_flood_stage_block` system
-property and discontinue its use.
+Discontinue use of the `es.disk.auto_release_flood_stage_block` system property.
+Specifying this property in `elasticsearch.yml` will result in an error on
+startup.
 ====
 
 [[breaking_80_allocation_change_include_relocations_removed]]
@@ -41,6 +42,7 @@ extra work to correct. This behaviour is no longer optional, and this setting
 has been removed.
 
 *Impact* +
-To avoid errors, unset the `cluster.routing.allocation.disk.include_relocations`
-setting and discontinue its use.
+Discontinue use of the `cluster.routing.allocation.disk.include_relocations`
+setting. Specifying this setting in `elasticsearch.yml` will result in an error
+on startup.
 ====

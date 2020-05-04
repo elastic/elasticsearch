@@ -19,8 +19,8 @@ version 6.4 have been removed. Both token filters can only be used by their
 alternative names `ngram` and `edge_ngram` since version 7.0.
 
 *Impact* +
-To avoid the errors, discontinue use of the `nGram` and `edgeNGram` token filter
-names. Use the equivalent `ngram` and `edge_ngram` token filter names instead.
+Use the equivalent `ngram` and `edge_ngram` token filters. Requests containing
+the `nGram` and `edgeNGram` token filter names will return an error.
 ====
 
 [[nGram-edgeNGram-tokenizer-dreprecation]]
@@ -34,6 +34,6 @@ emit a deprecation warning. The tokenizer name should be changed to the fully eq
 `ngram` or `edge_ngram` names for new indices and in index templates.
 
 *Impact* +
-To avoid errors, discontinue use of the `nGram` and `edgeNGram` tokenizer names.
-Use the equivalent `ngram` and `edge_ngram` tokenizer names instead.
+Use the `ngram` and `edge_ngram` tokenizers. Requests to create new indices 
+using the `nGram` and `edgeNGram` tokenizer names will return an error.
 ====

@@ -631,7 +631,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verifyResolvability(dataStreamName, clearCache(dataStreamName), true);
         verifyResolvability(dataStreamName, _flush(dataStreamName),true);
         verifyResolvability(dataStreamName, segments(dataStreamName), true);
-        verifyResolvability(dataStreamName, stats(dataStreamName), true);
+        verifyResolvability(dataStreamName, stats(dataStreamName), false);
         verifyResolvability(dataStreamName, forceMerge(dataStreamName), true);
         verifyResolvability(dataStreamName, validateQuery(dataStreamName), true);
         verifyResolvability(dataStreamName, getAliases(dataStreamName), true);
@@ -654,7 +654,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, clearCache(wildcardExpression), true);
         verifyResolvability(wildcardExpression, _flush(wildcardExpression),true);
         verifyResolvability(wildcardExpression, segments(wildcardExpression), true);
-        verifyResolvability(wildcardExpression, stats(wildcardExpression), true);
+        verifyResolvability(wildcardExpression, stats(wildcardExpression), false);
         verifyResolvability(wildcardExpression, forceMerge(wildcardExpression), true);
         verifyResolvability(wildcardExpression, validateQuery(wildcardExpression), true);
         verifyResolvability(wildcardExpression, getAliases(wildcardExpression), true);

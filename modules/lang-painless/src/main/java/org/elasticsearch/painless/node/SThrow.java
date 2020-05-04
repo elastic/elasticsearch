@@ -19,10 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ThrowNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -47,7 +49,8 @@ public class SThrow extends AStatement {
         AExpression.Input expressionInput = new AExpression.Input();
         expressionInput.expected = Exception.class;
         AExpression.Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
-        expression.cast(expressionInput, expressionOutput);
+        PainlessCast expressionCast = AnalyzerCaster.getLegalCast(expression.location,
+                expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
 
         output.methodEscape = true;
         output.loopEscape = true;
@@ -55,7 +58,7 @@ public class SThrow extends AStatement {
         output.statementCount = 1;
 
         ThrowNode throwNode = new ThrowNode();
-        throwNode.setExpressionNode(expression.cast(expressionOutput));
+        throwNode.setExpressionNode(AExpression.cast(expressionOutput.expressionNode, expressionCast));
         throwNode.setLocation(location);
 
         output.statementNode = throwNode;

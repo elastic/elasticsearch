@@ -29,13 +29,13 @@ import java.io.IOException;
  * and this nodes needs to be removed from the cluster
  */
 
-public class FsHealthcheckFailureException extends ElasticsearchException {
+public class FsHealthCheckFailureException extends ElasticsearchException {
 
-    public FsHealthcheckFailureException(String msg, Object... args) {
+    public FsHealthCheckFailureException(String msg, Object... args) {
         super(msg, args);
     }
 
-    public FsHealthcheckFailureException(StreamInput in) throws IOException {
+    public FsHealthCheckFailureException(StreamInput in) throws IOException {
         super(in);
     }
 }

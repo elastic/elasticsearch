@@ -109,7 +109,7 @@ public class PreVoteCollectorTests extends ESTestCase {
 
         localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
         responsesByNode.put(localNode, new PreVoteResponse(currentTerm, lastAcceptedTerm, lastAcceptedVersion));
-        healthStatus = NodeHealthService.Status.UNKNOWN;
+        healthStatus = NodeHealthService.Status.HEALTHY;
         transportService = mockTransport.createTransportService(settings,
             deterministicTaskQueue.getThreadPool(), TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundTransportAddress -> localNode, null, emptySet());
@@ -190,7 +190,7 @@ public class PreVoteCollectorTests extends ESTestCase {
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         RemoteTransportException remoteTransportException = expectThrows(RemoteTransportException.class, () ->
             handlePreVoteRequestViaTransportService(new PreVoteRequest(otherNode, term)));
-        assertThat(remoteTransportException.getCause(), instanceOf(FsHealthcheckFailureException.class));
+        assertThat(remoteTransportException.getCause(), instanceOf(FsHealthCheckFailureException.class));
     }
 
     public void testDoesNotStartElectionIfStopped() {

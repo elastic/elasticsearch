@@ -110,7 +110,7 @@ public class FollowersCheckerTests extends ESTestCase {
             assert false : fcr;
         }, (node, reason) -> {
             assert false : node;
-        }, () -> NodeHealthService.Status.UNKNOWN);
+        }, () -> NodeHealthService.Status.HEALTHY);
 
         followersChecker.setCurrentNodes(discoveryNodesHolder[0]);
         deterministicTaskQueue.runAllTasks();
@@ -181,7 +181,7 @@ public class FollowersCheckerTests extends ESTestCase {
             "followers check retry count exceeded",
             (FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings) - 1) * FOLLOWER_CHECK_INTERVAL_SETTING.get(settings).millis()
                 + FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings) * FOLLOWER_CHECK_TIMEOUT_SETTING.get(settings).millis(),
-            () -> NodeHealthService.Status.UNKNOWN);
+            () -> NodeHealthService.Status.HEALTHY);
     }
 
     public void testFailsNodeThatRejectsCheck() {
@@ -199,7 +199,7 @@ public class FollowersCheckerTests extends ESTestCase {
             },
             "followers check retry count exceeded",
             (FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings) - 1) * FOLLOWER_CHECK_INTERVAL_SETTING.get(settings).millis(),
-            () -> NodeHealthService.Status.UNKNOWN);
+            () -> NodeHealthService.Status.HEALTHY);
     }
 
     public void testFailureCounterResetsOnSuccess() {
@@ -232,13 +232,13 @@ public class FollowersCheckerTests extends ESTestCase {
             },
             "followers check retry count exceeded",
             (FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings) * (maxRecoveries + 1) - 1)
-                * FOLLOWER_CHECK_INTERVAL_SETTING.get(settings).millis(), () -> NodeHealthService.Status.UNKNOWN);
+                * FOLLOWER_CHECK_INTERVAL_SETTING.get(settings).millis(), () -> NodeHealthService.Status.HEALTHY);
     }
 
     public void testFailsNodeThatIsDisconnected() {
         testBehaviourOfFailingNode(Settings.EMPTY, () -> {
             throw new ConnectTransportException(null, "simulated exception");
-        }, "disconnected", 0, () -> NodeHealthService.Status.UNKNOWN);
+        }, "disconnected", 0, () -> NodeHealthService.Status.HEALTHY);
     }
 
     public void testFailsNodeThatDisconnects() {
@@ -281,7 +281,7 @@ public class FollowersCheckerTests extends ESTestCase {
         }, (node, reason) -> {
             assertTrue(nodeFailed.compareAndSet(false, true));
             assertThat(reason, equalTo("disconnected"));
-        }, () -> NodeHealthService.Status.UNKNOWN);
+        }, () -> NodeHealthService.Status.HEALTHY);
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).build();
         followersChecker.setCurrentNodes(discoveryNodes);
@@ -304,11 +304,11 @@ public class FollowersCheckerTests extends ESTestCase {
         final Settings settings = settingsBuilder.build();
 
         testBehaviourOfFailingNode(settings, () -> {
-                throw new FsHealthcheckFailureException("non writable exception");
+                throw new FsHealthCheckFailureException("non writable exception");
             },
             "followers check retry count exceeded",
             (FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings) - 1) * FOLLOWER_CHECK_INTERVAL_SETTING.get(settings).millis(),
-            () -> NodeHealthService.Status.UNKNOWN);
+            () -> NodeHealthService.Status.HEALTHY);
     }
 
     private void testBehaviourOfFailingNode(Settings testSettings, Supplier<TransportResponse.Empty> responder, String failureReason,
@@ -517,7 +517,7 @@ public class FollowersCheckerTests extends ESTestCase {
                 }
             }, (node, reason) -> {
             assert false : node;
-        }, () -> NodeHealthService.Status.UNKNOWN);
+        }, () -> NodeHealthService.Status.HEALTHY);
 
         {
             // Does not call into the coordinator in the normal case
@@ -646,7 +646,7 @@ public class FollowersCheckerTests extends ESTestCase {
             assert false : fcr;
         }, (node, reason) -> {
             assert false : node;
-        },() -> NodeHealthService.Status.UNKNOWN);
+        },() -> NodeHealthService.Status.HEALTHY);
         followersChecker.setCurrentNodes(discoveryNodes);
         List<DiscoveryNode> followerTargets = Stream.of(capturingTransport.getCapturedRequestsAndClear())
             .map(cr -> cr.node).collect(Collectors.toList());

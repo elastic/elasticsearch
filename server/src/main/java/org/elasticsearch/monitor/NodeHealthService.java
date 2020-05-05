@@ -22,7 +22,7 @@ package org.elasticsearch.monitor;
 @FunctionalInterface
 public interface NodeHealthService {
 
-    enum Status { HEALTHY, UNHEALTHY, UNKNOWN }
+    enum Status { HEALTHY, UNHEALTHY }
 
     Status getHealth();
 }

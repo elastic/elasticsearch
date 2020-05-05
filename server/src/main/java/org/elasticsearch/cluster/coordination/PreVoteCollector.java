@@ -111,7 +111,7 @@ public class PreVoteCollector {
         //TODO verify if the placement makes sense
         if (nodeHealthService.getHealth() == NodeHealthService.Status.UNHEALTHY) {
             logger.warn("Reject offering pre-vote as all paths are not writable");
-            throw new FsHealthcheckFailureException("rejecting " + request + " as not all paths are writable");
+            throw new FsHealthCheckFailureException("rejecting " + request + " as not all paths are writable");
         }
 
         if (leader == null) {

@@ -164,7 +164,7 @@ public class FollowersChecker {
     private void handleFollowerCheck(FollowerCheckRequest request, TransportChannel transportChannel) throws IOException {
         if (nodeHealthService.getHealth() == NodeHealthService.Status.UNHEALTHY) {
             logger.error("Rejecting health check request {} as all data paths are not writable", request);
-            throw new FsHealthcheckFailureException("rejecting " + request + " since not all paths are writable " + this);
+            throw new FsHealthCheckFailureException("rejecting " + request + " since not all paths are writable " + this);
         }
 
         FastResponseState responder = this.fastResponseState;

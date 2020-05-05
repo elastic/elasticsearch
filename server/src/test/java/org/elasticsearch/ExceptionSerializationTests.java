@@ -34,7 +34,7 @@ import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.CoordinationStateRejectedException;
-import org.elasticsearch.cluster.coordination.FsHealthcheckFailureException;
+import org.elasticsearch.cluster.coordination.FsHealthCheckFailureException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IllegalShardRoutingStateException;
@@ -826,7 +826,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(155, ShardNotInPrimaryModeException.class);
         ids.put(156, RetentionLeaseInvalidRetainingSeqNoException.class);
         ids.put(157, IngestProcessorException.class);
-        ids.put(158, FsHealthcheckFailureException.class);
+        ids.put(158, FsHealthCheckFailureException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

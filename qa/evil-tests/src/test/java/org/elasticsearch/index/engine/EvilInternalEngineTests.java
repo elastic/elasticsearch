@@ -64,21 +64,6 @@ public class EvilInternalEngineTests extends EngineTestCase {
                         public void merge(final MergePolicy.OneMerge merge) throws IOException {
                             throw new OutOfMemoryError("640K ought to be enough for anybody");
                         }
-
-                        @Override
-                        public synchronized MergePolicy.OneMerge getNextMerge() {
-                            /*
-                             * This will be called when we flush when we will not be ready to return the segments. After the segments are on
-                             * disk, we can only return them from here once or the merge scheduler will be stuck in a loop repeatedly
-                             * peeling off the same segments to schedule for merging.
-                             */
-                            if (segmentsReference.get() == null) {
-                                return super.getNextMerge();
-                            } else {
-                                final List<SegmentCommitInfo> segments = segmentsReference.getAndSet(null);
-                                return new MergePolicy.OneMerge(segments);
-                            }
-                        }
                     },
                     null,
                     null)) {

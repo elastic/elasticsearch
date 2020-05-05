@@ -128,6 +128,7 @@ InternalEqlScriptUtils.indexOf(InternalQlScriptUtils.docValue(doc,params.v0),par
 "params":{"v0":"user_name","v1":"A","v2":2,"v3":0}
 ;
 
+
 substringFunction
 process where substring(file_name, -4) == '.exe'
 ;
@@ -163,6 +164,24 @@ process where cidrMatch(source_address, "10.0.0.0/8", "192.168.0.0/16", "2001:db
 "term":{"source_address":{"value":"10.0.0.0/8"
 "term":{"source_address":{"value":"192.168.0.0/16"
 "term":{"source_address":{"value":"2001:db8::/32"
+;
+
+matchFunctionOne
+process where match(command_line, "^.*?net.exe")
+;
+"regexp":{"command_line":{"value":"^.*?net.exe"
+;
+
+matchFunctionTwo
+process where match(command_line, "^.*?net.exe", "net\\.exe")
+;
+"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe"
+;
+
+matchFunctionThree
+process where match(command_line, "^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
+;
+"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"
 ;
 
 wildcardFunctionSingleArgument

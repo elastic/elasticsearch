@@ -96,7 +96,7 @@ public class SqlSession implements Session {
     }
 
     private LogicalPlan doParse(String sql, List<SqlTypedParamValue> params) {
-        return new SqlParser().createStatement(sql, params);
+        return new SqlParser().createStatement(sql, params, configuration.zoneId());
     }
 
     public void analyzedPlan(LogicalPlan parsed, boolean verify, ActionListener<LogicalPlan> listener) {

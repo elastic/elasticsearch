@@ -110,7 +110,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(XPackSettings.MONITORING_ENABLED.getKey(), false)
                 .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
                 .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
                 // we do this by default in core, but for watcher this isn't needed and only adds noise.
@@ -534,7 +533,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     protected void ensureLicenseEnabled() throws Exception {
         assertBusy(() -> {
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                assertThat(licenseState.isWatcherAllowed(), is(true));
+                assertThat(licenseState.isAllowed(XPackLicenseState.Feature.WATCHER), is(true));
             }
         });
     }

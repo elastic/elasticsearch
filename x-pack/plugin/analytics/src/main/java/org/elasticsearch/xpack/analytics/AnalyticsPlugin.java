@@ -52,7 +52,6 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -86,7 +85,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public List<AggregationSpec> getAggregations() {
-        return Arrays.asList(
+        return org.elasticsearch.common.collect.List.of(
             new AggregationSpec(
                 StringStatsAggregationBuilder.NAME,
                 StringStatsAggregationBuilder::new,
@@ -109,6 +108,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
                 TTestAggregationBuilder::new,
                 usage.track(AnalyticsStatsAction.Item.T_TEST, checkLicense(TTestAggregationBuilder.PARSER)))
                 .addResultReader(InternalTTest::new)
+                .setAggregatorRegistrar(TTestAggregationBuilder::registerUsage)
         );
     }
 
@@ -142,10 +142,12 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
-        return Arrays.asList(
+        return org.elasticsearch.common.collect.List.of(
             AnalyticsAggregatorFactory::registerPercentilesAggregator,
             AnalyticsAggregatorFactory::registerPercentileRanksAggregator,
-            AnalyticsAggregatorFactory::registerHistoBackedSumAggregator
+            AnalyticsAggregatorFactory::registerHistoBackedSumAggregator,
+            AnalyticsAggregatorFactory::registerHistoBackedValueCountAggregator,
+            AnalyticsAggregatorFactory::registerHistoBackedAverageAggregator
         );
     }
 
@@ -159,7 +161,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return Arrays.asList(
+        return org.elasticsearch.common.collect.List.of(
             new NamedWriteableRegistry.Entry(TTestState.class, PairedTTestState.NAME, PairedTTestState::new),
             new NamedWriteableRegistry.Entry(TTestState.class, UnpairedTTestState.NAME, UnpairedTTestState::new)
         );
@@ -167,7 +169,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     private static <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser) {
         return (parser, name) -> {
-            if (getLicenseState().isAnalyticsAllowed() == false) {
+            if (getLicenseState().isAllowed(XPackLicenseState.Feature.ANALYTICS) == false) {
                 throw LicenseUtils.newComplianceException(XPackField.ANALYTICS);
             }
             return realParser.parse(parser, name);

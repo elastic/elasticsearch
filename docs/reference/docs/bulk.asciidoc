@@ -92,6 +92,10 @@ as this will slow things down.
 Some of the officially supported clients provide helpers to assist with
 bulk requests and reindexing of documents from one index to another:
 
+Go::
+
+    See https://github.com/elastic/go-elasticsearch/tree/master/_examples/bulk#indexergo[esutil.BulkIndexer]
+
 Perl::
 
     See https://metacpan.org/pod/Search::Elasticsearch::Client::5_0::Bulk[Search::Elasticsearch::Client::5_0::Bulk]

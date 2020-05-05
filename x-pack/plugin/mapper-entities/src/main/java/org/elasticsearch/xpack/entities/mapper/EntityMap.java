@@ -161,7 +161,7 @@ public class EntityMap {
         int count = bytesReader.readVInt();
         return new BytesRefIterator() {
             int remaining = count;
-            BytesRef scratch = new BytesRef();
+            final BytesRef scratch = new BytesRef();
             @Override
             public BytesRef next() {
                 if (remaining == 0)

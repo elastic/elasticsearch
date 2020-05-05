@@ -925,47 +925,35 @@ public class MetadataIndexTemplateService {
     }
 
     private void validate(String name, ComponentTemplate template) {
-        validate(name,
-            template.template().settings(),
-            Collections.emptyList(),
-            Optional.ofNullable(template.template().aliases())
-                .map(aliases -> aliases.values().stream()
-                    .map(aliasMeta -> {
-                        Alias a = new Alias(aliasMeta.alias());
-                        if (aliasMeta.filter() != null) {
-                            a.filter(aliasMeta.filter().string());
-                        }
-                        a.searchRouting(aliasMeta.searchRouting());
-                        a.indexRouting(aliasMeta.indexRouting());
-                        a.isHidden(aliasMeta.isHidden());
-                        a.writeIndex(aliasMeta.writeIndex());
-                        return a;
-                    })
-                    .collect(Collectors.toList()))
-                .orElse(Collections.emptyList()));
+        validate(name, template.template(), Collections.emptyList());
     }
 
     private void validate(String name, IndexTemplateV2 template) {
-        Optional<Template> maybeTemplate = Optional.ofNullable(template.template());
+        validate(name, template.template(), template.indexPatterns());
+    }
+
+    private void validate(String name, Template template, List<String> indexPatterns) {
+        Optional<Template> maybeTemplate = Optional.ofNullable(template);
         validate(name,
             maybeTemplate.map(Template::settings).orElse(Settings.EMPTY),
-            template.indexPatterns(),
-            maybeTemplate
-                .map(Template::aliases)
-                .map(aliasMap -> aliasMap.values().stream()
-                    .map(aliasMeta -> {
-                        Alias a = new Alias(aliasMeta.alias());
-                        if (aliasMeta.filter() != null) {
-                            a.filter(aliasMeta.filter().string());
-                        }
-                        a.searchRouting(aliasMeta.searchRouting());
-                        a.indexRouting(aliasMeta.indexRouting());
-                        a.isHidden(aliasMeta.isHidden());
-                        a.writeIndex(aliasMeta.writeIndex());
-                        return a;
-                    })
-                    .collect(Collectors.toList()))
-                .orElse(Collections.emptyList()));
+            indexPatterns,
+            maybeTemplate.map(Template::aliases)
+                .orElse(Collections.emptyMap())
+                .values().stream()
+                .map(MetadataIndexTemplateService::toAlias)
+                .collect(Collectors.toList()));
+    }
+
+    private static Alias toAlias(AliasMetadata aliasMeta) {
+        Alias a = new Alias(aliasMeta.alias());
+        if (aliasMeta.filter() != null) {
+            a.filter(aliasMeta.filter().string());
+        }
+        a.searchRouting(aliasMeta.searchRouting());
+        a.indexRouting(aliasMeta.indexRouting());
+        a.isHidden(aliasMeta.isHidden());
+        a.writeIndex(aliasMeta.writeIndex());
+        return a;
     }
 
     private void validate(PutRequest putRequest) {

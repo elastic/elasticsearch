@@ -19,6 +19,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -66,6 +67,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
             // Write tp is expected when executing enrich processor from index / bulk api
             // Management tp is expected when executing enrich processor from ingest simulate api
             assert Thread.currentThread().getName().contains(ThreadPool.Names.WRITE)
+                || Thread.currentThread().getName().contains(ThreadPool.Names.SEARCH)
                 || Thread.currentThread().getName().contains(ThreadPool.Names.MANAGEMENT);
             coordinator.schedule(request, listener);
         }
@@ -76,6 +78,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
         final BiConsumer<MultiSearchRequest, BiConsumer<MultiSearchResponse, Exception>> lookupFunction;
         final int maxLookupsPerRequest;
         final int maxNumberOfConcurrentRequests;
+        final int queueCapacity;
         final BlockingQueue<Slot> queue;
         final AtomicInteger remoteRequestsCurrent = new AtomicInteger(0);
         volatile long remoteRequestsTotal = 0;
@@ -99,21 +102,24 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
             this.lookupFunction = lookupFunction;
             this.maxLookupsPerRequest = maxLookupsPerRequest;
             this.maxNumberOfConcurrentRequests = maxNumberOfConcurrentRequests;
+            this.queueCapacity = queueCapacity;
             this.queue = new ArrayBlockingQueue<>(queueCapacity);
         }
 
         void schedule(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-            // Use put(...), because if queue is full then this method will wait until a free slot becomes available
-            // The calling thread here is a write thread (write tp is used by ingest) and
-            // this will create natural back pressure from the enrich processor.
-            // If there are no write threads available then write requests with ingestion will fail with 429 error code.
-            try {
-                queue.put(new Slot(searchRequest, listener));
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException("unable to add item to queue", e);
-            }
+            // Use offer(...) instead of put(...). We are on a write thread and blocking here can be dangerous,
+            // especially since the logic to kick off draining the queue is located right after this section. If we
+            // cannot insert a request to the queue, we should reject the document with a 429 error code.
+            boolean accepted = queue.offer(new Slot(searchRequest, listener));
+            int queueSize = queue.size();
+
+            // coordinate lookups no matter what, even if queues were full
             coordinateLookups();
+
+            if (!accepted) {
+                listener.onFailure(new EsRejectedExecutionException("Could not perform enrichment, " +
+                    "enrich coordination queue at capacity [" + queueSize + "/" + queueCapacity + "]"));
+            }
         }
 
         CoordinatorStats getStats(String nodeId) {

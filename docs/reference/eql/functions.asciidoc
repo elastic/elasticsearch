@@ -10,6 +10,7 @@ experimental::[]
 
 * <<eql-fn-between>>
 * <<eql-fn-cidrmatch>>
+* <<eql-fn-concat>>
 * <<eql-fn-endswith>>
 * <<eql-fn-indexof>>
 * <<eql-fn-length>>
@@ -178,6 +179,57 @@ field datatype.
 CIDR block you wish to search. If `null`, the function returns `null`.
 
 *Returns:* boolean or `null`
+====
+
+[discrete]
+[[eql-fn-concat]]
+=== `concat`
+
+Returns a concatenated string of provided values.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+concat("process is ", "regsvr32.exe")         // returns "process is regsvr32.exe"
+concat("regsvr32.exe", " ", 42)               // returns "regsvr32.exe 42"
+concat("regsvr32.exe", " ", 42.5)             // returns "regsvr32.exe 42.5"
+concat("regsvr32.exe", " ", true)             // returns "regsvr32.exe true"
+concat("regsvr32.exe")                        // returns "regsvr32.exe"
+
+// process.name = "regsvr32.exe"
+concat(process.name, " ", 42)                 // returns "regsvr32.exe 42"
+concat(process.name, " ", 42.5)               // returns "regsvr32.exe 42.5"
+concat("process is ", process.name)           // returns "process is regsvr32.exe"
+concat(process.name, " ", true)               // returns "regsvr32.exe true"
+concat(process.name)                          // returns "regsvr32.exe"
+
+// process.arg_count = 4
+concat(process.name, " ", process.arg_count)  // returns "regsvr32.exe 4"
+
+// null handling
+concat(null, "regsvr32.exe")                  // returns null
+concat(process.name, null)                    // returns null
+concat(null)                                  // returns null 
+----
+
+*Syntax*
+[source,txt]
+----
+concat(<value>[, <value>])
+----
+
+*Parameters*
+
+`<value>`::
+(Required{multi-arg-ref})
+Value to concatenate. If any of the arguments are `null`, the function returns `null`.
++
+If using a field as the argument, this parameter does not support the
+<<text,`text`>> field datatype.
+
+*Returns:* string or `null`
 ====
 
 [discrete]

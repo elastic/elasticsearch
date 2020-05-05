@@ -16,7 +16,7 @@ In {es}, EQL assumes each document in an index corresponds to an event.
 ////
 [source,console]
 ----
-PUT my_index/_bulk?refresh
+PUT /my_index/_bulk?refresh
 {"index":{"_index" : "my_index", "_id" : "1"}}
 { "@timestamp": "2020-12-06T11:04:05.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process" }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
 {"index":{"_index" : "my_index", "_id" : "2"}}
@@ -44,9 +44,9 @@ GET my_index/_eql/search
 [[eql-search-api-request]]
 ==== {api-request-title}
 
-`GET <index>/_eql/search`
+`GET /<index>/_eql/search`
 
-`POST <index>/_eql/search`
+`POST /<index>/_eql/search`
 
 [[eql-search-api-prereqs]]
 ==== {api-prereq-title}
@@ -134,6 +134,7 @@ Reserved for future use.
 Maximum number of matching events to return. Defaults to `50`. Values must be
 greater than `0`.
 
+[role="child_attributes"]
 [[eql-search-api-response-body]]
 ==== {api-response-body-title}
 

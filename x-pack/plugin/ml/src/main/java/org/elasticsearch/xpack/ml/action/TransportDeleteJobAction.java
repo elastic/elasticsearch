@@ -375,7 +375,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                    return;
                }
                logger.info("[{}] deleting the following indices directly {}", jobId, indicesToDelete);
-               DeleteIndexRequest request = new DeleteIndexRequest(indicesToDelete.toArray(String[]::new));
+               DeleteIndexRequest request = new DeleteIndexRequest(indicesToDelete.toArray(new String[0]));
                request.indicesOptions(IndicesOptions.lenientExpandOpenHidden());
                executeAsyncWithOrigin(
                    parentTaskClient.threadPool().getThreadContext(),

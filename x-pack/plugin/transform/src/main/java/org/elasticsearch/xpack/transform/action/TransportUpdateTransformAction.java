@@ -9,20 +9,23 @@ package org.elasticsearch.xpack.transform.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
@@ -51,15 +54,17 @@ import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Respo
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
+import org.elasticsearch.xpack.core.transform.transforms.TransformState;
+import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
+import org.elasticsearch.xpack.transform.transforms.TransformTask;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
-import java.io.IOException;
 import java.time.Clock;
 import java.util.List;
 import java.util.Map;
@@ -67,7 +72,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.transform.action.TransportPutTransformAction.buildPrivilegeCheck;
 
-public class TransportUpdateTransformAction extends TransportMasterNodeAction<Request, Response> {
+public class TransportUpdateTransformAction extends TransportTasksAction<TransformTask, Request, Response, Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportUpdateTransformAction.class);
     private final XPackLicenseState licenseState;
@@ -76,6 +81,8 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
     private final SecurityContext securityContext;
     private final TransformAuditor auditor;
     private final SourceDestValidator sourceDestValidator;
+    private final ThreadPool threadPool;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportUpdateTransformAction(
@@ -115,7 +122,17 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
         TransformServices transformServices,
         Client client
     ) {
-        super(name, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
+        super(
+            name,
+            clusterService,
+            transportService,
+            actionFilters,
+            Request::fromStreamWithBWC,
+            Response::fromStreamWithBWC,
+            Response::fromStreamWithBWC,
+            ThreadPool.Names.SAME
+        );
+
         this.licenseState = licenseState;
         this.client = client;
         this.transformConfigManager = transformServices.getConfigManager();
@@ -132,28 +149,36 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
             clusterService.getNodeName(),
             License.OperationMode.BASIC.description()
         );
+        this.threadPool = threadPool;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected Response read(StreamInput in) throws IOException {
-        return new Response(in);
-    }
-
-    @Override
-    protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<Response> listener) {
-
+    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         if (!licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM)) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.TRANSFORM));
             return;
         }
 
+        final ClusterState clusterState = clusterService.state();
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
+        final DiscoveryNodes nodes = clusterState.nodes();
+
+        if (nodes.isLocalNodeElectedMaster() == false) {
+            // Delegates update transform to elected master node so it becomes the coordinating node.
+            if (nodes.getMasterNode() == null) {
+                listener.onFailure(new MasterNotDiscoveredException());
+            } else {
+                transportService.sendRequest(
+                    nodes.getMasterNode(),
+                    actionName,
+                    request,
+                    new ActionListenerResponseHandler<>(listener, Response::fromStreamWithBWC)
+                );
+            }
+            return;
+        }
         // set headers to run transform as calling user
         Map<String, String> filteredHeaders = threadPool.getThreadContext()
             .getHeaders()
@@ -175,6 +200,34 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
                 return;
             }
             TransformConfig updatedConfig = update.apply(config);
+
+            final ActionListener<Response> updateListener;
+            if (update.changesSettings(config)) {
+                PersistentTasksCustomMetadata tasksMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterState);
+                PersistentTasksCustomMetadata.PersistentTask<?> transformTask = tasksMetadata.getTask(request.getId());
+
+                // to send a request to apply new settings at runtime, several requirements must be met:
+                // - transform must be running, meaning a task exists
+                // - transform is not failed (stopped transforms do not have a task)
+                // - the node where transform is executed on is at least 7.8.0 in order to understand the request
+                if (transformTask != null
+                    && transformTask.getState() instanceof TransformState
+                    && ((TransformState) transformTask.getState()).getTaskState() != TransformTaskState.FAILED
+                    && clusterState.nodes().get(transformTask.getExecutorNode()).getVersion().onOrAfter(Version.V_8_0_0) // todo:
+                                                                                                                         // V_7_8_0
+                ) {
+                    request.setNodes(transformTask.getExecutorNode());
+                    updateListener = ActionListener.wrap(updateResponse -> {
+                        request.setConfig(updateResponse.getConfig());
+                        super.doExecute(task, request, listener);
+                    }, listener::onFailure);
+                } else {
+                    updateListener = listener;
+                }
+            } else {
+                updateListener = listener;
+            }
+
             sourceDestValidator.validate(
                 clusterState,
                 updatedConfig.getSource().getIndex(),
@@ -182,7 +235,7 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
                 request.isDeferValidation() ? SourceDestValidations.NON_DEFERABLE_VALIDATIONS : SourceDestValidations.ALL_VALIDATIONS,
                 ActionListener.wrap(
                     validationResponse -> {
-                        checkPriviledgesAndUpdateTransform(request, clusterState, updatedConfig, configAndVersion.v2(), listener);
+                        checkPriviledgesAndUpdateTransform(request, clusterState, updatedConfig, configAndVersion.v2(), updateListener);
                     },
                     listener::onFailure
                 )
@@ -192,8 +245,22 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
     }
 
     @Override
-    protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    protected void taskOperation(Request request, TransformTask transformTask, ActionListener<Response> listener) {
+        // apply the settings
+        transformTask.applyNewSettings(request.getConfig().getSettings());
+        listener.onResponse(new Response(request.getConfig()));
+    }
+
+    @Override
+    protected Response newResponse(
+        Request request,
+        List<Response> tasks,
+        List<TaskOperationFailure> taskOperationFailures,
+        List<FailedNodeException> failedNodeExceptions
+    ) {
+
+        // there should be only 1 response, todo: check
+        return tasks.get(0);
     }
 
     private void handlePrivsResponse(
@@ -372,4 +439,5 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
 
         pivot.deduceMappings(client, config.getSource(), deduceMappingsListener);
     }
+
 }

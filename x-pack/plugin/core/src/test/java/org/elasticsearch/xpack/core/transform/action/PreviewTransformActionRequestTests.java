@@ -12,9 +12,9 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Request;
+import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
-import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 
 import java.io.IOException;
@@ -41,32 +41,40 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
     @Override
     protected Request createTestInstance() {
         TransformConfig config = new TransformConfig(
-                "transform-preview",
-                randomSourceConfig(),
-                new DestConfig("unused-transform-preview-index", null),
-                null,
-                randomBoolean() ? TransformConfigTests.randomSyncConfig() : null,
-                null,
-                PivotConfigTests.randomPivotConfig(),
-                null);
+            "transform-preview",
+            randomSourceConfig(),
+            new DestConfig("unused-transform-preview-index", null),
+            null,
+            randomBoolean() ? TransformConfigTests.randomSyncConfig() : null,
+            null,
+            PivotConfigTests.randomPivotConfig(),
+            null,
+            null
+        );
         return new Request(config);
     }
 
     public void testParsingOverwritesIdAndDestFields() throws IOException {
         // id & dest fields will be set by the parser
         BytesArray json = new BytesArray(
-                "{ " +
-                    "\"source\":{" +
-                    "   \"index\":\"foo\", " +
-                    "   \"query\": {\"match_all\": {}}}," +
-                    "\"pivot\": {" +
-                        "\"group_by\": {\"destination-field2\": {\"terms\": {\"field\": \"term-field\"}}}," +
-                        "\"aggs\": {\"avg_response\": {\"avg\": {\"field\": \"responsetime\"}}}" +
-                    "}" +
-                "}");
+            "{ "
+                + "\"source\":{"
+                + "   \"index\":\"foo\", "
+                + "   \"query\": {\"match_all\": {}}},"
+                + "\"pivot\": {"
+                + "\"group_by\": {\"destination-field2\": {\"terms\": {\"field\": \"term-field\"}}},"
+                + "\"aggs\": {\"avg_response\": {\"avg\": {\"field\": \"responsetime\"}}}"
+                + "}"
+                + "}"
+        );
 
-        try (XContentParser parser = JsonXContent.jsonXContent
-                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json.streamInput())) {
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                xContentRegistry(),
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                json.streamInput()
+            )
+        ) {
 
             Request request = Request.fromXContent(parser);
             assertEquals("transform-preview", request.getConfig().getId());

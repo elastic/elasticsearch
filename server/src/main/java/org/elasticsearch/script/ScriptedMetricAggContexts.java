@@ -67,7 +67,7 @@ public class ScriptedMetricAggContexts {
 
         private static final DeprecationLogger deprecationLogger =
                 new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
-        private static final Map<String, Function<Object, Object>> FUNCTIONS = Map.of(
+        private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
                 "doc", value -> {
                     deprecationLogger.deprecatedAndMaybeLog("map-script_doc",
                             "Accessing variable [doc] via [params.doc] from within an scripted metric agg map script "
@@ -97,7 +97,7 @@ public class ScriptedMetricAggContexts {
             if (leafLookup != null) {
                 params = new HashMap<>(params); // copy params so we aren't modifying input
                 params.putAll(leafLookup.asMap()); // add lookup vars
-                params = new DynamicMap(params, FUNCTIONS); // wrap with deprecations
+                params = new DynamicMap(params, PARAMS_FUNCTIONS); // wrap with deprecations
             }
             this.params = params;
         }

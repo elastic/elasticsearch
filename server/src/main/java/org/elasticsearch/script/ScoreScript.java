@@ -66,7 +66,7 @@ public abstract class ScoreScript {
 
     private static final DeprecationLogger deprecationLogger =
             new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
-    private static final Map<String, Function<Object, Object>> FUNCTIONS = Map.of(
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
             "doc", value -> {
                 deprecationLogger.deprecatedAndMaybeLog("score-script_doc",
                         "Accessing variable [doc] via [params.doc] from within an score-script "
@@ -108,7 +108,7 @@ public abstract class ScoreScript {
             this.leafLookup = lookup.getLeafSearchLookup(leafContext);
             params = new HashMap<>(params);
             params.putAll(leafLookup.asMap());
-            this.params = new DynamicMap(params, FUNCTIONS);
+            this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
             this.docBase = leafContext.docBase;
         }
     }

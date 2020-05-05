@@ -24,6 +24,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+/**
+ * DynamicMap is used to wrap a Map for a script parameter. A set of
+ * functions is provided for the overridden values where the function
+ * is applied to the existing value when one exists for the
+ * corresponding key.
+ */
 public final class DynamicMap implements Map<String, Object> {
 
     private final Map<String, Object> delegate;

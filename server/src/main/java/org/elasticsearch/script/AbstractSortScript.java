@@ -37,7 +37,7 @@ abstract class AbstractSortScript implements ScorerAware {
 
     private static final DeprecationLogger deprecationLogger =
             new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
-    private static final Map<String, Function<Object, Object>> FUNCTIONS = Map.of(
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
             "doc", value -> {
                 deprecationLogger.deprecatedAndMaybeLog("sort-script_doc",
                         "Accessing variable [doc] via [params.doc] from within an sort-script "
@@ -68,7 +68,7 @@ abstract class AbstractSortScript implements ScorerAware {
         this.leafLookup = lookup.getLeafSearchLookup(leafContext);
         Map<String, Object> parameters = new HashMap<>(params);
         parameters.putAll(leafLookup.asMap());
-        this.params = new DynamicMap(parameters, FUNCTIONS);
+        this.params = new DynamicMap(parameters, PARAMS_FUNCTIONS);
     }
 
     protected AbstractSortScript() {

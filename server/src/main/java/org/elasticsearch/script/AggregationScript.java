@@ -41,7 +41,7 @@ public abstract class AggregationScript implements ScorerAware {
 
     private static final DeprecationLogger deprecationLogger =
             new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
-    private static final Map<String, Function<Object, Object>> FUNCTIONS = Map.of(
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
             "doc", value -> {
                 deprecationLogger.deprecatedAndMaybeLog("aggregation-script_doc",
                         "Accessing variable [doc] via [params.doc] from within an aggregation-script "
@@ -73,7 +73,7 @@ public abstract class AggregationScript implements ScorerAware {
     private Object value;
 
     public AggregationScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
-        this.params = new DynamicMap(new HashMap<>(params), FUNCTIONS);
+        this.params = new DynamicMap(new HashMap<>(params), PARAMS_FUNCTIONS);
         this.leafLookup = lookup.getLeafSearchLookup(leafContext);
         this.params.putAll(leafLookup.asMap());
     }

@@ -38,7 +38,7 @@ public abstract class TermsSetQueryScript {
 
     private static final DeprecationLogger deprecationLogger =
             new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
-    private static final Map<String, Function<Object, Object>> FUNCTIONS = Map.of(
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
             "doc", value -> {
                 deprecationLogger.deprecatedAndMaybeLog("terms-set-query-script_doc",
                         "Accessing variable [doc] via [params.doc] from within an terms-set-query-script "
@@ -66,7 +66,7 @@ public abstract class TermsSetQueryScript {
         Map<String, Object> parameters = new HashMap<>(params);
         this.leafLookup = lookup.getLeafSearchLookup(leafContext);
         parameters.putAll(leafLookup.asMap());
-        this.params = new DynamicMap(parameters, FUNCTIONS);
+        this.params = new DynamicMap(parameters, PARAMS_FUNCTIONS);
     }
 
     protected TermsSetQueryScript() {

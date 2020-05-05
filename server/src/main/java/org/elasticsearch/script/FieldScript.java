@@ -40,7 +40,7 @@ public abstract class FieldScript {
 
     private static final DeprecationLogger deprecationLogger =
             new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
-    private static final Map<String, Function<Object, Object>> FUNCTIONS = Map.of(
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
             "doc", value -> {
                 deprecationLogger.deprecatedAndMaybeLog("field-script_doc",
                         "Accessing variable [doc] via [params.doc] from within an field-script "
@@ -64,7 +64,7 @@ public abstract class FieldScript {
         this.leafLookup = lookup.getLeafSearchLookup(leafContext);
         params = new HashMap<>(params);
         params.putAll(leafLookup.asMap());
-        this.params = new DynamicMap(params, FUNCTIONS);
+        this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
     }
 
     // for expression engine

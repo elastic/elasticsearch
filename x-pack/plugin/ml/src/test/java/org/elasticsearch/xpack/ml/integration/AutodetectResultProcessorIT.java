@@ -480,7 +480,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     private static ModelSnapshot createModelSnapshot() {
         return new ModelSnapshot.Builder(JOB_ID)
             .setSnapshotId(randomAlphaOfLength(12))
-            .setTimestamp(Date.from(Instant.ofEpochMilli(1000000000)))
+            .setLatestResultTimeStamp(Date.from(Instant.ofEpochMilli(1000_000_000)))
+            .setTimestamp(Date.from(Instant.ofEpochMilli(2000_000_000)))
             .build();
     }
 

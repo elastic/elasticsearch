@@ -128,6 +128,7 @@ InternalEqlScriptUtils.indexOf(InternalQlScriptUtils.docValue(doc,params.v0),par
 "params":{"v0":"user_name","v1":"A","v2":2,"v3":0}
 ;
 
+
 substringFunction
 process where substring(file_name, -4) == '.exe'
 ;
@@ -142,6 +143,14 @@ process where between(process_name, "s", "e") == "yst"
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalEqlScriptUtils.between(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3,params.v4),params.v5))",
 "params":{"v0":"process_name","v1":"s","v2":"e","v3":false,"v4":false,"v5":"yst"}
+;
+
+concatFunction
+process where concat(process_name, "::foo::", null, 1) == "net.exe::foo::1"
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalEqlScriptUtils.concat([InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3]),params.v4))",
+"params":{"v0":"process_name","v1":"::foo::","v2":null,"v3":1,"v4":"net.exe::foo::1"}
 ;
 
 cidrMatchFunctionOne
@@ -165,20 +174,35 @@ process where cidrMatch(source_address, "10.0.0.0/8", "192.168.0.0/16", "2001:db
 "term":{"source_address":{"value":"2001:db8::/32"
 ;
 
+matchFunctionOne
+process where match(command_line, "^.*?net.exe")
+;
+"regexp":{"command_line":{"value":"^.*?net.exe"
+;
+
+matchFunctionTwo
+process where match(command_line, "^.*?net.exe", "net\\.exe")
+;
+"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe"
+;
+
+matchFunctionThree
+process where match(command_line, "^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
+;
+"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"
+;
+
 numberFunctionSingleArgument
 process where number(process_name) == 1;
 InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)
 "params":{"v0":"process_name","v1":null,"v2":1}
 ;
 
-
 numberFunctionTwoFieldArguments
 process where number(process_name, pid) != null;
 InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0),InternalQlScriptUtils.docValue(doc,params.v1))))",
 "params":{"v0":"process_name","v1":"pid"}
 ;
-
-
 
 numberFunctionTwoArguments
 process where number(process_name, 16) != null;
@@ -195,7 +219,6 @@ numberFunctionFoldedHexComparison
 process where serial_event_id == number("0x32", 16);
 {"term":{"serial_event_id":{"value":50,
 ;
-
 
 wildcardFunctionSingleArgument
 process where wildcard(process_path, "*\\red_ttp\\wininit.*")
@@ -218,3 +241,163 @@ process where wildcard(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*", "*def
 "wildcard":{"process_path":{"wildcard":"*def*"
 ;
 
+
+addOperator
+process where serial_event_id + 2 == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+addOperatorReversed
+process where 2 + serial_event_id == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.add(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
+"params":{"v0":2,"v1":"serial_event_id","v2":41}
+;
+
+addFunction
+process where add(serial_event_id, 2) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+addFunctionReversed
+process where add(2, serial_event_id) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.add(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
+"params":{"v0":2,"v1":"serial_event_id","v2":41}
+;
+
+divideOperator
+process where serial_event_id / 2 == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.div(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+divideOperatorReversed
+process where 82 / serial_event_id == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.div(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
+"params":{"v0":82,"v1":"serial_event_id","v2":41}
+;
+
+divideFunction
+process where divide(serial_event_id, 2) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.div(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+divideFunctionReversed
+process where divide(82, serial_event_id) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.div(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
+"params":{"v0":82,"v1":"serial_event_id","v2":41}
+;
+
+moduloOperator
+process where serial_event_id % 2 == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.mod(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+moduloOperatorReversed
+process where 42 % serial_event_id == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.mod(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
+"params":{"v0":42,"v1":"serial_event_id","v2":41}
+;
+
+moduloFunction
+process where modulo(serial_event_id, 2) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.mod(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+moduloFunctionReversed
+process where modulo(42, serial_event_id) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.mod(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
+"params":{"v0":42,"v1":"serial_event_id","v2":41}
+;
+
+multiplyOperator
+process where serial_event_id * 2 == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+multiplyOperatorReversed
+process where 2 * serial_event_id == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.mul(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
+"params":{"v0":2,"v1":"serial_event_id","v2":41}
+;
+
+multiplyFunction
+process where multiply(serial_event_id, 2) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+multiplyFunctionReversed
+process where multiply(2, serial_event_id) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.mul(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
+"params":{"v0":2,"v1":"serial_event_id","v2":41}
+;
+
+subtractOperator
+process where serial_event_id - 2 == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.sub(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+subtractOperatorReversed
+process where 43 - serial_event_id == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.sub(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
+"params":{"v0":43,"v1":"serial_event_id","v2":41}
+;
+
+subtractFunction
+process where subtract(serial_event_id, 2) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.sub(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+subtractFunctionReversed
+process where subtract(43, serial_event_id) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.sub(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
+"params":{"v0":43,"v1":"serial_event_id","v2":41}
+;

@@ -43,7 +43,7 @@ public class CCRInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     @Override
     public boolean available() {
-        return licenseState.isCcrAllowed();
+        return licenseState.isAllowed(XPackLicenseState.Feature.CCR);
     }
 
     @Override

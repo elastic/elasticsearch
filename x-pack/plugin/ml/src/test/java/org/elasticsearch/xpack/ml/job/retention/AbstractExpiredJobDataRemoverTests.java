@@ -47,7 +47,7 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
 
     // We can't test an abstract class so make a concrete class
     // as simple as possible
-    private class ConcreteExpiredJobDataRemover extends AbstractExpiredJobDataRemover {
+    private static class ConcreteExpiredJobDataRemover extends AbstractExpiredJobDataRemover {
 
         private int getRetentionDaysCallCount = 0;
 
@@ -62,13 +62,14 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
             return randomBoolean() ? null : 0L;
         }
 
-        void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<Long> listener) {
+        @Override
+        void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener) {
             long nowEpochMs = Instant.now(Clock.systemDefaultZone()).toEpochMilli();
-            listener.onResponse(nowEpochMs - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis());
+            listener.onResponse(new CutoffDetails(nowEpochMs, nowEpochMs - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis()));
         }
 
         @Override
-        protected void removeDataBefore(Job job, long cutoffEpochMs, ActionListener<Boolean> listener) {
+        protected void removeDataBefore(Job job, long latestTimeMs, long cutoffEpochMs, ActionListener<Boolean> listener) {
             listener.onResponse(Boolean.TRUE);
         }
     }

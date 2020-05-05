@@ -30,7 +30,7 @@ public class ElisionFilterFactoryTests extends ESTokenStreamTestCase {
 
     public void testElisionFilterWithNoArticles() throws IOException {
         Settings settings = Settings.builder()
-            .put("index.analysis.filter.elision.type", "elision")
+            .put("index.analysis.filter.my_elision.type", "elision")
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
 

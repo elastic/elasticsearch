@@ -67,16 +67,16 @@ public class DisableGraphQueryTests extends ESSingleNodeTestCase {
     @Before
     public void setup() {
         Settings settings = Settings.builder()
-            .put("index.analysis.filter.shingle.type", "shingle")
-            .put("index.analysis.filter.shingle.output_unigrams", false)
-            .put("index.analysis.filter.shingle.min_size", 2)
-            .put("index.analysis.filter.shingle.max_size", 2)
+            .put("index.analysis.filter.shingle_nounigram.type", "shingle")
+            .put("index.analysis.filter.shingle_nounigram.output_unigrams", false)
+            .put("index.analysis.filter.shingle_nounigram.min_size", 2)
+            .put("index.analysis.filter.shingle_nounigram.max_size", 2)
             .put("index.analysis.filter.shingle_unigram.type", "shingle")
             .put("index.analysis.filter.shingle_unigram.output_unigrams", true)
             .put("index.analysis.filter.shingle_unigram.min_size", 2)
             .put("index.analysis.filter.shingle_unigram.max_size", 2)
             .put("index.analysis.analyzer.text_shingle.tokenizer", "whitespace")
-            .put("index.analysis.analyzer.text_shingle.filter", "lowercase, shingle")
+            .put("index.analysis.analyzer.text_shingle.filter", "lowercase, shingle_nounigram")
             .put("index.analysis.analyzer.text_shingle_unigram.tokenizer", "whitespace")
             .put("index.analysis.analyzer.text_shingle_unigram.filter",
                 "lowercase, shingle_unigram")

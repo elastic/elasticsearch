@@ -313,6 +313,18 @@ public class AnalysisRegistryTests extends ESTestCase {
         verify(mock).close();
     }
 
+    public void testDisallowCustomAnalyzerComponentsHaveSameNameAsBuiltInComponents() {
+        // test that an analyzer can't use the same the name of pre-configured analysis components
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("index.analysis.analyzer.whitespace.type", "custom")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> nonEmptyRegistry.build(idxSettings));
+        assertThat(e.getMessage(), equalTo(
+            "Custom analysis component [analyzer] [whitespace] may not reuse the name of a built-in component"));
+    }
+
     public void testDeprecationsAndExceptions() throws IOException {
 
         AnalysisPlugin plugin = new AnalysisPlugin() {

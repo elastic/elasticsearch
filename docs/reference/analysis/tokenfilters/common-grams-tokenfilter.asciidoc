@@ -119,7 +119,7 @@ The filter produces the following tokens:
 ==== Add to an analyzer
 
 The following <<indices-create-index,create index API>> request uses the
-`common_grams` filter to configure a new 
+`common_grams` filter to configure a new
 <<analysis-custom-analyzer,custom analyzer>>:
 
 [source,console]
@@ -131,11 +131,11 @@ PUT /common_grams_example
             "analyzer": {
               "index_grams": {
                   "tokenizer": "whitespace",
-                  "filter": ["common_grams"]
+                  "filter": ["common_grams_query"]
               }
             },
             "filter": {
-              "common_grams": {
+              "common_grams_query": {
                   "type": "common_grams",
                   "common_words": ["a", "is", "the"]
               }

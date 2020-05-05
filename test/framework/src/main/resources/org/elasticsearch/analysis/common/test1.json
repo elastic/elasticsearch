@@ -2,12 +2,12 @@
     "index":{
         "analysis":{
             "tokenizer":{
-                "standard":{
+                "my_standard_tokenizer":{
                     "type":"standard"
                 }
             },
             "filter":{
-                "stop":{
+                "stop1":{
                     "type":"stop",
                     "stopwords":["test-stop"]
                 },
@@ -24,28 +24,28 @@
                 }
             },
             "analyzer":{
-                "standard":{
+                "my_standard":{
                     "type":"standard",
                     "stopwords":["test1", "test2", "test3"]
                 },
                 "custom1":{
-                    "tokenizer":"standard",
-                    "filter":["stop", "stop2"]
+                    "tokenizer":"my_standard_tokenizer",
+                    "filter":["stop1", "stop2"]
                 },
                 "custom4":{
-                    "tokenizer":"standard",
+                    "tokenizer":"my_standard_tokenizer",
                     "filter":["my"]
                 },
                 "custom6":{
-                    "tokenizer":"standard",
+                    "tokenizer":"my_standard_tokenizer",
                     "position_increment_gap": 256
                 },
                 "czechAnalyzerWithStemmer":{
-                    "tokenizer":"standard",
-                    "filter":["lowercase", "stop", "czech_stem"]
+                    "tokenizer":"my_standard_tokenizer",
+                    "filter":["lowercase", "stop1", "czech_stem"]
                 },
                 "decompoundingAnalyzer":{
-                    "tokenizer":"standard",
+                    "tokenizer":"my_standard_tokenizer",
                     "filter":["dict_dec"]
                 }
             }

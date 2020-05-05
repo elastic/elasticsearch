@@ -33,7 +33,7 @@ PUT test
           "trigram": {
             "type": "custom",
             "tokenizer": "standard",
-            "filter": ["lowercase","shingle"]
+            "filter": ["lowercase","my_shingle"]
           },
           "reverse": {
             "type": "custom",
@@ -42,7 +42,7 @@ PUT test
           }
         },
         "filter": {
-          "shingle": {
+          "my_shingle": {
             "type": "shingle",
             "min_shingle_size": 2,
             "max_shingle_size": 3
@@ -163,7 +163,7 @@ The response contains suggestions scored by the most likely spelling correction 
     to `0.0` the top N candidates are returned. The default is `1.0`.
 
 `max_errors`::
-    The maximum percentage of the terms 
+    The maximum percentage of the terms
     considered to be misspellings in order to form a correction. This method
     accepts a float value in the range `[0..1)` as a fraction of the actual
     query terms or a number `>=1` as an absolute number of query terms. The

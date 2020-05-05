@@ -24,11 +24,11 @@
                 },
                 "synonymAnalyzerWithStopBeforeSynonym": {
                     "tokenizer":"whitespace",
-                    "filter":["stop","synonym"]
+                    "filter":["stop_synonym","synonym"]
                 },
                 "synonymAnalyzerWithStopAfterSynonym":{
                     "tokenizer":"whitespace",
-                    "filter":["synonym","stop"]
+                    "filter":["synonym","stop_synonym"]
                 },
                 "synonymAnalyzerWithStopSynonymAfterSynonym":{
                     "tokenizer":"whitespace",
@@ -83,7 +83,7 @@
                         "kimchy => shay"
                     ]
                 },
-                "stop":{
+                "stop_synonym":{
                     "type": "stop",
                     "stopwords":["stop","synonym"]
                 },

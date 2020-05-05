@@ -1326,6 +1326,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 .setMaxTrees(10)
                 .setFeatureBagFraction(0.5)
                 .setNumTopFeatureImportanceValues(3)
+                .setLossFunction(org.elasticsearch.client.ml.dataframe.Regression.LossFunction.MSLE)
+                .setLossFunctionParameter(1.0)
                 .build())
             .setDescription("this is a regression")
             .build();

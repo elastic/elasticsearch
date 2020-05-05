@@ -12,6 +12,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -22,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -37,6 +39,8 @@ public class Regression implements DataFrameAnalysis {
     public static final ParseField PREDICTION_FIELD_NAME = new ParseField("prediction_field_name");
     public static final ParseField TRAINING_PERCENT = new ParseField("training_percent");
     public static final ParseField RANDOMIZE_SEED = new ParseField("randomize_seed");
+    public static final ParseField LOSS_FUNCTION = new ParseField("loss_function");
+    public static final ParseField LOSS_FUNCTION_PARAMETER = new ParseField("loss_function_parameter");
 
     private static final String STATE_DOC_ID_SUFFIX = "_regression_state#1";
 
@@ -52,12 +56,21 @@ public class Regression implements DataFrameAnalysis {
                 new BoostedTreeParams((Double) a[1], (Double) a[2], (Double) a[3], (Integer) a[4], (Double) a[5], (Integer) a[6]),
                 (String) a[7],
                 (Double) a[8],
-                (Long) a[9]));
+                (Long) a[9],
+                (LossFunction) a[10],
+                (Double) a[11]));
         parser.declareString(constructorArg(), DEPENDENT_VARIABLE);
         BoostedTreeParams.declareFields(parser);
         parser.declareString(optionalConstructorArg(), PREDICTION_FIELD_NAME);
         parser.declareDouble(optionalConstructorArg(), TRAINING_PERCENT);
         parser.declareLong(optionalConstructorArg(), RANDOMIZE_SEED);
+        parser.declareField(optionalConstructorArg(), p -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return LossFunction.fromString(p.text());
+            }
+            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+        }, LOSS_FUNCTION, ObjectParser.ValueType.STRING);
+        parser.declareDouble(optionalConstructorArg(), LOSS_FUNCTION_PARAMETER);
         return parser;
     }
 
@@ -79,12 +92,16 @@ public class Regression implements DataFrameAnalysis {
     private final String predictionFieldName;
     private final double trainingPercent;
     private final long randomizeSeed;
+    private final LossFunction lossFunction;
+    private final Double lossFunctionParameter;
 
     public Regression(String dependentVariable,
                       BoostedTreeParams boostedTreeParams,
                       @Nullable String predictionFieldName,
                       @Nullable Double trainingPercent,
-                      @Nullable Long randomizeSeed) {
+                      @Nullable Long randomizeSeed,
+                      @Nullable LossFunction lossFunction,
+                      @Nullable Double lossFunctionParameter) {
         if (trainingPercent != null && (trainingPercent < 1.0 || trainingPercent > 100.0)) {
             throw ExceptionsHelper.badRequestException("[{}] must be a double in [1, 100]", TRAINING_PERCENT.getPreferredName());
         }
@@ -93,10 +110,16 @@ public class Regression implements DataFrameAnalysis {
         this.predictionFieldName = predictionFieldName == null ? dependentVariable + "_prediction" : predictionFieldName;
         this.trainingPercent = trainingPercent == null ? 100.0 : trainingPercent;
         this.randomizeSeed = randomizeSeed == null ? Randomness.get().nextLong() : randomizeSeed;
+        // Prior to introducing the loss function setting only MSE was implemented
+        this.lossFunction = lossFunction == null ? LossFunction.MSE : lossFunction;
+        if (lossFunctionParameter != null && lossFunctionParameter <= 0.0) {
+            throw ExceptionsHelper.badRequestException("[{}] must be a positive double", LOSS_FUNCTION_PARAMETER.getPreferredName());
+        }
+        this.lossFunctionParameter = lossFunctionParameter;
     }
 
     public Regression(String dependentVariable) {
-        this(dependentVariable, BoostedTreeParams.builder().build(), null, null, null);
+        this(dependentVariable, BoostedTreeParams.builder().build(), null, null, null, null, null);
     }
 
     public Regression(StreamInput in) throws IOException {
@@ -108,6 +131,14 @@ public class Regression implements DataFrameAnalysis {
             randomizeSeed = in.readOptionalLong();
         } else {
             randomizeSeed = Randomness.get().nextLong();
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            lossFunction = in.readEnum(LossFunction.class);
+            lossFunctionParameter = in.readOptionalDouble();
+        } else {
+            // Prior to introducing the loss function setting only MSE was implemented
+            lossFunction = LossFunction.MSE;
+            lossFunctionParameter = null;
         }
     }
 
@@ -131,6 +162,14 @@ public class Regression implements DataFrameAnalysis {
         return randomizeSeed;
     }
 
+    public LossFunction getLossFunction() {
+        return lossFunction;
+    }
+
+    public Double getLossFunctionParameter() {
+        return lossFunctionParameter;
+    }
+
     @Override
     public String getWriteableName() {
         return NAME.getPreferredName();
@@ -144,6 +183,10 @@ public class Regression implements DataFrameAnalysis {
         out.writeDouble(trainingPercent);
         if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
             out.writeOptionalLong(randomizeSeed);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeEnum(lossFunction);
+            out.writeOptionalDouble(lossFunctionParameter);
         }
     }
 
@@ -161,6 +204,10 @@ public class Regression implements DataFrameAnalysis {
         if (version.onOrAfter(Version.V_7_6_0)) {
             builder.field(RANDOMIZE_SEED.getPreferredName(), randomizeSeed);
         }
+        builder.field(LOSS_FUNCTION.getPreferredName(), lossFunction);
+        if (lossFunctionParameter != null) {
+            builder.field(LOSS_FUNCTION_PARAMETER.getPreferredName(), lossFunctionParameter);
+        }
         builder.endObject();
         return builder;
     }
@@ -174,6 +221,10 @@ public class Regression implements DataFrameAnalysis {
             params.put(PREDICTION_FIELD_NAME.getPreferredName(), predictionFieldName);
         }
         params.put(TRAINING_PERCENT.getPreferredName(), trainingPercent);
+        params.put(LOSS_FUNCTION.getPreferredName(), lossFunction.toString());
+        if (lossFunctionParameter != null) {
+            params.put(LOSS_FUNCTION_PARAMETER.getPreferredName(), lossFunctionParameter);
+        }
         return params;
     }
 
@@ -242,11 +293,27 @@ public class Regression implements DataFrameAnalysis {
             && Objects.equals(boostedTreeParams, that.boostedTreeParams)
             && Objects.equals(predictionFieldName, that.predictionFieldName)
             && trainingPercent == that.trainingPercent
-            && randomizeSeed == that.randomizeSeed;
+            && randomizeSeed == that.randomizeSeed
+            && lossFunction == that.lossFunction
+            && Objects.equals(lossFunctionParameter, that.lossFunctionParameter);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(dependentVariable, boostedTreeParams, predictionFieldName, trainingPercent, randomizeSeed);
+        return Objects.hash(dependentVariable, boostedTreeParams, predictionFieldName, trainingPercent, randomizeSeed, lossFunction,
+            lossFunctionParameter);
+    }
+
+    public enum LossFunction {
+        MSE, MSLE, HUBER;
+
+        private static LossFunction fromString(String value) {
+            return LossFunction.valueOf(value.toUpperCase(Locale.ROOT));
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
     }
 }

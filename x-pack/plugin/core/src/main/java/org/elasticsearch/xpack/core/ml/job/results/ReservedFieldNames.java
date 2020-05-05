@@ -314,6 +314,8 @@ public final class ReservedFieldNames {
             OutlierDetection.FEATURE_INFLUENCE_THRESHOLD.getPreferredName(),
             Regression.NAME.getPreferredName(),
             Regression.DEPENDENT_VARIABLE.getPreferredName(),
+            Regression.LOSS_FUNCTION.getPreferredName(),
+            Regression.LOSS_FUNCTION_PARAMETER.getPreferredName(),
             Regression.PREDICTION_FIELD_NAME.getPreferredName(),
             Regression.TRAINING_PERCENT.getPreferredName(),
             Classification.NAME.getPreferredName(),

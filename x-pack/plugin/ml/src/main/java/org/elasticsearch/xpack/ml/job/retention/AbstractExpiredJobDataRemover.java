@@ -154,8 +154,8 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
      */
     protected static final class CutoffDetails {
 
-        public long latestTimeMs;
-        public long cutoffEpochMs;
+        public final long latestTimeMs;
+        public final long cutoffEpochMs;
 
         public CutoffDetails(long latestTimeMs, long cutoffEpochMs) {
             this.latestTimeMs = latestTimeMs;

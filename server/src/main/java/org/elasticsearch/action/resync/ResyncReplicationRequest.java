@@ -38,7 +38,7 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
     private final long maxSeenAutoIdTimestampOnPrimary;
 
     ResyncReplicationRequest(StreamInput in) throws IOException {
-        super(null, in);
+        super(in);
         trimAboveSeqNo = in.readZLong();
         maxSeenAutoIdTimestampOnPrimary = in.readZLong();
         operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);

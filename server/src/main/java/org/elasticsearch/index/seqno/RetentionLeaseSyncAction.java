@@ -178,7 +178,7 @@ public class RetentionLeaseSyncAction extends
         }
 
         public Request(StreamInput in) throws IOException {
-            super(null, in);
+            super(in);
             retentionLeases = new RetentionLeases(in);
         }
 

@@ -37,7 +37,7 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
     private BulkItemRequest[] items;
 
     public BulkShardRequest(StreamInput in) throws IOException {
-        super(null, in);
+        super(in);
         items = new BulkItemRequest[in.readVInt()];
         for (int i = 0; i < items.length; i++) {
             if (in.readBoolean()) {

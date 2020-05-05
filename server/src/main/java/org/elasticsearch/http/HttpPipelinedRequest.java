@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.http;
 
-public class HttpPipelinedRequest<R>  implements HttpPipelinedMessage {
+public class HttpPipelinedRequest<R> implements HttpPipelinedMessage {
 
     private final R request;
     private final int sequence;

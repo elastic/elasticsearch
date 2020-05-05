@@ -31,6 +31,7 @@ import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -46,12 +47,27 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 public class Netty4HttpRequest implements HttpRequest {
+
     private final HttpHeadersMap headers;
-    private final int sequence;
     private final AtomicBoolean released;
     private final FullHttpRequest request;
     private final boolean pooled;
     private final BytesReference content;
+    private final Exception inboundException = null;
+    private final Releasable breakerControl = null;
+    private int sequence;
+
+    Netty4HttpRequest(FullHttpRequest request) {
+        this(request, -1);
+    }
+
+    Netty4HttpRequest(FullHttpRequest request, Releasable breakerRelease) {
+        this(request, breakerRelease, null);
+    }
+
+    Netty4HttpRequest(FullHttpRequest request, Releasable breakerRelease, Exception exception) {
+        this(request, -1);
+    }
 
     Netty4HttpRequest(FullHttpRequest request, int sequence) {
         this(request, new HttpHeadersMap(request.headers()), sequence, new AtomicBoolean(false), true,
@@ -193,6 +209,7 @@ public class Netty4HttpRequest implements HttpRequest {
     }
 
     int sequence() {
+        assert sequence != -1;
         return sequence;
     }
 

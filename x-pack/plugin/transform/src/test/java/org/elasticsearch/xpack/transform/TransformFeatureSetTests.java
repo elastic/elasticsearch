@@ -56,52 +56,6 @@ public class TransformFeatureSetTests extends ESTestCase {
         assertThat(featureSet.enabled(), is(true));
     }
 
-    public void testEnabledSettingFallback() {
-        boolean enabled = randomBoolean();
-        Settings.Builder settings = Settings.builder();
-        // use the deprecated setting
-        settings.put("xpack.data_frame.enabled", enabled);
-        TransformFeatureSet featureSet = new TransformFeatureSet(
-            mock(ClusterService.class),
-            mock(Client.class),
-            licenseState
-        );
-        assertThat(featureSet.enabled(), is(enabled));
-        assertWarnings(
-            "[xpack.data_frame.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                + "See the breaking changes documentation for the next major version."
-        );
-    }
-
-    public void testEnabledSettingFallbackMix() {
-        Settings.Builder settings = Settings.builder();
-        // use the older deprecated setting
-        settings.put("xpack.data_frame.enabled", false);
-        // ...and also the more recently deprecated setting
-        settings.put("xpack.transform.enabled", true);
-        TransformFeatureSet featureSet = new TransformFeatureSet(
-            mock(ClusterService.class),
-            mock(Client.class),
-            licenseState
-        );
-        assertThat(featureSet.enabled(), is(true));
-        assertWarnings(
-            "[xpack.data_frame.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                + "See the breaking changes documentation for the next major version.",
-            "[xpack.transform.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                + "See the breaking changes documentation for the next major version."
-        );
-    }
-
-    public void testEnabledDefault() {
-        TransformFeatureSet featureSet = new TransformFeatureSet(
-            mock(ClusterService.class),
-            mock(Client.class),
-            licenseState
-        );
-        assertTrue(featureSet.enabled());
-    }
-
     public void testParseSearchAggs() {
         Aggregations emptyAggs = new Aggregations(Collections.emptyList());
         SearchResponse withEmptyAggs = mock(SearchResponse.class);

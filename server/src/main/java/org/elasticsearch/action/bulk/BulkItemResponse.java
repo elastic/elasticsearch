@@ -508,8 +508,6 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
     }
 
     public void writeThin(StreamOutput out) throws IOException {
-        assert out.getVersion().onOrAfter(
-                BulkShardRequest.COMPACT_SHARD_ID_VERSION) : "Thin writes not supported for [" + out.getVersion() + "]";
         out.writeVInt(id);
         out.writeByte(opType.getId());
 

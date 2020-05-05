@@ -237,6 +237,18 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        writeBody(out);
+    }
+
+    @Override
+    public void writeThin(StreamOutput out) throws IOException {
+        assert out.getVersion().onOrAfter(
+                BulkShardRequest.COMPACT_SHARD_ID_VERSION) : "Thin writes not supported for [" + out.getVersion() + "]";
+        super.writeThin(out);
+        writeBody(out);
+    }
+
+    private void writeBody(StreamOutput out) throws IOException {
         if (out.getVersion().before(Version.V_8_0_0)) {
             out.writeString(MapperService.SINGLE_MAPPING_NAME);
         }
@@ -247,20 +259,6 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         out.writeZLong(ifSeqNo);
         out.writeVLong(ifPrimaryTerm);
     }
-
-    @Override
-    public void writeThin(StreamOutput out) throws IOException {
-        assert out.getVersion().onOrAfter(
-                BulkShardRequest.COMPACT_SHARD_ID_VERSION) : "Thin writes not supported for [" + out.getVersion() + "]";
-        super.writeThin(out);
-        out.writeString(id);
-        out.writeOptionalString(routing());
-        out.writeLong(version);
-        out.writeByte(versionType.getValue());
-        out.writeZLong(ifSeqNo);
-        out.writeVLong(ifPrimaryTerm);
-    }
-
 
     @Override
     public String toString() {

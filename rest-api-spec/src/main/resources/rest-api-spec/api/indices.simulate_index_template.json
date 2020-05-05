@@ -22,6 +22,16 @@
       ]
     },
     "params":{
+      "create":{
+        "type":"boolean",
+        "description":"Whether the index template we optionally defined in the body should only be dry-run added if new or can also replace an existing one",
+        "default":false
+      },
+      "cause":{
+        "type":"string",
+        "description":"User defined reason for dry-run creating the new template for simulation purposes",
+        "default":false
+      },
       "master_timeout":{
         "type":"time",
         "description":"Specify timeout for connection to master"

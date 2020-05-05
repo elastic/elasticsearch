@@ -45,8 +45,8 @@ import org.elasticsearch.client.indices.DeleteIndexTemplateV2Request;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetIndexRequest;
-import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetIndexTemplateV2Request;
+import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.IndexTemplateV2ExistRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
@@ -55,6 +55,7 @@ import org.elasticsearch.client.indices.PutIndexTemplateV2Request;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
 import org.elasticsearch.client.indices.ResizeRequest;
+import org.elasticsearch.client.indices.SimulateIndexTemplateRequest;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -423,6 +424,26 @@ final class IndicesRequestConverters {
         }
         request.addParameters(params.asMap());
         request.setEntity(RequestConverters.createEntity(putIndexTemplateRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request simulateIndexTemplate(SimulateIndexTemplateRequest simulateIndexTemplateRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_index_template", "_simulate_index")
+            .addPathPart(simulateIndexTemplateRequest.indexName()).build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        params.withMasterTimeout(simulateIndexTemplateRequest.masterNodeTimeout());
+        PutIndexTemplateV2Request putIndexTemplateV2Request = simulateIndexTemplateRequest.indexTemplateV2Request();
+        if (putIndexTemplateV2Request != null) {
+            if (putIndexTemplateV2Request.create()) {
+                params.putParam("create", Boolean.TRUE.toString());
+            }
+            if (Strings.hasText(putIndexTemplateV2Request.cause())) {
+                params.putParam("cause", putIndexTemplateV2Request.cause());
+            }
+            request.setEntity(RequestConverters.createEntity(putIndexTemplateV2Request, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
+        }
+        request.addParameters(params.asMap());
         return request;
     }
 

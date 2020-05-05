@@ -31,8 +31,8 @@ import java.util.Objects;
 
 public class BulkItemRequest implements Writeable {
 
-    private final int id;
-    private final DocWriteRequest<?> request;
+    private int id;
+    private DocWriteRequest<?> request;
     private volatile BulkItemResponse primaryResponse;
 
     BulkItemRequest(ShardId shardId, StreamInput in) throws IOException {

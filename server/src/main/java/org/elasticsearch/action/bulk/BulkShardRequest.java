@@ -37,7 +37,7 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
 
     public static final Version COMPACT_SHARD_ID_VERSION = Version.V_8_0_0;
 
-    private final BulkItemRequest[] items;
+    private BulkItemRequest[] items;
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);

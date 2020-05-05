@@ -1,47 +1,39 @@
 [[search-search]]
-=== Search
+=== Search API
+++++
+<titleabbrev>Search</titleabbrev>
+++++
 
 Returns search hits that match the query defined in the request.
 
 [source,console]
 ----
-GET /twitter/_search?q=tag:wow
+GET /twitter/_search
 ----
 // TEST[setup:twitter]
-
 
 [[search-search-api-request]]
 ==== {api-request-title}
 
 `GET /<index>/_search`
 
-`POST /<index>/_search`
-
 `GET /_search`
 
-`POST /_search`
+`POST /<index>/_search`
 
+`POST /_search`
 
 [[search-search-api-desc]]
 ==== {api-description-title}
 
 Allows you to execute a search query and get back search hits that match the
-query. The query can either be provided using a simple
-<<search-uri-request,query string as a parameter>>, or using a
-<<search-request-body,request body>>.
-
-[[search-partial-responses]]
-===== Partial responses
-
-To ensure fast responses, the search API will respond with partial results if
-one or more shards fail. See <<shard-failures, Shard failures>> for more
-information.
+query. You can provide search queries using the <<search-api-query-params-q,`q`
+query string parameter>> or <<search-request-body,request body>>.
 
 [[search-search-api-path-params]]
 ==== {api-path-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
-
 
 [[search-search-api-query-params]]
 ==== {api-query-parms-title}
@@ -50,16 +42,15 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
+[[search-partial-responses]]
 `allow_partial_search_results`::
-  (Optional, boolean) Indicates if an error should be returned if there is a
-  partial search failure or timeout. Defaults to `true`.
-
-`analyzer`::
-  (Optional, string) Defines the analyzer to use for the query string.
-
-`analyze_wildcard`::
-  (Optional, boolean) If `true`, wildcard and prefix queries will also be
-  analyzed. Defaults to `false`.
+(Optional, boolean)
+If `true`, returns partial results if there are request timeouts or
+<<shard-failures,shard failures>>. If `false`, returns an error with
+no partial results. Defaults to `true`.
++
+To override the default for this field, set the 
+`search.default_allow_partial_results` cluster setting to `false`.
 
 `batched_reduce_size`::
   (Optional, integer) The number of shard results that should be reduced at once
@@ -70,14 +61,6 @@ Defaults to `true`.
 `ccs_minimize_roundtrips`::
   (Optional, boolean) Indicates whether network round-trips should be minimized
   as part of cross-cluster search requests execution. Defaults to `true`.
-
-`default_operator`::
-  (Optional, string) The default operator for query string query (AND or OR).
-  Defaults to `OR`.
-
-`df`::
-  (Optional, string) Defines the field to use as default where no field prefix
-  is given in the query string.
 
 `docvalue_fields`::
   (Optional, string) A comma-separated list of fields to return as the docvalue
@@ -91,18 +74,13 @@ Defaults to `open`.
   (Optional, boolean) If `true`, returns detailed information about score
   computation as part of a hit. Defaults to `false`.
 
-`from`::
-  (Optional, integer) Defines the starting offset. Defaults to `0`.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=from]
 
 `ignore_throttled`::
   (Optional, boolean) If `true`, concrete, expanded or aliased indices will be
   ignored when frozen. Defaults to `false`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
-
-`lenient`::
-  (Optional, boolean) If `true`, format-based query failures (such as
-  providing text to a numeric field) will be ignored. Defaults to `false`.
 
 `max_concurrent_shard_requests`::
   (Optional, integer) Defines the number of concurrent shard requests per node
@@ -127,8 +105,20 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
   performed on. Random by default.
 
 [[search-api-query-params-q]]
-`q`::
-  (Optional, string) Query in the Lucene query string syntax.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=search-q]
++
+--
+You can use the `q` parameter to run a query parameter search. Query parameter
+searches do not support the full {es} <<query-dsl,Query DSL>> but are handy for
+testing.
+
+[IMPORTANT]
+====
+The `q` parameter overrides the <<search-api-request-body-query,`query`>>
+parameter in the request body. If both parameters are specified, documents
+matching the `query` request body parameter are not returned.
+====
+--
 
 `request_cache`::
   (Optional, boolean) If `true`, request cache will be used for this request.
@@ -142,11 +132,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
   (Optional, <<time-units, time units>>) Specifies how long a consistent view of
   the index should be maintained for scrolled search.
 
-`search_type`::
-  (Optional, string) Defines the type of the search operation. Available
-  options:
-  * `query_then_fetch`
-  * `dfs_query_then_fetch`
+include::{docdir}/rest-api/common-parms.asciidoc[tag=search_type]
 
 `seq_no_primary_term`::
   (Optional, boolean) If `true`, returns sequence number and primary term of the
@@ -159,16 +145,13 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
   (Optional, string) A comma-separated list of <field>:<direction> pairs.
 
 `_source`::
-  (Optional, string) True or false to return the `_source` field or not, or a
-  list of fields to return.
+(Optional, boolean)
+If `true`, the response includes the `_source` of matching documents under
+`hits`. Defaults to `true`.
 
-`_source_excludes`::
-  (Optional, string) A list of fields to exclude from the returned `_source`
-  field.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 
-`_source_includes`::
-  (Optional, string) A list of fields to extract and return from the `_source`
-  field.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
 `stats`::
   (Optional, string) Specific `tag` of the request for logging and statistical
@@ -176,28 +159,19 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `stored_fields`::
   (Optional, string) A comma-separated list of stored fields to return as part
-  of a hit.
+  of a hit. If no fields are specified, no stored fields are included in the
+  response.
 
 `suggest_field`::
   (Optional, string) Specifies which field to use for suggestions.
-
-`suggest_mode`::
-  (Optional, string) Specifies suggest mode. Defaults to `missing`. Available
-  options:
-  * `always`
-  * `missing`
-  * `popular`
-
-`suggest_size`::
-  (Optional, integer) Defines how many suggestions to return in response.
 
 `suggest_text`::
   (Optional, string) The source text for which the suggestions should be
   returned.
 
-`terminate_after`::
-  (Optional, integer) The maximum number of documents to collect for each shard,
-  upon reaching which the query execution will terminate early.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=terminate_after]
++
+Defaults to `0`, which does not terminate query execution early.
 
 `timeout`::
   (Optional, <<time-units, time units>>) Specifies the period of time to wait
@@ -205,19 +179,23 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
   request fails and returns an error. Defaults to no timeout.
 
 `track_scores`::
-  (Optional, boolean) If `true`, then calculates and returns scores even if they
-  are not used for sorting.
+  (Optional, boolean) If `true`, calculate and return document scores, even if
+  the scores are not used for sorting. Defaults to `false`.
 
 `track_total_hits`::
-  (Optional, boolean) Indicates if the number of documents that match the query
-  should be tracked.
+  (Optional, integer or boolean)
+  Number of hits matching the query to count accurately. Defaults to `10,000`.
+  +
+  If `true`, the default value is used. If `false`, the response does not
+  include the total number of hits matching the query.
 
 `typed_keys`::
-  (Optional, boolean) Specifies whether aggregation and suggester names should
-  be prefixed by their respective types in the response.
+  (Optional, boolean) If `true`, aggregation and suggester names are be prefixed
+  by their respective types in the response. Defaults to `true`.
 
 `version`::
-  (Optional, boolean) If `true`, returns document version as part of a hit.
+  (Optional, boolean)
+  If `true`, returns document version as part of a hit. Defaults to `false.
 
 
 [[search-search-api-request-body]]
@@ -364,7 +342,7 @@ Original JSON body passed for the document at index time.
 ==== {api-examples-title}
 
 [[search-api-specific-ex]]
-===== Search a specific index
+===== Search an index using the `q` query parameter
 
 [source,console]
 ----
@@ -410,7 +388,7 @@ The API returns the following response:
 // TESTRESPONSE[s/"took" : 5/"took": $body.took/]
 
 [[search-multi-index]]
-===== Search several indices
+===== Search several indices using the `q` query parameter
 
 [source,console]
 ----
@@ -419,7 +397,7 @@ GET /kimchy,elasticsearch/_search?q=user:kimchy
 // TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
 
 [[search-api-all-ex]]
-===== Search all indices
+===== Search all indices using the `q` query parameter
 
 To search all indices in a cluster,
 omit the `<index>` parameter.

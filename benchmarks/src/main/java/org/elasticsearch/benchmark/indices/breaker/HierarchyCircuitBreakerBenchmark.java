@@ -49,12 +49,6 @@ import java.util.concurrent.TimeUnit;
 @SuppressWarnings("unused") // invoked by benchmarking framework
 public class HierarchyCircuitBreakerBenchmark {
 
-    @Param({ "512", "2048" })
-    private long bytesAddRemove;
-
-    @Param({ "10", "1000" })
-    private int iterations;
-
     @Param({ "request", "request,inflight_requests,accounting" })
     private String breakerNames;
 
@@ -79,11 +73,11 @@ public class HierarchyCircuitBreakerBenchmark {
     @Benchmark
     @Threads(1)
     public void circuitBreak_1(Blackhole bh) {
-        for(int i = 0; i < iterations; ++i) {
+        for(int i = 0; i < 100; ++i) {
             for (String breaker : breakers) {
                 try {
-                    bh.consume(service.getBreaker(breaker).addEstimateBytesAndMaybeBreak(bytesAddRemove, "foo"));
-                    bh.consume(service.getBreaker(breaker).addWithoutBreaking(-bytesAddRemove));
+                    bh.consume(service.getBreaker(breaker).addEstimateBytesAndMaybeBreak(2048, "foo"));
+                    bh.consume(service.getBreaker(breaker).addWithoutBreaking(-2048));
                 } catch (CircuitBreakingException ex) {
                     bh.consume(ex);
                 }
@@ -94,11 +88,11 @@ public class HierarchyCircuitBreakerBenchmark {
     @Benchmark
     @Threads(4)
     public void circuitBreak_4(Blackhole bh) {
-        for(int i = 0; i < iterations; ++i) {
+        for(int i = 0; i < 100; ++i) {
             for (String breaker : breakers) {
                 try {
-                    bh.consume(service.getBreaker(breaker).addEstimateBytesAndMaybeBreak(bytesAddRemove, "foo"));
-                    bh.consume(service.getBreaker(breaker).addWithoutBreaking(-bytesAddRemove));
+                    bh.consume(service.getBreaker(breaker).addEstimateBytesAndMaybeBreak(2048, "foo"));
+                    bh.consume(service.getBreaker(breaker).addWithoutBreaking(-2048));
                 } catch (CircuitBreakingException ex) {
                     bh.consume(ex);
                 }
@@ -109,11 +103,11 @@ public class HierarchyCircuitBreakerBenchmark {
     @Benchmark
     @Threads(64)
     public void circuitBreak_64(Blackhole bh) {
-        for(int i = 0; i < iterations; ++i) {
+        for(int i = 0; i < 100; ++i) {
             for (String breaker : breakers) {
                 try {
-                    bh.consume(service.getBreaker(breaker).addEstimateBytesAndMaybeBreak(bytesAddRemove, "foo"));
-                    bh.consume(service.getBreaker(breaker).addWithoutBreaking(-bytesAddRemove));
+                    bh.consume(service.getBreaker(breaker).addEstimateBytesAndMaybeBreak(2048, "foo"));
+                    bh.consume(service.getBreaker(breaker).addWithoutBreaking(-2048));
                 } catch (CircuitBreakingException ex) {
                     bh.consume(ex);
                 }

@@ -26,14 +26,13 @@ import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Breaker that will check a parent's when incrementing
  */
 public class ChildMemoryCircuitBreaker implements CircuitBreaker {
 
-    private final AtomicReference<LimitAndOverhead> limitAndOverhead;
+    private volatile LimitAndOverhead limitAndOverhead;
     private final Durability durability;
     private final AtomicLong used;
     private final AtomicLong trippedCount;
@@ -52,7 +51,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      */
     public ChildMemoryCircuitBreaker(BreakerSettings settings, Logger logger, HierarchyCircuitBreakerService parent, String name) {
         this.name = name;
-        this.limitAndOverhead = new AtomicReference<>(new LimitAndOverhead(settings.getLimit(), settings.getOverhead()));
+        this.limitAndOverhead = new LimitAndOverhead(settings.getLimit(), settings.getOverhead());
         this.durability = settings.getDurability();
         this.used = new AtomicLong(0);
         this.trippedCount = new AtomicLong(0);
@@ -67,7 +66,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      */
     @Override
     public void circuitBreak(String fieldName, long bytesNeeded) {
-        final long memoryBytesLimit = this.limitAndOverhead.get().limit;
+        final long memoryBytesLimit = this.limitAndOverhead.limit;
         this.trippedCount.incrementAndGet();
         final String message = "[" + this.name + "] Data too large, data for [" + fieldName + "]" +
                 " would be [" + bytesNeeded + "/" + new ByteSizeValue(bytesNeeded) + "]" +
@@ -87,8 +86,9 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      */
     @Override
     public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-        final long memoryBytesLimit = this.limitAndOverhead.get().limit;
-        final double overheadConstant = this.limitAndOverhead.get().overhead;
+        final LimitAndOverhead limitAndOverhead = this.limitAndOverhead;
+        final long memoryBytesLimit = limitAndOverhead.limit;
+        final double overheadConstant = limitAndOverhead.overhead;
         // short-circuit on no data allowed, immediately throwing an exception
         if (memoryBytesLimit == 0) {
             circuitBreak(label, bytes);
@@ -185,7 +185,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      */
     @Override
     public long getLimit() {
-        return this.limitAndOverhead.get().limit;
+        return this.limitAndOverhead.limit;
     }
 
     /**
@@ -193,7 +193,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      */
     @Override
     public double getOverhead() {
-        return this.limitAndOverhead.get().overhead;
+        return this.limitAndOverhead.overhead;
     }
 
     /**
@@ -227,7 +227,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
 
     @Override
     public void setLimitAndOverhead(long limit, double overhead) {
-        this.limitAndOverhead.set(new LimitAndOverhead(limit, overhead));
+        this.limitAndOverhead = new LimitAndOverhead(limit, overhead);
     }
 
     private static class LimitAndOverhead {

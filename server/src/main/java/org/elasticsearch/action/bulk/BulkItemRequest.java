@@ -20,6 +20,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,7 +36,7 @@ public class BulkItemRequest implements Writeable {
     private DocWriteRequest<?> request;
     private volatile BulkItemResponse primaryResponse;
 
-    BulkItemRequest(ShardId shardId, StreamInput in) throws IOException {
+    BulkItemRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         assert shardId == null || in.getVersion().onOrAfter(BulkShardRequest.COMPACT_SHARD_ID_VERSION) :
                 "Thin reads can not be used with [" + in.getVersion() + "]";
         id = in.readVInt();

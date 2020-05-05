@@ -75,8 +75,6 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         super(in);
         final boolean thinRead = shardId != null;
         if (thinRead) {
-            assert in.getVersion().onOrAfter(BulkShardRequest.COMPACT_SHARD_ID_VERSION) :
-                    "Thin reads can not be used with [" + in.getVersion() + "]";
             this.shardId = shardId;
         } else {
             this.shardId = in.readOptionalWriteable(ShardId::new);

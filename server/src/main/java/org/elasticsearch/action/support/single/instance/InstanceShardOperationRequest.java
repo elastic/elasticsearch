@@ -55,8 +55,6 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
             index = in.readString();
             this.shardId = in.readOptionalWriteable(ShardId::new);
         } else {
-            assert in.getVersion().onOrAfter(BulkShardRequest.COMPACT_SHARD_ID_VERSION) :
-                    "Thin reads not supported for [" + in.getVersion() + "]";
             this.shardId = shardId;
             if (in.readBoolean()) {
                 index = in.readString();
@@ -139,8 +137,6 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
     }
 
     public void writeThin(StreamOutput out) throws IOException {
-        assert out.getVersion().onOrAfter(
-                BulkShardRequest.COMPACT_SHARD_ID_VERSION) : "Thin writes not supported for [" + out.getVersion() + "]";
         super.writeTo(out);
         if (shardId != null && index.equals(shardId.getIndexName())) {
             out.writeBoolean(false);

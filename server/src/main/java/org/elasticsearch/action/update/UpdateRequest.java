@@ -22,7 +22,6 @@ package org.elasticsearch.action.update;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
@@ -134,8 +133,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     public UpdateRequest(ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
-        assert shardId == null || in.getVersion().onOrAfter(
-                BulkShardRequest.COMPACT_SHARD_ID_VERSION) : "Thin reads not supported for [" + in.getVersion() + "]";
         waitForActiveShards = ActiveShardCount.readFrom(in);
         if (in.getVersion().before(Version.V_8_0_0)) {
             String type = in.readString();

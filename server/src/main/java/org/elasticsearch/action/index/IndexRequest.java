@@ -25,7 +25,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.RoutingMissingException;
-import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
@@ -636,8 +635,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public void writeThin(StreamOutput out) throws IOException {
-        assert out.getVersion().onOrAfter(
-                BulkShardRequest.COMPACT_SHARD_ID_VERSION) : "Thin writes not supported for [" + out.getVersion() + "]";
         checkAutoIdWithOpTypeCreateSupportedByVersion(out.getVersion());
         super.writeThin(out);
         writeBody(out);

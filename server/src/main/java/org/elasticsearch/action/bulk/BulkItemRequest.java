@@ -37,8 +37,6 @@ public class BulkItemRequest implements Writeable {
     private volatile BulkItemResponse primaryResponse;
 
     BulkItemRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
-        assert shardId == null || in.getVersion().onOrAfter(BulkShardRequest.COMPACT_SHARD_ID_VERSION) :
-                "Thin reads can not be used with [" + in.getVersion() + "]";
         id = in.readVInt();
         request = DocWriteRequest.readDocumentRequest(shardId, in);
         if (in.readBoolean()) {
@@ -103,16 +101,12 @@ public class BulkItemRequest implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        assert out.getVersion().before(BulkShardRequest.COMPACT_SHARD_ID_VERSION) :
-                "Full writes should not be used with [" + out.getVersion() + "]";
         out.writeVInt(id);
         DocWriteRequest.writeDocumentRequest(out, request);
         out.writeOptionalWriteable(primaryResponse);
     }
 
     public void writeThin(StreamOutput out) throws IOException {
-        assert out.getVersion().onOrAfter(BulkShardRequest.COMPACT_SHARD_ID_VERSION) :
-                "Thin writes not supported for [" + out.getVersion() + "]";
         out.writeVInt(id);
         DocWriteRequest.writeDocumentRequestThin(out, request);
         out.writeOptionalWriteable(primaryResponse == null ? null : primaryResponse::writeThin);

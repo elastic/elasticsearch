@@ -185,7 +185,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                         throw new AssertionError("inner EOFException not thrown", exception);
                     }
                 }
-            }finally {
+            } finally {
                 terminate(threadPool);
             }
         }

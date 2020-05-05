@@ -86,7 +86,11 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         if (shardId == null) {
             index = in.readString();
         } else {
-            index = shardId.getIndexName();
+            if (in.readBoolean()) {
+                index = in.readString();
+            } else {
+                index = shardId.getIndexName();
+            }
         }
         routedBasedOnClusterVersion = in.readVLong();
     }
@@ -213,6 +217,12 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         super.writeTo(out);
         waitForActiveShards.writeTo(out);
         out.writeTimeValue(timeout);
+        if (shardId != null && index.equals(shardId.getIndexName())) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeString(index);
+        }
         out.writeVLong(routedBasedOnClusterVersion);
     }
 

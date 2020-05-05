@@ -1,8 +1,8 @@
 ---
 "Simulate index template without new template in the body":
   - skip:
-      version: " - 7.99.99"
-      reason: "simulate index template API has not been backported"
+      version: " - 7.7.99"
+      reason: "simulate index template API unavailable before 7.8"
       features: ["default_shards"]
 
   - do:
@@ -31,8 +31,8 @@
 ---
 "Simulate index template specifying a new template":
   - skip:
-      version: " - 7.99.99"
-      reason: "simulate index template API has not been backported"
+      version: " - 7.7.99"
+      reason: "simulate index template API unavailable before 7.8"
       features: ["default_shards"]
 
   - do:
@@ -86,8 +86,8 @@
 ---
 "Simulate index template with index not matching any template":
   - skip:
-      version: " - 7.99.99"
-      reason: "simulate index template API has not been backported"
+      version: " - 7.7.99"
+      reason: "simulate index template API unavailable before 7.8"
       features: allowed_warnings
 
   - do:
@@ -116,8 +116,8 @@
 ---
 "Simulate index matches overlapping V1 and V2 templates":
   - skip:
-      version: " - 7.99.99"
-      reason: "simulate index template API has not been backported"
+      version: " - 7.7.99"
+      reason: "simulate index template API unavailable before 7.8"
       features: ["allowed_warnings", "default_shards"]
 
   - do:

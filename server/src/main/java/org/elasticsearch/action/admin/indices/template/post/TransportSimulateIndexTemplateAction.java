@@ -56,6 +56,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -104,7 +105,7 @@ public class TransportSimulateIndexTemplateAction
         ClusterState simulateOnClusterState = state;
         if (request.getIndexTemplateRequest() != null) {
             // we'll "locally" add the template defined by the user in the cluster state (as if it existed in the system)
-            String simulateTemplateToAdd = "simulate_new_template_" + UUIDs.randomBase64UUID();
+            String simulateTemplateToAdd = "simulate_new_template_" + UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
             simulateOnClusterState = indexTemplateService.addIndexTemplateV2(state, request.getIndexTemplateRequest().create(),
                 simulateTemplateToAdd, request.getIndexTemplateRequest().indexTemplate());
         }

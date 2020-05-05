@@ -58,13 +58,15 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     private ImmutableOpenMap<String, List<AliasMetadata>> aliases = ImmutableOpenMap.of();
     private ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
     private ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
+    private ImmutableOpenMap<String, String> dataStreams = ImmutableOpenMap.of();
     private String[] indices;
 
     public GetIndexResponse(String[] indices,
                      ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings,
                      ImmutableOpenMap<String, List<AliasMetadata>> aliases,
                      ImmutableOpenMap<String, Settings> settings,
-                     ImmutableOpenMap<String, Settings> defaultSettings) {
+                     ImmutableOpenMap<String, Settings> defaultSettings,
+                     ImmutableOpenMap<String, String> dataStreams) {
         this.indices = indices;
         // to have deterministic order
         Arrays.sort(indices);
@@ -79,6 +81,9 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         }
         if (defaultSettings != null) {
             this.defaultSettings = defaultSettings;
+        }
+        if (dataStreams != null) {
+            this.dataStreams = dataStreams;
         }
     }
 
@@ -128,6 +133,15 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             }
         }
         defaultSettings = defaultSettingsMapBuilder.build();
+
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            ImmutableOpenMap.Builder<String, String> dataStreamsMapBuilder = ImmutableOpenMap.builder();
+            int dataStreamsSize = in.readVInt();
+            for (int i = 0; i < dataStreamsSize; i++) {
+                dataStreamsMapBuilder.put(in.readString(), in.readOptionalString());
+            }
+            dataStreams = dataStreamsMapBuilder.build();
+        }
     }
 
     public String[] indices() {
@@ -156,6 +170,14 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
 
     public ImmutableOpenMap<String, Settings> settings() {
         return settings;
+    }
+
+    public ImmutableOpenMap<String, String> dataStreams() {
+        return dataStreams;
+    }
+
+    public ImmutableOpenMap<String, String> getDataStreams() {
+        return dataStreams();
     }
 
     /**
@@ -230,6 +252,13 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                 Settings.writeSettingsToStream(indexEntry.value, out);
             }
         }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeVInt(dataStreams.size());
+            for (ObjectObjectCursor<String, String> indexEntry : dataStreams) {
+                out.writeString(indexEntry.key);
+                out.writeOptionalString(indexEntry.value);
+            }
+        }
     }
 
     @Override
@@ -288,6 +317,11 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                         builder.startObject("defaults");
                         defaultIndexSettings.toXContent(builder, params);
                         builder.endObject();
+                    }
+
+                    String dataStream = dataStreams.get(index);
+                    if (dataStream != null) {
+                        builder.field("data_stream", dataStream);
                     }
                 }
                 builder.endObject();
@@ -425,7 +459,8 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             Objects.equals(aliases, that.aliases) &&
             Objects.equals(mappings, that.mappings) &&
             Objects.equals(settings, that.settings) &&
-            Objects.equals(defaultSettings, that.defaultSettings);
+            Objects.equals(defaultSettings, that.defaultSettings) &&
+            Objects.equals(dataStreams, that.dataStreams);
     }
 
     @Override
@@ -436,7 +471,8 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                 aliases,
                 mappings,
                 settings,
-                defaultSettings
+                defaultSettings,
+                dataStreams
             );
     }
 }

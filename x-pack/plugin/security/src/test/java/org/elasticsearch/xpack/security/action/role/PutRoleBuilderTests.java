@@ -25,7 +25,7 @@ public class PutRoleBuilderTests extends ESTestCase {
         Path path = getDataPath("roles2xformat.json");
         byte[] bytes = Files.readAllBytes(path);
         String roleString = new String(bytes, Charset.defaultCharset());
-        try (Client client = new NoOpClient("testBWCFieldPermissions")) {
+        try (Client client = new NoOpClient("test2xFieldPermissions")) {
             ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
                     () -> new PutRoleRequestBuilder(client).source("role1", new BytesArray(roleString), XContentType.JSON));
             assertThat(e.getDetailedMessage(), containsString("failed to parse indices privileges for role [role1]. " +

@@ -195,7 +195,7 @@ public class ApproximateRegExp {
                 result = new TermQuery(new Term("", normalizedString));
                 break;
             case REGEXP_CHAR:
-                String cs =Character.toString(c);
+                String cs = Character.toString(c);
                 String normalizedChar = normalizer == null ? cs : normalizer.normalize(cs);
                 result = new TermQuery(new Term("", normalizedChar));
                 break;
@@ -246,7 +246,6 @@ public class ApproximateRegExp {
     
     private Query createConcatenationQuery(StringNormalizer normalizer) {
         // Create ANDs of expressions plus collapse consecutive TermQuerys into single longer ones
-        Query result = null;
         ArrayList<Query> queries = new ArrayList<>();
         findLeaves(exp1, Kind.REGEXP_CONCATENATION, queries, normalizer);
         findLeaves(exp2, Kind.REGEXP_CONCATENATION, queries, normalizer);
@@ -269,16 +268,17 @@ public class ApproximateRegExp {
         }
         BooleanQuery combined = bAnd.build();
         if (combined.clauses().size() > 0) {
-            result = combined;
+            return combined;
         }
-        return result;
+        // There's something in the regex we couldn't represent as a query - resort to a match all with verification 
+        return new MatchAllButRequireVerificationQuery();
     }
+    
     private static void addTerm(BooleanQuery.Builder builder, String s) {
-        // Ignore short strings that are just word beginning or endings.
-        // Helps with subsequent BooleanQuery simplification logic if we can
-        // assume TermQuery objects returned are all something useful other than 
-        // the equivalent of searching for the fact a doc value has a beginning 
-        // and end (all values do).
+        // A regex like "...." can still produce TermQuery tokens for the null chars
+        // surrounding the input string. These are junk when not appended to any concrete
+        // characters. They mess up downstream simplification of Boolean logic which assumes
+        // all MUST Term queries are required and valid. We strip them here. 
         if (s.equals(WildcardFieldMapper.TOKEN_START_STRING) == false && 
             s.equals(WildcardFieldMapper.TOKEN_END_STRING) == false) {
             builder.add(new TermQuery(new Term("", s)), Occur.MUST);
@@ -287,7 +287,6 @@ public class ApproximateRegExp {
 
     private Query createUnionQuery(StringNormalizer normalizer) {
         // Create an OR of clauses
-        Query result = null;
         ArrayList<Query> queries = new ArrayList<>();
         findLeaves(exp1, Kind.REGEXP_UNION, queries, normalizer);
         findLeaves(exp2, Kind.REGEXP_UNION, queries, normalizer);
@@ -309,12 +308,13 @@ public class ApproximateRegExp {
                 // the BooleanQuery wrapper so that they might be concatenated.
                 // Helps turn [Pp][Oo][Ww][Ee][Rr][Ss][Hh][Ee][Ll][Ll] into "powershell"
                 // Each char pair eg (P OR p) can be normalized to (p) which can be a single term
-                result = uniqueClauses.iterator().next();
+                return uniqueClauses.iterator().next();
             } else {
-                result = bOr.build();
+                return bOr.build();
             }
         }
-        return result;
+        // There's something in the regex we couldn't represent as a query - resort to a match all with verification 
+        return new MatchAllButRequireVerificationQuery();
     }
 
     private void findLeaves(ApproximateRegExp exp, Kind kind, List<Query> queries, StringNormalizer normalizer) {

@@ -76,6 +76,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -242,8 +243,6 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public Query wildcardQuery(String wildcardPattern, RewriteMethod method, QueryShardContext context) {
 
-            Automaton dvAutomaton = WildcardQuery.toAutomaton(new Term(name(), wildcardPattern));
-
             String ngramIndexPattern = addLineEndChars(toLowerCase(wildcardPattern));
 
             // Break search term into tokens
@@ -299,7 +298,10 @@ public class WildcardFieldMapper extends FieldMapper {
                 addClause(string, rewritten, Occur.MUST);
                 clauseCount++;
             }
-            AutomatonQueryOnBinaryDv verifyingQuery = new AutomatonQueryOnBinaryDv(name(), wildcardPattern, dvAutomaton);
+            Supplier<Automaton> deferredAutomatonSupplier = () -> {
+                return WildcardQuery.toAutomaton(new Term(name(), wildcardPattern));
+            };
+            AutomatonQueryOnBinaryDv verifyingQuery = new AutomatonQueryOnBinaryDv(name(), wildcardPattern, deferredAutomatonSupplier);
             if (clauseCount > 0) {
                 // We can accelerate execution with the ngram query
                 BooleanQuery approxQuery = rewritten.build();
@@ -327,8 +329,6 @@ public class WildcardFieldMapper extends FieldMapper {
                 );
             }
             
-            RegExp regex = new RegExp(value, flags);
-            Automaton automaton = regex.toAutomaton(maxDeterminizedStates);
             ApproximateRegExp ngramRegex = new ApproximateRegExp(addLineEndChars(toLowerCase(value)), flags);
 
             Query approxBooleanQuery = ngramRegex.toApproximationQuery(new ApproximateRegExp.StringNormalizer() {
@@ -342,9 +342,14 @@ public class WildcardFieldMapper extends FieldMapper {
             // MatchAll is a special case meaning the regex is known to match everything .* and 
             // there is no need for verification.
             if (approxNgramQuery instanceof MatchAllDocsQuery) {
-                return new DocValuesFieldExistsQuery(name());
+                return existsQuery(context);
             }
-            AutomatonQueryOnBinaryDv verifyingQuery = new AutomatonQueryOnBinaryDv(name(), value, automaton);
+            Supplier<Automaton> deferredAutomatonSupplier = ()-> {
+                RegExp regex = new RegExp(value, flags);
+                return regex.toAutomaton(maxDeterminizedStates);
+            };
+
+            AutomatonQueryOnBinaryDv verifyingQuery = new AutomatonQueryOnBinaryDv(name(), value, deferredAutomatonSupplier);
             
             // MatchAllButRequireVerificationQuery is a special case meaning the regex is reduced to a single
             // clause which we can't accelerate at all and needs verification. Example would be ".." 
@@ -352,14 +357,11 @@ public class WildcardFieldMapper extends FieldMapper {
                 return verifyingQuery;
             }
             
-            if (approxNgramQuery != null) {
-                // We can accelerate execution with the ngram query
-                BooleanQuery.Builder verifyingBuilder = new BooleanQuery.Builder();
-                verifyingBuilder.add(new BooleanClause(approxNgramQuery, Occur.MUST));
-                verifyingBuilder.add(new BooleanClause(verifyingQuery, Occur.MUST));
-                return verifyingBuilder.build();
-            }
-            return verifyingQuery;                        
+            // We can accelerate execution with the ngram query
+            BooleanQuery.Builder verifyingBuilder = new BooleanQuery.Builder();
+            verifyingBuilder.add(new BooleanClause(approxNgramQuery, Occur.MUST));
+            verifyingBuilder.add(new BooleanClause(verifyingQuery, Occur.MUST));
+            return verifyingBuilder.build();
         }
         
         private static String toLowerCase(String string) {
@@ -492,6 +494,7 @@ public class WildcardFieldMapper extends FieldMapper {
                     String tokenValue = termAtt.toString();
                     if (takeThis) {
                         tokens.add(tokenValue);
+                        lastUnusedToken = null;
                     } else {
                         lastUnusedToken = tokenValue;
                     }
@@ -513,19 +516,24 @@ public class WildcardFieldMapper extends FieldMapper {
                 throw new ElasticsearchParseException("Error parsing wildcard regex pattern fragment [" + fragment + "]");
             }
         }
+        
 
         private void addClause(String token, BooleanQuery.Builder bqBuilder, Occur occur) {
             assert token.codePointCount(0, token.length()) <= NGRAM_SIZE;
-            if (token.codePointCount(0, token.length()) == NGRAM_SIZE) {
+            int tokenSize = token.codePointCount(0, token.length());
+            if (tokenSize < 2 || token.equals(WildcardFieldMapper.TOKEN_END_STRING)) {
+                // there's something concrete to be searched but it's too short
+                // Require verification.
+                bqBuilder.add(new BooleanClause(new MatchAllButRequireVerificationQuery(), occur));
+                return;
+            }
+            if (tokenSize == NGRAM_SIZE) {
                 TermQuery tq = new TermQuery(new Term(name(), token));
                 bqBuilder.add(new BooleanClause(tq, occur));
             } else {
-                // Ignore tokens that are just string start or end markers
-                if (token.charAt(token.length() - 1) != TOKEN_START_OR_END_CHAR) {
-                    PrefixQuery wq = new PrefixQuery(new Term(name(), token));
-                    wq.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
-                    bqBuilder.add(new BooleanClause(wq, occur));
-                }
+                PrefixQuery wq = new PrefixQuery(new Term(name(), token));
+                wq.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+                bqBuilder.add(new BooleanClause(wq, occur));
             }
         }
 
@@ -540,11 +548,32 @@ public class WildcardFieldMapper extends FieldMapper {
         ) {
             String searchTerm = BytesRefs.toString(value);
             String lowerSearchTerm = toLowerCase(searchTerm);
-            TokenStream tokenizer = WILDCARD_ANALYZER.tokenStream(name(), lowerSearchTerm);
-            CharTermAttribute termAtt = tokenizer.addAttribute(CharTermAttribute.class);
-            ArrayList<String> tokens = new ArrayList<>();
-            String firstToken = null;
+            
             try {
+            
+
+                BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
+
+                //The approximation query can have a prefix and any number of ngrams.
+                BooleanQuery.Builder approxBuilder = new BooleanQuery.Builder();
+                
+                String postPrefixString = lowerSearchTerm;
+                
+                // Add all content prior to prefixLength as a MUST clause to the ngram index query
+                if (prefixLength > 0) {
+                    Set<String> prefixTokens = new LinkedHashSet<>();
+                    postPrefixString = lowerSearchTerm.substring(prefixLength);
+                    String prefixCandidate = TOKEN_START_OR_END_CHAR + lowerSearchTerm.substring(0,  prefixLength);
+                    getNgramTokens(prefixTokens, prefixCandidate);
+                    for (String prefixToken : prefixTokens) {
+                        addClause(prefixToken, approxBuilder, Occur.MUST);
+                    }
+                }
+                // Tokenize all content after the prefix
+                TokenStream tokenizer = WILDCARD_ANALYZER.tokenStream(name(), postPrefixString);
+                CharTermAttribute termAtt = tokenizer.addAttribute(CharTermAttribute.class);
+                ArrayList<String> postPrefixTokens = new ArrayList<>();
+                String firstToken = null;
                 tokenizer.reset();
                 int tokenNumber = 0;
                 while (tokenizer.incrementToken()) {
@@ -553,7 +582,7 @@ public class WildcardFieldMapper extends FieldMapper {
                         if (firstToken == null) {
                             firstToken = token;
                         }
-                        tokens.add(token);
+                        postPrefixTokens.add(token);
                     }
                     // Take every 3rd ngram so they are all disjoint. Our calculation for min_should_match
                     // number relies on there being no overlaps
@@ -565,51 +594,47 @@ public class WildcardFieldMapper extends FieldMapper {
                 tokenizer.end();
                 tokenizer.close();
 
-                BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
-
-                // Add any prefixLength as a MUST clause to the main BooleanQuery
-                if (prefixLength > 0) {
-                    if (firstToken == null) {
-                        // Search term was too small to be tokenized
-                        assert lowerSearchTerm.codePointCount(0, lowerSearchTerm.length()) <= NGRAM_SIZE;
-                        firstToken = lowerSearchTerm;
-                    }
-                    String prefix = TOKEN_START_OR_END_CHAR + firstToken;
-                    addClause(prefix.substring(0, Math.min(NGRAM_SIZE, prefixLength)), bqBuilder, Occur.MUST);
-                }
-
-                BooleanQuery.Builder approxBuilder = new BooleanQuery.Builder();
+                
+                BooleanQuery.Builder ngramBuilder = new BooleanQuery.Builder();
                 int numClauses = 0;
-                for (String token : tokens) {
-                    addClause(token, approxBuilder, Occur.SHOULD);
+                for (String token : postPrefixTokens) {
+                    addClause(token, ngramBuilder, Occur.SHOULD);
                     numClauses++;
                 }
 
                 // Approximation query
-                BooleanQuery approxQ = approxBuilder.build();
                 if (numClauses > fuzziness.asDistance(searchTerm)) {
                     // Useful accelerant - set min should match based on number of permitted edits.
-                    approxBuilder.setMinimumNumberShouldMatch(numClauses - fuzziness.asDistance(searchTerm));
-                    bqBuilder.add(approxQ, Occur.MUST);
+                    ngramBuilder.setMinimumNumberShouldMatch(numClauses - fuzziness.asDistance(searchTerm));
+                    approxBuilder.add(ngramBuilder.build(), Occur.MUST);
+                }
+                
+                BooleanQuery ngramQ = approxBuilder.build();
+                if (ngramQ.clauses().size()>0) {
+                    bqBuilder.add(ngramQ, Occur.MUST);
                 }
 
-                // Verification query
-                FuzzyQuery fq = new FuzzyQuery(
-                    new Term(name(), searchTerm),
-                    fuzziness.asDistance(searchTerm),
-                    prefixLength,
-                    maxExpansions,
-                    transpositions
-                );
-                CompiledAutomaton[] automata = fq.getAutomata();
-                // Multiple automata are produced - one for each edit distance (e.g. 0, 1 or 2), presumably so scoring
-                // can be related to whichever automaton matches most closely.
-                // For now we run only the automata with the biggest edit distance - closer matches should get higher boosts
-                // anyway from the number of ngrams matched in the acceleration query.
-                // TODO we can revisit this approach at a later point if we want to introduce more like-for-like scoring with
-                // keyword field which will require tweaks to the verification query logic.
-                Automaton biggestEditDistanceAutomaton = automata[automata.length - 1].automaton;
-                bqBuilder.add(new AutomatonQueryOnBinaryDv(name(), searchTerm, biggestEditDistanceAutomaton), Occur.MUST);
+                Supplier <Automaton> deferredAutomatonSupplier = ()->{
+                    // Verification query
+                    FuzzyQuery fq = new FuzzyQuery(
+                        new Term(name(), searchTerm),
+                        fuzziness.asDistance(searchTerm),
+                        prefixLength,
+                        maxExpansions,
+                        transpositions
+                    );
+                    CompiledAutomaton[] automata = fq.getAutomata();
+                    // Multiple automata are produced - one for each edit distance (e.g. 0, 1 or 2), presumably so scoring
+                    // can be related to whichever automaton matches most closely.
+                    // For now we run only the automata with the biggest edit distance - closer matches should get higher boosts
+                    // anyway from the number of ngrams matched in the acceleration query.
+                    // TODO we can revisit this approach at a later point if we want to introduce more like-for-like scoring with
+                    // keyword field which will require tweaks to the verification query logic.
+                    Automaton biggestEditDistanceAutomaton = automata[automata.length - 1].automaton;
+                    return biggestEditDistanceAutomaton;
+                    
+                };
+                bqBuilder.add(new AutomatonQueryOnBinaryDv(name(), searchTerm, deferredAutomatonSupplier), Occur.MUST);
 
                 return bqBuilder.build();
             } catch (IOException ioe) {

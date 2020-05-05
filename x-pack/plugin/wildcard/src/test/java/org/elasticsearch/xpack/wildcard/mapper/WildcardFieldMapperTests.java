@@ -15,9 +15,11 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -27,6 +29,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.store.Directory;
@@ -248,7 +251,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
                 // Prefix length shouldn't be longer than selected search string
                 // BUT keyword field has a bug with prefix length when equal - see https://github.com/elastic/elasticsearch/issues/55790
                 // so we opt for one less
-                prefixLength = Math.min(pattern.length() - 1 , prefixLength);
+                prefixLength = Math.min(pattern.length() - 1 , prefixLength);                
                 boolean transpositions = randomBoolean();
                 
                 wildcardFieldQuery = wildcardFieldType.fieldType().fuzzyQuery(pattern, fuzziness, prefixLength, 50, 
@@ -312,9 +315,9 @@ public class WildcardFieldMapperTests extends ESTestCase {
             {".*/etc/passw.*", "+\\/et +tc\\/ +\\/pa +ass +ssw"}, 
             {".*etc/passwd",  "+etc +c\\/p +pas +ssw +wd_ +d__"}, 
             {"(http|ftp)://foo.*",  "+((+htt +ttp) ftp) +(+\\:\\/\\/ +\\/fo +foo)"}, 
-            {"[Pp][Oo][Ww][Ee][Rr][Ss][Hh][Ee][Ll][Ll]\\.[Ee][Xx][Ee]",  "+_po +owe +ers +she +ell +l\\.e +exe +xe_ +e__"}, 
-            {"foo<1-100>bar",  "+(+_fo +foo) +(+bar +ar_ +r__ )"},
-            {"(aaa.+&.+bbb)cat", "+cat +at_ +t__"},
+            {"[Pp][Oo][Ww][Ee][Rr][Ss][Hh][Ee][Ll][Ll]\\.[Ee][Xx][Ee]",  "+_po +owe +ers +she +ell +l\\.e +exe +e__"}, 
+            {"foo<1-100>bar",  "+(+_fo +foo) +(+bar +r__ )"},
+            {"(aaa.+&.+bbb)cat", "+cat +t__"},
             {".a", "a__"}
             };
         for (String[] test : acceleratedTests) {
@@ -337,8 +340,9 @@ public class WildcardFieldMapperTests extends ESTestCase {
         
         // Documentation - regexes that do try accelerate but we would like to improve in future versions. 
         String suboptimalTests[][] = { 
-            // TODO short wildcards aren't great. Ideally we would attach to successors to create (acd OR bcd)
-            { "[ab]cd",  "+(a* b*) +(+cd_ +d__)"}
+            // TODO short wildcards like a* OR b* aren't great so we just drop them. 
+            // Ideally we would attach to successors to create (acd OR bcd)
+            { "[ab]cd",  "+cd_ +d__"}
             };
         for (String[] test : suboptimalTests) {
             String regex = test[0];
@@ -369,11 +373,11 @@ public class WildcardFieldMapperTests extends ESTestCase {
         // All of these patterns should be accelerated.
         String tests[][] = {
             { "*foobar", "+foo +oba +ar_ +r__" },
-            { "foobar*", "+_fo +oob +oba +bar" },
+            { "foobar*", "+_fo +oob +bar" },
             { "foo\\*bar*", "+_fo +oo\\* +\\*ba +bar" },
             { "foo\\?bar*", "+_fo +oo\\? +\\?ba +bar" },
-            { "foo*bar", "+_fo +foo +bar +ar_ +r__" },
-            { "foo?bar", "+_fo +foo +bar +ar_ +r__" },
+            { "foo*bar", "+_fo +foo +bar +r__" },
+            { "foo?bar", "+_fo +foo +bar +r__" },
             { "?foo*bar?", "+foo +bar" },
             { "*c", "+c__" } };
         for (String[] test : tests) {
@@ -395,7 +399,84 @@ public class WildcardFieldMapperTests extends ESTestCase {
         }
 
     }
+    
+    static class FuzzyTest {
+        String pattern;
+        int prefixLength;
+        Fuzziness fuzziness;
+        String expectedPrefixQuery;
+        int expectedMinShouldMatch;
+        String ngrams;
+        public FuzzyTest(String pattern, int prefixLength, Fuzziness fuzziness, String expectedPrefixQuery, int expectedMinShouldMatch, String ngrams) {
+            super();
+            this.pattern = pattern;
+            this.prefixLength = prefixLength;
+            this.fuzziness = fuzziness;
+            this.expectedPrefixQuery = expectedPrefixQuery;
+            this.expectedMinShouldMatch = expectedMinShouldMatch;
+            this.ngrams = ngrams;
+        }
+        Query getFuzzyQuery() {
+            return wildcardFieldType.fieldType().fuzzyQuery(pattern, fuzziness, prefixLength, 50, true, MOCK_QSC);
+        }
+
+        Query getExpectedApproxQuery() throws ParseException {
+            BooleanQuery.Builder bq = new BooleanQuery.Builder();
+            if (expectedPrefixQuery != null) {
+                String[] tokens = expectedPrefixQuery.split(" ");
+                Query prefixQuery = null;
+                if (tokens.length == 1) {
+                    prefixQuery = new TermQuery(new Term(WILDCARD_FIELD_NAME, tokens[0].replaceAll("_",WildcardFieldMapper.TOKEN_START_STRING)));
+                } else {
+                    BooleanQuery.Builder pqb = new BooleanQuery.Builder();
+                    for (String token : tokens) {
+                        Query ngramQuery = new TermQuery(new Term(WILDCARD_FIELD_NAME, token.replaceAll("_",WildcardFieldMapper.TOKEN_START_STRING)));
+                        pqb.add(ngramQuery, Occur.MUST);                    
+                    }
+                    prefixQuery = pqb.build();                    
+                }
+                
+                if (ngrams == null) {
+                    return prefixQuery;
+                }
+                bq.add(prefixQuery, Occur.MUST);                
+            }
+            
+            if(ngrams!=null) {
+                BooleanQuery.Builder nq = new BooleanQuery.Builder();
+                String[] tokens = ngrams.split(" ");
+                for (String token : tokens) {
+                    Query ngramQuery = new TermQuery(new Term(WILDCARD_FIELD_NAME, token.replaceAll("_",WildcardFieldMapper.TOKEN_START_STRING)));
+                    nq.add(ngramQuery, Occur.SHOULD);                    
+                }
+                nq.setMinimumNumberShouldMatch(expectedMinShouldMatch);
+                bq.add(nq.build(), Occur.MUST);
+            }
+            return bq.build();
+        }        
+    }
+    
+    public void testFuzzyAcceleration() throws IOException, ParseException {
+
+        FuzzyTest[] tests = {
+            new FuzzyTest("123456", 0, Fuzziness.ONE, null, 1, "123 456"),
+            new FuzzyTest("1234567890", 2, Fuzziness.ONE, "_12", 1, "345 678"),
+            new FuzzyTest("12345678901", 2, Fuzziness.ONE, "_12", 2, "345 678 901"),
+            new FuzzyTest("12345678", 4, Fuzziness.ONE, "_12 234", 0, null)
+        };
+        for (FuzzyTest test : tests) {
+            Query wildcardFieldQuery = test.getFuzzyQuery();
+            testExpectedAccelerationQuery(test.pattern, wildcardFieldQuery, test.getExpectedApproxQuery());
+        }
+    }    
+    
     void testExpectedAccelerationQuery(String regex, Query combinedQuery, String expectedAccelerationQueryString) throws ParseException {
+
+        QueryParser qsp = new QueryParser(WILDCARD_FIELD_NAME, new KeywordAnalyzer());
+        Query expectedAccelerationQuery = qsp.parse(expectedAccelerationQueryString);
+        testExpectedAccelerationQuery(regex, combinedQuery, expectedAccelerationQuery);
+    }
+    void testExpectedAccelerationQuery(String regex, Query combinedQuery, Query expectedAccelerationQuery) throws ParseException {
         BooleanQuery cq = (BooleanQuery) combinedQuery;
         assert cq.clauses().size() == 2;
         Query approximationQuery = null;
@@ -410,18 +491,10 @@ public class WildcardFieldMapperTests extends ESTestCase {
         }
         assert verifyQueryFound;
         
-        QueryParser qsp = new QueryParser(WILDCARD_FIELD_NAME, new KeywordAnalyzer());
-        Query expectedAccelerationQuery = qsp.parse(expectedAccelerationQueryString);
-        String actualString = approximationQuery.toString()
-            .replaceAll("wildcard_field\\:", "")
-            .replaceAll("" + WildcardFieldMapper.TOKEN_START_OR_END_CHAR, "_");
-        String expectedString = expectedAccelerationQuery.toString()
-            .replaceAll("wildcard_field\\:", "")
-            .replaceAll("" + WildcardFieldMapper.TOKEN_START_OR_END_CHAR, "_");        
-        String message = "regex: "+ regex +"\nactual query: " + actualString + 
-            "\nexpected query: " + expectedString + "\n";
+        String message = "regex: "+ regex +"\nactual query: " + formatQuery(approximationQuery) + 
+            "\nexpected query: " + formatQuery(expectedAccelerationQuery) + "\n";
         assertEquals(message, expectedAccelerationQuery, approximationQuery);
-    }
+    }    
     
     private String getRandomFuzzyPattern(HashSet<String> values, int edits, int prefixLength) {
         assert edits >=0 && edits <=2;

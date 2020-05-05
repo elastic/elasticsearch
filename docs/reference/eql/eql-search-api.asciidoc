@@ -11,6 +11,8 @@ experimental::[]
 
 Returns search results for an <<eql,Event Query Language (EQL)>> query.
 
+In {es}, EQL assumes each document in an index corresponds to an event.
+
 ////
 [source,console]
 ----
@@ -120,7 +122,7 @@ Reserved for future use.
 
 `filter`::
 (Optional, <<query-dsl,query DSL object>>)
-Query, written in query DSL, used to filter the documents on which the EQL query
+Query, written in query DSL, used to filter the events on which the EQL query
 runs.
 
 `search_after`::
@@ -129,7 +131,7 @@ Reserved for future use.
 
 `size`::
 (Optional, integer or float)
-Maximum number of matching documents to return. Defaults to `50`. Values must be
+Maximum number of matching events to return. Defaults to `50`. Values must be
 greater than `0`.
 
 [[eql-search-api-response-body]]
@@ -148,7 +150,7 @@ and the time at which the coordinating node is ready to send the response.
 Took time includes:
 
 * Communication time between the coordinating node and data nodes
-* Time the request spends in a <<modules-threadpool,thread pool>>,
+* Time the request spends in the `search` <<modules-threadpool,thread pool>>,
   queued for execution
 * Actual execution time
 
@@ -161,58 +163,78 @@ Took time does *not* include:
 
 `timed_out`::
 (boolean)
-If `true`, the request timed out before completion; returned results may be
-partial or empty.
+If `true`, the request timed out before completion.
 
 `hits`::
 (object)
-Contains returned results and metadata.
+Contains returned events and metadata.
++
+.Properties of `hits`
+[%collapsible%open]
+====
 
-`hits.total.value`::
+`total`::
+(object)
+Metadata about the number of returned events.
++
+.Properties of `total`
+[%collapsible%open]
+=====
+
+`value`::
 (integer)
-Total number of returned documents.
+Total number of returned events.
 
-`hits.total.relation`::
+`relation`::
 +
 --
 (string)
-Indicates whether the number of documents returned is accurate or a lower bound.
+Indicates whether the number of events returned is accurate or a lower bound.
 
 Returned values are:
 
 `eq`::: Accurate
-`gte`::: Lower bound, including returned documents
+`gte`::: Lower bound, including returned events
 --
+=====
 
-`hits.events`::
+`events`::
 (array of objects)
-Contains returned documents matching the query. Each object represents a
-matching document.
+Contains returned events matching the query. Each object represents a
+matching event.
++
+.Properties of `events` objects
+[%collapsible%open]
+=====
 
-`hits.events._index`::
+`_index`::
 (string)
-Name of the index containing the returned document.
+Name of the index containing the returned event.
 
-`hits.events._id`::
+`_id`::
 (string)
-Unique identifier for the returned document.
+(string)
+Unique identifier for the returned event.
+This ID is only unique within the returned index.
 
-`hits.events._score`::
+`_score`::
 (float)
-Positive 32-bit floating point number indicating the relevance of the returned
-document. See <<relevance-scores>>.
+Positive 32-bit floating point number used to determine the relevance of the
+returned event. See <<relevance-scores>>.
 
-`hits.events._source`::
+`_source`::
 (object)
-Object containing the original JSON body passed for the document at index time.
+Original JSON body passed for the event at index time.
 
-`hits.events.sort`::
+`sort`::
 (array)
 Integer used as the sort value for the event.
 +
 By default, this is the event's <<eql-search-api-timestamp-field,timestamp
 value>>, converted to milliseconds since the
 https://en.wikipedia.org/wiki/Unix_time[Unix epoch].
+=====
+====
 
 [[eql-search-api-example]]
 ==== {api-examples-title}

@@ -22,6 +22,7 @@ package org.elasticsearch.action.update;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
@@ -133,6 +134,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     public UpdateRequest(ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
+        assert shardId == null || in.getVersion().onOrAfter(
+                BulkShardRequest.COMPACT_SHARD_ID_VERSION) : "Thin reads not supported for [" + in.getVersion() + "]";
         waitForActiveShards = ActiveShardCount.readFrom(in);
         if (in.getVersion().before(Version.V_8_0_0)) {
             String type = in.readString();
@@ -864,12 +867,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         }
     }
 
+    @Override
     public void writeThin(StreamOutput out) throws IOException {
+        assert out.getVersion().onOrAfter(
+                BulkShardRequest.COMPACT_SHARD_ID_VERSION) : "Thin writes not supported for [" + out.getVersion() + "]";
         super.writeThin(out);
         waitForActiveShards.writeTo(out);
-        if (out.getVersion().before(Version.V_8_0_0)) {
-            out.writeString(MapperService.SINGLE_MAPPING_NAME);
-        }
         out.writeString(id);
         out.writeOptionalString(routing);
 
@@ -904,9 +907,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         out.writeVLong(ifPrimaryTerm);
         out.writeBoolean(detectNoop);
         out.writeBoolean(scriptedUpsert);
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            out.writeOptionalBoolean(preferV2Templates);
-        }
+        out.writeOptionalBoolean(preferV2Templates);
     }
 
     @Override

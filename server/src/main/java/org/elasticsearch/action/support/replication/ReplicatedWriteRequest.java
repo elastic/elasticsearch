@@ -40,8 +40,10 @@ public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>
     /**
      * Constructor for deserialization.
      */
-    public ReplicatedWriteRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+    public ReplicatedWriteRequest(ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
+        assert shardId == null || in.getVersion().onOrAfter(
+                BulkShardRequest.COMPACT_SHARD_ID_VERSION) : "Thin reads not supported for [" + in.getVersion() + "]";
         refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
@@ -49,7 +51,7 @@ public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>
      * Constructor for deserialization.
      */
     public ReplicatedWriteRequest(StreamInput in) throws IOException {
-        super(null, in);
+        super(in);
         refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
@@ -76,7 +78,10 @@ public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>
         refreshPolicy.writeTo(out);
     }
 
+    @Override
     public void writeThin(StreamOutput out) throws IOException {
+        assert out.getVersion().onOrAfter(
+                BulkShardRequest.COMPACT_SHARD_ID_VERSION) : "Thin writes not supported for [" + out.getVersion() + "]";
         super.writeThin(out);
         refreshPolicy.writeTo(out);
     }

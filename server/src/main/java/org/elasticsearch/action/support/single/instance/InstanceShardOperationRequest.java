@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -50,14 +51,12 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
 
     protected InstanceShardOperationRequest(ShardId shardId, StreamInput in) throws IOException {
         super(in);
-        if (shardId == null) {
+        if (shardId == null || in.getVersion().before(BulkShardRequest.COMPACT_SHARD_ID_VERSION)) {
             index = in.readString();
-            if (in.readBoolean()) {
-                this.shardId = new ShardId(in);
-            } else {
-                this.shardId = null;
-            }
+            this.shardId = in.readOptionalWriteable(ShardId::new);
         } else {
+            assert in.getVersion().onOrAfter(BulkShardRequest.COMPACT_SHARD_ID_VERSION) :
+                    "Thin reads not supported for [" + in.getVersion() + "]";
             this.shardId = shardId;
             if (in.readBoolean()) {
                 index = in.readString();
@@ -140,6 +139,8 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
     }
 
     public void writeThin(StreamOutput out) throws IOException {
+        assert out.getVersion().onOrAfter(
+                BulkShardRequest.COMPACT_SHARD_ID_VERSION) : "Thin writes not supported for [" + out.getVersion() + "]";
         super.writeTo(out);
         if (shardId != null && index.equals(shardId.getIndexName())) {
             out.writeBoolean(false);
@@ -150,6 +151,4 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
         out.writeTimeValue(timeout);
         out.writeOptionalString(concreteIndex);
     }
-
 }
-

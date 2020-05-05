@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action;
 
+import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -199,6 +200,8 @@ public interface DocWriteRequest<T> extends IndicesRequest {
 
     /** read a document write (index/delete/update) request */
     static DocWriteRequest<?> readDocumentRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+        assert shardId == null || in.getVersion().onOrAfter(BulkShardRequest.COMPACT_SHARD_ID_VERSION) :
+                "Thin writes not supported for [" + in.getVersion() + "]";
         byte type = in.readByte();
         DocWriteRequest<?> docWriteRequest;
         if (type == 0) {
@@ -231,6 +234,8 @@ public interface DocWriteRequest<T> extends IndicesRequest {
 
     /** write a document write (index/delete/update) request*/
     static void writeDocumentRequestThin(StreamOutput out, DocWriteRequest<?> request)  throws IOException {
+        assert out.getVersion().onOrAfter(BulkShardRequest.COMPACT_SHARD_ID_VERSION) :
+                "Thin writes not supported for [" + out.getVersion() + "]";
         if (request instanceof IndexRequest) {
             out.writeByte((byte) 0);
             ((IndexRequest) request).writeThin(out);

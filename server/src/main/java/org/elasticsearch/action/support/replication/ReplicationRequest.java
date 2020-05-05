@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
+import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -72,25 +73,24 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
 
     public ReplicationRequest(ShardId shardId, StreamInput in) throws IOException {
         super(in);
-        if (shardId == null) {
-            if (in.readBoolean()) {
-                this.shardId = new ShardId(in);
-            } else {
-                this.shardId = null;
-            }
-        } else {
+        final boolean thinRead = shardId != null;
+        if (thinRead) {
+            assert in.getVersion().onOrAfter(BulkShardRequest.COMPACT_SHARD_ID_VERSION) :
+                    "Thin reads not supported for [" + in.getVersion() + "]";
             this.shardId = shardId;
-        }
+        } else {
+            this.shardId = in.readOptionalWriteable(ShardId::new);
+       }
         waitForActiveShards = ActiveShardCount.readFrom(in);
         timeout = in.readTimeValue();
-        if (shardId == null) {
-            index = in.readString();
-        } else {
+        if (thinRead) {
             if (in.readBoolean()) {
                 index = in.readString();
             } else {
                 index = shardId.getIndexName();
             }
+        } else {
+            index = in.readString();
         }
         routedBasedOnClusterVersion = in.readVLong();
     }
@@ -214,6 +214,8 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     }
 
     public void writeThin(StreamOutput out) throws IOException {
+        assert out.getVersion().onOrAfter(
+                BulkShardRequest.COMPACT_SHARD_ID_VERSION) : "Thin writes not supported for [" + out.getVersion() + "]";
         super.writeTo(out);
         waitForActiveShards.writeTo(out);
         out.writeTimeValue(timeout);

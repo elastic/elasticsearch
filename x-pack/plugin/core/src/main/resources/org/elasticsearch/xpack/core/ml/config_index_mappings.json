@@ -235,6 +235,9 @@
         "type" : "object",
         "enabled" : false
       },
+      "daily_model_snapshot_retention_after_days" : {
+        "type" : "long"
+      },
       "data_description" : {
         "properties" : {
           "field_delimiter" : {

@@ -145,12 +145,12 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         givenSearchResponses(Collections.singletonList(JobTests.buildJobBuilder(jobId).setResultsRetentionDays(1L).build()),
                 new Bucket(jobId, latest, 60));
 
-        ActionListener<Long> cutoffListener = mock(ActionListener.class);
+        ActionListener<AbstractExpiredJobDataRemover.CutoffDetails> cutoffListener = mock(ActionListener.class);
         createExpiredResultsRemover().calcCutoffEpochMs(jobId, 1L, cutoffListener);
 
         long dayInMills = 60 * 60 * 24 * 1000;
         long expectedCutoffTime = latest.getTime() - dayInMills;
-        verify(cutoffListener).onResponse(eq(expectedCutoffTime));
+        verify(cutoffListener).onResponse(eq(new AbstractExpiredJobDataRemover.CutoffDetails(latest.getTime(), expectedCutoffTime)));
     }
 
     private void givenDBQRequestsSucceed() {

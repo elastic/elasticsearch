@@ -84,7 +84,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
     }
 
     @Override
-    protected void removeDataBefore(Job job, long cutoffEpochMs, ActionListener<Boolean> listener) {
+    protected void removeDataBefore(Job job, long latestTimeMs, long cutoffEpochMs, ActionListener<Boolean> listener) {
         LOGGER.debug("Removing results of job [{}] that have a timestamp before [{}]", job.getId(), cutoffEpochMs);
         DeleteByQueryRequest request = createDBQRequest(job, cutoffEpochMs);
 
@@ -131,8 +131,8 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
     }
 
     @Override
-    void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<Long> listener) {
-        ThreadedActionListener<Long> threadedActionListener = new ThreadedActionListener<>(LOGGER, threadPool,
+    void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener) {
+        ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(LOGGER, threadPool,
                 MachineLearning.UTILITY_THREAD_POOL_NAME, listener, false);
         latestBucketTime(jobId, ActionListener.wrap(
                 latestTime -> {
@@ -140,7 +140,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
                         threadedActionListener.onResponse(null);
                     } else {
                         long cutoff = latestTime - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
-                        threadedActionListener.onResponse(cutoff);
+                        threadedActionListener.onResponse(new CutoffDetails(latestTime, cutoff));
                     }
                 },
                 listener::onFailure

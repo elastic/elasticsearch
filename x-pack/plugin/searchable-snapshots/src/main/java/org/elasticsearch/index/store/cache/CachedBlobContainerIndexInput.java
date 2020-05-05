@@ -131,7 +131,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     protected void readInternal(ByteBuffer b) throws IOException {
         ensureContext(ctx -> ctx != CACHE_WARMING_CONTEXT);
         final long position = getFilePointer() + this.offset;
-        int length = b.remaining();
+        final int length = b.remaining();
         int totalBytesRead = 0;
         while (totalBytesRead < length) {
             final long pos = position + totalBytesRead;
@@ -321,11 +321,11 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         assert assertFileChannelOpen(fc);
         final int bytesRead;
         if (end - position < b.remaining()) {
-            final int remaining = b.remaining();
+            final int originalLimit = b.limit();
             b.limit(b.position() + Math.toIntExact(end - position));
             bytesRead = Channels.readFromFileChannel(fc, position, b);
-            assert remaining > bytesRead;
-            b.limit(b.position() + remaining - bytesRead);
+            assert originalLimit > b.position();
+            b.limit(originalLimit);
         } else {
             bytesRead = Channels.readFromFileChannel(fc, position, b);
         }

@@ -218,8 +218,7 @@ public class SourceOnlySnapshot {
                 SegmentInfo newSegmentInfo = new SegmentInfo(targetDirectory, si.getVersion(), si.getMinVersion(), si.name, si.maxDoc(),
                     false, si.getCodec(), si.getDiagnostics(), si.getId(), si.getAttributes(), null);
                 // we drop the sort on purpose since the field we sorted on doesn't exist in the target index anymore.
-                newInfo = new SegmentCommitInfo(newSegmentInfo, 0, 0, -1,
-                    -1, -1, StringHelper.randomId());
+                newInfo = new SegmentCommitInfo(newSegmentInfo, 0, 0, -1, -1, -1, StringHelper.randomId());
                 List<FieldInfo> fieldInfoCopy = new ArrayList<>(fieldInfos.size());
                 for (FieldInfo fieldInfo : fieldInfos) {
                     fieldInfoCopy.add(new FieldInfo(fieldInfo.name, fieldInfo.number,

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -31,8 +30,6 @@ import java.util.Objects;
  * Metadata about registered repository
  */
 public class RepositoryMetadata {
-
-    public static final Version REPO_GEN_IN_CS_VERSION = Version.V_7_6_0;
 
     private final String name;
     private final String type;
@@ -128,13 +125,8 @@ public class RepositoryMetadata {
         name = in.readString();
         type = in.readString();
         settings = Settings.readSettingsFromStream(in);
-        if (in.getVersion().onOrAfter(REPO_GEN_IN_CS_VERSION)) {
-            generation = in.readLong();
-            pendingGeneration = in.readLong();
-        } else {
-            generation = RepositoryData.UNKNOWN_REPO_GEN;
-            pendingGeneration = RepositoryData.EMPTY_REPO_GEN;
-        }
+        generation = in.readLong();
+        pendingGeneration = in.readLong();
     }
 
     /**
@@ -146,10 +138,8 @@ public class RepositoryMetadata {
         out.writeString(name);
         out.writeString(type);
         Settings.writeSettingsToStream(settings, out);
-        if (out.getVersion().onOrAfter(REPO_GEN_IN_CS_VERSION)) {
-            out.writeLong(generation);
-            out.writeLong(pendingGeneration);
-        }
+        out.writeLong(generation);
+        out.writeLong(pendingGeneration);
     }
 
     /**

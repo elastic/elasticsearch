@@ -70,6 +70,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.hamcrest.Matcher;
 
@@ -92,6 +93,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -135,6 +137,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/56233")
     public void testIndexSearcher() throws Exception {
         testDirectories((directory, snapshotDirectory) -> {
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
@@ -350,7 +353,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 writer.commit();
             }
 
-            final ThreadPool threadPool = new TestThreadPool(getClass().getSimpleName());
+            final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilder());
             releasables.add(() -> terminate(threadPool));
 
             final Store store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
@@ -439,10 +442,14 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                         snapshotId,
                         indexId,
                         shardId,
-                        Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), randomBoolean()).build(),
+                        Settings.builder()
+                            .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), randomBoolean())
+                            .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), randomBoolean())
+                            .build(),
                         () -> 0L,
                         cacheService,
-                        cacheDir
+                        cacheDir,
+                        threadPool
                     )
                 ) {
                     final boolean loaded = snapshotDirectory.loadSnapshot();
@@ -513,6 +520,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             final ShardId shardId = new ShardId(new Index("_name", "_id"), 0);
 
             final Path cacheDir = createTempDir();
+            final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilder());
             try (
                 SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
                     () -> blobContainer,
@@ -520,10 +528,14 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     snapshotId,
                     indexId,
                     shardId,
-                    Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true).build(),
+                    Settings.builder()
+                        .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
+                        .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), randomBoolean())
+                        .build(),
                     () -> 0L,
                     cacheService,
-                    cacheDir
+                    cacheDir,
+                    threadPool
                 )
             ) {
 
@@ -553,6 +565,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                         assertListOfFiles(cacheDir, equalTo(0), equalTo(0L));
                     }
                 }
+            } finally {
+                terminate(threadPool);
             }
         }
     }

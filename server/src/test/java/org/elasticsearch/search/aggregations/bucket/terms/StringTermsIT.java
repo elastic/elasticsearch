@@ -24,6 +24,9 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParseException;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -41,6 +44,8 @@ import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.aggregations.metrics.Sum;
+import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -70,6 +75,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -116,6 +122,8 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 ScriptDocValues.Strings value = (ScriptDocValues.Strings) doc.get(SINGLE_VALUED_FIELD_NAME);
                 return value.getValue();
             });
+
+            scripts.put("42", vars -> 42);
 
             return scripts;
         }
@@ -1174,5 +1182,40 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 .getHitCount(), equalTo(0L));
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(2L));
+    }
+
+    public void testScriptWithValueType() throws Exception {
+        SearchSourceBuilder builder = new SearchSourceBuilder()
+            .size(0)
+            .aggregation(terms("terms")
+                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "42", Collections.emptyMap()))
+                .userValueTypeHint(randomFrom(ValueType.NUMERIC, ValueType.NUMBER)));
+        String source = builder.toString();
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+            SearchResponse response = client()
+                .prepareSearch("idx")
+                .setSource(SearchSourceBuilder.fromXContent(parser))
+                .get();
+
+            assertSearchResponse(response);
+            Terms terms = response.getAggregations().get("terms");
+            assertThat(terms, notNullValue());
+            assertThat(terms.getName(), equalTo("terms"));
+            assertThat(terms.getBuckets().size(), equalTo(1));
+        }
+
+        String invalidValueType = source.replaceAll("\"value_type\":\"n.*\"", "\"value_type\":\"foobar\"");
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidValueType)) {
+            XContentParseException ex = expectThrows(XContentParseException.class, () -> client()
+                .prepareSearch("idx")
+                .setSource(SearchSourceBuilder.fromXContent(parser))
+                .get());
+            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(ex.getCause().getMessage(), containsString("Unknown value type [foobar]"));
+
+        }
+
     }
 }

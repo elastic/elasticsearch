@@ -30,10 +30,8 @@ import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -66,7 +64,6 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     private final ThreadPool threadPool;
     private final long recoveryId;
     private final ShardId shardId;
-    private final BigArrays bigArrays;
     private final DiscoveryNode targetNode;
     private final RecoverySettings recoverySettings;
     private final Map<Object, RetryableAction<?>> onGoingRetryableActions = ConcurrentCollections.newConcurrentMap();
@@ -79,13 +76,12 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     private final Consumer<Long> onSourceThrottle;
     private volatile boolean isCancelled = false;
 
-    public RemoteRecoveryTargetHandler(long recoveryId, ShardId shardId, TransportService transportService, BigArrays bigArrays,
+    public RemoteRecoveryTargetHandler(long recoveryId, ShardId shardId, TransportService transportService,
                                        DiscoveryNode targetNode, RecoverySettings recoverySettings, Consumer<Long> onSourceThrottle) {
         this.transportService = transportService;
         this.threadPool = transportService.getThreadPool();
         this.recoveryId = recoveryId;
         this.shardId = shardId;
-        this.bigArrays = bigArrays;
         this.targetNode = targetNode;
         this.recoverySettings = recoverySettings;
         this.onSourceThrottle = onSourceThrottle;
@@ -209,29 +205,14 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         }
 
         final String action = PeerRecoveryTargetService.Actions.FILE_CHUNK;
-        final ReleasableBytesStreamOutput output = new ReleasableBytesStreamOutput(content.length(), bigArrays);
-        boolean actionStarted = false;
-        try {
-            content.writeTo(output);
-            /* we send estimateTotalOperations with every request since we collect stats on the target and that way we can
-             * see how many translog ops we accumulate while copying files across the network. A future optimization
-             * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
-             */
-            final RecoveryFileChunkRequest request = new RecoveryFileChunkRequest(recoveryId, shardId, fileMetadata,
-                position, output.bytes(), lastChunk, totalTranslogOps, throttleTimeInNanos);
-            final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
-            final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
-            final ActionListener<TransportResponse.Empty> releaseListener = ActionListener.runBefore(responseListener, output::close);
-            executeRetryableAction(action, request, fileChunkRequestOptions, releaseListener, reader);
-            actionStarted = true;
-        } catch (IOException e) {
-            // Since the content data is buffer in memory, we should never get an exception.
-            throw new AssertionError(e);
-        } finally {
-            if (actionStarted == false) {
-                output.close();
-            }
-        }
+        /* we send estimateTotalOperations with every request since we collect stats on the target and that way we can
+         * see how many translog ops we accumulate while copying files across the network. A future optimization
+         * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
+         */
+        final RecoveryFileChunkRequest request = new RecoveryFileChunkRequest(
+            recoveryId, shardId, fileMetadata, position, content, lastChunk, totalTranslogOps, throttleTimeInNanos);
+        final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
+        executeRetryableAction(action, request, fileChunkRequestOptions, ActionListener.map(listener, r -> null), reader);
     }
 
     @Override

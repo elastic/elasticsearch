@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.eql.expression.function.scalar.whitelist;
 
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.BetweenFunctionProcessor;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.ConcatFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.EndsWithFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.IndexOfFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.LengthFunctionProcessor;
@@ -15,6 +16,8 @@ import org.elasticsearch.xpack.eql.expression.function.scalar.string.StringConta
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.SubstringFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToStringFunctionProcessor;
 import org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils;
+
+import java.util.List;
 
 /*
  * Whitelisted class for EQL scripts.
@@ -27,6 +30,10 @@ public class InternalEqlScriptUtils extends InternalQlScriptUtils {
 
     public static String between(String s, String left, String right, Boolean greedy, Boolean caseSensitive) {
         return (String) BetweenFunctionProcessor.doProcess(s, left, right, greedy, caseSensitive);
+    }
+
+    public static String concat(List<Object> values) {
+        return (String) ConcatFunctionProcessor.doProcess(values);
     }
 
     public static Boolean endsWith(String s, String pattern) {

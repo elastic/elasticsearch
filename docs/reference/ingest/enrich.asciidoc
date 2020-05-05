@@ -247,7 +247,7 @@ following:
         "indices": ["..."],
         "match_field": "...",
         "enrich_fields": ["..."],
-        "query": "..."
+        "query": {"..."}
     }
   }
 }

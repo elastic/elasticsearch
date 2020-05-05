@@ -18,6 +18,15 @@ include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> The name of an index template to delete.
 
+=== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+
 [id="{upid}-{api}-response"]
 ==== Response
 

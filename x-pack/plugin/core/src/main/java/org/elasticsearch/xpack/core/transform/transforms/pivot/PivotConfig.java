@@ -6,10 +6,12 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,6 +36,8 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public class PivotConfig implements Writeable, ToXContentObject {
 
     private static final String NAME = "data_frame_transform_pivot";
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(PivotConfig.class));
+
     private final GroupConfig groups;
     private final AggregationConfig aggregationConfig;
     private final Integer maxPageSearchSize;
@@ -78,6 +82,13 @@ public class PivotConfig implements Writeable, ToXContentObject {
         this.groups = ExceptionsHelper.requireNonNull(groups, TransformField.GROUP_BY.getPreferredName());
         this.aggregationConfig = ExceptionsHelper.requireNonNull(aggregationConfig, TransformField.AGGREGATIONS.getPreferredName());
         this.maxPageSearchSize = maxPageSearchSize;
+
+        if (maxPageSearchSize != null) {
+            deprecationLogger.deprecatedAndMaybeLog(
+                TransformField.MAX_PAGE_SEARCH_SIZE.getPreferredName(),
+                "[max_page_search_size] is deprecated inside pivot please use settings instead"
+            );
+        }
     }
 
     public PivotConfig(StreamInput in) throws IOException {

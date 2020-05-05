@@ -408,7 +408,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         int expectedMinShouldMatch;
         String ngrams;
 
-        public FuzzyTest(
+        FuzzyTest(
             String pattern,
             int prefixLength,
             Fuzziness fuzziness,

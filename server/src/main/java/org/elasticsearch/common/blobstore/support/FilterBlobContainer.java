@@ -39,7 +39,7 @@ public abstract class FilterBlobContainer implements BlobContainer {
         this.delegate = Objects.requireNonNull(delegate);
     }
 
-    protected abstract BlobContainer delegateChildren(BlobContainer children);
+    protected abstract BlobContainer wrapChild(BlobContainer child);
 
     @Override
     public BlobPath path() {
@@ -88,7 +88,7 @@ public abstract class FilterBlobContainer implements BlobContainer {
 
     @Override
     public Map<String, BlobContainer> children() throws IOException {
-        return delegate.children().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> delegateChildren(e.getValue())));
+        return delegate.children().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> wrapChild(e.getValue())));
     }
 
 

@@ -503,8 +503,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         }
 
         @Override
-        protected BlobContainer delegateChildren(BlobContainer children) {
-            return new RateLimitingBlobContainer(blobStoreRepository, children);
+        protected BlobContainer wrapChild(BlobContainer child) {
+            return new RateLimitingBlobContainer(blobStoreRepository, child);
         }
 
         @Override

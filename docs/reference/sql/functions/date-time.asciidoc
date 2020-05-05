@@ -487,7 +487,9 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeParse2]
 [NOTE]
 ====
 If timezone is not specified in the datetime string expression and the parsing pattern, the resulting `datetime` will have the
-time zone specified by the user through the `time_zone`/`timezone` REST/driver parameters with no conversion applied.
+time zone specified by the user through the <<sql-rest-fields-timezone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver parameters
+with no conversion applied.
+
 [source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeParse3]

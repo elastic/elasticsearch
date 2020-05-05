@@ -43,7 +43,10 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(DiversifiedAggregationBuilder.NAME,
-            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            org.elasticsearch.common.collect.List.of(
+                CoreValuesSourceType.NUMERIC,
+                CoreValuesSourceType.DATE,
+                CoreValuesSourceType.BOOLEAN),
             (DiversifiedAggregatorSupplier) (String name, int shardSize, AggregatorFactories factories, SearchContext context,
                                              Aggregator parent, Map<String, Object> metadata, ValuesSource valuesSource,
                                              int maxDocsPerValue, String executionHint) ->

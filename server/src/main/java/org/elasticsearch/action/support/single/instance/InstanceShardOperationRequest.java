@@ -54,9 +54,9 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
 
     protected InstanceShardOperationRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         super(in);
-        // Do a full read if no shard id is give (indicating that this instance isn't read as part of a BulkShardRequest) or `in` is of an
-        // older version and is in the format used by #writeTo.
-        if (shardId == null || in.getVersion().before(BulkShardRequest.COMPACT_SHARD_ID_VERSION)) {
+        // Do a full read if no shard id is given (indicating that this instance isn't read as part of a BulkShardRequest or that `in` is of
+        // an older version) and is in the format used by #writeTo.
+        if (shardId == null) {
             index = in.readString();
             this.shardId = in.readOptionalWriteable(ShardId::new);
         } else {

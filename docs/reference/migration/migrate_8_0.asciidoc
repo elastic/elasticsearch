@@ -48,8 +48,7 @@ Elasticsearch 8.0 node will not start in the presence of indices created in a
 version of Elasticsearch before 7.0.
 
 *Impact* +
-Indices created in Elasticsearch 6.x or before will need to be reindexed with
-Elasticsearch 7.x in order to be readable by Elasticsearch 8.x.
+Reindex indices created in {es} 6.x or before with {es} 7.x if they need to be carried forward to  {es} 8.x. 
 ====
 
 .REST API endpoints containing `_xpack` have been removed.

@@ -121,7 +121,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         this(null, in);
     }
 
-    public IndexRequest(ShardId shardId, StreamInput in) throws IOException {
+    public IndexRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
         if (in.getVersion().before(Version.V_8_0_0)) {
             String type = in.readOptionalString();

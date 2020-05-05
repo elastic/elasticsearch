@@ -869,8 +869,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     @Override
     public void writeThin(StreamOutput out) throws IOException {
-        assert out.getVersion().onOrAfter(
-                BulkShardRequest.COMPACT_SHARD_ID_VERSION) : "Thin writes not supported for [" + out.getVersion() + "]";
         super.writeThin(out);
         waitForActiveShards.writeTo(out);
         out.writeString(id);

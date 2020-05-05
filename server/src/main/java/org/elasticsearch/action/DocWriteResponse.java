@@ -137,6 +137,10 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         assert in.getVersion().onOrAfter(BulkShardRequest.COMPACT_SHARD_ID_VERSION) :
                 "Thin reads should not be used with [" + in.getVersion() + "]";
         this.shardId = shardId;
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            String type = in.readString();
+            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
+        }
         id = in.readString();
         version = in.readZLong();
         seqNo = in.readZLong();

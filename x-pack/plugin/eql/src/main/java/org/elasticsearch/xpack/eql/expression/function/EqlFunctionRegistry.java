@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.eql.expression.function.scalar.string.Match;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.StringContains;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Substring;
-import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToNumber;
+import org.elasticsearch.xpack.eql.expression.function.scalar.math.ToNumber;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToString;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Wildcard;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;

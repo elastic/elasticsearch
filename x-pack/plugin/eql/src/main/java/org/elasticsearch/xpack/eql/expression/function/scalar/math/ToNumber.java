@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.eql.expression.function.scalar.string;
+package org.elasticsearch.xpack.eql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
-import static org.elasticsearch.xpack.eql.expression.function.scalar.string.ToNumberFunctionProcessor.doProcess;
+import static org.elasticsearch.xpack.eql.expression.function.scalar.math.ToNumberFunctionProcessor.doProcess;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;

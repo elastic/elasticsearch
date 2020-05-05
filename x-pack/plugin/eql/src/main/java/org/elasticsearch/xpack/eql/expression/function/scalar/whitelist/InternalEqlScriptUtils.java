@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.eql.expression.function.scalar.string.LengthFunct
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.StartsWithFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.StringContainsFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.SubstringFunctionProcessor;
-import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToNumberFunctionProcessor;
+import org.elasticsearch.xpack.eql.expression.function.scalar.math.ToNumberFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToStringFunctionProcessor;
 import org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils;
 

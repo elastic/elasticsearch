@@ -103,7 +103,7 @@ public class TransformConfigUpdate implements Writeable {
         if (in.readBoolean()) {
             setHeaders(in.readMap(StreamInput::readString, StreamInput::readString));
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {  // todo: V_7_8_0
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
             settings = in.readOptionalWriteable(SettingsConfig::new);
         } else {
             settings = null;
@@ -158,7 +158,7 @@ public class TransformConfigUpdate implements Writeable {
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
             out.writeOptionalWriteable(settings);
         }
     }

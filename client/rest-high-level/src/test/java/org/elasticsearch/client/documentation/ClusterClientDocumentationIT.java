@@ -564,8 +564,9 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 "  }\n" +
                 "}";
             AliasMetadata twitterAlias = AliasMetadata.builder("twitter_alias").build();
-            Template template = new Template(settings, new CompressedXContent(mappingJson),
-                org.elasticsearch.common.collect.Map.of("twitter_alias", twitterAlias)); // <2>
+            Map<String, AliasMetadata> aliases = new HashMap<>();
+            aliases.put("twitter_alias", twitterAlias);
+            Template template = new Template(settings, new CompressedXContent(mappingJson), aliases); // <2>
 
             request.componentTemplate(new ComponentTemplate(template, null, null));
             assertTrue(client.cluster().putComponentTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
@@ -648,8 +649,9 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 "  }\n" +
                 "}";
             AliasMetadata twitterAlias = AliasMetadata.builder("twitter_alias").build();
-            Template template = new Template(settings, new CompressedXContent(mappingJson),
-                org.elasticsearch.common.collect.Map.of("twitter_alias", twitterAlias));
+            Map<String, AliasMetadata> aliases = new HashMap<>();
+            aliases.put("twitter_alias", twitterAlias);
+            Template template = new Template(settings, new CompressedXContent(mappingJson), aliases);
 
             request.componentTemplate(new ComponentTemplate(template, null, null));
             assertTrue(client.cluster().putComponentTemplate(request, RequestOptions.DEFAULT).isAcknowledged());

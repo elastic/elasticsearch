@@ -132,6 +132,7 @@ Reserved for future use.
 Maximum number of matching documents to return. Defaults to `50`. Values must be
 greater than `0`.
 
+[role="child_attributes"]
 [[eql-search-api-response-body]]
 ==== {api-response-body-title}
 

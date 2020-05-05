@@ -26,7 +26,6 @@ import com.ibm.icu.util.ULocale;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -735,7 +734,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         final String value;
         if (context.externalValueSet()) {
             value = context.externalValue().toString();
@@ -757,13 +756,13 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
             Field field = new Field(fieldType().name(), binaryValue, fieldType());
-            fields.add(field);
+            context.doc().add(field);
         }
 
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+            context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
         } else if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            createFieldNamesField(context, fields);
+            createFieldNamesField(context);
         }
     }
 }

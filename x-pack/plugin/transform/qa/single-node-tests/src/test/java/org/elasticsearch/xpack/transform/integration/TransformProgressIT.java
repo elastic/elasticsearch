@@ -136,6 +136,7 @@ public class TransformProgressIT extends ESRestTestCase {
             null,
             null,
             pivotConfig,
+            null,
             null
         );
 
@@ -154,7 +155,7 @@ public class TransformProgressIT extends ESRestTestCase {
         QueryConfig queryConfig = new QueryConfig(Collections.emptyMap(), QueryBuilders.termQuery("user_id", "user_26"));
         pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
         sourceConfig = new SourceConfig(new String[] { REVIEWS_INDEX_NAME }, queryConfig);
-        config = new TransformConfig("get_progress_transform", sourceConfig, destConfig, null, null, null, pivotConfig, null);
+        config = new TransformConfig("get_progress_transform", sourceConfig, destConfig, null, null, null, pivotConfig, null, null);
 
         response = restClient.search(
             TransformProgressGatherer.getSearchRequest(config, config.getSource().getQueryConfig().getQuery()),
@@ -171,7 +172,7 @@ public class TransformProgressIT extends ESRestTestCase {
             Collections.singletonMap("every_50", new HistogramGroupSource("missing_field", null, 50.0))
         );
         pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
-        config = new TransformConfig("get_progress_transform", sourceConfig, destConfig, null, null, null, pivotConfig, null);
+        config = new TransformConfig("get_progress_transform", sourceConfig, destConfig, null, null, null, pivotConfig, null, null);
 
         response = restClient.search(
             TransformProgressGatherer.getSearchRequest(config, config.getSource().getQueryConfig().getQuery()),

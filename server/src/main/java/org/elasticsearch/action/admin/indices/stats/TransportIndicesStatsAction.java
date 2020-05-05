@@ -57,6 +57,11 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
         this.indicesService = indicesService;
     }
 
+    @Override
+    protected boolean shouldIncludeDataStreams() {
+        return true;
+    }
+
     /**
      * Status goes across *all* shards.
      */

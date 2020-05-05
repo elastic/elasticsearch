@@ -9,9 +9,11 @@
 
 // end::notable-breaking-changes[]
 
-[float]
-==== Removal of old discovery settings
 
+.`discovery.zen` settings have been removed.
+[%collapsible]
+====
+*Details* +
 All settings under the `discovery.zen` namespace, which existed only for BWC reasons in 7.x,
 are no longer supported. In particular, this includes:
 
@@ -37,3 +39,8 @@ are no longer supported. In particular, this includes:
 - `discovery.zen.master_election.wait_for_joins_timeout`
 - `discovery.zen.master_election.ignore_non_master_pings`
 - `discovery.zen.publish.max_pending_cluster_states`
+
+*Impact* +
+Discontinue use of the `discovery.zen` settings. Specifying these settings in
+`elasticsearch.yml` will result in an error on startup.
+====

@@ -498,7 +498,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
         private final BlobStoreRepository blobStoreRepository;
 
-        public RateLimitingBlobContainer(BlobStoreRepository blobStoreRepository, BlobContainer blobContainer) {
+        RateLimitingBlobContainer(BlobStoreRepository blobStoreRepository, BlobContainer blobContainer) {
             super(blobContainer);
             this.blobStoreRepository = blobStoreRepository;
         }

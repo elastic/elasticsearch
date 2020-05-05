@@ -12,7 +12,7 @@ The Put Component Template API allows to create or change a component template.
 [id="{upid}-{api}-request"]
 ==== Put Component Template Request
 
-An +{request}+ specifies the name of the component template and the template definition
+A +{request}+ specifies the name of the component template and the template definition,
 which can consist of the settings, mappings or aliases, together with a version (which
 can be used to simply component tempalte management by external systems) and a metadata
 map consisting of user specific information.

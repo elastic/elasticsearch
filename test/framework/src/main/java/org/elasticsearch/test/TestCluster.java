@@ -137,7 +137,7 @@ public abstract class TestCluster implements Closeable {
             try {
                 // include wiping hidden indices!
                 assertAcked(client().admin().indices().prepareDelete(indices)
-                    .setIndicesOptions(IndicesOptions.fromOptions(false, true, true, true, true, false, false, true, false, false)));
+                    .setIndicesOptions(IndicesOptions.fromOptions(false, true, true, true, true, false, false, true, false)));
             } catch (IndexNotFoundException e) {
                 // ignore
             } catch (IllegalArgumentException e) {

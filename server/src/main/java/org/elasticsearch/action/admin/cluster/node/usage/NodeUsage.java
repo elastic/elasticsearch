@@ -43,7 +43,7 @@ public class NodeUsage extends BaseNodeResponse implements ToXContentFragment {
         timestamp = in.readLong();
         sinceTime = in.readLong();
         restUsage = (Map<String, Long>) in.readGenericValue();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
             aggregationUsage = (Map<String, Object>) in.readGenericValue();
         } else {
             aggregationUsage = null;
@@ -121,7 +121,7 @@ public class NodeUsage extends BaseNodeResponse implements ToXContentFragment {
         out.writeLong(timestamp);
         out.writeLong(sinceTime);
         out.writeGenericValue(restUsage);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
             out.writeGenericValue(aggregationUsage);
         }
     }

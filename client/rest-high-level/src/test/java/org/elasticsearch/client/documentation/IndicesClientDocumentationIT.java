@@ -2374,7 +2374,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             PutIndexTemplateV2Request putRequest = new PutIndexTemplateV2Request()
                 .name("my-template")
                 .indexTemplate(
-                    new IndexTemplateV2(List.of("pattern-1", "log-*"), template, null, null, null, null)
+                    new IndexTemplateV2(org.elasticsearch.common.collect.List.of("pattern-1", "log-*"), template, null, null, null, null)
                 );
             assertTrue(client.indices().putIndexTemplate(putRequest, RequestOptions.DEFAULT).isAcknowledged());
         }
@@ -2433,8 +2433,10 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::put-index-template-v2-request
             PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
                 .name("my-template"); // <1>
-            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), null, null, null, null, null); // <2>
+            IndexTemplateV2 indexTemplateV2 =
+                new IndexTemplateV2(org.elasticsearch.common.collect.List.of("pattern-1", "log-*"), null, null, null, null, null); // <2>
             request.indexTemplate(indexTemplateV2);
+
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
             // end::put-index-template-v2-request
         }
@@ -2448,7 +2450,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 .put("index.number_of_replicas", 1)
                 .build();
             Template template = new Template(settings, null, null); // <2>
-            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), template, null, null, null, null); // <3>
+            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(org.elasticsearch.common.collect.List.of("pattern-1", "log-*"),
+                template, null, null, null, null); // <3>
             request.indexTemplate(indexTemplateV2);
 
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
@@ -2467,7 +2470,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
                 .name("my-template");
             Template template = new Template(null, new CompressedXContent(mappingJson), null); // <2>
-            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), template, null, null, null, null); // <3>
+            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(org.elasticsearch.common.collect.List.of("pattern-1", "log-*"),
+                template, null, null, null, null); // <3>
             request.indexTemplate(indexTemplateV2);
 
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
@@ -2480,8 +2484,10 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 .name("my-template");
             AliasMetadata twitterAlias = AliasMetadata.builder("twitter_alias").build(); // <1>
             AliasMetadata placeholderAlias = AliasMetadata.builder("{index}_alias").searchRouting("xyz").build(); // <2>
-            Template template = new Template(null, null, Map.of("twitter_alias", twitterAlias, "{index}_alias", placeholderAlias)); // <3>
-            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), template, null, null, null, null); // <3>
+            Template template = new Template(null, null,
+                org.elasticsearch.common.collect.Map.of("twitter_alias", twitterAlias, "{index}_alias", placeholderAlias)); // <3>
+            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(org.elasticsearch.common.collect.List.of("pattern-1", "log-*"),
+                template, null, null, null, null); // <3>
             request.indexTemplate(indexTemplateV2);
 
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
@@ -2498,7 +2504,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
                 .name("my-template");
             IndexTemplateV2 indexTemplateV2 =
-                new IndexTemplateV2(List.of("pattern-1", "log-*"), null, List.of("ct1"), null, null, null); // <1>
+                new IndexTemplateV2(org.elasticsearch.common.collect.List.of("pattern-1", "log-*"), null,
+                    org.elasticsearch.common.collect.List.of("ct1"), null, null, null); // <1>
             request.indexTemplate(indexTemplateV2);
 
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
@@ -2509,7 +2516,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::put-index-template-v2-request-priority
             PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
                 .name("my-template");
-            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), null, null, 20L, null, null); // <1>
+            IndexTemplateV2 indexTemplateV2 =
+                new IndexTemplateV2(org.elasticsearch.common.collect.List.of("pattern-1", "log-*"), null, null, 20L, null, null); // <1>
             request.indexTemplate(indexTemplateV2);
 
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
@@ -2520,7 +2528,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::put-index-template-v2-request-version
             PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
                 .name("my-template");
-            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), null, null, null, 3L, null); // <1>
+            IndexTemplateV2 indexTemplateV2 =
+                new IndexTemplateV2(org.elasticsearch.common.collect.List.of("pattern-1", "log-*"), null, null, null, 3L, null); // <1>
             request.indexTemplate(indexTemplateV2);
 
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
@@ -2576,7 +2585,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
                 .name("my-template");
-            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), null, null, null, null, null); // <2>
+            IndexTemplateV2 indexTemplateV2 =
+                new IndexTemplateV2(org.elasticsearch.common.collect.List.of("pattern-1", "log-*"), null, null, null, null, null); // <2>
             request.indexTemplate(indexTemplateV2);
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
         }
@@ -2601,7 +2611,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
                 .name("my-template");
-            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), null, null, null, null, null); // <2>
+            IndexTemplateV2 indexTemplateV2 =
+                new IndexTemplateV2(org.elasticsearch.common.collect.List.of("pattern-1", "log-*"), null, null, null, null, null); // <2>
             request.indexTemplate(indexTemplateV2);
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
         }
@@ -2638,7 +2649,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
                 .name("my-template"); // <1>
             Template template = new Template(Settings.builder().put("index.number_of_replicas", 3).build(), null, null);
-            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), template, null, null, null, null);
+            IndexTemplateV2 indexTemplateV2 =
+                new IndexTemplateV2(org.elasticsearch.common.collect.List.of("pattern-1", "log-*"), template, null, null, null, null);
             request.indexTemplate(indexTemplateV2);
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
         }
@@ -2649,7 +2661,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             .name("used-for-simulation");
         Settings settings = Settings.builder().put("index.number_of_shards", 6).build();
         Template template = new Template(settings, null, null); // <2>
-        IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("log-*"), template, null, 90L, null, null);
+        IndexTemplateV2 indexTemplateV2 =
+            new IndexTemplateV2(org.elasticsearch.common.collect.List.of("log-*"), template, null, 90L, null, null);
         newIndexTemplateRequest.indexTemplate(indexTemplateV2);
 
         simulateRequest.indexTemplateV2Request(newIndexTemplateRequest); // <2>

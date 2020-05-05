@@ -33,7 +33,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
@@ -67,7 +66,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
@@ -81,23 +79,17 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         true, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Deprecated);
 
     protected final Settings settings;
-    private final boolean enabled;
 
     private Exporters exporters;
 
     public Monitoring(Settings settings) {
         this.settings = settings;
-        this.enabled = XPackSettings.MONITORING_ENABLED.get(settings);
     }
 
     // overridable by tests
     protected SSLService getSslService() { return XPackPlugin.getSharedSslService(); }
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
     protected LicenseService getLicenseService() { return XPackPlugin.getSharedLicenseService(); }
-
-    boolean isEnabled() {
-        return enabled;
-    }
 
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
@@ -107,10 +99,6 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
                                                IndexNameExpressionResolver expressionResolver,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier,
                                                CircuitBreakerService circuitBreakerService) {
-        if (enabled == false) {
-            return Collections.singletonList(new MonitoringUsageServices(null, null));
-        }
-
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         final CleanerService cleanerService = new CleanerService(settings, clusterSettings, threadPool, getLicenseState());
         final SSLService dynamicSSLService = getSslService().createDynamicSSLService();
@@ -130,7 +118,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         collectors.add(new IndexRecoveryCollector(clusterService, getLicenseState(), client));
         collectors.add(new JobStatsCollector(settings, clusterService, getLicenseState(), client));
         collectors.add(new StatsCollector(settings, clusterService, getLicenseState(), client));
-        collectors.add(new EnrichStatsCollector(clusterService, getLicenseState(), client, settings));
+        collectors.add(new EnrichStatsCollector(clusterService, getLicenseState(), client));
 
         final MonitoringService monitoringService = new MonitoringService(settings, clusterService, threadPool, collectors, exporters);
 
@@ -142,9 +130,6 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         var usageAction = new ActionHandler<>(XPackUsageFeatureAction.MONITORING, MonitoringUsageTransportAction.class);
         var infoAction = new ActionHandler<>(XPackInfoFeatureAction.MONITORING, MonitoringInfoTransportAction.class);
-        if (false == enabled) {
-            return Arrays.asList(usageAction, infoAction);
-        }
         return Arrays.asList(
             new ActionHandler<>(MonitoringBulkAction.INSTANCE, TransportMonitoringBulkAction.class),
             usageAction,
@@ -155,9 +140,6 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
-        if (false == enabled) {
-            return emptyList();
-        }
         return singletonList(new RestMonitoringBulkAction());
     }
 

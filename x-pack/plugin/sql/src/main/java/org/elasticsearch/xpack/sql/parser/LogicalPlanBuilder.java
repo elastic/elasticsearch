@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -63,8 +64,8 @@ import static java.util.Collections.emptyList;
 
 abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
-    protected LogicalPlanBuilder(Map<Token, SqlTypedParamValue> params) {
-        super(params);
+    protected LogicalPlanBuilder(Map<Token, SqlTypedParamValue> params, ZoneId zoneId) {
+        super(params, zoneId);
     }
 
     @Override

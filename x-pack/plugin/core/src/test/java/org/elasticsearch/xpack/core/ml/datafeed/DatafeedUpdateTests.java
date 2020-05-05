@@ -336,7 +336,8 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         datafeedUpdateBuilder.setAggregations(new AggProvider(
             XContentObjectTransformer.aggregatorTransformer(xContentRegistry()).toMap(aggs),
             aggs,
-            null));
+            null,
+            false));
         // So equality check between the streamed and current passes
         // Streamed DatafeedConfigs when they are before 6.6.0 require a parsed object for aggs and queries, consequently all the default
         // values are added between them

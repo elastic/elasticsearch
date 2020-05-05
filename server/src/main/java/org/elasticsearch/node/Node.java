@@ -123,7 +123,6 @@ import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
-import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -148,6 +147,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
@@ -389,9 +389,12 @@ public class Node implements Closeable {
                 settingsModule.getClusterSettings());
             resourcesToClose.add(circuitBreakerService);
 
+            //TODO
+            /**
             pluginsService.filterPlugins(CircuitBreakerPlugin.class).stream()
                 .flatMap(p -> p.getCircuitBreakers(settingsModule.getSettings()).stream())
                 .forEach(circuitBreakerService::registerBreaker);
+             */
 
             modules.add(new GatewayModule());
 
@@ -571,6 +574,7 @@ public class Node implements Closeable {
                     b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                     b.bind(IngestService.class).toInstance(ingestService);
                     b.bind(UsageService.class).toInstance(usageService);
+                    b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
                     b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
                     b.bind(MetadataUpgrader.class).toInstance(metadataUpgrader);
                     b.bind(MetaStateService.class).toInstance(metaStateService);
@@ -594,7 +598,7 @@ public class Node implements Closeable {
                         RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
                         processRecoverySettings(settingsModule.getClusterSettings(), recoverySettings);
                         b.bind(PeerRecoverySourceService.class).toInstance(new PeerRecoverySourceService(transportService,
-                                indicesService, recoverySettings, bigArrays));
+                                indicesService, recoverySettings));
                         b.bind(PeerRecoveryTargetService.class).toInstance(new PeerRecoveryTargetService(threadPool,
                                 transportService, recoverySettings, clusterService));
                     }

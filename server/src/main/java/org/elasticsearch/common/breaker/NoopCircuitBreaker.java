@@ -63,6 +63,11 @@ public class NoopCircuitBreaker implements CircuitBreaker {
     }
 
     @Override
+    public long getLimitWithOverhead() {
+        return 0L;
+    }
+
+    @Override
     public long getTrippedCount() {
         return 0;
     }
@@ -81,4 +86,7 @@ public class NoopCircuitBreaker implements CircuitBreaker {
     public Type getType() {
         return Type.NOOP;
     }
+
+    @Override
+    public void setLimitAndOverhead(long limit, double overhead) { }
 }

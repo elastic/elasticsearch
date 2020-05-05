@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -63,6 +64,15 @@ public class Regression implements DataFrameAnalysis {
     public static Regression fromXContent(XContentParser parser, boolean ignoreUnknownFields) {
         return ignoreUnknownFields ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
     }
+
+    private static final List<String> PROGRESS_PHASES = Collections.unmodifiableList(
+        Arrays.asList(
+            "feature_selection",
+            "coarse_parameter_search",
+            "fine_tuning_parameters",
+            "final_training"
+        )
+    );
 
     private final String dependentVariable;
     private final BoostedTreeParams boostedTreeParams;
@@ -215,7 +225,7 @@ public class Regression implements DataFrameAnalysis {
 
     @Override
     public List<String> getProgressPhases() {
-        return Collections.singletonList("analyzing");
+        return PROGRESS_PHASES;
     }
 
     public static String extractJobIdFromStateDoc(String stateDocId) {

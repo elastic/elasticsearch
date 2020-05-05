@@ -224,7 +224,7 @@ concat(<value>[, <value>])
 
 `<value>`::
 (Required{multi-arg-ref})
-Value to concatenate. If `null`, the function returns `null`.
+Value to concatenate. If any of the arguments are `null`, the function returns `null`.
 +
 If using a field as the argument, this parameter does not support the
 <<text,`text`>> field datatype.

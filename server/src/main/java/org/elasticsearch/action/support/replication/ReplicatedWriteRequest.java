@@ -42,8 +42,6 @@ public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>
      */
     public ReplicatedWriteRequest(ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
-        assert shardId == null || in.getVersion().onOrAfter(
-                BulkShardRequest.COMPACT_SHARD_ID_VERSION) : "Thin reads not supported for [" + in.getVersion() + "]";
         refreshPolicy = RefreshPolicy.readFrom(in);
     }
 

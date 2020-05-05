@@ -232,7 +232,7 @@ public interface DocWriteRequest<T> extends IndicesRequest {
         }
     }
 
-    /** write a document write (index/delete/update) request*/
+    /** write a document write (index/delete/update) request without shard id*/
     static void writeDocumentRequestThin(StreamOutput out, DocWriteRequest<?> request)  throws IOException {
         assert out.getVersion().onOrAfter(BulkShardRequest.COMPACT_SHARD_ID_VERSION) :
                 "Thin writes not supported for [" + out.getVersion() + "]";

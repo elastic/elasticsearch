@@ -10,11 +10,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.sql.SqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.sql.plugin.SqlStatsAction;
@@ -29,13 +27,11 @@ import java.util.stream.Collectors;
 
 public class SqlFeatureSet implements XPackFeatureSet {
 
-    private final boolean enabled;
     private final XPackLicenseState licenseState;
     private final Client client;
 
     @Inject
-    public SqlFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState, Client client) {
-        this.enabled = XPackSettings.SQL_ENABLED.get(settings);
+    public SqlFeatureSet(@Nullable XPackLicenseState licenseState, Client client) {
         this.licenseState = licenseState;
         this.client = client;
     }
@@ -52,7 +48,7 @@ public class SqlFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean enabled() {
-        return enabled;
+        return true;
     }
 
     @Override
@@ -62,7 +58,7 @@ public class SqlFeatureSet implements XPackFeatureSet {
 
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
-        if (enabled) {
+        if (true) {
             SqlStatsRequest request = new SqlStatsRequest();
             request.includeStats(true);
             client.execute(SqlStatsAction.INSTANCE, request, ActionListener.wrap(r -> {
@@ -72,10 +68,10 @@ public class SqlFeatureSet implements XPackFeatureSet {
                         .filter(Objects::nonNull)
                         .collect(Collectors.toList());
                 Counters mergedCounters = Counters.merge(countersPerNode);
-                listener.onResponse(new SqlFeatureSetUsage(available(), enabled(), mergedCounters.toNestedMap()));
+                listener.onResponse(new SqlFeatureSetUsage(available(), mergedCounters.toNestedMap()));
             }, listener::onFailure));
         } else {
-            listener.onResponse(new SqlFeatureSetUsage(available(), enabled(), Collections.emptyMap()));
+            listener.onResponse(new SqlFeatureSetUsage(available(), Collections.emptyMap()));
         }
     }
 

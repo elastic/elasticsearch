@@ -38,7 +38,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
@@ -141,12 +140,10 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
     private final SetOnce<SnapshotRetentionService> snapshotRetentionService = new SetOnce<>();
     private final SetOnce<SnapshotHistoryStore> snapshotHistoryStore = new SetOnce<>();
     private Settings settings;
-    private boolean slmEnabled;
     private boolean transportClientMode;
 
     public IndexLifecycle(Settings settings) {
         this.settings = settings;
-        this.slmEnabled = XPackSettings.SNAPSHOT_LIFECYCLE_ENABLED.get(settings);
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
     }
 
@@ -204,20 +201,20 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         indexLifecycleInitialisationService.set(new IndexLifecycleService(settings, client, clusterService, threadPool,
             getClock(), System::currentTimeMillis, xContentRegistry, ilmHistoryStore.get()));
         components.add(indexLifecycleInitialisationService.get());
-        if (slmEnabled) {
-            // the template registry is a cluster state listener
-            @SuppressWarnings("unused")
-            SnapshotLifecycleTemplateRegistry templateRegistry = new SnapshotLifecycleTemplateRegistry(settings, clusterService, threadPool,
-                client, xContentRegistry);
-            snapshotHistoryStore.set(new SnapshotHistoryStore(settings, new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN),
-                clusterService));
-            snapshotLifecycleService.set(new SnapshotLifecycleService(settings,
-                () -> new SnapshotLifecycleTask(client, clusterService, snapshotHistoryStore.get()), clusterService, getClock()));
-            snapshotRetentionService.set(new SnapshotRetentionService(settings,
-                () -> new SnapshotRetentionTask(client, clusterService, System::nanoTime, snapshotHistoryStore.get(), threadPool),
-                clusterService, getClock()));
-            components.addAll(Arrays.asList(snapshotLifecycleService.get(), snapshotHistoryStore.get(), snapshotRetentionService.get()));
-        }
+
+        // the template registry is a cluster state listener
+        @SuppressWarnings("unused")
+        SnapshotLifecycleTemplateRegistry templateRegistry = new SnapshotLifecycleTemplateRegistry(settings, clusterService, threadPool,
+            client, xContentRegistry);
+        snapshotHistoryStore.set(new SnapshotHistoryStore(settings, new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN),
+            clusterService));
+        snapshotLifecycleService.set(new SnapshotLifecycleService(settings,
+            () -> new SnapshotLifecycleTask(client, clusterService, snapshotHistoryStore.get()), clusterService, getClock()));
+        snapshotRetentionService.set(new SnapshotRetentionService(settings,
+            () -> new SnapshotRetentionTask(client, clusterService, System::nanoTime, snapshotHistoryStore.get(), threadPool),
+            clusterService, getClock()));
+        components.addAll(Arrays.asList(snapshotLifecycleService.get(), snapshotHistoryStore.get(), snapshotRetentionService.get()));
+
         return components;
     }
 
@@ -259,8 +256,9 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
         List<RestHandler> handlers = new ArrayList<>();
-        // add ILM rest handlers
         handlers.addAll(Arrays.asList(
+
+            // add ILM rest handlers
             new RestPutLifecycleAction(),
             new RestGetLifecycleAction(),
             new RestDeleteLifecycleAction(),
@@ -270,21 +268,19 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             new RestRetryAction(),
             new RestStopAction(),
             new RestStartILMAction(),
-            new RestGetStatusAction()
+            new RestGetStatusAction(),
+
+            // add SLM rest headers
+            new RestPutSnapshotLifecycleAction(),
+            new RestDeleteSnapshotLifecycleAction(),
+            new RestGetSnapshotLifecycleAction(),
+            new RestExecuteSnapshotLifecycleAction(),
+            new RestGetSnapshotLifecycleStatsAction(),
+            new RestExecuteSnapshotRetentionAction(),
+            new RestStopSLMAction(),
+            new RestStartSLMAction(),
+            new RestGetSLMStatusAction()
         ));
-        if (slmEnabled) {
-            handlers.addAll(Arrays.asList(
-                new RestPutSnapshotLifecycleAction(),
-                new RestDeleteSnapshotLifecycleAction(),
-                new RestGetSnapshotLifecycleAction(),
-                new RestExecuteSnapshotLifecycleAction(),
-                new RestGetSnapshotLifecycleStatsAction(),
-                new RestExecuteSnapshotRetentionAction(),
-                new RestStopSLMAction(),
-                new RestStartSLMAction(),
-                new RestGetSLMStatusAction()
-            ));
-        }
         return handlers;
     }
 
@@ -293,6 +289,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
         // add ILM actions
         actions.addAll(Arrays.asList(
+            // add ILM actions
             new ActionHandler<>(PutLifecycleAction.INSTANCE, TransportPutLifecycleAction.class),
             new ActionHandler<>(GetLifecycleAction.INSTANCE, TransportGetLifecycleAction.class),
             new ActionHandler<>(DeleteLifecycleAction.INSTANCE, TransportDeleteLifecycleAction.class),
@@ -302,21 +299,19 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             new ActionHandler<>(RetryAction.INSTANCE, TransportRetryAction.class),
             new ActionHandler<>(StartILMAction.INSTANCE, TransportStartILMAction.class),
             new ActionHandler<>(StopILMAction.INSTANCE, TransportStopILMAction.class),
-            new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class)
-        ));
-        if (slmEnabled) {
-            actions.addAll(Arrays.asList(
-                new ActionHandler<>(PutSnapshotLifecycleAction.INSTANCE, TransportPutSnapshotLifecycleAction.class),
-                new ActionHandler<>(DeleteSnapshotLifecycleAction.INSTANCE, TransportDeleteSnapshotLifecycleAction.class),
-                new ActionHandler<>(GetSnapshotLifecycleAction.INSTANCE, TransportGetSnapshotLifecycleAction.class),
-                new ActionHandler<>(ExecuteSnapshotLifecycleAction.INSTANCE, TransportExecuteSnapshotLifecycleAction.class),
-                new ActionHandler<>(GetSnapshotLifecycleStatsAction.INSTANCE, TransportGetSnapshotLifecycleStatsAction.class),
-                new ActionHandler<>(ExecuteSnapshotRetentionAction.INSTANCE, TransportExecuteSnapshotRetentionAction.class),
-                new ActionHandler<>(StartSLMAction.INSTANCE, TransportStartSLMAction.class),
-                new ActionHandler<>(StopSLMAction.INSTANCE, TransportStopSLMAction.class),
-                new ActionHandler<>(GetSLMStatusAction.INSTANCE, TransportGetSLMStatusAction.class)
+            new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class),
+
+            // add SLM actions
+            new ActionHandler<>(PutSnapshotLifecycleAction.INSTANCE, TransportPutSnapshotLifecycleAction.class),
+            new ActionHandler<>(DeleteSnapshotLifecycleAction.INSTANCE, TransportDeleteSnapshotLifecycleAction.class),
+            new ActionHandler<>(GetSnapshotLifecycleAction.INSTANCE, TransportGetSnapshotLifecycleAction.class),
+            new ActionHandler<>(ExecuteSnapshotLifecycleAction.INSTANCE, TransportExecuteSnapshotLifecycleAction.class),
+            new ActionHandler<>(GetSnapshotLifecycleStatsAction.INSTANCE, TransportGetSnapshotLifecycleStatsAction.class),
+            new ActionHandler<>(ExecuteSnapshotRetentionAction.INSTANCE, TransportExecuteSnapshotRetentionAction.class),
+            new ActionHandler<>(StartSLMAction.INSTANCE, TransportStartSLMAction.class),
+            new ActionHandler<>(StopSLMAction.INSTANCE, TransportStopSLMAction.class),
+            new ActionHandler<>(GetSLMStatusAction.INSTANCE, TransportGetSLMStatusAction.class)
             ));
-        }
         return actions;
     }
 

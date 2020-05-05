@@ -36,7 +36,6 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.DeleteRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
@@ -97,12 +96,10 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
 
     private final SetOnce<SchedulerEngine> schedulerEngine = new SetOnce<>();
     private final Settings settings;
-    private final boolean enabled;
     private final boolean transportClientMode;
 
     public Rollup(Settings settings) {
         this.settings = settings;
-        this.enabled = XPackSettings.ROLLUP_ENABLED.get(settings);
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
     }
 
@@ -134,10 +131,6 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
                                              IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
-        if (!enabled) {
-            return emptyList();
-        }
-
         return Arrays.asList(
             new RestRollupSearchAction(),
             new RestPutRollupJobAction(),
@@ -153,9 +146,6 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        if (!enabled) {
-            return emptyList();
-        }
         return Arrays.asList(
             new ActionHandler<>(RollupSearchAction.INSTANCE, TransportRollupSearchAction.class),
             new ActionHandler<>(PutRollupJobAction.INSTANCE, TransportPutRollupJobAction.class),
@@ -170,7 +160,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (false == enabled || transportClientMode) {
+        if (transportClientMode) {
             return emptyList();
         }
 
@@ -186,7 +176,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
                                                                        Client client,
                                                                        SettingsModule settingsModule,
                                                                        IndexNameExpressionResolver expressionResolver) {
-        if (enabled == false || transportClientMode ) {
+        if (transportClientMode ) {
             return emptyList();
         }
 

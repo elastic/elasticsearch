@@ -295,19 +295,9 @@ greater than `Integer.MAX_VALUE`.  This leniency has been removed.
 In Elasticsearch 7.8.0, the following settings no longer have any effect, and
 have been deprecated:
 
-* `xpack.ilm.enabled`
-
-In other words, even if `xpack.ilm.enabled` is set to `false`, the ILM APIs
-will be available.
-
-If you have disabled ILM so that you can use another tool to manage Watcher
-indices, the newly introduced `xpack.watcher.use_ilm_index_management` setting
-may be set to false.
-
-Additionally, the following settings have been deprecated:
-
 * `xpack.enrich.enabled`
 * `xpack.flattened.enabled`
+* `xpack.ilm.enabled`
 * `xpack.monitoring.enabled`
 * `xpack.rollup.enabled`
 * `xpack.slm.enabled`
@@ -315,5 +305,11 @@ Additionally, the following settings have been deprecated:
 * `xpack.transform.enabled`
 * `xpack.vectors.enabled`
 
-In future releases, it will not be possible to disable the APIs for Enrichment,
-Flattened mappings, Monitoring, Rollup, SLM, SQL, Transforms, and Vectors.
+Previously, these settings could be set to `false` in order to disable the
+feature's APIs in a cluster. As of 7.8.0, these basic license features are
+always enabled for the {default-dist}.
+
+If you have disabled ILM so that you can use another tool to manage Watcher
+indices, the newly introduced `xpack.watcher.use_ilm_index_management` setting
+may be set to false.
+

@@ -7,14 +7,7 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
-import java.io.IOException;
-import java.time.ZoneId;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -45,6 +38,12 @@ import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
+import java.io.IOException;
+import java.time.ZoneId;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * A {@link FieldMapper} that assigns every document the same value.
@@ -277,7 +276,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         String value;
         if (context.externalValueSet()) {
             value = context.externalValue().toString();

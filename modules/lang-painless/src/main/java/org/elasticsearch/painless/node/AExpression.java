@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.CastNode;
@@ -43,6 +42,12 @@ public abstract class AExpression extends ANode {
          * as input.
          */
         boolean read = true;
+
+        /**
+         * Set to true when this node is an lhs-expression and will be storing
+         * a value from an rhs-expression.
+         */
+        boolean write = false;
 
         /**
          * Set to the expected type this node needs to be.  Note this variable
@@ -79,6 +84,12 @@ public abstract class AExpression extends ANode {
          * is required.
          */
         PainlessCast painlessCast = null;
+
+        /**
+         * {@code true} if this node or a sub-node of this node can be optimized with
+         * rhs actual type to avoid an unnecessary cast.
+         */
+        boolean isDefOptimized = false;
 
         /**
          * The {@link ExpressionNode}(s) generated from this expression.
@@ -120,20 +131,16 @@ public abstract class AExpression extends ANode {
         throw new UnsupportedOperationException();
     }
 
-    void cast(Input input, Output output) {
-        output.painlessCast = AnalyzerCaster.getLegalCast(location, output.actual, input.expected, input.explicit, input.internal);
-    }
-
-    ExpressionNode cast(Output output) {
-        if (output.painlessCast == null) {
-            return output.expressionNode;
+    static ExpressionNode cast(ExpressionNode expressionNode, PainlessCast painlessCast) {
+        if (painlessCast == null) {
+            return expressionNode;
         }
 
         CastNode castNode = new CastNode();
-        castNode.setLocation(location);
-        castNode.setExpressionType(output.painlessCast.targetType);
-        castNode.setCast(output.painlessCast);
-        castNode.setChildNode(output.expressionNode);
+        castNode.setLocation(expressionNode.getLocation());
+        castNode.setExpressionType(painlessCast.targetType);
+        castNode.setCast(painlessCast);
+        castNode.setChildNode(expressionNode);
 
         return castNode;
     }

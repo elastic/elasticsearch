@@ -19,11 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.BooleanNode;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -47,9 +49,14 @@ public class EBool extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
+        }
+
         if (input.read == false) {
             throw createError(new IllegalArgumentException(
-                "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
+                    "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
 
         Output output = new Output();
@@ -57,19 +64,21 @@ public class EBool extends AExpression {
         Input leftInput = new Input();
         leftInput.expected = boolean.class;
         Output leftOutput = left.analyze(classNode, scriptRoot, scope, leftInput);
-        left.cast(leftInput, leftOutput);
+        PainlessCast leftCast = AnalyzerCaster.getLegalCast(left.location,
+                leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
 
         Input rightInput = new Input();
         rightInput.expected = boolean.class;
         Output rightOutput = right.analyze(classNode, scriptRoot, scope, rightInput);
-        right.cast(rightInput, rightOutput);
+        PainlessCast rightCast = AnalyzerCaster.getLegalCast(right.location,
+                rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
 
         output.actual = boolean.class;
 
         BooleanNode booleanNode = new BooleanNode();
 
-        booleanNode.setLeftNode(left.cast(leftOutput));
-        booleanNode.setRightNode(right.cast(rightOutput));
+        booleanNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
+        booleanNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
 
         booleanNode.setLocation(location);
         booleanNode.setExpressionType(output.actual);

@@ -32,7 +32,6 @@ public class CumulativeCardinalityTests extends BasePipelineAggregationTestCase<
                 return singletonList(new PipelineAggregationSpec(
                         CumulativeCardinalityPipelineAggregationBuilder.NAME,
                         CumulativeCardinalityPipelineAggregationBuilder::new,
-                        CumulativeCardinalityPipelineAggregator::new,
                         CumulativeCardinalityPipelineAggregationBuilder.PARSER));
             }
         });

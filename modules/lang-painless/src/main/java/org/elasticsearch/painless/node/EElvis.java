@@ -24,6 +24,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ElvisNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import static java.util.Objects.requireNonNull;
@@ -46,6 +47,10 @@ public class EElvis extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to elvis operation [?:]"));
+        }
+
         if (input.read == false) {
             throw createError(new IllegalArgumentException("not a statement: result not used from elvis operation [?:]"));
         }
@@ -95,13 +100,15 @@ public class EElvis extends AExpression {
             output.actual = promote;
         }
 
-        lhs.cast(leftInput, leftOutput);
-        rhs.cast(rightInput, rightOutput);
+        PainlessCast leftCast = AnalyzerCaster.getLegalCast(lhs.location,
+                leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
+        PainlessCast rightCast = AnalyzerCaster.getLegalCast(rhs.location,
+                rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
 
         ElvisNode elvisNode = new ElvisNode();
 
-        elvisNode.setLeftNode(lhs.cast(leftOutput));
-        elvisNode.setRightNode(rhs.cast(rightOutput));
+        elvisNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
+        elvisNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
 
         elvisNode.setLocation(location);
         elvisNode.setExpressionType(output.actual);

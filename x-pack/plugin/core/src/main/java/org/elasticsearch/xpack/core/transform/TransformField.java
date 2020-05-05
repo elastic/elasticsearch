@@ -30,9 +30,11 @@ public final class TransformField {
     public static final ParseField VERSION = new ParseField("version");
     public static final ParseField CREATE_TIME = new ParseField("create_time");
     public static final ParseField DESTINATION = new ParseField("dest");
+    public static final ParseField SETTINGS = new ParseField("settings");
     public static final ParseField FREQUENCY = new ParseField("frequency");
     public static final ParseField FORCE = new ParseField("force");
     public static final ParseField MAX_PAGE_SEARCH_SIZE = new ParseField("max_page_search_size");
+    public static final ParseField DOCS_PER_SECOND = new ParseField("docs_per_second");
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField SYNC = new ParseField("sync");
     public static final ParseField TIME_BASED_SYNC = new ParseField("time");
@@ -86,6 +88,5 @@ public final class TransformField {
     // internal document id
     public static String DOCUMENT_ID_FIELD = "_id";
 
-    private TransformField() {
-    }
+    private TransformField() {}
 }

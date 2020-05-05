@@ -68,24 +68,17 @@ public class EAssignment extends AExpression {
         boolean cat = false;
         Class<?> promote = null;
         Class<?> shiftDistance = null;
+        PainlessCast rightCast;
         PainlessCast there = null;
         PainlessCast back = null;
 
-        Output leftOutput;
+        Input leftInput = new Input();
+        leftInput.read = input.read;
+        leftInput.write = true;
+        Output leftOutput = lhs.analyze(classNode, scriptRoot, scope, leftInput);
 
         Input rightInput = new Input();
         Output rightOutput;
-
-        if (lhs instanceof AStoreable) {
-            AStoreable lhs = (AStoreable)this.lhs;
-            AStoreable.Input leftInput = new AStoreable.Input();
-
-            leftInput.read = input.read;
-            leftInput.write = true;
-            leftOutput = lhs.analyze(classNode, scriptRoot, scope, leftInput);
-        } else {
-            throw new IllegalArgumentException("Left-hand side cannot be assigned a value.");
-        }
 
         if (pre && post) {
             throw createError(new IllegalStateException("Illegal tree structure."));
@@ -186,18 +179,16 @@ public class EAssignment extends AExpression {
                 rightInput.expected = promote;
             }
 
-            rhs.cast(rightInput, rightOutput);
+            rightCast = AnalyzerCaster.getLegalCast(rhs.location,
+                    rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
 
             there = AnalyzerCaster.getLegalCast(location, leftOutput.actual, promote, false, false);
             back = AnalyzerCaster.getLegalCast(location, promote, leftOutput.actual, true, false);
 
 
         } else if (rhs != null) {
-            AStoreable lhs = (AStoreable)this.lhs;
-
-            // TODO: move this optimization to a later phase
             // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
-            if (lhs.isDefOptimized()) {
+            if (leftOutput.isDefOptimized) {
                 rightOutput = rhs.analyze(classNode, scriptRoot, scope, rightInput);
 
                 if (rightOutput.actual == void.class) {
@@ -221,7 +212,8 @@ public class EAssignment extends AExpression {
                 rightOutput = rhs.analyze(classNode, scriptRoot, scope, rightInput);
             }
 
-            rhs.cast(rightInput, rightOutput);
+            rightCast = AnalyzerCaster.getLegalCast(rhs.location,
+                    rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
         } else {
             throw new IllegalStateException("Illegal tree structure.");
         }
@@ -231,7 +223,7 @@ public class EAssignment extends AExpression {
         AssignmentNode assignmentNode = new AssignmentNode();
 
         assignmentNode.setLeftNode(leftOutput.expressionNode);
-        assignmentNode.setRightNode(rhs.cast(rightOutput));
+        assignmentNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
 
         assignmentNode.setLocation(location);
         assignmentNode.setExpressionType(output.actual);

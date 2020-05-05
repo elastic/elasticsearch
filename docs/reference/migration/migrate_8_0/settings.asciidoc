@@ -2,6 +2,12 @@
 [[breaking_80_settings_changes]]
 === Settings changes
 
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+//end::notable-breaking-changes[]
+
 [float]
 [[search-remote-settings-removed]]
 ==== The `search.remote` settings have been removed
@@ -51,3 +57,47 @@ setting `cluster.remote.connect` is removed.
 In Elasticsearch 7.8.0, the setting `node.local_storage` was deprecated and
 beginning in Elasticsearch 8.0.0 all nodes will require local storage. Therefore,
 the `node.local_storage` setting has been removed.
+
+[float]
+==== `auth.password` for HTTP monitoring is removed
+
+In Elasticsearch 7.7.0, the setting `xpack.monitoring.exporters.<exporterName>.auth.password`
+was deprecated in favor of setting `xpack.monitoring.exporters.<exporterName>.auth.secure_password`.
+In Elasticsearch 8.0.0, the setting `xpack.monitoring.exporters.<exporterName>.auth.password` is
+removed.
+
+[float]
+==== Option to disable basic license features is deprecated
+
+In Elasticsearch 7.8.0, the following settings no longer have any effect, and
+have been deprecated:
+
+* `xpack.enrich.enabled`
+* `xpack.flattened.enabled`
+* `xpack.ilm.enabled`
+* `xpack.monitoring.enabled`
+* `xpack.rollup.enabled`
+* `xpack.slm.enabled`
+* `xpack.sql.enabled`
+* `xpack.transform.enabled`
+* `xpack.vectors.enabled`
+
+Previously, these settings could be set to `false` in order to disable the
+feature's APIs in a cluster. As of 7.8.0, these basic license features are
+always enabled for the {default-dist}.
+
+If you have disabled ILM so that you can use another tool to manage Watcher
+indices, the newly introduced `xpack.watcher.use_ilm_index_management` setting
+may be set to false.
+
+[float]
+==== The `prefer_v2_templates` parameter now defaults to `true`
+
+In Elasticsearch 7.8.0 the `?prefer_v2_templates=true|false` parameter was introduced to allow
+specifying whether to favor V1 or V2 templates when a new index is created. In 8.0 this now defaults
+to `true`, meaning that V2 index templates will always take precedence if they match. V1 templates
+will continue to be applied if no V2 index template matches the newly created index pattern.
+
+The `?prefer_v2_templates` parameter is supported on the <<indices-create-index,Create Index>>,
+<<docs-index_,Index>>, <<docs-bulk,Bulk>>, <<docs-update,Update>>, and
+<<indices-rollover-index,Rollover>> APIs.

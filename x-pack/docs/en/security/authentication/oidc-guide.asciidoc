@@ -623,7 +623,7 @@ authenticate a user with OpenID Connect:
 
 . Make an HTTP POST request to `_security/oidc/prepare`, authenticating as the `facilitator` user, using the name of the
 OpenID Connect realm in the {es} configuration in the request body. For more
-details, see 
+details, see
 <<security-api-oidc-prepare-authentication>>.
 +
 [source,console]
@@ -675,7 +675,7 @@ POST /_security/oidc/logout
   "refresh_token": "vLBPvmAB6KvwvJZr27cS"
 }
 --------------------------------------------------
-// TEST[catch:unauthorized]
+// TEST[catch:request]
 +
 If the realm is configured accordingly, this may result in a response with a `redirect` parameter indicating where
 the user needs to be redirected in the OP in order to complete the logout process.

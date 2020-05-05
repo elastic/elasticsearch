@@ -45,8 +45,11 @@ public class PivotConfig implements ToXContentObject {
     private final AggregationConfig aggregationConfig;
     private final Integer maxPageSearchSize;
 
-    private static final ConstructingObjectParser<PivotConfig, Void> PARSER = new ConstructingObjectParser<>("pivot_config", true,
-                args -> new PivotConfig((GroupConfig) args[0], (AggregationConfig) args[1], (Integer) args[2]));
+    private static final ConstructingObjectParser<PivotConfig, Void> PARSER = new ConstructingObjectParser<>(
+        "pivot_config",
+        true,
+        args -> new PivotConfig((GroupConfig) args[0], (AggregationConfig) args[1], (Integer) args[2])
+    );
 
     static {
         PARSER.declareObject(constructorArg(), (p, c) -> (GroupConfig.fromXContent(p)), GROUP_BY);
@@ -84,6 +87,7 @@ public class PivotConfig implements ToXContentObject {
         return groups;
     }
 
+    @Deprecated
     public Integer getMaxPageSearchSize() {
         return maxPageSearchSize;
     }
@@ -154,10 +158,11 @@ public class PivotConfig implements ToXContentObject {
          * pulling the data from the source index.
          *
          * If OOM is triggered, the paging maxPageSearchSize is dynamically reduced so that the transform can continue to gather data.
-         *
+         * Deprecated, use {@link org.elasticsearch.client.transform.transforms.SettingsConfig.Builder#setMaxPageSearchSize} instead
          * @param maxPageSearchSize Integer value between 10 and 10_000
          * @return the {@link Builder} with the paging maxPageSearchSize set.
          */
+        @Deprecated
         public Builder setMaxPageSearchSize(Integer maxPageSearchSize) {
             this.maxPageSearchSize = maxPageSearchSize;
             return this;

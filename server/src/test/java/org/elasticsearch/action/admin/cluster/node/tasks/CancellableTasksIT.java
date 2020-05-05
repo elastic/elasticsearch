@@ -80,9 +80,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
-@TestIssueLogging(
-    value = "org.elasticsearch.action.admin.cluster.node.tasks.cancel:TRACE,org.elasticsearch.tasks:TRACE",
-    issueUrl = "https://github.com/elastic/elasticsearch/issues/55875")
 public class CancellableTasksIT extends ESIntegTestCase {
 
     static int idGenerator = 0;
@@ -241,7 +238,6 @@ public class CancellableTasksIT extends ESIntegTestCase {
         ensureAllBansRemoved();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55875")
     public void testDoNotWaitForCompletion() throws Exception {
         Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
         TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 3));

@@ -30,10 +30,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 public abstract class DeferableBucketAggregator extends BucketsAggregator {
 
     private DeferringBucketCollector recordingWrapper;
+    private List<String> deferredAggregationNames;
 
     protected DeferableBucketAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
             Map<String, Object> metadata) throws IOException {
@@ -42,21 +44,24 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
 
     @Override
     protected void doPreCollection() throws IOException {
-        List<BucketCollector> collectors = new ArrayList<>();
-        List<BucketCollector> deferredCollectors = new ArrayList<>();
+        List<BucketCollector> collectors = new ArrayList<>(subAggregators.length);
+        List<BucketCollector> deferredAggregations = null;
         for (int i = 0; i < subAggregators.length; ++i) {
             if (shouldDefer(subAggregators[i])) {
                 if (recordingWrapper == null) {
                     recordingWrapper = getDeferringCollector();
+                    deferredAggregations = new ArrayList<>(subAggregators.length);
+                    deferredAggregationNames = new ArrayList<>(subAggregators.length);
                 }
-                deferredCollectors.add(subAggregators[i]);
+                deferredAggregations.add(subAggregators[i]);
+                deferredAggregationNames.add(subAggregators[i].name());
                 subAggregators[i] = recordingWrapper.wrap(subAggregators[i]);
             } else {
                 collectors.add(subAggregators[i]);
             }
         }
         if (recordingWrapper != null) {
-            recordingWrapper.setDeferredCollector(deferredCollectors);
+            recordingWrapper.setDeferredCollector(deferredAggregations);
             collectors.add(recordingWrapper);
         }
         collectableSubAggregators = MultiBucketCollector.wrap(collectors);
@@ -103,4 +108,11 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
         }
     }
 
+    @Override
+    public void extraProfileInfo(BiConsumer<String, Object> add) {
+        if (deferredAggregationNames != null) {
+            add.accept("deferred_aggregations", deferredAggregationNames);
+        }
+        super.extraProfileInfo(add);
+    }
 }

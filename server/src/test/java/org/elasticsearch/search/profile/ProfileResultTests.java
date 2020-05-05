@@ -30,8 +30,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -46,22 +46,28 @@ public class ProfileResultTests extends ESTestCase {
     public static ProfileResult createTestItem(int depth) {
         String type = randomAlphaOfLengthBetween(5, 10);
         String description = randomAlphaOfLengthBetween(5, 10);
-        int timingsSize = randomIntBetween(0, 5);
-        Map<String, Long> timings = new HashMap<>(timingsSize);
-        for (int i = 0; i < timingsSize; i++) {
-            long time = randomNonNegativeLong() / timingsSize;
-            if (randomBoolean()) {
-                // also often use "small" values in tests
-                time = randomNonNegativeLong() % 10000;
+        int breakdownsSize = randomIntBetween(0, 5);
+        Map<String, Object> breakdown = new HashMap<>(breakdownsSize);
+        while (breakdown.size() < breakdownsSize) {
+            Object value;
+            if (rarely()) {
+                value = randomAlphaOfLength(5);
+            } else {
+                if (randomBoolean()) {
+                    // also often use "small" values in tests
+                    value = randomNonNegativeLong() % 10000;
+                } else {
+                    value = randomNonNegativeLong();
+                }
             }
-            timings.put(randomAlphaOfLengthBetween(5, 10), time); // don't overflow Long.MAX_VALUE;
+            breakdown.put(randomAlphaOfLengthBetween(5, 10), value);
         }
         int childrenSize = depth > 0 ? randomIntBetween(0, 1) : 0;
         List<ProfileResult> children = new ArrayList<>(childrenSize);
         for (int i = 0; i < childrenSize; i++) {
             children.add(createTestItem(depth - 1));
         }
-        return new ProfileResult(type, description, timings, children);
+        return new ProfileResult(type, description, breakdown, randomNonNegativeLong(), children);
     }
 
     public void testFromXContent() throws IOException {
@@ -102,12 +108,12 @@ public class ProfileResultTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         List<ProfileResult> children = new ArrayList<>();
-        children.add(new ProfileResult("child1", "desc1", Collections.singletonMap("key1", 100L), Collections.emptyList()));
-        children.add(new ProfileResult("child2", "desc2", Collections.singletonMap("key1", 123356L), Collections.emptyList()));
-        Map<String, Long> timings3 = new HashMap<>();
-        timings3.put("key1", 123456L);
-        timings3.put("key2", 100000L);
-        ProfileResult result = new ProfileResult("someType", "some description", timings3, children);
+        children.add(new ProfileResult("child1", "desc1", Map.of("key1", 100L), 100L, List.of()));
+        children.add(new ProfileResult("child2", "desc2", Map.of("key1", 123356L), 123356L, List.of()));
+        Map<String, Object> breakdown = new LinkedHashMap<>();
+        breakdown.put("key1", 123456L);
+        breakdown.put("stuff", "s");
+        ProfileResult result = new ProfileResult("someType", "some description", breakdown, 223456L, children);
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{\n" +
@@ -116,7 +122,7 @@ public class ProfileResultTests extends ESTestCase {
                 "  \"time_in_nanos\" : 223456,\n" +
                 "  \"breakdown\" : {\n" +
                 "    \"key1\" : 123456,\n" +
-                "    \"key2\" : 100000\n" +
+                "    \"stuff\" : \"s\"\n" +
                 "  },\n" +
                 "  \"children\" : [\n" +
                 "    {\n" +
@@ -147,7 +153,7 @@ public class ProfileResultTests extends ESTestCase {
                 "  \"time_in_nanos\" : 223456,\n" +
                 "  \"breakdown\" : {\n" +
                 "    \"key1\" : 123456,\n" +
-                "    \"key2\" : 100000\n" +
+                "    \"stuff\" : \"s\"\n" +
                 "  },\n" +
                 "  \"children\" : [\n" +
                 "    {\n" +
@@ -171,7 +177,7 @@ public class ProfileResultTests extends ESTestCase {
                 "  ]\n" +
           "}", Strings.toString(builder));
 
-        result = new ProfileResult("profileName", "some description", Collections.singletonMap("key1", 12345678L), Collections.emptyList());
+        result = new ProfileResult("profileName", "some description", Map.of("key1", 12345678L), 12345678L, List.of());
         builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{\n" +
@@ -184,8 +190,7 @@ public class ProfileResultTests extends ESTestCase {
                 "  }\n" +
               "}", Strings.toString(builder));
 
-        result = new ProfileResult("profileName", "some description", Collections.singletonMap("key1", 1234567890L),
-                Collections.emptyList());
+        result = new ProfileResult("profileName", "some description", Map.of("key1", 1234567890L), 1234567890L, List.of());
         builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{\n" +

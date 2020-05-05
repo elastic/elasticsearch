@@ -231,7 +231,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                     assertEquals(result.getQueryName(), "TermQuery");
                     assertEquals(result.getLuceneDescription(), "field1:one");
                     assertThat(result.getTime(), greaterThan(0L));
-                    assertNotNull(result.getTimeBreakdown());
+                    assertNotNull(result.getBreakdown());
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
@@ -278,7 +278,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                     assertEquals(result.getQueryName(), "BooleanQuery");
                     assertEquals(result.getLuceneDescription(), "+field1:one +field1:two");
                     assertThat(result.getTime(), greaterThan(0L));
-                    assertNotNull(result.getTimeBreakdown());
+                    assertNotNull(result.getBreakdown());
                     assertEquals(result.getProfiledChildren().size(), 2);
 
                     // Check the children
@@ -289,14 +289,14 @@ public class QueryProfilerIT extends ESIntegTestCase {
                     assertEquals(childProfile.getQueryName(), "TermQuery");
                     assertEquals(childProfile.getLuceneDescription(), "field1:one");
                     assertThat(childProfile.getTime(), greaterThan(0L));
-                    assertNotNull(childProfile.getTimeBreakdown());
+                    assertNotNull(childProfile.getBreakdown());
                     assertEquals(childProfile.getProfiledChildren().size(), 0);
 
                     childProfile = children.get(1);
                     assertEquals(childProfile.getQueryName(), "TermQuery");
                     assertEquals(childProfile.getLuceneDescription(), "field1:two");
                     assertThat(childProfile.getTime(), greaterThan(0L));
-                    assertNotNull(childProfile.getTimeBreakdown());
+                    assertNotNull(childProfile.getBreakdown());
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
@@ -346,7 +346,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                     assertNotNull(result.getQueryName());
                     assertNotNull(result.getLuceneDescription());
                     assertThat(result.getTime(), greaterThan(0L));
-                    assertNotNull(result.getTimeBreakdown());
+                    assertNotNull(result.getBreakdown());
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
@@ -398,7 +398,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                     assertNotNull(result.getQueryName());
                     assertNotNull(result.getLuceneDescription());
                     assertThat(result.getTime(), greaterThan(0L));
-                    assertNotNull(result.getTimeBreakdown());
+                    assertNotNull(result.getBreakdown());
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
@@ -445,7 +445,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                     assertNotNull(result.getQueryName());
                     assertNotNull(result.getLuceneDescription());
                     assertThat(result.getTime(), greaterThan(0L));
-                    assertNotNull(result.getTimeBreakdown());
+                    assertNotNull(result.getBreakdown());
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
@@ -492,7 +492,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                     assertNotNull(result.getQueryName());
                     assertNotNull(result.getLuceneDescription());
                     assertThat(result.getTime(), greaterThan(0L));
-                    assertNotNull(result.getTimeBreakdown());
+                    assertNotNull(result.getBreakdown());
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
@@ -538,7 +538,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                     assertNotNull(result.getQueryName());
                     assertNotNull(result.getLuceneDescription());
                     assertThat(result.getTime(), greaterThan(0L));
-                    assertNotNull(result.getTimeBreakdown());
+                    assertNotNull(result.getBreakdown());
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
@@ -592,7 +592,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                     assertNotNull(result.getQueryName());
                     assertNotNull(result.getLuceneDescription());
                     assertThat(result.getTime(), greaterThan(0L));
-                    assertNotNull(result.getTimeBreakdown());
+                    assertNotNull(result.getBreakdown());
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();

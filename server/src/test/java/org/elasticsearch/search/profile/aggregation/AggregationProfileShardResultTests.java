@@ -31,7 +31,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -69,10 +69,11 @@ public class AggregationProfileShardResultTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         List<ProfileResult> profileResults = new ArrayList<>();
-        Map<String, Long> timings = new HashMap<>();
-        timings.put("timing1", 2000L);
-        timings.put("timing2", 4000L);
-        ProfileResult profileResult = new ProfileResult("someType", "someDescription", timings, Collections.emptyList());
+        Map<String, Object> breakdown = new LinkedHashMap<>();
+        breakdown.put("timing1", 2000L);
+        breakdown.put("timing2", 4000L);
+        breakdown.put("stuff", "stuff");
+        ProfileResult profileResult = new ProfileResult("someType", "someDescription", breakdown, 6000L, Collections.emptyList());
         profileResults.add(profileResult);
         AggregationProfileShardResult aggProfileResults = new AggregationProfileShardResult(profileResults);
         BytesReference xContent = toXContent(aggProfileResults, XContentType.JSON, false);
@@ -80,7 +81,7 @@ public class AggregationProfileShardResultTests extends ESTestCase {
                         + "{\"type\":\"someType\","
                             + "\"description\":\"someDescription\","
                             + "\"time_in_nanos\":6000,"
-                            + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000}"
+                            + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000,\"stuff\":\"stuff\"}"
                         + "}"
                    + "]}", xContent.utf8ToString());
 
@@ -90,7 +91,7 @@ public class AggregationProfileShardResultTests extends ESTestCase {
                             + "\"description\":\"someDescription\","
                             + "\"time\":\"6micros\","
                             + "\"time_in_nanos\":6000,"
-                            + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000}"
+                            + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000,\"stuff\":\"stuff\"}"
                         + "}"
                    + "]}", xContent.utf8ToString());
     }

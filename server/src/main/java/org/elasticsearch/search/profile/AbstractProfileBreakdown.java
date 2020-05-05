@@ -23,6 +23,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+
 /**
  * A record of timings for the various operations that may happen during query execution.
  * A node's time may be composed of several internal attributes (rewriting, weighting,
@@ -53,13 +55,34 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
         timings[timing.ordinal()] = timer;
     }
 
-    /** Convert this record to a map from timingType to times. */
-    public Map<String, Long> toTimingMap() {
-        Map<String, Long> map = new HashMap<>();
+    /** Convert this record to a to be returned with the results. */
+    public final Map<String, Object> toMap() {
+        Map<String, Object> map = new HashMap<>(timings.length * 2);
         for (T timingType : timingTypes) {
             map.put(timingType.toString(), timings[timingType.ordinal()].getApproximateTiming());
             map.put(timingType.toString() + "_count", timings[timingType.ordinal()].getCount());
         }
+        extraMap().forEach((key, value) -> {
+            if (value == null) {
+                throw new NullPointerException("[" + key + "] has null value which is not supported");
+            }
+            Object old = map.put(key, value);
+            if (old != null) {
+                throw new IllegalStateException("duplicate key [" + key + "]");
+            }
+        });
         return Collections.unmodifiableMap(map);
+    }
+
+    protected Map<String, Object> extraMap() {
+        return emptyMap();
+    }
+
+    public final long toNodeTime() {
+        long total = 0;
+        for (T timingType : timingTypes) {
+            total += timings[timingType.ordinal()].getApproximateTiming();
+        }
+        return total;
     }
 }

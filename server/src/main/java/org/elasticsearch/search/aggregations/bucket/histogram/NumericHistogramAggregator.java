@@ -43,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 /**
  * An aggregator for numeric values. For a given {@code interval},
@@ -163,5 +164,11 @@ public class NumericHistogramAggregator extends BucketsAggregator {
     @Override
     public void doClose() {
         Releasables.close(bucketOrds);
+    }
+
+    @Override
+    public void extraProfileInfo(BiConsumer<String, Object> add) {
+        add.accept("total_buckets", bucketOrds.size());
+        super.extraProfileInfo(add);
     }
 }

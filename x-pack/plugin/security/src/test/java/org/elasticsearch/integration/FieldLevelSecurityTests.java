@@ -11,13 +11,13 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.action.search.ClearReaderAction;
-import org.elasticsearch.action.search.ClearReaderRequest;
+import org.elasticsearch.action.search.CloseSearchContextAction;
+import org.elasticsearch.action.search.CloseSearchContextRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.OpenReaderRequest;
-import org.elasticsearch.action.search.OpenReaderResponse;
+import org.elasticsearch.action.search.OpenSearchContextRequest;
+import org.elasticsearch.action.search.OpenSearchContextResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.TransportOpenReaderAction;
+import org.elasticsearch.action.search.TransportOpenSearchContextAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
@@ -728,12 +728,13 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         }
     }
 
-    static String openReaders(String userName, TimeValue keepAlive, String... indices) {
-        OpenReaderRequest request = new OpenReaderRequest(indices, OpenReaderRequest.DEFAULT_INDICES_OPTIONS, keepAlive, null, null);
-        final OpenReaderResponse response = client()
+    static String openSearchContext(String userName, TimeValue keepAlive, String... indices) {
+        OpenSearchContextRequest request = new OpenSearchContextRequest(
+            indices, OpenSearchContextRequest.DEFAULT_INDICES_OPTIONS, keepAlive, null, null);
+        final OpenSearchContextResponse response = client()
             .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue(userName, USERS_PASSWD)))
-            .execute(TransportOpenReaderAction.INSTANCE, request).actionGet();
-        return response.getReaderId();
+            .execute(TransportOpenSearchContextAction.INSTANCE, request).actionGet();
+        return response.getSearchContextId();
     }
 
     public void testReaderId() throws Exception {
@@ -750,7 +751,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         }
         refresh("test");
 
-        String readerId = openReaders("user1", TimeValue.timeValueMinutes(1), "test");
+        String readerId = openSearchContext("user1", TimeValue.timeValueMinutes(1), "test");
         SearchResponse response = null;
         try {
             for (int from = 0; from < numDocs; from++) {
@@ -769,7 +770,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                 assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
             }
         } finally {
-            client().execute(ClearReaderAction.INSTANCE, new ClearReaderRequest(readerId)).actionGet();
+            client().execute(CloseSearchContextAction.INSTANCE, new CloseSearchContextRequest(readerId)).actionGet();
         }
     }
 

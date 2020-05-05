@@ -528,7 +528,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @param keepAlive the extended keep alive for the readers used in this request
      */
     public SearchRequestBuilder setReader(@Nullable String readerId, @Nullable TimeValue keepAlive) {
-        sourceBuilder().reader(new SearchSourceBuilder.ReaderBuilder(readerId, keepAlive));
+        sourceBuilder().searchContextBuilder(new SearchSourceBuilder.SearchContextBuilder(readerId, keepAlive));
         return this;
     }
 

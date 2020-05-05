@@ -19,8 +19,8 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.elasticsearch.action.search.OpenReaderRequest;
-import org.elasticsearch.action.search.TransportOpenReaderAction;
+import org.elasticsearch.action.search.OpenSearchContextRequest;
+import org.elasticsearch.action.search.TransportOpenSearchContextAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -34,26 +34,26 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestOpenReaderAction extends BaseRestHandler {
+public class RestOpenSearchContextAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "open_reader_action";
+        return "open_search_context";
     }
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/{index}/_open_reader"));
+        return List.of(new Route(POST, "/{index}/_search_context"));
     }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, OpenReaderRequest.DEFAULT_INDICES_OPTIONS);
+        final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, OpenSearchContextRequest.DEFAULT_INDICES_OPTIONS);
         final String routing = request.param("routing");
         final String preference = request.param("preference");
         final TimeValue keepAlive = TimeValue.parseTimeValue(request.param("keep_alive"), null, "keep_alive");
-        final OpenReaderRequest openReaderRequest = new OpenReaderRequest(indices, indicesOptions, keepAlive, routing, preference);
-        return channel -> client.execute(TransportOpenReaderAction.INSTANCE, openReaderRequest, new RestToXContentListener<>(channel));
+        final OpenSearchContextRequest openRequest = new OpenSearchContextRequest(indices, indicesOptions, keepAlive, routing, preference);
+        return channel -> client.execute(TransportOpenSearchContextAction.INSTANCE, openRequest, new RestToXContentListener<>(channel));
     }
 }

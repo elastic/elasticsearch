@@ -31,17 +31,17 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class ClearReaderRequest extends ActionRequest implements ToXContentObject {
+public class CloseSearchContextRequest extends ActionRequest implements ToXContentObject {
     private static final ParseField ID = new ParseField("id");
 
     private final String id;
 
-    public ClearReaderRequest(StreamInput in) throws IOException {
+    public CloseSearchContextRequest(StreamInput in) throws IOException {
         super(in);
         this.id = in.readString();
     }
 
-    public ClearReaderRequest(String id) {
+    public CloseSearchContextRequest(String id) {
         this.id = id;
     }
 
@@ -71,7 +71,7 @@ public class ClearReaderRequest extends ActionRequest implements ToXContentObjec
         return builder;
     }
 
-    public static ClearReaderRequest fromXContent(XContentParser parser) throws IOException {
+    public static CloseSearchContextRequest fromXContent(XContentParser parser) throws IOException {
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
             throw new IllegalArgumentException("Malformed content, must start with an object");
         } else {
@@ -90,9 +90,9 @@ public class ClearReaderRequest extends ActionRequest implements ToXContentObjec
                 }
             }
             if (Strings.isNullOrEmpty(id)) {
-                throw new IllegalArgumentException("reader context is is not provided");
+                throw new IllegalArgumentException("search context id is is not provided");
             }
-            return new ClearReaderRequest(id);
+            return new CloseSearchContextRequest(id);
         }
     }
 }

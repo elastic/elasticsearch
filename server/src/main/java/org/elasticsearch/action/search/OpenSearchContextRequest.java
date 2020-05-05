@@ -36,7 +36,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public final class OpenReaderRequest extends ActionRequest implements IndicesRequest {
+public final class OpenSearchContextRequest extends ActionRequest implements IndicesRequest {
     private final String[] indices;
     private final IndicesOptions indicesOptions;
     private final TimeValue keepAlive;
@@ -48,7 +48,8 @@ public final class OpenReaderRequest extends ActionRequest implements IndicesReq
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
 
-    public OpenReaderRequest(String[] indices, IndicesOptions indicesOptions, TimeValue keepAlive, String routing, String preference) {
+    public OpenSearchContextRequest(String[] indices, IndicesOptions indicesOptions,
+                                    TimeValue keepAlive, String routing, String preference) {
         this.indices = Objects.requireNonNull(indices);
         this.indicesOptions = Objects.requireNonNull(indicesOptions);
         this.keepAlive = keepAlive;
@@ -56,7 +57,7 @@ public final class OpenReaderRequest extends ActionRequest implements IndicesReq
         this.preference = preference;
     }
 
-    public OpenReaderRequest(StreamInput in) throws IOException {
+    public OpenSearchContextRequest(StreamInput in) throws IOException {
         super(in);
         this.indices = in.readStringArray();
         this.indicesOptions = IndicesOptions.readIndicesOptions(in);
@@ -114,7 +115,7 @@ public final class OpenReaderRequest extends ActionRequest implements IndicesReq
         return new SearchTask(id, type, action, null, parentTaskId, headers) {
             @Override
             public String getDescription() {
-                return "open reader: indices [" + String.join(",", indices) + "] keep_alive [" + keepAlive + "]";
+                return "open search context: indices [" + String.join(",", indices) + "] keep_alive [" + keepAlive + "]";
             }
         };
     }

@@ -53,23 +53,23 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 
-public class TransportOpenReaderAction extends HandledTransportAction<OpenReaderRequest, OpenReaderResponse> {
-    public static final String NAME = "indices:data/read/open_reader";
-    public static final ActionType<OpenReaderResponse> INSTANCE = new ActionType<>(NAME, OpenReaderResponse::new);
+public class TransportOpenSearchContextAction extends HandledTransportAction<OpenSearchContextRequest, OpenSearchContextResponse> {
+    public static final String NAME = "indices:data/read/open_search_context";
+    public static final ActionType<OpenSearchContextResponse> INSTANCE = new ActionType<>(NAME, OpenSearchContextResponse::new);
 
     private final TransportSearchAction transportSearchAction;
     private final SearchTransportService searchTransportService;
 
     @Inject
-    public TransportOpenReaderAction(TransportService transportService, SearchTransportService searchTransportService,
-                                     ActionFilters actionFilters, TransportSearchAction transportSearchAction) {
-        super(NAME, transportService, actionFilters, OpenReaderRequest::new);
+    public TransportOpenSearchContextAction(TransportService transportService, SearchTransportService searchTransportService,
+                                            ActionFilters actionFilters, TransportSearchAction transportSearchAction) {
+        super(NAME, transportService, actionFilters, OpenSearchContextRequest::new);
         this.transportSearchAction = transportSearchAction;
         this.searchTransportService = searchTransportService;
     }
 
     @Override
-    protected void doExecute(Task task, OpenReaderRequest openReaderRequest, ActionListener<OpenReaderResponse> listener) {
+    protected void doExecute(Task task, OpenSearchContextRequest request, ActionListener<OpenSearchContextResponse> listener) {
         final TransportSearchAction.SearchAsyncActionProvider actionProvider = new TransportSearchAction.SearchAsyncActionProvider() {
             @Override
             public AbstractSearchAsyncAction<? extends SearchPhaseResult> asyncSearchAction(
@@ -79,19 +79,19 @@ public class TransportOpenReaderAction extends HandledTransportAction<OpenReader
                 Map<String, Set<String>> indexRoutings, ActionListener<SearchResponse> listener, boolean preFilter,
                 ThreadPool threadPool, SearchResponse.Clusters clusters) {
                 final Executor executor = threadPool.executor(ThreadPool.Names.SEARCH);
-                return new OpenReaderSearchPhase(openReaderRequest, logger, searchTransportService, connectionLookup,
+                return new OpenReaderSearchPhase(request, logger, searchTransportService, connectionLookup,
                     aliasFilter, concreteIndexBoosts, indexRoutings, executor, searchRequest, listener, shardIterators,
                     timeProvider, clusterState, task, clusters);
             }
         };
         final SearchRequest searchRequest = new SearchRequest()
-            .indices(openReaderRequest.indices())
-            .indicesOptions(openReaderRequest.indicesOptions())
-            .preference(openReaderRequest.preference())
-            .routing(openReaderRequest.routing())
+            .indices(request.indices())
+            .indicesOptions(request.indicesOptions())
+            .preference(request.preference())
+            .routing(request.routing())
             .allowPartialSearchResults(false);
         transportSearchAction.executeRequest(task, searchRequest, actionProvider,
-            ActionListener.map(listener, r -> new OpenReaderResponse(r.getReaderId())));
+            ActionListener.map(listener, r -> new OpenSearchContextResponse(r.searchContextId())));
     }
 
     static final class ShardOpenReaderRequest extends TransportRequest implements IndicesRequest {
@@ -152,19 +152,19 @@ public class TransportOpenReaderAction extends HandledTransportAction<OpenReader
     }
 
     static final class OpenReaderSearchPhase extends AbstractSearchAsyncAction<SearchPhaseResult> {
-        final OpenReaderRequest openReaderRequest;
+        final OpenSearchContextRequest request;
 
-        OpenReaderSearchPhase(OpenReaderRequest openReaderRequest, Logger logger, SearchTransportService searchTransportService,
+        OpenReaderSearchPhase(OpenSearchContextRequest request, Logger logger, SearchTransportService searchTransportService,
                               BiFunction<String, String, Transport.Connection> nodeIdToConnection,
                               Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
-                              Map<String, Set<String>> indexRoutings, Executor executor, SearchRequest request,
+                              Map<String, Set<String>> indexRoutings, Executor executor, SearchRequest searchRequest,
                               ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
                               TransportSearchAction.SearchTimeProvider timeProvider, ClusterState clusterState,
                               SearchTask task, SearchResponse.Clusters clusters) {
-            super("open_reader", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, indexRoutings,
-                executor, request, listener, shardsIts, timeProvider, clusterState, task,
+            super("open_search_context", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts,
+                indexRoutings, executor, searchRequest, listener, shardsIts, timeProvider, clusterState, task,
                 new ArraySearchPhaseResults<>(shardsIts.size()), shardsIts.size(), clusters);
-            this.openReaderRequest = openReaderRequest;
+            this.request = request;
         }
 
         @Override
@@ -173,7 +173,7 @@ public class TransportOpenReaderAction extends HandledTransportAction<OpenReader
             final Transport.Connection connection = getConnection(shardIt.getClusterAlias(), shard.currentNodeId());
             final SearchShardTarget searchShardTarget = shardIt.newSearchShardTarget(shard.currentNodeId());
             final ShardOpenReaderRequest shardRequest = new ShardOpenReaderRequest(searchShardTarget.getShardId(),
-                searchShardTarget.getOriginalIndices(), openReaderRequest.keepAlive());
+                searchShardTarget.getOriginalIndices(), request.keepAlive());
             getSearchTransport().sendShardOpenReader(connection, getTask(), shardRequest, ActionListener.map(listener, r -> r));
         }
 
@@ -189,7 +189,7 @@ public class TransportOpenReaderAction extends HandledTransportAction<OpenReader
         }
 
         @Override
-        boolean includeReaderIdInResponse() {
+        boolean includeSearchContextInResponse() {
             return true;
         }
     }

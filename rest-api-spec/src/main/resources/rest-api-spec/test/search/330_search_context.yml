@@ -25,15 +25,15 @@ setup:
         index: test
 
 ---
-"search with reader context":
+"search context":
   - skip:
       version: " - 7.9.99"
-      reason: "reader context is introduced in 8.0"
+      reason: "search context is introduced in 8.0"
   - do:
-      open_reader:
+      open_search_context:
         index: test
-        keep_alive: 1m
-  - set: {reader_id: reader_id}
+        keep_alive: 5m
+  - set: {id: search_context_id}
 
   - do:
       search:
@@ -44,8 +44,8 @@ setup:
             match:
               foo: bar
           sort: [{ age: desc }, { id: desc }]
-          reader:
-            id: "$reader_id"
+          search_context:
+            id: "$search_context_id"
             keep_alive: 1m
 
   - match: {hits.total: 3 }
@@ -63,7 +63,7 @@ setup:
       indices.refresh:
         index: test
 
-  # search with the retaining readers
+  # search with the retaining search context
   - do:
       search:
         rest_total_hits_as_int: true
@@ -74,8 +74,8 @@ setup:
               foo: bar
           sort: [{ age: desc }, { id: desc }]
           search_after: [24, 172]
-          reader:
-            id: "$reader_id"
+          search_context:
+            id: "$search_context_id"
             keep_alive: 1m
 
   - match: {hits.total: 3 }
@@ -94,8 +94,8 @@ setup:
               foo: bar
           sort: [ { age: desc }, { id: desc } ]
           search_after: [18, 42]
-          reader:
-            id: "$reader_id"
+          search_context:
+            id: "$search_context_id"
             keep_alive: 1m
 
   - match: {hits.total: 3}
@@ -114,14 +114,14 @@ setup:
               foo: bar
           sort: [{ age: desc }, { id: desc } ]
           search_after: [18, 1]
-          reader:
-            id: "$reader_id"
+          search_context:
+            id: "$search_context_id"
             keep_alive: 1m
 
   - match: {hits.total: 3}
   - length: {hits.hits: 0 }
 
   - do:
-      clear_reader:
+      close_search_context:
         body:
-          id: "$reader_id"
+          id: "$search_context_id"

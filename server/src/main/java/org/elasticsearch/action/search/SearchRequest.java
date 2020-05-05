@@ -277,7 +277,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 validationException =
                     addValidationError("[request_cache] cannot be used in a scroll context", validationException);
             }
-            if (reader() != null) {
+            if (searchContextBuilder() != null) {
                 validationException = addValidationError("using [reader] is not allowed in a scroll context", validationException);
             }
         }
@@ -286,7 +286,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 validationException = source.aggregations().validate(validationException);
             }
         }
-        if (reader() != null) {
+        if (searchContextBuilder() != null) {
             if (indices.length > 0) {
                 validationException = addValidationError("[index] cannot be used with reader contexts", validationException);
             }
@@ -446,9 +446,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return source;
     }
 
-    public SearchSourceBuilder.ReaderBuilder reader() {
+    public SearchSourceBuilder.SearchContextBuilder searchContextBuilder() {
         if (source != null) {
-            return source.reader();
+            return source.searchContextBuilder();
         }
         return null;
     }

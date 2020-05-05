@@ -21,15 +21,15 @@ package org.elasticsearch.search.searchafter;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
-import org.elasticsearch.action.search.ClearReaderAction;
-import org.elasticsearch.action.search.ClearReaderRequest;
-import org.elasticsearch.action.search.OpenReaderRequest;
-import org.elasticsearch.action.search.OpenReaderResponse;
+import org.elasticsearch.action.search.CloseSearchContextAction;
+import org.elasticsearch.action.search.CloseSearchContextRequest;
+import org.elasticsearch.action.search.OpenSearchContextRequest;
+import org.elasticsearch.action.search.OpenSearchContextResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.action.search.TransportOpenReaderAction;
+import org.elasticsearch.action.search.TransportOpenSearchContextAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -70,9 +70,9 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
             client().prepareIndex("test").setId(id).setSource("value", i).get();
         }
         refresh("test");
-        String readerId = openReaders(new String[]{"test"}, TimeValue.timeValueMinutes(2));
+        String readerId = openSearchContext(new String[]{"test"}, TimeValue.timeValueMinutes(2));
         SearchResponse resp1 = client().prepareSearch().setPreference(null).setReader(readerId, TimeValue.timeValueMinutes(2)).get();
-        assertThat(resp1.getReaderId(), equalTo(readerId));
+        assertThat(resp1.searchContextId(), equalTo(readerId));
         assertHitCount(resp1, numDocs);
         int deletedDocs = 0;
         for (int i = 0; i < numDocs; i++) {
@@ -90,13 +90,13 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
         }
         try {
             SearchResponse resp3 = client().prepareSearch().setPreference(null).setQuery(new MatchAllQueryBuilder())
-                .setReader(resp1.getReaderId(), TimeValue.timeValueMinutes(2))
+                .setReader(resp1.searchContextId(), TimeValue.timeValueMinutes(2))
                 .get();
             assertNoFailures(resp3);
             assertHitCount(resp3, numDocs);
-            assertThat(resp3.getReaderId(), equalTo(readerId));
+            assertThat(resp3.searchContextId(), equalTo(readerId));
         } finally {
-            clearReaderId(readerId);
+            closeSearchContext(readerId);
         }
     }
 
@@ -112,7 +112,7 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
             client().prepareIndex(index).setId(id).setSource("value", i).get();
         }
         refresh();
-        String readerId = openReaders(new String[]{"*"}, TimeValue.timeValueMinutes(2));
+        String readerId = openSearchContext(new String[]{"*"}, TimeValue.timeValueMinutes(2));
         SearchResponse resp1 = client().prepareSearch().setPreference(null).setReader(readerId, TimeValue.timeValueMinutes(2)).get();
         assertNoFailures(resp1);
         assertHitCount(resp1, numDocs);
@@ -129,11 +129,11 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
             assertHitCount(resp2, numDocs + moreDocs);
 
             SearchResponse resp3 = client().prepareSearch().setPreference(null)
-                .setReader(resp1.getReaderId(), TimeValue.timeValueMinutes(1)).get();
+                .setReader(resp1.searchContextId(), TimeValue.timeValueMinutes(1)).get();
             assertNoFailures(resp3);
             assertHitCount(resp3, numDocs);
         } finally {
-            clearReaderId(resp1.getReaderId());
+            closeSearchContext(resp1.searchContextId());
         }
     }
 
@@ -145,7 +145,7 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
             client().prepareIndex("index").setId(id).setSource("value", i).get();
         }
         refresh();
-        String readerId = openReaders(new String[]{"index"}, TimeValue.timeValueSeconds(5));
+        String readerId = openSearchContext(new String[]{"index"}, TimeValue.timeValueSeconds(5));
         SearchResponse resp1 = client().prepareSearch().setPreference(null)
             .setReader(readerId, TimeValue.timeValueMillis(randomIntBetween(0, 10))).get();
         assertNoFailures(resp1);
@@ -156,10 +156,10 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
                 assertThat(stats.search.getOpenContexts(), equalTo(0L));
             }, 60, TimeUnit.SECONDS);
         } else {
-            clearReaderId(resp1.getReaderId());
+            closeSearchContext(resp1.searchContextId());
         }
         SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class,
-            () -> client().prepareSearch().setPreference(null).setReader(resp1.getReaderId(), TimeValue.timeValueMinutes(1)).get());
+            () -> client().prepareSearch().setPreference(null).setReader(resp1.searchContextId(), TimeValue.timeValueMinutes(1)).get());
         for (ShardSearchFailure failure : e.shardFailures()) {
             assertThat(ExceptionsHelper.unwrapCause(failure.getCause()), instanceOf(SearchContextMissingException.class));
         }
@@ -181,7 +181,7 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
             client().prepareIndex("index-2").setId(id).setSource("value", i).get();
         }
         refresh();
-        String readerId = openReaders(new String[]{"index-*"}, TimeValue.timeValueMinutes(2));
+        String readerId = openSearchContext(new String[]{"index-*"}, TimeValue.timeValueMinutes(2));
         SearchResponse resp1 = client().prepareSearch().setPreference(null).setReader(readerId, TimeValue.timeValueMinutes(2)).get();
         assertNoFailures(resp1);
         assertHitCount(resp1, index1 + index2);
@@ -194,8 +194,8 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
         }
         expectThrows(IndexNotFoundException.class, () -> client().prepareSearch()
             .setPreference(null)
-            .setReader(resp1.getReaderId(), TimeValue.timeValueMinutes(1)).get());
-        clearReaderId(resp1.getReaderId());
+            .setReader(resp1.searchContextId(), TimeValue.timeValueMinutes(1)).get());
+        closeSearchContext(resp1.searchContextId());
     }
 
     public void testCanMatch() throws Exception {
@@ -206,7 +206,7 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(settings)
             .setMapping("{\"properties\":{\"created_date\":{\"type\": \"date\", \"format\": \"yyyy-MM-dd\"}}}"));
         ensureGreen("test");
-        String readerId = openReaders(new String[]{"test*"}, TimeValue.timeValueMinutes(2));
+        String readerId = openSearchContext(new String[]{"test*"}, TimeValue.timeValueMinutes(2));
         try {
             for (String node : internalCluster().nodesInclude("test")) {
                 for (IndexService indexService : internalCluster().getInstance(IndicesService.class, node)) {
@@ -234,17 +234,18 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
                 }
             }
         } finally {
-            clearReaderId(readerId);
+            closeSearchContext(readerId);
         }
     }
 
-    private String openReaders(String[] indices, TimeValue keepAlive) {
-        OpenReaderRequest request = new OpenReaderRequest(indices, OpenReaderRequest.DEFAULT_INDICES_OPTIONS, keepAlive, null, null);
-        final OpenReaderResponse response = client().execute(TransportOpenReaderAction.INSTANCE, request).actionGet();
-        return response.getReaderId();
+    private String openSearchContext(String[] indices, TimeValue keepAlive) {
+        OpenSearchContextRequest request =
+            new OpenSearchContextRequest(indices, OpenSearchContextRequest.DEFAULT_INDICES_OPTIONS, keepAlive, null, null);
+        final OpenSearchContextResponse response = client().execute(TransportOpenSearchContextAction.INSTANCE, request).actionGet();
+        return response.getSearchContextId();
     }
 
-    private void clearReaderId(String readerId) {
-        client().execute(ClearReaderAction.INSTANCE, new ClearReaderRequest(readerId)).actionGet();
+    private void closeSearchContext(String readerId) {
+        client().execute(CloseSearchContextAction.INSTANCE, new CloseSearchContextRequest(readerId)).actionGet();
     }
 }

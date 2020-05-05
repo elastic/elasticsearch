@@ -19,14 +19,16 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.StreamInput;
 
-public class ClearReaderAction extends ActionType<ClearReaderResponse> {
+import java.io.IOException;
 
-    public static final ClearReaderAction INSTANCE = new ClearReaderAction();
-    public static final String NAME = "indices:data/read/reader/clear";
+public class CloseSearchContextResponse extends ClearScrollResponse {
+    public CloseSearchContextResponse(boolean succeeded, int numFreed) {
+        super(succeeded, numFreed);
+    }
 
-    private ClearReaderAction() {
-        super(NAME, ClearReaderResponse::new);
+    public CloseSearchContextResponse(StreamInput in) throws IOException {
+        super(in);
     }
 }

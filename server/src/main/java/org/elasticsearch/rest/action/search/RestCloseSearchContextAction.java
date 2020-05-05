@@ -19,8 +19,8 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.elasticsearch.action.search.ClearReaderAction;
-import org.elasticsearch.action.search.ClearReaderRequest;
+import org.elasticsearch.action.search.CloseSearchContextAction;
+import org.elasticsearch.action.search.CloseSearchContextRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -32,24 +32,24 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
-public class RestClearReaderAction extends BaseRestHandler {
+public class RestCloseSearchContextAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(DELETE, "/_search/reader"));
+        return List.of(new Route(DELETE, "/_search_context"));
     }
 
     @Override
     public String getName() {
-        return "clear_reader_action";
+        return "close_search_context";
     }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final ClearReaderRequest clearRequest;
+        final CloseSearchContextRequest clearRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            clearRequest = ClearReaderRequest.fromXContent(parser);
+            clearRequest = CloseSearchContextRequest.fromXContent(parser);
         }
-        return channel -> client.execute(ClearReaderAction.INSTANCE, clearRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.execute(CloseSearchContextAction.INSTANCE, clearRequest, new RestStatusToXContentListener<>(channel));
     }
 }

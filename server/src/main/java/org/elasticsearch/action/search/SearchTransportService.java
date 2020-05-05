@@ -170,10 +170,10 @@ public class SearchTransportService {
     }
 
     void sendShardOpenReader(Transport.Connection connection, SearchTask task,
-                             TransportOpenReaderAction.ShardOpenReaderRequest request,
-                             ActionListener<TransportOpenReaderAction.ShardOpenReaderResponse> listener) {
+                             TransportOpenSearchContextAction.ShardOpenReaderRequest request,
+                             ActionListener<TransportOpenSearchContextAction.ShardOpenReaderResponse> listener) {
         transportService.sendChildRequest(connection, SHARD_OPEN_READER_NAME, request, task,
-            new ActionListenerResponseHandler<>(listener, TransportOpenReaderAction.ShardOpenReaderResponse::new));
+            new ActionListenerResponseHandler<>(listener, TransportOpenSearchContextAction.ShardOpenReaderResponse::new));
     }
 
     private void sendExecuteFetch(Transport.Connection connection, String action, final ShardFetchRequest request, SearchTask task,
@@ -372,14 +372,14 @@ public class SearchTransportService {
         TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, SearchService.CanMatchResponse::new);
 
         transportService.registerRequestHandler(SHARD_OPEN_READER_NAME, ThreadPool.Names.SAME,
-            TransportOpenReaderAction.ShardOpenReaderRequest::new,
+            TransportOpenSearchContextAction.ShardOpenReaderRequest::new,
             (request, channel, task) -> {
                 searchService.openReaderContext(request.getShardId(), request.keepAlive,
                     ActionListener.map(new ChannelActionListener<>(channel, SHARD_OPEN_READER_NAME, request),
-                        contextId -> new TransportOpenReaderAction.ShardOpenReaderResponse(contextId)));
+                        contextId -> new TransportOpenSearchContextAction.ShardOpenReaderResponse(contextId)));
             });
         TransportActionProxy.registerProxyAction(
-            transportService, SHARD_OPEN_READER_NAME, TransportOpenReaderAction.ShardOpenReaderResponse::new);
+            transportService, SHARD_OPEN_READER_NAME, TransportOpenSearchContextAction.ShardOpenReaderResponse::new);
     }
 
 

@@ -208,7 +208,9 @@ final class FetchSearchPhase extends SearchPhase {
     private void releaseIrrelevantSearchContext(QuerySearchResult queryResult) {
         // we only release search context that we did not fetch from if we are not scrolling
         // and if it has at lease one hit that didn't make it to the global topDocs
-        if (context.getRequest().scroll() == null &&  context.getRequest().reader() == null && queryResult.hasSearchContext()) {
+        if (context.getRequest().scroll() == null &&
+            context.getRequest().searchContextBuilder() == null &&
+            queryResult.hasSearchContext()) {
             try {
                 SearchShardTarget searchShardTarget = queryResult.getSearchShardTarget();
                 Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());

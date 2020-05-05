@@ -70,7 +70,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
 
     private final SearchResponseSections internalResponse;
     private final String scrollId;
-    private final String readerId;
+    private final String searchContextId;
     private final int totalShards;
     private final int successfulShards;
     private final int skippedShards;
@@ -97,17 +97,18 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         tookInMillis = in.readVLong();
         skippedShards = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            readerId = in.readOptionalString();
+            searchContextId = in.readOptionalString();
         } else {
-            readerId = null;
+            searchContextId = null;
         }
     }
 
     public SearchResponse(SearchResponseSections internalResponse, String scrollId, int totalShards, int successfulShards,
-                          int skippedShards, long tookInMillis, ShardSearchFailure[] shardFailures, Clusters clusters, String readerId) {
+                          int skippedShards, long tookInMillis, ShardSearchFailure[] shardFailures, Clusters clusters,
+                          String searchContextId) {
         this.internalResponse = internalResponse;
         this.scrollId = scrollId;
-        this.readerId = readerId;
+        this.searchContextId = searchContextId;
         this.clusters = clusters;
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
@@ -115,8 +116,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         this.tookInMillis = tookInMillis;
         this.shardFailures = shardFailures;
         assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
-        assert scrollId == null || readerId == null :
-            "SearchResponse can't have both scrollId [" + scrollId + "] and readerId [" + readerId + "]";
+        assert scrollId == null || searchContextId == null :
+            "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + searchContextId + "]";
     }
 
     @Override
@@ -219,10 +220,10 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     }
 
     /**
-     * Returns the encoded string representing reader ids that ared used to executed the request.
+     * Returns the encoded string of the search context that the search request is used to executed
      */
-    public String getReaderId() {
-        return readerId;
+    public String searchContextId() {
+        return searchContextId;
     }
 
     /**
@@ -257,8 +258,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         if (scrollId != null) {
             builder.field(SCROLL_ID.getPreferredName(), scrollId);
         }
-        if (readerId != null) {
-            builder.field(READER_ID.getPreferredName(), readerId);
+        if (searchContextId != null) {
+            builder.field(READER_ID.getPreferredName(), searchContextId);
         }
         builder.field(TOOK.getPreferredName(), tookInMillis);
         builder.field(TIMED_OUT.getPreferredName(), isTimedOut());
@@ -403,7 +404,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         out.writeVLong(tookInMillis);
         out.writeVInt(skippedShards);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalString(readerId);
+            out.writeOptionalString(searchContextId);
         }
     }
 

@@ -404,12 +404,9 @@ node.remote_cluster_client: false <8>
 
 {transform-cap} nodes run {transforms} and handle {transform} API requests.
 
-If you want to use {transforms} in your cluster, you must not have
-`xpack.transform.enabled` set to `false` on any master-eligible or data
-nodes. To use {transforms} in clients (including {kib}), do not disable this
-setting on any coordinating nodes. You must also have `node.transform` set to
-`true` on at least one node. This is the default behavior. If you have the
-{oss-dist}, do not use these settings. For more information, see
+If you want to use {transforms} in your cluster, you must have `node.transform`
+set to `true` on at least one node. This is the default behavior. If you have
+the {oss-dist}, do not use these settings. For more information, see
 <<transform-settings>>.
 
 To create a dedicated {transform} node in the {default-dist}, set:

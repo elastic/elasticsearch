@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.ql.type.DateUtils.UTC;
 
 public class LogicalPlanTests extends ESTestCase {
 
@@ -56,7 +57,7 @@ public class LogicalPlanTests extends ESTestCase {
     }
 
     public void testParameterizedEventQuery() {
-        ParserParams params = new ParserParams().fieldEventCategory("myCustomEvent");
+        ParserParams params = new ParserParams(UTC).fieldEventCategory("myCustomEvent");
         LogicalPlan fullQuery = parser.createStatement("process where process_name == 'net.exe'", params);
         Expression fullExpression = expr("myCustomEvent == 'process' and process_name == 'net.exe'");
 

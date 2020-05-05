@@ -219,7 +219,7 @@ import org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAc
 import org.elasticsearch.xpack.security.rest.action.oidc.RestOpenIdConnectAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.oidc.RestOpenIdConnectLogoutAction;
 import org.elasticsearch.xpack.security.rest.action.oidc.RestOpenIdConnectPrepareAuthenticationAction;
-import org.elasticsearch.xpack.security.rest.action.privilege.RestClearPrivilegesAction;
+import org.elasticsearch.xpack.security.rest.action.privilege.RestClearPrivilegesCacheAction;
 import org.elasticsearch.xpack.security.rest.action.privilege.RestDeletePrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.privilege.RestGetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.privilege.RestGetPrivilegesAction;
@@ -790,7 +790,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new RestAuthenticateAction(settings, securityContext.get(), getLicenseState()),
                 new RestClearRealmCacheAction(settings, getLicenseState()),
                 new RestClearRolesCacheAction(settings, getLicenseState()),
-                new RestClearPrivilegesAction(settings, getLicenseState()),
+                new RestClearPrivilegesCacheAction(settings, getLicenseState()),
                 new RestGetUsersAction(settings, getLicenseState()),
                 new RestPutUserAction(settings, getLicenseState()),
                 new RestDeleteUserAction(settings, getLicenseState()),

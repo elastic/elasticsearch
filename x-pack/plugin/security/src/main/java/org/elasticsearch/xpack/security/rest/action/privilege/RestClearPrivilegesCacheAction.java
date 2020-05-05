@@ -21,9 +21,9 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestClearPrivilegesAction extends SecurityBaseRestHandler {
+public class RestClearPrivilegesCacheAction extends SecurityBaseRestHandler {
 
-    public RestClearPrivilegesAction(Settings settings, XPackLicenseState licenseState) {
+    public RestClearPrivilegesCacheAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
     }
 

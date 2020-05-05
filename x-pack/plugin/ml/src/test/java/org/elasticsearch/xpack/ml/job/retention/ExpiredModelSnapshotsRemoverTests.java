@@ -12,7 +12,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -219,12 +218,12 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         givenClientRequests(searchResponses, true, true);
 
         long retentionDays = 3L;
-        ActionListener<Tuple<Long, Long>> cutoffListener = mock(ActionListener.class);
+        ActionListener<AbstractExpiredJobDataRemover.CutoffDetails> cutoffListener = mock(ActionListener.class);
         createExpiredModelSnapshotsRemover().calcCutoffEpochMs("job-1", retentionDays, cutoffListener);
 
         long dayInMills = 60 * 60 * 24 * 1000;
         long expectedCutoffTime = oneDayAgo.getTime() - (dayInMills * retentionDays);
-        verify(cutoffListener).onResponse(eq(new Tuple<>(oneDayAgo.getTime(), expectedCutoffTime)));
+        verify(cutoffListener).onResponse(eq(new AbstractExpiredJobDataRemover.CutoffDetails(oneDayAgo.getTime(), expectedCutoffTime)));
     }
 
     private ExpiredModelSnapshotsRemover createExpiredModelSnapshotsRemover() {

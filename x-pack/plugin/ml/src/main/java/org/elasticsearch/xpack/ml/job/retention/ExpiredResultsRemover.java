@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -132,8 +131,8 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
     }
 
     @Override
-    void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<Tuple<Long, Long>> listener) {
-        ThreadedActionListener<Tuple<Long, Long>> threadedActionListener = new ThreadedActionListener<>(LOGGER, threadPool,
+    void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener) {
+        ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(LOGGER, threadPool,
                 MachineLearning.UTILITY_THREAD_POOL_NAME, listener, false);
         latestBucketTime(jobId, ActionListener.wrap(
                 latestTime -> {
@@ -141,7 +140,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
                         threadedActionListener.onResponse(null);
                     } else {
                         long cutoff = latestTime - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
-                        threadedActionListener.onResponse(new Tuple<>(latestTime, cutoff));
+                        threadedActionListener.onResponse(new CutoffDetails(latestTime, cutoff));
                     }
                 },
                 listener::onFailure

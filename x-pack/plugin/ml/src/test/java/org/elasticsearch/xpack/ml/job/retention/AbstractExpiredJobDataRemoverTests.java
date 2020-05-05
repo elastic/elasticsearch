@@ -12,7 +12,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -64,9 +63,9 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         }
 
         @Override
-        void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<Tuple<Long, Long>> listener) {
+        void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener) {
             long nowEpochMs = Instant.now(Clock.systemDefaultZone()).toEpochMilli();
-            listener.onResponse(new Tuple<>(nowEpochMs, nowEpochMs - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis()));
+            listener.onResponse(new CutoffDetails(nowEpochMs, nowEpochMs - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis()));
         }
 
         @Override

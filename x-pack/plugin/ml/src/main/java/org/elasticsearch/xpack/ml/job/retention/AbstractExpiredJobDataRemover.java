@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.retention;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -19,6 +18,7 @@ import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -71,9 +71,7 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
                     if (response == null) {
                         removeData(jobIterator, listener, isTimedOutSupplier);
                     } else {
-                        long latestTimeMs = response.v1();
-                        long cutoffEpochMs = response.v2();
-                        removeDataBefore(job, latestTimeMs, cutoffEpochMs, ActionListener.wrap(
+                        removeDataBefore(job, response.latestTimeMs, response.cutoffEpochMs, ActionListener.wrap(
                                 r -> removeData(jobIterator, listener, isTimedOutSupplier),
                                 listener::onFailure));
                     }
@@ -87,7 +85,7 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
         return new WrappedBatchedJobsIterator(jobsIterator);
     }
 
-    abstract void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<Tuple<Long, Long>> listener);
+    abstract void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener);
 
     abstract Long getRetentionDays(Job job);
 
@@ -109,7 +107,7 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
      * This class abstracts away the logic of pulling one job at a time from
      * multiple batches.
      */
-    private class WrappedBatchedJobsIterator implements Iterator<Job> {
+    private static class WrappedBatchedJobsIterator implements Iterator<Job> {
         private final BatchedJobsIterator batchedIterator;
         private VolatileCursorIterator<Job> currentBatch;
 
@@ -145,6 +143,41 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
         private VolatileCursorIterator<Job> createBatchIteratorFromBatch(Deque<Job.Builder> builders) {
             List<Job> jobs = builders.stream().map(Job.Builder::build).collect(Collectors.toList());
             return new VolatileCursorIterator<>(jobs);
+        }
+    }
+
+    /**
+     * The latest time that cutoffs are measured from is not wall clock time,
+     * but some other reference point that makes sense for the type of data
+     * being removed.  This class groups the cutoff time with it's "latest"
+     * reference point.
+     */
+    protected static final class CutoffDetails {
+
+        public long latestTimeMs;
+        public long cutoffEpochMs;
+
+        public CutoffDetails(long latestTimeMs, long cutoffEpochMs) {
+            this.latestTimeMs = latestTimeMs;
+            this.cutoffEpochMs = cutoffEpochMs;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(latestTimeMs, cutoffEpochMs);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (other == this) {
+                return true;
+            }
+            if (other instanceof CutoffDetails == false) {
+                return false;
+            }
+            CutoffDetails that = (CutoffDetails) other;
+            return this.latestTimeMs == that.latestTimeMs &&
+                this.cutoffEpochMs == that.cutoffEpochMs;
         }
     }
 }

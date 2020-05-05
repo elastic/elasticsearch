@@ -10,15 +10,17 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SingleStatementContext;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
+import java.time.ZoneId;
 import java.util.Map;
 
 class AstBuilder extends CommandBuilder {
     /**
      * Create AST Builder
      * @param params a map between '?' tokens that represent parameters and the actual parameter values
+     * @param zoneId user specified timezone in the session
      */
-    AstBuilder(Map<Token, SqlTypedParamValue> params) {
-        super(params);
+    AstBuilder(Map<Token, SqlTypedParamValue> params, ZoneId zoneId) {
+        super(params, zoneId);
     }
 
     @Override

@@ -363,7 +363,7 @@ end::custom-settings[]
 
 tag::daily-model-snapshot-retention-after-days[]
 Advanced configuration option. Specifies a number of days between 0 and the
-value of `model_snapshot_retention_days`. After this period of time, only one
+value of `model_snapshot_retention_days`. After this period of time, only the first
 model snapshot per day is retained for this job. Age is calculated relative to
 the timestamp of the newest model snapshot. For new jobs, the default value is
 `1`, which means that all snapshots are retained for one day. Older snapshots

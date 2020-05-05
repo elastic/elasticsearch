@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.settings.Settings;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
@@ -381,7 +383,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
                             logger.trace("{} warming cache for [{}] part [{}/{}]", shardId, file.physicalName(), part + 1, numberOfParts);
                             final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
-                            ((CachedBlobContainerIndexInput) input).prefetchPart(part); // TODO does not include any rate limitation
+                            ((CachedBlobContainerIndexInput) input).prefetchPart(part);
 
                             logger.trace(
                                 () -> new ParameterizedMessage(
@@ -445,7 +447,10 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         );
 
         final LazyInitializable<BlobContainer, RuntimeException> lazyBlobContainer = new LazyInitializable<>(
-            () -> blobStoreRepository.shardContainer(indexId, shardPath.getShardId().id())
+            () -> new RateLimitingBlobContainer(
+                blobStoreRepository,
+                blobStoreRepository.shardContainer(indexId, shardPath.getShardId().id())
+            )
         );
         final LazyInitializable<BlobStoreIndexShardSnapshot, RuntimeException> lazySnapshot = new LazyInitializable<>(
             () -> blobStoreRepository.loadShardSnapshot(lazyBlobContainer.getOrCompute(), snapshotId)
@@ -483,5 +488,34 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             }
         }
         return null;
+    }
+
+    /**
+     * A {@link FilterBlobContainer} that uses {@link BlobStoreRepository#maybeRateLimitRestores(InputStream)} to limit the rate at which
+     * blobs are read from the repository.
+     */
+    private static class RateLimitingBlobContainer extends FilterBlobContainer {
+
+        private final BlobStoreRepository blobStoreRepository;
+
+        RateLimitingBlobContainer(BlobStoreRepository blobStoreRepository, BlobContainer blobContainer) {
+            super(blobContainer);
+            this.blobStoreRepository = blobStoreRepository;
+        }
+
+        @Override
+        protected BlobContainer wrapChild(BlobContainer child) {
+            return new RateLimitingBlobContainer(blobStoreRepository, child);
+        }
+
+        @Override
+        public InputStream readBlob(String blobName) throws IOException {
+            return blobStoreRepository.maybeRateLimitRestores(super.readBlob(blobName));
+        }
+
+        @Override
+        public InputStream readBlob(String blobName, long position, long length) throws IOException {
+            return blobStoreRepository.maybeRateLimitRestores(super.readBlob(blobName, position, length));
+        }
     }
 }

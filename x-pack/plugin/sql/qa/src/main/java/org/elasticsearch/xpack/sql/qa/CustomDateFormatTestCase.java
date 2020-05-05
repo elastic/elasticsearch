@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.qa.jdbc.JdbcIntegrationTestCase;
 import org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase;
 import org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase;
@@ -51,11 +52,10 @@ public abstract class CustomDateFormatTestCase extends BaseRestSqlTestCase {
         index(docs);
         
         Request request = new Request("POST", RestSqlTestCase.SQL_QUERY_REST_ENDPOINT);
-        request.setEntity(new StringEntity("{\"query\":\"SELECT COUNT(*) AS c FROM test WHERE "
-                + datesConditions.toString() + "\""
-                + mode("plain")
-                + ",\"time_zone\":\"" + zID + "\"" + "}", ContentType.APPLICATION_JSON));
-        
+        final String query = "SELECT COUNT(*) AS c FROM test WHERE " + datesConditions.toString();
+        request.setEntity(new StringEntity(query(query).mode(Mode.PLAIN).timeZone(zID).toString(),
+            ContentType.APPLICATION_JSON));
+
         Response response = client().performRequest(request);
         String expectedJsonSnippet = "{\"columns\":[{\"name\":\"c\",\"type\":\"long\"}],\"rows\":[[";
         try (InputStream content = response.getEntity().getContent()) {

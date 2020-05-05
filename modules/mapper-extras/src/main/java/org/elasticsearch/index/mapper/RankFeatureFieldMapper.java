@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -190,7 +189,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         float value;
         if (context.externalValueSet()) {
             Object v = context.externalValue();

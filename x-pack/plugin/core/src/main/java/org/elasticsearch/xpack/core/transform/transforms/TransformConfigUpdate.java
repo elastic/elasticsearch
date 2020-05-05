@@ -45,7 +45,8 @@ public class TransformConfigUpdate implements Writeable {
                 : TimeValue.parseTimeValue((String) args[2], TransformField.FREQUENCY.getPreferredName());
             SyncConfig syncConfig = (SyncConfig) args[3];
             String description = (String) args[4];
-            return new TransformConfigUpdate(source, dest, frequency, syncConfig, description);
+            SettingsConfig settings = (SettingsConfig) args[5];
+            return new TransformConfigUpdate(source, dest, frequency, syncConfig, description, settings);
         }
     );
 
@@ -55,6 +56,7 @@ public class TransformConfigUpdate implements Writeable {
         PARSER.declareString(optionalConstructorArg(), TransformField.FREQUENCY);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseSyncConfig(p), TransformField.SYNC);
         PARSER.declareString(optionalConstructorArg(), TransformField.DESCRIPTION);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> SettingsConfig.fromXContent(p, false), TransformField.SETTINGS);
     }
 
     private static SyncConfig parseSyncConfig(XContentParser parser) throws IOException {
@@ -70,6 +72,7 @@ public class TransformConfigUpdate implements Writeable {
     private final TimeValue frequency;
     private final SyncConfig syncConfig;
     private final String description;
+    private final SettingsConfig settings;
     private Map<String, String> headers;
 
     public TransformConfigUpdate(
@@ -77,7 +80,8 @@ public class TransformConfigUpdate implements Writeable {
         final DestConfig dest,
         final TimeValue frequency,
         final SyncConfig syncConfig,
-        final String description
+        final String description,
+        final SettingsConfig settings
     ) {
         this.source = source;
         this.dest = dest;
@@ -87,6 +91,7 @@ public class TransformConfigUpdate implements Writeable {
         if (this.description != null && this.description.length() > MAX_DESCRIPTION_LENGTH) {
             throw new IllegalArgumentException("[description] must be less than 1000 characters in length.");
         }
+        this.settings = settings;
     }
 
     public TransformConfigUpdate(final StreamInput in) throws IOException {
@@ -98,6 +103,12 @@ public class TransformConfigUpdate implements Writeable {
         if (in.readBoolean()) {
             setHeaders(in.readMap(StreamInput::readString, StreamInput::readString));
         }
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {  // todo: V_7_8_0
+            settings = in.readOptionalWriteable(SettingsConfig::new);
+        } else {
+            settings = null;
+        }
+
     }
 
     public SourceConfig getSource() {
@@ -121,6 +132,11 @@ public class TransformConfigUpdate implements Writeable {
         return description;
     }
 
+    @Nullable
+    public SettingsConfig getSettings() {
+        return settings;
+    }
+
     public Map<String, String> getHeaders() {
         return headers;
     }
@@ -142,6 +158,9 @@ public class TransformConfigUpdate implements Writeable {
         } else {
             out.writeBoolean(false);
         }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalWriteable(settings);
+        }
     }
 
     @Override
@@ -161,12 +180,13 @@ public class TransformConfigUpdate implements Writeable {
             && Objects.equals(this.frequency, that.frequency)
             && Objects.equals(this.syncConfig, that.syncConfig)
             && Objects.equals(this.description, that.description)
+            && Objects.equals(this.settings, that.settings)
             && Objects.equals(this.headers, that.headers);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(source, dest, frequency, syncConfig, description, headers);
+        return Objects.hash(source, dest, frequency, syncConfig, description, settings, headers);
     }
 
     public static TransformConfigUpdate fromXContent(final XContentParser parser) {
@@ -179,7 +199,12 @@ public class TransformConfigUpdate implements Writeable {
             && isNullOrEqual(frequency, config.getFrequency())
             && isNullOrEqual(syncConfig, config.getSyncConfig())
             && isNullOrEqual(description, config.getDescription())
+            && isNullOrEqual(settings, config.getSettings())
             && isNullOrEqual(headers, config.getHeaders());
+    }
+
+    public boolean changesSettings(TransformConfig config) {
+        return isNullOrEqual(settings, config.getSettings()) == false;
     }
 
     private boolean isNullOrEqual(Object lft, Object rgt) {
@@ -220,6 +245,12 @@ public class TransformConfigUpdate implements Writeable {
         }
         if (headers != null) {
             builder.setHeaders(headers);
+        }
+        if (settings != null) {
+            // settings are partially updateable, that means we only overwrite changed settings but keep others
+            SettingsConfig.Builder settingsBuilder = new SettingsConfig.Builder(config.getSettings());
+            settingsBuilder.update(settings);
+            builder.setSettings(settingsBuilder.build());
         }
         builder.setVersion(Version.CURRENT);
         return builder.build();

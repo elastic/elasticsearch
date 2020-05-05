@@ -226,14 +226,14 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
   (Optional, <<query-dsl,query object>>) Defines the search definition using the
   <<query-dsl,Query DSL>>.
 
-
+[role="child_attributes"]
 [[search-api-response-body]]
 ==== {api-response-body-title}
 
 `took`::
 +
 --
-(Integer)
+(integer)
 Milliseconds it took {es} to execute the request.
 
 This value is calculated by measuring the time elapsed
@@ -254,90 +254,109 @@ Took time does *not* include:
 * Time needed to send the response to a client
 --
 
-
 `timed_out`::
-+
---
-(Boolean)
+(boolean)
 If `true`,
 the request timed out before completion;
 returned results may be partial or empty.
---
 
 `_shards`::
+(object)
+Contains a count of shards used for the request.
 +
---
-(Object)
-Object containing a count of shards used for the request.
-Returned parameters include:
-
+.Properties of `_shards`
+[%collapsible%open]
+====
 `total`::
-(Integer)
+(integer)
 Total number of shards that require querying,
 including unallocated shards.
 
 `successful`::
-(Integer)
+(integer)
 Number of shards that executed the request successfully.
 
 `skipped`::
-(Integer)
+(integer)
 Number of shards that skipped the request because a lightweight check
 helped realize that no documents could possibly match on this shard. This
 typically happens when a search request includes a range filter and the
 shard only has values that fall outside of that range.
 
 `failed`::
-(Integer)
+(integer)
 Number of shards that failed to execute the request. Note that shards
 that are not allocated will be considered neither successful nor failed.
 Having `failed+successful` less than `total` is thus an indication that
 some of the shards were not allocated.
-
---
+====
 
 `hits`::
-+
---
-(Object)
+(object)
 Contains returned documents and metadata.
-Returned parameters include:
-
-`total`::
-(Object)
-Metadata about the number of returned documents.
-Returned parameters include:
 +
-* `value`: Total number of returned documents.
-* `relation`: Indicates whether the number of returned documents in the `value`
-parameter is accurate or a lower bound. Returned values are:
-** `eq`: Accurate
-** `gte`: Lower bound, including returned documents
+.Properties of `hits`
+[%collapsible%open]
+====
+`total`::
+(object)
+Metadata about the number of returned documents.
++
+.Properties of `total`
+[%collapsible%open]
+=====
+`value`::
+(integer)
+Total number of returned documents.
+
+`relation`::
+(string)
+Indicates whether the number of returned documents in the `value`
+parameter is accurate or a lower bound.
++
+.Values of `relation`:
+[%collapsible%open]
+======
+`eq`:: Accurate
+`gte`:: Lower bound, including returned documents
+======
+=====
 
 `max_score`::
-(Float)
-Highest returned document `_score`.
+(float)
+Highest returned <<search-api-response-body-score,document `_score`>>.
 +
-The `_score` parameter is a 32-bit floating point number
-used to determine the relevance of the returned document.
-+
-This parameter value is `null` for requests
-that do not sort by `_score`.
+This value is `null` for requests that do not sort by `_score`.
 
+[[search-api-response-body-hits]]
 `hits`::
-(Array of objects)
+(array of objects)
 Array of returned document objects.
-Returned parameters include:
 +
-* `_index`: Name of the index containing the returned document.
-* `_id`: Unique identifier for the returned document.
-  This ID is only unique within the returned index.
-* `_score`: Positive 32-bit floating point number used to determine the
-  relevance of the returned document.
-* `_source`: Object containing the original JSON body
-  passed for the document at index time.
---
+.Properties of `hits` objects
+[%collapsible%open]
+=====
+`_index`::
+(string)
+Name of the index containing the returned document.
 
+`_id`::
+(string)
+Unique identifier for the returned document.
+This ID is only unique within the returned index.
+
+[[search-api-response-body-score]]
+`_score`::
+(float)
+Positive 32-bit floating point number used to determine the relevance of the
+returned document.
+
+[[search-api-response-body-source]]
+`_source`::
+(object)
+Original JSON body passed for the document at index time.
+=====
+====
 
 [[search-search-api-example]]
 ==== {api-examples-title}

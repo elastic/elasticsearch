@@ -1,3 +1,8 @@
+setup:
+  - skip:
+      version: "all"
+      reason:  "Until backport of https://github.com/elastic/elasticsearch/pull/56118"
+
 ---
 "Get old cluster outlier_detection job":
 
@@ -40,6 +45,7 @@
   - match: { data_frame_analytics.0.dest.index: "old_cluster_regression_job_results" }
   - match: { data_frame_analytics.0.analysis.regression.dependent_variable: "foo" }
   - match: { data_frame_analytics.0.analysis.regression.training_percent: 100.0 }
+  - match: { data_frame_analytics.0.analysis.regression.loss_function: "mse" }
   - is_true: data_frame_analytics.0.analysis.regression.randomize_seed
 
 ---

@@ -23,7 +23,6 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -352,7 +351,7 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         Object addressAsObject;
         if (context.externalValueSet()) {
             addressAsObject = context.externalValue();
@@ -386,15 +385,15 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         if (fieldType().indexOptions() != IndexOptions.NONE) {
-            fields.add(new InetAddressPoint(fieldType().name(), address));
+            context.doc().add(new InetAddressPoint(fieldType().name(), address));
         }
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
+            context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
         } else if (fieldType().stored() || fieldType().indexOptions() != IndexOptions.NONE) {
-            createFieldNamesField(context, fields);
+            createFieldNamesField(context);
         }
         if (fieldType().stored()) {
-            fields.add(new StoredField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
+            context.doc().add(new StoredField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
         }
     }
 

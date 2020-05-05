@@ -40,6 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
+
     public void testThreadedUpdatesToChildBreaker() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(3, 15);
         final int BYTES_PER_THREAD = scaledRandomIntBetween(500, 4500);
@@ -166,12 +167,11 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         assertThat("total breaker was tripped at least once", tripped.get(), greaterThanOrEqualTo(1));
     }
 
-
     /**
      * Test that a breaker correctly redistributes to a different breaker, in
      * this case, the request breaker borrows space from the fielddata breaker
      */
-    public void testBorrowingSiblingBreakerMemory() throws Exception {
+    public void testBorrowingSiblingBreakerMemory() {
         Settings clusterSettings = Settings.builder()
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
             .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "200mb")
@@ -207,7 +207,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         }
     }
 
-    public void testParentBreaksOnRealMemoryUsage() throws Exception {
+    public void testParentBreaksOnRealMemoryUsage() {
         Settings clusterSettings = Settings.builder()
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), Boolean.TRUE)
             .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "200b")
@@ -294,16 +294,16 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         }
     }
 
-    public void testAllocationBucketsBreaker() throws Exception {
+    public void testAllocationBucketsBreaker() {
         Settings clusterSettings = Settings.builder()
             .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), "false")
             .build();
 
-        try (CircuitBreakerService service = new HierarchyCircuitBreakerService(clusterSettings,
+        try (HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(clusterSettings,
             new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
 
-            long parentLimitBytes = ((HierarchyCircuitBreakerService) service).getParentLimit();
+            long parentLimitBytes = service.getParentLimit();
             assertEquals(new ByteSizeValue(100, ByteSizeUnit.BYTES).getBytes(), parentLimitBytes);
 
             CircuitBreaker breaker = service.getBreaker(CircuitBreaker.REQUEST);
@@ -320,7 +320,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         }
     }
 
-    private long mb(long size) {
+    private static long mb(long size) {
         return new ByteSizeValue(size, ByteSizeUnit.MB).getBytes();
     }
 }

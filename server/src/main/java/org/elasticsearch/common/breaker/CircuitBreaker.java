@@ -126,11 +126,6 @@ public interface CircuitBreaker {
     double getOverhead();
 
     /**
-     * @return the maximum number of bytes the circuit breaker can track before tripping with overhead constant taken into account
-     */
-    long getLimitWithOverhead();
-
-    /**
      * @return the number of times the circuit breaker has been tripped
      */
     long getTrippedCount();

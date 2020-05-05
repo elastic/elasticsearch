@@ -134,7 +134,7 @@ public final class BreakerSettings {
     public String toString() {
         return "[" + this.name +
                 ",type=" + this.type.toString() +
-                ",durability=" + this.durability.toString() +
+                ",durability=" + (this.durability == null ? "null" : this.durability.toString()) +
                 ",limit=" + this.limitBytes + "/" + new ByteSizeValue(this.limitBytes) +
                 ",overhead=" + this.overhead + "]";
     }

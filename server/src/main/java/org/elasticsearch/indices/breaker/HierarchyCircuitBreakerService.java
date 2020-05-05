@@ -186,17 +186,15 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
     }
 
-    private boolean validateTotalCircuitBreakerLimit(ByteSizeValue byteSizeValue) {
+    private void validateTotalCircuitBreakerLimit(ByteSizeValue byteSizeValue) {
         BreakerSettings newParentSettings = new BreakerSettings(CircuitBreaker.PARENT, byteSizeValue.getBytes(), 1.0,
             CircuitBreaker.Type.PARENT, null);
         validateSettings(new BreakerSettings[]{newParentSettings});
-        return true;
     }
 
     private void setTotalCircuitBreakerLimit(ByteSizeValue byteSizeValue) {
-        BreakerSettings newParentSettings = new BreakerSettings(CircuitBreaker.PARENT, byteSizeValue.getBytes(), 1.0,
+        this.parentSettings = new BreakerSettings(CircuitBreaker.PARENT, byteSizeValue.getBytes(), 1.0,
             CircuitBreaker.Type.PARENT, null);
-        this.parentSettings = newParentSettings;
     }
 
     /**
@@ -260,7 +258,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         long permanentUsage = 0;
 
         for (CircuitBreaker breaker : this.breakers.values()) {
-            long breakerUsed = breaker.getLimitWithOverhead();
+            long breakerUsed = (long)(breaker.getUsed() * breaker.getOverhead());
             if (breaker.getDurability() == CircuitBreaker.Durability.TRANSIENT) {
                 transientUsage += breakerUsed;
             } else if (breaker.getDurability() == CircuitBreaker.Durability.PERMANENT) {
@@ -321,7 +319,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             message.append(", usages [");
             message.append(this.breakers.entrySet().stream().map(e -> {
                     final CircuitBreaker breaker = e.getValue();
-                    final long breakerUsed = breaker.getLimitWithOverhead();
+                    final long breakerUsed = (long)(breaker.getUsed() * breaker.getOverhead());
                     return e.getKey() + "=" + breakerUsed + "/" + new ByteSizeValue(breakerUsed);
                 }).collect(Collectors.joining(", ")));
             message.append("]");

@@ -196,12 +196,6 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         return this.limitAndOverhead.get().overhead;
     }
 
-    @Override
-    public long getLimitWithOverhead() {
-        final LimitAndOverhead limitAndOverhead = this.limitAndOverhead.get();
-        return (long)(limitAndOverhead.overhead * limitAndOverhead.limit);
-    }
-
     /**
      * @return the number of times the breaker has been tripped
      */

@@ -1475,7 +1475,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     repositoriesService,
                     mock(SearchService.class),
                     new SyncedFlushService(indicesService, clusterService, transportService, indexNameExpressionResolver),
-                    new PeerRecoverySourceService(transportService, indicesService, recoverySettings, bigArrays),
+                    new PeerRecoverySourceService(transportService, indicesService, recoverySettings),
                     snapshotShardsService,
                     new PrimaryReplicaSyncer(
                         transportService,

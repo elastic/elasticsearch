@@ -19,24 +19,7 @@ import static org.mockito.Mockito.when;
 
 public class LogstashFeatureSetTests extends ESTestCase {
 
-    public void testEnabledSetting() throws Exception {
-        boolean enabled = randomBoolean();
-        Settings settings = Settings.builder().put("path.home", createTempDir()).put("xpack.logstash.enabled", enabled).build();
-        LogstashFeatureSet featureSet = new LogstashFeatureSet(null);
-        assertThat(featureSet.enabled(), is(enabled));
-
-        PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
-        featureSet.usage(future);
-        XPackFeatureSet.Usage usage = future.get();
-
-        BytesStreamOutput out = new BytesStreamOutput();
-        usage.writeTo(out);
-        XPackFeatureSet.Usage serializedUsage = new LogstashFeatureSetUsage(out.bytes().streamInput());
-        assertThat(serializedUsage.enabled(), is(true));
-    }
-
     public void testEnabledDefault() throws Exception {
-        Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         LogstashFeatureSet featureSet = new LogstashFeatureSet(null);
         assertThat(featureSet.enabled(), is(true));
     }

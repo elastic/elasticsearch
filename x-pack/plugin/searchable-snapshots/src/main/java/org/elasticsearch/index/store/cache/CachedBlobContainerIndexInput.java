@@ -144,7 +144,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                     bytesRead = cacheFile.fetchRange(
                         range.v1(),
                         range.v2(),
-                        (start, end) -> readCacheFile(cacheFile.getChannel(), end, pos, b, len),
+                        (start, end) -> readCacheFile(cacheFile.getChannel(), end, pos, b),
                         (start, end) -> writeCacheFile(cacheFile.getChannel(), start, end)
                     ).get();
                 }
@@ -317,13 +317,15 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         return true;
     }
 
-    private int readCacheFile(FileChannel fc, long end, long position, ByteBuffer b, long length) throws IOException {
+    private int readCacheFile(FileChannel fc, long end, long position, ByteBuffer b) throws IOException {
         assert assertFileChannelOpen(fc);
-        int bytesRead;
+        final int bytesRead;
         if (end - position < b.remaining()) {
-            int l = Math.toIntExact(end - position);
-            b.put(Channels.readFromFileChannel(fc, position, l));
-            bytesRead = l;
+            final int remaining = b.remaining();
+            b.limit(b.position() + Math.toIntExact(end - position));
+            bytesRead = Channels.readFromFileChannel(fc, position, b);
+            assert remaining > bytesRead;
+            b.limit(b.position() + remaining - bytesRead);
         } else {
             bytesRead = Channels.readFromFileChannel(fc, position, b);
         }

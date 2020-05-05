@@ -67,6 +67,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     private final StartDataFrameAnalyticsAction.TaskParams taskParams;
     @Nullable
     private volatile Long reindexingTaskId;
+    private volatile boolean isReindexingFinished;
     private volatile boolean isStopping;
     private volatile boolean isMarkAsCompletedCalled;
     private final StatsHolder statsHolder;
@@ -90,6 +91,10 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     public void setReindexingTaskId(Long reindexingTaskId) {
         LOGGER.debug("[{}] Setting reindexing task id to [{}] from [{}]", taskParams.getId(), reindexingTaskId, this.reindexingTaskId);
         this.reindexingTaskId = reindexingTaskId;
+    }
+
+    public void setReindexingFinished() {
+        isReindexingFinished = true;
     }
 
     public boolean isStopping() {
@@ -228,7 +233,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     private void getReindexTaskProgress(ActionListener<Integer> listener) {
         TaskId reindexTaskId = getReindexTaskId();
         if (reindexTaskId == null) {
-            listener.onResponse(statsHolder.getProgressTracker().getReindexingProgressPercent());
+            listener.onResponse(isReindexingFinished ? 100 : 0);
             return;
         }
 
@@ -244,7 +249,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             error -> {
                 if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
                     // The task is not present which means either it has not started yet or it finished.
-                    listener.onResponse(statsHolder.getProgressTracker().getReindexingProgressPercent());
+                    listener.onResponse(isReindexingFinished ? 100 : 0);
                 } else {
                     listener.onFailure(error);
                 }

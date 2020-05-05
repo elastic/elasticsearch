@@ -36,7 +36,7 @@ public class TransportValidateQueryActionTests extends ESSingleNodeTestCase {
      */
     public void testListenerOnlyInvokedOnceWhenIndexDoesNotExist() {
         final AtomicBoolean invoked = new AtomicBoolean();
-        final ActionListener<ValidateQueryResponse> listener = new ActionListener<>() {
+        final ActionListener<ValidateQueryResponse> listener = new ActionListener<ValidateQueryResponse>() {
 
             @Override
             public void onResponse(final ValidateQueryResponse validateQueryResponse) {

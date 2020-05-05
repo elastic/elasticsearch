@@ -53,6 +53,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             null,
             PivotConfigTests.randomPivotConfig(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            SettingsConfigTests.randomSettingsConfig(),
             null,
             null
         );
@@ -68,6 +69,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomHeaders(),
             PivotConfigTests.randomPivotConfig(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            randomBoolean() ? null : SettingsConfigTests.randomSettingsConfig(),
             randomBoolean() ? null : Instant.now(),
             randomBoolean() ? null : Version.CURRENT.toString()
         );
@@ -83,7 +85,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 randomBoolean() ? randomSyncConfig() : null,
                 randomHeaders(),
                 PivotConfigTests.randomPivotConfig(),
-                randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000)
+                randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+                null
             );
         } // else
         return new TransformConfig(
@@ -94,7 +97,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? randomSyncConfig() : null,
             randomHeaders(),
             PivotConfigTests.randomInvalidPivotConfig(),
-            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000)
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            null
         );
     }
 
@@ -258,7 +262,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 null,
                 null,
                 PivotConfigTests.randomPivotConfig(),
-                randomAlphaOfLength(1001)
+                randomAlphaOfLength(1001),
+                null
             )
         );
         assertThat(exception.getMessage(), equalTo("[description] must be less than 1000 characters in length."));
@@ -271,7 +276,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             null,
             null,
             PivotConfigTests.randomPivotConfig(),
-            description
+            description,
+            null
         );
         assertThat(description, equalTo(config.getDescription()));
     }

@@ -227,6 +227,15 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
 (Optional, double) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
 
+`loss_function`::::
+(Optional, string)
+The loss function used during regression. Available options are `mse` (mean squared error),
+`msle` (mean squared logarithmic error),  `huber` (Pseudo-Huber loss). Defaults to `mse`.
+
+`loss_function_parameter`::::
+(Optional, double)
+A strictly positive number that is used as a parameter to the `loss_function`.
+
 `max_trees`::::
 (Optional, integer) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=max-trees]

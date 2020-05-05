@@ -35,6 +35,8 @@ public class RegressionTests extends AbstractXContentTestCase<Regression> {
             .setNumTopFeatureImportanceValues(randomBoolean() ? null : randomIntBetween(0, Integer.MAX_VALUE))
             .setPredictionFieldName(randomBoolean() ? null : randomAlphaOfLength(10))
             .setTrainingPercent(randomBoolean() ? null : randomDoubleBetween(1.0, 100.0, true))
+            .setLossFunction(randomBoolean() ? null : randomFrom(Regression.LossFunction.values()))
+            .setLossFunctionParameter(randomBoolean() ? null : randomDoubleBetween(1.0, Double.MAX_VALUE, true))
             .build();
     }
 

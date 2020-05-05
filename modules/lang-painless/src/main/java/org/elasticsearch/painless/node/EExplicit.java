@@ -19,9 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -65,9 +67,10 @@ public class EExplicit extends AExpression {
         childInput.expected = output.actual;
         childInput.explicit = true;
         Output childOutput = child.analyze(classNode, scriptRoot, scope, childInput);
-        child.cast(childInput, childOutput);
+        PainlessCast childCast = AnalyzerCaster.getLegalCast(child.location,
+                childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
 
-        output.expressionNode = child.cast(childOutput);
+        output.expressionNode = cast(childOutput.expressionNode, childCast);
 
         return output;
     }

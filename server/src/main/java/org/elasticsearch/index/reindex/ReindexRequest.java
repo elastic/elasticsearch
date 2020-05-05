@@ -336,9 +336,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             if (isAbortOnVersionConflict() == false) {
                 builder.field("conflicts", "proceed");
             }
-            if(preferV2Templates() != null){
-                builder.field("prefer_v2_templates", preferV2Templates());
-            }
         }
         builder.endObject();
         return builder;

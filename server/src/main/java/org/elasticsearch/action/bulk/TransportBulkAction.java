@@ -392,7 +392,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         createIndexRequest.cause("auto(bulk api)");
         createIndexRequest.masterNodeTimeout(timeout);
         createIndexRequest.preferV2Templates(preferV2Templates);
-        if (minNodeVersion.onOrAfter(Version.V_8_0_0)) {
+        if (minNodeVersion.onOrAfter(Version.V_7_8_0)) {
             client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
         } else {
             client.admin().indices().create(createIndexRequest, listener);
@@ -654,7 +654,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         Index resolveIfAbsent(DocWriteRequest<?> request) {
             Index concreteIndex = indices.get(request.index());
             if (concreteIndex == null) {
-                concreteIndex = indexNameExpressionResolver.concreteWriteIndex(state, request);
+                boolean includeDataStreams = request.opType() == DocWriteRequest.OpType.CREATE;
+                concreteIndex = indexNameExpressionResolver.concreteWriteIndex(state, request, includeDataStreams);
                 indices.put(request.index(), concreteIndex);
             }
             return concreteIndex;

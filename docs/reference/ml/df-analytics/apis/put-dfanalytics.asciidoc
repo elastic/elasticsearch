@@ -419,13 +419,11 @@ PUT _ml/data_frame/analytics/model-flight-delays-pre
 --------------------------------------------------
 // TEST[skip:setup kibana sample data]
 
-<1> The source index to analyze.
+<1> Source index to analyze.
 <2> This query filters out entire documents that will not be present in the 
 destination index.
 <3> The `_source` object defines fields in the dataset that will be included or 
-excluded in the destination index. In this case, `includes` does not specify any 
-fields, so the default behavior takes place: all the fields of the source index 
-will included except the ones that are explicitly specified in `excludes`.
+excluded in the destination index. 
 <4> Defines the destination index that contains the results of the analysis and 
 the fields of the source index specified in the `_source` object. Also defines 
 the name of the `results_field`.
@@ -589,10 +587,8 @@ PUT _ml/data_frame/analytics/student_performance_mathematics_0.3
 --------------------------------------------------
 // TEST[skip:TBD]
 
-<1> The `training_percent` defines the percentage of the data set that will be 
-used for training the model.
-<2> The `randomize_seed` is the seed used to randomly pick which data is used 
-for training.
+<1> The percentage of the data set that is used for training the model.
+<2> The seed that is used to randomly pick which data is used for training.
 
 
 [[ml-put-dfanalytics-example-c]]

@@ -91,8 +91,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             factoryMap.put(InferenceProcessor.TYPE,
                 new InferenceProcessor.Factory(parameters.client,
                     parameters.ingestService.getClusterService(),
-                    Settings.EMPTY,
-                    parameters.ingestService));
+                    Settings.EMPTY));
 
             factoryMap.put("not_inference", new NotInferenceProcessor.Factory());
 

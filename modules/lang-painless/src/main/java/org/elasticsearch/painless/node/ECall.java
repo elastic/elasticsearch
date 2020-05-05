@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.CallNode;
@@ -27,6 +28,7 @@ import org.elasticsearch.painless.ir.CallSubNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.NullSafeSubNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
@@ -84,9 +86,6 @@ public class ECall extends AExpression {
                     throw createError(new IllegalArgumentException(
                             "Argument(s) cannot be of [void] type when calling method [" + name + "]."));
                 }
-
-                expressionInput.expected = expressionOutput.actual;
-                argument.cast(expressionInput, expressionOutput);
             }
 
             // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
@@ -94,8 +93,8 @@ public class ECall extends AExpression {
 
             CallSubDefNode callSubDefNode = new CallSubDefNode();
 
-            for (int argument = 0; argument < arguments.size(); ++ argument) {
-                callSubDefNode.addArgumentNode(arguments.get(argument).cast(argumentOutputs.get(argument)));
+            for (Output argumentOutput : argumentOutputs) {
+                callSubDefNode.addArgumentNode(argumentOutput.expressionNode);
             }
 
             callSubDefNode.setLocation(location);
@@ -114,7 +113,8 @@ public class ECall extends AExpression {
 
             scriptRoot.markNonDeterministic(method.annotations.containsKey(NonDeterministicAnnotation.class));
 
-            List<Output> argumentOutputs = new ArrayList<>();
+            List<Output> argumentOutputs = new ArrayList<>(arguments.size());
+            List<PainlessCast> argumentCasts = new ArrayList<>(arguments.size());
 
             for (int argument = 0; argument < arguments.size(); ++argument) {
                 AExpression expression = arguments.get(argument);
@@ -123,8 +123,10 @@ public class ECall extends AExpression {
                 expressionInput.expected = method.typeParameters.get(argument);
                 expressionInput.internal = true;
                 Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
-                expression.cast(expressionInput, expressionOutput);
                 argumentOutputs.add(expressionOutput);
+                argumentCasts.add(AnalyzerCaster.getLegalCast(expression.location,
+                        expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
+
             }
 
             output.actual = method.returnType;
@@ -132,7 +134,7 @@ public class ECall extends AExpression {
             CallSubNode callSubNode = new CallSubNode();
 
             for (int argument = 0; argument < arguments.size(); ++ argument) {
-                callSubNode.addArgumentNode(arguments.get(argument).cast(argumentOutputs.get(argument)));
+                callSubNode.addArgumentNode(cast(argumentOutputs.get(argument).expressionNode, argumentCasts.get(argument)));
             }
 
             callSubNode.setLocation(location);

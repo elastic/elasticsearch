@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -37,7 +36,7 @@ import java.io.IOException;
 public class RefreshRequest extends BroadcastRequest<RefreshRequest> {
 
     public RefreshRequest(String... indices) {
-        super(indices, IndicesOptions.strictIncludeDataStreamsExpandOpenAndForbidClosed());
+        super(indices);
     }
 
     public RefreshRequest(StreamInput in) throws IOException {

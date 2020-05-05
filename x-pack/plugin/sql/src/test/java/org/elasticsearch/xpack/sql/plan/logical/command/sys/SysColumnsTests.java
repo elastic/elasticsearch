@@ -35,6 +35,7 @@ import java.util.function.Consumer;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.ql.TestUtils.UTC;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
@@ -521,7 +522,7 @@ public class SysColumnsTests extends ESTestCase {
         EsIndex test = new EsIndex("test", mapping);
         Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new FunctionRegistry(), IndexResolution.valid(test),
                 new Verifier(new Metrics()));
-        Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params), true);
+        Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params, UTC), true);
 
         IndexResolver resolver = mock(IndexResolver.class);
         when(resolver.clusterName()).thenReturn(CLUSTER_NAME);

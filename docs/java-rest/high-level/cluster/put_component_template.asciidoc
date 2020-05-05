@@ -1,0 +1,64 @@
+--
+:api: put-component-template
+:request: PutComponentTemplateRequest
+:response: AcknowledgedResponse
+--
+
+[id="{upid}-{api}"]
+=== Put Component Template API
+
+The Put Component Template API allows to create or change a component template.
+
+[id="{upid}-{api}-request"]
+==== Put Component Template Request
+
+A +{request}+ specifies the name of the component template and the template definition,
+which can consist of the settings, mappings or aliases, together with a version (which
+can be used to simply component template management by external systems) and a metadata
+map consisting of user specific information.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The name of the component template
+<2> Template configuration containing the settings, mappings and aliases for this component template
+
+===== Version
+A component template can optionally specify a version number which can be used to simplify template
+management by external systems.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-version]
+--------------------------------------------------
+<1> The version number of the template
+
+=== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-create]
+--------------------------------------------------
+<1> To force to only create a new template; do not overwrite the existing template
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Put Component Templates Response
+
+The returned +{response}+ allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Indicates whether all of the nodes have acknowledged the request

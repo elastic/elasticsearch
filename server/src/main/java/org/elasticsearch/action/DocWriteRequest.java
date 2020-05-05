@@ -197,7 +197,13 @@ public interface DocWriteRequest<T> extends IndicesRequest {
         }
     }
 
-    /** read a document write (index/delete/update) request */
+    /**
+     * Read a document write (index/delete/update) request
+     *
+     * @param shardId shard id of the request. {@code null} when reading as part of a {@link org.elasticsearch.action.bulk.BulkRequest}
+     *                that does not have a unique shard id or when reading from a stream of version older than
+     *                {@link org.elasticsearch.action.bulk.BulkShardRequest#COMPACT_SHARD_ID_VERSION}
+     */
     static DocWriteRequest<?> readDocumentRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         byte type = in.readByte();
         DocWriteRequest<?> docWriteRequest;

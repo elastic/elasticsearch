@@ -70,7 +70,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         this(null, in);
     }
 
-    public ReplicationRequest(ShardId shardId, StreamInput in) throws IOException {
+    public ReplicationRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         super(in);
         final boolean thinRead = shardId != null;
         if (thinRead) {
@@ -210,6 +210,10 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         out.writeVLong(routedBasedOnClusterVersion);
     }
 
+    /**
+     * Thin serialization that does not write {@link #shardId} and will only write {@link #index} if it is different from the index name in
+     * {@link #shardId}.
+     */
     public void writeThin(StreamOutput out) throws IOException {
         super.writeTo(out);
         waitForActiveShards.writeTo(out);

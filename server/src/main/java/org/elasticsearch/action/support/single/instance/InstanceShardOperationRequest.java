@@ -25,6 +25,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -33,6 +34,8 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
+// TODO: This request and its associated transport action can be folded into UpdateRequest which is its only concrete production code
+//       implementation
 public abstract class InstanceShardOperationRequest<Request extends InstanceShardOperationRequest<Request>> extends ActionRequest
         implements IndicesRequest {
 
@@ -49,12 +52,15 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
     protected InstanceShardOperationRequest() {
     }
 
-    protected InstanceShardOperationRequest(ShardId shardId, StreamInput in) throws IOException {
+    protected InstanceShardOperationRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         super(in);
+        // Do a full read if no shard id is give (indicating that this instance isn't read as part of a BulkShardRequest) or `in` is of an
+        // older version and is in the format used by #writeTo.
         if (shardId == null || in.getVersion().before(BulkShardRequest.COMPACT_SHARD_ID_VERSION)) {
             index = in.readString();
             this.shardId = in.readOptionalWriteable(ShardId::new);
         } else {
+            // We know a shard id so we read the format given by #writeThin
             this.shardId = shardId;
             if (in.readBoolean()) {
                 index = in.readString();

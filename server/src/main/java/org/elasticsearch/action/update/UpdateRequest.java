@@ -131,7 +131,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         this(null, in);
     }
 
-    public UpdateRequest(ShardId shardId, StreamInput in) throws IOException {
+    public UpdateRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
         waitForActiveShards = ActiveShardCount.readFrom(in);
         if (in.getVersion().before(Version.V_8_0_0)) {

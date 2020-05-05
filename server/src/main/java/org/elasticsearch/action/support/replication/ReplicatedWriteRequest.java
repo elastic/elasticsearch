@@ -40,7 +40,7 @@ public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>
     /**
      * Constructor for thin deserialization.
      */
-    public ReplicatedWriteRequest(ShardId shardId, StreamInput in) throws IOException {
+    public ReplicatedWriteRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
         refreshPolicy = RefreshPolicy.readFrom(in);
     }

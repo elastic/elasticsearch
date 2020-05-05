@@ -105,6 +105,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
                 TTestAggregationBuilder::new,
                 usage.track(AnalyticsStatsAction.Item.T_TEST, checkLicense(TTestAggregationBuilder.PARSER)))
                 .addResultReader(InternalTTest::new)
+                .setAggregatorRegistrar(TTestAggregationBuilder::registerUsage)
         );
     }
 
@@ -131,7 +132,9 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             return List.of(
                 AnalyticsAggregatorFactory::registerPercentilesAggregator,
                 AnalyticsAggregatorFactory::registerPercentileRanksAggregator,
-                AnalyticsAggregatorFactory::registerHistoBackedSumAggregator
+                AnalyticsAggregatorFactory::registerHistoBackedSumAggregator,
+                AnalyticsAggregatorFactory::registerHistoBackedValueCountAggregator,
+                AnalyticsAggregatorFactory::registerHistoBackedAverageAggregator
             );
     }
 

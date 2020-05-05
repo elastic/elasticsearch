@@ -83,6 +83,8 @@ integTest.runner {
     'ml/data_frame_analytics_crud/Test put regression given feature_bag_fraction is greater than one',
     'ml/data_frame_analytics_crud/Test put regression given training_percent is less than one',
     'ml/data_frame_analytics_crud/Test put regression given training_percent is greater than hundred',
+    'ml/data_frame_analytics_crud/Test put regression given loss_function_parameter is zero',
+    'ml/data_frame_analytics_crud/Test put regression given loss_function_parameter is negative',
     'ml/data_frame_analytics_crud/Test put classification given dependent_variable is not defined',
     'ml/data_frame_analytics_crud/Test put classification given negative lambda',
     'ml/data_frame_analytics_crud/Test put classification given negative gamma',

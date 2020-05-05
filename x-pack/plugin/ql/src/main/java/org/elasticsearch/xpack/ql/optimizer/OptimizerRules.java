@@ -498,14 +498,14 @@ public final class OptimizerRules {
                         if (lowerComp != null && lowerComp == 0) {
                             if (!range.includeLower()) { // a = 2 OR 2 < a < ? -> 2 <= a < ?
                                 ranges.set(i, new Range(range.source(), range.value(), range.lower(), true,
-                                    range.upper(), range.includeUpper()));
+                                    range.upper(), range.includeUpper(), range.zoneId()));
                             } // else : a = 2 OR 2 <= a < ? -> 2 <= a < ?
                             removeEquals = true; // update range with lower equality instead or simply superfluous
                             break;
                         } else if (upperComp != null && upperComp == 0) {
                             if (!range.includeUpper()) { // a = 2 OR ? < a < 2 -> ? < a <= 2
                                 ranges.set(i, new Range(range.source(), range.value(), range.lower(), range.includeLower(),
-                                    range.upper(), true));
+                                    range.upper(), true, range.zoneId()));
                             } // else : a = 2 OR ? < a <= 2 -> ? < a <= 2
                             removeEquals = true; // update range with upper equality instead
                             break;
@@ -533,7 +533,7 @@ public final class OptimizerRules {
                                 if (comp < 0) { // a = 1 OR a > 2 -> nop
                                     continue;
                                 } else if (comp == 0 && bc instanceof GreaterThan) { // a = 2 OR a > 2 -> a >= 2
-                                    inequalities.set(i, new GreaterThanOrEqual(bc.source(), bc.left(), bc.right()));
+                                    inequalities.set(i, new GreaterThanOrEqual(bc.source(), bc.left(), bc.right(), bc.zoneId()));
                                 } // else (0 < comp || bc instanceof GreaterThanOrEqual) :
                                 // a = 3 OR a > 2 -> a > 2; a = 2 OR a => 2 -> a => 2
 
@@ -544,7 +544,7 @@ public final class OptimizerRules {
                                     continue;
                                 }
                                 if (comp == 0 && bc instanceof LessThan) { // a = 2 OR a < 2 -> a <= 2
-                                    inequalities.set(i, new LessThanOrEqual(bc.source(), bc.left(), bc.right()));
+                                    inequalities.set(i, new LessThanOrEqual(bc.source(), bc.left(), bc.right(), bc.zoneId()));
                                 } // else (comp < 0 || bc instanceof LessThanOrEqual) : a = 2 OR a < 3 -> a < 3; a = 2 OR a <= 2 -> a <= 2
                                 removeEquals = true; // update range with equality instead or simply superfluous
                                 break;
@@ -650,7 +650,7 @@ public final class OptimizerRules {
 
                             ranges.add(new Range(and.source(), main.left(),
                                 main.right(), main instanceof GreaterThanOrEqual,
-                                other.right(), other instanceof LessThanOrEqual));
+                                other.right(), other instanceof LessThanOrEqual, main.zoneId()));
 
                             changed = true;
                             step = 0;
@@ -664,7 +664,7 @@ public final class OptimizerRules {
 
                             ranges.add(new Range(and.source(), main.left(),
                                 other.right(), other instanceof GreaterThanOrEqual,
-                                main.right(), main instanceof LessThanOrEqual));
+                                main.right(), main instanceof LessThanOrEqual, main.zoneId()));
 
                             changed = true;
                             step = 0;
@@ -791,7 +791,8 @@ public final class OptimizerRules {
                                             lower ? main.lower() : other.lower(),
                                             lower ? main.includeLower() : other.includeLower(),
                                             upper ? main.upper() : other.upper(),
-                                            upper ? main.includeUpper() : other.includeUpper()));
+                                            upper ? main.includeUpper() : other.includeUpper(),
+                                            main.zoneId()));
                         }
 
                         // range was comparable
@@ -807,7 +808,8 @@ public final class OptimizerRules {
                                             lower ? main.lower() : other.lower(),
                                             lower ? main.includeLower() : other.includeLower(),
                                             upper ? main.upper() : other.upper(),
-                                            upper ? main.includeUpper() : other.includeUpper()));
+                                            upper ? main.includeUpper() : other.includeUpper(),
+                                            main.zoneId()));
                             return true;
                         }
 
@@ -842,7 +844,7 @@ public final class OptimizerRules {
                                     ranges.add(i,
                                             new Range(other.source(), other.value(),
                                                     main.right(), lowerEq ? false : main instanceof GreaterThanOrEqual,
-                                                    other.upper(), other.includeUpper()));
+                                                    other.upper(), other.includeUpper(), other.zoneId()));
                                 }
 
                                 // found a match
@@ -862,7 +864,7 @@ public final class OptimizerRules {
                                     ranges.remove(i);
                                     ranges.add(i, new Range(other.source(), other.value(),
                                             other.lower(), other.includeLower(),
-                                            main.right(), upperEq ? false : main instanceof LessThanOrEqual));
+                                            main.right(), upperEq ? false : main instanceof LessThanOrEqual, other.zoneId()));
                                 }
 
                                 // found a match
@@ -976,7 +978,7 @@ public final class OptimizerRules {
                         if (comp <= 0) {
                             if (comp == 0 && range.includeLower()) { // a != 2 AND 2 <= a < ? -> 2 < a < ?
                                 ranges.set(i, new Range(range.source(), range.value(), range.lower(), false, range.upper(),
-                                    range.includeUpper()));
+                                    range.includeUpper(), range.zoneId()));
                             }
                             // else: !.includeLower() : a != 2 AND 2 < a < 3 -> 2 < a < 3; or:
                             // else: comp < 0 : a != 2 AND 3 < a < ? ->  3 < a < ?
@@ -987,7 +989,7 @@ public final class OptimizerRules {
                             if (comp != null && comp >= 0) {
                                 if (comp == 0 && range.includeUpper()) { // a != 4 AND 2 < a <= 4 -> 2 < a < 4
                                     ranges.set(i, new Range(range.source(), range.value(), range.lower(), range.includeLower(),
-                                        range.upper(), false));
+                                        range.upper(), false, range.zoneId()));
                                 }
                                 // else: !.includeUpper() : a != 4 AND 2 < a < 4 -> 2 < a < 4
                                 // else: comp > 0 : a != 4 AND 2 < a < 3 -> 2 < a < 3
@@ -1003,7 +1005,7 @@ public final class OptimizerRules {
                     if (comp != null && comp >= 0) {
                         if (comp == 0 && range.includeUpper()) { // a != 3 AND ?? < a <= 3 -> ?? < a < 3
                             ranges.set(i, new Range(range.source(), range.value(), range.lower(), range.includeLower(), range.upper(),
-                                false));
+                                false, range.zoneId()));
                         }
                         // else: !.includeUpper() : a != 3 AND ?? < a < 3 -> ?? < a < 3
                         // else: comp > 0 : a != 3 and ?? < a < 2 -> ?? < a < 2
@@ -1031,7 +1033,7 @@ public final class OptimizerRules {
                     if (comp != null) {
                         if (comp >= 0) {
                             if (comp == 0 && bc instanceof LessThanOrEqual) { // a != 2 AND a <= 2 -> a < 2
-                                bcs.set(i, new LessThan(bc.source(), bc.left(), bc.right()));
+                                bcs.set(i, new LessThan(bc.source(), bc.left(), bc.right(), bc.zoneId()));
                             } // else : comp > 0 (a != 2 AND a </<= 1 -> a </<= 1), or == 0 && bc i.of "<" (a != 2 AND a < 2 -> a < 2)
                             return true;
                         } // else: comp < 0 : a != 2 AND a </<= 3 -> nop
@@ -1041,7 +1043,7 @@ public final class OptimizerRules {
                     if (comp != null) {
                         if (comp <= 0) {
                             if (comp == 0 && bc instanceof GreaterThanOrEqual) { // a != 2 AND a >= 2 -> a > 2
-                                bcs.set(i, new GreaterThan(bc.source(), bc.left(), bc.right()));
+                                bcs.set(i, new GreaterThan(bc.source(), bc.left(), bc.right(), bc.zoneId()));
                             } // else: comp < 0 (a != 2 AND a >/>= 3 -> a >/>= 3), or == 0 && bc i.of ">" (a != 2 AND a > 2 -> a > 2)
                             return true;
                         } // else: comp > 0 : a != 2 AND a >/>= 1 -> nop

@@ -1,8 +1,12 @@
 [role="xpack"]
 [[ilm-settings]]
-=== {ilm-cap} settings
+=== {ilm-cap} settings in {es}
+[subs="attributes"]
+++++
+<titleabbrev>{ilm-cap} settings</titleabbrev>
+++++
 
-These are the settings available for configuring Index Lifecycle Management
+These are the settings available for configuring <<index-lifecycle-management, {ilm-init}>>..
 
 ==== Cluster level settings
 

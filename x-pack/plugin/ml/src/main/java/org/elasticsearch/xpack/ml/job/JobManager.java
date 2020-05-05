@@ -240,10 +240,12 @@ public class JobManager {
     public void putJob(PutJobAction.Request request, AnalysisRegistry analysisRegistry, ClusterState state,
                        ActionListener<PutJobAction.Response> actionListener) throws IOException {
 
-        request.getJobBuilder().validateAnalysisLimitsAndSetDefaults(maxModelMemoryLimit);
-        validateCategorizationAnalyzer(request.getJobBuilder(), analysisRegistry);
+        Job.Builder jobBuilder = request.getJobBuilder();
+        jobBuilder.validateAnalysisLimitsAndSetDefaults(maxModelMemoryLimit);
+        jobBuilder.validateModelSnapshotRetentionSettingsAndSetDefaults();
+        validateCategorizationAnalyzer(jobBuilder, analysisRegistry);
 
-        Job job = request.getJobBuilder().build(new Date());
+        Job job = jobBuilder.build(new Date());
 
         if (job.getDataDescription() != null && job.getDataDescription().getFormat() == DataDescription.DataFormat.DELIMITED) {
             deprecationLogger.deprecatedAndMaybeLog("ml_create_job_delimited_data",

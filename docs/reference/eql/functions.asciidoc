@@ -183,8 +183,7 @@ CIDR block you wish to search. If `null`, the function returns `null`.
 [[eql-fn-endswith]]
 === `endsWith`
 
-Returns `true` if a source string ends with a provided substring. Matching is
-case insensitive.
+Returns `true` if a source string ends with a provided substring.
 
 [%collapsible]
 ====
@@ -192,7 +191,6 @@ case insensitive.
 [source,eql]
 ----
 endsWith("regsvr32.exe", ".exe")          // returns true
-endsWith("regsvr32.exe", ".EXE")          // returns true
 endsWith("regsvr32.exe", ".dll")          // returns false
 endsWith("", "")                          // returns true
 
@@ -420,8 +418,7 @@ field datatypes:
 [[eql-fn-startswith]]
 === `startsWith`
 
-Returns `true` if a source string begins with a provided substring. Matching is
-case insensitive.
+Returns `true` if a source string begins with a provided substring.
 
 [%collapsible]
 ====
@@ -429,7 +426,6 @@ case insensitive.
 [source,eql]
 ----
 startsWith("regsvr32.exe", "regsvr32")  // returns true
-startsWith("regsvr32.exe", "RegSvr32")  // returns true
 startsWith("regsvr32.exe", "explorer")  // returns false
 startsWith("", "")                      // returns true
 

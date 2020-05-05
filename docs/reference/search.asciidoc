@@ -154,8 +154,6 @@ include::search/search.asciidoc[]
 
 include::search/async-search.asciidoc[]
 
-include::search/uri-request.asciidoc[]
-
 include::search/request-body.asciidoc[]
 
 include::search/search-template.asciidoc[]

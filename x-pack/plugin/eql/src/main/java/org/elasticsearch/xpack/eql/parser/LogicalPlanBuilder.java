@@ -38,11 +38,10 @@ import static java.util.Collections.singletonList;
 
 public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
-    private final ParserParams params;
     private final UnresolvedRelation RELATION = new UnresolvedRelation(Source.EMPTY, null, "", false, "");
 
     public LogicalPlanBuilder(ParserParams params) {
-        this.params = params;
+        super(params);
     }
 
     @Override
@@ -56,7 +55,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             Literal eventValue = new Literal(eventSource, eventName, DataTypes.KEYWORD);
 
             UnresolvedAttribute eventField = new UnresolvedAttribute(eventSource, params.fieldEventCategory());
-            Expression eventMatch = new Equals(eventSource, eventField, eventValue);
+            Expression eventMatch = new Equals(eventSource, eventField, eventValue, params.zoneId());
 
             condition = new And(source, eventMatch, condition);
         }

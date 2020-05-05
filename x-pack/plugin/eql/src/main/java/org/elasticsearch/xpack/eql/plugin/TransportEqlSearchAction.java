@@ -64,7 +64,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         boolean includeFrozen = request.indicesOptions().ignoreThrottled() == false;
         String clientId = null;
 
-        ParserParams params = new ParserParams()
+        ParserParams params = new ParserParams(zoneId)
             .fieldEventCategory(request.eventCategoryField())
             .fieldTimestamp(request.timestampField())
             .implicitJoinKey(request.implicitJoinKeyField());

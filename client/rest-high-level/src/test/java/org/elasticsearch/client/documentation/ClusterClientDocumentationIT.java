@@ -491,7 +491,8 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             Template template = new Template(Settings.builder().put("index.number_of_replicas", 3).build(), null, null);
             ComponentTemplate componentTemplate = new ComponentTemplate(template, null, null);
-            PutComponentTemplateRequest putComponentTemplateRequest = new PutComponentTemplateRequest().name("ct1").componentTemplate(componentTemplate);
+            PutComponentTemplateRequest putComponentTemplateRequest =
+                new PutComponentTemplateRequest().name("ct1").componentTemplate(componentTemplate);
             client.cluster().putComponentTemplate(putComponentTemplateRequest, RequestOptions.DEFAULT);
 
             assertTrue(client.cluster().putComponentTemplate(putComponentTemplateRequest, RequestOptions.DEFAULT).isAcknowledged());

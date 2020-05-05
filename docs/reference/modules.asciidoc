@@ -41,15 +41,6 @@ The modules in this section are:
 <<modules-node,Node client>>::
 
     A Java node client joins the cluster, but doesn't hold data or act as a master node.
-
-<<modules-threadpool,Thread pools>>::
-
-    Information about the dedicated thread pools used in Elasticsearch.
-
-<<modules-cross-cluster-search, {ccs-cap}>>::
-
-    {ccs-cap} enables executing search requests across more than one cluster
-    without joining them and acts as a federated client across them.
 --
 
 
@@ -62,5 +53,3 @@ include::modules/gateway.asciidoc[]
 include::modules/http.asciidoc[]
 
 include::modules/node.asciidoc[]
-
-include::modules/threadpool.asciidoc[]

@@ -1,10 +1,9 @@
 [[modules-threadpool]]
 === Thread pools
 
-A node holds several thread pools in order to improve how threads memory consumption
-are managed within a node. Many of these pools also have queues associated with them,
-which allow pending requests to be held instead
-of discarded.
+A node uses several thread pools to manage memory consumption. 
+Queues associated with many of the thread pools enable pending requests 
+to be held instead of discarded. 
 
 There are several thread pools, but the important ones include:
 

@@ -225,18 +225,13 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
                     validationException = addValidationError("[version] is required for the [" + mode.toString() + "] client",
                         validationException);
                 }
-            } else if (isClientCompatible() == false) {
+            } else if (SqlVersion.isClientCompatible(requestInfo().version()) == false) {
                 validationException = addValidationError("The [" + requestInfo().version() + "] version of the [" +
                         mode.toString() + "] " + "client is not compatible with Elasticsearch version [" + Version.CURRENT + "]",
                     validationException);
             }
         }
         return validationException;
-    }
-
-    protected boolean isClientCompatible() {
-        /* only client's of version 7.7.0 and later are supported as backwards compatible */
-        return SqlVersion.V_7_7_0.compareTo(requestInfo().version()) <= 0;
     }
 
     /**

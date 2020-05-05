@@ -38,19 +38,17 @@ public class VersionParityTests extends WebServerTestCase {
     }
     
     public void testNoExceptionThrownForCompatibleVersions() throws IOException {
+        String url = JdbcConfiguration.URL_PREFIX + webServerAddress();
         Version version = Version.CURRENT;
-        do {
-            prepareResponse(version);
-
-            String url = JdbcConfiguration.URL_PREFIX + webServerAddress();
-            try {
+        try {
+            do {
+                prepareResponse(version);
                 new JdbcHttpClient(JdbcConfiguration.create(url, null, 0));
-            } catch (SQLException sqle) {
-                fail("JDBC driver version and Elasticsearch server version should be compatible. Error: " + sqle);
-            }
-
-            version = VersionUtils.getPreviousVersion(version);
-        } while (version.compareTo(Version.V_7_7_0) >= 0);
+                version = VersionUtils.getPreviousVersion(version);
+            } while (version.compareTo(Version.V_7_7_0) >= 0);
+        } catch (SQLException sqle) {
+            fail("JDBC driver version and Elasticsearch server version should be compatible. Error: " + sqle);
+        }
     }
     
     void prepareResponse(Version version) throws IOException {

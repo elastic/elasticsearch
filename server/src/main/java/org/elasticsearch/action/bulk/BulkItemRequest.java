@@ -37,17 +37,13 @@ public class BulkItemRequest implements Writeable {
 
     BulkItemRequest(ShardId shardId, StreamInput in) throws IOException {
         assert shardId == null || in.getVersion().onOrAfter(BulkShardRequest.COMPACT_SHARD_ID_VERSION) :
-                "Thin reads should not be used with [" + in.getVersion() + "]";
+                "Thin reads can not be used with [" + in.getVersion() + "]";
         id = in.readVInt();
         request = DocWriteRequest.readDocumentRequest(shardId, in);
         if (in.readBoolean()) {
             if (shardId == null) {
-                assert in.getVersion().before(BulkShardRequest.COMPACT_SHARD_ID_VERSION) :
-                        "Thin reads should be used with [" + in.getVersion() + "]";
                 primaryResponse = new BulkItemResponse(in);
             } else {
-                assert in.getVersion().onOrAfter(BulkShardRequest.COMPACT_SHARD_ID_VERSION) :
-                        "Thin reads should not be used with [" + in.getVersion() + "]";
                 primaryResponse = new BulkItemResponse(shardId, in);
             }
         }

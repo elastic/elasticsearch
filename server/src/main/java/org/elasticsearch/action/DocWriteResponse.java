@@ -135,7 +135,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     protected DocWriteResponse(ShardId shardId, StreamInput in) throws IOException {
         super(in);
         assert in.getVersion().onOrAfter(BulkShardRequest.COMPACT_SHARD_ID_VERSION) :
-                "Thin reads should not be used with [" + in.getVersion() + "]";
+                "Thin reads can not be used with [" + in.getVersion() + "]";
         this.shardId = shardId;
         if (in.getVersion().before(Version.V_8_0_0)) {
             String type = in.readString();

@@ -18,85 +18,106 @@
  */
 package org.elasticsearch.benchmark.indices.breaker;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
-import java.lang.management.ManagementFactory;
-import java.lang.management.MemoryMXBean;
 import java.util.concurrent.TimeUnit;
 
 @Fork(3)
-@Warmup(iterations = 10)
-@Measurement(iterations = 10)
+@Warmup(iterations = 5)
+@Measurement(iterations = 5)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
 @SuppressWarnings("unused") // invoked by benchmarking framework
 public class HierarchyCircuitBreakerBenchmark {
-    @Param({ "0", "16", "256", "4096" })
-    private int tokens;
 
-    @Benchmark
-    public void baseline() {
-        Blackhole.consumeCPU(tokens);
+    @Param({ "512", "2048" })
+    private long bytesAddRemove;
+
+    @Param({ "10", "1000" })
+    private int iterations;
+
+    @Param({ "request", "request,inflight_requests,accounting" })
+    private String breakerNames;
+
+    private static HierarchyCircuitBreakerService service;
+    private static String[] breakers;
+
+    @Setup(Level.Iteration)
+    public void setup() {
+        Settings clusterSettings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+            .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "500mb")
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100mb")
+            .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100mb")
+            .put(HierarchyCircuitBreakerService.ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100mb")
+            .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100mb")
+            .build();
+        service = new HierarchyCircuitBreakerService(clusterSettings,
+            new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        breakers = Strings.splitStringByCommaToArray(breakerNames);
     }
 
     @Benchmark
     @Threads(1)
-    public long getMemoryStats_01() {
-        Blackhole.consumeCPU(tokens);
-        return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
-    }
-
-    @Benchmark
-    @Threads(2)
-    public long getMemoryStats_02() {
-        Blackhole.consumeCPU(tokens);
-        return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
+    public void circuitBreak_1(Blackhole bh) {
+        for(int i = 0; i < iterations; ++i) {
+            for (String breaker : breakers) {
+                try {
+                    bh.consume(service.getBreaker(breaker).addEstimateBytesAndMaybeBreak(bytesAddRemove, "foo"));
+                    bh.consume(service.getBreaker(breaker).addWithoutBreaking(-bytesAddRemove));
+                } catch (CircuitBreakingException ex) {
+                    bh.consume(ex);
+                }
+            }
+        }
     }
 
     @Benchmark
     @Threads(4)
-    public long getMemoryStats_04() {
-        Blackhole.consumeCPU(tokens);
-        return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
-    }
-
-    @Benchmark
-    @Threads(8)
-    public long getMemoryStats_08() {
-        Blackhole.consumeCPU(tokens);
-        return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
-    }
-
-    @Benchmark
-    @Threads(16)
-    public long getMemoryStats_16() {
-        Blackhole.consumeCPU(tokens);
-        return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
-    }
-
-    @Benchmark
-    @Threads(32)
-    public long getMemoryStats_32() {
-        Blackhole.consumeCPU(tokens);
-        return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
+    public void circuitBreak_4(Blackhole bh) {
+        for(int i = 0; i < iterations; ++i) {
+            for (String breaker : breakers) {
+                try {
+                    bh.consume(service.getBreaker(breaker).addEstimateBytesAndMaybeBreak(bytesAddRemove, "foo"));
+                    bh.consume(service.getBreaker(breaker).addWithoutBreaking(-bytesAddRemove));
+                } catch (CircuitBreakingException ex) {
+                    bh.consume(ex);
+                }
+            }
+        }
     }
 
     @Benchmark
     @Threads(64)
-    public long getMemoryStats_64() {
-        Blackhole.consumeCPU(tokens);
-        return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
+    public void circuitBreak_64(Blackhole bh) {
+        for(int i = 0; i < iterations; ++i) {
+            for (String breaker : breakers) {
+                try {
+                    bh.consume(service.getBreaker(breaker).addEstimateBytesAndMaybeBreak(bytesAddRemove, "foo"));
+                    bh.consume(service.getBreaker(breaker).addWithoutBreaking(-bytesAddRemove));
+                } catch (CircuitBreakingException ex) {
+                    bh.consume(ex);
+                }
+            }
+        }
     }
 }

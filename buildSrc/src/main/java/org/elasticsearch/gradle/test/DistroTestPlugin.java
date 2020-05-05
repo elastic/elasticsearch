@@ -221,7 +221,7 @@ public class DistroTestPlugin implements Plugin<Project> {
 
         String firstPartOfSeed = BuildParams.getTestSeed().split(":")[0];
         final long seed = Long.parseUnsignedLong(firstPartOfSeed, 16);
-        BwcVersions bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
+        BwcVersions bwcVersions = BuildParams.getBwcVersions();
         final List<Version> indexCompatVersions = bwcVersions.getIndexCompatible();
         return indexCompatVersions.get(new Random(seed).nextInt(indexCompatVersions.size()));
     }

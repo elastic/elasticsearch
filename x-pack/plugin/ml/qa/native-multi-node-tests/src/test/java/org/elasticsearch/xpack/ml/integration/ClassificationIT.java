@@ -99,11 +99,10 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 null,
                 null,
                 null));
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(jobId);
-        assertProgress(jobId, 0, 0, 0, 0);
+        assertProgressIsZero(jobId);
 
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
@@ -121,7 +120,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat(importanceArray, hasSize(greaterThan(0)));
         }
 
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
@@ -147,11 +146,10 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         indexData(sourceIndex, 300, 0, KEYWORD_FIELD);
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD));
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(jobId);
-        assertProgress(jobId, 0, 0, 0, 0);
+        assertProgressIsZero(jobId);
 
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
@@ -172,7 +170,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(stats.getDataCounts().getTestDocsCount(), equalTo(0L));
         assertThat(stats.getDataCounts().getSkippedDocsCount(), equalTo(0L));
 
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
@@ -208,11 +206,10 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 destIndex,
                 null,
                 new Classification(dependentVariable, BoostedTreeParams.builder().build(), null, null, numTopClasses, 50.0, null));
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(jobId);
-        assertProgress(jobId, 0, 0, 0, 0);
+        assertProgressIsZero(jobId);
 
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
@@ -247,7 +244,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(stats.getDataCounts().getTestDocsCount(), lessThan(300L));
         assertThat(stats.getDataCounts().getSkippedDocsCount(), equalTo(0L));
 
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
@@ -304,11 +301,10 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         indexData(sourceIndex, 350, 0, KEYWORD_FIELD);
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD));
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(jobId);
-        assertProgress(jobId, 0, 0, 0, 0);
+        assertProgressIsZero(jobId);
 
         NodeAcknowledgedResponse response = startAnalytics(jobId);
         assertThat(response.getNode(), not(emptyString()));
@@ -349,7 +345,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertTopClasses(resultsObject, 2, KEYWORD_FIELD, KEYWORD_FIELD_VALUES);
         }
 
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
@@ -373,7 +369,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         }
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD));
-        registerAnalytics(config);
         putAnalytics(config);
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> startAnalytics(jobId));
@@ -392,14 +387,13 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         QueryBuilder query = QueryBuilders.boolQuery().filter(QueryBuilders.termsQuery(KEYWORD_FIELD, KEYWORD_FIELD_VALUES));
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD), query);
-        registerAnalytics(config);
         putAnalytics(config);
 
         // Should not throw
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
     }
 
     public void testDependentVariableIsNested() throws Exception {
@@ -408,12 +402,11 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         indexData(sourceIndex, 100, 0, NESTED_FIELD);
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(NESTED_FIELD));
-        registerAnalytics(config);
         putAnalytics(config);
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
@@ -427,12 +420,11 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         indexData(sourceIndex, 100, 0, KEYWORD_FIELD);
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(ALIAS_TO_KEYWORD_FIELD));
-        registerAnalytics(config);
         putAnalytics(config);
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
@@ -446,12 +438,11 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         indexData(sourceIndex, 100, 0, NESTED_FIELD);
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(ALIAS_TO_NESTED_FIELD));
-        registerAnalytics(config);
         putAnalytics(config);
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
@@ -481,7 +472,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         DataFrameAnalyticsConfig firstJob = buildAnalytics(firstJobId, sourceIndex, firstJobDestIndex, null,
             new Classification(dependentVariable, boostedTreeParams, null, null, 1, 50.0, null));
-        registerAnalytics(firstJob);
         putAnalytics(firstJob);
 
         String secondJobId = "classification_two_jobs_with_same_randomize_seed_2";
@@ -491,7 +481,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         DataFrameAnalyticsConfig secondJob = buildAnalytics(secondJobId, sourceIndex, secondJobDestIndex, null,
             new Classification(dependentVariable, boostedTreeParams, null, null, 1, 50.0, randomizeSeed));
 
-        registerAnalytics(secondJob);
         putAnalytics(secondJob);
 
         // Let's run both jobs in parallel and wait until they are finished
@@ -514,7 +503,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(upgradeMode(), is(false));
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD));
-        registerAnalytics(config);
         putAnalytics(config);
         startAnalytics(jobId);
         assertThat(analyticsTaskList(), hasSize(1));
@@ -550,7 +538,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         });
 
         waitUntilAnalyticsIsStopped(jobId);
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
     }
 
     public void testSetUpgradeMode_NewTaskDoesNotStart() throws Exception {
@@ -560,7 +548,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(upgradeMode(), is(false));
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD));
-        registerAnalytics(config);
         putAnalytics(config);
 
         setUpgradeModeTo(true);
@@ -580,12 +567,11 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         indexData(sourceIndex, 100, 0, KEYWORD_FIELD);
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD));
-        registerAnalytics(config);
         putAnalytics(config);
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 
-        assertProgress(jobId, 100, 100, 100, 100);
+        assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);

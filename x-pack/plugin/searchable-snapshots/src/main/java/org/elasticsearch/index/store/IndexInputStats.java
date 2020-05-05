@@ -74,7 +74,7 @@ public class IndexInputStats {
         cachedBytesRead.add(bytesRead);
     }
 
-    public void addCachedBytesWritten(int bytesWritten, long nanoseconds) {
+    public void addCachedBytesWritten(long bytesWritten, long nanoseconds) {
         cachedBytesWritten.add(bytesWritten, nanoseconds);
     }
 

@@ -107,12 +107,13 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
         return Optional.ofNullable(processNextBatch());
     }
 
-    private Aggregations search() throws IOException {
+    private Aggregations search() {
         LOGGER.debug("[{}] Executing aggregated search", context.jobId);
-        SearchResponse searchResponse = executeSearchRequest(buildSearchRequest(buildBaseSearchSource()));
+        T searchRequest = buildSearchRequest(buildBaseSearchSource());
+        assert searchRequest.request().allowPartialSearchResults() == false;
+        SearchResponse searchResponse = executeSearchRequest(searchRequest);
         LOGGER.debug("[{}] Search response was obtained", context.jobId);
         timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-        ExtractorUtils.checkSearchWasSuccessful(context.jobId, searchResponse);
         return validateAggs(searchResponse.getAggregations());
     }
 
@@ -164,10 +165,6 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
 
         hasNext = aggregationToJsonProcessor.writeDocs(BATCH_KEY_VALUE_PAIRS, outputStream);
         return new ByteArrayInputStream(outputStream.toByteArray());
-    }
-
-    protected long getHistogramInterval() {
-        return ExtractorUtils.getHistogramIntervalMillis(context.aggs);
     }
 
     public AggregationDataExtractorContext getContext() {

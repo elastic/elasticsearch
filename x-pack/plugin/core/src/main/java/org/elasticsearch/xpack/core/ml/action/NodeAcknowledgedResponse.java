@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,12 +27,7 @@ public class NodeAcknowledgedResponse extends AcknowledgedResponse {
 
     public NodeAcknowledgedResponse(StreamInput in) throws IOException {
         super(in);
-        // TODO change in backport
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            node = in.readString();
-        } else {
-            node = "";
-        }
+        node = in.readString();
     }
 
     public String getNode() {
@@ -43,10 +37,7 @@ public class NodeAcknowledgedResponse extends AcknowledgedResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        // TODO change in backport
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeString(node);
-        }
+        out.writeString(node);
     }
 
     @Override

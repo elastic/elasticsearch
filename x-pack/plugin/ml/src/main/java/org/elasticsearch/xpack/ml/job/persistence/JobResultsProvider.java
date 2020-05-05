@@ -170,16 +170,18 @@ public class JobResultsProvider {
         SearchRequestBuilder stateDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
                 .setQuery(QueryBuilders.idsQuery().addIds(CategorizerState.documentId(job.getId(), 1),
                         CategorizerState.v54DocumentId(job.getId(), 1)))
+                .setTrackTotalHits(false)
                 .setIndicesOptions(IndicesOptions.strictExpand());
 
         SearchRequestBuilder quantilesDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
                 .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId()), Quantiles.v54DocumentId(job.getId())))
+                .setTrackTotalHits(false)
                 .setIndicesOptions(IndicesOptions.strictExpand());
 
-        String resultsIndexName = job.getInitialResultsIndexName();
-        SearchRequestBuilder resultDocSearch = client.prepareSearch(resultsIndexName)
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+        SearchRequestBuilder resultDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
+                .setIndicesOptions(IndicesOptions.lenientExpandHidden())
                 .setQuery(QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
+                .setTrackTotalHits(false)
                 .setSize(1);
 
         MultiSearchRequestBuilder msearch = client.prepareMultiSearch()
@@ -187,7 +189,7 @@ public class JobResultsProvider {
                 .add(resultDocSearch)
                 .add(quantilesDocSearch);
 
-        ActionListener<MultiSearchResponse> searchResponseActionListener = new ActionListener<MultiSearchResponse>() {
+        ActionListener<MultiSearchResponse> searchResponseActionListener = new ActionListener<>() {
             @Override
             public void onResponse(MultiSearchResponse response) {
                 List<SearchHit> searchHits = new ArrayList<>();

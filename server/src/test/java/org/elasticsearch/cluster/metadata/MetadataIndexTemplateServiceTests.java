@@ -146,7 +146,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertEquals(throwables.size(), 1);
         assertThat(throwables.get(0), instanceOf(InvalidIndexTemplateException.class));
         assertThat(throwables.get(0).getMessage(), containsString("name must not contain a space"));
-        assertThat(throwables.get(0).getMessage(), containsString("template must not start with '_'"));
+        assertThat(throwables.get(0).getMessage(), containsString("index_pattern [_test_shards*] must not start with '_'"));
         assertThat(throwables.get(0).getMessage(),
                 containsString("Failed to parse value [0] for setting [index.number_of_shards] must be >= 1"));
     }
@@ -159,7 +159,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         List<Throwable> errors = putTemplate(xContentRegistry(), request);
         assertThat(errors.size(), equalTo(1));
         assertThat(errors.get(0), instanceOf(IllegalArgumentException.class));
-        assertThat(errors.get(0).getMessage(), equalTo("Alias [foobar] cannot be the same as any pattern in [foo, foobar]"));
+        assertThat(errors.get(0).getMessage(), equalTo("alias [foobar] cannot be the same as any pattern in [foo, foobar]"));
     }
 
     public void testIndexTemplateWithValidateMapping() throws Exception {
@@ -309,15 +309,15 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         IndexTemplateV2 firstGlobalIndexTemplate =
             new IndexTemplateV2(List.of("*"), template, List.of("foo"), 1L, null, null);
-        state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "globalIndexTemplate1", firstGlobalIndexTemplate);
+        state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "globalindextemplate1", firstGlobalIndexTemplate);
 
         IndexTemplateV2 secondGlobalIndexTemplate =
             new IndexTemplateV2(List.of("*"), template, List.of("foo"), 2L, null, null);
-        state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "globalIndexTemplate2", secondGlobalIndexTemplate);
+        state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "globalindextemplate2", secondGlobalIndexTemplate);
 
         IndexTemplateV2 fooPatternIndexTemplate =
             new IndexTemplateV2(List.of("foo-*"), template, List.of("foo"), 3L, null, null);
-        state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "fooPatternIndexTemplate", fooPatternIndexTemplate);
+        state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "foopatternindextemplate", fooPatternIndexTemplate);
 
         // update the component template to set the index.hidden setting
         Template templateWithIndexHiddenSetting = new Template(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build(),
@@ -328,9 +328,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             fail("expecting an exception as updating the component template would yield the global templates to include the index.hidden " +
                 "setting");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsStringIgnoringCase("globalIndexTemplate1"));
-            assertThat(e.getMessage(), containsStringIgnoringCase("globalIndexTemplate2"));
-            assertThat(e.getMessage(), not(containsStringIgnoringCase("fooPatternIndexTemplate")));
+            assertThat(e.getMessage(), containsStringIgnoringCase("globalindextemplate1"));
+            assertThat(e.getMessage(), containsStringIgnoringCase("globalindextemplate2"));
+            assertThat(e.getMessage(), not(containsStringIgnoringCase("foopatternindextemplate")));
         }
     }
 

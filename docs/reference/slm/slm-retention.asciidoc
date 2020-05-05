@@ -34,6 +34,28 @@ If multiple policies snapshot to the same repository, they can define differing 
 To retrieve information about the snapshot retention task history, 
 use the  <<slm-api-get-stats>> API:
 
+////
+[source,console]
+--------------------------------------------------
+PUT /_slm/policy/daily-snapshots
+{
+  "schedule": "0 30 1 * * ?",
+  "name": "<daily-snap-{now/d}>",
+  "repository": "my_repository",
+  "retention": { <1>
+    "expire_after": "30d", <2>
+    "min_count": 5, <3>
+    "max_count": 50 <4>
+  }
+}
+--------------------------------------------------
+// TEST[setup:setup-repository]
+<1> Optional retention configuration
+<2> Keep snapshots for 30 days
+<3> Always keep at least 5 successful snapshots
+<4> Keep no more than 50 successful snapshots
+////
+
 [source,console]
 --------------------------------------------------
 GET /_slm/stats

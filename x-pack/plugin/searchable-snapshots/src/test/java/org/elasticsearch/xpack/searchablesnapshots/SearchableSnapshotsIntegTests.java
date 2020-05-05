@@ -327,7 +327,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             true,
             false,
             IntStream.range(0, nbDocs)
-                .mapToObj(i -> client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"))
+                .mapToObj(i -> client().prepareIndex(indexName, "_doc").setSource("foo", randomBoolean() ? "bar" : "baz"))
                 .collect(Collectors.toList())
         );
         refresh(indexName);

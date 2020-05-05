@@ -856,6 +856,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             doc.index(index);
             doc.id(id);
             if (thin) {
+                doc.writeThin(out);
+            } else {
                 doc.writeTo(out);
             }
         }

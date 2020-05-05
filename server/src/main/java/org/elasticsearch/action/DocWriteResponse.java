@@ -19,7 +19,6 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.WriteResponse;
@@ -134,8 +133,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     // needed for deserialization
     protected DocWriteResponse(ShardId shardId, StreamInput in) throws IOException {
         super(in);
-        assert in.getVersion().onOrAfter(BulkShardRequest.COMPACT_SHARD_ID_VERSION) :
-                "Thin reads can not be used with [" + in.getVersion() + "]";
         this.shardId = shardId;
         if (in.getVersion().before(Version.V_8_0_0)) {
             String type = in.readString();

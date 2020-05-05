@@ -136,7 +136,7 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
 
         AliasMetadata alias = AliasMetadata.builder("alias").build();
         Template template = new Template(null, null, Map.of("alias", alias));
-        List<String> pattern = List.of("target*");
+        List<String> pattern = Collections.singletonList("target*");
         IndexTemplateV2 indexTemplate = new IndexTemplateV2(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>());
         PutIndexTemplateV2Request putTemplateRequest = new PutIndexTemplateV2Request().name("v2").indexTemplate(indexTemplate);
         assertTrue(client.indices().putIndexTemplate(putTemplateRequest, options).isAcknowledged());

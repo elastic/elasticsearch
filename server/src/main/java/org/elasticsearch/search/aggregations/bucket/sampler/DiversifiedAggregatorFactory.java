@@ -36,7 +36,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory {

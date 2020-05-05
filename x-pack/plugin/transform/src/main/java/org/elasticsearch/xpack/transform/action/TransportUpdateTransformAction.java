@@ -213,8 +213,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                 if (transformTask != null
                     && transformTask.getState() instanceof TransformState
                     && ((TransformState) transformTask.getState()).getTaskState() != TransformTaskState.FAILED
-                    && clusterState.nodes().get(transformTask.getExecutorNode()).getVersion().onOrAfter(Version.V_8_0_0) // todo:
-                                                                                                                         // V_7_8_0
+                    && clusterState.nodes().get(transformTask.getExecutorNode()).getVersion().onOrAfter(Version.V_7_8_0)
                 ) {
                     request.setNodes(transformTask.getExecutorNode());
                     updateListener = ActionListener.wrap(updateResponse -> {

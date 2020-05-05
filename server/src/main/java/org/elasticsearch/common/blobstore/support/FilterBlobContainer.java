@@ -29,14 +29,17 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
-public class FilterBlobContainer implements BlobContainer {
+public abstract class FilterBlobContainer implements BlobContainer {
 
     private final BlobContainer delegate;
 
     public FilterBlobContainer(BlobContainer delegate) {
         this.delegate = Objects.requireNonNull(delegate);
     }
+
+    protected abstract BlobContainer delegateChildren(BlobContainer children);
 
     @Override
     public BlobPath path() {
@@ -85,8 +88,9 @@ public class FilterBlobContainer implements BlobContainer {
 
     @Override
     public Map<String, BlobContainer> children() throws IOException {
-        return delegate.children();
+        return delegate.children().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> delegateChildren(e.getValue())));
     }
+
 
     @Override
     public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException {

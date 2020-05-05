@@ -446,17 +446,10 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         );
 
         final LazyInitializable<BlobContainer, RuntimeException> lazyBlobContainer = new LazyInitializable<>(
-            () -> new FilterBlobContainer(blobStoreRepository.shardContainer(indexId, shardPath.getShardId().id())) {
-                @Override
-                public InputStream readBlob(String blobName) throws IOException {
-                    return blobStoreRepository.maybeRateLimitRestores(super.readBlob(blobName));
-                }
-
-                @Override
-                public InputStream readBlob(String blobName, long position, long length) throws IOException {
-                    return blobStoreRepository.maybeRateLimitRestores(super.readBlob(blobName, position, length));
-                }
-            }
+            () -> new RateLimitingBlobContainer(
+                blobStoreRepository,
+                blobStoreRepository.shardContainer(indexId, shardPath.getShardId().id())
+            )
         );
         final LazyInitializable<BlobStoreIndexShardSnapshot, RuntimeException> lazySnapshot = new LazyInitializable<>(
             () -> blobStoreRepository.loadShardSnapshot(lazyBlobContainer.getOrCompute(), snapshotId)
@@ -494,5 +487,34 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             }
         }
         return null;
+    }
+
+    /**
+     * A {@link FilterBlobContainer} that uses {@link BlobStoreRepository#maybeRateLimitRestores(InputStream)} to limit the rate at which
+     * blobs are read from the repository.
+     */
+    private static class RateLimitingBlobContainer extends FilterBlobContainer {
+
+        private final BlobStoreRepository blobStoreRepository;
+
+        public RateLimitingBlobContainer(BlobStoreRepository blobStoreRepository, BlobContainer blobContainer) {
+            super(blobContainer);
+            this.blobStoreRepository = blobStoreRepository;
+        }
+
+        @Override
+        protected BlobContainer delegateChildren(BlobContainer children) {
+            return new RateLimitingBlobContainer(blobStoreRepository, children);
+        }
+
+        @Override
+        public InputStream readBlob(String blobName) throws IOException {
+            return blobStoreRepository.maybeRateLimitRestores(super.readBlob(blobName));
+        }
+
+        @Override
+        public InputStream readBlob(String blobName, long position, long length) throws IOException {
+            return blobStoreRepository.maybeRateLimitRestores(super.readBlob(blobName, position, length));
+        }
     }
 }

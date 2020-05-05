@@ -84,13 +84,4 @@ public class TransportClearPrivilegesCacheAction extends TransportNodesAction<Cl
         }
         return new ClearPrivilegesCacheResponse.Node(clusterService.localNode());
     }
-
-    @Override
-    protected void resolveRequest(ClearPrivilegesCacheRequest request, ClusterState clusterState) {
-        assert request.concreteNodes() == null : "request concreteNodes shouldn't be set";
-        String[] nodesIds = clusterState.nodes().resolveNodes(request.nodesIds());
-        // TODO: version needs to be updated once 7.x backport is in place
-        request.setConcreteNodes(Arrays.stream(nodesIds).map(clusterState.nodes()::get)
-            .filter(node -> node.getVersion().onOrAfter(Version.V_8_0_0)).toArray(DiscoveryNode[]::new));
-    }
 }

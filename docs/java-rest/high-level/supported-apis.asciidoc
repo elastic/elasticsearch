@@ -196,6 +196,9 @@ include::cluster/put_settings.asciidoc[]
 include::cluster/get_settings.asciidoc[]
 include::cluster/health.asciidoc[]
 include::cluster/remote_info.asciidoc[]
+include::cluster/get_component_template.asciidoc[]
+include::cluster/put_component_template.asciidoc[]
+include::cluster/delete_component_template.asciidoc[]
 
 == Ingest APIs
 The Java High Level REST Client supports the following Ingest APIs:

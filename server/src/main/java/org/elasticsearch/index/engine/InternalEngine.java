@@ -2516,16 +2516,6 @@ public class InternalEngine extends Engine {
         }
 
         @Override
-        public long updateDocument(Term term, Iterable<? extends IndexableField> doc) {
-            throw new AssertionError("must not hard update document");
-        }
-
-        @Override
-        public long updateDocuments(Term delTerm, Iterable<? extends Iterable<? extends IndexableField>> docs) {
-            throw new AssertionError("must not hard update documents");
-        }
-
-        @Override
         public long deleteDocuments(Term... terms) {
             throw new AssertionError("must not hard delete documents");
         }

@@ -54,7 +54,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     private static final String BUILD_AGGREGATION = AggregationTimingType.BUILD_AGGREGATION.toString();
     private static final String REDUCE = AggregationTimingType.REDUCE.toString();
     private static final String TOTAL_BUCKETS = "total_buckets";
-    private static final String WRAPPED = "multi_bucket_aggregator_wrapperr";
+    private static final String WRAPPED = "multi_bucket_aggregator_wrapper";
 
     private static final String NUMBER_FIELD = "number";
     private static final String TAG_FIELD = "tag";

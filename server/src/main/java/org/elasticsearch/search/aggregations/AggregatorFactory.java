@@ -175,7 +175,7 @@ public abstract class AggregatorFactory {
              * and leave a marker of our own. This ain't great, but we plan
              * to cut down on usage of this wrapper in the future.
              */
-            add.accept("multi_bucket_aggregator_wrapperr", true);
+            add.accept("multi_bucket_aggregator_wrapper", true);
             super.extraProfileInfo(add);
         }
     }

@@ -88,6 +88,10 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
             return fields;
         }
 
+        public void addAll(List<? extends IndexableField> fields) {
+            this.fields.addAll(fields);
+        }
+
         public void add(IndexableField field) {
             // either a meta fields or starts with the prefix
             assert field.name().startsWith("_") || field.name().startsWith(prefix) : field.name() + " " + prefix;

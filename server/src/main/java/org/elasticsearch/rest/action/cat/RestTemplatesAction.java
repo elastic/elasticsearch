@@ -108,7 +108,7 @@ public class RestTemplatesAction extends AbstractCatAction {
                 table.startRow();
                 table.addCell(name);
                 table.addCell("[" + String.join(", ", template.indexPatterns()) + "]");
-                table.addCell(template.priority());
+                table.addCell(template.priorityOrZero());
                 table.addCell(template.version());
                 table.addCell("[" + String.join(", ", template.composedOf()) + "]");
                 table.endRow();

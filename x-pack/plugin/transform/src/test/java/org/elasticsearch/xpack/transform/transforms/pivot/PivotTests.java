@@ -109,6 +109,8 @@ public class PivotTests extends ESTestCase {
 
         pivot = new Pivot(new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), null));
         assertThat(pivot.getInitialPageSize(), equalTo(Pivot.DEFAULT_INITIAL_PAGE_SIZE));
+
+        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
     }
 
     public void testSearchFailure() throws Exception {

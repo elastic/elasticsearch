@@ -622,7 +622,7 @@ PUT _ml/data_frame/analytics/student_performance_mathematics_0.3
 --------------------------------------------------
 // TEST[skip:TBD]
 
-<1> Defines the percentage of the data set that is used for training the model.
+<1> The percentage of the data set that is used for training the model.
 <2> The seed that is used to randomly pick which data is used for training.
 
 

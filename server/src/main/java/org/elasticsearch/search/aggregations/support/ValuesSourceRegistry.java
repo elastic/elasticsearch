@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * {@link ValuesSourceRegistry} holds the mapping from {@link ValuesSourceType}s to {@link AggregatorSupplier}s.  DO NOT directly
@@ -99,24 +100,19 @@ public class ValuesSourceRegistry {
 
     /** Maps Aggregation names to (ValuesSourceType, Supplier) pairs, keyed by ValuesSourceType */
     private final AggregationUsageService usageService;
-    private Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry;
+    private final Map<String, Map<ValuesSourceType, AggregatorSupplier>> aggregatorRegistry;
 
     public ValuesSourceRegistry(Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry,
                                 AggregationUsageService usageService) {
-        Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> tmp = new HashMap<>();
-        aggregatorRegistry.forEach((key, value) -> tmp.put(key, Collections.unmodifiableList(value)));
+        Map<String, Map<ValuesSourceType, AggregatorSupplier>> tmp = new HashMap<>();
+        aggregatorRegistry.forEach((key, value) -> tmp.put(key, value.stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))));
         this.aggregatorRegistry = Collections.unmodifiableMap(tmp);
         this.usageService = usageService;
     }
 
     private AggregatorSupplier findMatchingSuppier(ValuesSourceType valuesSourceType,
-                                                   List<Map.Entry<ValuesSourceType, AggregatorSupplier>> supportedTypes) {
-        for (Map.Entry<ValuesSourceType, AggregatorSupplier> candidate : supportedTypes) {
-            if (candidate.getKey().equals(valuesSourceType)) {
-                return candidate.getValue();
-            }
-        }
-        return null;
+                                                   Map<ValuesSourceType, AggregatorSupplier> supportedTypes) {
+        return supportedTypes.get(valuesSourceType);
     }
 
     public AggregatorSupplier getAggregator(ValuesSourceType valuesSourceType, String aggregationName) {

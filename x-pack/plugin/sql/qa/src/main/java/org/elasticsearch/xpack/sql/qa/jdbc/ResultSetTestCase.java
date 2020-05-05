@@ -793,7 +793,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
     //
     // BigDecimal fetching testing
     //
-    static final Map<Class<? extends Number>, Integer> JAVA_TO_SQL_NUMERIC_TYPES_MAP = new HashMap<>() {{
+    static final Map<Class<? extends Number>, Integer> JAVA_TO_SQL_NUMERIC_TYPES_MAP = new HashMap<Class<? extends Number>, Integer>() {{
         put(Byte.class, Types.TINYINT);
         put(Short.class, Types.SMALLINT);
         put(Integer.class, Types.INTEGER);

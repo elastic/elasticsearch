@@ -34,15 +34,18 @@ public class ReplicationGroup {
     private final IndexShardRoutingTable routingTable;
     private final Set<String> inSyncAllocationIds;
     private final Set<String> trackedAllocationIds;
+    private final long version;
 
     private final Set<String> unavailableInSyncShards; // derived from the other fields
     private final List<ShardRouting> replicationTargets; // derived from the other fields
     private final List<ShardRouting> skippedShards; // derived from the other fields
 
-    public ReplicationGroup(IndexShardRoutingTable routingTable, Set<String> inSyncAllocationIds, Set<String> trackedAllocationIds) {
+    public ReplicationGroup(IndexShardRoutingTable routingTable, Set<String> inSyncAllocationIds, Set<String> trackedAllocationIds,
+                            long version) {
         this.routingTable = routingTable;
         this.inSyncAllocationIds = inSyncAllocationIds;
         this.trackedAllocationIds = trackedAllocationIds;
+        this.version = version;
 
         this.unavailableInSyncShards = Sets.difference(inSyncAllocationIds, routingTable.getAllAllocationIds());
         this.replicationTargets = new ArrayList<>();
@@ -73,12 +76,20 @@ public class ReplicationGroup {
         }
     }
 
+    public long getVersion() {
+        return version;
+    }
+
     public IndexShardRoutingTable getRoutingTable() {
         return routingTable;
     }
 
     public Set<String> getInSyncAllocationIds() {
         return inSyncAllocationIds;
+    }
+
+    public Set<String> getTrackedAllocationIds() {
+        return trackedAllocationIds;
     }
 
     /**

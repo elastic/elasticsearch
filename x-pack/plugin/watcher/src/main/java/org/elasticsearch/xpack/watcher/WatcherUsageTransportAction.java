@@ -15,6 +15,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -69,13 +70,13 @@ public class WatcherUsageTransportAction extends XPackUsageFeatureTransportActio
                         .collect(Collectors.toList());
                     Counters mergedCounters = Counters.merge(countersPerNode);
                     WatcherFeatureSetUsage usage =
-                        new WatcherFeatureSetUsage(licenseState.isWatcherAllowed(), true, mergedCounters.toNestedMap());
+                        new WatcherFeatureSetUsage(licenseState.isAllowed(Feature.WATCHER), true, mergedCounters.toNestedMap());
                     listener.onResponse(new XPackUsageFeatureResponse(usage));
                 }, listener::onFailure));
             }
         } else {
             WatcherFeatureSetUsage usage =
-                new WatcherFeatureSetUsage(licenseState.isWatcherAllowed(), false, Collections.emptyMap());
+                new WatcherFeatureSetUsage(licenseState.isAllowed(Feature.WATCHER), false, Collections.emptyMap());
             listener.onResponse(new XPackUsageFeatureResponse(usage));
         }
     }

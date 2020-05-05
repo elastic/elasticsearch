@@ -19,10 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ReturnNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -44,6 +46,7 @@ public class SReturn extends AStatement {
         Output output = new Output();
 
         AExpression.Output expressionOutput = null;
+        PainlessCast expressionCast = null;
 
         if (expression == null) {
             if (scope.getReturnType() != void.class) {
@@ -56,7 +59,8 @@ public class SReturn extends AStatement {
             expressionInput.expected = scope.getReturnType();
             expressionInput.internal = true;
             expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
-            expression.cast(expressionInput, expressionOutput);
+            expressionCast = AnalyzerCaster.getLegalCast(expression.location,
+                    expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
         }
 
         output.methodEscape = true;
@@ -66,7 +70,7 @@ public class SReturn extends AStatement {
         output.statementCount = 1;
 
         ReturnNode returnNode = new ReturnNode();
-        returnNode.setExpressionNode(expression == null ? null : expression.cast(expressionOutput));
+        returnNode.setExpressionNode(expression == null ? null : AExpression.cast(expressionOutput.expressionNode, expressionCast));
         returnNode.setLocation(location);
 
         output.statementNode = returnNode;

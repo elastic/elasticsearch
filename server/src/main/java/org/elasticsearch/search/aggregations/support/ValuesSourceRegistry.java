@@ -105,7 +105,8 @@ public class ValuesSourceRegistry {
     public ValuesSourceRegistry(Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry,
                                 AggregationUsageService usageService) {
         Map<String, Map<ValuesSourceType, AggregatorSupplier>> tmp = new HashMap<>();
-        aggregatorRegistry.forEach((key, value) -> tmp.put(key, value.stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))));
+        aggregatorRegistry.forEach((key, value) -> tmp.put(key, value.stream().collect(
+            Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))));
         this.aggregatorRegistry = Collections.unmodifiableMap(tmp);
         this.usageService = usageService;
     }

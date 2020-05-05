@@ -248,7 +248,7 @@ setup:
         transform_id: "mixed-simple-continuous-transform"
         body: >
           {
-            "settings: {
+            "settings": {
               "max_page_search_size": 1000
             }
           }

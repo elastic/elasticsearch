@@ -165,7 +165,7 @@ public class GetIndexResponseTests extends AbstractSerializingTestCase<GetIndexR
         return
             new GetIndexResponse(
                 indices, getTestMappings(indexName), getTestAliases(indexName), getTestSettings(indexName),
-                ImmutableOpenMap.of()
+                ImmutableOpenMap.of(), ImmutableOpenMap.of()
             );
     }
 
@@ -179,7 +179,7 @@ public class GetIndexResponseTests extends AbstractSerializingTestCase<GetIndexR
         return
             new GetIndexResponse(
                 indices, getTestMappings(indexName), getTestAliases(indexName), getTestSettings(indexName),
-                defaultSettings.build()
+                defaultSettings.build(), ImmutableOpenMap.of()
             );
     }
 

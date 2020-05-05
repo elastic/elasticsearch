@@ -134,7 +134,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         }
         defaultSettings = defaultSettingsMapBuilder.build();
 
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
             ImmutableOpenMap.Builder<String, String> dataStreamsMapBuilder = ImmutableOpenMap.builder();
             int dataStreamsSize = in.readVInt();
             for (int i = 0; i < dataStreamsSize; i++) {
@@ -252,7 +252,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                 Settings.writeSettingsToStream(indexEntry.value, out);
             }
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
             out.writeVInt(dataStreams.size());
             for (ObjectObjectCursor<String, String> indexEntry : dataStreams) {
                 out.writeString(indexEntry.key);
@@ -362,6 +362,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         ImmutableOpenMap<String, MappingMetadata> indexMappings = null;
         Settings indexSettings = null;
         Settings indexDefaultSettings = null;
+        String dataStream = null;
         // We start at START_OBJECT since fromXContent ensures that
         while (parser.nextToken() != Token.END_OBJECT) {
             ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
@@ -383,11 +384,16 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                     default:
                         parser.skipChildren();
                 }
+            } else if (parser.currentToken() == Token.VALUE_STRING) {
+                if (parser.currentName().equals("data_stream")) {
+                    dataStream = parser.text();
+                }
+                parser.skipChildren();
             } else if (parser.currentToken() == Token.START_ARRAY) {
                 parser.skipChildren();
             }
         }
-        return new IndexEntry(indexAliases, indexMappings, indexSettings, indexDefaultSettings);
+        return new IndexEntry(indexAliases, indexMappings, indexSettings, indexDefaultSettings, dataStream);
     }
 
     // This is just an internal container to make stuff easier for returning
@@ -396,12 +402,14 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         ImmutableOpenMap<String, MappingMetadata> indexMappings = ImmutableOpenMap.of();
         Settings indexSettings = Settings.EMPTY;
         Settings indexDefaultSettings = Settings.EMPTY;
+        String dataStream;
         IndexEntry(List<AliasMetadata> indexAliases, ImmutableOpenMap<String, MappingMetadata> indexMappings,
-                   Settings indexSettings, Settings indexDefaultSettings) {
+                   Settings indexSettings, Settings indexDefaultSettings, String dataStream) {
             if (indexAliases != null) this.indexAliases = indexAliases;
             if (indexMappings != null) this.indexMappings = indexMappings;
             if (indexSettings != null) this.indexSettings = indexSettings;
             if (indexDefaultSettings != null) this.indexDefaultSettings = indexDefaultSettings;
+            if (dataStream != null) this.dataStream = dataStream;
         }
     }
 
@@ -410,6 +418,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> mappings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> settings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> defaultSettings = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, String> dataStreams = ImmutableOpenMap.builder();
         List<String> indices = new ArrayList<>();
 
         if (parser.currentToken() == null) {
@@ -432,6 +441,9 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                 if (indexEntry.indexDefaultSettings.isEmpty() == false) {
                     defaultSettings.put(indexName, indexEntry.indexDefaultSettings);
                 }
+                if (indexEntry.dataStream != null) {
+                    dataStreams.put(indexName, indexEntry.dataStream);
+                }
             } else if (parser.currentToken() == Token.START_ARRAY) {
                 parser.skipChildren();
             } else {
@@ -441,7 +453,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         return
             new GetIndexResponse(
                 indices.toArray(new String[0]), mappings.build(), aliases.build(),
-                settings.build(), defaultSettings.build()
+                settings.build(), defaultSettings.build(), dataStreams.build()
             );
     }
 

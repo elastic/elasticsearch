@@ -1,37 +1,42 @@
 [role="xpack"]
 [testenv="basic"]
 [[snapshot-lifecycle-management]]
-== Manage the snapshot lifecycle
+== {slm-init}: Manage the snapshot lifecycle
 
 You can set up snapshot lifecycle policies to automate the timing, frequency, and retention of snapshots.
 Snapshot policies can apply to multiple indices.
 
-The snapshot lifecycle management (SLM) <<snapshot-lifecycle-management-api, CRUD APIs>> provide
+The {slm} ({slm-init}) <<snapshot-lifecycle-management-api, CRUD APIs>> provide
 the building blocks for the snapshot policy features that are part of the Management application in {kib}.
-The  Snapshot and Restore UI makes it easy to set up policies, register snapshot repositories,
-view and manage snapshots, and restore indices.
+The  {kib-refers}/snapshot-repositories.html[Snapshot and Restore UI] makes it easy to 
+set up policies, register snapshot repositories, view and manage snapshots, and restore indices.
 
-You can stop and restart SLM to temporarily pause automatic backups while performing
+You can stop and restart {slm-init} to temporarily pause automatic backups while performing
 upgrades or other maintenance.
 
-[float]
+[discrete]
 [[slm-and-security]]
-=== Security and SLM
+=== Security and {slm-init}
 
-Two built-in cluster privileges control access to the SLM actions when
+Two built-in cluster privileges control access to the {slm-init} actions when
 {es} {security-features} are enabled:
 
-`manage_slm`:: Allows a user to perform all SLM actions, including creating and updating policies
-and starting and stopping SLM.
+`manage_slm`:: Allows a user to perform all {slm-init} actions, including creating and updating policies
+and starting and stopping {slm-init}.
 
-`read_slm`:: Allows a user to perform all read-only SLM actions,
-such as getting policies and checking the SLM status.
+`read_slm`:: Allows a user to perform all read-only {slm-init} actions,
+such as getting policies and checking the {slm-init} status.
 
 `cluster:admin/snapshot/*`:: Allows a user to take and delete snapshots of any
 index, whether or not they have access to that index.
 
-For example, the following request configures an `slm-admin` role that grants the privileges
-necessary for administering SLM.
+You can create and manage roles to assign these privileges through the {kibana} Management UI.
+
+To grant the privileges necessary to create and manage {slm-init} policies and snapshots,
+you can set up a role with the `manage_slm` and `cluster:admin/snapshot/*` cluster privileges
+and full access to the {slm-init} history indices. 
+
+For example, the following request creates an `slm-admin` role:
 
 [source,console]
 -----------------------------------
@@ -48,8 +53,11 @@ POST /_security/role/slm-admin
 -----------------------------------
 // TEST[skip:security is not enabled here]
 
-Or, for a read-only role that can retrieve policies (but not update, execute, or
-delete them), as well as only view the history index:
+To grant read-only access to {slm-init} policies and the snapshot history, 
+you can set up a role with the `read_slm` cluster privilege and read access
+to the {slm} history indices. 
+
+For example, the following request creates a `slm-read-only` role:
 
 [source,console]
 -----------------------------------

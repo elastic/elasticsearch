@@ -18,15 +18,14 @@ You can manually trigger the policy to test the policy and take an initial snaps
 [[slm-gs-register-repository]]
 ==== Register a repository
 
-To take snapshots and use {slm-init}, you need to set up a snapshot repository. 
-You can store snapshots in either local or remote repositories. 
+To take snapshots and use {slm-init}, you must have a snapshot repository configured. 
+The repository can be local (shared filesystem) or remote (cloud storage).  
 Remote repositories can reside on S3, HDFS, Azure, Google Cloud Storage, 
-and other platforms supported by a repository plugin.
+or any other platform supported by a repository plugin.
+Remote repositories are generally used for production deployments.
 
-Remote repositories are generally used for production, 
-but for now you can use a shared file system repository.
-
-You can easily register a snapshot repository from {kib}, or call the Put repository API directly:
+For this tutorial, you can register a local repository from the {kib} Management UI, 
+or call the put repository API directly:
 
 [source,console]
 -----------------------------------
@@ -50,9 +49,9 @@ A policy can also specify a <<slm-retention,retention policy>> and
 automatically delete snapshots when they are no longer needed.
 
 TIP: Don't be afraid to configure a policy that takes frequent snapshots.
-Snapshots are incremental, which enables them to be stored efficiently.
+Snapshots are incremental and make efficient use of storage.
 
-You can define and manage policies through the Kibana Management UI, 
+You can define and manage policies through the {kibana} Management UI, 
 which invokes the {slm-init} put policy API to create policies according to the options you specify.
 
 For example, you could define a nightly-snapshots policy 
@@ -83,11 +82,10 @@ PUT /_slm/policy/nightly-snapshots
 <2> How to name the snapshot: use  
     <<date-math-index-names,date math>> to include the current date in the snapshot name
 <3> Where to store the snapshot
-<4> the configuration to be used for the snapshot requests (see below)
+<4> The configuration to be used for the snapshot requests (see below)
 <5> Which indices to include in the snapshot: all indices
-<6> Optional retention policy defines how long to keep snapshots and 
-the minimum and maximum number of snapshots to keep regardless of the retention period
-
+<6> Optional retention policy: keep snapshots for 30 days, 
+retaining at least 5 and no more than 50 snapshots regardless of age. 
 
 You can specify additional snapshot configuration options to customize how snapshots are taken.
 For example, you could configure the policy to fail the snapshot 
@@ -128,7 +126,7 @@ GET /_slm/policy/nightly-snapshots?human
 --------------------------------------------------
 // TEST[continued]
 
-The response also shows when the policy is schedule to execute next:
+The response also shows when the policy is scheduled to execute next:
 
 [source,console-result]
 --------------------------------------------------
@@ -177,6 +175,6 @@ but all policy executions are recorded in the `.slm-history*` index.
 For more information about using {kib} to set up and manage snapshot policies, 
 see {kibana-ref}/snapshot-repositories.html[Snapshot and Restore]. 
 For more information about using the APIs directly, 
-see the <<snapshot-lifecycle-management-api,SLM API documentation>>.
+see the <<snapshot-lifecycle-management-api,{slm-init] API documentation>>.
 For general information about backing up and restoring {es} indices and cluster information,
 see <<modules-snapshots>>.

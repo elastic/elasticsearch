@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.CastNode;
@@ -132,20 +131,16 @@ public abstract class AExpression extends ANode {
         throw new UnsupportedOperationException();
     }
 
-    void cast(Input input, Output output) {
-        output.painlessCast = AnalyzerCaster.getLegalCast(location, output.actual, input.expected, input.explicit, input.internal);
-    }
-
-    ExpressionNode cast(Output output) {
-        if (output.painlessCast == null) {
-            return output.expressionNode;
+    static ExpressionNode cast(ExpressionNode expressionNode, PainlessCast painlessCast) {
+        if (painlessCast == null) {
+            return expressionNode;
         }
 
         CastNode castNode = new CastNode();
-        castNode.setLocation(location);
-        castNode.setExpressionType(output.painlessCast.targetType);
-        castNode.setCast(output.painlessCast);
-        castNode.setChildNode(output.expressionNode);
+        castNode.setLocation(expressionNode.getLocation());
+        castNode.setExpressionType(painlessCast.targetType);
+        castNode.setCast(painlessCast);
+        castNode.setChildNode(expressionNode);
 
         return castNode;
     }

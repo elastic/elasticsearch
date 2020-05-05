@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.eql.expression.function.scalar.whitelist;
 
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.BetweenFunctionProcessor;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.CIDRMatchFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.ConcatFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.EndsWithFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.IndexOfFunctionProcessor;
@@ -30,6 +31,10 @@ public class InternalEqlScriptUtils extends InternalQlScriptUtils {
 
     public static String between(String s, String left, String right, Boolean greedy, Boolean caseSensitive) {
         return (String) BetweenFunctionProcessor.doProcess(s, left, right, greedy, caseSensitive);
+    }
+
+    public static Boolean cidrMatch(String s, List<Object>  addresses) {
+        return (Boolean) CIDRMatchFunctionProcessor.doProcess(s, addresses);
     }
 
     public static String concat(List<Object> values) {

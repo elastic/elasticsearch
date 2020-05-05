@@ -156,22 +156,29 @@ InternalEqlScriptUtils.concat([InternalQlScriptUtils.docValue(doc,params.v0),par
 cidrMatchFunctionOne
 process where cidrMatch(source_address, "10.0.0.0/8")
 ;
-"term":{"source_address":{"value":"10.0.0.0/8"
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.cidrMatch(
+(InternalQlScriptUtils.docValue(doc,params.v0),params.v1))","lang":"painless","params":{"v0":"source_address","v1":["10.0.0.0/8"]}}
+;
+
+cidrMatchFunctionOneBool
+process where cidrMatch(source_address, "10.0.0.0/8") == true
+;
+{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalEqlScriptUtils.cidrMatch(
+(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))","lang":"painless","params":{"v0":"source_address","v1":["10.0.0.0/8"],"v2":true}}
 ;
 
 cidrMatchFunctionTwo
 process where cidrMatch(source_address, "10.0.0.0/8", "192.168.0.0/16")
 ;
-"term":{"source_address":{"value":"10.0.0.0/8"
-"term":{"source_address":{"value":"192.168.0.0/16"
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.cidrMatch(
+(InternalQlScriptUtils.docValue(doc,params.v0),params.v1))","lang":"painless","params":{"v0":"source_address","v1":["10.0.0.0/8","192.168.0.0/16"]}},"boost":1.0}}
 ;
 
 cidrMatchFunctionThree
 process where cidrMatch(source_address, "10.0.0.0/8", "192.168.0.0/16", "2001:db8::/32")
 ;
-"term":{"source_address":{"value":"10.0.0.0/8"
-"term":{"source_address":{"value":"192.168.0.0/16"
-"term":{"source_address":{"value":"2001:db8::/32"
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.cidrMatch(
+(InternalQlScriptUtils.docValue(doc,params.v0),params.v1))","lang":"painless","params":{"v0":"source_address","v1":["10.0.0.0/8","192.168.0.0/16","2001:db8::/32"]}},"boost":1.0}}
 ;
 
 matchFunctionOne

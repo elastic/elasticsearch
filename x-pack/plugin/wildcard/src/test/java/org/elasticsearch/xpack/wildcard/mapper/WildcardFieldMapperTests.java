@@ -407,7 +407,15 @@ public class WildcardFieldMapperTests extends ESTestCase {
         String expectedPrefixQuery;
         int expectedMinShouldMatch;
         String ngrams;
-        public FuzzyTest(String pattern, int prefixLength, Fuzziness fuzziness, String expectedPrefixQuery, int expectedMinShouldMatch, String ngrams) {
+
+        public FuzzyTest(
+            String pattern,
+            int prefixLength,
+            Fuzziness fuzziness,
+            String expectedPrefixQuery,
+            int expectedMinShouldMatch,
+            String ngrams
+        ) {
             super();
             this.pattern = pattern;
             this.prefixLength = prefixLength;
@@ -416,6 +424,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
             this.expectedMinShouldMatch = expectedMinShouldMatch;
             this.ngrams = ngrams;
         }
+
         Query getFuzzyQuery() {
             return wildcardFieldType.fieldType().fuzzyQuery(pattern, fuzziness, prefixLength, 50, true, MOCK_QSC);
         }
@@ -426,34 +435,40 @@ public class WildcardFieldMapperTests extends ESTestCase {
                 String[] tokens = expectedPrefixQuery.split(" ");
                 Query prefixQuery = null;
                 if (tokens.length == 1) {
-                    prefixQuery = new TermQuery(new Term(WILDCARD_FIELD_NAME, tokens[0].replaceAll("_",WildcardFieldMapper.TOKEN_START_STRING)));
+                    prefixQuery = new TermQuery(
+                        new Term(WILDCARD_FIELD_NAME, tokens[0].replaceAll("_", WildcardFieldMapper.TOKEN_START_STRING))
+                    );
                 } else {
                     BooleanQuery.Builder pqb = new BooleanQuery.Builder();
                     for (String token : tokens) {
-                        Query ngramQuery = new TermQuery(new Term(WILDCARD_FIELD_NAME, token.replaceAll("_",WildcardFieldMapper.TOKEN_START_STRING)));
-                        pqb.add(ngramQuery, Occur.MUST);                    
+                        Query ngramQuery = new TermQuery(
+                            new Term(WILDCARD_FIELD_NAME, token.replaceAll("_", WildcardFieldMapper.TOKEN_START_STRING))
+                        );
+                        pqb.add(ngramQuery, Occur.MUST);
                     }
-                    prefixQuery = pqb.build();                    
+                    prefixQuery = pqb.build();
                 }
-                
+
                 if (ngrams == null) {
                     return prefixQuery;
                 }
-                bq.add(prefixQuery, Occur.MUST);                
+                bq.add(prefixQuery, Occur.MUST);
             }
-            
-            if(ngrams!=null) {
+
+            if (ngrams != null) {
                 BooleanQuery.Builder nq = new BooleanQuery.Builder();
                 String[] tokens = ngrams.split(" ");
                 for (String token : tokens) {
-                    Query ngramQuery = new TermQuery(new Term(WILDCARD_FIELD_NAME, token.replaceAll("_",WildcardFieldMapper.TOKEN_START_STRING)));
-                    nq.add(ngramQuery, Occur.SHOULD);                    
+                    Query ngramQuery = new TermQuery(
+                        new Term(WILDCARD_FIELD_NAME, token.replaceAll("_", WildcardFieldMapper.TOKEN_START_STRING))
+                    );
+                    nq.add(ngramQuery, Occur.SHOULD);
                 }
                 nq.setMinimumNumberShouldMatch(expectedMinShouldMatch);
                 bq.add(nq.build(), Occur.MUST);
             }
             return bq.build();
-        }        
+        }
     }
     
     public void testFuzzyAcceleration() throws IOException, ParseException {

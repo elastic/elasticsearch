@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
@@ -16,7 +15,6 @@ import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.notification.NotificationService;
 
@@ -86,23 +84,6 @@ public class WatcherPluginTests extends ESTestCase {
         assertThat(watcher.createComponents(null, null, null, null, null, null, null, null, null, null, null), hasSize(0));
 
         watcher.close();
-    }
-
-    public void testWatcherUseIlmFallsBackToIlmEnabled() throws Exception {
-        boolean ilmEnabled = randomBoolean();
-        Settings settingsWithoutWatcherUseIlm = Settings.builder()
-            .put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), ilmEnabled)
-            .build();
-        assertThat(Watcher.USE_ILM_INDEX_MANAGEMENT.get(settingsWithoutWatcherUseIlm), is(ilmEnabled));
-
-        boolean watcherUseIlmEnabled = randomBoolean();
-        Settings settingsWithWatcherUseIlm = Settings.builder()
-            .put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), ilmEnabled)
-            .put(Watcher.USE_ILM_INDEX_MANAGEMENT.getKey(), watcherUseIlmEnabled)
-            .build();
-        assertThat(Watcher.USE_ILM_INDEX_MANAGEMENT.get(settingsWithWatcherUseIlm), is(watcherUseIlmEnabled));
-
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.INDEX_LIFECYCLE_ENABLED } );
     }
 
     public void testThreadPoolSize() {

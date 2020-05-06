@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.Base64;

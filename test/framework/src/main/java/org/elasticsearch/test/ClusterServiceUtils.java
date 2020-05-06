@@ -100,12 +100,8 @@ public class ClusterServiceUtils {
     }
 
     public static ClusterService createClusterService(ThreadPool threadPool) {
-        return createClusterService(threadPool, Version.CURRENT);
-    }
-
-    public static ClusterService createClusterService(ThreadPool threadPool, Version nodeVersion) {
         DiscoveryNode discoveryNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            DiscoveryNodeRole.BUILT_IN_ROLES, nodeVersion);
+                DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
         return createClusterService(threadPool, discoveryNode);
     }
 

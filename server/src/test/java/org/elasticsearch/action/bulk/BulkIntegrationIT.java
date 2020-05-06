@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateV2Action;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -38,8 +39,10 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateV2;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.IngestTestPlugin;
@@ -216,12 +219,27 @@ public class BulkIntegrationIT extends ESIntegTestCase {
     }
 
     public void testMixedAutoCreate() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
+
         PutIndexTemplateV2Action.Request createTemplateRequest = new PutIndexTemplateV2Action.Request("logs-foo");
-        createTemplateRequest.indexTemplate(new IndexTemplateV2(List.of("logs-foo*"), null, null, null, null, null,
-            new IndexTemplateV2.DataStreamTemplate("@timestamp")));
+        createTemplateRequest.indexTemplate(
+            new IndexTemplateV2(
+                List.of("logs-foo*"),
+                new Template(settings, null, null),
+                null, null, null, null,
+                new IndexTemplateV2.DataStreamTemplate("@timestamp"))
+        );
         client().execute(PutIndexTemplateV2Action.INSTANCE, createTemplateRequest).actionGet();
 
-        BulkRequest bulkRequest = new BulkRequest();
+        Boolean preferV2Templates = randomBoolean() ? null : true;
+        if (randomBoolean()) {
+            PutIndexTemplateRequest v1Request = new PutIndexTemplateRequest("logs-foo");
+            v1Request.patterns(List.of("logs-foo*"));
+            v1Request.settings(settings);
+            client().admin().indices().putTemplate(v1Request).actionGet();
+        }
+
+        BulkRequest bulkRequest = new BulkRequest().preferV2Templates(preferV2Templates);
         bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{}", XContentType.JSON));
         bulkRequest.add(new IndexRequest("logs-foobaz").opType(CREATE).source("{}", XContentType.JSON));
         bulkRequest.add(new IndexRequest("logs-barbaz").opType(CREATE).source("{}", XContentType.JSON));
@@ -229,7 +247,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
         assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
 
-        bulkRequest = new BulkRequest();
+        bulkRequest = new BulkRequest().preferV2Templates(preferV2Templates);
         bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{}", XContentType.JSON));
         bulkRequest.add(new IndexRequest("logs-foobaz2").opType(CREATE).source("{}", XContentType.JSON));
         bulkRequest.add(new IndexRequest("logs-barbaz").opType(CREATE).source("{}", XContentType.JSON));
@@ -237,7 +255,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         bulkResponse = client().bulk(bulkRequest).actionGet();
         assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
 
-        bulkRequest = new BulkRequest();
+        bulkRequest = new BulkRequest().preferV2Templates(preferV2Templates);
         bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{}", XContentType.JSON));
         bulkRequest.add(new IndexRequest("logs-foobaz2").opType(CREATE).source("{}", XContentType.JSON));
         bulkRequest.add(new IndexRequest("logs-foobaz3").opType(CREATE).source("{}", XContentType.JSON));
@@ -265,5 +283,38 @@ public class BulkIntegrationIT extends ESIntegTestCase {
 
         DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request("*");
         client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();
+    }
+
+    public void testAutoCreatePreferV2TemplatesFalseNoDataStream() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
+
+        PutIndexTemplateV2Action.Request createTemplateRequest = new PutIndexTemplateV2Action.Request("logs-foo");
+        createTemplateRequest.indexTemplate(
+            new IndexTemplateV2(
+                List.of("logs-foo*"),
+                new Template(settings, null, null),
+                null, null, null, null,
+                new IndexTemplateV2.DataStreamTemplate("@timestamp"))
+        );
+        client().execute(PutIndexTemplateV2Action.INSTANCE, createTemplateRequest).actionGet();
+
+        PutIndexTemplateRequest v1Request = new PutIndexTemplateRequest("logs-foo");
+        v1Request.patterns(List.of("logs-foo*"));
+        v1Request.settings(settings);
+        client().admin().indices().putTemplate(v1Request).actionGet();
+
+        BulkRequest bulkRequest = new BulkRequest().preferV2Templates(false);
+        bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{}", XContentType.JSON));
+        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+        assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
+
+        GetDataStreamsAction.Request getDataStreamRequest = new GetDataStreamsAction.Request("*");
+        GetDataStreamsAction.Response getDataStreamsResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
+        assertThat(getDataStreamsResponse.getDataStreams(), hasSize(0));
+
+        GetIndexResponse getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices("logs-foobar")).actionGet();
+        assertThat(getIndexResponse.getIndices(), arrayWithSize(1));
+        assertThat(getIndexResponse.getIndices(), hasItemInArray("logs-foobar"));
+        assertThat(getIndexResponse.getSettings().get("logs-foobar").get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS), equalTo("0"));
     }
 }

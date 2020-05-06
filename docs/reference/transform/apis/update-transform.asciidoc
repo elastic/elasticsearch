@@ -236,6 +236,7 @@ When the {transform} is updated, you receive the updated configuration:
       "delay": "120s"
     }
   },
+  "settings": { },
   "version": "7.5.0",
   "create_time": 1518808660505
 }

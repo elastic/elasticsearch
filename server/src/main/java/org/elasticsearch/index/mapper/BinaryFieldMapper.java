@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.hppc.ObjectArrayList;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
@@ -46,7 +45,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Base64;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
@@ -164,7 +162,7 @@ public class BinaryFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         if (!fieldType().stored() && !fieldType().hasDocValues()) {
             return;
         }
@@ -180,7 +178,7 @@ public class BinaryFieldMapper extends FieldMapper {
             return;
         }
         if (fieldType().stored()) {
-            fields.add(new Field(fieldType().name(), value, fieldType()));
+            context.doc().add(new Field(fieldType().name(), value, fieldType()));
         }
 
         if (fieldType().hasDocValues()) {
@@ -195,7 +193,7 @@ public class BinaryFieldMapper extends FieldMapper {
             // Only add an entry to the field names field if the field is stored
             // but has no doc values so exists query will work on a field with
             // no doc values
-            createFieldNamesField(context, fields);
+            createFieldNamesField(context);
         }
 
     }

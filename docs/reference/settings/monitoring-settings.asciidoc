@@ -28,12 +28,7 @@ For more information, see <<monitor-elasticsearch-cluster>>.
 
 `xpack.monitoring.enabled`::
 deprecated:[7.8.0,Basic License features should always be enabled] +
-Set to `true` (default) to enable {es} {monitoring} for {es} on the node.
-+
---
-NOTE: To enable data collection, you must also set `xpack.monitoring.collection.enabled`
-to `true`. Its default value is `false`.
---
+This deprecated setting has no effect.
 
 [float]
 [[monitoring-collection-settings]]

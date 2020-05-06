@@ -520,7 +520,6 @@ subprojects {
   pluginManager.withPlugin('elasticsearch.testclusters') {
     testClusters.all {
       if (org.elasticsearch.gradle.info.BuildParams.isSnapshotBuild() == false) {
-        systemProperty 'es.itv2_feature_enabled', 'true'
         systemProperty 'es.datastreams_feature_enabled', 'true'
       }
     }

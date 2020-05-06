@@ -105,7 +105,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     );
     public static final Setting<Boolean> SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING = Setting.boolSetting(
         "index.store.snapshot.cache.prewarm.enabled",
-        false,
+        true,
         Setting.Property.IndexScope
     );
     // The file extensions that are excluded from the cache

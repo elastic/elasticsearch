@@ -152,25 +152,6 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     }
 
     /**
-     * Build an aggregation for data that has been collected into
-     * {@code owningBucketOrd}.
-     * @deprecated use {@link #buildAggregations(long[])} instead 
-     */
-    @Deprecated
-    public InternalAggregation buildAggregation(long owningBucketOrd) throws IOException {
-        /*
-         * Temporarily check if it looks like we're being called from a test
-         * and try to answer with the top level agg. This just prevents us from
-         * having to modify 1231234134124 tests in one PR.
-         */
-        if (owningBucketOrd == 0) {
-            return buildTopLevel();
-        }
-        // TODO remove this method and redaclare in MetricAggregator as protected abstract
-        throw new UnsupportedOperationException();
-    }
-
-    /**
      * Build the results of this aggregation.
      * @param owningBucketOrds the ordinals of the buckets that we want to
      *        collect from this aggregation

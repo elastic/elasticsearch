@@ -33,6 +33,12 @@ public abstract class MetricsAggregator extends AggregatorBase {
         super(name, AggregatorFactories.EMPTY, context, parent, metadata);
     }
 
+    /**
+     * Build an aggregation for data that has been collected into
+     * {@code owningBucketOrd}. 
+     */
+    public abstract InternalAggregation buildAggregation(long owningBucketOrd) throws IOException;
+
     @Override
     public final InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];

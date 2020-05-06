@@ -212,19 +212,6 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     public Aggregator wrap(final Aggregator in) {
 
         return new WrappedAggregator(in) {
-
-            @Override
-            public InternalAggregation buildAggregation(long bucket) throws IOException {
-                if (selectedBuckets == null) {
-                    throw new IllegalStateException("Collection has not been replayed yet.");
-                }
-                final long rebasedBucket = selectedBuckets.find(bucket);
-                if (rebasedBucket == -1) {
-                    throw new IllegalStateException("Cannot build for a bucket which has not been collected");
-                }
-                return in.buildAggregation(rebasedBucket);
-            }
-
             @Override
             public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
                 if (selectedBuckets == null) {

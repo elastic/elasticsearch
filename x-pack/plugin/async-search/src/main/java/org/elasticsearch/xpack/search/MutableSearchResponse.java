@@ -94,7 +94,8 @@ class MutableSearchResponse {
             throw new IllegalStateException("received partial response out of order: "
                 + reducePhase + " < " + this.reducePhase);
         }
-        this.successfulShards = successfulShards;
+        //when we get partial results skipped shards are not included in the provided number of successful shards
+        this.successfulShards = successfulShards + skippedShards;
         this.totalHits = totalHits;
         this.reducedAggsSource = reducedAggs;
         this.reducePhase = reducePhase;
@@ -106,6 +107,11 @@ class MutableSearchResponse {
      */
     synchronized void updateFinalResponse(SearchResponse response) {
         failIfFrozen();
+        assert response.getTotalShards() == totalShards : "received number of total shards differs from the one " +
+            "notified through onListShards";
+        assert response.getSkippedShards() == skippedShards : "received number of skipped shards differs from the one " +
+            "notified through onListShards";
+        assert response.getFailedShards() == buildShardFailures().length : "number of tracked failures differs from failed shards";
         // copy the response headers from the current context
         this.responseHeaders = threadContext.getResponseHeaders();
         this.finalResponse = response;
@@ -121,6 +127,8 @@ class MutableSearchResponse {
         failIfFrozen();
         // copy the response headers from the current context
         this.responseHeaders = threadContext.getResponseHeaders();
+        //note that when search fails, we may have gotten partial results before the failure. In that case async
+        // search will return an error plus the last partial results that were collected.
         this.isPartial = true;
         this.failure = ElasticsearchException.guessRootCauses(exc)[0];
         this.frozen = true;

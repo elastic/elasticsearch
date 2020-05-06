@@ -89,6 +89,8 @@ public class XPackLicenseState {
 
         SPATIAL_GEO_CENTROID(OperationMode.GOLD, true),
 
+        SPATIAL_GEO_GRID(OperationMode.GOLD, true),
+
         ANALYTICS(OperationMode.MISSING, true);
 
         final OperationMode minimumOperationMode;

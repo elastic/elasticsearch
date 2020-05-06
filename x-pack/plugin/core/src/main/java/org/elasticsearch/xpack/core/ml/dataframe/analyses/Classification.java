@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldTyp
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -103,6 +104,15 @@ public class Classification implements DataFrameAnalysis {
      * This way the user can see if the prediction was made with confidence they need.
      */
     private static final int DEFAULT_NUM_TOP_CLASSES = 2;
+
+    private static final List<String> PROGRESS_PHASES = Collections.unmodifiableList(
+        Arrays.asList(
+            "feature_selection",
+            "coarse_parameter_search",
+            "fine_tuning_parameters",
+            "final_training"
+        )
+    );
 
     private final String dependentVariable;
     private final BoostedTreeParams boostedTreeParams;
@@ -348,7 +358,7 @@ public class Classification implements DataFrameAnalysis {
 
     @Override
     public List<String> getProgressPhases() {
-        return Collections.singletonList("analyzing");
+        return PROGRESS_PHASES;
     }
 
     public static String extractJobIdFromStateDoc(String stateDocId) {

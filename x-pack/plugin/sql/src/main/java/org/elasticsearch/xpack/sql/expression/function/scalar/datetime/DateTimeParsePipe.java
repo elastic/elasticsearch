@@ -15,22 +15,22 @@ import java.time.ZoneId;
 
 public class DateTimeParsePipe extends BinaryDateTimePipe {
 
-    public DateTimeParsePipe(Source source, Expression expression, Pipe left, Pipe right) {
-        super(source, expression, left, right, null);
+    public DateTimeParsePipe(Source source, Expression expression, Pipe left, Pipe right, ZoneId zoneId) {
+        super(source, expression, left, right, zoneId);
     }
 
     @Override
     protected NodeInfo<DateTimeParsePipe> info() {
-        return NodeInfo.create(this, DateTimeParsePipe::new, expression(), left(), right());
+        return NodeInfo.create(this, DateTimeParsePipe::new, expression(), left(), right(), zoneId());
     }
 
     @Override
     protected DateTimeParsePipe replaceChildren(Pipe left, Pipe right) {
-        return new DateTimeParsePipe(source(), expression(), left, right);
+        return new DateTimeParsePipe(source(), expression(), left, right, zoneId());
     }
 
     @Override
     protected Processor makeProcessor(Processor left, Processor right, ZoneId zoneId) {
-        return new DateTimeParseProcessor(left, right);
+        return new DateTimeParseProcessor(left, right, zoneId);
     }
 }

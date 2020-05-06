@@ -36,7 +36,7 @@ public class ThrottlingAndHeaderWarningLogger {
     /**
      * Logs a message, adding a formatted warning message as a response header on the thread context.
      */
-    public void headerWarnAndLog(String msg, Object... params) {
+    public void logAndWarnOnHeader(String msg, Object... params) {
         headerWarningLogger.log(msg, params);
         throttlingLogger.log(msg, params);
     }
@@ -49,7 +49,7 @@ public class ThrottlingAndHeaderWarningLogger {
      * @param msg    the message to log
      * @param params parameters to the message
      */
-    public void headerWarnAndThrottleLog(final String key, final String msg, final Object... params) {
+    public void throttleLogAndWarnOnHeader(final String key, final String msg, final Object... params) {
         headerWarningLogger.log(msg, params);
         throttlingLogger.throttleLog(key, msg, params);
     }

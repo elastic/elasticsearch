@@ -25,7 +25,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 /**
  * A logger that logs deprecation notices.
  */
-public class DeprecationLogger extends ThrottlingAndHeaderWarningLogger {
+public class DeprecationLogger   {
+    private final ThrottlingAndHeaderWarningLogger logger;
 
     /**
      * Creates a new deprecation logger based on the parent logger. Automatically
@@ -34,8 +35,7 @@ public class DeprecationLogger extends ThrottlingAndHeaderWarningLogger {
      * the "org.elasticsearch" namespace.
      */
     public DeprecationLogger(Logger parentLogger) {
-        super(deprecatedLoggerName(parentLogger));
-
+        logger = new ThrottlingAndHeaderWarningLogger(deprecatedLoggerName(parentLogger));
     }
 
     private static String deprecatedLoggerName(Logger parentLogger) {
@@ -60,7 +60,7 @@ public class DeprecationLogger extends ThrottlingAndHeaderWarningLogger {
      * Logs a deprecation message, adding a formatted warning message as a response header on the thread context.
      */
     public void deprecated(String msg, Object... params) {
-        headerWarnAndLog(msg,params);
+        logger.logAndWarnOnHeader(msg,params);
     }
 
     /**
@@ -72,6 +72,6 @@ public class DeprecationLogger extends ThrottlingAndHeaderWarningLogger {
      * @param params parameters to the message
      */
     public void deprecatedAndMaybeLog(final String key, final String msg, final Object... params) {
-        headerWarnAndThrottleLog(key, msg, params);
+        logger.throttleLogAndWarnOnHeader(key, msg, params);
     }
 }

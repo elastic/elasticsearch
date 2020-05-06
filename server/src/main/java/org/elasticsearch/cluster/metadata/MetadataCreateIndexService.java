@@ -82,6 +82,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -598,9 +600,38 @@ public class MetadataCreateIndexService {
             }
         }
 
-        Map<String, Object> finalMappings = new HashMap<>(nonProperties);
+        Map<String, Object> finalMappings = dedupDynamicTemplates(nonProperties);
         finalMappings.put("properties", properties);
         return Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, finalMappings);
+    }
+
+    /**
+     * Parses the `dynamic_templates` from the provided mappings, if any are configured, and returns a mappings map containing dynamic
+     * templates with unique names.
+     *
+     * The later templates in the provided mapping's `dynamic_templates` array will override the templates with the same name defined
+     * earlier in the `dynamic_templates` array.
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> dedupDynamicTemplates(Map<String, Object> mappings) {
+        Objects.requireNonNull(mappings, "deduping the dynamic templates a non-null mapping");
+        Map<String, Object> results = new HashMap<>(mappings);
+        List<Map<String, Object>> dynamicTemplates = (List<Map<String, Object>>) mappings.get("dynamic_templates");
+        if (dynamicTemplates == null) {
+            return results;
+        }
+
+        LinkedHashMap<String, Map<String, Object>> dedupedDynamicTemplates = new LinkedHashMap<>(dynamicTemplates.size(), 1f);
+        for (Map<String, Object> dynamicTemplate : dynamicTemplates) {
+            Iterator<String> dynamicTemplateIterator = dynamicTemplate.keySet().iterator();
+            if (dynamicTemplateIterator.hasNext()) {
+                String templateName = dynamicTemplateIterator.next();
+                dedupedDynamicTemplates.put(templateName, dynamicTemplate);
+            }
+        }
+
+        results.put("dynamic_templates", new ArrayList<>(dedupedDynamicTemplates.values()));
+        return results;
     }
 
     /**

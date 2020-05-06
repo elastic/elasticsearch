@@ -1111,6 +1111,105 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(results, equalTo(expected));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testDedupTemplateDynamicTemplates() throws Exception {
+        Template template = new Template(null,
+            new CompressedXContent("{\"_doc\":{\"_source\":{\"enabled\": false}, \"dynamic_templates\": [" +
+                "{\n" +
+                "   \"docker.container.labels\": {\n" +
+                "     \"mapping\": {\n" +
+                "         \"type\": \"keyword\"\n" +
+                "       },\n" +
+                "       \"match_mapping_type\": \"string\",\n" +
+                "       \"path_match\": \"labels.*\"\n" +
+                "     }\n" +
+                "   },\n" +
+                "   {\n" +
+                "     \"docker.container.labels\": {\n" +
+                "       \"mapping\": {\n" +
+                "         \"type\": \"keyword\"\n" +
+                "       },\n" +
+                "       \"match_mapping_type\": \"string\",\n" +
+                "       \"path_match\": \"docker.container.labels.*\"\n" +
+                "     }\n" +
+                "}]}}"), null);
+
+        IndexTemplateV2 indexTemplate = new IndexTemplateV2(Collections.singletonList("index"), template, null, null, null, null);
+
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
+                .put("index-template", indexTemplate)
+                .build())
+            .build();
+
+        Map<String, Object> resolved =
+            MetadataCreateIndexService.resolveV2Mappings("{}", state,
+                "index-template", new NamedXContentRegistry(Collections.emptyList()));
+
+        Map<String, Object> doc = (Map<String, Object>) resolved.get(MapperService.SINGLE_MAPPING_NAME);
+        List<Map<String, Object>> dynamicTemplates = (List<Map<String, Object>>) doc.get("dynamic_templates");
+        assertThat(dynamicTemplates.size(), is(1));
+        Map<String, Object> dynamicMapping = (Map<String, Object>) dynamicTemplates.get(0).get("docker.container.labels");
+        assertThat(dynamicMapping, is(notNullValue()));
+        assertThat("last mapping with the same name must override previously defined mappings with the same name",
+            dynamicMapping.get("path_match"), is("docker.container.labels.*"));
+    }
+
+    public void testDedupRequestDynamicTemplates() throws Exception {
+        String requestMappingJson = "{\"_doc\":{\"_source\":{\"enabled\": false}, \"dynamic_templates\": [" +
+            "{\n" +
+            "   \"docker.container.labels\": {\n" +
+            "     \"mapping\": {\n" +
+            "         \"type\": \"keyword\"\n" +
+            "       },\n" +
+            "       \"match_mapping_type\": \"string\",\n" +
+            "       \"path_match\": \"labels.*\"\n" +
+            "     }\n" +
+            "   },\n" +
+            "   {\n" +
+            "     \"docker.container.labels\": {\n" +
+            "       \"mapping\": {\n" +
+            "         \"type\": \"keyword\"\n" +
+            "       },\n" +
+            "       \"match_mapping_type\": \"string\",\n" +
+            "       \"path_match\": \"source.request.*\"\n" +
+            "     }\n" +
+            "}]}}";
+
+        String templateMappingJson = "{\"_doc\":{\"_source\":{\"enabled\": false}, \"dynamic_templates\": [" +
+            "{\n" +
+            "   \"docker.container.labels\": {\n" +
+            "     \"mapping\": {\n" +
+            "         \"type\": \"keyword\"\n" +
+            "       },\n" +
+            "       \"match_mapping_type\": \"string\",\n" +
+            "       \"path_match\": \"source.template.*\"\n" +
+            "     }\n" +
+            "   }\n" +
+            "]}}";
+        Template template = new Template(null, new CompressedXContent(templateMappingJson), null);
+
+        IndexTemplateV2 indexTemplate = new IndexTemplateV2(Collections.singletonList("index"), template, null, null, null, null);
+
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
+                .put("index-template", indexTemplate)
+                .build())
+            .build();
+
+        Map<String, Object> resolved =
+            MetadataCreateIndexService.resolveV2Mappings(requestMappingJson, state,
+                "index-template", new NamedXContentRegistry(Collections.emptyList()));
+
+        Map<String, Object> doc = (Map<String, Object>) resolved.get(MapperService.SINGLE_MAPPING_NAME);
+        List<Map<String, Object>> dynamicTemplates = (List<Map<String, Object>>) doc.get("dynamic_templates");
+        assertThat(dynamicTemplates.size(), is(1));
+        Map<String, Object> dynamicMapping = (Map<String, Object>) dynamicTemplates.get(0).get("docker.container.labels");
+        assertThat(dynamicMapping, is(notNullValue()));
+        assertThat("last mapping with the same name must override previously defined mappings with the same name",
+            dynamicMapping.get("path_match"), is("source.request.*"));
+    }
+
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {
         IndexTemplateMetadata.Builder builder = templateMetadataBuilder("template1", "te*");
         configurator.accept(builder);

@@ -127,10 +127,8 @@ class MutableSearchResponse {
         failIfFrozen();
         // copy the response headers from the current context
         this.responseHeaders = threadContext.getResponseHeaders();
-        //We may have already received some partial results, in which case the number of successful shards reflects that despite the search
-        //has failed entirely at a later stage. We should consider all shards as failed given that none of them was able to e.g. fetch
-        //skipped shards are considered successful though
-        this.successfulShards = this.skippedShards;
+        //note that when search fails, we may have gotten partial results before the failure. In that case async
+        // search will return an error plus the last partial results that were collected.
         this.isPartial = true;
         this.failure = ElasticsearchException.guessRootCauses(exc)[0];
         this.frozen = true;

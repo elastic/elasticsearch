@@ -213,7 +213,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
         }
         assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, numShards, true);
         ((AsyncSearchTask.Listener)task.getProgressListener()).onFailure(new IOException("boum"));
-        assertCompletionListeners(task, totalShards, numSkippedShards, numSkippedShards, numShards, true);
+        assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, numShards, true);
     }
 
     private static SearchResponse newSearchResponse(int totalShards, int successfulShards, int skippedShards,

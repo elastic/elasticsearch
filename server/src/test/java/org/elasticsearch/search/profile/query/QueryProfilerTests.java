@@ -110,7 +110,7 @@ public class QueryProfilerTests extends ESTestCase {
         searcher.search(query, 1);
         List<ProfileResult> results = profiler.getTree();
         assertEquals(1, results.size());
-        Map<String, Object> breakdown = results.get(0).getBreakdown();
+        Map<String, Object> breakdown = results.get(0).getTimeBreakdown();
         assertThat(((Number) breakdown.get(QueryTimingType.CREATE_WEIGHT.toString())).longValue(), greaterThan(0L));
         assertThat(((Number) breakdown.get(QueryTimingType.BUILD_SCORER.toString())).longValue(), greaterThan(0L));
         assertThat(((Number) breakdown.get(QueryTimingType.NEXT_DOC.toString())).longValue(), greaterThan(0L));
@@ -136,7 +136,7 @@ public class QueryProfilerTests extends ESTestCase {
         searcher.search(query, 1, Sort.INDEXORDER); // scores are not needed
         List<ProfileResult> results = profiler.getTree();
         assertEquals(1, results.size());
-        Map<String, Object> breakdown = results.get(0).getBreakdown();
+        Map<String, Object> breakdown = results.get(0).getTimeBreakdown();
         assertThat(((Number) breakdown.get(QueryTimingType.CREATE_WEIGHT.toString())).longValue(), greaterThan(0L));
         assertThat(((Number) breakdown.get(QueryTimingType.BUILD_SCORER.toString())).longValue(), greaterThan(0L));
         assertThat(((Number) breakdown.get(QueryTimingType.NEXT_DOC.toString())).longValue(), greaterThan(0L));
@@ -174,7 +174,7 @@ public class QueryProfilerTests extends ESTestCase {
         searcher.count(query);
         List<ProfileResult> results = profiler.getTree();
         assertEquals(1, results.size());
-        Map<String, Object> breakdown = results.get(0).getBreakdown();
+        Map<String, Object> breakdown = results.get(0).getTimeBreakdown();
         assertThat(((Number) breakdown.get(QueryTimingType.CREATE_WEIGHT.toString())).longValue(), greaterThan(0L));
         assertThat(((Number) breakdown.get(QueryTimingType.BUILD_SCORER.toString())).longValue(), greaterThan(0L));
         assertThat(((Number) breakdown.get(QueryTimingType.NEXT_DOC.toString())).longValue(), greaterThan(0L));

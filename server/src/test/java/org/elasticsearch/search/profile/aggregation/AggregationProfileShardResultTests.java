@@ -69,11 +69,13 @@ public class AggregationProfileShardResultTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         List<ProfileResult> profileResults = new ArrayList<>();
-        Map<String, Object> breakdown = new LinkedHashMap<>();
+        Map<String, Long> breakdown = new LinkedHashMap<>();
         breakdown.put("timing1", 2000L);
         breakdown.put("timing2", 4000L);
-        breakdown.put("stuff", "stuff");
-        ProfileResult profileResult = new ProfileResult("someType", "someDescription", breakdown, 6000L, Collections.emptyList());
+        Map<String, Object> debug = new LinkedHashMap<>();
+        debug.put("stuff", "stuff");
+        debug.put("other_stuff", List.of("foo", "bar"));
+        ProfileResult profileResult = new ProfileResult("someType", "someDescription", breakdown, debug,6000L, Collections.emptyList());
         profileResults.add(profileResult);
         AggregationProfileShardResult aggProfileResults = new AggregationProfileShardResult(profileResults);
         BytesReference xContent = toXContent(aggProfileResults, XContentType.JSON, false);
@@ -81,7 +83,8 @@ public class AggregationProfileShardResultTests extends ESTestCase {
                         + "{\"type\":\"someType\","
                             + "\"description\":\"someDescription\","
                             + "\"time_in_nanos\":6000,"
-                            + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000,\"stuff\":\"stuff\"}"
+                            + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000},"
+                            + "\"debug\":{\"stuff\":\"stuff\",\"other_stuff\":[\"foo\",\"bar\"]}"
                         + "}"
                    + "]}", xContent.utf8ToString());
 
@@ -91,7 +94,8 @@ public class AggregationProfileShardResultTests extends ESTestCase {
                             + "\"description\":\"someDescription\","
                             + "\"time\":\"6micros\","
                             + "\"time_in_nanos\":6000,"
-                            + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000,\"stuff\":\"stuff\"}"
+                            + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000},"
+                            + "\"debug\":{\"stuff\":\"stuff\",\"other_stuff\":[\"foo\",\"bar\"]}"
                         + "}"
                    + "]}", xContent.utf8ToString());
     }

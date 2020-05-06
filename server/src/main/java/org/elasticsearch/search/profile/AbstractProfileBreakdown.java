@@ -55,26 +55,22 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
         timings[timing.ordinal()] = timer;
     }
 
-    /** Convert this record to a to be returned with the results. */
-    public final Map<String, Object> toMap() {
-        Map<String, Object> map = new HashMap<>(timings.length * 2);
+    /**
+     * Build a timing count breakdown.
+     */
+    public final Map<String, Long> toBreakdownMap() {
+        Map<String, Long> map = new HashMap<>(timings.length * 2);
         for (T timingType : timingTypes) {
             map.put(timingType.toString(), timings[timingType.ordinal()].getApproximateTiming());
             map.put(timingType.toString() + "_count", timings[timingType.ordinal()].getCount());
         }
-        extraMap().forEach((key, value) -> {
-            if (value == null) {
-                throw new NullPointerException("[" + key + "] has null value which is not supported");
-            }
-            Object old = map.put(key, value);
-            if (old != null) {
-                throw new IllegalStateException("duplicate key [" + key + "]");
-            }
-        });
         return Collections.unmodifiableMap(map);
     }
 
-    protected Map<String, Object> extraMap() {
+    /**
+     * Fetch extra debugging information.
+     */
+    protected Map<String, Object> toDebugMap() {
         return emptyMap();
     }
 

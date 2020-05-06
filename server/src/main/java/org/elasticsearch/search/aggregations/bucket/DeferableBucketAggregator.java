@@ -109,10 +109,10 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
     }
 
     @Override
-    public void extraProfileInfo(BiConsumer<String, Object> add) {
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
         if (deferredAggregationNames != null) {
             add.accept("deferred_aggregations", deferredAggregationNames);
         }
-        super.extraProfileInfo(add);
+        super.collectDebugInfo(add);
     }
 }

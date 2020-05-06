@@ -168,15 +168,15 @@ public abstract class AggregatorFactory {
         }
 
         @Override
-        public void extraProfileInfo(BiConsumer<String, Object> add) {
+        public void collectDebugInfo(BiConsumer<String, Object> add) {
             /*
              * There isn't really a sane way to give our delegates a way to
              * add entries because we'd have to merge them. So we just *don't*
              * and leave a marker of our own. This ain't great, but we plan
              * to cut down on usage of this wrapper in the future.
              */
-            add.accept("multi_bucket_aggregator_wrapper", true);
-            super.extraProfileInfo(add);
+            add.accept("wrapped_in_multi_bucket_aggregator", true);
+            super.collectDebugInfo(add);
         }
     }
 

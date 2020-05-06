@@ -165,8 +165,8 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     public abstract InternalAggregation buildEmptyAggregation();
 
     /**
-     * Add any extra profiling information. This will only be called if the
-     * aggregation is being profiled.
+     * Collect debug information to add to the profiling results.. This will
+     * only be called if the aggregation is being profiled.
      * <p>
      * Well behaved implementations will always call the superclass
      * implementation just in case it has something interesting. They will
@@ -175,7 +175,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * {@link XContentBuilder#value(Object)}. And they'll have an integration
      * test. 
      */
-    public void extraProfileInfo(BiConsumer<String, Object> add) {}
+    public void collectDebugInfo(BiConsumer<String, Object> add) {}
 
     /** Aggregation mode for sub aggregations. */
     public enum SubAggCollectionMode implements Writeable {

@@ -167,8 +167,8 @@ public class NumericHistogramAggregator extends BucketsAggregator {
     }
 
     @Override
-    public void extraProfileInfo(BiConsumer<String, Object> add) {
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
         add.accept("total_buckets", bucketOrds.size());
-        super.extraProfileInfo(add);
+        super.collectDebugInfo(add);
     }
 }

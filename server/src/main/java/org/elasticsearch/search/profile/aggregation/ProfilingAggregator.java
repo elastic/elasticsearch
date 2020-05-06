@@ -123,7 +123,7 @@ public class ProfilingAggregator extends Aggregator {
     public void postCollection() throws IOException {
         delegate.postCollection();
         // TODO move profile collection into buildAggregations once #55873 is in
-        delegate.extraProfileInfo(profileBreakdown::addExtraBreakdown);
+        delegate.collectDebugInfo(profileBreakdown::addDebugInfo);
     }
 
     @Override

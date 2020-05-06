@@ -23,7 +23,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
@@ -45,10 +44,8 @@ public interface CircuitBreakerPlugin {
      * object with the same name is provided at node startup.
      *
      * @param circuitBreakerFactory A factory function that will take the provided BreakerSettings and construct a new circuit breaker
-     *                              The constructed circuitBreaker takes into account any overridden settings.
+     *                              The constructed circuitBreaker applies any overridden settings.
      */
-    default List<CircuitBreaker> getCircuitBreakers(Function<BreakerSettings, CircuitBreaker> circuitBreakerFactory) {
-        return Collections.emptyList();
-    }
+    List<CircuitBreaker> getCircuitBreakers(Function<BreakerSettings, CircuitBreaker> circuitBreakerFactory);
 
 }

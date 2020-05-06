@@ -78,12 +78,11 @@ chosen.
 `delimiter`::
   (Optional, string) If you have set `format` to `delimited`, you can specify
   the character used to delimit the values in each row. Only a single character
-  is supported; the delimiter cannot have multiple characters. If this parameter
-  is not specified, the structure finder considers the following possibilities:
-  comma, tab, semi-colon, and pipe (`|`). If you specify a delimiter explicitly
-  then the format determination will tolerate up to 10% of rows having a
-  different number of columns to the first row. (Without overrides all rows
-  must have the same number of fields for a delimited format to be detected.)
+  is supported; the delimiter cannot have multiple characters. By default, the
+  API considers the following possibilities: comma, tab, semi-colon, and pipe
+  (`|`). In this default scenario, all rows must have the same number of fields
+  for the delimited format to be detected. If you specify a delimiter, up to 10%
+  of the rows can have a different number of columns than the first row.
 
 `explain`::
   (Optional, boolean) If this parameter is set to `true`, the response includes
@@ -91,14 +90,14 @@ chosen.
   the structure finder produced its result. The default value is `false`.
 
 `format`::
-  (Optional, string) The high level structure of the file. Valid values are
-  `ndjson`, `xml`, `delimited`, and `semi_structured_text`. If this parameter is
-  not specified, the structure finder chooses one. If the format is overridden
-  to `delimited` but no explicit delimiter is specified then the format
-  determination will tolerate up to 5% of rows having a different number of
-  columns to the first row for each of the following possible delimiters:
-  comma, tab, semi-colon, and pipe (`|`). (Without overrides all rows
-  must have the same number of fields for a delimited format to be detected.)
+(Optional, string) The high level structure of the file. Valid values are
+`ndjson`, `xml`, `delimited`, and `semi_structured_text`. By default, the
+structure finder chooses the format.  In this default scenario, all rows must
+have the same number of fields for a delimited format to be detected. If the
+`format` is set to `delimited` and the `delimiter` is not set, however, the
+format determination tolerates up to 5% of rows that have a different number of
+columns than the first row for each of the following possible delimiters:
+comma, tab, semi-colon, and pipe (`|`).
 
 `grok_pattern`::
   (Optional, string) If you have set `format` to `semi_structured_text`, you can

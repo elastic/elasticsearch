@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
@@ -92,25 +91,12 @@ public class CIDRMatch extends ScalarFunction {
 
     @Override
     public boolean foldable() {
-        if (field.foldable() == false) {
-            return false;
-        }
-        for (Expression address : addresses) {
-            if (address.foldable() == false) {
-                return false;
-            }
-        }
-        return true;
+        return field.foldable() && Expressions.foldable(addresses);
     }
 
     @Override
     public Object fold() {
-        Object o = field.fold();
-        ArrayList<Object> arr = new ArrayList<>(addresses.size());
-        for (Expression address : addresses) {
-            arr.add(address.fold());
-        }
-        return doProcess(o, arr);
+        return doProcess(field.fold(), Expressions.fold(addresses));
     }
 
     @Override
@@ -122,7 +108,7 @@ public class CIDRMatch extends ScalarFunction {
     public ScriptTemplate asScript() {
         ScriptTemplate leftScript = asScript(field);
 
-        List<Object> values = new ArrayList<>(new LinkedHashSet<>(foldListOfValues(addresses, field.dataType())));
+        List<Object> values = new ArrayList<>(new LinkedHashSet<>(Expressions.fold(addresses)));
         return new ScriptTemplate(
                 formatTemplate(LoggerMessageFormat.format("{eql}.","cidrMatch({}, {})", leftScript.template())),
                 paramsBuilder()
@@ -130,14 +116,6 @@ public class CIDRMatch extends ScalarFunction {
                         .variable(values)
                         .build(),
                 dataType());
-    }
-
-    protected List<Object> foldListOfValues(List<Expression> list, DataType dataType) {
-        List<Object> values = new ArrayList<>(list.size());
-        for (Expression e : list) {
-            values.add(Foldables.valueOf(e));
-        }
-        return values;
     }
 
     @Override

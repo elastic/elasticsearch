@@ -36,6 +36,7 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
+import static java.util.function.Predicate.not;
 
 /**
  * A container for elasticsearch supported version information used in BWC testing.
@@ -87,6 +88,7 @@ public class BwcVersions {
     private static final Pattern LINE_PATTERN = Pattern.compile(
         "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)? .*"
     );
+    private static final List<Version> IGNORED_VERSIONS = List.of(Version.fromString("7.7.0"));
 
     private final Version currentVersion;
     private final Map<Integer, List<Version>> groupByMajor;
@@ -120,6 +122,7 @@ public class BwcVersions {
                         Integer.parseInt(match.group(3))
                     )
                 )
+                .filter(not(IGNORED_VERSIONS::contains)) // remove any specifically ignored versions
                 .collect(Collectors.toCollection(TreeSet::new)),
             currentVersionProperty
         );
@@ -272,7 +275,11 @@ public class BwcVersions {
                 // we found that the previous minor is staged but not yet released
                 // in this case, the minor before that has a bugfix, should there be such a minor
                 if (greatestMinor >= 2) {
-                    unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor - 2));
+                    int major = groupByMinor.values().stream().flatMap(Collection::stream).findFirst().map(Version::getMajor).orElseThrow();
+                    // Don't bother searching for a version we've ignored
+                    if (IGNORED_VERSIONS.contains(new Version(major, greatestMinor - 2, 0)) == false) {
+                        unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor - 2));
+                    }
                 }
             }
         }

@@ -227,6 +227,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<?
 
             return true;
         }
+
+        @Override
+        public int hashCode() {
+            return super.hashCode();
+        }
     }
 
     protected static class GeoPointIndexer implements Indexer<List<ParsedGeoPoint>, List<ParsedGeoPoint>> {

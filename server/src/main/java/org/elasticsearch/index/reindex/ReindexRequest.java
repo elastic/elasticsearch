@@ -22,7 +22,6 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Nullable;
@@ -91,7 +90,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         super(in);
         destination = new IndexRequest(in);
         remoteInfo = in.readOptionalWriteable(RemoteInfo::new);
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             preferV2Templates = in.readOptionalBoolean();
         }
     }
@@ -280,7 +279,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         super.writeTo(out);
         destination.writeTo(out);
         out.writeOptionalWriteable(remoteInfo);
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeOptionalBoolean(preferV2Templates);
         }
     }

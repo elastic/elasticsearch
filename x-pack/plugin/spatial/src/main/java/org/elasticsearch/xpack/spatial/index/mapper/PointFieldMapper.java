@@ -112,7 +112,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? ex
     @Override
     @SuppressWarnings("unchecked")
     protected void addStoredFields(ParseContext context, List<? extends CartesianPoint> points) {
-        for (ParsedCartesianPoint point : (List<ParsedCartesianPoint>)points) {
+        for (CartesianPoint point : points) {
             context.doc().add(new StoredField(fieldType().name(), point.toString()));
         }
     }
@@ -121,9 +121,14 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? ex
     @SuppressWarnings("unchecked")
     protected void addDocValuesFields(String name, List<? extends CartesianPoint> points, List<IndexableField> fields,
                                       ParseContext context) {
-        for (ParsedCartesianPoint point : (List<ParsedCartesianPoint>)points) {
+        for (CartesianPoint point : points) {
             context.doc().add(new XYDocValuesField(fieldType().name(), point.getX(), point.getY()));
         }
+    }
+
+    @Override
+    protected void addMultiFields(ParseContext context, List<? extends CartesianPoint> points) {
+        // noop
     }
 
     @Override

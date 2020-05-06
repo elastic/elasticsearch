@@ -180,14 +180,10 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             T builder = newBuilder(name, params);
             if (params.containsKey(GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName())) {
                 builder.ignoreZValue((Boolean)params.get(GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName()));
-            } else {
-                builder.ignoreZValue(Defaults.IGNORE_Z_VALUE.value());
             }
 
             if (params.containsKey(Names.IGNORE_MALFORMED.getPreferredName())) {
                 builder.ignoreMalformed((Boolean)params.get(Names.IGNORE_MALFORMED.getPreferredName()));
-            } else {
-                builder.ignoreMalformed(Defaults.IGNORE_MALFORMED.value());
             }
             return builder;
         }
@@ -308,6 +304,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
     protected abstract void addStoredFields(ParseContext context, Processed geometry);
     protected abstract void addDocValuesFields(String name, Processed geometry, List<IndexableField> fields, ParseContext context);
+    protected abstract void addMultiFields(ParseContext context, Processed geometry) throws IOException;
 
     /** parsing logic for geometry indexing */
     @Override
@@ -351,6 +348,9 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             for (IndexableField field : indexedFields) {
                 context.doc().add(field);
             }
+
+            // add multifields (e.g., used for completion suggester)
+            addMultiFields(context, shape);
         } catch (Exception e) {
             if (ignoreMalformed.value() == false) {
                 throw new MapperParsingException("failed to parse field [{}] of type [{}]", e, fieldType().name(),

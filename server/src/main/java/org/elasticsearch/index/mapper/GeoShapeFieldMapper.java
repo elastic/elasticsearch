@@ -138,6 +138,11 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     }
 
     @Override
+    protected void addMultiFields(ParseContext context, Geometry geometry) {
+        // noop (completion suggester currently not compatible with geo_shape)
+    }
+
+    @Override
     protected void doMerge(Mapper mergeWith) {
         if (mergeWith instanceof LegacyGeoShapeFieldMapper) {
             LegacyGeoShapeFieldMapper legacy = (LegacyGeoShapeFieldMapper) mergeWith;

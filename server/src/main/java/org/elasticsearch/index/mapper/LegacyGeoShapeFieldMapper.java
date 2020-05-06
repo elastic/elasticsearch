@@ -493,6 +493,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     }
 
     @Override
+    protected void addMultiFields(ParseContext context, Shape geometry) {
+        // noop (completion suggester currently not compatible with geo_shape)
+    }
+
+    @Override
     public void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 

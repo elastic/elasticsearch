@@ -120,14 +120,32 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<?
 
     @Override
     protected void addStoredFields(ParseContext context, List<? extends GeoPoint> points) {
-        for (ParsedGeoPoint point : (List<ParsedGeoPoint>)points) {
+        for (GeoPoint point : points) {
             context.doc().add(new StoredField(fieldType.name(), point.toString()));
         }
     }
 
     @Override
+    protected void addMultiFields(ParseContext context, List<? extends GeoPoint> points) throws IOException {
+        // @todo phase out geohash (which is currently used in the CompletionSuggester)
+        StringBuilder s = new StringBuilder();
+        if (points.size() > 1) {
+            s.append('[');
+        }
+        s.append(points.get(0).geohash());
+        for (int i = 1; i < points.size(); ++i) {
+            s.append(',');
+            s.append(points.get(i).geohash());
+        }
+        if (points.size() > 1) {
+            s.append(']');
+        }
+        multiFields.parse(this, context.createExternalValueContext(s));
+    }
+
+    @Override
     protected void addDocValuesFields(String name, List<? extends GeoPoint> points, List<IndexableField> fields, ParseContext context) {
-        for (ParsedGeoPoint point : (List<ParsedGeoPoint>)points) {
+        for (GeoPoint point : points) {
             context.doc().add(new LatLonDocValuesField(fieldType.name(), point.lat(), point.lon()));
         }
     }
@@ -259,7 +277,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<?
         @Override
         public List<IndexableField> indexShape(ParseContext context, List<ParsedGeoPoint> points) {
             ArrayList<IndexableField> fields = new ArrayList<>(points.size());
-            for (ParsedGeoPoint point : points) {
+            for (GeoPoint point : points) {
                 fields.add(new LatLonPoint(fieldType.name(), point.lat(), point.lon()));
             }
             return fields;

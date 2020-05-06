@@ -94,7 +94,8 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
             }
 
             if (nullValue != null) {
-                builder.nullValue(parseNullValue(nullValue, builder.ignoreZValue.booleanValue(), builder.ignoreMalformed.booleanValue()));
+                builder.nullValue(parseNullValue(nullValue, (Boolean)builder.ignoreZValue().value(),
+                    (Boolean)builder.ignoreMalformed().value()));
             }
 
             return builder;
@@ -220,7 +221,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
                     @Override
                     public List<P> fromXContent(XContentParser parser) throws IOException, ParseException {
                         P point = null;
-                        ArrayList<P> points = new ArrayList<>();
+                        ArrayList<P> points = null;
                         if (mapper.fieldType().nullValue() != null) {
                             point = (P)(mapper.fieldType().nullValue());
                             if ((Boolean)(mapper.ignoreMalformed().value()) == false) {
@@ -228,6 +229,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
                             } else {
                                 point.normalize(mapper.name());
                             }
+                            points = new ArrayList<>();
                             points.add(point);
                         }
                         return points;

@@ -138,6 +138,11 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
     }
 
     @Override
+    protected void addMultiFields(ParseContext context, Geometry geometry) {
+        // noop (completion suggester currently not compatible with geo_shape)
+    }
+
+    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }

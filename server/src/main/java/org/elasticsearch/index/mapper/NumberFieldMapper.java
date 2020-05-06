@@ -30,7 +30,6 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -1039,8 +1038,7 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
-
+    protected void parseCreateField(ParseContext context) throws IOException {
         XContentParser parser = context.parser();
         Object value;
         Number numericValue = null;
@@ -1081,9 +1079,10 @@ public class NumberFieldMapper extends FieldMapper {
         boolean indexed = fieldType().indexOptions() != IndexOptions.NONE;
         boolean docValued = fieldType().hasDocValues();
         boolean stored = fieldType().stored();
-        fields.addAll(fieldType().type.createFields(fieldType().name(), numericValue, indexed, docValued, stored));
+        context.doc().addAll(fieldType().type.createFields(fieldType().name(), numericValue, indexed, docValued, stored));
+
         if (docValued == false && (stored || indexed)) {
-            createFieldNamesField(context, fields);
+            createFieldNamesField(context);
         }
     }
 

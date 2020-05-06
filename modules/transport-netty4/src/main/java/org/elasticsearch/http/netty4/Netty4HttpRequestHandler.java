@@ -22,12 +22,12 @@ package org.elasticsearch.http.netty4;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.DecoderResult;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.http.HttpPipelinedRequest;
 
 @ChannelHandler.Sharable
-class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest<FullHttpRequest>> {
+class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest> {
 
     private final Netty4HttpServerTransport serverTransport;
 
@@ -36,14 +36,14 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
     }
 
     @Override
-    protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest<FullHttpRequest> msg) {
-        Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
-        FullHttpRequest request = msg.getRequest();
+    protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest msg) {
+        final Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
+        final Netty4HttpRequest httpRequest = (Netty4HttpRequest) msg.getDelegateRequest();
+        final DecoderResult decoderResult = httpRequest.nettyRequest().decoderResult();
         boolean success = false;
-        Netty4HttpRequest httpRequest = new Netty4HttpRequest(request, msg.getSequence());
         try {
-            if (request.decoderResult().isFailure()) {
-                Throwable cause = request.decoderResult().cause();
+            if (decoderResult.isFailure()) {
+                Throwable cause = decoderResult.cause();
                 if (cause instanceof Error) {
                     ExceptionsHelper.maybeDieOnAnotherThread(cause);
                     serverTransport.incomingRequestError(httpRequest, channel, new Exception(cause));

@@ -22,11 +22,11 @@ package org.elasticsearch.http.nio;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
-import io.netty.handler.codec.http.FullHttpRequest;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.http.HttpPipeliningAggregator;
+import org.elasticsearch.http.HttpRequest;
 
 import java.nio.channels.ClosedChannelException;
 import java.util.List;
@@ -53,8 +53,8 @@ public class NioHttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
-        assert msg instanceof FullHttpRequest : "Invalid message type: " + msg.getClass();
-        HttpPipelinedRequest<FullHttpRequest> pipelinedRequest = aggregator.read(((FullHttpRequest) msg));
+        assert msg instanceof HttpRequest : "Invalid message type: " + msg.getClass();
+        HttpPipelinedRequest pipelinedRequest = aggregator.read((HttpRequest) msg);
         ctx.fireChannelRead(pipelinedRequest);
     }
 

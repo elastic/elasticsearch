@@ -42,8 +42,8 @@ public class HttpPipeliningAggregator<Response extends HttpPipelinedMessage, Lis
         this.outboundHoldingQueue = new PriorityQueue<>(1, Comparator.comparing(Tuple::v1));
     }
 
-    public <Request> HttpPipelinedRequest<Request> read(final Request request) {
-        return new HttpPipelinedRequest<>(readSequence++, request);
+    public HttpPipelinedRequest read(final HttpRequest request) {
+        return new HttpPipelinedRequest(readSequence++, request);
     }
 
     public List<Tuple<Response, Listener>> write(final Response response, Listener listener) {

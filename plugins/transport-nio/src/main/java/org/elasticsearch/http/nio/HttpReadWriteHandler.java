@@ -21,7 +21,7 @@ package org.elasticsearch.http.nio;
 
 import io.netty.channel.ChannelHandler;
 import io.netty.handler.codec.ByteToMessageDecoder;
-import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpObjectAggregator;
@@ -154,26 +154,26 @@ public class HttpReadWriteHandler implements NioChannelHandler {
 
     @SuppressWarnings("unchecked")
     private void handleRequest(Object msg) {
-        final HttpPipelinedRequest<FullHttpRequest> pipelinedRequest = (HttpPipelinedRequest<FullHttpRequest>) msg;
-        FullHttpRequest request = pipelinedRequest.getRequest();
+        final HttpPipelinedRequest pipelinedRequest = (HttpPipelinedRequest) msg;
+        final NioHttpRequest nioRequest = (NioHttpRequest) pipelinedRequest.getDelegateRequest();
+        final DecoderResult decoderResult = nioRequest.nettyRequest().decoderResult();
         boolean success = false;
-        NioHttpRequest httpRequest = new NioHttpRequest(request, pipelinedRequest.getSequence());
         try {
-            if (request.decoderResult().isFailure()) {
-                Throwable cause = request.decoderResult().cause();
+            if (decoderResult.isFailure()) {
+                Throwable cause = decoderResult.cause();
                 if (cause instanceof Error) {
                     ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                    transport.incomingRequestError(httpRequest, nioHttpChannel, new Exception(cause));
+                    transport.incomingRequestError(pipelinedRequest, nioHttpChannel, new Exception(cause));
                 } else {
-                    transport.incomingRequestError(httpRequest, nioHttpChannel, (Exception) cause);
+                    transport.incomingRequestError(pipelinedRequest, nioHttpChannel, (Exception) cause);
                 }
             } else {
-                transport.incomingRequest(httpRequest, nioHttpChannel);
+                transport.incomingRequest(pipelinedRequest, nioHttpChannel);
             }
             success = true;
         } finally {
             if (success == false) {
-                request.release();
+                pipelinedRequest.release();
             }
         }
     }

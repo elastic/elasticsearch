@@ -276,25 +276,17 @@ public class OptimizerRulesTests extends ESTestCase {
     public void testBoolEqualsSimplification() {
         BooleanEqualsSimplification s = new BooleanEqualsSimplification();
 
-        assertEquals(new And(EMPTY, DUMMY_EXPRESSION, TRUE), s.rule(new Equals(EMPTY, DUMMY_EXPRESSION, TRUE)));
-        assertEquals(new And(EMPTY, new Not(EMPTY, DUMMY_EXPRESSION), TRUE), s.rule(new Equals(EMPTY, DUMMY_EXPRESSION, FALSE)));
-        assertEquals(new And(EMPTY, TRUE, DUMMY_EXPRESSION), s.rule(new Equals(EMPTY, TRUE, DUMMY_EXPRESSION)));
-        assertEquals(new And(EMPTY, TRUE, new Not(EMPTY, DUMMY_EXPRESSION)), s.rule(new Equals(EMPTY, FALSE, DUMMY_EXPRESSION)));
+        assertEquals(DUMMY_EXPRESSION, s.rule(new Equals(EMPTY, DUMMY_EXPRESSION, TRUE)));
+        assertEquals(new Not(EMPTY, DUMMY_EXPRESSION), s.rule(new Equals(EMPTY, DUMMY_EXPRESSION, FALSE)));
 
-        assertEquals(new And(EMPTY, new Not(EMPTY, DUMMY_EXPRESSION), TRUE), s.rule(notEqualsOf(DUMMY_EXPRESSION, TRUE)));
-        assertEquals(new And(EMPTY, DUMMY_EXPRESSION, TRUE), s.rule(notEqualsOf(DUMMY_EXPRESSION, FALSE)));
-        assertEquals(new And(EMPTY, TRUE, new Not(EMPTY, DUMMY_EXPRESSION)), s.rule(notEqualsOf(TRUE, DUMMY_EXPRESSION)));
-        assertEquals(new And(EMPTY, TRUE, DUMMY_EXPRESSION), s.rule(notEqualsOf(FALSE, DUMMY_EXPRESSION)));
+        assertEquals(new Not(EMPTY, DUMMY_EXPRESSION), s.rule(notEqualsOf(DUMMY_EXPRESSION, TRUE)));
+        assertEquals(DUMMY_EXPRESSION, s.rule(notEqualsOf(DUMMY_EXPRESSION, FALSE)));
 
-        assertEquals(new And(EMPTY, NULL, TRUE), s.rule(new Equals(EMPTY, NULL, TRUE)));
-        assertEquals(new And(EMPTY, new Not(EMPTY, NULL), TRUE), s.rule(new Equals(EMPTY, NULL, FALSE)));
-        assertEquals(new And(EMPTY, TRUE, NULL), s.rule(new Equals(EMPTY, TRUE, NULL)));
-        assertEquals(new And(EMPTY, TRUE, new Not(EMPTY, NULL)), s.rule(new Equals(EMPTY, FALSE, NULL)));
+        assertEquals(NULL, s.rule(new Equals(EMPTY, NULL, TRUE)));
+        assertEquals(new Not(EMPTY, NULL), s.rule(new Equals(EMPTY, NULL, FALSE)));
 
-        assertEquals(new And(EMPTY, new Not(EMPTY, NULL), TRUE), s.rule(notEqualsOf(NULL, TRUE)));
-        assertEquals(new And(EMPTY, NULL, TRUE), s.rule(notEqualsOf(NULL, FALSE)));
-        assertEquals(new And(EMPTY, TRUE, new Not(EMPTY, NULL)), s.rule(notEqualsOf(TRUE, NULL)));
-        assertEquals(new And(EMPTY, TRUE, NULL), s.rule(notEqualsOf(FALSE, NULL)));
+        assertEquals(new Not(EMPTY, NULL), s.rule(notEqualsOf(NULL, TRUE)));
+        assertEquals(NULL, s.rule(notEqualsOf(NULL, FALSE)));
     }
 
     //

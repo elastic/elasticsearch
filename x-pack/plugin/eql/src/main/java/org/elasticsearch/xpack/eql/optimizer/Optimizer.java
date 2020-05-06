@@ -46,9 +46,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         Batch operators = new Batch("Operator Optimization",
                 new ConstantFolding(),
                 // boolean
-                new BooleanEqualsSimplification(),
                 new BooleanSimplification(),
                 new BooleanLiteralsOnTheRight(),
+                new BooleanEqualsSimplification(),
                 // needs to occur before BinaryComparison combinations
                 new ReplaceWildcards(),
                 new ReplaceNullChecks(),

@@ -823,7 +823,8 @@ This yields the following aggregation profile output:
                   "initialize_count" : 1,
                   "reduce_count" : 0,
                   "collect" : 94052,
-                  "collect_count" : 4
+                  "collect_count" : 4,
+                  "multi_bucket_aggregator_wrapper": true
                 }
               }
             ]
@@ -850,8 +851,7 @@ field will give detailed stats about how the time was spent.
 
 ===== Timing Breakdown
 
-The `breakdown` component lists detailed timing statistics about low-level 
-Lucene execution:
+The `breakdown` component lists detailed statistics about low-level execution:
 
 [source,js]
 --------------------------------------------------
@@ -878,7 +878,7 @@ overall time, the breakdown is inclusive of all children times.
 The meaning of the stats are as follows:
 
 [float]
-===== All parameters:
+===== Common parameters:
 
 [horizontal]
 `initialise`::
@@ -900,6 +900,11 @@ The meaning of the stats are as follows:
 `*_count`::
     Records the number of invocations of the particular method.  For example, `"collect_count": 2,`
     means the `collect()` method was called on two different documents.
+
+All other parts of the breakdown are extra debugging information specific to
+the particular aggregation. They expose details of the aggregation implementation
+that are helpful in debugging issues with the aggregation and might change from
+version to version.
 
 [[profiling-considerations]]
 ===== Profiling Considerations

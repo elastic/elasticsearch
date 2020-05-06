@@ -14,6 +14,17 @@ ifeval::[ "{version}" != "{minor-version}.0" ]
 * From any version since {minor-version}.0 to {version}
 endif::[]
 
+[TIP]
+====
+For rolling upgrades between major versions (e.g., 5.6 to 6.8), we recommend
+using the {kibana-ref}/upgrade-assistant.html[Kibana Upgrade Assistant].
+
+The upgrade assistant identifies deprecated settings in your cluster and guides
+you through the process of resolving issues, including reindexing.
+
+We also recommend checking your <<deprecation-logging,deprecation logs>> for any
+other functionality that may have changed.
+====
 
 The following table shows the recommended upgrade paths to {version}.
 

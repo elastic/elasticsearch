@@ -1,0 +1,43 @@
+--
+:api: get-index-templates-v2
+:request: GetIndexTemplateV2Request
+:response: GetIndexTemplatesV2Response
+--
+
+[id="{upid}-{api}"]
+=== Get Index Templates V2 API
+
+The Get Index Templates API allows to retrieve information about one or more index templates.
+
+[id="{upid}-{api}-request"]
+==== Get Index Templates V2 Request
+
+A +{request}+ specifies one, or a wildcard expression of index template names
+to get. To return all index templates, omit the name altogether or use a value of `*`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> A single index template name
+<2> An index template name using wildcard
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get Templates Response
+
+The returned +{response}+ consists a map of index template names and their corresponding configurations.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> A map of matching index templates names and the corresponding configurations

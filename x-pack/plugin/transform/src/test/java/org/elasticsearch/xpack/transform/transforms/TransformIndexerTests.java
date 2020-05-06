@@ -30,14 +30,12 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
-import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfigTests;
-import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfigTests;
-import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -60,6 +58,7 @@ import java.util.function.Function;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
+import static org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests.randomPivotConfig;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.empty;
@@ -236,8 +235,9 @@ public class TransformIndexerTests extends ESTestCase {
             null,
             null,
             null,
-            new PivotConfig(GroupConfigTests.randomGroupConfig(), AggregationConfigTests.randomAggregationConfig(), pageSize),
-            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000)
+            randomPivotConfig(),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            new SettingsConfig(pageSize, null)
         );
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final long initialPageSize = pageSize == null ? Pivot.DEFAULT_INITIAL_PAGE_SIZE : pageSize;
@@ -252,46 +252,46 @@ public class TransformIndexerTests extends ESTestCase {
 
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
-            TransformAuditor auditor = new TransformAuditor(client, "node_1");
-            TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
+        TransformAuditor auditor = new TransformAuditor(client, "node_1");
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
 
-            MockedTransformIndexer indexer = createMockIndexer(
-                config,
-                state,
-                searchFunction,
-                bulkFunction,
-                null,
-                threadPool,
-                ThreadPool.Names.GENERIC,
-                auditor,
-                context
-            );
-            final CountDownLatch latch = indexer.newLatch(1);
-            indexer.start();
-            assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
-            assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
-            assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
+        MockedTransformIndexer indexer = createMockIndexer(
+            config,
+            state,
+            searchFunction,
+            bulkFunction,
+            null,
+            threadPool,
+            ThreadPool.Names.GENERIC,
+            auditor,
+            context
+        );
+        final CountDownLatch latch = indexer.newLatch(1);
+        indexer.start();
+        assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
 
-            latch.countDown();
-            assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)), 10, TimeUnit.MINUTES);
-            long pageSizeAfterFirstReduction = indexer.getPageSize();
-            assertThat(initialPageSize, greaterThan(pageSizeAfterFirstReduction));
-            assertThat(pageSizeAfterFirstReduction, greaterThan((long) TransformIndexer.MINIMUM_PAGE_SIZE));
+        latch.countDown();
+        assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)), 10, TimeUnit.MINUTES);
+        long pageSizeAfterFirstReduction = indexer.getPageSize();
+        assertThat(initialPageSize, greaterThan(pageSizeAfterFirstReduction));
+        assertThat(pageSizeAfterFirstReduction, greaterThan((long) TransformIndexer.MINIMUM_PAGE_SIZE));
 
-            // run indexer a 2nd time
-            final CountDownLatch secondRunLatch = indexer.newLatch(1);
-            indexer.start();
-            assertEquals(pageSizeAfterFirstReduction, indexer.getPageSize());
-            assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
-            assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
-            assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
+        // run indexer a 2nd time
+        final CountDownLatch secondRunLatch = indexer.newLatch(1);
+        indexer.start();
+        assertEquals(pageSizeAfterFirstReduction, indexer.getPageSize());
+        assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
 
-            secondRunLatch.countDown();
-            assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)));
+        secondRunLatch.countDown();
+        assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)));
 
-            // assert that page size has been reduced again
-            assertThat(pageSizeAfterFirstReduction, greaterThan((long) indexer.getPageSize()));
-            assertThat(pageSizeAfterFirstReduction, greaterThan((long) TransformIndexer.MINIMUM_PAGE_SIZE));
+        // assert that page size has been reduced again
+        assertThat(pageSizeAfterFirstReduction, greaterThan((long) indexer.getPageSize()));
+        assertThat(pageSizeAfterFirstReduction, greaterThan((long) TransformIndexer.MINIMUM_PAGE_SIZE));
     }
 
     public void testDoProcessAggNullCheck() {
@@ -303,8 +303,9 @@ public class TransformIndexerTests extends ESTestCase {
             null,
             null,
             null,
-            new PivotConfig(GroupConfigTests.randomGroupConfig(), AggregationConfigTests.randomAggregationConfig(), pageSize),
-            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000)
+            randomPivotConfig(),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            new SettingsConfig(pageSize, null)
         );
         SearchResponse searchResponse = new SearchResponse(
             new InternalSearchResponse(
@@ -329,26 +330,26 @@ public class TransformIndexerTests extends ESTestCase {
         Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> searchResponse;
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
-            TransformAuditor auditor = mock(TransformAuditor.class);
-            TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
+        TransformAuditor auditor = mock(TransformAuditor.class);
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
 
-            MockedTransformIndexer indexer = createMockIndexer(
-                config,
-                state,
-                searchFunction,
-                bulkFunction,
-                null,
-                threadPool,
-                ThreadPool.Names.GENERIC,
-                auditor,
-                context
-            );
+        MockedTransformIndexer indexer = createMockIndexer(
+            config,
+            state,
+            searchFunction,
+            bulkFunction,
+            null,
+            threadPool,
+            ThreadPool.Names.GENERIC,
+            auditor,
+            context
+        );
 
-            IterationResult<TransformIndexerPosition> newPosition = indexer.doProcess(searchResponse);
-            assertThat(newPosition.getToIndex(), is(empty()));
-            assertThat(newPosition.getPosition(), is(nullValue()));
-            assertThat(newPosition.isDone(), is(true));
-            verify(auditor, times(1)).info(anyString(), anyString());
+        IterationResult<TransformIndexerPosition> newPosition = indexer.doProcess(searchResponse);
+        assertThat(newPosition.getToIndex(), is(empty()));
+        assertThat(newPosition.getPosition(), is(nullValue()));
+        assertThat(newPosition.isDone(), is(true));
+        verify(auditor, times(1)).info(anyString(), anyString());
     }
 
     public void testScriptError() throws Exception {
@@ -361,8 +362,9 @@ public class TransformIndexerTests extends ESTestCase {
             null,
             null,
             null,
-            new PivotConfig(GroupConfigTests.randomGroupConfig(), AggregationConfigTests.randomAggregationConfig(), pageSize),
-            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000)
+            randomPivotConfig(),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            new SettingsConfig(pageSize, null)
         );
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {
@@ -392,41 +394,41 @@ public class TransformIndexerTests extends ESTestCase {
             failureMessage.compareAndSet(null, message);
         };
 
-            MockTransformAuditor auditor = new MockTransformAuditor();
-            TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
-            TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
+        MockTransformAuditor auditor = new MockTransformAuditor();
+        TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
 
-            MockedTransformIndexer indexer = createMockIndexer(
-                config,
-                state,
-                searchFunction,
-                bulkFunction,
-                failureConsumer,
-                threadPool,
-                ThreadPool.Names.GENERIC,
-                auditor,
-                context
-            );
+        MockedTransformIndexer indexer = createMockIndexer(
+            config,
+            state,
+            searchFunction,
+            bulkFunction,
+            failureConsumer,
+            threadPool,
+            ThreadPool.Names.GENERIC,
+            auditor,
+            context
+        );
 
-            final CountDownLatch latch = indexer.newLatch(1);
+        final CountDownLatch latch = indexer.newLatch(1);
 
-            indexer.start();
-            assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
-            assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
-            assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
+        indexer.start();
+        assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
 
-            latch.countDown();
-            assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)), 10, TimeUnit.SECONDS);
-            assertTrue(failIndexerCalled.get());
-            verify(contextListener, times(1)).fail(
-                matches("Failed to execute script with error: \\[.*ArithmeticException: / by zero\\], stack trace: \\[stack\\]"),
-                any()
-            );
+        latch.countDown();
+        assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)), 10, TimeUnit.SECONDS);
+        assertTrue(failIndexerCalled.get());
+        verify(contextListener, times(1)).fail(
+            matches("Failed to execute script with error: \\[.*ArithmeticException: / by zero\\], stack trace: \\[stack\\]"),
+            any()
+        );
 
-            assertThat(
-                failureMessage.get(),
-                matchesRegex("Failed to execute script with error: \\[.*ArithmeticException: / by zero\\], stack trace: \\[stack\\]")
-            );
+        assertThat(
+            failureMessage.get(),
+            matchesRegex("Failed to execute script with error: \\[.*ArithmeticException: / by zero\\], stack trace: \\[stack\\]")
+        );
     }
 
     private MockedTransformIndexer createMockIndexer(

@@ -121,7 +121,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
 
         assertAcked(client().admin()
             .indices()
-            .preparePutTemplate("should-fail*")
+            .preparePutTemplate("should-fail")
             .setPatterns(Collections.singletonList("should-fail"))
             .setOrder(1)
             .setSettings(Settings.builder()

@@ -132,6 +132,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         ensureContext(ctx -> ctx != CACHE_WARMING_CONTEXT);
         final long position = getFilePointer() + this.offset;
         final int length = b.remaining();
+
         int totalBytesRead = 0;
         while (totalBytesRead < length) {
             final long pos = position + totalBytesRead;
@@ -144,7 +145,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                     bytesRead = cacheFile.fetchRange(
                         range.v1(),
                         range.v2(),
-                        (start, end) -> readCacheFile(cacheFile.getChannel(), end, pos, b),
+                        (start, end) -> readCacheFile(cacheFile.getChannel(), end, pos, b, len),
                         (start, end) -> writeCacheFile(cacheFile.getChannel(), start, end)
                     ).get();
                 }
@@ -317,15 +318,17 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         return true;
     }
 
-    private int readCacheFile(FileChannel fc, long end, long position, ByteBuffer b) throws IOException {
+    private int readCacheFile(FileChannel fc, long end, long position, ByteBuffer b, long length) throws IOException {
         assert assertFileChannelOpen(fc);
         final int bytesRead;
+
+        assert b.remaining() == length;
         if (end - position < b.remaining()) {
-            final int originalLimit = b.limit();
-            b.limit(b.position() + Math.toIntExact(end - position));
-            bytesRead = Channels.readFromFileChannel(fc, position, b);
-            assert originalLimit > b.position();
-            b.limit(originalLimit);
+            final ByteBuffer duplicate = b.duplicate();
+            duplicate.limit(b.position() + Math.toIntExact(end - position));
+            bytesRead = Channels.readFromFileChannel(fc, position, duplicate);
+            assert duplicate.position() < b.limit();
+            b.position(duplicate.position());
         } else {
             bytesRead = Channels.readFromFileChannel(fc, position, b);
         }

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -228,13 +229,13 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         ActionRequestValidationException validationException = null;
         // the version field is mandatory for drivers and CLI
         Mode mode = requestInfo().mode();
-        if (mode != null && (Mode.isDedicatedClient(mode))) {
+        if (Mode.isDedicatedClient(mode)) {
             if (requestInfo().version() == null) {
                 if (Strings.hasText(query())) {
                     validationException = addValidationError("[version] is required for the [" + mode.toString() + "] client",
                         validationException);
                 }
-            } else if (requestInfo().version().equals(Version.CURRENT.toString()) == false) {
+            } else if (SqlVersion.isClientCompatible(requestInfo().version()) == false) {
                 validationException = addValidationError("The [" + requestInfo().version() + "] version of the [" +
                         mode.toString() + "] " + "client is not compatible with Elasticsearch version [" + Version.CURRENT + "]",
                     validationException);

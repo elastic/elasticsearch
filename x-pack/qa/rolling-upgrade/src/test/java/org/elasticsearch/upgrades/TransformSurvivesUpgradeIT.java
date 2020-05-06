@@ -123,6 +123,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
      * The purpose of this test is to ensure that when a job is open through a rolling upgrade we upgrade the results
      * index mappings when it is assigned to an upgraded node even if no other ML endpoint is called after the upgrade
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/56196")
     public void testTransformRollingUpgrade() throws Exception {
         assumeTrue("Continuous transform not supported until 7.3", UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_3_0));
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");

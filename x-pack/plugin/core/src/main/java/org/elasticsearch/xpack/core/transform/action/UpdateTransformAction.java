@@ -66,7 +66,7 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
         }
 
         public static Request fromStreamWithBWC(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_8_0
+            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
                 return new Request(in);
             }
             UpdateTransformActionPre78.Request r = new UpdateTransformActionPre78.Request(in);
@@ -130,7 +130,7 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
                 super.writeTo(out);
                 update.writeTo(out);
                 out.writeString(id);
@@ -186,7 +186,7 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
         }
 
         public static Response fromStreamWithBWC(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_8_0
+            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
                 return new Response(in);
             }
             UpdateTransformActionPre78.Response r = new UpdateTransformActionPre78.Response(in);
@@ -199,7 +199,7 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
                 super.writeTo(out);
                 config.writeTo(out);
                 return;

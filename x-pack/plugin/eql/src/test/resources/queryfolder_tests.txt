@@ -145,6 +145,14 @@ InternalEqlScriptUtils.between(InternalQlScriptUtils.docValue(doc,params.v0),par
 "params":{"v0":"process_name","v1":"s","v2":"e","v3":false,"v4":false,"v5":"yst"}
 ;
 
+concatFunction
+process where concat(process_name, "::foo::", null, 1) == "net.exe::foo::1"
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalEqlScriptUtils.concat([InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3]),params.v4))",
+"params":{"v0":"process_name","v1":"::foo::","v2":null,"v3":1,"v4":"net.exe::foo::1"}
+;
+
 cidrMatchFunctionOne
 process where cidrMatch(source_address, "10.0.0.0/8")
 ;

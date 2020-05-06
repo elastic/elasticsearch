@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.indices.alias;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -63,7 +63,7 @@ public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
         public Collection<RequestValidators.RequestValidator<IndicesAliasesRequest>> indicesAliasesRequestValidators() {
             return Collections.singletonList((request, state, indices) -> {
                 for (final Index index : indices) {
-                    final List<String> allowedOrigins = ALLOWED_ORIGINS_SETTING.get(state.metaData().index(index).getSettings());
+                    final List<String> allowedOrigins = ALLOWED_ORIGINS_SETTING.get(state.metadata().index(index).getSettings());
                     if (allowedOrigins.contains(request.origin()) == false) {
                         final String message = String.format(
                                 Locale.ROOT,
@@ -95,9 +95,9 @@ public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
         final GetAliasesResponse response = client().admin().indices().getAliases(new GetAliasesRequest("alias")).actionGet();
         assertThat(response.getAliases().keys().size(), equalTo(1));
         assertThat(response.getAliases().keys().iterator().next().value, equalTo("index"));
-        final List<AliasMetaData> aliasMetaData = response.getAliases().get("index");
-        assertThat(aliasMetaData, hasSize(1));
-        assertThat(aliasMetaData.get(0).alias(), equalTo("alias"));
+        final List<AliasMetadata> aliasMetadata = response.getAliases().get("index");
+        assertThat(aliasMetadata, hasSize(1));
+        assertThat(aliasMetadata.get(0).alias(), equalTo("alias"));
     }
 
     public void testNotAllowed() {

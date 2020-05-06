@@ -10,6 +10,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.xpack.ql.tree.Source;
 
+import java.time.ZoneId;
 import java.util.Objects;
 
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
@@ -20,13 +21,14 @@ public class RangeQuery extends LeafQuery {
     private final Object lower, upper;
     private final boolean includeLower, includeUpper;
     private final String format;
+    private final ZoneId zoneId;
 
-    public RangeQuery(Source source, String field, Object lower, boolean includeLower, Object upper, boolean includeUpper) {
-        this(source, field, lower, includeLower, upper, includeUpper, null);
+    public RangeQuery(Source source, String field, Object lower, boolean includeLower, Object upper, boolean includeUpper, ZoneId zoneId) {
+        this(source, field, lower, includeLower, upper, includeUpper, null, zoneId);
     }
 
     public RangeQuery(Source source, String field, Object lower, boolean includeLower, Object upper,
-            boolean includeUpper, String format) {
+            boolean includeUpper, String format, ZoneId zoneId) {
         super(source);
         this.field = field;
         this.lower = lower;
@@ -34,6 +36,7 @@ public class RangeQuery extends LeafQuery {
         this.includeLower = includeLower;
         this.includeUpper = includeUpper;
         this.format = format;
+        this.zoneId = zoneId;
     }
 
     public String field() {
@@ -60,11 +63,18 @@ public class RangeQuery extends LeafQuery {
         return format;
     }
 
+    public ZoneId zoneId() {
+        return zoneId;
+    }
+
     @Override
     public QueryBuilder asBuilder() {
         RangeQueryBuilder queryBuilder = rangeQuery(field).from(lower, includeLower).to(upper, includeUpper);
         if (Strings.hasText(format)) {
             queryBuilder.format(format);
+        }
+        if (zoneId != null) {
+            queryBuilder.timeZone(zoneId.getId());
         }
 
         return queryBuilder;
@@ -72,7 +82,7 @@ public class RangeQuery extends LeafQuery {
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, lower, upper, includeLower, includeUpper, format);
+        return Objects.hash(field, lower, upper, includeLower, includeUpper, format, zoneId);
     }
 
     @Override
@@ -91,13 +101,14 @@ public class RangeQuery extends LeafQuery {
                 Objects.equals(includeUpper, other.includeUpper) &&
                 Objects.equals(lower, other.lower) &&
                 Objects.equals(upper, other.upper) &&
-                Objects.equals(format, other.format);
+                Objects.equals(format, other.format) &&
+                Objects.equals(zoneId, other.zoneId);
     }
 
     @Override
     protected String innerToString() {
         return field + ":"
             + (includeLower ? "[" : "(") + lower + ", "
-            + upper + (includeUpper ? "]" : ")");
+            + upper + (includeUpper ? "]" : ")") + "@" + zoneId.getId();
     }
 }

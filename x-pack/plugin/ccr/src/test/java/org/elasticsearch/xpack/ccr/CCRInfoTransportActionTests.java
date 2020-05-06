@@ -10,8 +10,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
@@ -47,10 +47,10 @@ public class CCRInfoTransportActionTests extends ESTestCase {
         CCRInfoTransportAction featureSet = new CCRInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
 
-        when(licenseState.isCcrAllowed()).thenReturn(false);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.CCR)).thenReturn(false);
         assertThat(featureSet.available(), equalTo(false));
 
-        when(licenseState.isCcrAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.CCR)).thenReturn(true);
         assertThat(featureSet.available(), equalTo(true));
     }
 
@@ -72,26 +72,26 @@ public class CCRInfoTransportActionTests extends ESTestCase {
     }
 
     public void testUsageStats() throws Exception {
-        MetaData.Builder metaData = MetaData.builder();
+        Metadata.Builder metadata = Metadata.builder();
 
         int numFollowerIndices = randomIntBetween(0, 32);
         for (int i = 0; i < numFollowerIndices; i++) {
-            IndexMetaData.Builder followerIndex = IndexMetaData.builder("follow_index" + i)
+            IndexMetadata.Builder followerIndex = IndexMetadata.builder("follow_index" + i)
                 .settings(settings(Version.CURRENT).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .creationDate(i)
                 .putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
-            metaData.put(followerIndex);
+            metadata.put(followerIndex);
         }
 
         // Add a regular index, to check that we do not take that one into account:
-        IndexMetaData.Builder regularIndex = IndexMetaData.builder("my_index")
+        IndexMetadata.Builder regularIndex = IndexMetadata.builder("my_index")
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .creationDate(numFollowerIndices);
-        metaData.put(regularIndex);
+        metadata.put(regularIndex);
 
         int numAutoFollowPatterns = randomIntBetween(0, 32);
         Map<String, AutoFollowMetadata.AutoFollowPattern> patterns = new HashMap<>(numAutoFollowPatterns);
@@ -100,9 +100,9 @@ public class CCRInfoTransportActionTests extends ESTestCase {
                 Collections.singletonList("logs" + i + "*"), null, true, null, null, null, null, null, null, null, null, null, null);
             patterns.put("pattern" + i, pattern);
         }
-        metaData.putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()));
+        metadata.putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()));
 
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metaData(metaData).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
         Mockito.when(clusterService.state()).thenReturn(clusterState);
 
         var usageAction = new CCRUsageTransportAction(mock(TransportService.class), null, null,

@@ -23,6 +23,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -1621,10 +1623,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @throws IOException if an I/O exception occurred during any file operations
      */
     public void rollGeneration() throws IOException {
-        // make sure we move most of the data to disk outside of the writeLock
-        // in order to reduce the time the lock is held since it's blocking all threads
-        sync();
+        syncBeforeRollGeneration();
         try (Releasable ignored = writeLock.acquire()) {
+            ensureOpen();
             try {
                 final TranslogReader reader = current.closeIntoReader();
                 readers.add(reader);
@@ -1639,6 +1640,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 throw e;
             }
         }
+    }
+
+    void syncBeforeRollGeneration() throws IOException {
+        // make sure we move most of the data to disk outside of the writeLock
+        // in order to reduce the time the lock is held since it's blocking all threads
+        sync();
     }
 
     /**
@@ -1838,20 +1845,58 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     static String createEmptyTranslog(Path location, long initialGlobalCheckpoint, ShardId shardId,
                                       ChannelFactory channelFactory, long primaryTerm) throws IOException {
+        return createEmptyTranslog(location, shardId, initialGlobalCheckpoint, primaryTerm, null, channelFactory);
+    }
+
+    /**
+     * Creates a new empty translog within the specified {@code location} that contains the given {@code initialGlobalCheckpoint},
+     * {@code primaryTerm} and {@code translogUUID}.
+     *
+     * This method should be used directly under specific circumstances like for shards that will see no indexing. Specifying a non-unique
+     * translog UUID could cause a lot of issues and that's why in all (but one) cases the method
+     * {@link #createEmptyTranslog(Path, long, ShardId, long)} should be used instead.
+     *
+     * @param location                a {@link Path} to the directory that will contains the translog files (translog + translog checkpoint)
+     * @param shardId                 the {@link ShardId}
+     * @param initialGlobalCheckpoint the global checkpoint to initialize the translog with
+     * @param primaryTerm             the shard's primary term to initialize the translog with
+     * @param translogUUID            the unique identifier to initialize the translog with
+     * @param factory                 a {@link ChannelFactory} used to open translog files
+     * @return the translog's unique identifier
+     * @throws IOException if something went wrong during translog creation
+     */
+    public static String createEmptyTranslog(final Path location,
+                                             final ShardId shardId,
+                                             final long initialGlobalCheckpoint,
+                                             final long primaryTerm,
+                                             @Nullable final String translogUUID,
+                                             @Nullable final ChannelFactory factory) throws IOException {
         IOUtils.rm(location);
         Files.createDirectories(location);
-        final Checkpoint checkpoint =
-            Checkpoint.emptyTranslogCheckpoint(0, 1, initialGlobalCheckpoint, 1);
+
+        final long generation = 1L;
+        final long minTranslogGeneration = 1L;
+        final ChannelFactory channelFactory = factory != null ? factory : FileChannel::open;
+        final String uuid = Strings.hasLength(translogUUID) ? translogUUID : UUIDs.randomBase64UUID();
         final Path checkpointFile = location.resolve(CHECKPOINT_FILE_NAME);
+        final Path translogFile = location.resolve(getFilename(generation));
+        final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, generation, initialGlobalCheckpoint, minTranslogGeneration);
+
         Checkpoint.write(channelFactory, checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
         IOUtils.fsync(checkpointFile, false);
-        final String translogUUID = UUIDs.randomBase64UUID();
-        TranslogWriter writer = TranslogWriter.create(shardId, translogUUID, 1,
-            location.resolve(getFilename(1)), channelFactory,
-            new ByteSizeValue(10), 1, initialGlobalCheckpoint,
-            () -> { throw new UnsupportedOperationException(); }, () -> { throw new UnsupportedOperationException(); }, primaryTerm,
-                new TragicExceptionHolder(), seqNo -> { throw new UnsupportedOperationException(); });
+        final TranslogWriter writer = TranslogWriter.create(shardId, uuid, generation, translogFile, channelFactory,
+            new ByteSizeValue(10), minTranslogGeneration, initialGlobalCheckpoint,
+            () -> {
+                throw new UnsupportedOperationException();
+            }, () -> {
+                throw new UnsupportedOperationException();
+            },
+            primaryTerm,
+            new TragicExceptionHolder(),
+            seqNo -> {
+                throw new UnsupportedOperationException();
+            });
         writer.close();
-        return translogUUID;
+        return uuid;
     }
 }

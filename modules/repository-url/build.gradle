@@ -26,7 +26,13 @@ esplugin {
   classname 'org.elasticsearch.plugin.repository.url.URLRepositoryPlugin'
 }
 
-// This directory is shared between two URL repositories and one FS repository in YAML integration tests
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'bulk', 'count', 'snapshot' 
+  }
+}
+
+ // This directory is shared between two URL repositories and one FS repository in YAML integration tests
 File repositoryDir = new File(project.buildDir, "shared-repository")
 
 /** A task to start the URLFixture which exposes the repositoryDir over HTTP **/

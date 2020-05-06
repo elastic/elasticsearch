@@ -39,6 +39,8 @@ include-tagged::{doc-tests-file}[{api}-config]
 <5> Optionally, a human-readable description
 <6> Optionally, an object map contain metadata about the model
 <7> Optionally, an array of tags to organize the model
+<8> The default inference config to use with the model. Must match the underlying
+    definition target_type.
 
 include::../execution.asciidoc[]
 

@@ -18,11 +18,11 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.querydsl.container.AttributeSort;
+import org.elasticsearch.xpack.ql.querydsl.container.AttributeSort;
+import org.elasticsearch.xpack.ql.querydsl.container.ScriptSort;
+import org.elasticsearch.xpack.ql.querydsl.container.Sort;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScoreSort;
-import org.elasticsearch.xpack.sql.querydsl.container.ScriptSort;
-import org.elasticsearch.xpack.sql.querydsl.container.Sort;
 
 import java.util.List;
 

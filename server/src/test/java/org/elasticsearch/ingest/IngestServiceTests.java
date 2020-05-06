@@ -39,7 +39,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -174,7 +174,7 @@ public class IngestServiceTests extends ESTestCase {
         );
         IngestMetadata ingestMetadata = new IngestMetadata(Collections.singletonMap("_id", pipeline));
         clusterState = ClusterState.builder(clusterState)
-            .metaData(MetaData.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
+            .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
             .build();
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         assertThat(ingestService.pipelines().size(), is(1));
@@ -254,7 +254,7 @@ public class IngestServiceTests extends ESTestCase {
         IngestMetadata ingestMetadata = new IngestMetadata(Collections.singletonMap("_id", config));
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
-        clusterState = ClusterState.builder(clusterState).metaData(MetaData.builder()
+        clusterState = ClusterState.builder(clusterState).metadata(Metadata.builder()
             .putCustom(IngestMetadata.TYPE, ingestMetadata)).build();
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         assertThat(ingestService.getPipeline("_id"), notNullValue());
@@ -483,7 +483,7 @@ public class IngestServiceTests extends ESTestCase {
         IngestMetadata ingestMetadata = new IngestMetadata(pipelines);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
-        clusterState = ClusterState.builder(clusterState).metaData(MetaData.builder()
+        clusterState = ClusterState.builder(clusterState).metadata(Metadata.builder()
             .putCustom(IngestMetadata.TYPE, ingestMetadata)).build();
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         assertThat(ingestService.getPipeline("p1"), notNullValue());
@@ -530,7 +530,7 @@ public class IngestServiceTests extends ESTestCase {
         IngestMetadata ingestMetadata = new IngestMetadata(pipelines);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
-        clusterState = ClusterState.builder(clusterState).metaData(MetaData.builder()
+        clusterState = ClusterState.builder(clusterState).metadata(Metadata.builder()
             .putCustom(IngestMetadata.TYPE, ingestMetadata)).build();
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         assertThat(ingestService.getPipeline("p1"), notNullValue());
@@ -729,7 +729,7 @@ public class IngestServiceTests extends ESTestCase {
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
-    public void testExecutePropagateAllMetaDataUpdates() throws Exception {
+    public void testExecutePropagateAllMetadataUpdates() throws Exception {
         final CompoundProcessor processor = mockCompoundProcessor();
         IngestService ingestService = createWithProcessors(Collections.singletonMap(
             "mock", (factories, tag, config) -> processor));
@@ -743,13 +743,13 @@ public class IngestServiceTests extends ESTestCase {
         final String versionType = randomFrom("internal", "external", "external_gt", "external_gte");
         doAnswer((InvocationOnMock invocationOnMock) -> {
             IngestDocument ingestDocument = (IngestDocument) invocationOnMock.getArguments()[0];
-            for (IngestDocument.MetaData metaData : IngestDocument.MetaData.values()) {
-                if (metaData == IngestDocument.MetaData.VERSION) {
-                    ingestDocument.setFieldValue(metaData.getFieldName(), newVersion);
-                } else if (metaData == IngestDocument.MetaData.VERSION_TYPE) {
-                    ingestDocument.setFieldValue(metaData.getFieldName(), versionType);
+            for (IngestDocument.Metadata metadata : IngestDocument.Metadata.values()) {
+                if (metadata == IngestDocument.Metadata.VERSION) {
+                    ingestDocument.setFieldValue(metadata.getFieldName(), newVersion);
+                } else if (metadata == IngestDocument.Metadata.VERSION_TYPE) {
+                    ingestDocument.setFieldValue(metadata.getFieldName(), versionType);
                 } else {
-                    ingestDocument.setFieldValue(metaData.getFieldName(), "update" + metaData.getFieldName());
+                    ingestDocument.setFieldValue(metadata.getFieldName(), "update" + metadata.getFieldName());
                 }
             }
 

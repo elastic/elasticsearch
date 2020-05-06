@@ -55,7 +55,7 @@ public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShar
         int nStatus = in.readVInt();
         statuses = EnumSet.noneOf(ClusterHealthStatus.class);
         for (int i = 0; i < nStatus; i++) {
-            statuses.add(ClusterHealthStatus.fromValue(in.readByte()));
+            statuses.add(ClusterHealthStatus.readFrom(in));
         }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }

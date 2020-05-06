@@ -19,8 +19,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class WeightedSum implements StrictlyParsedOutputAggregator, LenientlyParsedOutputAggregator {
@@ -73,28 +71,25 @@ public class WeightedSum implements StrictlyParsedOutputAggregator, LenientlyPar
     }
 
     @Override
-    public List<Double> processValues(List<Double> values) {
+    public double[] processValues(double[][] values) {
         Objects.requireNonNull(values, "values must not be null");
+        assert values[0].length == 1;
         if (weights == null) {
-            return values;
+            return Arrays.stream(values).mapToDouble(v -> v[0]).toArray();
         }
-        if (values.size() != weights.length) {
+        if (values.length != weights.length) {
             throw new IllegalArgumentException("values must be the same length as weights.");
         }
-        return IntStream.range(0, weights.length).mapToDouble(i -> values.get(i) * weights[i]).boxed().collect(Collectors.toList());
+        return IntStream.range(0, weights.length).mapToDouble(i -> values[i][0] * weights[i]).toArray();
     }
 
     @Override
-    public double aggregate(List<Double> values) {
+    public double aggregate(double[] values) {
         Objects.requireNonNull(values, "values must not be null");
-        if (values.isEmpty()) {
+        if (values.length == 0) {
             throw new IllegalArgumentException("values must not be empty");
         }
-        Optional<Double> summation = values.stream().reduce(Double::sum);
-        if (summation.isPresent()) {
-            return summation.get();
-        }
-        throw new IllegalArgumentException("values must not contain null values");
+        return Arrays.stream(values).sum();
     }
 
     @Override

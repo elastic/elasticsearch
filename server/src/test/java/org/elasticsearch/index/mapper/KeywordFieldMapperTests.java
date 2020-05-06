@@ -36,6 +36,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -128,6 +129,9 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         fieldType = fields[1].fieldType();
         assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
         assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
+
+        // used by TermVectorsService
+        assertArrayEquals(new String[] { "1234" }, TermVectorsService.getValues(doc.rootDoc().getFields("field")));
     }
 
     public void testIgnoreAbove() throws IOException {
@@ -340,10 +344,18 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(0, fieldNamesFields.length);
     }
 
-    public void testNormalizer() throws IOException {
+    public void testCustomNormalizer() throws IOException {
+        checkLowercaseNormalizer("my_lowercase");
+    }
+    
+    public void testInBuiltNormalizer() throws IOException {
+        checkLowercaseNormalizer("lowercase");        
+    }       
+        
+    public void checkLowercaseNormalizer(String normalizerName) throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
-                .field("type", "keyword").field("normalizer", "my_lowercase").endObject().endObject()
+                .field("type", "keyword").field("normalizer", normalizerName).endObject().endObject()
                 .endObject().endObject());
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));

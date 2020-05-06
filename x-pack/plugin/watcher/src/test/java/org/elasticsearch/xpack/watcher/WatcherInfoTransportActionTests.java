@@ -27,7 +27,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.watcher.WatcherFeatureSetUsage;
-import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
+import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
@@ -68,7 +68,7 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
         WatcherInfoTransportAction featureSet = new WatcherInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
-        when(licenseState.isWatcherAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.WATCHER)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 
@@ -109,7 +109,7 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
             secondNode.setStats(secondCounters);
             nodes.add(secondNode);
 
-            listener.onResponse(new WatcherStatsResponse(new ClusterName("whatever"), new WatcherMetaData(false),
+            listener.onResponse(new WatcherStatsResponse(new ClusterName("whatever"), new WatcherMetadata(false),
                     nodes, Collections.emptyList()));
             return null;
         }).when(client).execute(eq(WatcherStatsAction.INSTANCE), any(), any());

@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -25,6 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
@@ -68,8 +69,9 @@ public class ExportersTests extends ESTestCase {
     private Map<String, Exporter.Factory> factories;
     private ClusterService clusterService;
     private ClusterState state;
+    private SSLService sslService;
     private final ClusterBlocks blocks = mock(ClusterBlocks.class);
-    private final MetaData metadata = mock(MetaData.class);
+    private final Metadata metadata = mock(Metadata.class);
     private final XPackLicenseState licenseState = mock(XPackLicenseState.class);
     private ClusterSettings clusterSettings;
     private ThreadContext threadContext;
@@ -92,12 +94,13 @@ public class ExportersTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.state()).thenReturn(state);
         when(state.blocks()).thenReturn(blocks);
-        when(state.metaData()).thenReturn(metadata);
+        when(state.metadata()).thenReturn(metadata);
+        sslService = mock(SSLService.class);
 
         // we always need to have the local exporter as it serves as the default one
         factories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, mock(CleanerService.class)));
 
-        exporters = new Exporters(Settings.EMPTY, factories, clusterService, licenseState, threadContext);
+        exporters = new Exporters(Settings.EMPTY, factories, clusterService, licenseState, threadContext, sslService);
     }
 
     public void testHostsMustBeSetIfTypeIsHttp() {
@@ -229,7 +232,7 @@ public class ExportersTests extends ESTestCase {
         clusterSettings = new ClusterSettings(nodeSettings, new HashSet<>(Exporters.getSettings()));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
-        exporters = new Exporters(nodeSettings, factories, clusterService, licenseState, threadContext) {
+        exporters = new Exporters(nodeSettings, factories, clusterService, licenseState, threadContext, sslService) {
             @Override
             Map<String, Exporter> initExporters(Settings settings) {
                 settingsHolder.set(settings);
@@ -275,7 +278,7 @@ public class ExportersTests extends ESTestCase {
             settings.put("xpack.monitoring.exporters._name" + String.valueOf(i) + ".type", "record");
         }
 
-        final Exporters exporters = new Exporters(settings.build(), factories, clusterService, licenseState, threadContext);
+        final Exporters exporters = new Exporters(settings.build(), factories, clusterService, licenseState, threadContext, sslService);
 
         // synchronously checks the cluster state
         exporters.wrapExportBulk(ActionListener.wrap(
@@ -295,7 +298,7 @@ public class ExportersTests extends ESTestCase {
                     .put("xpack.monitoring.exporters.explicitly_disabled.type", "local")
                     .put("xpack.monitoring.exporters.explicitly_disabled.enabled", false);
 
-        Exporters exporters = new Exporters(settings.build(), factories, clusterService, licenseState, threadContext);
+        Exporters exporters = new Exporters(settings.build(), factories, clusterService, licenseState, threadContext, sslService);
         exporters.start();
 
         assertThat(exporters.getEnabledExporters(), empty());
@@ -319,7 +322,7 @@ public class ExportersTests extends ESTestCase {
 
         factories.put("record", (s) -> new CountingExporter(s, threadContext));
 
-        Exporters exporters = new Exporters(settings.build(), factories, clusterService, licenseState, threadContext);
+        Exporters exporters = new Exporters(settings.build(), factories, clusterService, licenseState, threadContext, sslService);
         exporters.start();
 
         assertThat(exporters.getEnabledExporters(), hasSize(nbExporters));

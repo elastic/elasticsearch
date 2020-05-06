@@ -25,8 +25,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -156,9 +156,9 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return ClusterState.builder(currentState).metaData(MetaData.builder(currentState.getMetaData())
-                        .putCustom(RepositoriesMetaData.TYPE,
-                            currentState.metaData().<RepositoriesMetaData>custom(RepositoriesMetaData.TYPE).withUpdatedGeneration(
+                    return ClusterState.builder(currentState).metadata(Metadata.builder(currentState.getMetadata())
+                        .putCustom(RepositoriesMetadata.TYPE,
+                            currentState.metadata().<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE).withUpdatedGeneration(
                                 repository.getMetadata().name(), beforeMoveGen, beforeMoveGen + 1)).build()).build();
                 }
 
@@ -243,7 +243,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         final ThreadPool threadPool = internalCluster().getCurrentMasterNodeInstance(ThreadPool.class);
         assertThat(PlainActionFuture.get(f -> threadPool.generic().execute(
             ActionRunnable.supply(f, () ->
-                snapshotsService.minCompatibleVersion(Version.CURRENT, repoName, getRepositoryData(repository), null)))),
+                snapshotsService.minCompatibleVersion(Version.CURRENT, getRepositoryData(repository), null)))),
             is(SnapshotsService.OLD_SNAPSHOT_FORMAT));
 
         logger.info("--> verify that snapshot with missing root level metadata can be deleted");
@@ -252,7 +252,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         logger.info("--> verify that repository is assumed in new metadata format after removing corrupted snapshot");
         assertThat(PlainActionFuture.get(f -> threadPool.generic().execute(
             ActionRunnable.supply(f, () ->
-                snapshotsService.minCompatibleVersion(Version.CURRENT, repoName, getRepositoryData(repository), null)))),
+                snapshotsService.minCompatibleVersion(Version.CURRENT, getRepositoryData(repository), null)))),
             is(Version.CURRENT));
         final RepositoryData finalRepositoryData = getRepositoryData(repository);
         for (SnapshotId snapshotId : finalRepositoryData.getSnapshotIds()) {

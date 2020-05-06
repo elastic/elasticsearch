@@ -34,7 +34,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.validateIndexOrAliasName;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.validateIndexOrAliasName;
 
 /**
  * Validation of source indexes and destination index.
@@ -50,7 +50,7 @@ public final class SourceDestValidator {
     public static final String DEST_LOWERCASE = "Destination index [{0}] must be lowercase";
     public static final String NEEDS_REMOTE_CLUSTER_SEARCH = "Source index is configured with a remote index pattern(s) [{0}]"
         + " but the current node [{1}] is not allowed to connect to remote clusters."
-        + " Please enable cluster.remote.connect for all data nodes.";
+        + " Please enable remote.cluster_client for all data nodes.";
     public static final String ERROR_REMOTE_CLUSTER_SEARCH = "Error resolving remote source: {0}";
     public static final String UNKNOWN_REMOTE_CLUSTER_LICENSE = "Error during license check ({0}) for remote cluster "
         + "alias(es) {1}, error: {2}";
@@ -163,8 +163,8 @@ public final class SourceDestValidator {
                         state,
                         IndicesOptions.lenientExpandOpen(),
                         dest,
-                        true
-                    );
+                        true,
+                        false);
 
                     resolvedDest = singleWriteIndex != null ? singleWriteIndex.getName() : dest;
                 } catch (IllegalArgumentException e) {

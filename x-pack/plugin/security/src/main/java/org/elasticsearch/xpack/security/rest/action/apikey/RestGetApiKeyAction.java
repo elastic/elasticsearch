@@ -59,6 +59,7 @@ public final class RestGetApiKeyAction extends ApiKeyBaseRestHandler {
                         }
                         return new BytesRestResponse(RestStatus.OK, builder);
                     }
+
                 });
     }
 

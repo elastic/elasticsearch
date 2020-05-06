@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -100,12 +100,12 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         logger.info("--> creating index [test] with one shard and on replica");
         assertAcked(prepareCreate("test").setSettings(
                         Settings.builder().put(indexSettings())
-                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1))
+                                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
         );
         ensureGreen("test");
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        Index index = state.metaData().index("test").getIndex();
+        Index index = state.metadata().index("test").getIndex();
 
         logger.info("--> making sure that shard and its replica are allocated on node_1 and node_2");
         assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
@@ -197,12 +197,12 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         logger.info("--> creating index [test] with one shard and on replica");
         assertAcked(prepareCreate("test").setSettings(
                         Settings.builder().put(indexSettings())
-                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
+                                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
         );
         ensureGreen("test");
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        Index index = state.metaData().index("test").getIndex();
+        Index index = state.metadata().index("test").getIndex();
         assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
         assertThat(Files.exists(indexDirectory(node_1, index)), equalTo(true));
 
@@ -257,13 +257,13 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         logger.info("--> creating index [test] with one shard and on replica");
         assertAcked(prepareCreate("test").setSettings(
                         Settings.builder().put(indexSettings())
-                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1))
+                                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
         );
         ensureGreen("test");
 
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        Index index = state.metaData().index("test").getIndex();
+        Index index = state.metadata().index("test").getIndex();
         logger.info("--> making sure that shard and its replica are allocated on node_1 and node_2");
         assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
         assertThat(Files.exists(shardDirectory(node_2, index, 0)), equalTo(true));
@@ -324,9 +324,9 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
                         .put(indexSettings())
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                        .put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", node4)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                        .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", node4)
         ));
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNoRelocatingShards(true).setWaitForGreenStatus()
             .setWaitForNodes("5").get().isTimedOut());
@@ -352,7 +352,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         logger.debug("--> allowing index to be assigned to node [{}]", node4);
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(
                 Settings.builder()
-                        .put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", "NONE")));
+                        .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", "NONE")));
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all")));
@@ -399,14 +399,14 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         final int numShards = scaledRandomIntBetween(2, 10);
         assertAcked(prepareCreate("test")
                         .setSettings(Settings.builder()
-                            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards))
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards))
         );
         ensureGreen("test");
 
         waitNoPendingTasksOnAll();
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
-        final Index index = stateResponse.getState().metaData().index("test").getIndex();
+        final Index index = stateResponse.getState().metadata().index("test").getIndex();
         RoutingNode routingNode = stateResponse.getState().getRoutingNodes().node(nonMasterId);
         final int[] node2Shards = new int[routingNode.numberOfOwningShards()];
         int i = 0;

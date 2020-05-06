@@ -32,7 +32,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -237,7 +237,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
     }
 
     public void testBulkWithCAS() throws Exception {
-        createIndex("test", Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).build());
+        createIndex("test", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build());
         ensureGreen();
         BulkResponse bulkResponse = client().prepareBulk()
                 .add(client().prepareIndex("test").setId("1").setCreate(true).setSource("field", "1"))
@@ -664,7 +664,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
     public void testNoopUpdate() {
         String indexName = "test";
-        createIndex(indexName, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build());
+        createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build());
         internalCluster().ensureAtLeastNumDataNodes(2);
         ensureGreen(indexName);
         IndexResponse doc = index(indexName, "1", Map.of("user", "xyz"));

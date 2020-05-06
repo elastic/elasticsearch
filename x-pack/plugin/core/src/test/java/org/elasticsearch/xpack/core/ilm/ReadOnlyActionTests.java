@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -44,7 +44,7 @@ public class ReadOnlyActionTests extends AbstractActionTestCase<ReadOnlyAction> 
         assertThat(firstStep.getKey(), equalTo(expectedFirstStepKey));
         assertThat(firstStep.getNextStepKey(), equalTo(nextStepKey));
         assertThat(firstStep.getSettings().size(), equalTo(1));
-        assertTrue(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.get(firstStep.getSettings()));
+        assertTrue(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(firstStep.getSettings()));
     }
 
 }

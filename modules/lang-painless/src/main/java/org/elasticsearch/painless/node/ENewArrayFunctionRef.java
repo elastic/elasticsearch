@@ -22,24 +22,25 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.NewArrayFuncRefNode;
+import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
+import org.elasticsearch.painless.ir.FunctionNode;
+import org.elasticsearch.painless.ir.NewArrayNode;
+import org.elasticsearch.painless.ir.ReturnNode;
+import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
+import org.elasticsearch.painless.ir.VariableNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
 
 /**
  * Represents a function reference.
  */
-public final class ENewArrayFunctionRef extends AExpression implements ILambda {
-    private final String type;
+public class ENewArrayFunctionRef extends AExpression {
 
-    private SFunction function;
-    private FunctionRef ref;
-    private String defPointer;
+    protected final String type;
 
     public ENewArrayFunctionRef(Location location, String type) {
         super(location);
@@ -48,53 +49,87 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        SReturn code = new SReturn(location, new ENewArray(location, type, Arrays.asList(new EVariable(location, "size")), false));
-        function = new SFunction(
-                location, type, scriptRoot.getNextSyntheticName("newarray"),
-                Collections.singletonList("int"), Collections.singletonList("size"),
-                new SBlock(location, Collections.singletonList(code)), true, true, true, false);
-        function.generateSignature(scriptRoot.getPainlessLookup());
-        function.analyze(scriptRoot);
-        scriptRoot.getFunctionTable().addFunction(function.name, function.returnType, function.typeParameters, true, true);
-
-        if (expected == null) {
-            ref = null;
-            actual = String.class;
-            defPointer = "Sthis." + function.name + ",0";
-        } else {
-            defPointer = null;
-            ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(),
-                    location, expected, "this", function.name, 0);
-            actual = expected;
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "cannot assign a value to new array function reference with target type [ + " + type  + "]"));
         }
-    }
 
-    @Override
-    NewArrayFuncRefNode write(ClassNode classNode) {
-        classNode.addFunctionNode(function.write(classNode));
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException(
+                    "not a statement: new array function reference with target type [" + type + "] not used"));
+        }
 
-        NewArrayFuncRefNode newArrayFuncRefNode = new NewArrayFuncRefNode();
+        Output output = new Output();
 
-        newArrayFuncRefNode.setLocation(location);
-        newArrayFuncRefNode.setExpressionType(actual);
-        newArrayFuncRefNode.setFuncRef(ref);
+        Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
 
-        return newArrayFuncRefNode;
-    }
+        if (clazz == null) {
+            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
+        }
 
-    @Override
-    public String getPointer() {
-        return defPointer;
-    }
+        String name = scriptRoot.getNextSyntheticName("newarray");
+        scriptRoot.getFunctionTable().addFunction(name, clazz, Collections.singletonList(int.class), true, true);
 
-    @Override
-    public List<Class<?>> getCaptures() {
-        return Collections.emptyList();
-    }
+        if (input.expected == null) {
+            output.actual = String.class;
+            String defReferenceEncoding = "Sthis." + name + ",0";
 
-    @Override
-    public String toString() {
-        return singleLineToString(type + "[]", "new");
+            DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode();
+
+            defInterfaceReferenceNode.setLocation(location);
+            defInterfaceReferenceNode.setExpressionType(output.actual);
+            defInterfaceReferenceNode.setDefReferenceEncoding(defReferenceEncoding);
+
+            output.expressionNode = defInterfaceReferenceNode;
+        } else {
+            FunctionRef ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(),
+                    location, input.expected, "this", name, 0);
+            output.actual = input.expected;
+
+            TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode();
+
+            typedInterfaceReferenceNode.setLocation(location);
+            typedInterfaceReferenceNode.setExpressionType(output.actual);
+            typedInterfaceReferenceNode.setReference(ref);
+
+            output.expressionNode = typedInterfaceReferenceNode;
+        }
+
+        VariableNode variableNode = new VariableNode();
+        variableNode.setLocation(location);
+        variableNode.setExpressionType(int.class);
+        variableNode.setName("size");
+
+        NewArrayNode newArrayNode = new NewArrayNode();
+        newArrayNode.setLocation(location);
+        newArrayNode.setExpressionType(clazz);
+        newArrayNode.setInitialize(false);
+
+        newArrayNode.addArgumentNode(variableNode);
+
+        ReturnNode returnNode = new ReturnNode();
+        returnNode.setLocation(location);
+        returnNode.setExpressionNode(newArrayNode);
+
+        BlockNode blockNode = new BlockNode();
+        blockNode.setAllEscape(true);
+        blockNode.setStatementCount(1);
+        blockNode.addStatementNode(returnNode);
+
+        FunctionNode functionNode = new FunctionNode();
+        functionNode.setMaxLoopCounter(0);
+        functionNode.setName(name);
+        functionNode.setReturnType(clazz);
+        functionNode.addTypeParameter(int.class);
+        functionNode.addParameterName("size");
+        functionNode.setStatic(true);
+        functionNode.setVarArgs(false);
+        functionNode.setSynthetic(true);
+        functionNode.setBlockNode(blockNode);
+
+        classNode.addFunctionNode(functionNode);
+
+        return output;
     }
 }

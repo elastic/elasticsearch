@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetRequestBuilder;
@@ -39,6 +41,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -50,10 +53,11 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
-import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
+import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
+import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.hamcrest.Matchers;
@@ -63,7 +67,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import javax.crypto.SecretKey;
-
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -79,8 +82,11 @@ import java.util.Map;
 import static java.time.Clock.systemUTC;
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
@@ -124,7 +130,7 @@ public class TokenServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             ActionListener<IndexResponse> responseActionListener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[2];
             responseActionListener.onResponse(new IndexResponse(new ShardId(".security", UUIDs.randomBase64UUID(), randomInt()),
-                    randomAlphaOfLength(4), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), true));
+                randomAlphaOfLength(4), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), true));
             return null;
         }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
 
@@ -136,7 +142,8 @@ public class TokenServiceTests extends ESTestCase {
 
         // License state (enabled by default)
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isTokenServiceAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
 
         // version 7.2 was an "inflection" point in the Token Service development (access_tokens as UUIDS, multiple concurrent refreshes,
         // tokens docs on a separate index), let's test the TokenService works in a mixed cluster with nodes with versions prior to these
@@ -190,7 +197,7 @@ public class TokenServiceTests extends ESTestCase {
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             // verify a second separate token service with its own salt can also verify
             TokenService anotherService = createTokenService(tokenServiceEnabledSettings, systemUTC());
-            anotherService.refreshMetaData(tokenService.getTokenMetaData());
+            anotherService.refreshMetadata(tokenService.getTokenMetadata());
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             anotherService.getAndValidateToken(requestContext, future);
             UserToken fromOtherService = future.get();
@@ -268,10 +275,10 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     private void rotateKeys(TokenService tokenService) {
-        TokenMetaData tokenMetaData = tokenService.generateSpareKey();
-        tokenService.refreshMetaData(tokenMetaData);
-        tokenMetaData = tokenService.rotateToSpareKey();
-        tokenService.refreshMetaData(tokenMetaData);
+        TokenMetadata tokenMetadata = tokenService.generateSpareKey();
+        tokenService.refreshMetadata(tokenMetadata);
+        tokenMetadata = tokenService.rotateToSpareKey();
+        tokenService.refreshMetadata(tokenMetadata);
     }
 
     public void testKeyExchange() throws Exception {
@@ -285,7 +292,7 @@ public class TokenServiceTests extends ESTestCase {
             rotateKeys(tokenService);
         }
         TokenService otherTokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
-        otherTokenService.refreshMetaData(tokenService.getTokenMetaData());
+        otherTokenService.refreshMetadata(tokenService.getTokenMetadata());
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         PlainActionFuture<Tuple<String, String>> tokenFuture = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();
@@ -306,7 +313,7 @@ public class TokenServiceTests extends ESTestCase {
 
         rotateKeys(tokenService);
 
-        otherTokenService.refreshMetaData(tokenService.getTokenMetaData());
+        otherTokenService.refreshMetadata(tokenService.getTokenMetadata());
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -340,8 +347,8 @@ public class TokenServiceTests extends ESTestCase {
             UserToken serialized = future.get();
             assertAuthentication(authentication, serialized.getAuthentication());
         }
-        TokenMetaData metaData = tokenService.pruneKeys(randomIntBetween(0, 100));
-        tokenService.refreshMetaData(metaData);
+        TokenMetadata metadata = tokenService.pruneKeys(randomIntBetween(0, 100));
+        tokenService.refreshMetadata(metadata);
 
         int numIterations = scaledRandomIntBetween(1, 5);
         for (int i = 0; i < numIterations; i++) {
@@ -364,8 +371,8 @@ public class TokenServiceTests extends ESTestCase {
         assertNotNull(newAccessToken);
         assertNotEquals(newAccessToken, accessToken);
 
-        metaData = tokenService.pruneKeys(1);
-        tokenService.refreshMetaData(metaData);
+        metadata = tokenService.pruneKeys(1);
+        tokenService.refreshMetadata(metadata);
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -560,20 +567,23 @@ public class TokenServiceTests extends ESTestCase {
                 .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), false)
                 .build(),
             Clock.systemUTC(), client, licenseState, securityContext, securityMainIndex, securityTokensIndex, clusterService);
-        IllegalStateException e = expectThrows(IllegalStateException.class,
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
             () -> tokenService.createOAuth2Tokens(null, null, null, true, null));
-        assertEquals("security tokens are not enabled", e.getMessage());
+        assertThat(e, throwableWithMessage("security tokens are not enabled"));
+        assertThat(e, instanceOf(FeatureNotEnabledException.class));
+        // Client can check the metadata for this value, and depend on an exact string match:
+        assertThat(e.getMetadata(FeatureNotEnabledException.DISABLED_FEATURE_METADATA), contains("security_tokens"));
 
         PlainActionFuture<UserToken> future = new PlainActionFuture<>();
         tokenService.getAndValidateToken(null, future);
         assertNull(future.get());
 
-        e = expectThrows(IllegalStateException.class, () -> {
-            PlainActionFuture<TokensInvalidationResult> invalidateFuture = new PlainActionFuture<>();
-            tokenService.invalidateAccessToken((String) null, invalidateFuture);
-            invalidateFuture.actionGet();
-        });
-        assertEquals("security tokens are not enabled", e.getMessage());
+        PlainActionFuture<TokensInvalidationResult> invalidateFuture = new PlainActionFuture<>();
+        e = expectThrows(ElasticsearchException.class, () -> tokenService.invalidateAccessToken((String) null, invalidateFuture));
+        assertThat(e, throwableWithMessage("security tokens are not enabled"));
+        assertThat(e, instanceOf(FeatureNotEnabledException.class));
+        // Client can check the metadata for this value, and depend on an exact string match:
+        assertThat(e.getMetadata(FeatureNotEnabledException.DISABLED_FEATURE_METADATA), contains("security_tokens"));
     }
 
     public void testBytesKeyEqualsHashCode() {
@@ -670,10 +680,12 @@ public class TokenServiceTests extends ESTestCase {
             tokensIndex = securityMainIndex;
             when(securityTokensIndex.isAvailable()).thenReturn(false);
             when(securityTokensIndex.indexExists()).thenReturn(false);
+            when(securityTokensIndex.freeze()).thenReturn(securityTokensIndex);
         } else {
             tokensIndex = securityTokensIndex;
             when(securityMainIndex.isAvailable()).thenReturn(false);
             when(securityMainIndex.indexExists()).thenReturn(false);
+            when(securityMainIndex.freeze()).thenReturn(securityMainIndex);
         }
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -681,6 +693,7 @@ public class TokenServiceTests extends ESTestCase {
             assertNull(future.get());
 
             when(tokensIndex.isAvailable()).thenReturn(false);
+            when(tokensIndex.getUnavailableReason()).thenReturn(new UnavailableShardsException(null, "unavailable"));
             when(tokensIndex.indexExists()).thenReturn(true);
             future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
@@ -710,7 +723,7 @@ public class TokenServiceTests extends ESTestCase {
         final String accessToken = tokenService.prependVersionAndEncodeAccessToken(tokenService.getTokenVersionCompatibility(), userTokenId
         );
         PlainActionFuture<Tuple<Authentication, Map<String, Object>>> authFuture = new PlainActionFuture<>();
-        tokenService.getAuthenticationAndMetaData(accessToken, authFuture);
+        tokenService.getAuthenticationAndMetadata(accessToken, authFuture);
         Authentication retrievedAuth = authFuture.actionGet().v1();
         assertAuthentication(authentication, retrievedAuth);
     }
@@ -731,7 +744,8 @@ public class TokenServiceTests extends ESTestCase {
             authentication.getUser().principal(), authentication.getAuthenticatedBy().getName(), true, Instant.now().minusSeconds(5L),
             encryptedTokens, Base64.getEncoder().encodeToString(iv), Base64.getEncoder().encodeToString(salt));
         refreshTokenStatus.setVersion(version);
-        tokenService.decryptAndReturnSupersedingTokens(refrehToken, refreshTokenStatus, tokenFuture);
+        mockGetTokenAsyncForDecryptedToken(newAccessToken);
+        tokenService.decryptAndReturnSupersedingTokens(refrehToken, refreshTokenStatus, securityTokensIndex, tokenFuture);
         if (version.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
             // previous versions serialized the access token encrypted and the cipher text was different each time (due to different IVs)
             assertThat(tokenService.prependVersionAndEncodeAccessToken(version, newAccessToken), equalTo(tokenFuture.get().v1()));
@@ -740,7 +754,7 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     public void testCannotValidateTokenIfLicenseDoesNotAllowTokens() throws Exception {
-        when(licenseState.isTokenServiceAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, Clock.systemUTC());
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         final String userTokenId = UUIDs.randomBase64UUID();
@@ -753,7 +767,7 @@ public class TokenServiceTests extends ESTestCase {
         storeTokenHeader(threadContext, tokenService.prependVersionAndEncodeAccessToken(token.getVersion(), accessToken));
 
         PlainActionFuture<UserToken> authFuture = new PlainActionFuture<>();
-        when(licenseState.isTokenServiceAllowed()).thenReturn(false);
+        when(licenseState.isAllowed(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(false);
         tokenService.getAndValidateToken(threadContext, authFuture);
         UserToken authToken = authFuture.actionGet();
         assertThat(authToken, Matchers.nullValue());
@@ -833,6 +847,19 @@ public class TokenServiceTests extends ESTestCase {
                     sourceMap.put("access_token", accessTokenMap);
                 }
                 when(response.getSource()).thenReturn(sourceMap);
+            }
+            listener.onResponse(response);
+            return Void.TYPE;
+        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+    }
+
+    private void mockGetTokenAsyncForDecryptedToken(String accessToken) {
+        doAnswer(invocationOnMock -> {
+            GetRequest request = (GetRequest) invocationOnMock.getArguments()[0];
+            ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
+            GetResponse response = mock(GetResponse.class);
+            if (request.id().replace("token_", "").equals(TokenService.hashTokenString(accessToken))) {
+                when(response.isExists()).thenReturn(true);
             }
             listener.onResponse(response);
             return Void.TYPE;

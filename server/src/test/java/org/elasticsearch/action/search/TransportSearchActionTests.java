@@ -29,6 +29,10 @@ import org.elasticsearch.action.OriginalIndicesTests;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.GroupShardsIteratorTests;
@@ -44,6 +48,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -57,6 +62,7 @@ import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -89,6 +95,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static org.elasticsearch.test.InternalAggregationTestCase.emptyReduceContextBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -385,8 +392,8 @@ public class TransportSearchActionTests extends ESTestCase {
             AtomicReference<Exception> failure = new AtomicReference<>();
             LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
                 ActionListener.wrap(r -> fail("no response expected"), failure::set), latch);
-            TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider, reduceContext,
-                remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
+            TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider,
+                    emptyReduceContextBuilder(), remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
             if (localIndices == null) {
                 assertNull(setOnce.get());
             } else {
@@ -419,8 +426,6 @@ public class TransportSearchActionTests extends ESTestCase {
         OriginalIndices localIndices = local ? new OriginalIndices(new String[]{"index"}, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
         int totalClusters = numClusters + (local ? 1 : 0);
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
-        Function<Boolean, InternalAggregation.ReduceContext> reduceContext =
-            finalReduce -> new InternalAggregation.ReduceContext(null, null, finalReduce);
         try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
             service.start();
             service.acceptIncomingRequests();
@@ -432,8 +437,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicReference<SearchResponse> response = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
                     ActionListener.wrap(response::set, e -> fail("no failures expected")), latch);
-                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider, reduceContext,
-                    remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
+                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider,
+                        emptyReduceContextBuilder(), remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
                 if (localIndices == null) {
                     assertNull(setOnce.get());
                 } else {
@@ -458,8 +463,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicReference<Exception> failure = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
                     ActionListener.wrap(r -> fail("no response expected"), failure::set), latch);
-                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider, reduceContext,
-                    remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
+                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider,
+                        emptyReduceContextBuilder(), remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
                 if (localIndices == null) {
                     assertNull(setOnce.get());
                 } else {
@@ -505,8 +510,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicReference<Exception> failure = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
                     ActionListener.wrap(r -> fail("no response expected"), failure::set), latch);
-                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider, reduceContext,
-                    remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
+                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider,
+                        emptyReduceContextBuilder(), remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
                 if (localIndices == null) {
                     assertNull(setOnce.get());
                 } else {
@@ -534,8 +539,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicReference<SearchResponse> response = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
                     ActionListener.wrap(response::set, e -> fail("no failures expected")), latch);
-                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider, reduceContext,
-                    remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
+                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider,
+                        emptyReduceContextBuilder(), remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
                 if (localIndices == null) {
                     assertNull(setOnce.get());
                 } else {
@@ -574,8 +579,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicReference<SearchResponse> response = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
                     ActionListener.wrap(response::set, e -> fail("no failures expected")), latch);
-                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider, reduceContext,
-                    remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
+                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider,
+                        emptyReduceContextBuilder(), remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
                 if (localIndices == null) {
                     assertNull(setOnce.get());
                 } else {
@@ -751,13 +756,13 @@ public class TransportSearchActionTests extends ESTestCase {
 
     public void testCreateSearchResponseMerger() {
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
-        Function<Boolean, InternalAggregation.ReduceContext> reduceContext = flag -> null;
         {
             SearchSourceBuilder source = new SearchSourceBuilder();
             assertEquals(-1, source.size());
             assertEquals(-1, source.from());
             assertNull(source.trackTotalHitsUpTo());
-            SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(source, timeProvider, reduceContext);
+            SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
+                    source, timeProvider, emptyReduceContextBuilder());
             assertEquals(0, merger.from);
             assertEquals(10, merger.size);
             assertEquals(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO, merger.trackTotalHitsUpTo);
@@ -766,7 +771,7 @@ public class TransportSearchActionTests extends ESTestCase {
             assertNull(source.trackTotalHitsUpTo());
         }
         {
-            SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(null, timeProvider, reduceContext);
+            SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(null, timeProvider, emptyReduceContextBuilder());
             assertEquals(0, merger.from);
             assertEquals(10, merger.size);
             assertEquals(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO, merger.trackTotalHitsUpTo);
@@ -779,7 +784,8 @@ public class TransportSearchActionTests extends ESTestCase {
             source.size(originalSize);
             int trackTotalHitsUpTo = randomIntBetween(0, Integer.MAX_VALUE);
             source.trackTotalHitsUpTo(trackTotalHitsUpTo);
-            SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(source, timeProvider, reduceContext);
+            SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
+                    source, timeProvider, emptyReduceContextBuilder());
             assertEquals(0, source.from());
             assertEquals(originalFrom + originalSize, source.size());
             assertEquals(trackTotalHitsUpTo, (int)source.trackTotalHitsUpTo());
@@ -835,6 +841,100 @@ public class TransportSearchActionTests extends ESTestCase {
             assertTrue(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
             searchRequest.setCcsMinimizeRoundtrips(false);
             assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
+        }
+    }
+
+    public void testShouldPreFilterSearchShards() {
+        int numIndices = randomIntBetween(2, 10);
+        Index[] indices = new Index[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            String indexName = randomAlphaOfLengthBetween(5, 10);
+            indices[i] = new Index(indexName, indexName + "-uuid");
+        }
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).build();
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(2, 128)));
+            assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(129, 10000)));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest()
+                .source(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("timestamp")));
+            assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(2, 128)));
+            assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(129, 10000)));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest()
+                .source(new SearchSourceBuilder().sort(SortBuilders.fieldSort("timestamp")));
+            assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(2, 127)));
+            assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(127, 10000)));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest()
+                .source(new SearchSourceBuilder().sort(SortBuilders.fieldSort("timestamp")))
+                .scroll("5m");
+            assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(2, 128)));
+            assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(129, 10000)));
+        }
+    }
+
+    public void testShouldPreFilterSearchShardsWithReadOnly() {
+        int numIndices = randomIntBetween(2, 10);
+        int numReadOnly = randomIntBetween(1, numIndices);
+        Index[] indices = new Index[numIndices];
+        ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder();
+        for (int i = 0; i < numIndices; i++) {
+            String indexName = randomAlphaOfLengthBetween(5, 10);
+            indices[i] = new Index(indexName, indexName + "-uuid");
+            if (--numReadOnly >= 0) {
+                if (randomBoolean()) {
+                    blocksBuilder.addIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
+                } else {
+                    blocksBuilder.addIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_BLOCK);
+                }
+            }
+        }
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).blocks(blocksBuilder).build();
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(2, 127)));
+            assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(127, 10000)));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest()
+                .source(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("timestamp")));
+            assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(2, 127)));
+            assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(127, 10000)));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest()
+                .source(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("timestamp")));
+            searchRequest.scroll("5s");
+            assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(2, 127)));
+            assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(127, 10000)));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest()
+                .source(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("timestamp")));
+            searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
+            assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(2, 127)));
+            assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(127, 10000)));
         }
     }
 }

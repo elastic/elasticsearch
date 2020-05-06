@@ -176,10 +176,10 @@ GET /_search
 `gt`::
 +
 --
-Rounds up to the lastest millisecond.
+Rounds up to the first millisecond not covered by the rounded date.
 
-For example, `2014-11-18||/M` rounds up to `2014-11-30T23:59:59.999`, excluding
-the entire month.
+For example, `2014-11-18||/M` rounds up to `2014-12-01T00:00:00.000`, excluding
+the entire month of November.
 --
 
 `gte`::
@@ -187,23 +187,23 @@ the entire month.
 --
 Rounds down to the first millisecond.
 
-For example, `2014-11-18||/M` rounds down to `2014-11-01`, including
+For example, `2014-11-18||/M` rounds down to `2014-11-01T00:00:00.000`, including
 the entire month.
 --
 
 `lt`::
 +
 --
-Rounds down to the first millisecond.
+Rounds down to the last millisecond before the rounded value.
 
-For example, `2014-11-18||/M` rounds down to `2014-11-01`, excluding
-the entire month.
+For example, `2014-11-18||/M` rounds down to `2014-10-31T23:59:59.999`, excluding
+the entire month of November.
 --
 
 `lte`::
 +
 --
-Rounds up to the lastest millisecond.
+Rounds up to the latest millisecond in the rounding interval.
 
 For example, `2014-11-18||/M` rounds up to `2014-11-30T23:59:59.999`, including
 the entire month.

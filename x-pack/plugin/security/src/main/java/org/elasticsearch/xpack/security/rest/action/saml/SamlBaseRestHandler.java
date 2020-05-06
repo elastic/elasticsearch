@@ -32,7 +32,7 @@ public abstract class SamlBaseRestHandler extends SecurityBaseRestHandler {
         Exception failedFeature = super.checkFeatureAvailable(request);
         if (failedFeature != null) {
             return failedFeature;
-        } else if (Realms.isRealmTypeAvailable(licenseState.allowedRealmType(), SAML_REALM_TYPE)) {
+        } else if (Realms.isRealmTypeAvailable(licenseState, SAML_REALM_TYPE)) {
             return null;
         } else {
             logger.info("The '{}' realm is not available under the current license", SAML_REALM_TYPE);

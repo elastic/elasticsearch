@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.dataframe;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -24,32 +24,32 @@ public class MappingsMergerTests extends ESTestCase {
 
     public void testMergeMappings_GivenIndicesWithIdenticalMappings() {
         Map<String, Object> index1Mappings = Map.of("properties", Map.of("field_1", "field_1_mappings", "field_2", "field_2_mappings"));
-        MappingMetaData index1MappingMetaData = new MappingMetaData("_doc", index1Mappings);
+        MappingMetadata index1MappingMetadata = new MappingMetadata("_doc", index1Mappings);
 
         Map<String, Object> index2Mappings = Map.of("properties", Map.of("field_1", "field_1_mappings", "field_2", "field_2_mappings"));
-        MappingMetaData index2MappingMetaData = new MappingMetaData("_doc", index2Mappings);
+        MappingMetadata index2MappingMetadata = new MappingMetadata("_doc", index2Mappings);
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
-        mappings.put("index_1", index1MappingMetaData);
-        mappings.put("index_2", index2MappingMetaData);
+        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
+        mappings.put("index_1", index1MappingMetadata);
+        mappings.put("index_2", index2MappingMetadata);
 
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
-        MappingMetaData mergedMappings = MappingsMerger.mergeMappings(newSource(), getMappingsResponse);
+        MappingMetadata mergedMappings = MappingsMerger.mergeMappings(newSource(), getMappingsResponse);
 
         assertThat(mergedMappings.getSourceAsMap(), equalTo(index1Mappings));
     }
 
     public void testMergeMappings_GivenFieldWithDifferentMapping() {
         Map<String, Object> index1Mappings = Map.of("properties", Map.of("field_1", "field_1_mappings"));
-        MappingMetaData index1MappingMetaData = new MappingMetaData("_doc", index1Mappings);
+        MappingMetadata index1MappingMetadata = new MappingMetadata("_doc", index1Mappings);
 
         Map<String, Object> index2Mappings = Map.of("properties", Map.of("field_1", "different_field_1_mappings"));
-        MappingMetaData index2MappingMetaData = new MappingMetaData("_doc", index2Mappings);
+        MappingMetadata index2MappingMetadata = new MappingMetadata("_doc", index2Mappings);
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
-        mappings.put("index_1", index1MappingMetaData);
-        mappings.put("index_2", index2MappingMetaData);
+        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
+        mappings.put("index_1", index1MappingMetadata);
+        mappings.put("index_2", index2MappingMetadata);
 
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
@@ -62,19 +62,19 @@ public class MappingsMergerTests extends ESTestCase {
     public void testMergeMappings_GivenIndicesWithDifferentMappingsButNoConflicts() {
         Map<String, Object> index1Mappings = Map.of("properties",
             Map.of("field_1", "field_1_mappings", "field_2", "field_2_mappings"));
-        MappingMetaData index1MappingMetaData = new MappingMetaData("_doc", index1Mappings);
+        MappingMetadata index1MappingMetadata = new MappingMetadata("_doc", index1Mappings);
 
         Map<String, Object> index2Mappings = Map.of("properties",
             Map.of("field_1", "field_1_mappings", "field_3", "field_3_mappings"));
-        MappingMetaData index2MappingMetaData = new MappingMetaData("_doc", index2Mappings);
+        MappingMetadata index2MappingMetadata = new MappingMetadata("_doc", index2Mappings);
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
-        mappings.put("index_1", index1MappingMetaData);
-        mappings.put("index_2", index2MappingMetaData);
+        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
+        mappings.put("index_1", index1MappingMetadata);
+        mappings.put("index_2", index2MappingMetadata);
 
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
-        MappingMetaData mergedMappings = MappingsMerger.mergeMappings(newSource(), getMappingsResponse);
+        MappingMetadata mergedMappings = MappingsMerger.mergeMappings(newSource(), getMappingsResponse);
 
         Map<String, Object> mappingsAsMap = mergedMappings.getSourceAsMap();
         assertThat(mappingsAsMap.size(), equalTo(1));
@@ -92,14 +92,14 @@ public class MappingsMergerTests extends ESTestCase {
 
     public void testMergeMappings_GivenSourceFiltering() {
         Map<String, Object> indexMappings = Map.of("properties", Map.of("field_1", "field_1_mappings", "field_2", "field_2_mappings"));
-        MappingMetaData indexMappingMetaData = new MappingMetaData("_doc", indexMappings);
+        MappingMetadata indexMappingMetadata = new MappingMetadata("_doc", indexMappings);
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
-        mappings.put("index", indexMappingMetaData);
+        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
+        mappings.put("index", indexMappingMetadata);
 
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
-        MappingMetaData mergedMappings = MappingsMerger.mergeMappings(
+        MappingMetadata mergedMappings = MappingsMerger.mergeMappings(
             newSourceWithExcludes("field_1"), getMappingsResponse);
 
         Map<String, Object> mappingsAsMap = mergedMappings.getSourceAsMap();

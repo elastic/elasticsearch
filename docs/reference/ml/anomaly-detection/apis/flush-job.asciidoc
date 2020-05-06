@@ -98,7 +98,7 @@ on January 1, 2018:
 --------------------------------------------------
 POST _ml/anomaly_detectors/total-requests/_flush
 {
-  "advance_time": "1514804400"
+  "advance_time": "1514804400000"
 }
 --------------------------------------------------
 // TEST[skip:setup:server_metrics_openjob]

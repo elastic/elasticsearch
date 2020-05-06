@@ -23,8 +23,9 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -32,6 +33,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -46,6 +49,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.INDEX_TEMPLATE_VERSION;
+import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.TEMPLATE_ILM_HISTORY;
 
 /**
  * The {@link ILMHistoryStore} handles indexing {@link ILMHistoryItem} documents into the
@@ -175,19 +179,28 @@ public class ILMHistoryStore implements Closeable {
      * @param listener Called after the index has been created. `onResponse` called with `true` if the index was created,
      *                `false` if it already existed.
      */
+    @SuppressWarnings("unchecked")
     static void ensureHistoryIndex(Client client, ClusterState state, ActionListener<Boolean> listener) {
         final String initialHistoryIndexName = ILM_HISTORY_INDEX_PREFIX + "000001";
-        final AliasOrIndex ilmHistory = state.metaData().getAliasAndIndexLookup().get(ILM_HISTORY_ALIAS);
-        final AliasOrIndex initialHistoryIndex = state.metaData().getAliasAndIndexLookup().get(initialHistoryIndexName);
+        final IndexAbstraction ilmHistory = state.metadata().getIndicesLookup().get(ILM_HISTORY_ALIAS);
+        final IndexAbstraction initialHistoryIndex = state.metadata().getIndicesLookup().get(initialHistoryIndexName);
 
         if (ilmHistory == null && initialHistoryIndex == null) {
             // No alias or index exists with the expected names, so create the index with appropriate alias
             logger.debug("creating ILM history index [{}]", initialHistoryIndexName);
+
+            // Template below should be already defined as real index template but it can be deleted. To avoid race condition with its
+            // recreation we apply settings and mappings ourselves
+            byte[] templateBytes = TEMPLATE_ILM_HISTORY.loadBytes();
+            Map<String, Object> templateAsMap = XContentHelper.convertToMap(new BytesArray(templateBytes, 0, templateBytes.length),
+                false, XContentType.JSON).v2();
+
             client.admin().indices().prepareCreate(initialHistoryIndexName)
+                .setSettings((Map<String, ?>) templateAsMap.get("settings"))
+                .setMapping((Map<String, Object>) templateAsMap.get("mappings"))
                 .setWaitForActiveShards(1)
-                .addAlias(new Alias(ILM_HISTORY_ALIAS)
-                    .writeIndex(true))
-                .execute(new ActionListener<CreateIndexResponse>() {
+                .addAlias(new Alias(ILM_HISTORY_ALIAS).writeIndex(true).isHidden(true))
+                .execute(new ActionListener<>() {
                     @Override
                     public void onResponse(CreateIndexResponse response) {
                         listener.onResponse(true);
@@ -209,18 +222,18 @@ public class ILMHistoryStore implements Closeable {
             // alias does not exist but initial index does, something is broken
             listener.onFailure(new IllegalStateException("ILM history index [" + initialHistoryIndexName +
                 "] already exists but does not have alias [" + ILM_HISTORY_ALIAS + "]"));
-        } else if (ilmHistory.isAlias() && ilmHistory instanceof AliasOrIndex.Alias) {
-            if (((AliasOrIndex.Alias) ilmHistory).getWriteIndex() != null) {
+        } else if (ilmHistory.getType() == IndexAbstraction.Type.ALIAS) {
+            if (ilmHistory.getWriteIndex() != null) {
                 // The alias exists and has a write index, so we're good
                 listener.onResponse(false);
             } else {
                 // The alias does not have a write index, so we can't index into it
                 listener.onFailure(new IllegalStateException("ILM history alias [" + ILM_HISTORY_ALIAS + "does not have a write index"));
             }
-        } else if (ilmHistory.isAlias() == false) {
+        } else if (ilmHistory.getType() != IndexAbstraction.Type.ALIAS) {
             // This is not an alias, error out
             listener.onFailure(new IllegalStateException("ILM history alias [" + ILM_HISTORY_ALIAS +
-                "] already exists as concrete index"));
+                "] already exists as " + ilmHistory.getType().getDisplayName()));
         } else {
             logger.error("unexpected IndexOrAlias for [{}]: [{}]", ILM_HISTORY_ALIAS, ilmHistory);
             assert false : ILM_HISTORY_ALIAS + " cannot be both an alias and not an alias simultaneously";

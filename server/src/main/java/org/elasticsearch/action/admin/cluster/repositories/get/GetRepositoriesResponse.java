@@ -20,8 +20,8 @@
 package org.elasticsearch.action.admin.cluster.repositories.get;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -39,14 +39,14 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class GetRepositoriesResponse extends ActionResponse implements ToXContentObject {
 
-    private final RepositoriesMetaData repositories;
+    private final RepositoriesMetadata repositories;
 
-    GetRepositoriesResponse(RepositoriesMetaData repositories) {
+    GetRepositoriesResponse(RepositoriesMetadata repositories) {
         this.repositories = repositories;
     }
 
     public GetRepositoriesResponse(StreamInput in) throws IOException {
-        repositories = new RepositoriesMetaData(in);
+        repositories = new RepositoriesMetadata(in);
     }
 
     /**
@@ -54,7 +54,7 @@ public class GetRepositoriesResponse extends ActionResponse implements ToXConten
      *
      * @return list or repositories
      */
-    public List<RepositoryMetaData> repositories() {
+    public List<RepositoryMetadata> repositories() {
         return repositories.repositories();
     }
 
@@ -67,13 +67,13 @@ public class GetRepositoriesResponse extends ActionResponse implements ToXConten
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        repositories.toXContent(builder, new DelegatingMapParams(Map.of(RepositoriesMetaData.HIDE_GENERATIONS_PARAM, "true"), params));
+        repositories.toXContent(builder, new DelegatingMapParams(Map.of(RepositoriesMetadata.HIDE_GENERATIONS_PARAM, "true"), params));
         builder.endObject();
         return builder;
     }
 
     public static GetRepositoriesResponse fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-        return new GetRepositoriesResponse(RepositoriesMetaData.fromXContent(parser));
+        return new GetRepositoriesResponse(RepositoriesMetadata.fromXContent(parser));
     }
 }

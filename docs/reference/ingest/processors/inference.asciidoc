@@ -14,7 +14,7 @@ ingested in the pipeline.
 | Name               | Required  | Default                        | Description
 | `model_id`         | yes       | -                              | (String) The ID of the model to load and infer against.
 | `target_field`     | no        | `ml.inference.<processor_tag>` | (String) Field added to incoming documents to contain results objects.
-| `field_mappings`   | yes       | -                              | (Object) Maps the document field names to the known field names of the model.
+| `field_map`        | yes       | -                              | (Object) Maps the document field names to the known field names of the model. This mapping takes precedence over any default mappings provided in the model configuration.
 | `inference_config` | yes       | -                              | (Object) Contains the inference type and its options. There are two types: <<inference-processor-regression-opt,`regression`>> and <<inference-processor-classification-opt,`classification`>>.
 include::common-options.asciidoc[]
 |======
@@ -26,7 +26,7 @@ include::common-options.asciidoc[]
   "inference": {
     "model_id": "flight_delay_regression-1571767128603",
     "target_field": "FlightDelayMin_prediction_infer",
-    "field_mappings": {},
+    "field_map": {},
     "inference_config": { "regression": {} }
   }
 }
@@ -34,47 +34,46 @@ include::common-options.asciidoc[]
 // NOTCONSOLE
 
 
-
 [discrete]
 [[inference-processor-regression-opt]]
 ==== {regression-cap} configuration options
 
+Regression configuration for inference.
+
 `results_field`::
 (Optional, string)
-Specifies the field to which the inference prediction is written. Defaults to 
-`predicted_value`.
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 
-`num_top_feature_importance_values`::::
+`num_top_feature_importance_values`::
 (Optional, integer)
-Specifies the maximum number of
-{ml-docs}/dfa-regression.html#dfa-regression-feature-importance[feature
-importance] values per document. By default, it is zero and no feature importance
-calculation occurs.
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-feature-importance-values]
+
 
 [discrete]
 [[inference-processor-classification-opt]]
 ==== {classification-cap} configuration options
 
-`results_field`::
-(Optional, string)
-The field that is added to incoming documents to contain the inference prediction. Defaults to 
-`predicted_value`.
+Classification configuration for inference.
 
 `num_top_classes`::
-(Optional, integer) 
-Specifies the number of top class predictions to return. Defaults to 0.
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-classes]
+
+`num_top_feature_importance_values`::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-feature-importance-values]
+
+`results_field`::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 
 `top_classes_results_field`::
-(Optional, string) 
-Specifies the field to which the top classes are written. Defaults to 
-`top_classes`.
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-top-classes-results-field]
 
-`num_top_feature_importance_values`::::
-(Optional, integer)
-Specifies the maximum number of
-{ml-docs}/dfa-classification.html#dfa-classification-feature-importance[feature
-importance] values per document. By default, it is zero and no feature importance
-calculation occurs.
+`prediction_field_type`::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-prediction-field-type]
 
 [discrete]
 [[inference-processor-config-example]]
@@ -116,3 +115,65 @@ categories for which the predicted probabilities are reported is 2
 (`num_top_classes`). The result is written to the `prediction` field and the top 
 classes to the `probabilities` field. Both fields are contained in the 
 `target_field` results object.
+
+
+[discrete]
+[[inference-processor-feature-importance]]
+==== {feat-imp-cap} object mapping
+
+Update your index mapping of the {feat-imp} result field as you can see below to 
+get the full benefit of aggregating and searching for 
+{ml-docs}/ml-feature-importance.html[{feat-imp}].
+
+[source,js]
+--------------------------------------------------
+"ml.inference.feature_importance": {
+  "type": "nested",
+  "dynamic": true,
+  "properties": {
+    "feature_name": {
+      "type": "keyword"
+    },
+    "importance": {
+      "type": "double"
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The mapping field name for {feat-imp} is compounded as follows:
+
+`<ml.inference.target_field>`.`<inference.tag>`.`feature_importance`
+
+If `inference.tag` is not provided in the processor definition, it is not part 
+of the field path. The `<ml.inference.target_field>` defaults to `ml.inference`.
+
+For example, you provide a tag `foo` in the definition as you can see below:
+
+[source,js]
+--------------------------------------------------
+{
+  "tag": "foo",
+  ...
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+
+The {feat-imp} value is written to the `ml.inference.foo.feature_importance` 
+field.
+
+You can also specify a target field as follows:
+
+[source,js]
+--------------------------------------------------
+{
+  "tag": "foo",
+  "target_field": "my_field"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+In this case, {feat-imp} is exposed in the 
+`my_field.foo.feature_importance` field.

@@ -27,8 +27,8 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -80,7 +80,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject()),
                 XContentType.JSON));
 
-        try (Directory dir = new RAMDirectory();
+        try (Directory dir = new ByteBuffersDirectory();
              IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new MockAnalyzer(random())))) {
             w.addDocuments(doc.docs());
             try (DirectoryReader reader = DirectoryReader.open(w)) {

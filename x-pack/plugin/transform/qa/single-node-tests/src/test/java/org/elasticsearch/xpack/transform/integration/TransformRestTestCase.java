@@ -50,6 +50,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     private static final String BASIC_AUTH_VALUE_SUPER_USER = basicAuthHeaderValue("x_pack_rest_user", TEST_PASSWORD_SECURE_STRING);
 
     protected static final String REVIEWS_INDEX_NAME = "reviews";
+    protected static final String REVIEWS_DATE_NANO_INDEX_NAME = "reviews_nano";
 
     private static boolean useDeprecatedEndpoints;
 
@@ -75,18 +76,20 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         return super.buildClient(settings, hosts);
     }
 
-    protected void createReviewsIndex(String indexName, int numDocs) throws IOException {
+    protected void createReviewsIndex(String indexName, int numDocs, String dateType) throws IOException {
         int[] distributionTable = { 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 3, 3, 2, 1, 1, 1 };
 
         // create mapping
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
             {
-                builder.startObject("mappings")
-                    .startObject("properties")
-                    .startObject("timestamp")
-                    .field("type", "date")
-                    .endObject()
+                builder.startObject("mappings").startObject("properties").startObject("timestamp").field("type", dateType);
+
+                if (dateType.equals("date_nanos")) {
+                    builder.field("format", "strict_date_optional_time_nanos");
+                }
+
+                builder.endObject()
                     .startObject("user_id")
                     .field("type", "keyword")
                     .endObject()
@@ -128,7 +131,13 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             int sec = 10 + (i % 49);
             String location = (user + 10) + "," + (user + 15);
 
-            String date_string = "2017-01-" + day + "T" + hour + ":" + min + ":" + sec + "Z";
+            String date_string = "2017-01-" + day + "T" + hour + ":" + min + ":" + sec;
+            if (dateType.equals("date_nanos")) {
+                String randomNanos = "," + randomIntBetween(100000000, 999999999);
+                date_string += randomNanos;
+            }
+            date_string += "Z";
+
             bulk.append("{\"user_id\":\"")
                 .append("user_")
                 .append(user)
@@ -170,7 +179,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void createReviewsIndex(String indexName) throws IOException {
-        createReviewsIndex(indexName, 1000);
+        createReviewsIndex(indexName, 1000, "date");
     }
 
     protected void createPivotReviewsTransform(String transformId, String transformIndex, String query) throws IOException {
@@ -180,6 +189,10 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     protected void createPivotReviewsTransform(String transformId, String transformIndex, String query, String pipeline)
         throws IOException {
         createPivotReviewsTransform(transformId, transformIndex, query, pipeline, null);
+    }
+
+    protected void createReviewsIndexNano() throws IOException {
+        createReviewsIndex(REVIEWS_DATE_NANO_INDEX_NAME, 1000, "date_nanos");
     }
 
     protected void createContinuousPivotReviewsTransform(String transformId, String transformIndex, String authHeader) throws IOException {
@@ -367,9 +380,9 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
     @After
     public void waitForTransform() throws Exception {
+        ensureNoInitializingShards();
         logAudits();
         if (preserveClusterUponCompletion() == false) {
-            ensureNoInitializingShards();
             wipeTransforms();
             waitForPendingTransformTasks();
         }
@@ -474,7 +487,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void logAudits() throws IOException {
+    private void logAudits() throws Exception {
         logger.info("writing audit messages to the log");
         Request searchRequest = new Request("GET", TransformInternalIndexConstants.AUDIT_INDEX + "/_search?ignore_unavailable=true");
         searchRequest.setJsonEntity(
@@ -488,23 +501,36 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
                 + "  ] }"
         );
 
-        refreshIndex(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN);
+        assertBusy(() -> {
+            try {
+                refreshIndex(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN);
+                Response searchResponse = client().performRequest(searchRequest);
 
-        Response searchResponse = client().performRequest(searchRequest);
-        Map<String, Object> searchResult = entityAsMap(searchResponse);
-        List<Map<String, Object>> searchHits = (List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", searchResult);
+                Map<String, Object> searchResult = entityAsMap(searchResponse);
+                List<Map<String, Object>> searchHits = (List<Map<String, Object>>) XContentMapValues.extractValue(
+                    "hits.hits",
+                    searchResult
+                );
 
-        for (Map<String, Object> hit : searchHits) {
-            Map<String, Object> source = (Map<String, Object>) XContentMapValues.extractValue("_source", hit);
-            String level = (String) source.getOrDefault("level", "info");
-            logger.log(
-                Level.getLevel(level.toUpperCase(Locale.ROOT)),
-                "Transform audit: [{}] [{}] [{}] [{}]",
-                Instant.ofEpochMilli((long) source.getOrDefault("timestamp", 0)),
-                source.getOrDefault("transform_id", "n/a"),
-                source.getOrDefault("message", "n/a"),
-                source.getOrDefault("node_name", "n/a")
-            );
-        }
+                for (Map<String, Object> hit : searchHits) {
+                    Map<String, Object> source = (Map<String, Object>) XContentMapValues.extractValue("_source", hit);
+                    String level = (String) source.getOrDefault("level", "info");
+                    logger.log(
+                        Level.getLevel(level.toUpperCase(Locale.ROOT)),
+                        "Transform audit: [{}] [{}] [{}] [{}]",
+                        Instant.ofEpochMilli((long) source.getOrDefault("timestamp", 0)),
+                        source.getOrDefault("transform_id", "n/a"),
+                        source.getOrDefault("message", "n/a"),
+                        source.getOrDefault("node_name", "n/a")
+                    );
+                }
+            } catch (ResponseException e) {
+                // see gh#54810, wrap temporary 503's as assertion error for retry
+                if (e.getResponse().getStatusLine().getStatusCode() != 503) {
+                    throw e;
+                }
+                throw new AssertionError("Failed to retrieve audit logs", e);
+            }
+        }, 5, TimeUnit.SECONDS);
     }
 }

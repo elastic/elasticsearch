@@ -30,11 +30,10 @@ import org.elasticsearch.packaging.util.Shell;
 import org.junit.Ignore;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
@@ -80,8 +79,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
         assertFalse("has-passwd should fail", r.isSuccess());
-        assertThat("has-passwd should indicate missing keystore",
-            r.stderr, containsString(ERROR_KEYSTORE_NOT_FOUND));
+        assertThat("has-passwd should indicate missing keystore", r.stderr, containsString(ERROR_KEYSTORE_NOT_FOUND));
     }
 
     /** Test initial package state */
@@ -96,8 +94,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
         assertFalse("has-passwd should fail", r.isSuccess());
-        assertThat("has-passwd should indicate unprotected keystore",
-            r.stderr, containsString(ERROR_KEYSTORE_NOT_PASSWORD_PROTECTED));
+        assertThat("has-passwd should indicate unprotected keystore", r.stderr, containsString(ERROR_KEYSTORE_NOT_PASSWORD_PROTECTED));
         Shell.Result r2 = bin.keystoreTool.run("list");
         assertThat(r2.stdout, containsString("keystore.seed"));
     }
@@ -117,8 +114,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
         assertFalse("has-passwd should fail", r.isSuccess());
-        assertThat("has-passwd should indicate unprotected keystore",
-            r.stdout, containsString(ERROR_KEYSTORE_NOT_PASSWORD_PROTECTED));
+        assertThat("has-passwd should indicate unprotected keystore", r.stdout, containsString(ERROR_KEYSTORE_NOT_PASSWORD_PROTECTED));
         Shell.Result r2 = bin.keystoreTool.run("list");
         assertThat(r2.stdout, containsString("keystore.seed"));
     }
@@ -151,8 +147,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     }
 
     public void test40KeystorePasswordOnStandardInput() throws Exception {
-        assumeTrue("packages will use systemd, which doesn't handle stdin",
-            distribution.isArchive());
+        assumeTrue("packages will use systemd, which doesn't handle stdin", distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
 
         String password = "^|<>\\&exit"; // code insertion on Windows if special characters are not escaped
@@ -169,8 +164,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     }
 
     public void test41WrongKeystorePasswordOnStandardInput() {
-        assumeTrue("packages will use systemd, which doesn't handle stdin",
-            distribution.isArchive());
+        assumeTrue("packages will use systemd, which doesn't handle stdin", distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
 
         assertPasswordProtectedKeystore();
@@ -181,10 +175,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
     @Ignore /* Ignored for feature branch, awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
     public void test42KeystorePasswordOnTty() throws Exception {
-        assumeTrue("expect command isn't on Windows",
-            distribution.platform != Distribution.Platform.WINDOWS);
-        assumeTrue("packages will use systemd, which doesn't handle stdin",
-            distribution.isArchive());
+        assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
+        assumeTrue("packages will use systemd, which doesn't handle stdin", distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
 
         String password = "keystorepass";
@@ -202,10 +194,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
     @Ignore /* Ignored for feature branch, awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
     public void test43WrongKeystorePasswordOnTty() throws Exception {
-        assumeTrue("expect command isn't on Windows",
-            distribution.platform != Distribution.Platform.WINDOWS);
-        assumeTrue("packages will use systemd, which doesn't handle stdin",
-            distribution.isArchive());
+        assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
+        assumeTrue("packages will use systemd, which doesn't handle stdin", distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
 
         assertPasswordProtectedKeystore();
@@ -220,8 +210,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * view help information.
      */
     public void test44EncryptedKeystoreAllowsHelpMessage() throws Exception {
-        assumeTrue("users call elasticsearch directly in archive case",
-            distribution.isArchive());
+        assumeTrue("users call elasticsearch directly in archive case", distribution.isArchive());
 
         String password = "keystorepass";
 
@@ -249,9 +238,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             sh.run("sudo systemctl set-environment ES_KEYSTORE_PASSPHRASE_FILE=" + esKeystorePassphraseFile);
 
             Files.createFile(esKeystorePassphraseFile);
-            Files.write(esKeystorePassphraseFile,
-                (password + System.lineSeparator()).getBytes(StandardCharsets.UTF_8),
-                StandardOpenOption.WRITE);
+            Files.write(esKeystorePassphraseFile, List.of(password));
 
             startElasticsearch();
             ServerUtils.runElasticsearchTests();
@@ -275,9 +262,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             }
 
             Files.createFile(esKeystorePassphraseFile);
-            Files.write(esKeystorePassphraseFile,
-                ("wrongpassword" + System.lineSeparator()).getBytes(StandardCharsets.UTF_8),
-                StandardOpenOption.WRITE);
+            Files.write(esKeystorePassphraseFile, List.of("wrongpassword"));
 
             Packages.JournaldWrapper journaldWrapper = new Packages.JournaldWrapper(sh);
             Shell.Result result = runElasticsearchStartCommand();
@@ -334,8 +319,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
             waitForElasticsearch(installation);
             ServerUtils.runElasticsearchTests();
-        }
-        finally {
+        } finally {
             if (tempDir != null) {
                 rm(tempDir);
             }
@@ -376,9 +360,13 @@ public class KeystoreManagementTests extends PackagingTestCase {
         // It's very tricky to properly quote a pipeline that you're passing to
         // a docker exec command, so we're just going to put a small script in the
         // temp folder.
-        String setPasswordScript = "echo \"" + password + "\n" + password
-            + "\n\" | " + installation.executables().keystoreTool.toString() + " passwd";
-        Files.writeString(tempDirectory.resolve("set-pass.sh"), setPasswordScript);
+        List<String> setPasswordScript = List.of(
+            "echo \"" + password,
+            password,
+            "\" | " + installation.executables().keystoreTool.toString() + " passwd"
+        );
+
+        Files.write(tempDirectory.resolve("set-pass.sh"), setPasswordScript);
 
         runContainer(distribution(), volumes, null);
         try {
@@ -409,9 +397,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         // the keystore ends up being owned by the Administrators group, so we manually set it to be owned by the vagrant user here.
         // from the server's perspective the permissions aren't really different, this is just to reflect what we'd expect in the tests.
         // when we run these commands as a role user we won't have to do this
-        Platforms.onWindows(() -> {
-            sh.chown(keystore);
-        });
+        Platforms.onWindows(() -> sh.chown(keystore));
 
         if (distribution().isDocker()) {
             try {
@@ -444,14 +430,11 @@ public class KeystoreManagementTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
 
         // set the password by passing it to stdin twice
-        Platforms.onLinux(() -> {
-            bin.keystoreTool.run("passwd", password + "\n" + password + "\n");
-        });
+        Platforms.onLinux(() -> bin.keystoreTool.run("passwd", password + "\n" + password + "\n"));
 
-        Platforms.onWindows(() -> {
-            sh.run("Invoke-Command -ScriptBlock {echo \'" + password + "\'; echo \'" + password + "\'} | "
-                + bin.keystoreTool + " passwd");
-        });
+        Platforms.onWindows(
+            () -> sh.run("Invoke-Command -ScriptBlock {echo '" + password + "'; echo '" + password + "'} | " + bin.keystoreTool + " passwd")
+        );
     }
 
     private void assertPasswordProtectedKeystore() {

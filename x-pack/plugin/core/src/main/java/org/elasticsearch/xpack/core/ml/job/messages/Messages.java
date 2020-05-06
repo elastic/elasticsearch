@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.job.messages;
 
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.text.MessageFormat;
 import java.util.Locale;
@@ -51,7 +52,7 @@ public final class Messages {
     public static final String DATAFEED_ID_ALREADY_TAKEN = "A datafeed with id [{0}] already exists";
     public static final String DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH = "Datafeed [{0}] is configured with a remote index pattern(s) {1}" +
         " but the current node [{2}] is not allowed to connect to remote clusters." +
-        " Please enable cluster.remote.connect for all machine learning nodes.";
+        " Please enable node.remote_cluster_client for all machine learning nodes.";
 
     public static final String DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT = "Data Frame Analytics config query is not parsable";
     public static final String DATA_FRAME_ANALYTICS_BAD_FIELD_FILTER = "No field [{0}] could be detected";
@@ -65,9 +66,14 @@ public final class Messages {
     public static final String DATA_FRAME_ANALYTICS_AUDIT_ESTIMATED_MEMORY_USAGE = "Estimated memory usage for this analytics to be [{0}]";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_CREATING_DEST_INDEX = "Creating destination index [{0}]";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_REUSING_DEST_INDEX = "Using existing destination index [{0}]";
-    public static final String DATA_FRAME_ANALYTICS_AUDIT_FINISHED_REINDEXING = "Finished reindexing to destination index [{0}]";
+    public static final String DATA_FRAME_ANALYTICS_AUDIT_STARTED_REINDEXING = "Started reindexing to destination index [{0}]";
+    public static final String DATA_FRAME_ANALYTICS_AUDIT_FINISHED_REINDEXING =
+        "Finished reindexing to destination index [{0}], took [{1}]";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_FINISHED_ANALYSIS = "Finished analysis";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_RESTORING_STATE = "Restoring from previous model state";
+    public static final String DATA_FRAME_ANALYTICS_AUDIT_STARTED_LOADING_DATA = "Started loading data";
+    public static final String DATA_FRAME_ANALYTICS_AUDIT_STARTED_ANALYZING = "Started analyzing";
+    public static final String DATA_FRAME_ANALYTICS_AUDIT_STARTED_WRITING_RESULTS = "Started writing results";
 
     public static final String FILTER_CANNOT_DELETE = "Cannot delete filter [{0}] currently used by jobs {1}";
     public static final String FILTER_CONTAINS_TOO_MANY_ITEMS = "Filter [{0}] contains too many items; up to [{1}] items are allowed";
@@ -125,6 +131,7 @@ public final class Messages {
     public static final String JOB_AUDIT_DELETED = "Job deleted";
     public static final String JOB_AUDIT_KILLING = "Killing job";
     public static final String JOB_AUDIT_OLD_RESULTS_DELETED = "Deleted results prior to {0}";
+    public static final String JOB_AUDIT_SNAPSHOT_STORED = "Job model snapshot with id [{0}] stored";
     public static final String JOB_AUDIT_REVERTED = "Job model snapshot reverted to ''{0}''";
     public static final String JOB_AUDIT_SNAPSHOT_DELETED = "Model snapshot [{0}] with description ''{1}'' deleted";
     public static final String JOB_AUDIT_FILTER_UPDATED_ON_PROCESS = "Updated filter [{0}] in running process";
@@ -206,6 +213,9 @@ public final class Messages {
             "This job would cause a mapping clash with existing field [{0}] - avoid the clash by assigning a dedicated results index";
     public static final String JOB_CONFIG_TIME_FIELD_NOT_ALLOWED_IN_ANALYSIS_CONFIG =
             "data_description.time_field may not be used in the analysis_config";
+    public static final String JOB_CONFIG_MODEL_SNAPSHOT_RETENTION_SETTINGS_INCONSISTENT =
+            "The value of '" + Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS + "' [{0}] cannot be greater than '" +
+                Job.MODEL_SNAPSHOT_RETENTION_DAYS + "' [{1}]";
 
     public static final String JOB_AND_GROUP_NAMES_MUST_BE_UNIQUE =
             "job and group names must be unique but job [{0}] and group [{0}] have the same name";

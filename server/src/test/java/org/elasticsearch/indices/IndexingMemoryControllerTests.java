@@ -253,7 +253,8 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         Exception e = expectThrows(IllegalArgumentException.class,
                                    () -> new MockController(Settings.builder()
                                                             .put("indices.memory.interval", "-42s").build()));
-        assertEquals("failed to parse value [-42s] for setting [indices.memory.interval], must be >= [0ms]", e.getMessage());
+        assertEquals("failed to parse setting [indices.memory.interval] with value " +
+            "[-42s] as a time value: negative durations are not supported", e.getMessage());
 
     }
 
@@ -261,7 +262,8 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         Exception e = expectThrows(IllegalArgumentException.class,
                                    () -> new MockController(Settings.builder()
                                                             .put("indices.memory.shard_inactive_time", "-42s").build()));
-        assertEquals("failed to parse value [-42s] for setting [indices.memory.shard_inactive_time], must be >= [0ms]", e.getMessage());
+        assertEquals("failed to parse setting [indices.memory.shard_inactive_time] with value " +
+            "[-42s] as a time value: negative durations are not supported", e.getMessage());
 
     }
 

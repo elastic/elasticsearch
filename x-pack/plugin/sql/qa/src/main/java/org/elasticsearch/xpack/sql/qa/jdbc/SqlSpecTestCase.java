@@ -36,7 +36,7 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = JdbcTestUtils.classpathResources("/*.sql-spec");
-        assertTrue("Not enough specs found " + urls.toString(), urls.size() > 9);
+        assertTrue("Not enough specs found " + urls.toString(), urls.size() > 10);
         return readScriptSpec(urls, specParser());
     }
 

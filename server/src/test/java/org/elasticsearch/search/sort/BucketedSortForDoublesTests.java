@@ -22,25 +22,24 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.DocValueFormat;
 
-import java.io.IOException;
-
 public class BucketedSortForDoublesTests extends BucketedSortTestCase<BucketedSort.ForDoubles> {
     @Override
-    public BucketedSort.ForDoubles build(SortOrder sortOrder, DocValueFormat format, double[] values) {
-        return new BucketedSort.ForDoubles(bigArrays(), sortOrder, format) {
+    public BucketedSort.ForDoubles build(SortOrder sortOrder, DocValueFormat format, int bucketSize,
+            BucketedSort.ExtraData extra, double[] values) {
+        return new BucketedSort.ForDoubles(bigArrays(), sortOrder, format, bucketSize, extra) {
             @Override
-            public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
-                return new Leaf() {
+            public Leaf forLeaf(LeafReaderContext ctx) {
+                return new Leaf(ctx) {
                     int index = -1;
 
                     @Override
-                    protected boolean advanceExact(int doc) throws IOException {
+                    protected boolean advanceExact(int doc) {
                         index = doc;
                         return doc < values.length;
                     }
 
                     @Override
-                    protected double docValue() throws IOException {
+                    protected double docValue() {
                         return values[index];
                     }
                 };
@@ -51,5 +50,10 @@ public class BucketedSortForDoublesTests extends BucketedSortTestCase<BucketedSo
     @Override
     protected SortValue expectedSortValue(double v) {
         return SortValue.from(v);
+    }
+
+    @Override
+    protected double randomValue() {
+        return randomDouble();
     }
 }

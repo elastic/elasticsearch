@@ -27,15 +27,17 @@ public class TermsGroupSource extends SingleGroupSource {
     private static ConstructingObjectParser<TermsGroupSource, Void> createParser(boolean lenient) {
         ConstructingObjectParser<TermsGroupSource, Void> parser = new ConstructingObjectParser<>(NAME, lenient, (args) -> {
             String field = (String) args[0];
-            return new TermsGroupSource(field);
+            ScriptConfig scriptConfig = (ScriptConfig) args[1];
+
+            return new TermsGroupSource(field, scriptConfig);
         });
 
-        SingleGroupSource.declareValuesSourceFields(parser);
+        SingleGroupSource.declareValuesSourceFields(parser, lenient);
         return parser;
     }
 
-    public TermsGroupSource(final String field) {
-        super(field);
+    public TermsGroupSource(final String field, final ScriptConfig scriptConfig) {
+        super(field, scriptConfig);
     }
 
     public TermsGroupSource(StreamInput in) throws IOException {
@@ -52,8 +54,15 @@ public class TermsGroupSource extends SingleGroupSource {
     }
 
     @Override
-    public QueryBuilder getIncrementalBucketUpdateFilterQuery(Set<String> changedBuckets) {
-        return new TermsQueryBuilder(field, changedBuckets);
+    public QueryBuilder getIncrementalBucketUpdateFilterQuery(
+        Set<String> changedBuckets,
+        String synchronizationField,
+        long synchronizationTimestamp
+    ) {
+        if (changedBuckets != null && changedBuckets.isEmpty() == false) {
+            return new TermsQueryBuilder(field, changedBuckets);
+        }
+        return null;
     }
 
     @Override

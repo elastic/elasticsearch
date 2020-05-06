@@ -36,12 +36,12 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 
-
 public class VerifierErrorMessagesTests extends ESTestCase {
 
-    private SqlParser parser = new SqlParser();
-    private IndexResolution indexResolution = IndexResolution.valid(new EsIndex("test",
-            loadMapping("mapping-multi-field-with-nested.json")));
+    private final SqlParser parser = new SqlParser();
+    private final IndexResolution indexResolution = IndexResolution.valid(
+        new EsIndex("test", loadMapping("mapping-multi-field-with-nested.json"))
+    );
 
     private String error(String sql) {
         return error(indexResolution, sql);
@@ -212,11 +212,20 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:8: Invalid datetime field [ABS]. Use any datetime function.", error("SELECT EXTRACT(ABS FROM date) FROM test"));
     }
 
+    public void testDateTruncValidArgs() {
+        accept("SELECT DATE_TRUNC('decade', date) FROM test");
+        accept("SELECT DATE_TRUNC('decades', date) FROM test");
+        accept("SELECT DATETRUNC('day', date) FROM test");
+        accept("SELECT DATETRUNC('days', date) FROM test");
+        accept("SELECT DATE_TRUNC('dd', date) FROM test");
+        accept("SELECT DATE_TRUNC('d', date) FROM test");
+    }
+
     public void testDateTruncInvalidArgs() {
         assertEquals("1:8: first argument of [DATE_TRUNC(int, date)] must be [string], found value [int] type [integer]",
             error("SELECT DATE_TRUNC(int, date) FROM test"));
-        assertEquals("1:8: second argument of [DATE_TRUNC(keyword, keyword)] must be [date or datetime], found value [keyword] " +
-                "type [keyword]", error("SELECT DATE_TRUNC(keyword, keyword) FROM test"));
+        assertEquals("1:8: second argument of [DATE_TRUNC(keyword, keyword)] must be [date, datetime or an interval data type]," +
+            " found value [keyword] type [keyword]", error("SELECT DATE_TRUNC(keyword, keyword) FROM test"));
         assertEquals("1:8: first argument of [DATE_TRUNC('invalid', keyword)] must be one of [MILLENNIUM, CENTURY, DECADE, " + "" +
                 "YEAR, QUARTER, MONTH, WEEK, DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND] " +
                 "or their aliases; found value ['invalid']",
@@ -285,15 +294,6 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT DATE_DIFF('dz', int, date) FROM test"));
     }
 
-    public void testDateTruncValidArgs() {
-        accept("SELECT DATE_TRUNC('decade', date) FROM test");
-        accept("SELECT DATE_TRUNC('decades', date) FROM test");
-        accept("SELECT DATETRUNC('day', date) FROM test");
-        accept("SELECT DATETRUNC('days', date) FROM test");
-        accept("SELECT DATE_TRUNC('dd', date) FROM test");
-        accept("SELECT DATE_TRUNC('d', date) FROM test");
-    }
-
     public void testDatePartInvalidArgs() {
         assertEquals("1:8: first argument of [DATE_PART(int, date)] must be [string], found value [int] type [integer]",
             error("SELECT DATE_PART(int, date) FROM test"));
@@ -318,6 +318,39 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         accept("SELECT DATE_PART('dayofyear', date) FROM test");
         accept("SELECT DATE_PART('dy', date) FROM test");
         accept("SELECT DATE_PART('ms', date) FROM test");
+    }
+
+    public void testDateTimeFormatValidArgs() {
+        accept("SELECT DATETIME_FORMAT(date, 'HH:mm:ss.SSS VV') FROM test");
+        accept("SELECT DATETIME_FORMAT(date::date, 'MM/dd/YYYY') FROM test");
+        accept("SELECT DATETIME_FORMAT(date::time, 'HH:mm:ss Z') FROM test");
+    }
+
+    public void testDateTimeFormatInvalidArgs() {
+        assertEquals(
+            "1:8: first argument of [DATETIME_FORMAT(int, keyword)] must be [date, time or datetime], found value [int] type [integer]",
+            error("SELECT DATETIME_FORMAT(int, keyword) FROM test")
+        );
+        assertEquals(
+            "1:8: second argument of [DATETIME_FORMAT(date, int)] must be [string], found value [int] type [integer]",
+            error("SELECT DATETIME_FORMAT(date, int) FROM test")
+        );
+    }
+
+    public void testDateTimeParseValidArgs() {
+        accept("SELECT DATETIME_PARSE(keyword, 'MM/dd/uuuu HH:mm:ss') FROM test");
+        accept("SELECT DATETIME_PARSE('04/07/2020 10:20:30 Europe/Berlin', 'MM/dd/uuuu HH:mm:ss VV') FROM test");
+    }
+
+    public void testDateTimeParseInvalidArgs() {
+        assertEquals(
+            "1:8: first argument of [DATETIME_PARSE(int, keyword)] must be [string], found value [int] type [integer]",
+            error("SELECT DATETIME_PARSE(int, keyword) FROM test")
+        );
+        assertEquals(
+            "1:8: second argument of [DATETIME_PARSE(keyword, int)] must be [string], found value [int] type [integer]",
+            error("SELECT DATETIME_PARSE(keyword, int) FROM test")
+        );
     }
 
     public void testValidDateTimeFunctionsOnTime() {
@@ -535,11 +568,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:26: Cannot use field [unsupported] with unsupported type [ip_range]",
                 error("SELECT * FROM test WHERE unsupported > 1"));
     }
-    
+
     public void testValidRootFieldWithUnsupportedChildren() {
         accept("SELECT x FROM test");
     }
-    
+
     public void testUnsupportedTypeInHierarchy() {
         assertEquals("1:8: Cannot use field [x.y.z.w] with unsupported type [foobar] in hierarchy (field [y])",
                 error("SELECT x.y.z.w FROM test"));
@@ -1064,5 +1097,12 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testPivotValuesWithMultipleDifferencesThanColumn() {
         assertEquals("1:81: Literal ['bla'] of type [keyword] does not match type [boolean] of PIVOT column [bool]",
                 error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(AVG(int) FOR bool IN ('bla', true))"));
+    }
+
+    public void testErrorMessageForMatrixStatsWithScalars() {
+        assertEquals("1:17: [KURTOSIS()] cannot be used on top of operators or scalars",
+                error("SELECT KURTOSIS(ABS(int * 10.123)) FROM test"));
+        assertEquals("1:17: [SKEWNESS()] cannot be used on top of operators or scalars",
+                error("SELECT SKEWNESS(ABS(int * 10.123)) FROM test"));
     }
 }

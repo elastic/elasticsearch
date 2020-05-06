@@ -1,6 +1,5 @@
-[chapter]
 [[modules-cross-cluster-search]]
-= Search across clusters
+== Search across clusters
 
 *{ccs-cap}* lets you run a single search request against one or more
 <<modules-remote-clusters,remote clusters>>. For example, you can use a {ccs} to
@@ -10,7 +9,7 @@ IMPORTANT: {ccs-cap} requires <<modules-remote-clusters, remote clusters>>.
 
 [float]
 [[ccs-supported-apis]]
-== Supported APIs
+=== Supported APIs
 
 The following APIs support {ccs}:
 
@@ -21,11 +20,11 @@ The following APIs support {ccs}:
 
 [float]
 [[ccs-example]]
-== {ccs-cap} examples
+=== {ccs-cap} examples
 
 [float]
 [[ccs-remote-cluster-setup]]
-=== Remote cluster setup
+==== Remote cluster setup
 
 To perform a {ccs}, you must have at least one remote cluster configured.
 
@@ -64,7 +63,7 @@ PUT _cluster/settings
 
 [float]
 [[ccs-search-remote-cluster]]
-=== Search a single remote cluster
+==== Search a single remote cluster
 
 The following <<search-search,search>> API request searches the
 `twitter` index on a single remote cluster, `cluster_one`.
@@ -132,7 +131,7 @@ The API returns the following response:
 
 [float]
 [[ccs-search-multi-remote-cluster]]
-=== Search multiple remote clusters
+==== Search multiple remote clusters
 
 The following <<search,search>> API request searches the `twitter` index on
 three clusters:
@@ -228,7 +227,7 @@ means the document came from the local cluster.
 
 [float]
 [[skip-unavailable-clusters]]
-== Skip unavailable clusters
+=== Skip unavailable clusters
 
 By default, a {ccs} returns an error if *any* cluster in the request is
 unavailable.
@@ -254,25 +253,28 @@ If `cluster_two` is disconnected or unavailable during a {ccs}, {es} won't
 include matching documents from that cluster in the final results.
 
 [discrete]
-[[ccs-works]]
-== How {ccs} works
-
-include::./remote-clusters.asciidoc[tag=how-remote-clusters-work]
-
-[discrete]
 [[ccs-gateway-seed-nodes]]
-=== Selecting gateway and seed nodes
+=== Selecting gateway and seed nodes in sniff mode
 
-Gateway and seed nodes need to be accessible from the local cluster via your
-network.
+For remote clusters using the <<sniff-mode,sniff connection>> mode, gateway and
+seed nodes need to be accessible from the local cluster via your network.
 
-By default, any master-ineligible node can act as a gateway node. If wanted,
-you can define the gateway nodes for a cluster by setting
-`cluster.remote.node.attr.gateway` to `true`.
+By default, any non-<<master-node,master-eligible>> node can act as a
+gateway node. If wanted, you can define the gateway nodes for a cluster by
+setting `cluster.remote.node.attr.gateway` to `true`.
 
 For {ccs}, we recommend you use gateway nodes that are capable of serving as
 <<coordinating-node,coordinating nodes>> for search requests. If
 wanted, the seed nodes for a cluster can be a subset of these gateway nodes.
+
+[discrete]
+[[ccs-proxy-mode]]
+=== {ccs} in proxy mode
+
+<<proxy-mode,Proxy mode>> remote cluster connections support {ccs}. All remote
+connections connect to the configured `proxy_address`. Any desired connection
+routing to gateway or <<coordinating-node,coordinating nodes>> must
+be implemented by the intermediate proxy at this configured address.
 
 [discrete]
 [[ccs-network-delays]]
@@ -300,7 +302,7 @@ low latency.
 +
 See <<ccs-unmin-roundtrips>> to learn how this option works.
 
-[float]
+[discrete]
 [[ccs-min-roundtrips]]
 ==== Minimize network roundtrips
 
@@ -326,7 +328,7 @@ final results in the {ccs} response.
 +
 image:images/ccs/ccs-min-roundtrip-client-response.svg[]
 
-[float]
+[discrete]
 [[ccs-unmin-roundtrips]]
 ==== Don't minimize network roundtrips
 

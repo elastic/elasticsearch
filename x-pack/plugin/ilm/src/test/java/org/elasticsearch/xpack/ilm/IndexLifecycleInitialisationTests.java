@@ -62,8 +62,8 @@ import java.util.stream.Collectors;
 
 import static java.time.format.DateTimeFormatter.ISO_ZONED_DATE_TIME;
 import static org.elasticsearch.client.Requests.createIndexRequest;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.ilm.LifecyclePolicyTestsUtils.newLockableLifecyclePolicy;
@@ -94,13 +94,10 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-        settings.put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), true);
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
-        settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
-        settings.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
         settings.put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s");
 
         // This is necessary to prevent ILM and SLM installing a lifecycle policy, these tests assume a blank slate
@@ -141,7 +138,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         final String server_1 = internalCluster().startNode();
         final String node1 = getLocalNodeId(server_1);
 
-        // test get-lifecycle behavior when IndexLifecycleMetaData is null
+        // test get-lifecycle behavior when IndexLifecycleMetadata is null
         GetLifecycleAction.Response getUninitializedLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE,
             new GetLifecycleAction.Request()).get();
         assertThat(getUninitializedLifecycleResponse.getPolicies().size(), equalTo(0));
@@ -182,7 +179,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         assertNotNull(indexLifecycleService.getScheduledJob());
         assertBusy(() -> {
             LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(client().admin().cluster()
-                .prepareState().execute().actionGet().getState().getMetaData().index("test"));
+                .prepareState().execute().actionGet().getState().getMetadata().index("test"));
             assertThat(lifecycleState.getStep(), equalTo("complete"));
         });
     }
@@ -373,7 +370,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         assertBusy(() -> assertTrue(indexExists("test")));
         assertBusy(() -> {
             LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(client().admin().cluster()
-                .prepareState().execute().actionGet().getState().getMetaData().index("test"));
+                .prepareState().execute().actionGet().getState().getMetadata().index("test"));
             assertThat(lifecycleState.getStep(), equalTo("complete"));
         });
     }
@@ -512,7 +509,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         @Override
         public Result isConditionMet(Index index, ClusterState clusterState) {
-            boolean complete = clusterState.metaData().index("test").getSettings()
+            boolean complete = clusterState.metadata().index("test").getSettings()
                 .getAsBoolean("index.lifecycle.test.complete", false);
             return new Result(complete, null);
         }

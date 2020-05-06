@@ -161,6 +161,7 @@ public class PublicationTransportHandler {
             public void sendPublishRequest(DiscoveryNode destination, PublishRequest publishRequest,
                                            ActionListener<PublishWithJoinResponse> originalListener) {
                 assert publishRequest.getAcceptedState() == clusterChangedEvent.state() : "state got switched on us";
+                assert transportService.getThreadPool().getThreadContext().isSystemContext();
                 final ActionListener<PublishWithJoinResponse> responseActionListener;
                 if (destination.equals(nodes.getLocalNode())) {
                     // if publishing to self, use original request instead (see currentPublishRequestToSelf for explanation)
@@ -197,6 +198,7 @@ public class PublicationTransportHandler {
             @Override
             public void sendApplyCommit(DiscoveryNode destination, ApplyCommitRequest applyCommitRequest,
                                         ActionListener<TransportResponse.Empty> responseActionListener) {
+                assert transportService.getThreadPool().getThreadContext().isSystemContext();
                 transportService.sendRequest(destination, COMMIT_STATE_ACTION_NAME, applyCommitRequest, stateRequestOptions,
                     new TransportResponseHandler<TransportResponse.Empty>() {
 

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -43,12 +43,12 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -60,10 +60,10 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.sort.BucketedSort;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -388,7 +388,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
 
         XContentParser parser = context.parser();
         Object value;
@@ -440,9 +440,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         boolean indexed = fieldType().indexOptions() != IndexOptions.NONE;
         boolean docValued = fieldType().hasDocValues();
         boolean stored = fieldType().stored();
-        fields.addAll(NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, docValued, stored));
+        List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, docValued, stored);
+        context.doc().addAll(fields);
+
         if (docValued == false && (indexed || stored)) {
-            createFieldNamesField(context, fields);
+            createFieldNamesField(context);
         }
     }
 
@@ -517,12 +519,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public AtomicNumericFieldData load(LeafReaderContext context) {
+        public LeafNumericFieldData load(LeafReaderContext context) {
             return new ScaledFloatLeafFieldData(scaledFieldData.load(context), scalingFactor);
         }
 
         @Override
-        public AtomicNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
+        public LeafNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
             return new ScaledFloatLeafFieldData(scaledFieldData.loadDirect(context), scalingFactor);
         }
 
@@ -534,8 +536,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-                SortOrder sortOrder, DocValueFormat format) {
-            return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested).newBucketedSort(bigArrays, sortOrder, format);
+                SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+            return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested)
+                    .newBucketedSort(bigArrays, sortOrder, format, bucketSize, extra);
         }
 
         @Override
@@ -558,12 +561,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
     }
 
-    private static class ScaledFloatLeafFieldData implements AtomicNumericFieldData {
+    private static class ScaledFloatLeafFieldData implements LeafNumericFieldData {
 
-        private final AtomicNumericFieldData scaledFieldData;
+        private final LeafNumericFieldData scaledFieldData;
         private final double scalingFactorInverse;
 
-        ScaledFloatLeafFieldData(AtomicNumericFieldData scaledFieldData, double scalingFactor) {
+        ScaledFloatLeafFieldData(LeafNumericFieldData scaledFieldData, double scalingFactor) {
             this.scaledFieldData = scaledFieldData;
             this.scalingFactorInverse = 1d / scalingFactor;
         }

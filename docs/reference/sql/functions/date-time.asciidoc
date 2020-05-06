@@ -404,6 +404,98 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateTimeMinutes]
 include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateMinutes]
 --------------------------------------------------
 
+[[sql-functions-datetime-datetimeformat]]
+==== `DATETIME_FORMAT`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DATETIME_FORMAT(
+    date_exp/datetime_exp/time_exp, <1>
+    string_exp) <2>
+--------------------------------------------------
+
+*Input*:
+
+<1> date/datetime/time expression
+<2> format pattern
+
+*Output*: string
+
+*Description*: Returns the date/datetime/time as a string using the format specified in the 2nd argument. The formatting
+pattern used is the one from
+https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`java.time.format.DateTimeFormatter`].
+If any of the two arguments is `null` or the pattern is an empty string `null` is returned.
+
+[NOTE]
+If the 1st argument is of type `time`, then pattern specified by the 2nd argument cannot contain date related units
+(e.g. 'dd', 'MM', 'YYYY', etc.). If it contains such units an error is returned.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeFormatDate]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeFormatDateTime]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeFormatTime]
+--------------------------------------------------
+
+[[sql-functions-datetime-datetimeparse]]
+==== `DATETIME_PARSE`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DATETIME_PARSE(
+    string_exp, <1>
+    string_exp) <2>
+--------------------------------------------------
+
+*Input*:
+
+<1> datetime expression as a string
+<2> parsing pattern
+
+*Output*: datetime
+
+*Description*: Returns a datetime by parsing the 1st argument using the format specified in the 2nd argument. The parsing
+format pattern used is the one from
+https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`java.time.format.DateTimeFormatter`].
+If any of the two arguments is `null` or an empty string `null` is returned.
+
+
+[NOTE]
+If the parsing pattern contains only date or only time units (e.g. 'dd/MM/uuuu', 'HH:mm:ss', etc.) an error is returned
+as the function needs to return a value of `datetime` type which must contain both.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeParse1]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeParse2]
+--------------------------------------------------
+
+[NOTE]
+====
+If timezone is not specified in the datetime string expression and the parsing pattern, the resulting `datetime` will have the
+time zone specified by the user through the <<sql-rest-fields-timezone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver parameters
+with no conversion applied.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeParse3]
+--------------------------------------------------
+====
+
 [[sql-functions-datetime-part]]
 ==== `DATE_PART/DATEPART`
 
@@ -500,18 +592,19 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[datePartDateTimeTzOffsetMinus]
 --------------------------------------------------
 DATE_TRUNC(
     string_exp, <1>
-    datetime_exp) <2>
+    datetime_exp/interval_exp) <2>
 --------------------------------------------------
 
 *Input*:
 
-<1> string expression denoting the unit to which the date/datetime should be truncated to
-<2> date/datetime expression
+<1> string expression denoting the unit to which the date/datetime/interval should be truncated to
+<2> date/datetime/interval expression
 
-*Output*: datetime
+*Output*: datetime/interval
 
-*Description*: Truncate the date/datetime to the specified unit by setting all fields that are less significant than the specified
+*Description*: Truncate the date/datetime/interval to the specified unit by setting all fields that are less significant than the specified
 one to zero (or one, for day, day of week and month). If any of the two arguments is `null` a `null` is returned.
+If the first argument is `week` and the second argument is of `interval` type, an error is thrown since the `interval` data type doesn't support a `week` time unit.
 
 [cols="^,^"]
 |===
@@ -561,6 +654,21 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[truncateDateDecades]
 [source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[truncateDateQuarter]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[truncateIntervalCenturies]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[truncateIntervalHour]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[truncateIntervalDay]
 --------------------------------------------------
 
 [[sql-functions-datetime-day]]

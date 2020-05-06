@@ -17,17 +17,30 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.security.authc.TokenService;
+import org.elasticsearch.xpack.security.authc.TokenServiceMock;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Assert;
 
+import java.security.GeneralSecurityException;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_TOKENS_ALIAS;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -74,6 +87,7 @@ public final class SecurityMocks {
         when(securityIndexManager.indexExists()).thenReturn(exists);
         when(securityIndexManager.isAvailable()).thenReturn(available);
         when(securityIndexManager.aliasName()).thenReturn(alias);
+        when(securityIndexManager.freeze()).thenReturn(securityIndexManager);
         return securityIndexManager;
     }
 
@@ -128,5 +142,22 @@ public final class SecurityMocks {
             listener.onResponse(new IndexResponse(shardId, request.id(), 1, 1, 1, true));
             return null;
         }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
+    }
+
+    public static TokenServiceMock tokenService(boolean enabled, ThreadPool threadPool) throws GeneralSecurityException {
+        final Settings settings = Settings.builder().put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), enabled).build();
+        final Instant now = Instant.now();
+        final Clock clock = Clock.fixed(now, ESTestCase.randomZone());
+        final Client client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
+        final ClusterService clusterService = mock(ClusterService.class);
+
+        final SecurityContext securityContext = new SecurityContext(settings, threadPool.getThreadContext());
+        final TokenService service = new TokenService(settings, clock, client, licenseState, securityContext,
+            mockSecurityIndexManager(SECURITY_MAIN_ALIAS), mockSecurityIndexManager(SECURITY_TOKENS_ALIAS), clusterService);
+        return new TokenServiceMock(service, client);
     }
 }

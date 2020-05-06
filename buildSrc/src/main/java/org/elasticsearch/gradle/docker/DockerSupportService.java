@@ -220,7 +220,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
             // remove optional leading and trailing quotes and whitespace
             final String value = parts[1].replaceAll("^['\"]?\\s*", "").replaceAll("\\s*['\"]?$", "");
 
-            values.put(key, value);
+            values.put(key, value.toLowerCase());
         });
 
         return values;

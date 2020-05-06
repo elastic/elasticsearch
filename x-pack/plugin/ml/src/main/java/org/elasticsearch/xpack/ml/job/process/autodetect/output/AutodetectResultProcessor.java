@@ -20,6 +20,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
+import org.elasticsearch.xpack.core.ml.annotations.Annotation;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
@@ -34,6 +36,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.TimingStatsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
@@ -41,7 +44,9 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -79,8 +84,10 @@ public class AutodetectResultProcessor {
     private final String jobId;
     private final Renormalizer renormalizer;
     private final JobResultsPersister persister;
+    private final AnnotationPersister annotationPersister;
     private final AutodetectProcess process;
     private final TimingStatsReporter timingStatsReporter;
+    private final Clock clock;
 
     final CountDownLatch completionLatch = new CountDownLatch(1);
     final Semaphore updateModelSnapshotSemaphore = new Semaphore(1);
@@ -102,26 +109,30 @@ public class AutodetectResultProcessor {
                                      String jobId,
                                      Renormalizer renormalizer,
                                      JobResultsPersister persister,
+                                     AnnotationPersister annotationPersister,
                                      AutodetectProcess process,
                                      ModelSizeStats latestModelSizeStats,
                                      TimingStats timingStats) {
-        this(client, auditor, jobId, renormalizer, persister, process, latestModelSizeStats, timingStats, new FlushListener());
+        this(client, auditor, jobId, renormalizer, persister, annotationPersister, process, latestModelSizeStats, timingStats,
+            Clock.systemUTC(), new FlushListener());
     }
 
     // Visible for testing
     AutodetectResultProcessor(Client client, AnomalyDetectionAuditor auditor, String jobId, Renormalizer renormalizer,
-                              JobResultsPersister persister, AutodetectProcess autodetectProcess, ModelSizeStats latestModelSizeStats,
-                              TimingStats timingStats, FlushListener flushListener) {
+                              JobResultsPersister persister, AnnotationPersister annotationPersister, AutodetectProcess autodetectProcess,
+                              ModelSizeStats latestModelSizeStats, TimingStats timingStats, Clock clock, FlushListener flushListener) {
         this.client = Objects.requireNonNull(client);
         this.auditor = Objects.requireNonNull(auditor);
         this.jobId = Objects.requireNonNull(jobId);
         this.renormalizer = Objects.requireNonNull(renormalizer);
         this.persister = Objects.requireNonNull(persister);
+        this.annotationPersister = Objects.requireNonNull(annotationPersister);
         this.process = Objects.requireNonNull(autodetectProcess);
         this.flushListener = Objects.requireNonNull(flushListener);
         this.latestModelSizeStats = Objects.requireNonNull(latestModelSizeStats);
         this.bulkResultsPersister = persister.bulkPersisterBuilder(jobId, this::isAlive);
         this.timingStatsReporter = new TimingStatsReporter(timingStats, bulkResultsPersister);
+        this.clock = Objects.requireNonNull(clock);
         this.deleteInterimRequired = true;
         this.priorRunsBucketCount = timingStats.getBucketCount();
     }
@@ -268,6 +279,10 @@ public class AutodetectResultProcessor {
             if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
                 updateModelSnapshotOnJob(modelSnapshot);
             }
+            annotationPersister.persistAnnotation(
+                ModelSnapshot.annotationDocumentId(modelSnapshot),
+                createModelSnapshotAnnotation(modelSnapshot),
+                "[" + jobId + "] failed to create annotation for model snapshot.");
         }
         Quantiles quantiles = result.getQuantiles();
         if (quantiles != null) {
@@ -308,6 +323,22 @@ public class AutodetectResultProcessor {
             // deleted when the next finalized results come through
             deleteInterimRequired = true;
         }
+    }
+
+    private Annotation createModelSnapshotAnnotation(ModelSnapshot modelSnapshot) {
+        assert modelSnapshot != null;
+        Date currentTime = new Date(clock.millis());
+        return new Annotation.Builder()
+            .setAnnotation(Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOT_STORED, modelSnapshot.getSnapshotId()))
+            .setCreateTime(currentTime)
+            .setCreateUsername(XPackUser.NAME)
+            .setTimestamp(modelSnapshot.getLatestResultTimeStamp())
+            .setEndTimestamp(modelSnapshot.getLatestResultTimeStamp())
+            .setJobId(jobId)
+            .setModifiedTime(currentTime)
+            .setModifiedUsername(XPackUser.NAME)
+            .setType("annotation")
+            .build();
     }
 
     private void processModelSizeStats(ModelSizeStats modelSizeStats) {

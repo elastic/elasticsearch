@@ -1,4 +1,4 @@
 subprojects {
   // fixtures are mostly external and by default we don't want to check forbidden apis
-  forbiddenApisMain.enabled = false
+  disableTasks('forbiddenApisMain')
 }

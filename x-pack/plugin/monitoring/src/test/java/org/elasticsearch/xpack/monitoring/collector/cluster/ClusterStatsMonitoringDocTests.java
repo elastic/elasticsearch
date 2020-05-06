@@ -18,7 +18,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -210,7 +210,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                                                 Version.CURRENT);
 
         final ClusterState clusterState = ClusterState.builder(clusterName)
-                                                        .metaData(MetaData.builder()
+                                                        .metadata(Metadata.builder()
                                                             .clusterUUID(clusterUuid)
                                                             .transientSettings(Settings.builder()
                                                                 .put("cluster.metadata.display_name", "my_prod_cluster")
@@ -235,7 +235,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                         .maxNodes(2)
                                         .build();
 
-        final List<XPackFeatureSet.Usage> usages = singletonList(new MonitoringFeatureSetUsage(false, true, false, null));
+        final List<XPackFeatureSet.Usage> usages = singletonList(new MonitoringFeatureSetUsage(false, false, null));
 
         final NodeInfo mockNodeInfo = mock(NodeInfo.class);
         Version mockNodeVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
@@ -243,7 +243,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockNodeInfo.getNode()).thenReturn(discoveryNode);
 
         final TransportInfo mockTransportInfo = mock(TransportInfo.class);
-        when(mockNodeInfo.getTransport()).thenReturn(mockTransportInfo);
+        when(mockNodeInfo.getInfo(TransportInfo.class)).thenReturn(mockTransportInfo);
 
         final BoundTransportAddress bound = new BoundTransportAddress(new TransportAddress[]{transportAddress}, transportAddress);
         when(mockTransportInfo.address()).thenReturn(bound);
@@ -254,20 +254,20 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                                             .build());
 
         final PluginsAndModules mockPluginsAndModules = mock(PluginsAndModules.class);
-        when(mockNodeInfo.getPlugins()).thenReturn(mockPluginsAndModules);
+        when(mockNodeInfo.getInfo(PluginsAndModules.class)).thenReturn(mockPluginsAndModules);
         final PluginInfo pluginInfo = new PluginInfo("_plugin", "_plugin_desc", "_plugin_version", Version.CURRENT,
             "1.8", "_plugin_class", Collections.emptyList(), false);
         when(mockPluginsAndModules.getPluginInfos()).thenReturn(singletonList(pluginInfo));
 
         final OsInfo mockOsInfo = mock(OsInfo.class);
-        when(mockNodeInfo.getOs()).thenReturn(mockOsInfo);
+        when(mockNodeInfo.getInfo(OsInfo.class)).thenReturn(mockOsInfo);
         when(mockOsInfo.getAvailableProcessors()).thenReturn(32);
         when(mockOsInfo.getAllocatedProcessors()).thenReturn(16);
         when(mockOsInfo.getName()).thenReturn("_os_name");
         when(mockOsInfo.getPrettyName()).thenReturn("_pretty_os_name");
 
         final JvmInfo mockJvmInfo = mock(JvmInfo.class);
-        when(mockNodeInfo.getJvm()).thenReturn(mockJvmInfo);
+        when(mockNodeInfo.getInfo(JvmInfo.class)).thenReturn(mockJvmInfo);
         when(mockJvmInfo.version()).thenReturn("_jvm_version");
         when(mockJvmInfo.getVmName()).thenReturn("_jvm_vm_name");
         when(mockJvmInfo.getVmVersion()).thenReturn("_jvm_vm_version");
@@ -465,7 +465,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "        \"coordinating_only\": 0,"
                 + "        \"data\": 0,"
                 + "        \"ingest\": 0,"
-                + "        \"master\": 1"
+                + "        \"master\": 1,"
+                + "        \"remote_cluster_client\": 0"
                 + "      },"
                 + "      \"versions\": ["
                 + "        \"%s\""

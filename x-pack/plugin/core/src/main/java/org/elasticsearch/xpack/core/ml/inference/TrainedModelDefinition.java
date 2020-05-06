@@ -53,11 +53,10 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
         ObjectParser<TrainedModelDefinition.Builder, Void> parser = new ObjectParser<>(NAME,
             ignoreUnknownFields,
             TrainedModelDefinition.Builder::builderForParser);
-        parser.declareNamedObjects(TrainedModelDefinition.Builder::setTrainedModel,
+        parser.declareNamedObject(TrainedModelDefinition.Builder::setTrainedModel,
             (p, c, n) -> ignoreUnknownFields ?
                 p.namedObject(LenientlyParsedTrainedModel.class, n, null) :
                 p.namedObject(StrictlyParsedTrainedModel.class, n, null),
-            (modelDocBuilder) -> { /* Noop does not matter as we will throw if more than one is defined */ },
             TRAINED_MODEL);
         parser.declareNamedObjects(TrainedModelDefinition.Builder::setPreProcessors,
             (p, c, n) -> ignoreUnknownFields ?

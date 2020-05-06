@@ -18,9 +18,9 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
@@ -615,32 +615,32 @@ public class JobResultsProviderTests extends ESTestCase {
             mapping.put("field" + i, Collections.singletonMap("type", "string"));
         }
 
-        IndexMetaData indexMetaData1 = new IndexMetaData.Builder("index1")
+        IndexMetadata indexMetadata1 = new IndexMetadata.Builder("index1")
                 .settings(Settings.builder()
-                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                .putMapping(new MappingMetaData("type1", Collections.singletonMap("properties", mapping)))
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+                .putMapping(new MappingMetadata("type1", Collections.singletonMap("properties", mapping)))
                 .build();
-        boolean result = JobResultsProvider.violatedFieldCountLimit(0, 10, indexMetaData1.mapping());
+        boolean result = JobResultsProvider.violatedFieldCountLimit(0, 10, indexMetadata1.mapping());
         assertFalse(result);
 
-        result = JobResultsProvider.violatedFieldCountLimit(1, 10, indexMetaData1.mapping());
+        result = JobResultsProvider.violatedFieldCountLimit(1, 10, indexMetadata1.mapping());
         assertTrue(result);
 
         for (; i < 20; i++) {
             mapping.put("field" + i, Collections.singletonMap("type", "string"));
         }
 
-        IndexMetaData indexMetaData2 = new IndexMetaData.Builder("index1")
+        IndexMetadata indexMetadata2 = new IndexMetadata.Builder("index1")
                 .settings(Settings.builder()
-                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                .putMapping(new MappingMetaData("type1", Collections.singletonMap("properties", mapping)))
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+                .putMapping(new MappingMetadata("type1", Collections.singletonMap("properties", mapping)))
                 .build();
 
-        result = JobResultsProvider.violatedFieldCountLimit(0, 19, indexMetaData2.mapping());
+        result = JobResultsProvider.violatedFieldCountLimit(0, 19, indexMetadata2.mapping());
         assertTrue(result);
     }
 
@@ -902,7 +902,7 @@ public class JobResultsProviderTests extends ESTestCase {
             fields.put("field_1", new DocumentField("field_1", Collections.singletonList("foo")));
             fields.put("field_2", new DocumentField("field_2", Collections.singletonList("foo")));
 
-            SearchHit hit = new SearchHit(123, String.valueOf(map.hashCode()), fields)
+            SearchHit hit = new SearchHit(123, String.valueOf(map.hashCode()), fields, Collections.emptyMap())
                     .sourceRef(BytesReference.bytes(XContentFactory.jsonBuilder().map(_source)));
 
             list.add(hit);

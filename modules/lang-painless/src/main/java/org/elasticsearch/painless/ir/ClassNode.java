@@ -20,23 +20,20 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Constant;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.ScriptClassInfo;
-import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.symbol.ScopeTable;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
+import org.objectweb.asm.commons.Method;
 import org.objectweb.asm.util.Printer;
 
 import java.lang.invoke.MethodType;
 import java.util.ArrayList;
 import java.util.BitSet;
-import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.painless.WriterConstants.BASE_INTERFACE_TYPE;
@@ -48,6 +45,7 @@ public class ClassNode extends IRNode {
 
     private final List<FieldNode> fieldNodes = new ArrayList<>();
     private final List<FunctionNode> functionNodes = new ArrayList<>();
+    private final BlockNode clinitBlockNode;
 
     public void addFieldNode(FieldNode fieldNode) {
         fieldNodes.add(fieldNode);
@@ -64,38 +62,15 @@ public class ClassNode extends IRNode {
     public List<FunctionNode> getFunctionsNodes() {
         return functionNodes;
     }
-    
+
+    public BlockNode getClinitBlockNode() {
+        return clinitBlockNode;
+    }
+
     /* ---- end tree structure, begin node data ---- */
 
-    private ScriptClassInfo scriptClassInfo;
-    private String name;
-    private String sourceText;
     private Printer debugStream;
     private ScriptRoot scriptRoot;
-
-    public void setScriptClassInfo(ScriptClassInfo scriptClassInfo) {
-        this.scriptClassInfo = scriptClassInfo;
-    }
-
-    public ScriptClassInfo getScriptClassInfo() {
-        return scriptClassInfo;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setSourceText(String sourceText) {
-        this.sourceText = sourceText;
-    }
-
-    public String getSourceText() {
-        return sourceText;
-    }
 
     public void setDebugStream(Printer debugStream) {
         this.debugStream = debugStream;
@@ -115,11 +90,17 @@ public class ClassNode extends IRNode {
 
     /* ---- end node data ---- */
 
-    protected Globals globals;
+    public ClassNode() {
+        clinitBlockNode = new BlockNode();
+        clinitBlockNode.setLocation(new Location("internal$clinit$blocknode", 0));
+        clinitBlockNode.setAllEscape(true);
+        clinitBlockNode.setStatementCount(1);
+    }
 
     public byte[] write() {
-        globals = new Globals(new BitSet(sourceText.length()));
-        scriptRoot.addStaticConstant("$STATEMENTS", globals.getStatements());
+        ScriptClassInfo scriptClassInfo = scriptRoot.getScriptClassInfo();
+        BitSet statements = new BitSet(scriptRoot.getScriptSource().length());
+        scriptRoot.addStaticConstant("$STATEMENTS", statements);
 
         // Create the ClassWriter.
 
@@ -129,10 +110,10 @@ public class ClassNode extends IRNode {
         String className = CLASS_TYPE.getInternalName();
         String[] classInterfaces = new String[] { interfaceBase };
 
-        ClassWriter classWriter = new ClassWriter(scriptRoot.getCompilerSettings(), globals.getStatements(), debugStream,
+        ClassWriter classWriter = new ClassWriter(scriptRoot.getCompilerSettings(), statements, debugStream,
                 scriptClassInfo.getBaseClass(), classFrames, classAccess, className, classInterfaces);
         ClassVisitor classVisitor = classWriter.getClassVisitor();
-        classVisitor.visitSource(Location.computeSourceName(name), null);
+        classVisitor.visitSource(Location.computeSourceName(scriptRoot.getScriptName()), null);
 
         org.objectweb.asm.commons.Method init;
 
@@ -152,34 +133,26 @@ public class ClassNode extends IRNode {
         constructor.returnValue();
         constructor.endMethod();
 
+        if (clinitBlockNode.getStatementsNodes().isEmpty() == false) {
+            MethodWriter methodWriter = classWriter.newMethodWriter(
+                    Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                    new Method("<clinit>", Type.getType(void.class), new Type[0]));
+            clinitBlockNode.write(classWriter, methodWriter, new ScopeTable());
+            methodWriter.returnValue();
+            methodWriter.endMethod();
+        }
+
         // Write all fields:
         for (FieldNode fieldNode : fieldNodes) {
-            fieldNode.write(classWriter, null, null, null);
+            fieldNode.write(classWriter, null, null);
         }
 
         // Write all functions:
         for (FunctionNode functionNode : functionNodes) {
-            functionNode.write(classWriter, null, globals, new ScopeTable());
-        }
-
-        // Write the constants
-        if (false == globals.getConstantInitializers().isEmpty()) {
-            Collection<Constant> inits = globals.getConstantInitializers().values();
-
-            // Initialize the constants in a static initializer
-            final MethodWriter clinit = new MethodWriter(Opcodes.ACC_STATIC,
-                    WriterConstants.CLINIT, classVisitor, globals.getStatements(), scriptRoot.getCompilerSettings());
-            clinit.visitCode();
-            for (Constant constant : inits) {
-                constant.initializer.accept(clinit);
-                clinit.putStatic(CLASS_TYPE, constant.name, constant.type);
-            }
-            clinit.returnValue();
-            clinit.endMethod();
+            functionNode.write(classWriter, null, new ScopeTable());
         }
 
         // End writing the class and store the generated bytes.
-
         classVisitor.visitEnd();
         return classWriter.getClassBytes();
     }

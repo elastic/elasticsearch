@@ -20,9 +20,10 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.License;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -35,21 +36,19 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_INTERNAL_STORAGE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
-public class TrainedModelConfigTests extends AbstractSerializingTestCase<TrainedModelConfig> {
+public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<TrainedModelConfig> {
 
     private boolean lenient;
 
@@ -69,6 +68,8 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
                 License.OperationMode.ENTERPRISE.description(),
                 License.OperationMode.GOLD.description(),
                 License.OperationMode.BASIC.description()))
+            .setInferenceConfig(randomFrom(ClassificationConfigTests.randomClassificationConfig(),
+                RegressionConfigTests.randomRegressionConfig()))
             .setTags(tags);
     }
 
@@ -142,7 +143,12 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             TrainedModelInputTests.createRandomInput(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            "platinum");
+            "platinum",
+            randomBoolean() ? null :
+                Stream.generate(() -> randomAlphaOfLength(10))
+                    .limit(randomIntBetween(1, 10))
+                    .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
+            randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()));
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
         assertThat(reference.utf8ToString(), containsString("\"compressed_definition\""));
@@ -177,7 +183,12 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             TrainedModelInputTests.createRandomInput(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            "platinum");
+            "platinum",
+            randomBoolean() ? null :
+                Stream.generate(() -> randomAlphaOfLength(10))
+                    .limit(randomIntBetween(1, 10))
+                    .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
+            randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()));
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
         Map<String, Object> objectMap = XContentHelper.convertToMap(reference, true, XContentType.JSON).v2();
@@ -307,65 +318,15 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             .test();
     }
 
-    public void testIsAvailableWithLicense() {
-        TrainedModelConfig.Builder builder = createTestInstance(randomAlphaOfLength(10));
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
-
-        // Reject everything
-        when(licenseState.isAllowedByLicense(any(License.OperationMode.class), anyBoolean(), anyBoolean())).thenAnswer(
-            invocationOnMock -> {
-                final Object[] arguments = invocationOnMock.getArguments();
-                assertTrue((boolean) arguments[1]); // ensure the call is made to require active license
-                return false;
-            }
-        );
-        assertFalse(builder.setLicenseLevel(License.OperationMode.ENTERPRISE.description()).build().isAvailableWithLicense(licenseState));
-        assertFalse(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
-        assertFalse(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
-        // Basic license always works not matter what
-        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
-    }
-
-    public void testActivePlatinumLicenseAlwaysWorks() {
-        TrainedModelConfig.Builder builder = createTestInstance(randomAlphaOfLength(10));
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
-
-        when(licenseState.isAllowedByLicense(License.OperationMode.PLATINUM)).thenReturn(true);
-
-        // Active Platinum license functions the same as Enterprise license (highest) and should always work
-        when(licenseState.isAllowedByLicense(any(License.OperationMode.class), anyBoolean(), anyBoolean())).thenAnswer(
-            invocationOnMock -> {
-                final Object[] arguments = invocationOnMock.getArguments();
-                assertEquals(License.OperationMode.PLATINUM, arguments[0]);
-                assertTrue((boolean) arguments[1]); // ensure the call is made to require active license
-                assertTrue((boolean) arguments[2]);
-                return true;
-            }
-        );
-        assertTrue(builder.setLicenseLevel(License.OperationMode.ENTERPRISE.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
-    }
-
-    public void testActiveGoldLicenseWillWorkWhenRequiredLevelIsGold() {
-        TrainedModelConfig.Builder builder = createTestInstance(randomAlphaOfLength(10));
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
-
-        // Active Gold license should work when required level is gold
-        when(licenseState.isAllowedByLicense(any(License.OperationMode.class), anyBoolean(), anyBoolean())).thenAnswer(
-            invocationOnMock -> {
-                final Object[] arguments = invocationOnMock.getArguments();
-                assertTrue((boolean) arguments[1]); // ensure the call is made to require active license
-                if (License.OperationMode.PLATINUM == arguments[0] && Boolean.TRUE.equals(arguments[2])) {
-                    return false;
-                } else
-                    return License.OperationMode.GOLD == arguments[0] && Boolean.FALSE.equals(arguments[2]);
-            }
-        );
-        assertFalse(builder.setLicenseLevel(License.OperationMode.ENTERPRISE.description()).build().isAvailableWithLicense(licenseState));
-        assertFalse(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
+    @Override
+    protected TrainedModelConfig mutateInstanceForVersion(TrainedModelConfig instance, Version version) {
+        TrainedModelConfig.Builder builder = new TrainedModelConfig.Builder(instance);
+        if (version.before(Version.V_7_7_0)) {
+            builder.setDefaultFieldMap(null);
+        }
+        if (version.before(Version.V_7_8_0)) {
+            builder.setInferenceConfig(null);
+        }
+        return builder.build();
     }
 }

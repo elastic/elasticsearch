@@ -42,23 +42,19 @@ public class TransformIndexTests extends ESTestCase {
     private Clock clock = Clock.fixed(Instant.ofEpochMilli(CURRENT_TIME_MILLIS), ZoneId.systemDefault());
 
     public void testCreateDestinationIndex() throws IOException {
-        doAnswer(
-            invocationOnMock -> {
-                @SuppressWarnings("unchecked")
-                ActionListener<CreateIndexResponse> listener = (ActionListener<CreateIndexResponse>) invocationOnMock.getArguments()[2];
-                listener.onResponse(null);
-                return null;
-            })
-            .when(client).execute(any(), any(), any());
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<CreateIndexResponse> listener = (ActionListener<CreateIndexResponse>) invocationOnMock.getArguments()[2];
+            listener.onResponse(null);
+            return null;
+        }).when(client).execute(any(), any(), any());
 
         TransformIndex.createDestinationIndex(
             client,
-            clock,
             TransformConfigTests.randomTransformConfig(TRANSFORM_ID),
-            new HashMap<>(),
-            ActionListener.wrap(
-                value -> assertTrue(value),
-                e -> fail(e.getMessage())));
+            TransformIndex.createTransformDestIndexSettings(new HashMap<>(), TRANSFORM_ID, clock),
+            ActionListener.wrap(value -> assertTrue(value), e -> fail(e.getMessage()))
+        );
 
         ArgumentCaptor<CreateIndexRequest> createIndexRequestCaptor = ArgumentCaptor.forClass(CreateIndexRequest.class);
         verify(client).execute(eq(CreateIndexAction.INSTANCE), createIndexRequestCaptor.capture(), any());

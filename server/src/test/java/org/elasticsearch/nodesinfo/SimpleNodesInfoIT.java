@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -134,12 +135,12 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
-        assertThat(response.getNodesMap().get(server1NodeId).getOs().getAvailableProcessors(),
+        assertThat(response.getNodesMap().get(server1NodeId).getInfo(OsInfo.class).getAvailableProcessors(),
                 equalTo(Runtime.getRuntime().availableProcessors()));
-        assertThat(response.getNodesMap().get(server2NodeId).getOs().getAvailableProcessors(),
+        assertThat(response.getNodesMap().get(server2NodeId).getInfo(OsInfo.class).getAvailableProcessors(),
                 equalTo(Runtime.getRuntime().availableProcessors()));
 
-        assertThat(response.getNodesMap().get(server1NodeId).getOs().getAllocatedProcessors(), equalTo(3));
-        assertThat(response.getNodesMap().get(server2NodeId).getOs().getAllocatedProcessors(), equalTo(6));
+        assertThat(response.getNodesMap().get(server1NodeId).getInfo(OsInfo.class).getAllocatedProcessors(), equalTo(3));
+        assertThat(response.getNodesMap().get(server2NodeId).getInfo(OsInfo.class).getAllocatedProcessors(), equalTo(6));
     }
 }

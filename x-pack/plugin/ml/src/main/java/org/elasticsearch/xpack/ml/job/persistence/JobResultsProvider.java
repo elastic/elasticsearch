@@ -42,7 +42,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -112,6 +112,7 @@ import org.elasticsearch.xpack.ml.job.categorization.GrokPatternCreator;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
+import org.elasticsearch.xpack.ml.utils.persistence.MlParserUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -169,16 +170,18 @@ public class JobResultsProvider {
         SearchRequestBuilder stateDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
                 .setQuery(QueryBuilders.idsQuery().addIds(CategorizerState.documentId(job.getId(), 1),
                         CategorizerState.v54DocumentId(job.getId(), 1)))
+                .setTrackTotalHits(false)
                 .setIndicesOptions(IndicesOptions.strictExpand());
 
         SearchRequestBuilder quantilesDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
                 .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId()), Quantiles.v54DocumentId(job.getId())))
+                .setTrackTotalHits(false)
                 .setIndicesOptions(IndicesOptions.strictExpand());
 
-        String resultsIndexName = job.getInitialResultsIndexName();
-        SearchRequestBuilder resultDocSearch = client.prepareSearch(resultsIndexName)
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+        SearchRequestBuilder resultDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
+                .setIndicesOptions(IndicesOptions.lenientExpandHidden())
                 .setQuery(QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
+                .setTrackTotalHits(false)
                 .setSize(1);
 
         MultiSearchRequestBuilder msearch = client.prepareMultiSearch()
@@ -186,7 +189,7 @@ public class JobResultsProvider {
                 .add(resultDocSearch)
                 .add(quantilesDocSearch);
 
-        ActionListener<MultiSearchResponse> searchResponseActionListener = new ActionListener<MultiSearchResponse>() {
+        ActionListener<MultiSearchResponse> searchResponseActionListener = new ActionListener<>() {
             @Override
             public void onResponse(MultiSearchResponse response) {
                 List<SearchHit> searchHits = new ArrayList<>();
@@ -265,7 +268,7 @@ public class JobResultsProvider {
 
         // Our read/write aliases should point to the concrete index
         // If the initial index is NOT an alias, either it is already a concrete index, or it does not exist yet
-        if (state.getMetaData().hasAlias(tempIndexName)) {
+        if (state.getMetadata().hasAlias(tempIndexName)) {
             String[] concreteIndices = resolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), tempIndexName);
 
             // SHOULD NOT be closed as in typical call flow checkForLeftOverDocuments already verified this
@@ -281,9 +284,16 @@ public class JobResultsProvider {
         final String indexName = tempIndexName;
 
         ActionListener<Boolean> indexAndMappingsListener = ActionListener.wrap(success -> {
-            final IndicesAliasesRequest request = client.admin().indices().prepareAliases()
-                    .addAlias(indexName, readAliasName, QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
-                    .addAlias(indexName, writeAliasName).request();
+            final IndicesAliasesRequest request =
+                client.admin().indices().prepareAliases()
+                    .addAliasAction(
+                        IndicesAliasesRequest.AliasActions.add()
+                            .index(indexName)
+                            .alias(readAliasName)
+                            .isHidden(true)
+                            .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId())))
+                    .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(indexName).alias(writeAliasName).isHidden(true))
+                    .request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request,
                     ActionListener.<AcknowledgedResponse>wrap(r -> finalListener.onResponse(true), finalListener::onFailure),
                     client.admin().indices()::aliases);
@@ -291,7 +301,7 @@ public class JobResultsProvider {
 
         // Indices can be shared, so only create if it doesn't exist already. Saves us a roundtrip if
         // already in the CS
-        if (!state.getMetaData().hasIndex(indexName)) {
+        if (!state.getMetadata().hasIndex(indexName)) {
             LOGGER.trace("ES API CALL: create index {}", indexName);
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,
@@ -312,7 +322,7 @@ public class JobResultsProvider {
                             }
                     ), client.admin().indices()::create);
         } else {
-            MappingMetaData indexMappings = state.metaData().index(indexName).mapping();
+            MappingMetadata indexMappings = state.metadata().index(indexName).mapping();
             addTermsMapping(indexMappings, indexName, termFields, indexAndMappingsListener);
         }
     }
@@ -324,7 +334,7 @@ public class JobResultsProvider {
                 // Expect one index.  If this is not the case then it means the
                 // index has been deleted almost immediately after being created, and this is
                 // so unlikely that it's reasonable to fail the whole operation.
-                MappingMetaData indexMappings = getMappingsResponse.getMappings().iterator().next().value;
+                MappingMetadata indexMappings = getMappingsResponse.getMappings().iterator().next().value;
                 addTermsMapping(indexMappings, indexName, termFields, listener);
             },
             listener::onFailure
@@ -335,7 +345,7 @@ public class JobResultsProvider {
             client.admin().indices()::getMappings);
     }
 
-    private void addTermsMapping(MappingMetaData mapping, String indexName, Collection<String> termFields,
+    private void addTermsMapping(MappingMetadata mapping, String indexName, Collection<String> termFields,
                                  ActionListener<Boolean> listener) {
         long fieldCountLimit = MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.get(settings);
 
@@ -348,7 +358,7 @@ public class JobResultsProvider {
         }
     }
 
-    public static boolean violatedFieldCountLimit(long additionalFieldCount, long fieldCountLimit, MappingMetaData mapping) {
+    public static boolean violatedFieldCountLimit(long additionalFieldCount, long fieldCountLimit, MappingMetadata mapping) {
         long numFields = countFields(mapping.sourceAsMap());
         return numFields + additionalFieldCount > fieldCountLimit;
     }
@@ -507,7 +517,7 @@ public class JobResultsProvider {
                         }
                         SearchHit hit = hits.getHits()[0];
                         try {
-                            DatafeedTimingStats timingStats = parseSearchHit(hit, DatafeedTimingStats.PARSER);
+                            DatafeedTimingStats timingStats = MlParserUtils.parse(hit, DatafeedTimingStats.PARSER);
                             timingStatsByJobId.put(jobId, timingStats);
                         } catch (Exception e) {
                             listener.onFailure(e);
@@ -639,38 +649,21 @@ public class JobResultsProvider {
                                                       SearchHit hit) {
         String hitId = hit.getId();
         if (DataCounts.documentId(jobId).equals(hitId)) {
-            paramsBuilder.setDataCounts(parseSearchHit(hit, DataCounts.PARSER));
+            paramsBuilder.setDataCounts(MlParserUtils.parse(hit, DataCounts.PARSER));
         } else if (TimingStats.documentId(jobId).equals(hitId)) {
-            paramsBuilder.setTimingStats(parseSearchHit(hit, TimingStats.PARSER));
+            paramsBuilder.setTimingStats(MlParserUtils.parse(hit, TimingStats.PARSER));
         } else if (hitId.startsWith(ModelSizeStats.documentIdPrefix(jobId))) {
-            ModelSizeStats.Builder modelSizeStats = parseSearchHit(hit, ModelSizeStats.LENIENT_PARSER);
+            ModelSizeStats.Builder modelSizeStats = MlParserUtils.parse(hit, ModelSizeStats.LENIENT_PARSER);
             paramsBuilder.setModelSizeStats(modelSizeStats == null ? null : modelSizeStats.build());
         } else if (hitId.startsWith(ModelSnapshot.documentIdPrefix(jobId))) {
-            ModelSnapshot.Builder modelSnapshot = parseSearchHit(hit, ModelSnapshot.LENIENT_PARSER);
+            ModelSnapshot.Builder modelSnapshot = MlParserUtils.parse(hit, ModelSnapshot.LENIENT_PARSER);
             paramsBuilder.setModelSnapshot(modelSnapshot == null ? null : modelSnapshot.build());
         } else if (Quantiles.documentId(jobId).equals(hit.getId())) {
-            paramsBuilder.setQuantiles(parseSearchHit(hit, Quantiles.LENIENT_PARSER));
+            paramsBuilder.setQuantiles(MlParserUtils.parse(hit, Quantiles.LENIENT_PARSER));
         } else if (hitId.startsWith(MlFilter.DOCUMENT_ID_PREFIX)) {
-            paramsBuilder.addFilter(parseSearchHit(hit, MlFilter.LENIENT_PARSER).build());
+            paramsBuilder.addFilter(MlParserUtils.parse(hit, MlFilter.LENIENT_PARSER).build());
         } else {
             throw new IllegalStateException("Unexpected Id [" + hitId + "]");
-        }
-    }
-
-    /**
-     * @param hit The search hit to parse
-     * @param objectParser Parser for the object of type T
-     * @return The parsed value of T from the search hit
-     * @throws ElasticsearchException on failure
-     */
-    private static <T, U> T parseSearchHit(SearchHit hit, BiFunction<XContentParser, U, T> objectParser) {
-        BytesReference source = hit.getSourceRef();
-        try (InputStream stream = source.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-            return objectParser.apply(parser, null);
-        } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to parse " + hit.getId(), e);
         }
     }
 
@@ -1119,7 +1112,7 @@ public class JobResultsProvider {
                                 handler.accept(new Result<>(null, notFoundSupplier.get()));
                             } else if (hits.length == 1) {
                                 try {
-                                    T result = parseSearchHit(hits[0], objectParser);
+                                    T result = MlParserUtils.parse(hits[0], objectParser);
                                     handler.accept(new Result<>(hits[0].getIndex(), result));
                                 } catch (Exception e) {
                                     errorHandler.accept(e);
@@ -1263,7 +1256,7 @@ public class JobResultsProvider {
                             SearchHit[] hits = response.getHits().getHits();
                             try {
                                 for (SearchHit hit : hits) {
-                                    ScheduledEvent.Builder event = parseSearchHit(hit, ScheduledEvent.LENIENT_PARSER);
+                                    ScheduledEvent.Builder event = MlParserUtils.parse(hit, ScheduledEvent.LENIENT_PARSER);
 
                                     event.eventId(hit.getId());
                                     events.add(event.build());
@@ -1395,7 +1388,7 @@ public class JobResultsProvider {
                             SearchHit[] hits = response.getHits().getHits();
                             try {
                                 for (SearchHit hit : hits) {
-                                    calendars.add(parseSearchHit(hit, Calendar.LENIENT_PARSER).build());
+                                    calendars.add(MlParserUtils.parse(hit, Calendar.LENIENT_PARSER).build());
                                 }
                                 listener.onResponse(new QueryPage<>(calendars, response.getHits().getTotalHits().value,
                                     Calendar.RESULTS_FIELD));

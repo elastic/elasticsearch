@@ -30,7 +30,7 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -80,8 +80,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
@@ -210,10 +210,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             boolean expectSeqNoRecovery = (moreDocs == 0 || randomBoolean());
             int uncommittedOpsOnPrimary = 0;
             if (expectSeqNoRecovery == false) {
-                IndexMetaData.Builder builder = IndexMetaData.builder(newPrimary.indexSettings().getIndexMetaData());
+                IndexMetadata.Builder builder = IndexMetadata.builder(newPrimary.indexSettings().getIndexMetadata());
                 builder.settings(Settings.builder().put(newPrimary.indexSettings().getSettings())
                     .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0));
-                newPrimary.indexSettings().updateIndexMetaData(builder.build());
+                newPrimary.indexSettings().updateIndexMetadata(builder.build());
                 newPrimary.onSettingsChanged();
                 // Make sure the global checkpoint on the new primary is persisted properly,
                 // otherwise the deletion policy won't trim translog
@@ -312,7 +312,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
     public void testResyncAfterPrimaryPromotion() throws Exception {
         String mappings = "{ \"_doc\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}";
-        try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(2, mappings))) {
+        try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetadata(2, mappings))) {
             shards.startAll();
             int initialDocs = randomInt(10);
 
@@ -382,12 +382,12 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
     }
 
     public void testDoNotWaitForPendingSeqNo() throws Exception {
-        IndexMetaData metaData = buildIndexMetaData(1);
+        IndexMetadata metadata = buildIndexMetadata(1);
 
         final int pendingDocs = randomIntBetween(1, 5);
         final BlockingEngineFactory primaryEngineFactory = new BlockingEngineFactory();
 
-        try (ReplicationGroup shards = new ReplicationGroup(metaData) {
+        try (ReplicationGroup shards = new ReplicationGroup(metadata) {
             @Override
             protected EngineFactory getEngineFactory(ShardRouting routing) {
                 if (routing.primary()) {
@@ -465,10 +465,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
     }
 
     public void testCheckpointsAndMarkingInSync() throws Exception {
-        final IndexMetaData metaData = buildIndexMetaData(0);
+        final IndexMetadata metadata = buildIndexMetadata(0);
         final BlockingEngineFactory replicaEngineFactory = new BlockingEngineFactory();
         try (
-                ReplicationGroup shards = new ReplicationGroup(metaData) {
+                ReplicationGroup shards = new ReplicationGroup(metadata) {
                     @Override
                     protected EngineFactory getEngineFactory(final ShardRouting routing) {
                         if (routing.primary()) {
@@ -717,7 +717,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 while (done.get() == false) {
                     try {
                         List<DocIdSeqNoAndSource> exposedDocs = EngineTestCase.getDocIds(getEngine(randomFrom(replicas)), randomBoolean());
-                        assertThat(docsBelowGlobalCheckpoint, everyItem(isIn(exposedDocs)));
+                        assertThat(docsBelowGlobalCheckpoint, everyItem(is(in(exposedDocs))));
                         assertThat(randomFrom(replicas).getLocalCheckpoint(), greaterThanOrEqualTo(initDocs - 1L));
                     } catch (AlreadyClosedException ignored) {
                         // replica swaps engine during rollback
@@ -798,10 +798,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
 
         @Override
-        public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData,
+        public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetadata,
                                ActionListener<Void> listener) {
             blockIfNeeded(RecoveryState.Stage.INDEX);
-            super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetaData, listener);
+            super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetadata, listener);
         }
 
         @Override

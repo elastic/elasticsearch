@@ -57,7 +57,7 @@ import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.random
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiLettersOfLength;
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomUnicodeOfLengthBetween;
 import static java.util.Collections.singleton;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 
 public final class RandomObjects {
@@ -136,19 +136,15 @@ public final class RandomObjects {
      */
     public static Object getExpectedParsedValue(XContentType xContentType, Object value) {
         if (value instanceof BytesArray) {
-            if (xContentType == XContentType.JSON || xContentType == XContentType.YAML) {
-                //JSON and YAML write the base64 format
+            if (xContentType == XContentType.JSON) {
+                //JSON writes base64 format
                 return Base64.getEncoder().encodeToString(((BytesArray)value).toBytesRef().bytes);
             }
         }
         if (value instanceof Float) {
-            if (xContentType == XContentType.CBOR) {
-                //with CBOR we get back a float
+            if (xContentType == XContentType.CBOR || xContentType == XContentType.SMILE) {
+                // with binary content types we pass back the object as is
                 return value;
-            }
-            if (xContentType == XContentType.SMILE) {
-                //with SMILE we get back a double (this will change in Jackson 2.9 where it will return a Float)
-                return ((Float)value).doubleValue();
             }
             //with JSON AND YAML we get back a double, but with float precision.
             return Double.parseDouble(value.toString());

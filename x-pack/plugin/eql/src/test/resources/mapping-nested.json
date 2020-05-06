@@ -1,7 +1,14 @@
 {
     "properties" : {
-        "event_type" : {
-            "type" : "keyword"
+        "event" : {
+            "properties" : {
+                "category" : {
+                    "type" : "keyword"
+                }
+            }
+        },
+        "@timestamp" : {
+            "type" : "date"
         },
         "processes" : {
             "type" : "nested",
@@ -18,6 +25,9 @@
                     }
                 }
             }
+        },
+        "long_field" : {
+            "type" : "long"
         }
     }
 }

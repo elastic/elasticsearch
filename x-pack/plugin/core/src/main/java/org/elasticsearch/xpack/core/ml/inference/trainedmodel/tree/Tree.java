@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NullInferenceConfi
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ShapPath;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
+import org.elasticsearch.xpack.core.ml.inference.utils.Statistics;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
@@ -89,8 +91,8 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     private final List<String> classificationLabels;
     private final CachedSupplier<Double> highestOrderCategory;
     // populated lazily when feature importance is calculated
-    private double[] nodeEstimates;
     private Integer maxDepth;
+    private Integer leafSize;
 
     Tree(List<String> featureNames, List<TreeNode> nodes, TargetType targetType, List<String> classificationLabels) {
         this.featureNames = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(featureNames, FEATURE_NAMES));
@@ -100,7 +102,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         this.nodes = Collections.unmodifiableList(nodes);
         this.targetType = ExceptionsHelper.requireNonNull(targetType, TARGET_TYPE);
         this.classificationLabels = classificationLabels == null ? null : Collections.unmodifiableList(classificationLabels);
-        this.highestOrderCategory = new CachedSupplier<>(() -> this.maxLeafValue());
+        this.highestOrderCategory = new CachedSupplier<>(this::maxLeafValue);
     }
 
     public Tree(StreamInput in) throws IOException {
@@ -112,7 +114,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         } else {
             this.classificationLabels = null;
         }
-        this.highestOrderCategory = new CachedSupplier<>(() -> this.maxLeafValue());
+        this.highestOrderCategory = new CachedSupplier<>(this::maxLeafValue);
     }
 
     @Override
@@ -135,7 +137,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
             .map(f -> InferenceHelpers.toDouble(MapHelper.dig(f, fields)))
             .collect(Collectors.toList());
 
-        Map<String, Double> featureImportance = config.requestingImportance() ?
+        Map<String, double[]> featureImportance = config.requestingImportance() ?
             featureImportance(features, featureDecoderMap) :
             Collections.emptyMap();
 
@@ -147,7 +149,8 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         return buildResult(node.getLeafValue(), featureImportance, config);
     }
 
-    private InferenceResults buildResult(Double value, Map<String, Double> featureImportance, InferenceConfig config) {
+    private InferenceResults buildResult(double[] value, Map<String, double[]> featureImportance, InferenceConfig config) {
+        assert value != null && value.length > 0;
         // Indicates that the config is useless and the caller just wants the raw value
         if (config instanceof NullInferenceConfig) {
             return new RawInferenceResults(value, featureImportance);
@@ -159,14 +162,17 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
                     classificationProbability(value),
                     classificationLabels,
                     null,
-                    classificationConfig.getNumTopClasses());
-                return new ClassificationInferenceResults(value,
+                    classificationConfig.getNumTopClasses(),
+                    classificationConfig.getPredictionFieldType());
+                return new ClassificationInferenceResults(topClasses.v1(),
                     classificationLabel(topClasses.v1(), classificationLabels),
                     topClasses.v2(),
-                    featureImportance,
+                    InferenceHelpers.transformFeatureImportance(featureImportance, classificationLabels),
                     config);
             case REGRESSION:
-                return new RegressionInferenceResults(value, config, featureImportance);
+                return new RegressionInferenceResults(value[0],
+                    config,
+                    InferenceHelpers.transformFeatureImportance(featureImportance, null));
             default:
                 throw new UnsupportedOperationException("unsupported target_type [" + targetType + "] for inference on tree model");
         }
@@ -193,14 +199,22 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         return targetType;
     }
 
-    private List<Double> classificationProbability(double inferenceValue) {
+    private double[] classificationProbability(double[] inferenceValue) {
+        // Multi-value leaves, indicates that the leaves contain an array of values.
+        // The index of which corresponds to classification values
+        if (inferenceValue.length > 1) {
+            return Statistics.softMax(inferenceValue);
+        }
         // If we are classification, we should assume that the inference return value is whole.
-        assert inferenceValue == Math.rint(inferenceValue);
+        assert inferenceValue[0] == Math.rint(inferenceValue[0]);
         double maxCategory = this.highestOrderCategory.get();
         // If we are classification, we should assume that the largest leaf value is whole.
         assert maxCategory == Math.rint(maxCategory);
-        List<Double> list = new ArrayList<>(Collections.nCopies(Double.valueOf(maxCategory + 1).intValue(), 0.0));
-        list.set(Double.valueOf(inferenceValue).intValue(), 1.0);
+        double[] list = Collections.nCopies(Double.valueOf(maxCategory + 1).intValue(), 0.0)
+            .stream()
+            .mapToDouble(Double::doubleValue)
+            .toArray();
+        list[Double.valueOf(inferenceValue[0]).intValue()] = 1.0;
         return list;
     }
 
@@ -268,10 +282,11 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         checkTargetType();
         detectMissingNodes();
         detectCycle();
+        verifyLeafNodeUniformity();
     }
 
     @Override
-    public Map<String, Double> featureImportance(Map<String, Object> fields, Map<String, String> featureDecoder) {
+    public Map<String, double[]> featureImportance(Map<String, Object> fields, Map<String, String> featureDecoder) {
         if (nodes.stream().allMatch(n -> n.getNumberSamples() == 0)) {
             throw ExceptionsHelper.badRequestException("[tree_structure.number_samples] must be greater than zero for feature importance");
         }
@@ -281,9 +296,12 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         return featureImportance(features, featureDecoder);
     }
 
-    private Map<String, Double> featureImportance(List<Double> fieldValues, Map<String, String> featureDecoder) {
-        calculateNodeEstimatesIfNeeded();
-        double[] featureImportance = new double[fieldValues.size()];
+    private Map<String, double[]> featureImportance(List<Double> fieldValues, Map<String, String> featureDecoder) {
+        calculateDepthAndLeafValueSize();
+        double[][] featureImportance = new double[fieldValues.size()][leafSize];
+        for (int i = 0; i < fieldValues.size(); i++) {
+            featureImportance[i] = new double[leafSize];
+        }
         int arrSize = ((this.maxDepth + 1) * (this.maxDepth + 2))/2;
         ShapPath.PathElement[] elements = new ShapPath.PathElement[arrSize];
         for (int i = 0; i < arrSize; i++) {
@@ -291,24 +309,22 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         }
         double[] scale = new double[arrSize];
         ShapPath initialPath = new ShapPath(elements, scale);
-        shapRecursive(fieldValues, this.nodeEstimates, initialPath, 0, 1.0, 1.0, -1, featureImportance, 0);
+        shapRecursive(fieldValues, initialPath, 0, 1.0, 1.0, -1, featureImportance, 0);
         return InferenceHelpers.decodeFeatureImportances(featureDecoder,
             IntStream.range(0, featureImportance.length)
                 .boxed()
                 .collect(Collectors.toMap(featureNames::get, i -> featureImportance[i])));
     }
 
-    private void calculateNodeEstimatesIfNeeded() {
-        if (this.nodeEstimates != null && this.maxDepth != null) {
+    private void calculateDepthAndLeafValueSize() {
+        if (this.maxDepth != null && this.leafSize != null) {
             return;
         }
         synchronized (this) {
-            if (this.nodeEstimates != null && this.maxDepth != null) {
+            if (this.maxDepth != null && this.leafSize != null) {
                 return;
             }
-            double[] estimates = new double[nodes.size()];
-            this.maxDepth = fillNodeEstimates(estimates, 0, 0);
-            this.nodeEstimates = estimates;
+            this.maxDepth = getDepth(0, 0);
         }
     }
 
@@ -319,24 +335,24 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
      * side first and then ported to the Java side.
      */
     private void shapRecursive(List<Double> processedFeatures,
-                               double[] nodeValues,
                                ShapPath parentSplitPath,
                                int nodeIndex,
                                double parentFractionZero,
                                double parentFractionOne,
                                int parentFeatureIndex,
-                               double[] featureImportance,
+                               double[][] featureImportance,
                                int nextIndex) {
         ShapPath splitPath = new ShapPath(parentSplitPath, nextIndex);
         TreeNode currNode = nodes.get(nodeIndex);
         nextIndex = splitPath.extend(parentFractionZero, parentFractionOne, parentFeatureIndex, nextIndex);
         if (currNode.isLeaf()) {
-            // TODO multi-value????
-            double leafValue = nodeValues[nodeIndex];
+            double[] leafValue = currNode.getLeafValue();
             for (int i = 1; i < nextIndex; ++i) {
-                double scale = splitPath.sumUnwoundPath(i, nextIndex);
                 int inputColumnIndex = splitPath.featureIndex(i);
-                featureImportance[inputColumnIndex] += scale * (splitPath.fractionOnes(i) - splitPath.fractionZeros(i)) * leafValue;
+                double scaled = splitPath.sumUnwoundPath(i, nextIndex) * (splitPath.fractionOnes(i) - splitPath.fractionZeros(i));
+                for (int j = 0; j < leafValue.length; j++) {
+                    featureImportance[inputColumnIndex][j] += scaled * leafValue[j];
+                }
             }
         } else {
             int hotIndex = currNode.compare(processedFeatures);
@@ -354,40 +370,32 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
 
             double hotFractionZero = nodes.get(hotIndex).getNumberSamples() / (double)currNode.getNumberSamples();
             double coldFractionZero = nodes.get(coldIndex).getNumberSamples() / (double)currNode.getNumberSamples();
-            shapRecursive(processedFeatures, nodeValues, splitPath,
+            shapRecursive(processedFeatures, splitPath,
                 hotIndex, incomingFractionZero * hotFractionZero,
                 incomingFractionOne, splitFeature, featureImportance, nextIndex);
-            shapRecursive(processedFeatures, nodeValues, splitPath,
+            shapRecursive(processedFeatures, splitPath,
                 coldIndex, incomingFractionZero * coldFractionZero,
                 0.0, splitFeature, featureImportance, nextIndex);
         }
     }
 
     /**
-     * This recursively populates the provided {@code double[]} with the node estimated values
+     * Get the depth of the tree and sets leafSize if it is null
      *
-     * Used when calculating feature importance.
-     * @param nodeEstimates Array to update in place with the node estimated values
      * @param nodeIndex Current node index
      * @param depth Current depth
      * @return The current max depth
      */
-    private int fillNodeEstimates(double[] nodeEstimates, int nodeIndex, int depth) {
+    private int getDepth(int nodeIndex, int depth) {
         TreeNode node = nodes.get(nodeIndex);
         if (node.isLeaf()) {
-            nodeEstimates[nodeIndex] = node.getLeafValue();
+            if (leafSize == null) {
+                this.leafSize = node.getLeafValue().length;
+            }
             return 0;
         }
-
-        int depthLeft = fillNodeEstimates(nodeEstimates, node.getLeftChild(), depth + 1);
-        int depthRight = fillNodeEstimates(nodeEstimates, node.getRightChild(), depth + 1);
-        long leftWeight = nodes.get(node.getLeftChild()).getNumberSamples();
-        long rightWeight = nodes.get(node.getRightChild()).getNumberSamples();
-        long divisor = leftWeight + rightWeight;
-        double averageValue = divisor == 0 ?
-            0.0 :
-            (leftWeight * nodeEstimates[node.getLeftChild()] + rightWeight * nodeEstimates[node.getRightChild()]) / divisor;
-        nodeEstimates[nodeIndex] = averageValue;
+        int depthLeft = getDepth(node.getLeftChild(), depth + 1);
+        int depthRight = getDepth(node.getRightChild(), depth + 1);
         return Math.max(depthLeft, depthRight) + 1;
     }
 
@@ -423,6 +431,10 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         if (this.classificationLabels != null && this.targetType != TargetType.CLASSIFICATION) {
             throw ExceptionsHelper.badRequestException(
                 "[target_type] should be [classification] if [classification_labels] are provided");
+        }
+        if (this.targetType != TargetType.CLASSIFICATION && this.nodes.stream().anyMatch(n -> n.getLeafValue().length > 1)) {
+            throw ExceptionsHelper.badRequestException(
+                "[target_type] should be [classification] if leaf nodes have multiple values");
         }
     }
 
@@ -465,14 +477,39 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         }
     }
 
+    private void verifyLeafNodeUniformity() {
+        Integer leafValueLengths = null;
+        for (TreeNode node : nodes) {
+            if (node.isLeaf()) {
+                if (leafValueLengths == null) {
+                    leafValueLengths = node.getLeafValue().length;
+                } else if (leafValueLengths != node.getLeafValue().length) {
+                    throw ExceptionsHelper.badRequestException(
+                        "[tree.tree_structure] all leaf nodes must have the same number of values");
+                }
+            }
+        }
+    }
+
     private static boolean nodeMissing(int nodeIdx, List<TreeNode> nodes) {
         return nodeIdx >= nodes.size();
     }
 
     private Double maxLeafValue() {
-        return targetType == TargetType.CLASSIFICATION ?
-            this.nodes.stream().filter(TreeNode::isLeaf).mapToDouble(TreeNode::getLeafValue).max().getAsDouble() :
-            null;
+        if (targetType != TargetType.CLASSIFICATION) {
+            return null;
+        }
+        double max = 0.0;
+        for (TreeNode node : this.nodes) {
+            if (node.isLeaf()) {
+                if (node.getLeafValue().length > 1) {
+                    return (double)node.getLeafValue().length;
+                } else {
+                    max = Math.max(node.getLeafValue()[0], max);
+                }
+            }
+        }
+        return max;
     }
 
     @Override
@@ -491,6 +528,14 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
             accountables.add(Accountables.namedAccountable("tree_node_" + node.getNodeIndex(), node));
         }
         return Collections.unmodifiableCollection(accountables);
+    }
+
+    @Override
+    public Version getMinimalCompatibilityVersion() {
+        if (nodes.stream().filter(TreeNode::isLeaf).anyMatch(t -> t.getLeafValue().length > 1)) {
+            return Version.V_7_7_0;
+        }
+        return Version.V_7_6_0;
     }
 
     public static class Builder {
@@ -586,6 +631,10 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
          * @return this
          */
         Tree.Builder addLeaf(int nodeIndex, double value) {
+            return addLeaf(nodeIndex, Arrays.asList(value));
+        }
+
+        Tree.Builder addLeaf(int nodeIndex, List<Double> value) {
             for (int i = nodes.size(); i < nodeIndex + 1; i++) {
                 nodes.add(null);
             }

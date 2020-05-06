@@ -287,7 +287,8 @@ public class SearchAfterBuilderTests extends ESTestCase {
             }
 
             @Override
-            public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format) {
+            public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
+                    int bucketSize, BucketedSort.ExtraData extra) {
                 return null;
             }
         };

@@ -23,7 +23,7 @@ GET twitter/_msearch
 ==== {api-description-title}
 
 The multi search API executes several searches from a single API request.
-The format of the request is similar to the bulk API format and makes use 
+The format of the request is similar to the bulk API format and makes use
 of the newline delimited JSON (NDJSON) format.
 
 The structure is as follows:
@@ -71,21 +71,22 @@ Defaults to `open`.
 
 `ignore_throttled`::
 (Optional, boolean)
-If `true`, concrete, expanded or aliased indices are ignored when throttled.
+If `true`, concrete, expanded or aliased indices are ignored when frozen.
 Defaults to `false`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `max_concurrent_searches`::
 (Optional, integer)
-Maximum number of concurrent searches the multi search API can execute.
+Maximum number of concurrent searches the multi search API can execute. Defaults
+to +max(1, (# of <<data-node,data nodes>> * min(<<search-threadpool,search thread pool size>>, 10)))+.
 
 `max_concurrent_shard_requests`::
 +
 --
 (Optional, integer)
 Maximum number of concurrent shard requests that each sub-search request
-executes per node.  Defaults to `5`. 
+executes per node.  Defaults to `5`.
 
 You can use this parameter to prevent a request from overloading a cluster. For
 example, a default request hits all indices in a cluster. This could cause shard
@@ -103,8 +104,13 @@ Defines a threshold that enforces a pre-filter roundtrip to prefilter search
 shards based on query rewriting if the number of shards the search request
 expands to exceeds the threshold. This filter roundtrip can limit the number of
 shards significantly if for instance a shard can not match any documents based
-on it's rewrite method i.e., if date filters are mandatory to match but the
-shard bounds and the query are disjoint. Defaults to `128`.
+on its rewrite method i.e., if date filters are mandatory to match but the
+shard bounds and the query are disjoint.
+When unspecified, the pre-filter phase is executed if any of these
+conditions is met:
+  - The request targets more than `128` shards.
+  - The request targets one or more read-only index.
+  - The primary sort of the query targets an indexed field.
 
 `rest_total_hits_as_int`::
 (Optional, boolean)
@@ -121,7 +127,7 @@ to a specific shard.
 --
 (Optional, string)
 Indicates whether global term and document frequencies should be used when
-scoring returned documents. 
+scoring returned documents.
 
 Options are:
 
@@ -134,7 +140,7 @@ This is usually faster but less accurate.
 Documents are scored using global term and document frequencies across all
 shards. This is usually slower but more accurate.
 --
-  
+
 `typed_keys`::
 (Optional, boolean)
 Specifies whether aggregation and suggester names should be prefixed by their
@@ -196,7 +202,7 @@ to a specific shard.
 --
 (Optional, string)
 Indicates whether global term and document frequencies should be used when
-scoring returned documents. 
+scoring returned documents.
 
 Options are:
 
@@ -234,18 +240,18 @@ Number of hits to return. Defaults to `10`.
 ==== {api-response-body-title}
 
 `responses`::
-  (array) Includes the search response and status code for each search request 
-  matching its order in the original multi search request. If there was a  
-  complete failure for a specific search request, an object with `error` message 
-  and corresponding status code will be returned in place of the actual search 
+  (array) Includes the search response and status code for each search request
+  matching its order in the original multi search request. If there was a
+  complete failure for a specific search request, an object with `error` message
+  and corresponding status code will be returned in place of the actual search
   response.
 
 
 [[search-multi-search-api-example]]
 ==== {api-examples-title}
 
-The header part includes which index / indices to search on, the `search_type`, 
-`preference`, and `routing`. The body includes the typical search body request 
+The header part includes which index / indices to search on, the `search_type`,
+`preference`, and `routing`. The body includes the typical search body request
 (including the `query`, `aggregations`, `from`, `size`, and so on).
 
 [source,js]
@@ -308,7 +314,7 @@ See <<url-access-control>>
 ==== Template support
 
 Much like described in <<search-template>> for the _search resource, _msearch
-also provides support for templates. Submit them like follows for inline 
+also provides support for templates. Submit them like follows for inline
 templates:
 
 [source,console]
@@ -377,6 +383,6 @@ GET _msearch/template
 [[multi-search-partial-responses]]
 ==== Partial responses
 
-To ensure fast responses, the multi search API will respond with partial results 
-if one or more shards fail. See <<shard-failures, Shard failures>> for more 
+To ensure fast responses, the multi search API will respond with partial results
+if one or more shards fail. See <<shard-failures, Shard failures>> for more
 information.

@@ -57,29 +57,23 @@ public class Netty4HttpRequest implements HttpRequest {
     private final BytesReference content;
     private final Exception inboundException = null;
     private Releasable breakerRelease = null;
-    private int sequence;
-
-    Netty4HttpRequest(FullHttpRequest request) {
-        this(request, -1);
-    }
 
     Netty4HttpRequest(FullHttpRequest request, Releasable breakerRelease) {
         this(request, breakerRelease, null);
     }
 
     Netty4HttpRequest(FullHttpRequest request, Releasable breakerRelease, Exception exception) {
-        this(request, -1);
+        this(request);
     }
 
-    Netty4HttpRequest(FullHttpRequest request, int sequence) {
-        this(request, new HttpHeadersMap(request.headers()), sequence, new AtomicBoolean(false), true,
+    Netty4HttpRequest(FullHttpRequest request) {
+        this(request, new HttpHeadersMap(request.headers()), new AtomicBoolean(false), true,
             Netty4Utils.toBytesReference(request.content()));
     }
 
-    private Netty4HttpRequest(FullHttpRequest request, HttpHeadersMap headers, int sequence, AtomicBoolean released, boolean pooled,
+    private Netty4HttpRequest(FullHttpRequest request, HttpHeadersMap headers, AtomicBoolean released, boolean pooled,
                               BytesReference content) {
         this.request = request;
-        this.sequence = sequence;
         this.headers = headers;
         this.content = content;
         this.pooled = pooled;
@@ -154,7 +148,7 @@ public class Netty4HttpRequest implements HttpRequest {
             return new Netty4HttpRequest(
                 new DefaultFullHttpRequest(request.protocolVersion(), request.method(), request.uri(), copiedContent, request.headers(),
                     request.trailingHeaders()),
-                headers, sequence, new AtomicBoolean(false), false, Netty4Utils.toBytesReference(copiedContent));
+                headers, new AtomicBoolean(false), false, Netty4Utils.toBytesReference(copiedContent));
         } finally {
             release();
         }
@@ -198,7 +192,7 @@ public class Netty4HttpRequest implements HttpRequest {
         trailingHeaders.remove(header);
         FullHttpRequest requestWithoutHeader = new DefaultFullHttpRequest(request.protocolVersion(), request.method(), request.uri(),
             request.content(), headersWithoutContentTypeHeader, trailingHeaders);
-        return new Netty4HttpRequest(requestWithoutHeader, new HttpHeadersMap(requestWithoutHeader.headers()), sequence, released,
+        return new Netty4HttpRequest(requestWithoutHeader, new HttpHeadersMap(requestWithoutHeader.headers()), released,
             pooled, content);
     }
 
@@ -209,11 +203,6 @@ public class Netty4HttpRequest implements HttpRequest {
 
     public FullHttpRequest nettyRequest() {
         return request;
-    }
-
-    int sequence() {
-        assert sequence != -1;
-        return sequence;
     }
 
     public Releasable takeBreakerReleaseControl() {

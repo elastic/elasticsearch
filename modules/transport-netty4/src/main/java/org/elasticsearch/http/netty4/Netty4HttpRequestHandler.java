@@ -36,10 +36,9 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
     }
 
     @Override
-    protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest msg) {
+    protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest httpRequest) {
         final Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
-        final Netty4HttpRequest httpRequest = (Netty4HttpRequest) msg.getDelegateRequest();
-        final DecoderResult decoderResult = httpRequest.nettyRequest().decoderResult();
+        final DecoderResult decoderResult = ((Netty4HttpRequest) httpRequest.getDelegateRequest()).nettyRequest().decoderResult();
         boolean success = false;
         try {
             if (decoderResult.isFailure()) {

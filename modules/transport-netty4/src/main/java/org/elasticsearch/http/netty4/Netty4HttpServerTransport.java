@@ -43,6 +43,7 @@ import io.netty.util.AttributeKey;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -59,6 +60,7 @@ import org.elasticsearch.http.AbstractHttpServerTransport;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpReadTimeoutException;
+import org.elasticsearch.http.HttpRequestMemoryController;
 import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -307,12 +309,16 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             ch.pipeline().addLast("decoder", decoder);
             ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor());
             ch.pipeline().addLast("encoder", new HttpResponseEncoder());
-            final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
+            NoopCircuitBreaker breaker = new NoopCircuitBreaker("name");
+            final HttpRequestMemoryController memoryController = new HttpRequestMemoryController(() -> breaker, (s) -> true);
+            final HttpObjectAggregator aggregator = new Netty4HttpRequestAggregator(handlingSettings.getMaxContentLength(),
+                memoryController);
             aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             ch.pipeline().addLast("aggregator", aggregator);
             if (handlingSettings.isCompression()) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
             }
+            ch.pipeline().addLast("request_creator", new Netty4HttpRequestCreator(memoryController));
             if (handlingSettings.isCorsEnabled()) {
                 ch.pipeline().addLast("cors", new Netty4CorsHandler(transport.corsConfig));
             }

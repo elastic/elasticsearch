@@ -42,9 +42,9 @@ class Netty4HttpRequestCreator extends MessageToMessageDecoder<FullHttpRequest> 
         Tuple<Releasable, CircuitBreakingException> breakerMetadata = memoryController.finish();
         final Netty4HttpRequest netty4HttpRequest;
         if (breakerMetadata.v2() != null) {
-            netty4HttpRequest = new Netty4HttpRequest(msg, breakerMetadata.v1(), breakerMetadata.v2());
+            netty4HttpRequest = new Netty4HttpRequest(msg.retain(), breakerMetadata.v1(), breakerMetadata.v2());
         } else {
-            netty4HttpRequest = new Netty4HttpRequest(msg, breakerMetadata.v1());
+            netty4HttpRequest = new Netty4HttpRequest(msg.retain(), breakerMetadata.v1());
         }
         out.add(netty4HttpRequest);
     }

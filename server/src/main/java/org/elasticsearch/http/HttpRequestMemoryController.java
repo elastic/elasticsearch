@@ -58,9 +58,10 @@ public class HttpRequestMemoryController implements Releasable {
     }
 
     public Tuple<Releasable, CircuitBreakingException> finish() {
-        assert isAggregating();
         final BreakerControl breakerControl = new BreakerControl(circuitBreaker);
-        checkBreaker(bytesReceived, breakerControl);
+        if (isAggregating()) {
+            checkBreaker(bytesReceived, breakerControl);
+        }
         final CircuitBreakingException exceptionToReturn = breakingException;
 
         currentUri = null;

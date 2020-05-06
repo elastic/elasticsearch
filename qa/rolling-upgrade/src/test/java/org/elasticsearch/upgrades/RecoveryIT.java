@@ -431,7 +431,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
      * is effectively closed and potentially replicated if the cluster supports replication of closed indices at the
      * time the index was closed.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/56265")
     public void testCloseIndexDuringRollingUpgrade() throws Exception {
         final Version minimumNodeVersion = minimumNodeVersion();
         final String indexName =

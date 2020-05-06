@@ -185,14 +185,12 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
                 .process(null)
         );
         // TimeParse
-        assertEquals(
-                time( 10, 20, 30, 123000000),
+        assertEquals(time( 10, 20, 30, 123000000),
                 new TimeParse(Source.EMPTY, l("10:20:30.123"), l("HH:mm:ss.SSS")).makePipe()
                         .asProcessor()
                         .process(null)
         );
-        assertEquals(
-                time(10, 20, 30, 123456789, ZoneOffset.of("+05:30")),
+        assertEquals(time(10, 20, 30, 123456789, ZoneOffset.of("+05:30")),
                 new TimeParse(Source.EMPTY, l("10:20:30.123456789 +05:30"), l("HH:mm:ss.SSSSSSSSS zz")).makePipe()
                         .asProcessor()
                         .process(null)

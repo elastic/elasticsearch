@@ -38,9 +38,9 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
         private final String parseType;
 
         Parser(String parseType,  TemporalQuery<?>... queries) {
+            this.parseType = parseType;
             this.parser = (timestampStr, pattern) -> DateTimeFormatter.ofPattern(pattern, Locale.ROOT)
                     .parseBest(timestampStr, queries);
-            this.parseType = parseType;
         }
 
         public Object parse(Object timestamp, Object pattern) {
@@ -72,7 +72,7 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
                     msg = format(null, "Unable to convert parsed text into [{}]", this.parseType);
                 }
                 throw new SqlIllegalArgumentException(
-                    "Invalid [{}] string [{}] or pattern [{}] is received; {}",
+                    "Invalid {} string [{}] or pattern [{}] is received; {}",
                     this.parseType,
                     timestamp,
                     pattern,

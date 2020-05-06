@@ -91,7 +91,7 @@ public class DateTimeParsePipeTests extends AbstractNodeTestCase<DateTimeParsePi
                 f.expression(),
                 pipe(((Expression) randomValueOtherThan(f.left(), FunctionTestUtils::randomDatetimeLiteral))),
                 f.right(),
-                    DATE_TIME
+                DATE_TIME
             )
         );
         randoms.add(
@@ -100,7 +100,7 @@ public class DateTimeParsePipeTests extends AbstractNodeTestCase<DateTimeParsePi
                 f.expression(),
                 f.left(),
                 pipe(((Expression) randomValueOtherThan(f.right(), FunctionTestUtils::randomStringLiteral))),
-                    DATE_TIME
+                DATE_TIME
             )
         );
         randoms.add(
@@ -109,7 +109,7 @@ public class DateTimeParsePipeTests extends AbstractNodeTestCase<DateTimeParsePi
                 f.expression(),
                 pipe(((Expression) randomValueOtherThan(f.left(), FunctionTestUtils::randomDatetimeLiteral))),
                 pipe(((Expression) randomValueOtherThan(f.right(), FunctionTestUtils::randomStringLiteral))),
-                    DATE_TIME
+                DATE_TIME
             )
         );
 

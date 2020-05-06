@@ -95,6 +95,11 @@ public class IndexTemplateV2 extends AbstractDiffable<IndexTemplateV2> implement
     }
 
     public IndexTemplateV2(List<String> indexPatterns, @Nullable Template template, @Nullable List<String> componentTemplates,
+                           @Nullable Long priority, @Nullable Long version, @Nullable Map<String, Object> metadata) {
+        this(indexPatterns, template, componentTemplates, priority, version, metadata, null);
+    }
+
+    public IndexTemplateV2(List<String> indexPatterns, @Nullable Template template, @Nullable List<String> componentTemplates,
                            @Nullable Long priority, @Nullable Long version, @Nullable Map<String, Object> metadata,
                            @Nullable DataStreamTemplate dataStreamTemplate) {
         this.indexPatterns = indexPatterns;

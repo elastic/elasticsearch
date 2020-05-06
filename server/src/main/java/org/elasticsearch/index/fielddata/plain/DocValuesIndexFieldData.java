@@ -70,14 +70,8 @@ public abstract class DocValuesIndexFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private static final Set<String> BINARY_INDEX_FIELD_NAMES = unmodifiableSet(newHashSet(IdFieldMapper.NAME));
 
-        private NumericType numericType;
         private Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction = AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION;
         private RangeType rangeType;
-
-        public Builder numericType(NumericType type) {
-            this.numericType = type;
-            return this;
-        }
 
         public Builder scriptFunction(Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) {
             this.scriptFunction = scriptFunction;
@@ -95,10 +89,7 @@ public abstract class DocValuesIndexFieldData {
             // Ignore Circuit Breaker
             final String fieldName = fieldType.name();
             if (BINARY_INDEX_FIELD_NAMES.contains(fieldName) || rangeType != null) {
-                assert numericType == null;
                 return new BinaryDVIndexFieldData(indexSettings.getIndex(), fieldName);
-            } else if (numericType != null) {
-                return new SortedNumericDVIndexFieldData(indexSettings.getIndex(), fieldName, numericType);
             } else {
                 return new SortedSetDVOrdinalsIndexFieldData(indexSettings, cache, fieldName, breakerService, scriptFunction);
             }

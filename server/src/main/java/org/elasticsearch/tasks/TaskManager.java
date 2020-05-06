@@ -158,8 +158,7 @@ public class TaskManager implements ClusterStateApplier {
             @Override
             public void onResponse(Response response) {
                 try {
-                    unregisterChildNode.close();
-                    unregister(task);
+                    Releasables.close(unregisterChildNode, () -> unregister(task));
                 } finally {
                     onResponse.accept(task, response);
                 }

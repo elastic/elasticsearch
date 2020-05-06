@@ -22,11 +22,14 @@ package org.elasticsearch.indices.breaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 
+import java.util.List;
+
 /**
  * Interface for Circuit Breaker services, which provide breakers to classes
  * that load field data.
  */
 public abstract class CircuitBreakerService extends AbstractLifecycleComponent {
+
 
     protected CircuitBreakerService() {
     }
@@ -45,6 +48,17 @@ public abstract class CircuitBreakerService extends AbstractLifecycleComponent {
      * @return stats about a specific breaker
      */
     public abstract CircuitBreakerStats stats(String name);
+
+    /**
+     *
+     * @return A new circuit breaker constructed given the breaker settings
+     */
+    public abstract CircuitBreaker validateAndCreateBreaker(BreakerSettings breakerSettings);
+
+    /**
+     * @param circuitBreakers New unique circuit breakers to register
+     */
+    public abstract void registerNewCircuitBreakers(List<CircuitBreaker> circuitBreakers);
 
     @Override
     protected void doStart() {

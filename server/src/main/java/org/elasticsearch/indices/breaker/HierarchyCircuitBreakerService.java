@@ -36,7 +36,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,7 +56,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     private static final MemoryMXBean MEMORY_MX_BEAN = ManagementFactory.getMemoryMXBean();
 
-    private final Map<String, CircuitBreaker> breakers;
+    private final Map<String, CircuitBreaker> breakers = new HashMap<>();
 
     public static final Setting<Boolean> USE_REAL_MEMORY_USAGE_SETTING =
         Setting.boolSetting("indices.breaker.total.use_real_memory", true, Property.NodeScope);
@@ -107,40 +106,39 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     public HierarchyCircuitBreakerService(Settings settings, ClusterSettings clusterSettings) {
         super();
-        HashMap<String, CircuitBreaker> newCircuitBreakers = new HashMap<>();
-        newCircuitBreakers.put(CircuitBreaker.FIELDDATA, validateAndCreateBreaker(
+        breakers.put(CircuitBreaker.FIELDDATA, validateAndCreateBreaker(
             new BreakerSettings(CircuitBreaker.FIELDDATA,
                 FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
                 FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
                 FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
                 CircuitBreaker.Durability.PERMANENT
         )));
-        newCircuitBreakers.put(CircuitBreaker.IN_FLIGHT_REQUESTS, validateAndCreateBreaker(
+        breakers.put(CircuitBreaker.IN_FLIGHT_REQUESTS, validateAndCreateBreaker(
             new BreakerSettings(CircuitBreaker.IN_FLIGHT_REQUESTS,
                 IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
                 IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
                 IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
                 CircuitBreaker.Durability.TRANSIENT
         )));
-        newCircuitBreakers.put(CircuitBreaker.REQUEST, validateAndCreateBreaker(
+        breakers.put(CircuitBreaker.REQUEST, validateAndCreateBreaker(
             new BreakerSettings(CircuitBreaker.REQUEST,
                 REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
                 REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
                 REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
                 CircuitBreaker.Durability.TRANSIENT
         )));
-        newCircuitBreakers.put(CircuitBreaker.ACCOUNTING, validateAndCreateBreaker(new BreakerSettings(CircuitBreaker.ACCOUNTING,
+        breakers.put(CircuitBreaker.ACCOUNTING, validateAndCreateBreaker(new BreakerSettings(CircuitBreaker.ACCOUNTING,
                 ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
                 ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
                 ACCOUNTING_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
                 CircuitBreaker.Durability.PERMANENT
         )));
+
         this.parentSettings = new BreakerSettings(CircuitBreaker.PARENT,
                 TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(), 1.0,
                 CircuitBreaker.Type.PARENT, null);
-
         logger.trace(() -> new ParameterizedMessage("parent circuit breaker with settings {}", this.parentSettings));
-        this.breakers = Collections.unmodifiableMap(newCircuitBreakers);
+
         this.trackRealMemoryUsage = USE_REAL_MEMORY_USAGE_SETTING.get(settings);
 
         clusterSettings.addSettingsUpdateConsumer(TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING, this::setTotalCircuitBreakerLimit,
@@ -156,6 +154,18 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         clusterSettings.addAffixUpdateConsumer(CIRCUIT_BREAKER_LIMIT_SETTING, CIRCUIT_BREAKER_OVERHEAD_SETTING,
             this::setCircuitBreakerLimit,
             (s, t) -> {});
+    }
+
+    @Override
+    public void registerNewCircuitBreakers(List<CircuitBreaker> circuitBreakers) {
+        for (CircuitBreaker circuitBreaker : circuitBreakers) {
+            if (breakers.containsKey(circuitBreaker.getName())) {
+                throw new IllegalArgumentException("More than one circuit breaker with the name ["
+                    + circuitBreaker.getName()
+                    +"] exists. Circuit breaker names must be unique");
+            }
+            breakers.put(circuitBreaker.getName(), circuitBreaker);
+        }
     }
 
     private void setCircuitBreakerLimit(String name, Tuple<ByteSizeValue, Double> updatedValues) {
@@ -178,11 +188,11 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         updateCircuitBreakerSettings(CircuitBreaker.ACCOUNTING, newAccountingMax, newAccountingOverhead);
     }
 
-    private void updateCircuitBreakerSettings(String name, ByteSizeValue newAccountingMax, Double newAccountingOverhead) {
+    private void updateCircuitBreakerSettings(String name, ByteSizeValue newLimit, Double newOverhead) {
         CircuitBreaker childBreaker = breakers.get(name);
         if (childBreaker != null) {
-            childBreaker.setLimitAndOverhead(newAccountingMax.getBytes(), newAccountingOverhead);
-            logger.info("Updated limit {} and overhead {} for {}", newAccountingMax.getStringRep(), newAccountingOverhead, name);
+            childBreaker.setLimitAndOverhead(newLimit.getBytes(), newOverhead);
+            logger.info("Updated limit {} and overhead {} for {}", newLimit.getStringRep(), newOverhead, name);
         }
     }
 
@@ -332,7 +342,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
     }
 
-    private CircuitBreaker validateAndCreateBreaker(BreakerSettings breakerSettings) {
+    public CircuitBreaker validateAndCreateBreaker(BreakerSettings breakerSettings) {
         // Validate the settings
         validateSettings(new BreakerSettings[] {breakerSettings});
         return breakerSettings.getType() == CircuitBreaker.Type.NOOP ?

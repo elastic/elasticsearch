@@ -23,7 +23,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.MemorySizeValue;
 
 /**
  * Settings for a {@link CircuitBreaker}
@@ -75,23 +74,19 @@ public final class BreakerSettings {
     private final CircuitBreaker.Type type;
     private final CircuitBreaker.Durability durability;
 
-    public static BreakerSettings fromSettings(String breakerName,
-                                               Settings currentSettings,
-                                               String defaultLimit,
-                                               double defaultOverhead,
-                                               CircuitBreaker.Type defaultType,
-                                               CircuitBreaker.Durability durability) {
-
-        ByteSizeValue byteSizeValue = MemorySizeValue.parseBytesSizeValueOrHeapRatio(defaultLimit, breakerLimitSettingKey(breakerName));
+    public static BreakerSettings updateFromSettings(BreakerSettings defaultSettings, Settings currentSettings) {
+        final String breakerName = defaultSettings.name;
         return new BreakerSettings(breakerName,
             getOrDefault(CIRCUIT_BREAKER_LIMIT_SETTING.getConcreteSetting(breakerLimitSettingKey(breakerName)),
-                byteSizeValue,
+                new ByteSizeValue(defaultSettings.limitBytes),
                 currentSettings).getBytes(),
             getOrDefault(CIRCUIT_BREAKER_OVERHEAD_SETTING.getConcreteSetting(breakerOverheadSettingKey(breakerName)),
-                defaultOverhead,
+                defaultSettings.overhead,
                 currentSettings),
-            getOrDefault(CIRCUIT_BREAKER_TYPE.getConcreteSetting(breakerTypeSettingKey(breakerName)), defaultType, currentSettings),
-            durability);
+            getOrDefault(CIRCUIT_BREAKER_TYPE.getConcreteSetting(breakerTypeSettingKey(breakerName)),
+                defaultSettings.type,
+                currentSettings),
+            defaultSettings.durability);
     }
 
     private static <T> T getOrDefault(Setting<T> concreteSetting, T defaultValue, Settings settings) {

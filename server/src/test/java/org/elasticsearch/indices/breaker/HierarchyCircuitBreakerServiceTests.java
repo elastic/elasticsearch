@@ -30,14 +30,18 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
@@ -317,6 +321,25 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 expectThrows(CircuitBreakingException.class, () -> multiBucketConsumer.accept(1024));
             assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [allocated_buckets] would be"));
             assertThat(exception.getMessage(), containsString("which is larger than the limit of [100/100b]"));
+        }
+    }
+
+    public void testRegisterNewCircuitBreakers_WithDuplicates() {
+        try (CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
+            CircuitBreaker breaker = service.validateAndCreateBreaker(new BreakerSettings(CircuitBreaker.FIELDDATA, 10, 0.2));
+            expectThrows(IllegalArgumentException.class, () -> service.registerNewCircuitBreakers(List.of(breaker)));
+        }
+    }
+
+    public void testRegisterNewCircuitBreakers() {
+        try (CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
+            CircuitBreaker breaker = service.validateAndCreateBreaker(new BreakerSettings("foo", 10, 0.2));
+            service.registerNewCircuitBreakers(List.of(breaker));
+            assertThat(service.getBreaker("foo"), is(not(nullValue())));
+            assertThat(service.getBreaker("foo").getOverhead(), equalTo(0.2));
+            assertThat(service.getBreaker("foo").getLimit(), equalTo(10L));
         }
     }
 

@@ -106,6 +106,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -123,6 +124,7 @@ import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -387,6 +389,13 @@ public class Node implements Closeable {
             SearchModule searchModule = new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class));
             CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
                 settingsModule.getClusterSettings());
+            List<CircuitBreaker> pluginCircuitBreakers = pluginsService.filterPlugins(CircuitBreakerPlugin.class)
+                .stream()
+                .flatMap(plugin -> plugin.getCircuitBreakers((breakerSettings) ->
+                    circuitBreakerService.validateAndCreateBreaker(BreakerSettings.updateFromSettings(breakerSettings, settings)))
+                    .stream())
+                .collect(Collectors.toList());
+            circuitBreakerService.registerNewCircuitBreakers(pluginCircuitBreakers);
             resourcesToClose.add(circuitBreakerService);
             modules.add(new GatewayModule());
 

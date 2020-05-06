@@ -20,12 +20,12 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * An extension point for {@link Plugin} implementations to add custom circuit breakers
@@ -33,12 +33,9 @@ import java.util.List;
 public interface CircuitBreakerPlugin {
 
     /**
-     * Returns additional circuit breaker settings added by this plugin.
+     * Each of the {@link CircuitBreaker} objects are passed to the configured {@link CircuitBreakerService}.
      *
-     * This each of the {@link BreakerSettings} are passed to the configured {@link CircuitBreakerService}.
-     * The service will create a new breaker according to the provided settings and overall environment.
-     *
-     * Custom circuit breakers settings should adhere to the affix settings described in {@link BreakerSettings}.
+     * Custom circuit breakers settings can be found in {@link BreakerSettings}.
      * See:
      *  - limit (example: `breaker.foo.limit`) {@link BreakerSettings#CIRCUIT_BREAKER_LIMIT_SETTING}
      *  - overhead (example: `breaker.foo.overhead`) {@link BreakerSettings#CIRCUIT_BREAKER_OVERHEAD_SETTING}
@@ -47,16 +44,10 @@ public interface CircuitBreakerPlugin {
      * The `limit` and `overhead` settings will be dynamically updated in the circuit breaker service iff a {@link BreakerSettings}
      * object with the same name is provided at node startup.
      *
-     * @param settings The current settings.
-     *                 Should be used to construct the {@link BreakerSettings} objects.
-     *                 See {@link BreakerSettings#fromSettings(String,
-     *                                                         Settings,
-     *                                                         String,
-     *                                                         double,
-     *                                                         CircuitBreaker.Type,
-     *                                                         CircuitBreaker.Durability)} }
+     * @param circuitBreakerFactory A factory function that will take the provided BreakerSettings and construct a new circuit breaker
+     *                              The constructed circuitBreaker takes into account any overridden settings.
      */
-    default List<BreakerSettings> getCircuitBreakers(Settings settings) {
+    default List<CircuitBreaker> getCircuitBreakers(Function<BreakerSettings, CircuitBreaker> circuitBreakerFactory) {
         return Collections.emptyList();
     }
 

@@ -65,15 +65,17 @@ public class HierarchyCircuitBreakerBenchmark {
             .put(HierarchyCircuitBreakerService.ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100mb")
             .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100mb")
             .build();
-        service = new HierarchyCircuitBreakerService(clusterSettings,
-            new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        service = new HierarchyCircuitBreakerService(
+            clusterSettings,
+            new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         breakers = Strings.splitStringByCommaToArray(breakerNames);
     }
 
     @Benchmark
     @Threads(1)
     public void circuitBreak_1(Blackhole bh) {
-        for(int i = 0; i < 100; ++i) {
+        for (int i = 0; i < 100; ++i) {
             for (String breaker : breakers) {
                 try {
                     bh.consume(service.getBreaker(breaker).addEstimateBytesAndMaybeBreak(2048, "foo"));
@@ -88,7 +90,7 @@ public class HierarchyCircuitBreakerBenchmark {
     @Benchmark
     @Threads(4)
     public void circuitBreak_4(Blackhole bh) {
-        for(int i = 0; i < 100; ++i) {
+        for (int i = 0; i < 100; ++i) {
             for (String breaker : breakers) {
                 try {
                     bh.consume(service.getBreaker(breaker).addEstimateBytesAndMaybeBreak(2048, "foo"));
@@ -103,7 +105,7 @@ public class HierarchyCircuitBreakerBenchmark {
     @Benchmark
     @Threads(64)
     public void circuitBreak_64(Blackhole bh) {
-        for(int i = 0; i < 100; ++i) {
+        for (int i = 0; i < 100; ++i) {
             for (String breaker : breakers) {
                 try {
                     bh.consume(service.getBreaker(breaker).addEstimateBytesAndMaybeBreak(2048, "foo"));

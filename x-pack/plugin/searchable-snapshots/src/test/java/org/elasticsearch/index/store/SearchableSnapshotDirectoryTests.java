@@ -530,6 +530,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     shardId,
                     Settings.builder()
                         .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
+                        // disable prewarming in this test to prevent files to be concurrently cached
+                        // while the cache is cleared out and while the test verifies it is empty
                         .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false)
                         .build(),
                     () -> 0L,

@@ -211,7 +211,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     public static final Setting<TimeValue> MAX_STOP_TIMEOUT_SETTING =
             Setting.timeSetting("xpack.watcher.stop.timeout", TimeValue.timeValueSeconds(30), Setting.Property.NodeScope);
     public static final Setting<Boolean> USE_ILM_INDEX_MANAGEMENT =
-        Setting.boolSetting("xpack.watcher.use_ilm_index_management", XPackSettings.INDEX_LIFECYCLE_ENABLED, NodeScope);
+        Setting.boolSetting("xpack.watcher.use_ilm_index_management", true, NodeScope);
     private static final Setting<Integer> SETTING_BULK_ACTIONS =
         Setting.intSetting("xpack.watcher.bulk.actions", 1, 1, 10000, NodeScope);
     private static final Setting<Integer> SETTING_BULK_CONCURRENT_REQUESTS =

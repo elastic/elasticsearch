@@ -19,11 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DoWhileLoopNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -64,7 +66,9 @@ public class SDo extends AStatement {
         AExpression.Input conditionInput = new AExpression.Input();
         conditionInput.expected = boolean.class;
         AExpression.Output conditionOutput = condition.analyze(classNode, scriptRoot, scope, conditionInput);
-        condition.cast(conditionInput, conditionOutput);
+        PainlessCast conditionCast = AnalyzerCaster.getLegalCast(condition.location,
+                conditionOutput.actual, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
+
 
         boolean continuous = false;
 
@@ -84,7 +88,7 @@ public class SDo extends AStatement {
         output.statementCount = 1;
 
         DoWhileLoopNode doWhileLoopNode = new DoWhileLoopNode();
-        doWhileLoopNode.setConditionNode(condition.cast(conditionOutput));
+        doWhileLoopNode.setConditionNode(AExpression.cast(conditionOutput.expressionNode, conditionCast));
         doWhileLoopNode.setBlockNode((BlockNode)blockOutput.statementNode);
         doWhileLoopNode.setLocation(location);
         doWhileLoopNode.setContinuous(continuous);

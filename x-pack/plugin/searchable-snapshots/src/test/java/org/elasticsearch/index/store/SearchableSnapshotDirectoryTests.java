@@ -530,7 +530,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     shardId,
                     Settings.builder()
                         .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
-                        .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), randomBoolean())
+                        .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false)
                         .build(),
                     () -> 0L,
                     cacheService,

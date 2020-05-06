@@ -73,7 +73,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
             () -> new DateTimeParse(Source.EMPTY, l("2020-04-07"), l("invalid"), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals(
-            "Invalid [datetime] string [2020-04-07] or pattern [invalid] is received; Unknown pattern letter: i",
+            "Invalid datetime string [2020-04-07] or pattern [invalid] is received; Unknown pattern letter: i",
             siae.getMessage()
         );
 
@@ -82,7 +82,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
             () -> new DateTimeParse(Source.EMPTY, l("2020-04-07"), l("MM/dd"), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals(
-            "Invalid [datetime] string [2020-04-07] or pattern [MM/dd] is received; " +
+            "Invalid datetime string [2020-04-07] or pattern [MM/dd] is received; " +
                     "Text '2020-04-07' could not be parsed at index 2",
             siae.getMessage()
         );
@@ -92,7 +92,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
             () -> new DateTimeParse(Source.EMPTY, l("07/05/2020"), l("dd/MM/uuuu"), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals(
-            "Invalid [datetime] string [07/05/2020] or pattern [dd/MM/uuuu] is received; " +
+            "Invalid datetime string [07/05/2020] or pattern [dd/MM/uuuu] is received; " +
                     "Unable to convert parsed text into [datetime]",
             siae.getMessage()
         );
@@ -102,7 +102,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
                 Source.EMPTY, l("10:20:30.123456789"), l("HH:mm:ss.SSSSSSSSS"), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals(
-            "Invalid [datetime] string [10:20:30.123456789] or pattern [HH:mm:ss.SSSSSSSSS] is received; "
+            "Invalid datetime string [10:20:30.123456789] or pattern [HH:mm:ss.SSSSSSSSS] is received; "
                 + "Unable to convert parsed text into [datetime]",
             siae.getMessage()
         );
@@ -126,7 +126,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
                 () -> new TimeParse(Source.EMPTY, l("11:04:07"), l("invalid")).makePipe().asProcessor().process(null)
         );
         assertEquals(
-                "Invalid [time] string [11:04:07] or pattern [invalid] is received; Unknown pattern letter: i",
+                "Invalid time string [11:04:07] or pattern [invalid] is received; Unknown pattern letter: i",
                 siae.getMessage()
         );
         
@@ -135,7 +135,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
                 () -> new TimeParse(Source.EMPTY, l("11:04:07"), l("HH:mm")).makePipe().asProcessor().process(null)
         );
         assertEquals(
-                "Invalid [time] string [11:04:07] or pattern [HH:mm] is received; " +
+                "Invalid time string [11:04:07] or pattern [HH:mm] is received; " +
                         "Text '11:04:07' could not be parsed, unparsed text found at index 5",
                 siae.getMessage()
         );
@@ -145,7 +145,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
                 () -> new TimeParse(Source.EMPTY, l("07/05/2020"), l("dd/MM/uuuu")).makePipe().asProcessor().process(null)
         );
         assertEquals(
-                "Invalid [time] string [07/05/2020] or pattern [dd/MM/uuuu] is received; " +
+                "Invalid time string [07/05/2020] or pattern [dd/MM/uuuu] is received; " +
                         "Unable to convert parsed text into [time]",
                 siae.getMessage()
         );
@@ -189,12 +189,14 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
                 .process(null)
         );
         // TimeParse
-        assertEquals(time( 10, 20, 30, 123000000),
+        assertEquals(
+                time(10, 20, 30, 123000000),
                 new TimeParse(Source.EMPTY, l("10:20:30.123"), l("HH:mm:ss.SSS")).makePipe()
                         .asProcessor()
                         .process(null)
         );
-        assertEquals(time(10, 20, 30, 123456789, ZoneOffset.of("+05:30")),
+        assertEquals(
+                time(10, 20, 30, 123456789, ZoneOffset.of("+05:30")),
                 new TimeParse(Source.EMPTY, l("10:20:30.123456789 +05:30"), l("HH:mm:ss.SSSSSSSSS zz")).makePipe()
                         .asProcessor()
                         .process(null)

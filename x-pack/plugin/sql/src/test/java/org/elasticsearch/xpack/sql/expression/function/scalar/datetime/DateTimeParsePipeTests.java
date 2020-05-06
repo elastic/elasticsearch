@@ -137,6 +137,12 @@ public class DateTimeParsePipeTests extends AbstractNodeTestCase<DateTimeParsePi
 
     @Override
     protected DateTimeParsePipe copy(DateTimeParsePipe instance) {
-        return new DateTimeParsePipe(instance.source(), instance.expression(), instance.left(), instance.right(), instance.zoneId(), DATE_TIME);
+        return new DateTimeParsePipe(
+                instance.source(), 
+                instance.expression(), 
+                instance.left(), 
+                instance.right(), 
+                instance.zoneId(), 
+                DATE_TIME);
     }
 }

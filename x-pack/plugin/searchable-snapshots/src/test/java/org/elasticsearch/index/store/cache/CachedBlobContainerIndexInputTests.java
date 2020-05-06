@@ -157,7 +157,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             );
 
             final BlobContainer blobContainer = singleBlobContainer(blobName, input);
-
+            final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilder());
             final Path cacheDir = createTempDir();
             try (
                 SearchableSnapshotDirectory searchableSnapshotDirectory = new SearchableSnapshotDirectory(
@@ -170,7 +170,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     () -> 0L,
                     cacheService,
                     cacheDir,
-                    null
+                    threadPool
                 )
             ) {
                 final boolean loaded = searchableSnapshotDirectory.loadSnapshot();
@@ -185,6 +185,8 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                         throw new AssertionError("inner EOFException not thrown", exception);
                     }
                 }
+            } finally {
+                terminate(threadPool);
             }
         }
     }

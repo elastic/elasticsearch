@@ -20,7 +20,7 @@ PUT /_data_stream/my-data-stream
 ////
 [source,console]
 -----------------------------------
-DELETE /_data_stream/foo
+DELETE /_data_stream/my-data-stream
 -----------------------------------
 // TEARDOWN
 ////
@@ -42,7 +42,8 @@ GET _data_streams/my-data-stream
 `<data-stream>`::
 +
 --
-(Required, string) Name or wildcard expression of the data stream(s) to retrieve.
+(Required, string) Name or wildcard expression of the data stream(s) to
+retrieve.
 --
 
 [[get-data-stream-api-example]]

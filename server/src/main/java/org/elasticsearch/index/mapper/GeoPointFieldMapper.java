@@ -44,7 +44,8 @@ import java.util.Map;
  *
  * Uses lucene 6 LatLonPoint encoding
  */
-public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<? extends GeoPoint>, List<? extends GeoPoint>> implements ArrayValueMapperParser {
+public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<? extends GeoPoint>, List<? extends GeoPoint>>
+        implements ArrayValueMapperParser {
     public static final String CONTENT_TYPE = "geo_point";
 
     public static class Builder extends AbstractPointGeometryFieldMapper.Builder<Builder, GeoPointFieldMapper, GeoPointFieldType> {

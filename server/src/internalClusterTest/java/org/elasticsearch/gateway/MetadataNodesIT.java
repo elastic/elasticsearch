@@ -44,7 +44,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
+public class MetadataNodesIT extends ESIntegTestCase {
     public void testMetaWrittenAlsoOnDataNode() throws Exception {
         // this test checks that index state is written on data only nodes if they have a shard allocated
         String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);

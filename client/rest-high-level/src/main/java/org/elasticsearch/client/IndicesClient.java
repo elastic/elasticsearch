@@ -54,9 +54,9 @@ import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexResponse;
+import org.elasticsearch.client.indices.GetIndexTemplateV2Request;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
-import org.elasticsearch.client.indices.GetIndexTemplateV2Request;
 import org.elasticsearch.client.indices.GetIndexTemplatesV2Response;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
@@ -69,6 +69,8 @@ import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersResponse;
 import org.elasticsearch.client.indices.ResizeRequest;
 import org.elasticsearch.client.indices.ResizeResponse;
+import org.elasticsearch.client.indices.SimulateIndexTemplateRequest;
+import org.elasticsearch.client.indices.SimulateIndexTemplateResponse;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.indices.rollover.RolloverResponse;
@@ -942,6 +944,40 @@ public final class IndicesClient {
                                              RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(putIndexTemplateRequest, IndicesRequestConverters::putIndexTemplate,
             options, AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Simulates matching index name against the existing index templates in the system.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
+     * on elastic.co</a>
+     *
+     * @param simulateIndexTemplateRequest the request
+     * @param options                      the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
+     *                                     customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public SimulateIndexTemplateResponse simulateIndexTemplate(SimulateIndexTemplateRequest simulateIndexTemplateRequest,
+                                                               RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(simulateIndexTemplateRequest,
+            IndicesRequestConverters::simulateIndexTemplate, options, SimulateIndexTemplateResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously simulates matching index name against the existing index templates in the system.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
+     * on elastic.co</a>
+     *
+     * @param simulateIndexTemplateRequest the request
+     * @param options                      the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
+     *                                     customized
+     * @param listener                     the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable simulateIndexTemplateAsync(SimulateIndexTemplateRequest simulateIndexTemplateRequest,
+                                                  RequestOptions options, ActionListener<SimulateIndexTemplateResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(simulateIndexTemplateRequest,
+            IndicesRequestConverters::simulateIndexTemplate, options, SimulateIndexTemplateResponse::fromXContent, listener, emptySet());
     }
 
     /**

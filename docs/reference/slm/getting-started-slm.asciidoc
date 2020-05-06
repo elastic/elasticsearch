@@ -164,7 +164,7 @@ next time the policy will be executed.
 <1> information about the last time the policy successfully initated a snapshot
 <2> the name of the snapshot that was successfully initiated
 <3> information about the last time the policy failed to initiate a snapshot
-<4> the is the next time the policy will execute
+<4> the next time the policy will execute
 
 NOTE: This metadata only indicates whether the request to initiate the snapshot was
 made successfully or not - after the snapshot has been successfully started, it

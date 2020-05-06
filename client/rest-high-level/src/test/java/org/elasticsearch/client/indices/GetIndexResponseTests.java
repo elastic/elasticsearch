@@ -38,6 +38,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -51,6 +52,7 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<org.elastics
         ImmutableOpenMap.Builder<String, List<AliasMetadata>> aliases = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> settings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> defaultSettings = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, String> dataStreams = ImmutableOpenMap.builder();
         IndexScopedSettings indexScopedSettings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS;
         boolean includeDefaults = randomBoolean();
         for (String index: indices) {
@@ -71,9 +73,13 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<org.elastics
             if (includeDefaults) {
                 defaultSettings.put(index, indexScopedSettings.diff(settings.get(index), Settings.EMPTY));
             }
+
+            if (randomBoolean()) {
+                dataStreams.put(index, randomAlphaOfLength(5).toLowerCase(Locale.ROOT));
+            }
         }
         return new org.elasticsearch.action.admin.indices.get.GetIndexResponse(indices,
-            mappings.build(), aliases.build(), settings.build(), defaultSettings.build());
+            mappings.build(), aliases.build(), settings.build(), defaultSettings.build(), dataStreams.build());
     }
 
     @Override
@@ -89,6 +95,7 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<org.elastics
         assertMapEquals(serverTestInstance.getSettings(), clientInstance.getSettings());
         assertMapEquals(serverTestInstance.defaultSettings(), clientInstance.getDefaultSettings());
         assertMapEquals(serverTestInstance.getAliases(), clientInstance.getAliases());
+        assertMapEquals(serverTestInstance.getDataStreams(), clientInstance.getDataStreams());
     }
 
     private static MappingMetadata createMappingsForIndex() {

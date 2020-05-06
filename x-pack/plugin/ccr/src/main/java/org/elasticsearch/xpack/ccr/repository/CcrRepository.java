@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -92,6 +93,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
@@ -431,6 +433,12 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     @Override
     public void updateState(ClusterState state) {
+    }
+
+    @Override
+    public void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, String source,
+                                             Consumer<Exception> onFailure) {
+        throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }
 
     private void updateMappings(Client leaderClient, Index leaderIndex, long leaderMappingVersion,

@@ -29,7 +29,8 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
         return new DateTimeParseProcessor(
             new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)),
             new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)),
-                randomFrom(Parser.values())
+            randomZone(),
+            randomFrom(Parser.values())
         );
     }
 
@@ -49,26 +50,27 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
         return new DateTimeParseProcessor(
             new ConstantProcessor(ESTestCase.randomRealisticUnicodeOfLength(128)),
             new ConstantProcessor(ESTestCase.randomRealisticUnicodeOfLength(128)),
-                replaced
+            randomZone(),
+            replaced
         );
     }
 
     public void testDateTimeInvalidInputs() {
         SqlIllegalArgumentException siae = expectThrows(
             SqlIllegalArgumentException.class,
-            () -> new DateTimeParse(Source.EMPTY, l(10), randomStringLiteral()).makePipe().asProcessor().process(null)
+            () -> new DateTimeParse(Source.EMPTY, l(10), randomStringLiteral(), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals("A string is required; received [10]", siae.getMessage());
 
         siae = expectThrows(
             SqlIllegalArgumentException.class,
-            () -> new DateTimeParse(Source.EMPTY, randomStringLiteral(), l(20)).makePipe().asProcessor().process(null)
+            () -> new DateTimeParse(Source.EMPTY, randomStringLiteral(), l(20), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals("A string is required; received [20]", siae.getMessage());
 
         siae = expectThrows(
             SqlIllegalArgumentException.class,
-            () -> new DateTimeParse(Source.EMPTY, l("2020-04-07"), l("invalid")).makePipe().asProcessor().process(null)
+            () -> new DateTimeParse(Source.EMPTY, l("2020-04-07"), l("invalid"), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals(
             "Invalid [datetime] string [2020-04-07] or pattern [invalid] is received; Unknown pattern letter: i",
@@ -77,7 +79,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
 
         siae = expectThrows(
             SqlIllegalArgumentException.class,
-            () -> new DateTimeParse(Source.EMPTY, l("2020-04-07"), l("MM/dd")).makePipe().asProcessor().process(null)
+            () -> new DateTimeParse(Source.EMPTY, l("2020-04-07"), l("MM/dd"), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals(
             "Invalid [datetime] string [2020-04-07] or pattern [MM/dd] is received; " +
@@ -87,7 +89,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
 
         siae = expectThrows(
             SqlIllegalArgumentException.class,
-            () -> new DateTimeParse(Source.EMPTY, l("07/05/2020"), l("dd/MM/uuuu")).makePipe().asProcessor().process(null)
+            () -> new DateTimeParse(Source.EMPTY, l("07/05/2020"), l("dd/MM/uuuu"), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals(
             "Invalid [datetime] string [07/05/2020] or pattern [dd/MM/uuuu] is received; " +
@@ -96,8 +98,8 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
         );
 
         siae = expectThrows(
-            SqlIllegalArgumentException.class,
-            () -> new DateTimeParse(Source.EMPTY, l("10:20:30.123456789"), l("HH:mm:ss.SSSSSSSSS")).makePipe().asProcessor().process(null)
+            SqlIllegalArgumentException.class, () -> new DateTimeParse(
+                Source.EMPTY, l("10:20:30.123456789"), l("HH:mm:ss.SSSSSSSSS"), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals(
             "Invalid [datetime] string [10:20:30.123456789] or pattern [HH:mm:ss.SSSSSSSSS] is received; "
@@ -151,10 +153,10 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
 
     public void testWithNulls() {
         // DateTimeParse
-        assertNull(new DateTimeParse(Source.EMPTY, randomStringLiteral(), NULL).makePipe().asProcessor().process(null));
-        assertNull(new DateTimeParse(Source.EMPTY, randomStringLiteral(), l("")).makePipe().asProcessor().process(null));
-        assertNull(new DateTimeParse(Source.EMPTY, NULL, randomStringLiteral()).makePipe().asProcessor().process(null));
-        assertNull(new DateTimeParse(Source.EMPTY, l(""), randomStringLiteral()).makePipe().asProcessor().process(null));
+        assertNull(new DateTimeParse(Source.EMPTY, randomStringLiteral(), NULL, randomZone()).makePipe().asProcessor().process(null));
+        assertNull(new DateTimeParse(Source.EMPTY, randomStringLiteral(), l(""), randomZone()).makePipe().asProcessor().process(null));
+        assertNull(new DateTimeParse(Source.EMPTY, NULL, randomStringLiteral(), randomZone()).makePipe().asProcessor().process(null));
+        assertNull(new DateTimeParse(Source.EMPTY, l(""), randomStringLiteral(), randomZone()).makePipe().asProcessor().process(null));
         // TimeParse
         assertNull(new TimeParse(Source.EMPTY, randomStringLiteral(), NULL).makePipe().asProcessor().process(null));
         assertNull(new TimeParse(Source.EMPTY, randomStringLiteral(), l("")).makePipe().asProcessor().process(null));
@@ -166,21 +168,23 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
         // DateTimeParse
         ZoneId zoneId = ZoneId.of("America/Sao_Paulo");
         assertEquals(
-            dateTime(2020, 4, 7, 10, 20, 30, 123000000),
-            new DateTimeParse(Source.EMPTY, l("07/04/2020 10:20:30.123"), l("dd/MM/uuuu HH:mm:ss.SSS")).makePipe()
-                .asProcessor()
-                .process(null)
-        );
-        assertEquals(
-            dateTime(2020, 4, 7, 10, 20, 30, 123456789, zoneId),
-            new DateTimeParse(Source.EMPTY, l("07/04/2020 10:20:30.123456789 America/Sao_Paulo"), l("dd/MM/uuuu HH:mm:ss.SSSSSSSSS VV"))
+            dateTime(2020, 4, 7, 10, 20, 30, 123000000, zoneId),
+            new DateTimeParse(Source.EMPTY, l("07/04/2020 10:20:30.123"), l("dd/MM/uuuu HH:mm:ss.SSS"), zoneId)
                 .makePipe()
                 .asProcessor()
                 .process(null)
         );
         assertEquals(
-            dateTime(2020, 4, 7, 10, 20, 30, 123456789, ZoneId.of("+05:30")),
-            new DateTimeParse(Source.EMPTY, l("07/04/2020 10:20:30.123456789 +05:30"), l("dd/MM/uuuu HH:mm:ss.SSSSSSSSS zz")).makePipe()
+            dateTime(2020, 4, 7, 5, 20, 30, 123456789, zoneId),
+            new DateTimeParse(Source.EMPTY, l("07/04/2020 10:20:30.123456789 Europe/Berlin"), l("dd/MM/uuuu HH:mm:ss.SSSSSSSSS VV"), zoneId)
+                .makePipe()
+                .asProcessor()
+                .process(null)
+        );
+        assertEquals(
+            dateTime(2020, 4, 7, 1, 50, 30, 123456789, zoneId),
+            new DateTimeParse(Source.EMPTY, l("07/04/2020 10:20:30.123456789 +05:30"), l("dd/MM/uuuu HH:mm:ss.SSSSSSSSS zz"), zoneId)
+                .makePipe()
                 .asProcessor()
                 .process(null)
         );

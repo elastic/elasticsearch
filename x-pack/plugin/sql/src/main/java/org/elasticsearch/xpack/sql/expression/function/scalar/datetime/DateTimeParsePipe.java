@@ -19,24 +19,24 @@ public class DateTimeParsePipe extends BinaryDateTimePipe {
     
     private final Parser parser;
 
-    public DateTimeParsePipe(Source source, Expression expression, Pipe left, Pipe right, Parser parser) {
-        super(source, expression, left, right, null);
+    public DateTimeParsePipe(Source source, Expression expression, Pipe left, Pipe right, ZoneId zoneId, Parser parser) {
+        super(source, expression, left, right, zoneId);
         this.parser = parser;
     }
 
     @Override
     protected NodeInfo<DateTimeParsePipe> info() {
-        return NodeInfo.create(this, DateTimeParsePipe::new, expression(), left(), right(), parser);
+        return NodeInfo.create(this, DateTimeParsePipe::new, expression(), left(), right(), zoneId(), parser);
     }
 
     @Override
     protected DateTimeParsePipe replaceChildren(Pipe left, Pipe right) {
-        return new DateTimeParsePipe(source(), expression(), left, right, parser);
+        return new DateTimeParsePipe(source(), expression(), left, right, zoneId(), parser);
     }
 
     @Override
     protected Processor makeProcessor(Processor left, Processor right, ZoneId zoneId) {
-        return new DateTimeParseProcessor(left, right, parser);
+        return new DateTimeParseProcessor(left, right, zoneId, parser);
     }
     
     @Override

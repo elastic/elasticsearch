@@ -60,11 +60,11 @@ public class TimeParse extends BinaryDateTimeFunction {
 
     @Override
     public Object fold() {
-        return TIME.parse(left().fold(), right().fold());
+        return TIME.parse(left().fold(), right().fold(), zoneId());
     }
 
     @Override
     protected Pipe createPipe(Pipe timestamp, Pipe pattern, ZoneId zoneId) {
-        return new DateTimeParsePipe(source(), this, timestamp, pattern, TIME);
+        return new DateTimeParsePipe(source(), this, timestamp, pattern, zoneId(), TIME);
     }
 }

@@ -8,22 +8,22 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZoneId;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.ql.type.DateUtils.UTC;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser.DATE_TIME;
+
 
 public class DateTimeParse extends BinaryDateTimeFunction {
 
-    public DateTimeParse(Source source, Expression timestamp, Expression pattern) {
-        super(source, timestamp, pattern, UTC);
+    public DateTimeParse(Source source, Expression timestamp, Expression pattern, ZoneId zoneId) {
+        super(source, timestamp, pattern, zoneId);
     }
 
     @Override
@@ -46,12 +46,12 @@ public class DateTimeParse extends BinaryDateTimeFunction {
 
     @Override
     protected BinaryScalarFunction replaceChildren(Expression timestamp, Expression pattern) {
-        return new DateTimeParse(source(), timestamp, pattern);
+        return new DateTimeParse(source(), timestamp, pattern, zoneId());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, DateTimeParse::new, left(), right());
+        return NodeInfo.create(this, DateTimeParse::new, left(), right(), zoneId());
     }
 
     @Override
@@ -61,11 +61,11 @@ public class DateTimeParse extends BinaryDateTimeFunction {
 
     @Override
     public Object fold() {
-        return DATE_TIME.parse(left().fold(), right().fold());
+        return DATE_TIME.parse(left().fold(), right().fold(), zoneId());
     }
 
     @Override
     protected Pipe createPipe(Pipe timestamp, Pipe pattern, ZoneId zoneId) {
-        return new DateTimeParsePipe(source(), this, timestamp, pattern, DATE_TIME);
+        return new DateTimeParsePipe(source(), this, timestamp, pattern, zoneId, DATE_TIME);
     }
 }

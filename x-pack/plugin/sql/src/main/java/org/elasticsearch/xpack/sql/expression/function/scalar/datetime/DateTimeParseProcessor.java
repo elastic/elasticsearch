@@ -9,12 +9,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
 import java.time.DateTimeException;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetTime;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -25,7 +27,6 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.ql.util.DateUtils.UTC;
 
 public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
 
@@ -43,7 +44,7 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
                     .parseBest(timestampStr, queries);
         }
 
-        public Object parse(Object timestamp, Object pattern) {
+        public Object parse(Object timestamp, Object pattern, ZoneId zoneId) {
             if (timestamp == null || pattern == null) {
                 return null;
             }
@@ -60,9 +61,11 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
             try {
                 TemporalAccessor ta = parser.apply((String) timestamp, (String) pattern);
                 if (ta instanceof LocalDateTime) {
-                    return ZonedDateTime.ofInstant((LocalDateTime) ta, ZoneOffset.UTC, UTC);
+                    return DateUtils.atTimeZone((LocalDateTime) ta, zoneId);
                 } else if (ta instanceof LocalTime) {
                     return OffsetTime.of((LocalTime) ta, ZoneOffset.UTC);
+                } else if (ta instanceof ZonedDateTime){
+                    return ((ZonedDateTime) ta).withZoneSameInstant(zoneId);
                 } else {
                     return ta;
                 }
@@ -86,8 +89,8 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
 
     public static final String NAME = "dtparse";
 
-    public DateTimeParseProcessor(Processor source1, Processor source2, Parser parser) {
-        super(source1, source2, null);
+    public DateTimeParseProcessor(Processor source1, Processor source2, ZoneId zoneId , Parser parser) {
+        super(source1, source2, zoneId);
         this.parser = parser;
     }
 
@@ -108,7 +111,7 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
 
     @Override
     protected Object doProcess(Object timestamp, Object pattern) {
-        return this.parser.parse(timestamp, pattern);
+        return this.parser.parse(timestamp, pattern, zoneId());
     }
 
     @Override

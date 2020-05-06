@@ -294,11 +294,11 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     }
 
     public static Object dateTimeParse(String dateField, String pattern, String tzId) {
-        return Parser.DATE_TIME.parse(dateField, pattern);
+        return Parser.DATE_TIME.parse(dateField, pattern, ZoneId.of(tzId));
     }
 
     public static Object timeParse(String dateField, String pattern, String tzId) {
-        return Parser.TIME.parse(dateField, pattern);
+        return Parser.TIME.parse(dateField, pattern, ZoneId.of(tzId));
     }
     
     public static ZonedDateTime asDateTime(Object dateTime) {

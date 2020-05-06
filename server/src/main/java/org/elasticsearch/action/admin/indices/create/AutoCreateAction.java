@@ -22,6 +22,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -35,6 +36,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.Create
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -86,20 +88,31 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                                        CreateIndexRequest request,
                                        ClusterState state,
                                        ActionListener<CreateIndexResponse> listener) {
-            DataStreamTemplate dataStreamTemplate = resolveAutoCreateDataStream(request, state.metadata());
-            if (dataStreamTemplate != null) {
-                CreateDataSteamClusterStateUpdateRequest createRequest = new CreateDataSteamClusterStateUpdateRequest(
-                    request.index(), dataStreamTemplate.getTimestampField(), request.timeout());
+            clusterService.submitStateUpdateTask("auto create [" + request.index() + "]",
+                new AckedClusterStateUpdateTask<>(Priority.URGENT, request, listener) {
 
-                metadataCreateDataStreamService.createDataStream(createRequest, ActionListener.wrap(
-                    response -> {
-                        listener.onResponse(new CreateIndexResponse(response.isAcknowledged(), false, request.index()));
-                    },
-                    listener::onFailure)
-                );
-            } else {
-                TransportCreateIndexAction.innerCreateIndex(request, listener, indexNameExpressionResolver, createIndexService);
-            }
+                @Override
+                protected CreateIndexResponse newResponse(boolean acknowledged) {
+                    return new CreateIndexResponse(acknowledged, false, request.index());
+                }
+
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    DataStreamTemplate dataStreamTemplate = resolveAutoCreateDataStream(request, currentState.metadata());
+                    if (dataStreamTemplate != null) {
+                        CreateDataSteamClusterStateUpdateRequest createRequest = new CreateDataSteamClusterStateUpdateRequest(
+                            request.index(), dataStreamTemplate.getTimestampField(), request.timeout());
+                        return metadataCreateDataStreamService.createDataStream(createRequest, currentState);
+                    } else {
+                        String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
+                        CreateIndexClusterStateUpdateRequest updateRequest =
+                            new CreateIndexClusterStateUpdateRequest(request.cause(), indexName, request.index())
+                                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
+                                .preferV2Templates(request.preferV2Templates());
+                        return createIndexService.applyCreateIndexRequest(currentState, updateRequest, false);
+                    }
+                }
+            });
         }
 
         @Override

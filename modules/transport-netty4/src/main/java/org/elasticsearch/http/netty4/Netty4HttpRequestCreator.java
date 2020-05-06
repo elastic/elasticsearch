@@ -33,7 +33,7 @@ class Netty4HttpRequestCreator extends MessageToMessageDecoder<FullHttpRequest> 
 
     private final HttpRequestMemoryController memoryController;
 
-    public Netty4HttpRequestCreator(HttpRequestMemoryController memoryController) {
+    Netty4HttpRequestCreator(HttpRequestMemoryController memoryController) {
         this.memoryController = memoryController;
     }
 

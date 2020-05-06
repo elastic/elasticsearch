@@ -32,7 +32,7 @@ class Netty4HttpRequestAggregator extends HttpObjectAggregator {
 
     private final HttpRequestMemoryController memoryController;
 
-    public Netty4HttpRequestAggregator(int maxContentLength, HttpRequestMemoryController memoryController) {
+    Netty4HttpRequestAggregator(int maxContentLength, HttpRequestMemoryController memoryController) {
         super(maxContentLength);
         this.memoryController = memoryController;
     }

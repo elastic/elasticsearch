@@ -385,7 +385,7 @@ public class SearchModule {
                     .addResultReader(UnmappedSampler.NAME, UnmappedSampler::new),
             builder);
         registerAggregation(new AggregationSpec(DiversifiedAggregationBuilder.NAME, DiversifiedAggregationBuilder::new,
-                DiversifiedAggregationBuilder.PARSER)
+                DiversifiedAggregationBuilder.PARSER).setAggregatorRegistrar(DiversifiedAggregationBuilder::registerAggregators)
                     /* Reuses result readers from SamplerAggregator*/, builder);
         registerAggregation(new AggregationSpec(TermsAggregationBuilder.NAME, TermsAggregationBuilder::new,
                 TermsAggregationBuilder.PARSER)
@@ -433,7 +433,9 @@ public class SearchModule {
                     .addResultReader(InternalAutoDateHistogram::new)
                     .setAggregatorRegistrar(AutoDateHistogramAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(GeoDistanceAggregationBuilder.NAME, GeoDistanceAggregationBuilder::new,
-                GeoDistanceAggregationBuilder::parse).addResultReader(InternalGeoDistance::new), builder);
+                GeoDistanceAggregationBuilder::parse)
+                    .addResultReader(InternalGeoDistance::new)
+                    .setAggregatorRegistrar(GeoDistanceAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(GeoHashGridAggregationBuilder.NAME, GeoHashGridAggregationBuilder::new,
                 GeoHashGridAggregationBuilder.PARSER)
                     .addResultReader(InternalGeoHashGrid::new)

@@ -168,6 +168,11 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         });
     }
 
+    /**
+     * Returns a {@link SearchResponseIterator} that blocks query shard executions
+     * until {@link SearchResponseIterator#next()} is called. That allows to randomly
+     * generate partial results that can be consumed in order.
+     */
     protected SearchResponseIterator assertBlockingIterator(String indexName,
                                                             int numShards,
                                                             SearchSourceBuilder source,
@@ -209,7 +214,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                     isFirst = false;
                     return response;
                 }
-                queryLatch.reacquireBlock();
+                queryLatch.countDownAndReset();
                 AsyncSearchResponse newResponse = client().execute(GetAsyncSearchAction.INSTANCE,
                     new GetAsyncSearchAction.Request(response.getId())
                         .setWaitForCompletion(TimeValue.timeValueMillis(10))).get();

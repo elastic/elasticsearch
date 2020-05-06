@@ -15,6 +15,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.xpack.search.AsyncSearchIntegTestCase.SearchResponseIterator;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -81,7 +82,7 @@ class BlockingQueryBuilder extends AbstractQueryBuilder<BlockingQueryBuilder> {
             @Override
             public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
                 try {
-                    queryLatch.tryBlock(context.getShardId());
+                    queryLatch.await(context.getShardId());
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
@@ -120,9 +121,16 @@ class BlockingQueryBuilder extends AbstractQueryBuilder<BlockingQueryBuilder> {
         return NAME;
     }
 
+    /**
+     *  A synchronization aid that is used by {@link BlockingQueryBuilder} to block shards executions until
+     *  the consumer calls {@link QueryLatch#countDownAndReset()}.
+     *  The static {@link QueryLatch} is shared in {@link AsyncSearchIntegTestCase#assertBlockingIterator} to provide
+     *  a {@link SearchResponseIterator} that unblocks shards executions whenever {@link SearchResponseIterator#next()}
+     *  is called.
+     */
     static class QueryLatch implements Closeable {
         private volatile CountDownLatch countDownLatch;
-        private Set<Integer> failedShards = new HashSet<>();
+        private final Set<Integer> failedShards = new HashSet<>();
         private int numShardFailures;
 
         QueryLatch(int numShardFailures) {
@@ -130,12 +138,13 @@ class BlockingQueryBuilder extends AbstractQueryBuilder<BlockingQueryBuilder> {
             this.numShardFailures = numShardFailures;
         }
 
-        private void tryBlock(int shardId) throws IOException, InterruptedException {
+        private void await(int shardId) throws IOException, InterruptedException {
             CountDownLatch last = countDownLatch;
             if (last != null) {
                 last.await();
             }
             synchronized (this) {
+                // ensure that we fail on replicas too
                 if (failedShards.contains(shardId)) {
                     throw new IOException("boom");
                 } else if (numShardFailures > 0) {
@@ -146,7 +155,7 @@ class BlockingQueryBuilder extends AbstractQueryBuilder<BlockingQueryBuilder> {
             }
         }
 
-        public synchronized void reacquireBlock() {
+        public synchronized void countDownAndReset() {
             if (countDownLatch != null) {
                 CountDownLatch last = countDownLatch;
                 countDownLatch = new CountDownLatch(1);

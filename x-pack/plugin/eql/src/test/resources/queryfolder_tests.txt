@@ -100,9 +100,9 @@ InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),par
 startsWithFunction
 process where startsWith(user_name, 'A')
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.startsWith(
-InternalQlScriptUtils.docValue(doc,params.v0),params.v1))",
-"params":{"v0":"user_name","v1":"A"}
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.startsWith(
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))",
+"params":{"v0":"user_name","v1":"A","v2":false}}
 ;
 
 stringContains

@@ -17,12 +17,13 @@ import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 
+import static org.elasticsearch.xpack.eql.EqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.ql.type.TypesTests.loadMapping;
 
 public abstract class AbstractQueryFolderTestCase extends ESTestCase {
     protected EqlParser parser = new EqlParser();
     protected PreAnalyzer preAnalyzer = new PreAnalyzer();
-    protected Analyzer analyzer = new Analyzer(new EqlFunctionRegistry(), new Verifier());
+    protected Analyzer analyzer = new Analyzer(TEST_CFG, new EqlFunctionRegistry(), new Verifier());
     protected Optimizer optimizer = new Optimizer();
     protected Planner planner = new Planner();
 

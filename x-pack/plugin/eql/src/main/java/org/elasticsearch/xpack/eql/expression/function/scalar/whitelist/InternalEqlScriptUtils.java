@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.eql.expression.function.scalar.string.BetweenFunc
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.EndsWithFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.IndexOfFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.LengthFunctionProcessor;
-import org.elasticsearch.xpack.eql.expression.function.scalar.string.StartsWithFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.StringContainsFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.SubstringFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToStringFunctionProcessor;
@@ -39,10 +38,6 @@ public class InternalEqlScriptUtils extends InternalQlScriptUtils {
 
     public static Integer length(String s) {
         return (Integer) LengthFunctionProcessor.doProcess(s);
-    }
-
-    public static Boolean startsWith(String s, String pattern) {
-        return (Boolean) StartsWithFunctionProcessor.doProcess(s, pattern);
     }
 
     public static String string(Object s) {

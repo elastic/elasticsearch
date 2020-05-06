@@ -422,6 +422,30 @@ SPACE(count) <1>
 include-tagged::{sql-specs}/docs/docs.csv-spec[stringSpace]
 --------------------------------------------------
 
+[[sql-functions-string-startswith]]
+==== `STARTS_WITH`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+STARTS_WITH(
+    source,   <1>
+    pattern)  <2>
+--------------------------------------------------
+*Input*:
+
+<1> string expression
+<2> string expression
+
+*Output*: boolean value
+
+*Description*: Returns `true` if the source expression starts with the specified pattern, `false` otherwise. The matching is case sensitive.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringStartsWith]
+--------------------------------------------------
+
 [[sql-functions-string-substring]]
 ==== `SUBSTRING`
 

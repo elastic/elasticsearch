@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.eql.expression.function.scalar.string;
+package org.elasticsearch.xpack.ql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -17,13 +17,15 @@ import java.util.Objects;
 
 public class StartsWithFunctionPipe extends Pipe {
 
-    private final Pipe source;
+    private final Pipe field;
     private final Pipe pattern;
+    private final boolean isCaseSensitive;
 
-    public StartsWithFunctionPipe(Source source, Expression expression, Pipe src, Pipe pattern) {
-        super(source, expression, Arrays.asList(src, pattern));
-        this.source = src;
+    public StartsWithFunctionPipe(Source source, Expression expression, Pipe field, Pipe pattern, boolean isCaseSensitive) {
+        super(source, expression, Arrays.asList(field, pattern));
+        this.field = field;
         this.pattern = pattern;
+        this.isCaseSensitive = isCaseSensitive;
     }
 
     @Override
@@ -36,55 +38,59 @@ public class StartsWithFunctionPipe extends Pipe {
 
     @Override
     public final Pipe resolveAttributes(AttributeResolver resolver) {
-        Pipe newSource = source.resolveAttributes(resolver);
+        Pipe newField = field.resolveAttributes(resolver);
         Pipe newPattern = pattern.resolveAttributes(resolver);
-        if (newSource == source && newPattern == pattern) {
+        if (newField == field && newPattern == pattern) {
             return this;
         }
-        return replaceChildren(newSource, newPattern);
+        return replaceChildren(newField, newPattern);
     }
 
     @Override
     public boolean supportedByAggsOnlyQuery() {
-        return source.supportedByAggsOnlyQuery() && pattern.supportedByAggsOnlyQuery();
+        return field.supportedByAggsOnlyQuery() && pattern.supportedByAggsOnlyQuery();
     }
 
     @Override
     public boolean resolved() {
-        return source.resolved() && pattern.resolved();
+        return field.resolved() && pattern.resolved();
     }
 
-    protected Pipe replaceChildren(Pipe newSource, Pipe newPattern) {
-        return new StartsWithFunctionPipe(source(), expression(), newSource, newPattern);
+    protected Pipe replaceChildren(Pipe newField, Pipe newPattern) {
+        return new StartsWithFunctionPipe(source(), expression(), newField, newPattern, isCaseSensitive);
     }
 
     @Override
     public final void collectFields(QlSourceBuilder sourceBuilder) {
-        source.collectFields(sourceBuilder);
+        field.collectFields(sourceBuilder);
         pattern.collectFields(sourceBuilder);
     }
 
     @Override
     protected NodeInfo<StartsWithFunctionPipe> info() {
-        return NodeInfo.create(this, StartsWithFunctionPipe::new, expression(), source, pattern);
+        return NodeInfo.create(this, StartsWithFunctionPipe::new, expression(), field, pattern, isCaseSensitive);
     }
 
     @Override
     public StartsWithFunctionProcessor asProcessor() {
-        return new StartsWithFunctionProcessor(source.asProcessor(), pattern.asProcessor());
+        return new StartsWithFunctionProcessor(field.asProcessor(), pattern.asProcessor(), isCaseSensitive);
     }
     
-    public Pipe src() {
-        return source;
+    public Pipe field() {
+        return field;
     }
 
     public Pipe pattern() {
         return pattern;
     }
 
+    public boolean isCaseSensitive() {
+        return isCaseSensitive;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(source, pattern);
+        return Objects.hash(field, pattern, isCaseSensitive);
     }
 
     @Override
@@ -98,7 +104,8 @@ public class StartsWithFunctionPipe extends Pipe {
         }
 
         StartsWithFunctionPipe other = (StartsWithFunctionPipe) obj;
-        return Objects.equals(source, other.source)
-                && Objects.equals(pattern, other.pattern);
+        return Objects.equals(field, other.field)
+                && Objects.equals(pattern, other.pattern)
+                && Objects.equals(isCaseSensitive, other.isCaseSensitive);
     }
 }

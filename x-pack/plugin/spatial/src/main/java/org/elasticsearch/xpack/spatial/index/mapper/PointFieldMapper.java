@@ -29,7 +29,8 @@ import java.util.Map;
  *
  * Uses lucene 8 XYPoint encoding
  */
-public class PointFieldMapper extends AbstractPointGeometryFieldMapper<CartesianPoint, CartesianPoint> implements ArrayValueMapperParser {
+public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? extends CartesianPoint>, List<? extends CartesianPoint>>
+        implements ArrayValueMapperParser {
     public static final String CONTENT_TYPE = "point";
 
     public static class Builder extends AbstractPointGeometryFieldMapper.Builder<Builder, PointFieldMapper, PointFieldType> {
@@ -79,7 +80,8 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
         @Override
         protected CartesianPoint parseNullValue(Object nullValue, boolean ignoreZValue, boolean ignoreMalformed) {
-            CartesianPoint point = CartesianPoint.parsePoint(nullValue, ignoreZValue);
+            ParsedCartesianPoint point = new ParsedCartesianPoint();
+            CartesianPoint.parsePoint(nullValue, point, ignoreZValue);
             if (ignoreMalformed == false) {
                 if (Float.isFinite(point.getX()) == false) {
                     throw new IllegalArgumentException("illegal x value [" + point.getX() + "]");
@@ -98,7 +100,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
     @Override
     protected void parsePointIgnoringMalformed(XContentParser parser, ParsedPoint point) throws IOException {
         super.parsePointIgnoringMalformed(parser, point);
-        CartesianPoint.parsePoint(parser, (CartesianPoint)point, ignoreMalformed().value());
+        CartesianPoint.parsePoint(parser, (CartesianPoint)point, ignoreZValue().value());
     }
 
     public PointFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
@@ -108,14 +110,19 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
     }
 
     @Override
-    protected void addStoredFields(ParseContext context, CartesianPoint point) {
-        context.doc().add(new StoredField(fieldType().name(), point.toString()));
+    protected void addStoredFields(ParseContext context, List<? extends CartesianPoint> points) {
+        for (ParsedCartesianPoint point : (List<ParsedCartesianPoint>)points) {
+            context.doc().add(new StoredField(fieldType().name(), point.toString()));
+        }
     }
 
     @Override
     @SuppressWarnings("rawtypes")
-    protected void addDocValuesFields(String name, CartesianPoint point, List fields, ParseContext context) {
-        context.doc().add(new XYDocValuesField(fieldType().name(), point.getX(), point.getY()));
+    protected void addDocValuesFields(String name, List<? extends CartesianPoint> points, List<IndexableField> fields,
+                                      ParseContext context) {
+        for (ParsedCartesianPoint point : (List<ParsedCartesianPoint>)points) {
+            context.doc().add(new XYDocValuesField(fieldType().name(), point.getX(), point.getY()));
+        }
     }
 
     @Override
@@ -128,7 +135,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         return (PointFieldType)fieldType;
     }
 
-    public static class PointFieldType extends AbstractPointGeometryFieldType<CartesianPoint, CartesianPoint> {
+    public static class PointFieldType extends AbstractPointGeometryFieldType<List<ParsedCartesianPoint>, List<ParsedCartesianPoint>> {
         public PointFieldType() {
             super();
         }
@@ -173,9 +180,35 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         public void resetCoords(double x, double y) {
             this.reset((float)x, (float)y);
         }
+
+        @Override
+        public boolean equals(Object other) {
+            double oX;
+            double oY;
+            if (other instanceof CartesianPoint) {
+                CartesianPoint o = (CartesianPoint)other;
+                oX = o.getX();
+                oY = o.getY();
+            } else if (other instanceof ParsedCartesianPoint == false) {
+                return false;
+            } else {
+                ParsedCartesianPoint o = (ParsedCartesianPoint)other;
+                oX = o.getX();
+                oY = o.getY();
+            }
+            if (Double.compare(oX, x) != 0) return false;
+            if (Double.compare(oY, y) != 0) return false;
+
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            return super.hashCode();
+        }
     }
 
-    protected static class PointIndexer implements Indexer<CartesianPoint, CartesianPoint> {
+    protected static class PointIndexer implements Indexer<List<ParsedCartesianPoint>, List<ParsedCartesianPoint>> {
         protected final PointFieldType fieldType;
 
         PointIndexer(PointFieldType fieldType) {
@@ -183,22 +216,24 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         }
 
         @Override
-        public CartesianPoint prepareForIndexing(CartesianPoint point) {
-            if (point == null) {
+        public List<ParsedCartesianPoint> prepareForIndexing(List<ParsedCartesianPoint> points) {
+            if (points == null || points.isEmpty()) {
                 return null;
             }
-            return point;
+            return points;
         }
 
         @Override
-        public Class<CartesianPoint> processedClass() {
-            return CartesianPoint.class;
+        public Class<List<ParsedCartesianPoint>> processedClass() {
+            return (Class<List<ParsedCartesianPoint>>)(Object)List.class;
         }
 
         @Override
-        public List<IndexableField> indexShape(ParseContext context, CartesianPoint point) {
+        public List<IndexableField> indexShape(ParseContext context, List<ParsedCartesianPoint> points) {
             ArrayList<IndexableField> fields = new ArrayList<>(1);
-            fields.add(new XYPointField(fieldType.name(), point.getX(), point.getY()));
+            for (ParsedCartesianPoint point : points) {
+                fields.add(new XYPointField(fieldType.name(), point.getX(), point.getY()));
+            }
             return fields;
         }
     }

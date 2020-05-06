@@ -221,11 +221,6 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     }
 
     @Override
-    public Type getType() {
-        return Type.MEMORY;
-    }
-
-    @Override
     public void setLimitAndOverhead(long limit, double overhead) {
         this.limitAndOverhead = new LimitAndOverhead(limit, overhead);
     }

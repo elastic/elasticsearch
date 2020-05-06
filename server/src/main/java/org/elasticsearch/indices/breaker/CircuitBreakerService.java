@@ -50,7 +50,6 @@ public abstract class CircuitBreakerService extends AbstractLifecycleComponent {
     public abstract CircuitBreakerStats stats(String name);
 
     /**
-     *
      * @return A new circuit breaker constructed given the breaker settings
      */
     public abstract CircuitBreaker validateAndCreateBreaker(BreakerSettings breakerSettings);

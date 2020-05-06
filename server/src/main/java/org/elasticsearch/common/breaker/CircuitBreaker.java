@@ -141,12 +141,8 @@ public interface CircuitBreaker {
     Durability getDurability();
 
     /**
-     * @return the type of the circuit breaker instance.
-     */
-    CircuitBreaker.Type getType();
-
-    /**
-     * Atomically sets the new limit and overhead values for the circuit breaker.
+     * sets the new limit and overhead values for the circuit breaker.
+     * The resulting write should be readable by other threads.
      * @param limit the desired limit
      * @param overhead the desired overhead constant
      */

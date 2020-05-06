@@ -78,10 +78,5 @@ public class NoopCircuitBreaker implements CircuitBreaker {
     }
 
     @Override
-    public Type getType() {
-        return Type.NOOP;
-    }
-
-    @Override
     public void setLimitAndOverhead(long limit, double overhead) { }
 }

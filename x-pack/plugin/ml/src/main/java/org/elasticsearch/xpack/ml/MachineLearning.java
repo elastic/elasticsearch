@@ -211,6 +211,7 @@ import org.elasticsearch.xpack.ml.action.TransportUpdateModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateProcessAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigAutoUpdater;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
@@ -368,8 +369,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
 
         InferenceProcessor.Factory inferenceFactory = new InferenceProcessor.Factory(parameters.client,
             parameters.ingestService.getClusterService(),
-            this.settings,
-            parameters.ingestService);
+            this.settings);
         parameters.ingestService.addIngestClusterStateListener(inferenceFactory);
         return Collections.singletonMap(InferenceProcessor.TYPE, inferenceFactory);
     }
@@ -680,6 +680,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
         MlAssignmentNotifier mlAssignmentNotifier = new MlAssignmentNotifier(anomalyDetectionAuditor, dataFrameAnalyticsAuditor, threadPool,
             new MlConfigMigrator(settings, client, clusterService, indexNameExpressionResolver), clusterService);
 
+        MlAutoUpdateService mlAutoUpdateService = new MlAutoUpdateService(threadPool,
+            List.of(new DatafeedConfigAutoUpdater(datafeedConfigProvider, indexNameExpressionResolver)));
+        clusterService.addListener(mlAutoUpdateService);
         // this object registers as a license state listener, and is never removed, so there's no need to retain another reference to it
         final InvalidLicenseEnforcer enforcer =
                 new InvalidLicenseEnforcer(getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);
@@ -705,6 +708,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
                 dataFrameAnalyticsAuditor,
                 inferenceAuditor,
                 mlAssignmentNotifier,
+                mlAutoUpdateService,
                 memoryTracker,
                 analyticsProcessManager,
                 memoryEstimationProcessManager,

@@ -10,9 +10,11 @@ experimental::[]
 
 * <<eql-fn-between>>
 * <<eql-fn-cidrmatch>>
+* <<eql-fn-concat>>
 * <<eql-fn-endswith>>
 * <<eql-fn-indexof>>
 * <<eql-fn-length>>
+* <<eql-fn-match>>
 * <<eql-fn-startswith>>
 * <<eql-fn-string>>
 * <<eql-fn-stringcontains>>
@@ -177,6 +179,57 @@ field datatype.
 CIDR block you wish to search. If `null`, the function returns `null`.
 
 *Returns:* boolean or `null`
+====
+
+[discrete]
+[[eql-fn-concat]]
+=== `concat`
+
+Returns a concatenated string of provided values.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+concat("process is ", "regsvr32.exe")         // returns "process is regsvr32.exe"
+concat("regsvr32.exe", " ", 42)               // returns "regsvr32.exe 42"
+concat("regsvr32.exe", " ", 42.5)             // returns "regsvr32.exe 42.5"
+concat("regsvr32.exe", " ", true)             // returns "regsvr32.exe true"
+concat("regsvr32.exe")                        // returns "regsvr32.exe"
+
+// process.name = "regsvr32.exe"
+concat(process.name, " ", 42)                 // returns "regsvr32.exe 42"
+concat(process.name, " ", 42.5)               // returns "regsvr32.exe 42.5"
+concat("process is ", process.name)           // returns "process is regsvr32.exe"
+concat(process.name, " ", true)               // returns "regsvr32.exe true"
+concat(process.name)                          // returns "regsvr32.exe"
+
+// process.arg_count = 4
+concat(process.name, " ", process.arg_count)  // returns "regsvr32.exe 4"
+
+// null handling
+concat(null, "regsvr32.exe")                  // returns null
+concat(process.name, null)                    // returns null
+concat(null)                                  // returns null 
+----
+
+*Syntax*
+[source,txt]
+----
+concat(<value>[, <value>])
+----
+
+*Parameters*
+
+`<value>`::
+(Required{multi-arg-ref})
+Value to concatenate. If any of the arguments are `null`, the function returns `null`.
++
+If using a field as the argument, this parameter does not support the
+<<text,`text`>> field datatype.
+
+*Returns:* string or `null`
 ====
 
 [discrete]
@@ -412,6 +465,71 @@ field datatypes:
 --
 
 *Returns:* integer or `null`
+====
+
+[discrete]
+[[eql-fn-match]]
+=== `match`
+
+Returns `true` if a source string matches one or more provided regular
+expressions.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+match("explorer.exe", "[a-z]*?.exe")           // returns true
+match("explorer.exe", "[a-z]*?.exe", "[1-9]")  // returns true
+match("explorer.exe", "[1-9]")                 // returns false
+match("explorer.exe", "")                      // returns false
+
+// process.name = "explorer.exe"
+match(process.name, "[a-z]*?.exe")             // returns true
+match(process.name, "[a-z]*?.exe", "[1-9]")    // returns true
+match(process.name, "[1-9]")                   // returns false
+match(process.name, "")                        // returns false
+
+// null handling
+match(null, "[a-z]*?.exe")                     // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+match(<source>, <reg_exp>[, ...])
+----
+
+*Parameters*
+
+`<source>`::
++
+--
+(Required, string or `null`)
+Source string. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+--
+
+`<reg_exp>`::
++
+--
+(Required{multi-arg-ref}, string)
+Regular expression used to match the source string. For supported syntax, see
+<<regexp-syntax>>.
+https://docs.oracle.com/javase/tutorial/essential/regex/pre_char_classes.html[Predefined
+character classes] are not supported.
+
+Fields are not supported as arguments.
+--
+
+*Returns:* boolean or `null`
 ====
 
 [discrete]

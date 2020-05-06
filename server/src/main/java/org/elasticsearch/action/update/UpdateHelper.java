@@ -369,9 +369,9 @@ public class UpdateHelper {
                 case "none":
                     return UpdateOpType.NONE;
                 default:
-                    // TODO: can we remove this leniency yet??
-                    logger.warn("Used upsert operation [{}] for script [{}], doing nothing...", operation, scriptId);
-                    return UpdateOpType.NONE;
+                    throw new IllegalArgumentException("The update operation must be one of [create, index, delete, none], but received: "
+                        + operation);
+
             }
         }
 

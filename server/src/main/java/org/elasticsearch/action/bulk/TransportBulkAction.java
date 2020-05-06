@@ -89,6 +89,8 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
+
 /**
  * Groups bulk request items by shard, optionally creating non-existent indices and
  * delegates to {@link TransportShardBulkAction} for shard-level bulk execution
@@ -206,11 +208,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             // Attempt to create all the indices that we're going to need during the bulk before we start.
             // Step 1: collect all the indices in the request
             final Set<String> indices = bulkRequest.requests.stream()
-                // delete requests should not attempt to create the index (if the index does not
-                // exists), unless an external versioning is used
+                    // delete requests should not attempt to create the index (if the index does not
+                    // exists), unless an external versioning is used
                 .filter(request -> request.opType() != DocWriteRequest.OpType.DELETE
-                    || request.versionType() == VersionType.EXTERNAL
-                    || request.versionType() == VersionType.EXTERNAL_GTE)
+                        || request.versionType() == VersionType.EXTERNAL
+                        || request.versionType() == VersionType.EXTERNAL_GTE)
                 .map(DocWriteRequest::index)
                 .collect(Collectors.toSet());
             /* Step 2: filter that to indices that don't exist and we can create. At the same time build a map of indices we can't create
@@ -231,6 +233,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }
             }
 
+            // Step 3: create all the indices/data streams that are missing, if there are any missing. start the bulk after all the creates come back.
+
             if (autoCreateIndices.isEmpty()) {
                 executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated);
             } else {
@@ -245,29 +249,29 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             }
                         }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                if (!(ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException)) {
-                                    // fail all requests involving this index, if create didn't work
-                                    for (int i = 0; i < bulkRequest.requests.size(); i++) {
-                                        DocWriteRequest<?> request = bulkRequest.requests.get(i);
-                                        if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
-                                            bulkRequest.requests.set(i, null);
-                                        }
+                        @Override
+                        public void onFailure(Exception e) {
+                            if (!(ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException)) {
+                                // fail all requests involving this index, if create didn't work
+                                for (int i = 0; i < bulkRequest.requests.size(); i++) {
+                                    DocWriteRequest<?> request = bulkRequest.requests.get(i);
+                                    if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
+                                        bulkRequest.requests.set(i, null);
                                     }
                                 }
-                                if (counter.decrementAndGet() == 0) {
-                                    executeBulk(task, bulkRequest, startTime, ActionListener.wrap(listener::onResponse, inner -> {
-                                        inner.addSuppressed(e);
-                                        listener.onFailure(inner);
-                                    }), responses, indicesThatCannotBeCreated);
-                                }
                             }
+                            if (counter.decrementAndGet() == 0) {
+                                executeBulk(task, bulkRequest, startTime, ActionListener.wrap(listener::onResponse, inner -> {
+                                    inner.addSuppressed(e);
+                                    listener.onFailure(inner);
+                                }), responses, indicesThatCannotBeCreated);
+                            }
+                        }
                         });
                     }
                 }
         } else {
-            executeBulk(task, bulkRequest, startTime, listener, responses, Map.of());
+            executeBulk(task, bulkRequest, startTime, listener, responses, emptyMap());
         }
     }
 

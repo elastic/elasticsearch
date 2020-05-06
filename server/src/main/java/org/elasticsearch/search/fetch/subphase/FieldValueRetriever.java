@@ -20,15 +20,14 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.DocumentFieldMappers;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -38,80 +37,60 @@ import java.util.Set;
  * Then given a specific document, it can retrieve the corresponding fields from the document's source.
  */
 public class FieldValueRetriever {
+    private final DocumentFieldMappers fieldMappers;
     private final List<FieldContext> fieldContexts;
-    private final Set<String> sourcePaths;
 
     public static FieldValueRetriever create(MapperService mapperService,
                                              Collection<String> fieldPatterns) {
+        DocumentFieldMappers fieldMappers = mapperService.documentMapper().mappers();
         List<FieldContext> fields = new ArrayList<>();
-        Set<String> sourcePaths = new HashSet<>();
 
         for (String fieldPattern : fieldPatterns) {
             Collection<String> concreteFields = mapperService.simpleMatchToFullName(fieldPattern);
             for (String field : concreteFields) {
-                MappedFieldType fieldType = mapperService.fieldType(field);
-
-                if (fieldType != null) {
+                if (fieldMappers.getMapper(field) != null) {
                     Set<String> sourcePath = mapperService.sourcePath(field);
                     fields.add(new FieldContext(field, sourcePath));
-                    sourcePaths.addAll(sourcePath);
                 }
             }
         }
 
-        return new FieldValueRetriever(fields, sourcePaths);
+        return new FieldValueRetriever(fieldMappers, fields);
     }
 
-    private FieldValueRetriever(List<FieldContext> fieldContexts, Set<String> sourcePaths) {
+    private FieldValueRetriever(DocumentFieldMappers fieldMappers,
+                                List<FieldContext> fieldContexts) {
+        this.fieldMappers = fieldMappers;
         this.fieldContexts = fieldContexts;
-        this.sourcePaths = sourcePaths;
     }
 
-    @SuppressWarnings("unchecked")
-    public Map<String, DocumentField> retrieve(SourceLookup sourceLookup) {
-        Map<String, DocumentField> result = new HashMap<>();
-        Map<String, Object> sourceValues = extractValues(sourceLookup, sourcePaths);
-
+    public Map<String, DocumentField> retrieve(SourceLookup sourceLookup, Set<String> ignoredFields) {
+        Map<String, DocumentField> documentFields = new HashMap<>();
         for (FieldContext fieldContext : fieldContexts) {
             String field = fieldContext.fieldName;
             Set<String> sourcePath = fieldContext.sourcePath;
 
-            List<Object> values = new ArrayList<>();
-            for (String path : sourcePath) {
-                Object value = sourceValues.get(path);
-                if (value != null) {
-                    if (value instanceof List) {
-                        values.addAll((List<Object>) value);
-                    } else {
-                        values.add(value);
-                    }
-                }
+            if (ignoredFields.contains(field)) {
+                continue;
             }
-            result.put(field, new DocumentField(field, values));
-        }
-        return result;
-    }
 
-    /**
-     * For each of the provided paths, return its value in the source. Note that in contrast with
-     * {@link SourceLookup#extractRawValues}, array and object values can be returned.
-     */
-    private static Map<String, Object> extractValues(SourceLookup sourceLookup, Set<String> paths) {
-        Map<String, Object> result = new HashMap<>(paths.size());
-        for (String path : paths) {
-            Object value = XContentMapValues.extractValue(path, sourceLookup);
-            if (value != null) {
-                result.put(path, value);
+            List<Object> parsedValues = new ArrayList<>();
+            for (String path : sourcePath) {
+                FieldMapper fieldMapper = (FieldMapper) fieldMappers.getMapper(path);
+                List<?> values = fieldMapper.lookupValues(sourceLookup);
+                parsedValues.addAll(values);
             }
+            documentFields.put(field, new DocumentField(field, parsedValues));
         }
-        return result;
+        return documentFields;
     }
 
     private static class FieldContext {
         final String fieldName;
         final Set<String> sourcePath;
 
-        FieldContext(String fieldName, Set<String> sourcePath) {
+        FieldContext(String fieldName,
+                     Set<String> sourcePath) {
             this.fieldName = fieldName;
             this.sourcePath = sourcePath;
         }

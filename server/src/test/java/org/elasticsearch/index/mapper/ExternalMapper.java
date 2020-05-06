@@ -203,6 +203,11 @@ public class ExternalMapper extends FieldMapper {
     }
 
     @Override
+    protected Object parseSourceValue(Object value) {
+        return value;
+    }
+
+    @Override
     protected void doMerge(Mapper mergeWith) {
         // ignore this for now
     }

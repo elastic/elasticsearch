@@ -70,6 +70,11 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected Object parseSourceValue(Object value) {
+        throw new UnsupportedOperationException("The " + typeName() + " field is not stored in _source.");
+    }
+
+    @Override
     public MetadataFieldMapper merge(Mapper mergeWith) {
         return (MetadataFieldMapper) super.merge(mergeWith);
     }

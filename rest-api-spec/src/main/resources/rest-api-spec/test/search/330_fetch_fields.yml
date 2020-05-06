@@ -21,7 +21,7 @@ setup:
         index:  test
         id:     1
         body:
-          keyword: [ "first", "second" ]
+          keyword: [ "x", "y" ]
           integer_range:
             gte: 0
             lte: 42
@@ -39,8 +39,8 @@ setup:
   - is_true: hits.hits.0._id
   - is_true: hits.hits.0._source
 
-  - match: { hits.hits.0.fields.keyword.0: first }
-  - match: { hits.hits.0.fields.keyword.1: second }
+  - match: { hits.hits.0.fields.keyword.0: x }
+  - match: { hits.hits.0.fields.keyword.1: y }
 
   - match: { hits.hits.0.fields.integer_range.0.gte: 0 }
   - match: { hits.hits.0.fields.integer_range.0.lte: 42 }
@@ -65,7 +65,7 @@ setup:
         index:  test
         id:     1
         body:
-          keyword: [ "value" ]
+          keyword: [ "x" ]
 
   - do:
       catch: bad_request
@@ -76,3 +76,49 @@ setup:
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.root_cause.0.reason: "Unable to retrieve the requested [fields] since _source is disabled
         in the mappings for index [test]" }
+
+---
+"Test ignore malformed":
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+              integer:
+                type: integer
+                ignore_malformed: true
+
+  - do:
+      index:
+        index:  test
+        id:     1
+        body:
+          keyword: "x"
+          integer: 42
+
+  - do:
+      index:
+        index:  test
+        id:     2
+        body:
+          keyword: "y"
+          integer: "not an integer"
+
+  - do:
+      indices.refresh:
+        index: [ test ]
+
+  - do:
+      search:
+        index: test
+        body:
+          sort: [ keyword ]
+          fields: [ integer ]
+
+  - match: { hits.hits.0.fields.integer.0: 42 }
+  - is_false: hits.hits.1.fields.integer

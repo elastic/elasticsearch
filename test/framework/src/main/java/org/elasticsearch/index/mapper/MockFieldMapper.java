@@ -98,7 +98,12 @@ public class MockFieldMapper extends FieldMapper {
     protected void parseCreateField(ParseContext context) throws IOException {
     }
 
-    public static class Builder extends FieldMapper.Builder<MockFieldMapper.Builder, MockFieldMapper> {
+    @Override
+    protected Object parseSourceValue(Object value) {
+        throw new UnsupportedOperationException();
+    }
+
+    public static class Builder extends FieldMapper.Builder<MockFieldMapper.Builder> {
         protected Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType) {
             super(name, fieldType, defaultFieldType);
             builder = this;

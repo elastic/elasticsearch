@@ -141,6 +141,11 @@ public class FakeStringFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected Object parseSourceValue(Object value) {
+        return value;
+    }
+
+    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }

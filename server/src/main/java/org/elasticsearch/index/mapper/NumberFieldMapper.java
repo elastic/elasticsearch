@@ -1094,6 +1094,11 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected Number parseSourceValue(Object value) {
+        return fieldType().type.parse(value, coerce.value());
+    }
+
+    @Override
     protected void doMerge(Mapper mergeWith) {
         super.doMerge(mergeWith);
         NumberFieldMapper other = (NumberFieldMapper) mergeWith;

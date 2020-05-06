@@ -21,10 +21,13 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -443,5 +446,19 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         mapper = indexService.mapperService().merge("_doc",
                 new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping3, mapper.mappingSource().toString());
+    }
+
+    public void testParseSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        DateFieldMapper mapper = new DateFieldMapper.Builder("field").build(context);
+        assertEquals(1589578382000L, (long) mapper.parseSourceValue(1589578382000L));
+        assertEquals(1589578382000L, (long) mapper.parseSourceValue("2020-05-15T21:33:02+00:00"));
+
+        DateFieldMapper mapperWithFormat = new DateFieldMapper.Builder("field")
+            .format("yyyy/MM/dd")
+            .build(context);
+        assertEquals(662428800000L, (long) mapperWithFormat.parseSourceValue("1990/12/29"));
     }
 }

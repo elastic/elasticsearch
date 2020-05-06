@@ -26,6 +26,8 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -132,6 +134,9 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
 
         // used by TermVectorsService
         assertArrayEquals(new String[] { "1234" }, TermVectorsService.getValues(doc.rootDoc().getFields("field")));
+
+        FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
+        assertEquals("1234", fieldMapper.parseSourceValue("1234"));
     }
 
     public void testIgnoreAbove() throws IOException {
@@ -347,11 +352,11 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
     public void testCustomNormalizer() throws IOException {
         checkLowercaseNormalizer("my_lowercase");
     }
-    
+
     public void testInBuiltNormalizer() throws IOException {
-        checkLowercaseNormalizer("lowercase");        
-    }       
-        
+        checkLowercaseNormalizer("lowercase");
+    }
+
     public void checkLowercaseNormalizer(String normalizerName) throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
@@ -585,5 +590,15 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         mapper = indexService.mapperService().merge("_doc",
                 new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping3, mapper.mappingSource().toString());
+    }
+
+    public void testParseSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+        KeywordFieldMapper mapper = new KeywordFieldMapper.Builder("field").build(context);
+
+        assertEquals("value", mapper.parseSourceValue("value"));
+        assertEquals("42", mapper.parseSourceValue(42L));
+        assertEquals("true", mapper.parseSourceValue(true));
     }
 }

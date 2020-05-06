@@ -197,6 +197,10 @@ public final class ParentIdFieldMapper extends FieldMapper {
         context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
     }
 
+    @Override
+    protected Object parseSourceValue(Object value) {
+        throw new UnsupportedOperationException("The " + typeName() + " field is not stored in _source.");
+    }
 
     @Override
     protected void doMerge(Mapper mergeWith) {

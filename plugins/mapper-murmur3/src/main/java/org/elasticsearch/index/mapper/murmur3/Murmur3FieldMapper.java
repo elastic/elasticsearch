@@ -169,4 +169,8 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
     }
 
+    @Override
+    protected Object parseSourceValue(Object value) {
+        return value;
+    }
 }

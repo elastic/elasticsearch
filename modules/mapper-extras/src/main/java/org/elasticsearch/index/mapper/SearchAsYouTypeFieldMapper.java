@@ -489,6 +489,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
+        protected Object parseSourceValue(Object value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         protected String contentType() {
             return "prefix";
         }
@@ -512,6 +517,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         @Override
         protected void parseCreateField(ParseContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected Object parseSourceValue(Object value) {
             throw new UnsupportedOperationException();
         }
 
@@ -690,6 +700,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         if (fieldType().omitNorms()) {
             createFieldNamesField(context);
         }
+    }
+
+    @Override
+    protected Object parseSourceValue(Object value) {
+        return value.toString();
     }
 
     @Override

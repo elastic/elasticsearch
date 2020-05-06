@@ -127,19 +127,9 @@ public class Regression implements DataFrameAnalysis {
         boostedTreeParams = new BoostedTreeParams(in);
         predictionFieldName = in.readOptionalString();
         trainingPercent = in.readDouble();
-        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
-            randomizeSeed = in.readOptionalLong();
-        } else {
-            randomizeSeed = Randomness.get().nextLong();
-        }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            lossFunction = in.readEnum(LossFunction.class);
-            lossFunctionParameter = in.readOptionalDouble();
-        } else {
-            // Prior to introducing the loss function setting only MSE was implemented
-            lossFunction = LossFunction.MSE;
-            lossFunctionParameter = null;
-        }
+        randomizeSeed = in.readOptionalLong();
+        lossFunction = in.readEnum(LossFunction.class);
+        lossFunctionParameter = in.readOptionalDouble();
     }
 
     public String getDependentVariable() {
@@ -181,13 +171,9 @@ public class Regression implements DataFrameAnalysis {
         boostedTreeParams.writeTo(out);
         out.writeOptionalString(predictionFieldName);
         out.writeDouble(trainingPercent);
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
-            out.writeOptionalLong(randomizeSeed);
-        }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeEnum(lossFunction);
-            out.writeOptionalDouble(lossFunctionParameter);
-        }
+        out.writeOptionalLong(randomizeSeed);
+        out.writeEnum(lossFunction);
+        out.writeOptionalDouble(lossFunctionParameter);
     }
 
     @Override

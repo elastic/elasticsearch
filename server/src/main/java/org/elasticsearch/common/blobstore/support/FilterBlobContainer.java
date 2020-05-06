@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,7 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.snapshots.mockstore;
+
+package org.elasticsearch.common.blobstore.support;
 
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
@@ -27,13 +28,18 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
-public class BlobContainerWrapper implements BlobContainer {
-    private BlobContainer delegate;
+public abstract class FilterBlobContainer implements BlobContainer {
 
-    public BlobContainerWrapper(BlobContainer delegate) {
-        this.delegate = delegate;
+    private final BlobContainer delegate;
+
+    public FilterBlobContainer(BlobContainer delegate) {
+        this.delegate = Objects.requireNonNull(delegate);
     }
+
+    protected abstract BlobContainer wrapChild(BlobContainer child);
 
     @Override
     public BlobPath path() {
@@ -41,8 +47,8 @@ public class BlobContainerWrapper implements BlobContainer {
     }
 
     @Override
-    public InputStream readBlob(String name) throws IOException {
-        return delegate.readBlob(name);
+    public InputStream readBlob(String blobName) throws IOException {
+        return delegate.readBlob(blobName);
     }
 
     @Override
@@ -61,8 +67,7 @@ public class BlobContainerWrapper implements BlobContainer {
     }
 
     @Override
-    public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize,
-                                boolean failIfAlreadyExists) throws IOException {
+    public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         delegate.writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
     }
 
@@ -83,8 +88,9 @@ public class BlobContainerWrapper implements BlobContainer {
 
     @Override
     public Map<String, BlobContainer> children() throws IOException {
-        return delegate.children();
+        return delegate.children().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> wrapChild(e.getValue())));
     }
+
 
     @Override
     public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException {

@@ -159,6 +159,7 @@ integTest.runner {
     'ml/jobs_crud/Test put job after closing results index',
     'ml/jobs_crud/Test put job after closing state index',
     'ml/jobs_crud/Test put job with inconsistent body/param ids',
+    'ml/jobs_crud/Test put job with inconsistent model snapshot settings',
     'ml/jobs_crud/Test put job with time field in analysis_config',
     'ml/jobs_crud/Test put job with duplicate detector configurations',
     'ml/jobs_crud/Test job with categorization_analyzer and categorization_filters',

@@ -76,8 +76,10 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         File rootDir = project.getRootDir();
         GitInfo gitInfo = gitInfo(rootDir);
 
-        // Initialize global build parameters
         BuildParams.init(params -> {
+            // Initialize global build parameters
+            boolean internalUse = GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null;
+
             params.reset();
             params.setCompilerJavaHome(compilerJavaHome);
             params.setRuntimeJavaHome(runtimeJavaHome);
@@ -93,11 +95,13 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setBuildDate(ZonedDateTime.now(ZoneOffset.UTC));
             params.setTestSeed(getTestSeed());
             params.setIsCi(System.getenv("JENKINS_URL") != null);
-            params.setIsInternal(GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null);
+            params.setIsInternal(internalUse);
             params.setDefaultParallel(findDefaultParallel(project));
             params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
-            params.setBwcVersions(resolveBwcVersions(rootDir));
+            if (internalUse) {
+                params.setBwcVersions(resolveBwcVersions(rootDir));
+            }
         });
 
         // Print global build info header just before task execution
@@ -113,7 +117,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             List<String> versionLines = IOUtils.readLines(new FileInputStream(versionsFile), "UTF-8");
             return new BwcVersions(versionLines);
         } catch (IOException e) {
-            return null;
+            throw new IllegalStateException("Unable to resolve to resolve bwc versions from versionsFile.", e);
         }
     }
 

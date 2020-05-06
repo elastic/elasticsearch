@@ -235,7 +235,7 @@ public class BuildParams {
         }
 
         public void setBwcVersions(BwcVersions bwcVersions) {
-            BuildParams.bwcVersions = bwcVersions;
+            BuildParams.bwcVersions = requireNonNull(bwcVersions);
         }
     }
 }

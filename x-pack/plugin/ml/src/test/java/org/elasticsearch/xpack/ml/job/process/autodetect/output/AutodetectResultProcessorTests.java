@@ -386,16 +386,17 @@ public class AutodetectResultProcessorTests extends ESTestCase {
             eq(ModelSnapshot.annotationDocumentId(modelSnapshot)), annotationCaptor.capture(), any());
         Annotation annotation = annotationCaptor.getValue();
         Annotation expectedAnnotation =
-            new Annotation(
-                "Job model snapshot with id [a_snapshot_id] stored",
-                Date.from(CURRENT_TIME),
-                XPackUser.NAME,
-                Date.from(Instant.ofEpochMilli(1000_000_000)),
-                Date.from(Instant.ofEpochMilli(1000_000_000)),
-                JOB_ID,
-                Date.from(CURRENT_TIME),
-                XPackUser.NAME,
-                "annotation");
+            new Annotation.Builder()
+                .setAnnotation("Job model snapshot with id [a_snapshot_id] stored")
+                .setCreateTime(Date.from(CURRENT_TIME))
+                .setCreateUsername(XPackUser.NAME)
+                .setTimestamp(Date.from(Instant.ofEpochMilli(1000_000_000)))
+                .setEndTimestamp(Date.from(Instant.ofEpochMilli(1000_000_000)))
+                .setJobId(JOB_ID)
+                .setModifiedTime(Date.from(CURRENT_TIME))
+                .setModifiedUsername(XPackUser.NAME)
+                .setType("annotation")
+                .build();
         assertThat(annotation, is(equalTo(expectedAnnotation)));
 
         UpdateJobAction.Request expectedJobUpdateRequest = UpdateJobAction.Request.internal(JOB_ID,

@@ -1,3 +1,7 @@
+setup:
+- skip:
+    version: "all"
+    reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/56250"
 ---
 "Test put batch transform on old cluster":
   - skip:

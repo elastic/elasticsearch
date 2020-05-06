@@ -224,7 +224,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             createTime = null;
             transformVersion = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_8_0
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
             settings = new SettingsConfig(in);
         } else {
             settings = new SettingsConfig();
@@ -325,7 +325,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                 out.writeBoolean(false);
             }
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_8_0
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
             settings.writeTo(out);
         }
     }

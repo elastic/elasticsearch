@@ -231,6 +231,7 @@ public final class ReservedFieldNames {
             Job.RENORMALIZATION_WINDOW_DAYS.getPreferredName(),
             Job.BACKGROUND_PERSIST_INTERVAL.getPreferredName(),
             Job.MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(),
+            Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS.getPreferredName(),
             Job.RESULTS_RETENTION_DAYS.getPreferredName(),
             Job.MODEL_SNAPSHOT_ID.getPreferredName(),
             Job.MODEL_SNAPSHOT_MIN_VERSION.getPreferredName(),

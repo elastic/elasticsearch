@@ -200,14 +200,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
         parser.setErrorHandler(strategy);
 
-        // TODO: remove
-
-        if (true) {
-            //throw new RuntimeException(toPrettyTree(parser.source(), parser));
-        }
-
-        // TODO: end remove
-
         return parser.source();
     }
 

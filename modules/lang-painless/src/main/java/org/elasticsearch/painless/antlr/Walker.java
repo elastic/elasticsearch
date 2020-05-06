@@ -173,46 +173,6 @@ import java.util.List;
  */
 public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
-    // TODO: remove
-
-    /** Platform dependent end-of-line marker */
-    public static final String Eol = System.lineSeparator();
-    /** The literal indent char(s) used for pretty-printing */
-    public static final String Indents = "  ";
-    private int level;
-
-    public String toPrettyTree(final Tree t, final Parser p) {
-        level = 0;
-        return process(t, p).replaceAll("(?m)^\\s+$", "").replaceAll("\\r?\\n\\r?\\n", Eol);
-    }
-
-    private String process(final Tree t, final Parser p) {
-        if (t.getChildCount() == 0) return Utils.escapeWhitespace(Trees.getNodeText(t, p), false);
-        StringBuilder sb = new StringBuilder();
-        sb.append(lead(level));
-        level++;
-        String s = Utils.escapeWhitespace(Trees.getNodeText(t, p), false);
-        sb.append(s + ' ');
-        for (int i = 0; i < t.getChildCount(); i++) {
-            sb.append(process(t.getChild(i), p));
-        }
-        level--;
-        sb.append(lead(level));
-        return sb.toString();
-    }
-
-    private String lead(int level) {
-        StringBuilder sb = new StringBuilder();
-        if (level > 0) {
-            sb.append(Eol);
-            for (int cnt = 0; cnt < level; cnt++) {
-                sb.append(Indents);
-            }
-        }
-        return sb.toString();
-    }
-    // TODO: end remove
-
     public static SClass buildPainlessTree(ScriptClassInfo mainMethod, String sourceName, String sourceText, CompilerSettings settings) {
         return new Walker(mainMethod, sourceName, sourceText, settings).source;
     }

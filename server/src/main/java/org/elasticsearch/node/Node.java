@@ -468,7 +468,7 @@ public class Node implements Closeable {
                     forbidPrivateIndexSettings);
 
             final MetadataCreateDataStreamService metadataCreateDataStreamService =
-                new MetadataCreateDataStreamService(clusterService, metadataCreateIndexService);
+                new MetadataCreateDataStreamService(threadPool, clusterService, metadataCreateIndexService);
 
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()

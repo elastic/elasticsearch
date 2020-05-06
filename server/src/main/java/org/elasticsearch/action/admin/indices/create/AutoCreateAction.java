@@ -21,9 +21,12 @@ package org.elasticsearch.action.admin.indices.create;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -45,6 +48,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Api that auto creates an index that originate from requests that write into an index that doesn't yet exist.
@@ -60,6 +64,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
     public static final class TransportAction extends TransportMasterNodeAction<CreateIndexRequest, CreateIndexResponse> {
 
+        private final ActiveShardsObserver activeShardsObserver;
         private final MetadataCreateIndexService createIndexService;
         private final MetadataCreateDataStreamService metadataCreateDataStreamService;
 
@@ -69,6 +74,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                                MetadataCreateIndexService createIndexService,
                                MetadataCreateDataStreamService metadataCreateDataStreamService) {
             super(NAME, transportService, clusterService, threadPool, actionFilters, CreateIndexRequest::new, indexNameExpressionResolver);
+            this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
         }
@@ -87,13 +93,34 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         protected void masterOperation(Task task,
                                        CreateIndexRequest request,
                                        ClusterState state,
-                                       ActionListener<CreateIndexResponse> listener) {
+                                       ActionListener<CreateIndexResponse> finalListener) {
+            AtomicReference<String> indexNameRef = new AtomicReference<>();
+            ActionListener<ClusterStateUpdateResponse> listener = ActionListener.wrap(
+                response -> {
+                    String indexName = indexNameRef.get();
+                    assert indexName != null;
+                    if (response.isAcknowledged()) {
+                        activeShardsObserver.waitForActiveShards(
+                            new String[]{indexName},
+                            ActiveShardCount.DEFAULT,
+                            request.timeout(),
+                            shardsAcked -> {
+                                finalListener.onResponse(new CreateIndexResponse(true, shardsAcked, indexName));
+                            },
+                            finalListener::onFailure
+                        );
+                    } else {
+                        finalListener.onResponse(new CreateIndexResponse(false, false, indexName));
+                    }
+                },
+                finalListener::onFailure
+            );
             clusterService.submitStateUpdateTask("auto create [" + request.index() + "]",
                 new AckedClusterStateUpdateTask<>(Priority.URGENT, request, listener) {
 
                 @Override
-                protected CreateIndexResponse newResponse(boolean acknowledged) {
-                    return new CreateIndexResponse(acknowledged, false, request.index());
+                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                    return new ClusterStateUpdateResponse(acknowledged);
                 }
 
                 @Override
@@ -101,10 +128,13 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     DataStreamTemplate dataStreamTemplate = resolveAutoCreateDataStream(request, currentState.metadata());
                     if (dataStreamTemplate != null) {
                         CreateDataSteamClusterStateUpdateRequest createRequest = new CreateDataSteamClusterStateUpdateRequest(
-                            request.index(), dataStreamTemplate.getTimestampField(), request.timeout());
-                        return metadataCreateDataStreamService.createDataStream(createRequest, currentState);
+                            request.index(), dataStreamTemplate.getTimestampField(), request.masterNodeTimeout(), request.timeout());
+                        ClusterState clusterState =  metadataCreateDataStreamService.createDataStream(createRequest, currentState);
+                        indexNameRef.set(clusterState.metadata().dataStreams().get(request.index()).getIndices().get(0).getName());
+                        return clusterState;
                     } else {
                         String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
+                        indexNameRef.set(indexName);
                         CreateIndexClusterStateUpdateRequest updateRequest =
                             new CreateIndexClusterStateUpdateRequest(request.cause(), indexName, request.index())
                                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())

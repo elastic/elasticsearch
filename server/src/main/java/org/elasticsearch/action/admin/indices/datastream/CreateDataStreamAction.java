@@ -23,8 +23,8 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -53,7 +53,7 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         super(NAME, AcknowledgedResponse::new);
     }
 
-    public static class Request extends MasterNodeRequest<Request> {
+    public static class Request extends AcknowledgedRequest<Request> {
 
         private final String name;
         private String timestampFieldName;
@@ -131,10 +131,13 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         @Override
         protected void masterOperation(Task task, Request request, ClusterState state,
                                        ActionListener<AcknowledgedResponse> listener) throws Exception {
-            metadataCreateDataStreamService.createDataStream(
-                new CreateDataSteamClusterStateUpdateRequest(request.name, request.timestampFieldName, request.masterNodeTimeout()),
-                listener
+            CreateDataSteamClusterStateUpdateRequest updateRequest =  new CreateDataSteamClusterStateUpdateRequest(
+                request.name,
+                request.timestampFieldName,
+                request.masterNodeTimeout(),
+                request.timeout()
             );
+            metadataCreateDataStreamService.createDataStream(updateRequest, listener);
         }
 
         @Override

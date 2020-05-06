@@ -46,7 +46,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         final String dataStreamName = "my-data-stream";
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
         CreateDataSteamClusterStateUpdateRequest req =
-            new CreateDataSteamClusterStateUpdateRequest(dataStreamName, "@timestamp", TimeValue.ZERO);
+            new CreateDataSteamClusterStateUpdateRequest(dataStreamName, "@timestamp", TimeValue.ZERO, TimeValue.ZERO);
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req);
         assertThat(newState.metadata().dataStreams().size(), equalTo(1));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
@@ -63,7 +63,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().dataStreams(Map.of(dataStreamName, existingDataStream)).build()).build();
         CreateDataSteamClusterStateUpdateRequest req =
-            new CreateDataSteamClusterStateUpdateRequest(dataStreamName, "@timestamp", TimeValue.ZERO);
+            new CreateDataSteamClusterStateUpdateRequest(dataStreamName, "@timestamp", TimeValue.ZERO, TimeValue.ZERO);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req));
@@ -75,7 +75,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         final String dataStreamName = "_My-da#ta- ,stream-";
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
         CreateDataSteamClusterStateUpdateRequest req =
-            new CreateDataSteamClusterStateUpdateRequest(dataStreamName, "@timestamp", TimeValue.ZERO);
+            new CreateDataSteamClusterStateUpdateRequest(dataStreamName, "@timestamp", TimeValue.ZERO, TimeValue.ZERO);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req));
         assertThat(e.getMessage(), containsString("must not contain the following characters"));
@@ -86,7 +86,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         final String dataStreamName = "MAY_NOT_USE_UPPERCASE";
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
         CreateDataSteamClusterStateUpdateRequest req =
-            new CreateDataSteamClusterStateUpdateRequest(dataStreamName, "@timestamp", TimeValue.ZERO);
+            new CreateDataSteamClusterStateUpdateRequest(dataStreamName, "@timestamp", TimeValue.ZERO, TimeValue.ZERO);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req));
         assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] must be lowercase"));
@@ -97,7 +97,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         final String dataStreamName = ".may_not_start_with_period";
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
         CreateDataSteamClusterStateUpdateRequest req =
-            new CreateDataSteamClusterStateUpdateRequest(dataStreamName, "@timestamp", TimeValue.ZERO);
+            new CreateDataSteamClusterStateUpdateRequest(dataStreamName, "@timestamp", TimeValue.ZERO, TimeValue.ZERO);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req));
         assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] must not start with '.'"));

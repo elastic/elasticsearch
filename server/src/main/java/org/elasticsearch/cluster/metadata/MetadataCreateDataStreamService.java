@@ -22,52 +22,74 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class MetadataCreateDataStreamService {
 
     private static final Logger logger = LogManager.getLogger(MetadataCreateDataStreamService.class);
 
     private final ClusterService clusterService;
+    private final ActiveShardsObserver activeShardsObserver;
     private final MetadataCreateIndexService metadataCreateIndexService;
 
-    public MetadataCreateDataStreamService(ClusterService clusterService, MetadataCreateIndexService metadataCreateIndexService) {
+    public MetadataCreateDataStreamService(ThreadPool threadPool,
+                                           ClusterService clusterService,
+                                           MetadataCreateIndexService metadataCreateIndexService) {
         this.clusterService = clusterService;
+        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.metadataCreateIndexService = metadataCreateIndexService;
     }
 
     public void createDataStream(CreateDataSteamClusterStateUpdateRequest request,
-                                 ActionListener<AcknowledgedResponse> listener) {
+                                 ActionListener<AcknowledgedResponse> finalListener) {
+        AtomicReference<String> firstBackingIndexRef = new AtomicReference<>();
+        ActionListener<ClusterStateUpdateResponse> listener = ActionListener.wrap(
+            response -> {
+                if (response.isAcknowledged()) {
+                    String firstBackingIndexName = firstBackingIndexRef.get();
+                    assert finalListener != null;
+                    activeShardsObserver.waitForActiveShards(
+                        new String[]{firstBackingIndexName},
+                        ActiveShardCount.DEFAULT,
+                        request.masterNodeTimeout(),
+                        shardsAcked -> {
+                            finalListener.onResponse(new AcknowledgedResponse(true));
+                        },
+                        finalListener::onFailure);
+                } else {
+                    finalListener.onResponse(new AcknowledgedResponse(false));
+                }
+            },
+            finalListener::onFailure
+        );
         clusterService.submitStateUpdateTask("create-data-stream [" + request.name + "]",
-            new ClusterStateUpdateTask(Priority.HIGH) {
-
-                @Override
-                public TimeValue timeout() {
-                    return request.masterNodeTimeout;
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    listener.onFailure(e);
-                }
+            new AckedClusterStateUpdateTask<>(Priority.HIGH, request, listener) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    return createDataStream(metadataCreateIndexService, currentState, request);
+                    ClusterState clusterState = createDataStream(metadataCreateIndexService, currentState, request);
+                    firstBackingIndexRef.set(clusterState.metadata().dataStreams().get(request.name).getIndices().get(0).getName());
+                    return clusterState;
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    listener.onResponse(new AcknowledgedResponse(true));
+                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                    return new ClusterStateUpdateResponse(acknowledged);
                 }
             });
     }
@@ -76,16 +98,19 @@ public class MetadataCreateDataStreamService {
         return createDataStream(metadataCreateIndexService, current, request);
     }
 
-    public static class CreateDataSteamClusterStateUpdateRequest {
+    public static final class CreateDataSteamClusterStateUpdateRequest extends ClusterStateUpdateRequest {
 
         private final String name;
         private final String timestampFieldName;
-        private final TimeValue masterNodeTimeout;
 
-        public CreateDataSteamClusterStateUpdateRequest(String name, String timestampFieldName, TimeValue masterNodeTimeout) {
+        public CreateDataSteamClusterStateUpdateRequest(String name,
+                                                        String timestampFieldName,
+                                                        TimeValue masterNodeTimeout,
+                                                        TimeValue timeout) {
             this.name = name;
             this.timestampFieldName = timestampFieldName;
-            this.masterNodeTimeout = masterNodeTimeout;
+            masterNodeTimeout(masterNodeTimeout);
+            ackTimeout(timeout);
         }
     }
 

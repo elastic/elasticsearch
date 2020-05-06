@@ -16,8 +16,10 @@ query's>> `should` option that sums up the scores from the matching queries,
 `first` query presents a custom scoring logic. It is useful in
 a situation when you have an ordered list of queries (serving as
 priorities in your domain), and you want documents that match the first
-query to be scored higher than documents that match the second query, which
-in their turn scored higher than documents that match the third query etc.
+query to be ranked higher than documents that match the second query, which
+in their turn should ranked higher than documents that match the third
+query etc. This could be addressed with `first` query containing
+a list of queries with appropriate boosts, as in an example below.
 
 
 [[query-dsl-first-request]]
@@ -45,12 +47,12 @@ PUT /job_applicants/_doc/1?refresh
 }
 PUT /job_applicants/_doc/2?refresh
 {
-  "skills" : "Scalla"
+  "skills" : "Scala"
 }
 
 PUT /job_applicants/_doc/3?refresh
 {
-  "skills" : ["Java", "Scalla"]
+  "skills" : ["Java", "Scala"]
 }
 ----
 // TESTSETUP
@@ -58,10 +60,10 @@ PUT /job_applicants/_doc/3?refresh
 [[first--query-ex-query]]
 ===== Example query
 The query below scores documents by the first matching query.
-The query assigns the same score of `10` to job applicants with a Java skill,
+The query assigns the same score of `10` to applicants with a Java skill,
 regardless of them having any additional skills (matching other queries).
-Applicants that lack a Java skill, but possess a Scala skill are assigned
-lesser score of `5`.
+Applicants that are missing a Java skill, but possess a Scala skill are assigned
+a lesser score of `5`.
 
 [source,console]
 ----
@@ -71,23 +73,19 @@ GET /job_applicants/_search
       "first": {
         "queries": [
           {
-            "script_score": {
-              "query": {
-                "match": {
-                  "skills": "Java"
-                }
+            "constant_score": {
+              "filter": {
+                "term": { "skills": "Java"}
               },
-              "script": { "source": "10.0"}
+              "boost": "10.0"
             }
           },
           {
-            "script_score": {
-              "query": {
-                "match": {
-                  "skills": "Scalla"
-                }
+            "constant_score": {
+              "filter": {
+                "term": {"skills": "Scala" }
               },
-              "script": {"source": "5.0"}
+              "boost":"5.0"
             }
           }
         ]
@@ -126,7 +124,7 @@ This returns the following response:
                 "_source": {
                     "skills": [
                         "Java",
-                        "Scalla"
+                        "Scala"
                     ]
                 }
             },
@@ -135,7 +133,7 @@ This returns the following response:
                 "_id": "2",
                 "_score": 5.0,
                 "_source": {
-                    "skills": "Scalla"
+                    "skills": "Scala"
                 }
             }
         ]

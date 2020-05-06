@@ -23,16 +23,19 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.first.FirstQuery;
+import org.elasticsearch.search.SearchModule;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -42,10 +45,10 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public class FirstQueryBuilder extends AbstractQueryBuilder<FirstQueryBuilder> {
     public static final String NAME = "first";
-    public static int maxClauseCount = 1024;
+    private static int maxClauseCount = SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getDefault(Settings.EMPTY);
 
     private static final ParseField QUERIES_FIELD = new ParseField("queries");
-    private List<QueryBuilder> queryBuilders;
+    private final List<QueryBuilder> queryBuilders;
 
     private static final ConstructingObjectParser<FirstQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, false,
         args -> {
@@ -82,11 +85,9 @@ public class FirstQueryBuilder extends AbstractQueryBuilder<FirstQueryBuilder> {
 
     /**
      * Set the maximum number of clauses permitted for FirstQuery.
+     * Should be set only once through SearchModule
      */
     public static void setMaxClauseCount(int maxClauseCount) {
-        if (maxClauseCount < 1) {
-            throw new IllegalArgumentException("maxClauseCount must be >= 1");
-        }
         FirstQueryBuilder.maxClauseCount = maxClauseCount;
     }
 
@@ -143,7 +144,7 @@ public class FirstQueryBuilder extends AbstractQueryBuilder<FirstQueryBuilder> {
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         boolean rewritten = false;
-        List<QueryBuilder> rqueryBuilders = new ArrayList<>();
+        List<QueryBuilder> rqueryBuilders = new ArrayList<>(queryBuilders.size());
         for (QueryBuilder queryBuilder : queryBuilders) {
             QueryBuilder rqueryBuilder = queryBuilder.rewrite(queryRewriteContext);
             rqueryBuilders.add(rqueryBuilder);
@@ -166,9 +167,7 @@ public class FirstQueryBuilder extends AbstractQueryBuilder<FirstQueryBuilder> {
 
     @Override
     protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
-        List<QueryBuilder> clauses = new ArrayList<>();
-        clauses.addAll(queryBuilders);
-        for (QueryBuilder clause : clauses) {
+        for (QueryBuilder clause : queryBuilders) {
             InnerHitContextBuilder.extractInnerHits(clause, innerHits);
         }
     }

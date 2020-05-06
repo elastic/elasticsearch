@@ -19,13 +19,17 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.index.query.first.FirstQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -45,9 +49,14 @@ public class FirstQueryBuilderTests extends AbstractQueryTestCase<FirstQueryBuil
 
     @Override
     protected void doAssertLuceneQuery(FirstQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertThat(query, instanceOf(FirstQuery.class));
-        FirstQuery firstQuery = (FirstQuery) query;
-        assertEquals(queryBuilder.getQueryBuilders().size(), firstQuery.getQueries().length);
+        Collection<Query> queries = AbstractQueryBuilder.toQueries(queryBuilder.getQueryBuilders(), context);
+        if (queries.stream().allMatch(q -> q instanceof MatchNoDocsQuery)) {
+            assertThat(query, instanceOf(MatchNoDocsQuery.class));
+        } else {
+            assertThat(query, instanceOf(FirstQuery.class));
+            FirstQuery firstQuery = (FirstQuery) query;
+            assertEquals(queryBuilder.getQueryBuilders().size(), firstQuery.getQueries().length);
+        }
     }
 
     public void testFromJson() throws IOException {
@@ -78,12 +87,29 @@ public class FirstQueryBuilderTests extends AbstractQueryTestCase<FirstQueryBuil
         assertEquals(query, 42, queryBuilder.boost, 0.00001);
     }
 
-    public void testRewrite() throws IOException {
-        QueryBuilder queryBuilder = new WrapperQueryBuilder(new TermsQueryBuilder("field", "elephant").toString());
-        List<QueryBuilder> queryBuilders = new ArrayList<>(Arrays.asList(queryBuilder));
-        FirstQueryBuilder firstQueryBuilder = new FirstQueryBuilder(queryBuilders);
+    public void testRewriteToMatchAll() throws IOException {
+        QueryBuilder termQueryBuilder = new TermQueryBuilder("_index", getIndex().getName());
+        FirstQueryBuilder firstQueryBuilder = new FirstQueryBuilder(List.of(termQueryBuilder));
         FirstQueryBuilder rewritten = (FirstQueryBuilder) firstQueryBuilder.rewrite(createShardContext());
         assertNotSame(rewritten, firstQueryBuilder);
-        assertEquals(new TermsQueryBuilder("field", "elephant"), rewritten.getQueryBuilders().get(0));
+        assertEquals(new MatchAllQueryBuilder(), rewritten.getQueryBuilders().get(0));
+    }
+
+    public void testRewriteToMatchNone() throws IOException {
+        QueryShardContext context = createShardContext();
+        QueryBuilder termQueryBuilder = new TermsQueryBuilder("unmapped_field", "elephant");
+        FirstQueryBuilder firstQueryBuilder = new FirstQueryBuilder(List.of(termQueryBuilder));
+        QueryBuilder rewritten = firstQueryBuilder.rewrite(context);
+        assertEquals(new MatchNoneQueryBuilder(), rewritten);
+    }
+
+    @Override
+    public void testMustRewrite() {
+        QueryShardContext context = createShardContext();
+        context.setAllowUnmappedFields(true);
+        TermQueryBuilder termQueryBuilder = new TermQueryBuilder("unmapped_field", "elephant");
+        FirstQueryBuilder firstQueryBuilder = new FirstQueryBuilder(List.of(termQueryBuilder));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> firstQueryBuilder.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
     }
 }

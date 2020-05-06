@@ -31,6 +31,7 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 
 import java.time.ZoneId;
 import java.util.concurrent.TimeUnit;
@@ -99,22 +100,18 @@ public class RoundingBenchmark {
     }
 
     @Benchmark
-    public long round() {
-        long sum = 0;
+    public void round(Blackhole bh) {
         Rounding.Prepared rounder = rounderBuilder.get();
         for (int i = 0; i < dates.length; i++) {
-            sum += rounder.round(dates[i]);
+            bh.consume(rounder.round(dates[i]));
         }
-        return sum;
     }
 
     @Benchmark
-    public long nextRoundingValue() {
-        long sum = 0;
+    public void nextRoundingValue(Blackhole bh) {
         Rounding.Prepared rounder = rounderBuilder.get();
         for (int i = 0; i < dates.length; i++) {
-            sum += rounder.nextRoundingValue(dates[i]);
+            bh.consume(rounder.nextRoundingValue(dates[i]));
         }
-        return sum;
     }
 }

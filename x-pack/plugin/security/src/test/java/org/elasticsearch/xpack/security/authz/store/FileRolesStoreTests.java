@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
 import java.io.BufferedWriter;
 import java.io.OutputStream;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -550,20 +549,4 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(usageStats.get("fls"), is(flsDlsEnabled));
         assertThat(usageStats.get("dls"), is(flsDlsEnabled));
     }
-
-    // test that we reject a role where field permissions are stored in 2.x format (fields:...)
-    public void testBWCFieldPermissions() throws Exception {
-        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
-        List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
-        events.clear();
-        Path path = getDataPath("roles2xformat.yml");
-        byte[] bytes = Files.readAllBytes(path);
-        String roleString = new String(bytes, Charset.defaultCharset());
-        assertNull(FileRolesStore.parseRoleDescriptor(roleString, path, logger, true, Settings.EMPTY, xContentRegistry()));
-        assertThat(events, notNullValue());
-        assertThat(events, hasSize(1));
-        assertThat(events.get(0), containsString("failed to parse indices privileges for role [role1]. unexpected field [fields]. " +
-            "skipping role..."));
-    }
-
 }

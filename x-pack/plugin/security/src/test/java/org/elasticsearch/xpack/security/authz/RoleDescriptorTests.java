@@ -216,6 +216,13 @@ public class RoleDescriptorTests extends ESTestCase {
         final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
                 () -> RoleDescriptor.parse("test", new BytesArray(badJson), XContentType.JSON));
         assertThat(ex.getMessage(), containsString("not_supported"));
+
+        // we should reject a role where field permissions are stored in 2.x format (fields:...)
+        final String bad2xJson = "{\"indices\":[{\"names\":[\"test\"],\"privileges\":[\"READ\"]," +
+            "\"query\":{\"match_all\":{}},\"fields\":[\"foo\",\"boo\"]}]}";
+        final ElasticsearchParseException ex2x = expectThrows(ElasticsearchParseException.class,
+            () -> RoleDescriptor.parse("test", new BytesArray(bad2xJson), XContentType.JSON));
+        assertThat(ex2x.getMessage(), containsString("unexpected field [fields]"));
     }
 
     public void testSerializationForCurrentVersion() throws Exception {

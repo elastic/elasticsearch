@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -26,7 +24,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.Reason;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -43,7 +40,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
-import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -52,9 +48,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -63,9 +56,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -81,21 +72,6 @@ public class NativeRolesStoreTests extends ESTestCase {
     @After
     public void terminateThreadPool() throws Exception {
         terminate(threadPool);
-    }
-
-    // test that we reject a role where field permissions are stored in 2.x format (fields:...)
-    public void testBWCFieldPermissions() throws Exception {
-        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
-        List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
-        events.clear();
-        Path path = getDataPath("roles2xformat.json");
-        byte[] bytes = Files.readAllBytes(path);
-        String roleString = new String(bytes, Charset.defaultCharset());
-        assertNull(NativeRolesStore.transformRole(RoleDescriptor.ROLE_TYPE + "_role1",
-            new BytesArray(roleString), logger, new XPackLicenseState(Settings.EMPTY)));
-        assertThat(events, notNullValue());
-        assertThat(events, hasSize(1));
-        assertThat(events.get(0), containsString("error in the format of data for role [role1]"));
     }
 
     public void testRoleDescriptorWithFlsDlsLicensing() throws IOException {

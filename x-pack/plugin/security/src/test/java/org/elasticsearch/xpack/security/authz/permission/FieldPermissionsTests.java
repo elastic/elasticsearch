@@ -142,36 +142,6 @@ public class FieldPermissionsTests extends ESTestCase {
         assertArrayEquals(rd.getIndicesPrivileges()[1].getDeniedFields(), new String[] {"f2"});
     }
 
-    // test old syntax for field permissions
-    public void testBWCFieldPermissions() throws Exception {
-        final String q = "{\"indices\": [ {\"names\": \"idx2\", \"privileges\": [\"p3\"], " +
-            "\"fields\": [\"f1\", \"f2\"]" +
-            "}]}";
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-                () -> RoleDescriptor.parse("test", new BytesArray(q),
-                    XContentType.JSON));
-        assertThat(e.getDetailedMessage(), containsString("failed to parse indices privileges " +
-            "for role [test]. unexpected field [fields]"));
-
-        final String q2 = "{\"indices\": [ {\"names\": \"idx2\", \"privileges\": [\"p3\"], " +
-                "\"fields\": []" +
-                "}]}";
-        e = expectThrows(ElasticsearchParseException.class,
-                () -> RoleDescriptor.parse("test", new BytesArray(q2),
-                    XContentType.JSON));
-        assertThat(e.getDetailedMessage(), containsString("failed to parse indices privileges " +
-            "for role [test]. unexpected field [fields]"));
-
-        final String q3 = "{\"indices\": [ {\"names\": \"idx2\", \"privileges\": [\"p3\"], " +
-                "\"fields\": null" +
-                "}]}";
-        e = expectThrows(ElasticsearchParseException.class,
-                () -> RoleDescriptor.parse("test", new BytesArray(q3),
-                    XContentType.JSON));
-        assertThat(e.getDetailedMessage(), containsString("failed to parse indices privileges " +
-            "for role [test]. unexpected field [fields]"));
-    }
-
     public void testFieldPermissionsHashCodeThreadSafe() throws Exception {
         final int numThreads = scaledRandomIntBetween(4, 16);
         final FieldPermissions fieldPermissions =new FieldPermissions(

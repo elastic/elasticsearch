@@ -132,7 +132,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         }
         defaultSettings = defaultSettingsMapBuilder.build();
 
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
             ImmutableOpenMap.Builder<String, String> dataStreamsMapBuilder = ImmutableOpenMap.builder();
             int dataStreamsSize = in.readVInt();
             for (int i = 0; i < dataStreamsSize; i++) {
@@ -255,7 +255,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             out.writeString(indexEntry.key);
             Settings.writeSettingsToStream(indexEntry.value, out);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
             out.writeVInt(dataStreams.size());
             for (ObjectObjectCursor<String, String> indexEntry : dataStreams) {
                 out.writeString(indexEntry.key);

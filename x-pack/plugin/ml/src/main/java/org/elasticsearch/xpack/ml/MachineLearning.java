@@ -369,8 +369,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
 
         InferenceProcessor.Factory inferenceFactory = new InferenceProcessor.Factory(parameters.client,
             parameters.ingestService.getClusterService(),
-            this.settings,
-            parameters.ingestService);
+            this.settings);
         parameters.ingestService.addIngestClusterStateListener(inferenceFactory);
         return Collections.singletonMap(InferenceProcessor.TYPE, inferenceFactory);
     }
@@ -682,7 +681,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
             new MlConfigMigrator(settings, client, clusterService, indexNameExpressionResolver), clusterService);
 
         MlAutoUpdateService mlAutoUpdateService = new MlAutoUpdateService(threadPool,
-            List.of(new DatafeedConfigAutoUpdater(datafeedConfigProvider)));
+            List.of(new DatafeedConfigAutoUpdater(datafeedConfigProvider, indexNameExpressionResolver)));
         clusterService.addListener(mlAutoUpdateService);
         // this object registers as a license state listener, and is never removed, so there's no need to retain another reference to it
         final InvalidLicenseEnforcer enforcer =

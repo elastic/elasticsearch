@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -85,8 +84,7 @@ public final class AsyncSearch extends Plugin implements ActionPlugin {
                                                NodeEnvironment nodeEnvironment,
                                                NamedWriteableRegistry namedWriteableRegistry,
                                                IndexNameExpressionResolver indexNameExpressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier,
-                                               CircuitBreakerService circuitBreakerService) {
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
         if (DiscoveryNode.isDataNode(environment.settings())) {
             // only data nodes should be eligible to run the maintenance service.
             AsyncTaskIndexService<AsyncSearchResponse> indexService =

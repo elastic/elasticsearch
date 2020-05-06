@@ -40,7 +40,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -255,8 +254,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
                                                IndexNameExpressionResolver expressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier,
-                                               CircuitBreakerService circuitBreakerService) {
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
         if (enabled == false) {
             return Collections.emptyList();
         }

@@ -33,7 +33,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -105,8 +104,7 @@ public class AsyncIngestProcessorIT extends ESSingleNodeTestCase {
                                                    NamedXContentRegistry xContentRegistry, Environment environment,
                                                    NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
                                                    IndexNameExpressionResolver expressionResolver,
-                                                   Supplier<RepositoriesService> repositoriesServiceSupplier,
-                                                   CircuitBreakerService circuitBreakerService) {
+                                                   Supplier<RepositoriesService> repositoriesServiceSupplier) {
             this.threadPool = threadPool;
             return List.of();
         }

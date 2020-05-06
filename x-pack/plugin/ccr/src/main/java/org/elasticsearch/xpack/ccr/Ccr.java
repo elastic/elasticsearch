@@ -31,7 +31,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -177,8 +176,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry,
             final IndexNameExpressionResolver expressionResolver,
-            final Supplier<RepositoriesService> repositoriesServiceSupplier,
-            final CircuitBreakerService circuitBreakerService) {
+            final Supplier<RepositoriesService> repositoriesServiceSupplier) {
         this.client = client;
         if (enabled == false) {
             return emptyList();

@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry.Entry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
@@ -261,8 +260,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        CircuitBreakerService circuitBreakerService
+        Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(client, xContentRegistry);
         TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName());

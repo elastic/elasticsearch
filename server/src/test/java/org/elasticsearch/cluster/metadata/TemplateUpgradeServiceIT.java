@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
@@ -75,14 +74,12 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
                                                    NamedXContentRegistry xContentRegistry, Environment environment,
                                                    NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
                                                    IndexNameExpressionResolver expressionResolver,
-                                                   Supplier<RepositoriesService> repositoriesServiceSupplier,
-                                                   CircuitBreakerService circuitBreakerService) {
+                                                   Supplier<RepositoriesService> repositoriesServiceSupplier) {
             clusterService.getClusterSettings().addSettingsUpdateConsumer(UPDATE_TEMPLATE_DUMMY_SETTING, integer -> {
                 logger.debug("the template dummy setting was updated to {}", integer);
             });
             return super.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService, xContentRegistry,
-                environment, nodeEnvironment, namedWriteableRegistry, expressionResolver, repositoriesServiceSupplier,
-                circuitBreakerService);
+                environment, nodeEnvironment, namedWriteableRegistry, expressionResolver, repositoriesServiceSupplier);
         }
 
         @Override

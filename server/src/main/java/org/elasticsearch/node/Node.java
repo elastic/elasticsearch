@@ -388,15 +388,8 @@ public class Node implements Closeable {
             CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
                 settingsModule.getClusterSettings());
             resourcesToClose.add(circuitBreakerService);
-
-            //TODO
-            /**
-            pluginsService.filterPlugins(CircuitBreakerPlugin.class).stream()
-                .flatMap(p -> p.getCircuitBreakers(settingsModule.getSettings()).stream())
-                .forEach(circuitBreakerService::registerBreaker);
-             */
-
             modules.add(new GatewayModule());
+
 
             PageCacheRecycler pageCacheRecycler = createPageCacheRecycler(settings);
             BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService);
@@ -478,7 +471,7 @@ public class Node implements Closeable {
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
                                                  scriptService, xContentRegistry, environment, nodeEnvironment,
                                                  namedWriteableRegistry, clusterModule.getIndexNameExpressionResolver(),
-                                                 repositoriesServiceReference::get, circuitBreakerService).stream())
+                                                 repositoriesServiceReference::get).stream())
                 .collect(Collectors.toList());
 
             ActionModule actionModule = new ActionModule(settings, clusterModule.getIndexNameExpressionResolver(),

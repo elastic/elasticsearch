@@ -39,7 +39,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.PipelineConfiguration;
@@ -248,8 +247,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry,
             final IndexNameExpressionResolver expressionResolver,
-            final Supplier<RepositoriesService> repositoriesServiceSupplier,
-            final CircuitBreakerService circuitBreakerService) {
+            final Supplier<RepositoriesService> repositoriesServiceSupplier) {
             return List.of();
         }
 

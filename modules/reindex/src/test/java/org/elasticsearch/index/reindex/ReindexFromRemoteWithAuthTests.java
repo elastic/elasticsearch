@@ -43,7 +43,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -158,8 +157,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
                                                    NamedXContentRegistry xContentRegistry, Environment environment,
                                                    NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
                                                    IndexNameExpressionResolver expressionResolver,
-                                                   Supplier<RepositoriesService> repositoriesServiceSupplier,
-                                                   CircuitBreakerService circuitBreakerService) {
+                                                   Supplier<RepositoriesService> repositoriesServiceSupplier) {
             testFilter.set(new ReindexFromRemoteWithAuthTests.TestFilter(threadPool));
             return Collections.emptyList();
         }

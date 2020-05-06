@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
@@ -106,8 +105,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
                                                IndexNameExpressionResolver expressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier,
-                                               CircuitBreakerService circuitBreakerService) {
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
         return emptyList();
     }
 

@@ -20,7 +20,6 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -97,8 +96,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
                                                IndexNameExpressionResolver expressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier,
-                                               CircuitBreakerService circuitBreakerService) {
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         final CleanerService cleanerService = new CleanerService(settings, clusterSettings, threadPool, getLicenseState());
         final SSLService dynamicSSLService = getSslService().createDynamicSSLService();

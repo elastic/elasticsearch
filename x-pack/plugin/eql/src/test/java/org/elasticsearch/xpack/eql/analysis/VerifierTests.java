@@ -111,8 +111,6 @@ public class VerifierTests extends ESTestCase {
 
     // Some functions fail with "Unknown" message at the parse stage
     public void testFunctionParsingUnknown() {
-        assertEquals("1:15: Unknown function [matchLite]",
-                error("process where matchLite(?'.*?net1\\s+localgroup\\s+.*?', command_line)"));
         assertEquals("1:15: Unknown function [safe]",
                 error("network where safe(process_name)"));
     }
@@ -121,8 +119,6 @@ public class VerifierTests extends ESTestCase {
     public void testFunctionVerificationUnknown() {
         assertEquals("1:34: Unknown function [number]",
                 error("process where serial_event_id == number('5')"));
-        assertEquals("1:15: Unknown function [concat]",
-                error("process where concat(serial_event_id, ':', process_name, opcode) == '5:winINIT.exe3'"));
     }
 
     // Test unsupported array indexes

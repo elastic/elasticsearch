@@ -100,8 +100,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-alpha]
 
 `class_assignment_objective`::::
 (string)
-Defines whether class assignment maximizes the accuracy or the minimum recall 
-metric. Possible values are `maximize_accuracy` and `maximize_minimum_recall`.
+include::{docdir}/ml/ml-shared.asciidoc[tag=class-assignment-objective]
 
 `downsample_factor`::::
 (double)
@@ -109,7 +108,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-downsample-factor]
 
 `eta`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-eta]
+include::{docdir}/ml/ml-shared.asciidoc[tag=eta]
 
 `eta_growth_rate_per_tree`::::
 (double)
@@ -117,15 +116,15 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-eta-growth]
 
 `feature_bag_fraction`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-feature-bag-fraction]
+include::{docdir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
 
 `gamma`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-gamma]
+include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
 
 `lambda`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-lambda]
+include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
 
 `max_attempts_to_add_tree`::::
 (integer)
@@ -137,7 +136,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-max-optimization-rounds]
 
 `max_trees`::::
 (integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-max-trees]
+include::{docdir}/ml/ml-shared.asciidoc[tag=max-trees]
 
 `num_folds`::::
 (integer)
@@ -221,32 +220,27 @@ heuristics.
 =======
 `compute_feature_influence`::::
 (boolean)
-If true, feature influence calculation is enabled.
+include::{docdir}/ml/ml-shared.asciidoc[tag=compute-feature-influence]
 
 `feature_influence_threshold`::::
 (double)
-The minimum {olscore} that a document needs to have to calculate its feature 
-influence score.
+include::{docdir}/ml/ml-shared.asciidoc[tag=feature-influence-threshold]
 
 `method`::::
 (string)
-The method that {oldetection} uses. Possible values are `lof`, `ldof`, 
-`distance_kth_nn`, `distance_knn`, and `ensemble`.
+include::{docdir}/ml/ml-shared.asciidoc[tag=method]
 
 `n_neighbors`::::
 (integer)
-The value for how many nearest neighbors each method of {oldetection} uses to 
-calculate its outlier score.
+include::{docdir}/ml/ml-shared.asciidoc[tag=n-neighbors]
 
 `outlier_fraction`::::
 (double)
-The proportion of the data set that is assumed to be outlying prior to 
-{oldetection}.
+include::{docdir}/ml/ml-shared.asciidoc[tag=outlier-fraction]
 
 `standardization_enabled`::::
 (boolean)
-If true, then the following operation is performed on the columns before 
-computing {olscores}: (x_i - mean(x_i)) / sd(x_i).
+include::{docdir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
 =======
 //End parameters
 
@@ -296,7 +290,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-downsample-factor]
 
 `eta`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-eta]
+include::{docdir}/ml/ml-shared.asciidoc[tag=eta]
 
 `eta_growth_rate_per_tree`::::
 (double)
@@ -304,15 +298,15 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-eta-growth]
 
 `feature_bag_fraction`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-feature-bag-fraction]
+include::{docdir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
 
 `gamma`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-gamma]
+include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
 
 `lambda`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-lambda]
+include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
 
 `max_attempts_to_add_tree`::::
 (integer)
@@ -324,7 +318,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-max-optimization-rounds]
 
 `max_trees`::::
 (integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-max-trees]
+include::{docdir}/ml/ml-shared.asciidoc[tag=max-trees]
 
 `num_folds`::::
 (integer)

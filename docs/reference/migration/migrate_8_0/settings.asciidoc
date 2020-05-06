@@ -67,35 +67,26 @@ In Elasticsearch 8.0.0, the setting `xpack.monitoring.exporters.<exporterName>.a
 removed.
 
 [float]
-==== Option to disable basic license features is deprecated
+==== Option to disable basic license features is removed.
 
-In Elasticsearch 7.8.0, the following settings no longer have any effect, and
-have been deprecated:
-
-* `xpack.ilm.enabled`
-* `xpack.monitoring.enabled`
-
-Previously, these settings could be set to `false` in order to disable the
-feature's APIs in a cluster. As of 7.8.0, these basic license features are
-always enabled for the {default-dist}.
-
-If you have disabled ILM so that you can use another tool to manage Watcher
-indices, the newly introduced `xpack.watcher.use_ilm_index_management` setting
-may be set to false.
-
-Additionally, the following settings have been deprecated without removing
-their effects:
+The following settings were deprecated in {es} 7.8.0 and have been removed
+in {es} 8.0.0:
 
 * `xpack.enrich.enabled`
 * `xpack.flattened.enabled`
+* `xpack.ilm.enabled`
+* `xpack.monitoring.enabled`
 * `xpack.rollup.enabled`
 * `xpack.slm.enabled`
 * `xpack.sql.enabled`
 * `xpack.transform.enabled`
 * `xpack.vectors.enabled`
 
-In future releases, it will not be possible to disable the APIs for Enrichment,
-Flattened mappings, Rollup, SLM, SQL, Transforms, and Vectors.
+These basic license features are now always enabled for the {default-dist}.
+
+If you have disabled ILM so that you can use another tool to manage Watcher
+indices, the newly introduced `xpack.watcher.use_ilm_index_management` setting
+may be set to false.
 
 [float]
 ==== The `prefer_v2_templates` parameter now defaults to `true`

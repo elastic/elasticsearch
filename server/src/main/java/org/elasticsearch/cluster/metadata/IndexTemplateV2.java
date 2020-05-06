@@ -130,6 +130,13 @@ public class IndexTemplateV2 extends AbstractDiffable<IndexTemplateV2> implement
         return priority;
     }
 
+    public long priorityOrZero() {
+        if (priority == null) {
+            return 0L;
+        }
+        return priority;
+    }
+
     public Long version() {
         return version;
     }

@@ -68,6 +68,7 @@ public class EAssignment extends AExpression {
         boolean cat = false;
         Class<?> promote = null;
         Class<?> shiftDistance = null;
+        PainlessCast rightCast;
         PainlessCast there = null;
         PainlessCast back = null;
 
@@ -178,7 +179,8 @@ public class EAssignment extends AExpression {
                 rightInput.expected = promote;
             }
 
-            rhs.cast(rightInput, rightOutput);
+            rightCast = AnalyzerCaster.getLegalCast(rhs.location,
+                    rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
 
             there = AnalyzerCaster.getLegalCast(location, leftOutput.actual, promote, false, false);
             back = AnalyzerCaster.getLegalCast(location, promote, leftOutput.actual, true, false);
@@ -210,7 +212,8 @@ public class EAssignment extends AExpression {
                 rightOutput = rhs.analyze(classNode, scriptRoot, scope, rightInput);
             }
 
-            rhs.cast(rightInput, rightOutput);
+            rightCast = AnalyzerCaster.getLegalCast(rhs.location,
+                    rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
         } else {
             throw new IllegalStateException("Illegal tree structure.");
         }
@@ -220,7 +223,7 @@ public class EAssignment extends AExpression {
         AssignmentNode assignmentNode = new AssignmentNode();
 
         assignmentNode.setLeftNode(leftOutput.expressionNode);
-        assignmentNode.setRightNode(rhs.cast(rightOutput));
+        assignmentNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
 
         assignmentNode.setLocation(location);
         assignmentNode.setExpressionType(output.actual);

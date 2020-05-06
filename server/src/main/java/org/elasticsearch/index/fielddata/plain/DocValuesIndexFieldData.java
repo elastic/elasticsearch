@@ -25,19 +25,12 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
-import java.util.Set;
 import java.util.function.Function;
-
-import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 /** {@link IndexFieldData} impl based on Lucene's doc values. Caching is done on the Lucene side. */
 public abstract class DocValuesIndexFieldData {
@@ -68,18 +61,10 @@ public abstract class DocValuesIndexFieldData {
     }
 
     public static class Builder implements IndexFieldData.Builder {
-        private static final Set<String> BINARY_INDEX_FIELD_NAMES = unmodifiableSet(newHashSet(IdFieldMapper.NAME));
-
         private Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction = AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION;
-        private RangeType rangeType;
 
         public Builder scriptFunction(Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) {
             this.scriptFunction = scriptFunction;
-            return this;
-        }
-
-        public Builder setRangeType(RangeType rangeType) {
-            this.rangeType = rangeType;
             return this;
         }
 
@@ -88,11 +73,7 @@ public abstract class DocValuesIndexFieldData {
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             // Ignore Circuit Breaker
             final String fieldName = fieldType.name();
-            if (BINARY_INDEX_FIELD_NAMES.contains(fieldName) || rangeType != null) {
-                return new BinaryDVIndexFieldData(indexSettings.getIndex(), fieldName);
-            } else {
-                return new SortedSetDVOrdinalsIndexFieldData(indexSettings, cache, fieldName, breakerService, scriptFunction);
-            }
+            return new SortedSetDVOrdinalsIndexFieldData(indexSettings, cache, fieldName, breakerService, scriptFunction);
         }
 
     }

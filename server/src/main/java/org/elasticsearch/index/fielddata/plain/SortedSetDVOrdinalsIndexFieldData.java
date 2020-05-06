@@ -32,14 +32,17 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -50,6 +53,27 @@ import java.io.IOException;
 import java.util.function.Function;
 
 public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData implements IndexOrdinalsFieldData {
+
+    public static class Builder implements IndexFieldData.Builder {
+        private Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction = AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION;
+
+        public Builder scriptFunction(Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) {
+            this.scriptFunction = scriptFunction;
+            return this;
+        }
+
+        @Override
+        public IndexFieldData<?> build(
+            IndexSettings indexSettings,
+            MappedFieldType fieldType,
+            IndexFieldDataCache cache,
+            CircuitBreakerService breakerService,
+            MapperService mapperService
+        ) {
+            final String fieldName = fieldType.name();
+            return new SortedSetDVOrdinalsIndexFieldData(indexSettings, cache, fieldName, breakerService, scriptFunction);
+        }
+    }
 
     private final IndexSettings indexSettings;
     private final IndexFieldDataCache cache;

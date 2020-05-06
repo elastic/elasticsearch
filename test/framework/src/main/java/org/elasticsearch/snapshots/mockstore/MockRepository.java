@@ -32,6 +32,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
+import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -230,7 +231,7 @@ public class MockRepository extends FsRepository {
             return new MockBlobContainer(super.blobContainer(path));
         }
 
-        private class MockBlobContainer extends BlobContainerWrapper {
+        private class MockBlobContainer extends FilterBlobContainer {
             private MessageDigest digest;
 
             private boolean shouldFail(String blobName, double probability) {
@@ -304,6 +305,11 @@ public class MockRepository extends FsRepository {
 
             MockBlobContainer(BlobContainer delegate) {
                 super(delegate);
+            }
+
+            @Override
+            protected BlobContainer wrapChild(BlobContainer child) {
+                return new MockBlobContainer(child);
             }
 
             @Override

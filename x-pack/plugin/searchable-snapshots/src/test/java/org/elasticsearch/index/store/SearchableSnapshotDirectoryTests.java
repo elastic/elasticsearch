@@ -137,7 +137,6 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/56233")
     public void testIndexSearcher() throws Exception {
         testDirectories((directory, snapshotDirectory) -> {
             try (DirectoryReader reader = DirectoryReader.open(directory)) {

@@ -3,11 +3,9 @@
   - skip:
       version: " - 7.99.99"
       reason: "simulate index template API has not been backported"
-      features: allowed_warnings
+      features: ["default_shards"]
 
   - do:
-      allowed_warnings:
-        - "index template [test] has index patterns [te*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test] will take precedence during new index creation"
       indices.put_index_template:
         name: test
         body:
@@ -35,11 +33,9 @@
   - skip:
       version: " - 7.99.99"
       reason: "simulate index template API has not been backported"
-      features: allowed_warnings
+      features: ["default_shards"]
 
   - do:
-      allowed_warnings:
-        - "index template [test] has index patterns [te*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test] will take precedence during new index creation"
       indices.put_index_template:
         name: existing_test
         body:
@@ -122,7 +118,7 @@
   - skip:
       version: " - 7.99.99"
       reason: "simulate index template API has not been backported"
-      features: allowed_warnings
+      features: ["allowed_warnings", "default_shards"]
 
   - do:
       indices.put_template:

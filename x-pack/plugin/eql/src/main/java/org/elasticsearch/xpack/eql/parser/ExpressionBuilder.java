@@ -45,12 +45,19 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
+import java.time.ZoneId;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 
 
 public class ExpressionBuilder extends IdentifierBuilder {
+
+    protected final ParserParams params;
+
+    public ExpressionBuilder(ParserParams params) {
+        this.params = params;
+    }
 
     protected Expression expression(ParseTree ctx) {
         return typedParsing(ctx, Expression.class);
@@ -115,20 +122,21 @@ public class ExpressionBuilder extends IdentifierBuilder {
         TerminalNode op = (TerminalNode) ctx.comparisonOperator().getChild(0);
 
         Source source = source(ctx);
+        ZoneId zoneId = params.zoneId();
 
         switch (op.getSymbol().getType()) {
             case EqlBaseParser.EQ:
-                return new Equals(source, left, right);
+                return new Equals(source, left, right, zoneId);
             case EqlBaseParser.NEQ:
-                return new NotEquals(source, left, right);
+                return new NotEquals(source, left, right, zoneId);
             case EqlBaseParser.LT:
-                return new LessThan(source, left, right);
+                return new LessThan(source, left, right, zoneId);
             case EqlBaseParser.LTE:
-                return new LessThanOrEqual(source, left, right);
+                return new LessThanOrEqual(source, left, right, zoneId);
             case EqlBaseParser.GT:
-                return new GreaterThan(source, left, right);
+                return new GreaterThan(source, left, right, zoneId);
             case EqlBaseParser.GTE:
-                return new GreaterThanOrEqual(source, left, right);
+                return new GreaterThanOrEqual(source, left, right, zoneId);
             default:
                 throw new ParsingException(source, "Unknown operator {}", source.text());
         }

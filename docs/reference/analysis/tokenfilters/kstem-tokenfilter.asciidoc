@@ -17,7 +17,7 @@ The `kstem` filter is equivalent to the
 <<analysis-stemmer-tokenfilter-language-parm,`light_english`>> variant.
 
 This filter uses Lucene's
-{lucene-analysis-docs}s/en/KStemFilter.html[KStemFilter].
+{lucene-analysis-docs}/en/KStemFilter.html[KStemFilter].
 
 [[analysis-kstem-tokenfilter-analyze-ex]]
 ==== Example

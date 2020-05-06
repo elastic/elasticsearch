@@ -8,6 +8,12 @@
     "url":{
       "paths":[
         {
+          "path":"/_index_template/_simulate_index",
+          "methods":[
+            "POST"
+          ]
+        },
+        {
           "path":"/_index_template/_simulate_index/{name}",
           "methods":[
             "POST"

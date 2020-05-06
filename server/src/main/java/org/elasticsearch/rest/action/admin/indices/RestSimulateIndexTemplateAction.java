@@ -29,15 +29,19 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSimulateIndexTemplateAction extends BaseRestHandler {
 
+    private static final String DEFAULT_INDEX = "default";
+
     @Override
     public List<Route> routes() {
         return List.of(
+            new Route(POST, "/_index_template/_simulate_index"),
             new Route(POST, "/_index_template/_simulate_index/{name}"));
     }
 
@@ -48,16 +52,27 @@ public class RestSimulateIndexTemplateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        SimulateIndexTemplateRequest simulateIndexTemplateRequest = new SimulateIndexTemplateRequest(request.param("name"));
+        String indexName = request.param("name");
+        SimulateIndexTemplateRequest simulateIndexTemplateRequest =
+            new SimulateIndexTemplateRequest(indexName == null ? DEFAULT_INDEX : indexName);
         simulateIndexTemplateRequest.masterNodeTimeout(request.paramAsTime("master_timeout",
             simulateIndexTemplateRequest.masterNodeTimeout()));
         if (request.hasContent()) {
             PutIndexTemplateV2Action.Request indexTemplateRequest = new PutIndexTemplateV2Action.Request("simulating_template");
-            indexTemplateRequest.indexTemplate(IndexTemplateV2.parse(request.contentParser()));
+            IndexTemplateV2 bodyTemplate = IndexTemplateV2.parse(request.contentParser());
+            // If no index was specified, the default index is specified and used in the body of the
+            // request (to simulate always matching the provided body's template)
+            if (indexName == null) {
+                bodyTemplate = new IndexTemplateV2(Collections.singletonList(DEFAULT_INDEX), bodyTemplate.template(),
+                    bodyTemplate.composedOf(), bodyTemplate.priority(), bodyTemplate.version(), bodyTemplate.metadata());
+            }
+            indexTemplateRequest.indexTemplate(bodyTemplate);
             indexTemplateRequest.create(request.paramAsBoolean("create", false));
             indexTemplateRequest.cause(request.param("cause", "api"));
 
             simulateIndexTemplateRequest.indexTemplateRequest(indexTemplateRequest);
+        } else if (indexName == null) {
+            throw new IllegalArgumentException("cannot simulate without either an index name or template body");
         }
 
         return channel -> client.execute(SimulateIndexTemplateAction.INSTANCE, simulateIndexTemplateRequest,

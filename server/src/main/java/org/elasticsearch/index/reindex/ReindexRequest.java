@@ -20,10 +20,12 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -72,6 +74,8 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
     private RemoteInfo remoteInfo;
 
+    private Boolean preferV2Templates;
+
     public ReindexRequest() {
         this(new SearchRequest(), new IndexRequest(), true);
     }
@@ -89,6 +93,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         super(in);
         destination = new IndexRequest(in);
         remoteInfo = in.readOptionalWriteable(RemoteInfo::new);
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            preferV2Templates = in.readOptionalBoolean();
+        }
     }
 
     @Override
@@ -271,6 +278,16 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         return remoteInfo;
     }
 
+    public ReindexRequest preferV2Templates(@Nullable Boolean preferV2Templates) {
+        this.preferV2Templates = preferV2Templates;
+        return this;
+    }
+
+    @Nullable
+    public Boolean preferV2Templates() {
+        return this.preferV2Templates;
+    }
+
     @Override
     public ReindexRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices) {
         ReindexRequest sliced = doForSlice(new ReindexRequest(slice, destination, false), slicingTask, totalSlices);
@@ -283,6 +300,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         super.writeTo(out);
         destination.writeTo(out);
         out.writeOptionalWriteable(remoteInfo);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalBoolean(preferV2Templates);
+        }
     }
 
     @Override

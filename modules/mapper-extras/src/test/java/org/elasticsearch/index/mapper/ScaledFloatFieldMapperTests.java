@@ -21,9 +21,12 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
@@ -391,5 +394,16 @@ public class ScaledFloatFieldMapperTests extends FieldMapperTestCase<ScaledFloat
         mapper = indexService.mapperService().merge("_doc",
                 new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping3, mapper.mappingSource().toString());
+    }
+
+    public void testParseSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+        ScaledFloatFieldMapper mapper = new ScaledFloatFieldMapper.Builder("field")
+            .scalingFactor(100)
+            .build(context);
+
+        assertEquals(3.14, mapper.parseSourceValue(3.1415926), 0.00001);
+        assertEquals(3.14, mapper.parseSourceValue("3.1415"), 0.00001);
     }
 }

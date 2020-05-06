@@ -32,6 +32,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
@@ -65,8 +66,8 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
         MapperService mapperService = createMapperService();
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
             .startObject("float_range")
-                .field("gte", 0.0)
-                .field("lte", 2.718)
+                .field("gte", 0.0f)
+                .field("lte", 2.718f)
             .endObject()
         .endObject();
 
@@ -76,14 +77,59 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
         DocumentField rangeField = fields.get("float_range");
         assertNotNull(rangeField);
         assertThat(rangeField.getValues().size(), equalTo(1));
-        assertThat(rangeField.getValue(), equalTo(Map.of("gte", 0.0, "lte", 2.718)));
+        assertThat(rangeField.getValue(), equalTo(Map.of("gte", 0.0f, "lte", 2.718f)));
+    }
+
+    public void testNonExistentField() throws IOException {
+        MapperService mapperService = createMapperService();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .field("field", "value")
+        .endObject();
+
+        Map<String, DocumentField> fields = retrieveFields(mapperService, source, "non-existent");
+        assertThat(fields.size(), equalTo(0));
+    }
+
+    public void testArrayValueMappers() throws IOException {
+        MapperService mapperService = createMapperService();
+
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .array("completion", "first", "second")
+        .endObject();
+
+        Map<String, DocumentField> fields = retrieveFields(mapperService, source, "completion");
+        assertThat(fields.size(), equalTo(1));
+
+        DocumentField field = fields.get("completion");
+        assertNotNull(field);
+        assertThat(field.getValues().size(), equalTo(2));
+        assertThat(field.getValues(), hasItems("first", "second"));
+
+        // Test a field with multiple geo-points.
+        source = XContentFactory.jsonBuilder().startObject()
+            .startObject("completion")
+                .array("input", "first", "second")
+                .field("weight", "2.718")
+            .endObject()
+        .endObject();
+
+        fields = retrieveFields(mapperService, source, "completion");
+        assertThat(fields.size(), equalTo(1));
+
+        field = fields.get("completion");
+        assertNotNull(field);
+        assertThat(field.getValues().size(), equalTo(1));
+
+        Map<String, Object> expected = Map.of("input", List.of("first", "second"),
+            "weight", "2.718");
+        assertThat(field.getValues().get(0), equalTo(expected));
     }
 
     public void testFieldNamesWithWildcard() throws IOException {
         MapperService mapperService = createMapperService();;
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
             .array("field", "first", "second")
-            .field("integer_field", "third")
+            .field("integer_field", 333)
             .startObject("object")
                 .field("field", "fourth")
             .endObject()
@@ -100,14 +146,13 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
         DocumentField otherField = fields.get("integer_field");
         assertNotNull(otherField);
         assertThat(otherField.getValues().size(), equalTo(1));
-        assertThat(otherField.getValues(), hasItems("third"));
+        assertThat(otherField.getValues(), hasItems(333));
 
         DocumentField objectField = fields.get("object.field");
         assertNotNull(objectField);
         assertThat(objectField.getValues().size(), equalTo(1));
         assertThat(objectField.getValues(), hasItems("fourth"));
     }
-
 
     public void testFieldAliases() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
@@ -226,15 +271,15 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
         sourceLookup.setSource(BytesReference.bytes(source));
 
         FieldValueRetriever fetchFieldsLookup = FieldValueRetriever.create(mapperService, fieldPatterns);
-        return fetchFieldsLookup.retrieve(sourceLookup);
+        return fetchFieldsLookup.retrieve(sourceLookup, Set.of());
     }
-
 
     public MapperService createMapperService() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
             .startObject("properties")
                 .startObject("field").field("type", "keyword").endObject()
                 .startObject("integer_field").field("type", "integer").endObject()
+                .startObject("completion").field("type", "completion").endObject()
                 .startObject("float_range").field("type", "float_range").endObject()
                 .startObject("object")
                     .startObject("properties")

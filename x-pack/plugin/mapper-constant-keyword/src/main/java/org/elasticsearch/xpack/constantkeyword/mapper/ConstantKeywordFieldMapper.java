@@ -38,6 +38,7 @@ import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -287,6 +288,18 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                     "] only accepts values that are equal to the value defined in the mappings [" + fieldType().value() +
                     "], but got [" + value + "]");
         }
+    }
+
+    @Override
+    public List<String> lookupValues(SourceLookup lookup) {
+        return fieldType().value == null
+            ? List.of()
+            : List.of(fieldType().value);
+    }
+
+    @Override
+    protected Object parseSourceValue(Object value) {
+        throw new UnsupportedOperationException("This should never be called, since lookupValues is implemented directly.");
     }
 
     @Override

@@ -389,6 +389,11 @@ public class PercolatorFieldMapper extends FieldMapper {
         processQuery(query, context);
     }
 
+    @Override
+    protected Object parseSourceValue(Object value) {
+        return value;
+    }
+
     static void createQueryBuilderField(Version indexVersion, BinaryFieldMapper qbField,
                                         QueryBuilder queryBuilder, ParseContext context) throws IOException {
         try (ByteArrayOutputStream stream = new ByteArrayOutputStream()) {

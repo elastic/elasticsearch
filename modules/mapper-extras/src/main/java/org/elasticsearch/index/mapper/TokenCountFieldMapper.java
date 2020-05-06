@@ -150,6 +150,11 @@ public class TokenCountFieldMapper extends FieldMapper {
         context.doc().addAll(NumberFieldMapper.NumberType.INTEGER.createFields(fieldType().name(), tokenCount, indexed, docValued, stored));
     }
 
+    @Override
+    protected Object parseSourceValue(Object value) {
+        return value;
+    }
+
     /**
      * Count position increments in a token stream.  Package private for testing.
      * @param analyzer analyzer to create token stream

@@ -52,6 +52,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -400,6 +401,23 @@ public class RangeFieldMapper extends FieldMapper {
         if (docValued == false && (indexed || stored)) {
             createFieldNamesField(context);
         }
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    protected Object parseSourceValue(Object value) {
+        RangeType rangeType = fieldType().rangeType();
+        if (rangeType == RangeType.IP) {
+            return value;
+        }
+
+        Map<String, Object> range = (Map<String, Object>) value;
+        Map<String, Object> parsedRange = new HashMap<>();
+        for (Map.Entry<String, Object> entry : range.entrySet()) {
+            Object parsedValue = rangeType.parseValue(entry.getValue(), coerce.value(), fieldType().dateMathParser);
+            parsedRange.put(entry.getKey(), parsedValue);
+        }
+        return parsedRange;
     }
 
     @Override

@@ -225,6 +225,11 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
     }
 
     @Override
+    protected Object parseSourceValue(Object value) {
+        return value;
+    }
+
+    @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
         builder.field("dims", fieldType().dims());

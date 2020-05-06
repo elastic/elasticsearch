@@ -361,6 +361,7 @@ public final class DateFieldMapper extends FieldMapper {
             return dateMathParser;
         }
 
+        // Visible for testing.
         public long parse(String value) {
             return resolution.convert(DateFormatters.from(dateTimeFormatter().parse(value)).toInstant());
         }
@@ -630,6 +631,12 @@ public final class DateFieldMapper extends FieldMapper {
         if (fieldType().stored()) {
             context.doc().add(new StoredField(fieldType().name(), timestamp));
         }
+    }
+
+    @Override
+    public Long parseSourceValue(Object value) {
+        String date = value.toString();
+        return fieldType().parse(date);
     }
 
     @Override

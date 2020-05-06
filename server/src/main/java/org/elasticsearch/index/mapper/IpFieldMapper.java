@@ -398,6 +398,11 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected Object parseSourceValue(Object value) {
+        return value;
+    }
+
+    @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         IpFieldMapper mergeWith = (IpFieldMapper) other;
         if (mergeWith.ignoreMalformed.explicit()) {

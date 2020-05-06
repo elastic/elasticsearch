@@ -100,6 +100,11 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected Object parseSourceValue(Object value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
     }

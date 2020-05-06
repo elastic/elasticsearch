@@ -368,6 +368,11 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected Object parseSourceValue(Object value) {
+        return value;
+    }
+
+    @Override
     public void parse(ParseContext context) throws IOException {
         context.path().add(simpleName());
         XContentParser.Token token = context.parser().currentToken();

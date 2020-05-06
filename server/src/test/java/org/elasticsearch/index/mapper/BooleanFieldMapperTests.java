@@ -30,9 +30,12 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -280,9 +283,18 @@ public class BooleanFieldMapperTests extends FieldMapperTestCase<BooleanFieldMap
         assertEquals(mapping3, mapper.mappingSource().toString());
     }
 
+    public void testParseSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+        BooleanFieldMapper mapper = new BooleanFieldMapper.Builder("field").build(context);
+
+        assertTrue(mapper.parseSourceValue(true));
+        assertFalse(mapper.parseSourceValue("false"));
+        assertFalse(mapper.parseSourceValue(""));
+    }
+
     @Override
     protected BooleanFieldMapper.Builder newBuilder() {
         return new BooleanFieldMapper.Builder("boolean");
     }
-
 }

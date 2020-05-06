@@ -170,6 +170,11 @@ public class HistogramFieldMapper extends FieldMapper {
         throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
     }
 
+    @Override
+    protected Object parseSourceValue(Object value) {
+        return value;
+    }
+
     public static class HistogramFieldType extends MappedFieldType {
 
         public HistogramFieldType() {

@@ -171,8 +171,12 @@ public class Murmur3FieldMapper extends FieldMapper {
     }
 
     @Override
+    protected Object parseSourceValue(Object value) {
+        return value;
+    }
+
+    @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
     }
-
 }

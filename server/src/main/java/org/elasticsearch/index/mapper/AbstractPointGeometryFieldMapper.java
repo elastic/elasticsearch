@@ -30,7 +30,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 /** Base class for GeoPointFieldMappers */
@@ -163,20 +165,21 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
     }
 
     /** A parser implementation that can parse the various point formats */
-    public static class PointParser<P extends ParsedPoint> implements Parser<P> {
+    public static class PointParser<P extends ParsedPoint> implements Parser<List<P>> {
 
         @Override
-        public P parse(XContentParser parser, AbstractGeometryFieldMapper mapper) throws IOException, ParseException {
+        public List<P> parse(XContentParser parser, AbstractGeometryFieldMapper mapper) throws IOException, ParseException {
             return geometryFormat(parser, (AbstractPointGeometryFieldMapper)mapper).fromXContent(parser);
         }
 
-        public GeometryFormat<P> geometryFormat(XContentParser parser, AbstractPointGeometryFieldMapper mapper) {
+        public GeometryFormat<List<P>> geometryFormat(XContentParser parser, AbstractPointGeometryFieldMapper mapper) {
             if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                return new GeometryFormat<P>() {
+                return new GeometryFormat<List<P>>() {
                     @Override
-                    public P fromXContent(XContentParser parser) throws IOException {
+                    public List<P> fromXContent(XContentParser parser) throws IOException {
                         XContentParser.Token token = parser.nextToken();
                         P point = (P)(mapper.newParsedPoint());
+                        ArrayList<P> points = new ArrayList();
                         if (token == XContentParser.Token.VALUE_NUMBER) {
                             double x = parser.doubleValue();
                             parser.nextToken();
@@ -195,26 +198,29 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
                             } else {
                                 point.normalize(mapper.name());
                             }
-
+                            points.add(point);
                         } else {
                             while (token != XContentParser.Token.END_ARRAY) {
                                 mapper.parsePointIgnoringMalformed(parser, point);
+                                points.add(point);
+                                point = (P)(mapper.newParsedPoint());
                                 token = parser.nextToken();
                             }
                         }
-                        return point;
+                        return points;
                     }
 
                     @Override
-                    public XContentBuilder toXContent(ParsedPoint geometry, XContentBuilder builder, Params params) throws IOException {
+                    public XContentBuilder toXContent(List<P> points, XContentBuilder builder, Params params) throws IOException {
                         return null;
                     }
                 };
             } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                return new GeometryFormat<P>() {
+                return new GeometryFormat<List<P>>() {
                     @Override
-                    public P fromXContent(XContentParser parser) throws IOException, ParseException {
+                    public List<P> fromXContent(XContentParser parser) throws IOException, ParseException {
                         P point = null;
+                        ArrayList<P> points = new ArrayList<>();
                         if (mapper.fieldType().nullValue() != null) {
                             point = (P)(mapper.fieldType().nullValue());
                             if ((Boolean)(mapper.ignoreMalformed().value()) == false) {
@@ -222,26 +228,29 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
                             } else {
                                 point.normalize(mapper.name());
                             }
+                            points.add(point);
                         }
-                        return point;
+                        return points;
                     }
 
                     @Override
-                    public XContentBuilder toXContent(ParsedPoint geometry, XContentBuilder builder, Params params) throws IOException {
+                    public XContentBuilder toXContent(List<P> points, XContentBuilder builder, Params params) throws IOException {
                         return null;
                     }
                 };
             } else {
-                return new GeometryFormat<P>() {
+                return new GeometryFormat<List<P>>() {
                     @Override
-                    public P fromXContent(XContentParser parser) throws IOException, ParseException {
+                    public List<P> fromXContent(XContentParser parser) throws IOException, ParseException {
                         P point = (P)mapper.newParsedPoint();
                         mapper.parsePointIgnoringMalformed(parser, point);
-                        return point;
+                        ArrayList<P> points = new ArrayList();
+                        points.add(point);
+                        return points;
                     }
 
                     @Override
-                    public XContentBuilder toXContent(P geometry, XContentBuilder builder, Params params) throws IOException {
+                    public XContentBuilder toXContent(List<P> points, XContentBuilder builder, Params params) throws IOException {
                         return null;
                     }
                 };

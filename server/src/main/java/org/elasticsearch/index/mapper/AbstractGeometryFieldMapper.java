@@ -125,15 +125,13 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             if (ignoreZValue != null) {
                 return new Explicit<>(ignoreZValue, true);
             }
-            return AbstractGeometryFieldMapper.Defaults.IGNORE_Z_VALUE;
+            return Defaults.IGNORE_Z_VALUE;
         }
 
         public Builder ignoreZValue(final boolean ignoreZValue) {
             this.ignoreZValue = ignoreZValue;
             return this;
         }
-
-        protected abstract void setGeometryParser();
 
         @Override
         protected void setupFieldType(BuilderContext context) {
@@ -155,6 +153,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             return (FT)fieldType;
         }
 
+        protected abstract void setGeometryParser();
         protected abstract void setGeometryIndexer(FT fieldType);
         protected abstract void setGeometryQueryBuilder(FT fieldType);
     }
@@ -181,10 +180,14 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             T builder = newBuilder(name, params);
             if (params.containsKey(GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName())) {
                 builder.ignoreZValue((Boolean)params.get(GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName()));
+            } else {
+                builder.ignoreZValue(Defaults.IGNORE_Z_VALUE.value());
             }
 
             if (params.containsKey(Names.IGNORE_MALFORMED.getPreferredName())) {
                 builder.ignoreMalformed((Boolean)params.get(Names.IGNORE_MALFORMED.getPreferredName()));
+            } else {
+                builder.ignoreMalformed(Defaults.IGNORE_MALFORMED.value());
             }
             return builder;
         }

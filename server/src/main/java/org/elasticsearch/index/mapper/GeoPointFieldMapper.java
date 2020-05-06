@@ -44,7 +44,7 @@ import java.util.Map;
  *
  * Uses lucene 6 LatLonPoint encoding
  */
-public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoint, GeoPoint> implements ArrayValueMapperParser {
+public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<? extends GeoPoint>, List<? extends GeoPoint>> implements ArrayValueMapperParser {
     public static final String CONTENT_TYPE = "geo_point";
 
     public static class Builder extends AbstractPointGeometryFieldMapper.Builder<Builder, GeoPointFieldMapper, GeoPointFieldType> {
@@ -79,14 +79,15 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
     }
 
-    public static class TypeParser extends AbstractPointGeometryFieldMapper.TypeParser<GeoPoint, Builder> {
+    public static class TypeParser extends AbstractPointGeometryFieldMapper.TypeParser<ParsedGeoPoint, Builder> {
         @Override
         protected Builder newBuilder(String name, Map<String, Object> params) {
             return new GeoPointFieldMapper.Builder(name);
         }
 
-        protected GeoPoint parseNullValue(Object nullValue, boolean ignoreZValue, boolean ignoreMalformed) {
-            GeoPoint point = GeoUtils.parseGeoPoint(nullValue, ignoreZValue);
+        protected ParsedGeoPoint parseNullValue(Object nullValue, boolean ignoreZValue, boolean ignoreMalformed) {
+            ParsedGeoPoint point = new ParsedGeoPoint();
+            GeoUtils.parseGeoPoint(nullValue, point, ignoreZValue);
             if (ignoreMalformed == false) {
                 if (point.lat() > 90.0 || point.lat() < -90.0) {
                     throw new IllegalArgumentException("illegal latitude value [" + point.lat() + "]");
@@ -107,7 +108,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     @Override
     protected void parsePointIgnoringMalformed(XContentParser parser, ParsedPoint point) throws IOException {
         super.parsePointIgnoringMalformed(parser, point);
-        GeoUtils.parseGeoPoint(parser, (GeoPoint)point, ignoreMalformed().value());
+        GeoUtils.parseGeoPoint(parser, (GeoPoint)point, ignoreZValue().value());
     }
 
     public GeoPointFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
@@ -117,13 +118,17 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     }
 
     @Override
-    protected void addStoredFields(ParseContext context, GeoPoint point) {
-        context.doc().add(new StoredField(fieldType.name(), point.toString()));
+    protected void addStoredFields(ParseContext context, List<? extends GeoPoint> points) {
+        for (ParsedGeoPoint point : (List<ParsedGeoPoint>)points) {
+            context.doc().add(new StoredField(fieldType.name(), point.toString()));
+        }
     }
 
     @Override
-    protected void addDocValuesFields(String name, GeoPoint point, List fields, ParseContext context) {
-        context.doc().add(new LatLonDocValuesField(fieldType.name(), point.lat(), point.lon()));
+    protected void addDocValuesFields(String name, List<? extends GeoPoint> points, List<IndexableField> fields, ParseContext context) {
+        for (ParsedGeoPoint point : (List<ParsedGeoPoint>)points) {
+            context.doc().add(new LatLonDocValuesField(fieldType.name(), point.lat(), point.lon()));
+        }
     }
 
     @Override
@@ -141,7 +146,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         return new ParsedGeoPoint();
     }
 
-    public static class GeoPointFieldType extends AbstractPointGeometryFieldType<GeoPoint, GeoPoint> {
+    public static class GeoPointFieldType extends AbstractPointGeometryFieldType<List<ParsedGeoPoint>, List<ParsedGeoPoint>> {
         public GeoPointFieldType() {
             super();
         }
@@ -201,9 +206,30 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         public void resetCoords(double x, double y) {
             this.reset(y, x);
         }
+
+        @Override
+        public boolean equals(Object other) {
+            double oLat;
+            double oLon;
+            if (other instanceof GeoPoint) {
+                GeoPoint o = (GeoPoint)other;
+                oLat = o.lat();
+                oLon = o.lon();
+            } else if (other instanceof ParsedGeoPoint == false) {
+                return false;
+            } else {
+                ParsedGeoPoint o = (ParsedGeoPoint)other;
+                oLat = o.lat();
+                oLon = o.lon();
+            }
+            if (Double.compare(oLat, lat) != 0) return false;
+            if (Double.compare(oLon, lon) != 0) return false;
+
+            return true;
+        }
     }
 
-    protected static class GeoPointIndexer implements Indexer<GeoPoint, GeoPoint> {
+    protected static class GeoPointIndexer implements Indexer<List<ParsedGeoPoint>, List<ParsedGeoPoint>> {
 
         protected final GeoPointFieldType fieldType;
 
@@ -212,22 +238,24 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         @Override
-        public GeoPoint prepareForIndexing(GeoPoint geoPoint) {
-            if (geoPoint == null) {
+        public List<ParsedGeoPoint> prepareForIndexing(List<ParsedGeoPoint> geoPoints) {
+            if (geoPoints == null || geoPoints.isEmpty()) {
                 return null;
             }
-            return geoPoint;
+            return geoPoints;
         }
 
         @Override
-        public Class<GeoPoint> processedClass() {
-            return GeoPoint.class;
+        public Class<List<ParsedGeoPoint>> processedClass() {
+            return (Class<List<ParsedGeoPoint>>)(Object)List.class;
         }
 
         @Override
-        public List<IndexableField> indexShape(ParseContext context, GeoPoint point) {
-            ArrayList<IndexableField> fields = new ArrayList<>(1);
-            fields.add(new LatLonPoint(fieldType.name(), point.lat(), point.lon()));
+        public List<IndexableField> indexShape(ParseContext context, List<ParsedGeoPoint> points) {
+            ArrayList<IndexableField> fields = new ArrayList<>(points.size());
+            for (ParsedGeoPoint point : points) {
+                fields.add(new LatLonPoint(fieldType.name(), point.lat(), point.lon()));
+            }
             return fields;
         }
     }

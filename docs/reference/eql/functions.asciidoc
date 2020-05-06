@@ -333,14 +333,6 @@ The following EQL query changes the integer `4` to the equivalent float `4.0`.
 ----
 process where divide(4.0, process.args_count) == 1
 ----
-
-The following EQL query converts the `process.args_count` to a float for the
-`divide` function.
-
-[source,eql]
-----
-process where  divide(4, float(process.args_count)) == 1
-----
 ======
 =====
 

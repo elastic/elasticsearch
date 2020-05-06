@@ -169,7 +169,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Started writing results",
             "Finished analysis");
     }
-
+    
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/56282")
     public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty() throws Exception {
         initialize("regression_only_training_data_and_training_percent_is_50");
         String predictedClassField = DEPENDENT_VARIABLE_FIELD + "_prediction";
@@ -292,6 +293,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55807")
     public void testTwoJobsWithSameRandomizeSeedUseSameTrainingSet() throws Exception {
         String sourceIndex = "regression_two_jobs_with_same_randomize_seed_source";
         indexData(sourceIndex, 100, 0);

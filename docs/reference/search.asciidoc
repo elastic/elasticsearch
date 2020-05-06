@@ -152,9 +152,9 @@ high). This default value is `5`.
 
 include::search/search.asciidoc[]
 
-include::search/async-search.asciidoc[]
-
 include::search/request-body.asciidoc[]
+
+include::search/async-search.asciidoc[]
 
 include::search/search-template.asciidoc[]
 

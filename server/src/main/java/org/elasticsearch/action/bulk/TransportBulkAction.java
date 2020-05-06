@@ -232,8 +232,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     autoCreateIndices.add(index);
                 }
             }
-
-            // Step 3: create all the indices/data streams that are missing, if there are any missing. start the bulk after all the creates come back.
+            // Step 3: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.
 
             if (autoCreateIndices.isEmpty()) {
                 executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated);
@@ -267,9 +266,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                 }), responses, indicesThatCannotBeCreated);
                             }
                         }
-                        });
-                    }
+                    });
                 }
+            }
         } else {
             executeBulk(task, bulkRequest, startTime, listener, responses, emptyMap());
         }

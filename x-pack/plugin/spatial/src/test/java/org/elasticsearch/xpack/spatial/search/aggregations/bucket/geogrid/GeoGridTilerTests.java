@@ -481,7 +481,8 @@ public class GeoGridTilerTests extends ESTestCase {
 
         CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
             ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        service.registerBreaker(new BreakerSettings("limited", numBytes - 1, 1.0));
+        service.registerNewCircuitBreakers(List.of(service.validateAndCreateBreaker(
+            new BreakerSettings("limited", numBytes - 1, 1.0))));
         CircuitBreaker limitedBreaker = service.getBreaker("limited");
 
         Consumer<Long> circuitBreakerConsumer = (l) -> limitedBreaker.addEstimateBytesAndMaybeBreak(l, "agg");

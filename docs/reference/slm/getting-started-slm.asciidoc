@@ -23,7 +23,7 @@ To test the policy, you can manually trigger it to take an initial snapshot.
 To use {slm-init}, you must have a snapshot repository configured. 
 The repository can be local (shared filesystem) or remote (cloud storage).  
 Remote repositories can reside on S3, HDFS, Azure, Google Cloud Storage, 
-or any other platform supported by a <<repository, repository plugin>>.
+or any other platform supported by a {plugins}/repository.html[repository plugin].
 Remote repositories are generally used for production deployments.
 
 For this tutorial, you can register a local repository from 

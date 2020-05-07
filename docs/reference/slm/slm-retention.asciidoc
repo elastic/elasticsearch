@@ -4,15 +4,15 @@
 === Snapshot retention
 
 You can include a retention policy in an {slm-init} policy to automatically delete old snapshots. 
-Retention runs as a cluster level task and is not associated with a particular policy's schedule.
+Retention runs as a cluster-level task and is not associated with a particular policy's schedule.
 The retention criteria are evaluated as part of the retention task, not when the policy executes.
 For the retention task to automatically delete snapshots, 
-you need to include a  <<slm-api-put-retention,`retention`>> object in your {slm-init} policy.
+you need to include a <<slm-api-put-retention,`retention`>> object in your {slm-init} policy.
 
 To control when the retention task runs, configure 
 <<slm-retention-schedule,`slm.retention_schedule`>> in the cluster settings.
 You can define the schedule as a periodic or absolute <<schedule-cron,cron schedule>.
-The <<slm-retention-duration>>`slm.retention_duration`>> setting limits how long 
+The <<slm-retention-duration,`slm.retention_duration`>> setting limits how long 
 {slm-init} should spend deleting old snapshots.
 
 You can update the schedule and duration dynamically with the <<cluster-update-settings>> API.

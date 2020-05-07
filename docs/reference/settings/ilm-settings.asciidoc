@@ -6,7 +6,7 @@
 <titleabbrev>{ilm-cap} settings</titleabbrev>
 ++++
 
-These are the settings available for configuring <<index-lifecycle-management, {ilm-init}>>..
+These are the settings available for configuring <<index-lifecycle-management, {ilm} ({ilm-init})>>.
 
 ==== Cluster level settings
 

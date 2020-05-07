@@ -3,8 +3,8 @@
 [[getting-started-snapshot-lifecycle-management]]
 === Tutorial: Automate back ups with {slm-init}
 
-This tutorial demonstrates how to automate daily back ups of {es} indices using an {slm-init} policy.
-The policy also defines a retention policy and automatically deletes the snapshots when they
+This tutorial demonstrates how to automate daily backups of {es} indices using an {slm-init} policy.
+The policy also defines a retention policy and automatically deletes snapshots when they
 are no longer needed.
 
 To manage snapshots with {slm-init}, you:
@@ -12,20 +12,20 @@ To manage snapshots with {slm-init}, you:
 . <<slm-gs-register-repository, Register a repository>>.
 . <<slm-gs-create-policy, Create an {slm-init} policy>>.
 
-You can manually trigger the policy to test the policy and take an initial snapshot. 
+To test the policy, you can manually trigger it to take an initial snapshot. 
 
 [float]
 [[slm-gs-register-repository]]
 ==== Register a repository
 
-To take snapshots and use {slm-init}, you must have a snapshot repository configured. 
+To use {slm-init}, you must have a snapshot repository configured. 
 The repository can be local (shared filesystem) or remote (cloud storage).  
 Remote repositories can reside on S3, HDFS, Azure, Google Cloud Storage, 
 or any other platform supported by a repository plugin.
 Remote repositories are generally used for production deployments.
 
-For this tutorial, you can register a local repository from the {kib} Management UI, 
-or call the put repository API directly:
+For this tutorial, you can register a local repository from the {kib} Management UI
+or use the put repository API:
 
 [source,console]
 -----------------------------------
@@ -54,8 +54,8 @@ Snapshots are incremental and make efficient use of storage.
 You can define and manage policies through the {kibana} Management UI, 
 which invokes the {slm-init} put policy API to create policies according to the options you specify.
 
-For example, you could define a nightly-snapshots policy 
-to back up all of your indices daily at 1:30AM UTC.
+For example, you could define a `nightly-snapshots` policy 
+to back up all of your indices daily at 2:30AM UTC.
 
 The underlying put policy request defines the policy configuration in JSON:
 
@@ -78,7 +78,7 @@ PUT /_slm/policy/nightly-snapshots
 --------------------------------------------------
 // TEST[continued]
 <1> When the snapshot should be taken in
-    <<schedule-cron,Cron syntax>>: daily at 1:30AM UTC
+    <<schedule-cron,Cron syntax>>: daily at 2:30AM UTC
 <2> How to name the snapshot: use  
     <<date-math-index-names,date math>> to include the current date in the snapshot name
 <3> Where to store the snapshot
@@ -98,7 +98,7 @@ For more information about snapshot options, see <<snapshots-take-snapshot,snaps
 
 A snapshot taken by {slm-init} is just like any other snapshot. 
 You can view information about snapshots in {kib} or get info with the snapshot APIs. 
-In addition, {slm-init } keeps track of policy successes and failures so you 
+In addition, {slm-init} keeps track of policy successes and failures so you 
 have insight into how the policy is working. If the policy has executed at
 least once, the <<slm-api-get-policy>> API returns additional metadata
 that shows if the snapshot succeeded.
@@ -118,7 +118,7 @@ POST /_slm/policy/nightly-snapshots/_execute
 
 
 After forcing the `nightly-snapshots` policy to run, 
-you will see the sucess or failure information if you retrieve the policy.
+you can retrieve the policy to get success or failure information.
 
 [source,console]
 --------------------------------------------------

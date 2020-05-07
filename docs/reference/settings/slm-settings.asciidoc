@@ -8,7 +8,7 @@
 
 These are the settings available for configuring <<snapshot-lifecycle-management, {slm-init}>>.
 
-==== Cluster level settings
+==== Cluster-level settings
 
 [[slm-retention-schedule]]
 `slm.retention_schedule`::

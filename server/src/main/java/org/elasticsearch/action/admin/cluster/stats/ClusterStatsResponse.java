@@ -21,6 +21,8 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsNodeResponse.ShardStatsAndIndexPatterns;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -33,13 +35,17 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResponse> implements ToXContentFragment {
 
     final ClusterStatsNodes nodesStats;
     final ClusterStatsIndices indicesStats;
+    final Map<String, ClusterStatsIndices> indexPatternStats;
     final ClusterHealthStatus status;
     final long timestamp;
     final String clusterUUID;
@@ -62,7 +68,21 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
 
         // built from nodes rather than from the stream directly
         nodesStats = new ClusterStatsNodes(getNodes());
-        indicesStats = new ClusterStatsIndices(getNodes(), mappingStats, analysisStats);
+        List<ShardStats> shardStats = new ArrayList<>();
+        Map<String, List<ShardStats>> indexPatternShardStats = new HashMap<>();
+        for (ClusterStatsNodeResponse node : getNodes()) {
+            for (ShardStatsAndIndexPatterns ss : node.shardsStats()) {
+                shardStats.add(ss.shardStats);
+                for (String indexPattern : ss.indexPatterns) {
+                    indexPatternShardStats.computeIfAbsent(indexPattern, key -> new ArrayList<>()).add(ss.shardStats);
+                }
+            }
+        }
+        indicesStats = new ClusterStatsIndices(shardStats, mappingStats, analysisStats);
+        indexPatternStats = new HashMap<>();
+        for (Map.Entry<String, List<ShardStats>> entry : indexPatternShardStats.entrySet()) {
+            indexPatternStats.put(entry.getKey(), new ClusterStatsIndices(entry.getValue(), null, null));
+        }
     }
 
     public ClusterStatsResponse(long timestamp,
@@ -75,7 +95,21 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         this.clusterUUID = clusterUUID;
         this.timestamp = timestamp;
         nodesStats = new ClusterStatsNodes(nodes);
-        indicesStats = new ClusterStatsIndices(nodes, MappingStats.of(state), AnalysisStats.of(state));
+        List<ShardStats> shardStats = new ArrayList<>();
+        Map<String, List<ShardStats>> indexPatternShardStats = new HashMap<>();
+        for (ClusterStatsNodeResponse node : nodes) {
+            for (ShardStatsAndIndexPatterns ss : node.shardsStats()) {
+                shardStats.add(ss.shardStats);
+                for (String indexPattern : ss.indexPatterns) {
+                    indexPatternShardStats.computeIfAbsent(indexPattern, key -> new ArrayList<>()).add(ss.shardStats);
+                }
+            }
+        }
+        indicesStats = new ClusterStatsIndices(shardStats, MappingStats.of(state), AnalysisStats.of(state));
+        indexPatternStats = new HashMap<>();
+        for (Map.Entry<String, List<ShardStats>> entry : indexPatternShardStats.entrySet()) {
+            indexPatternStats.put(entry.getKey(), new ClusterStatsIndices(entry.getValue(), null, null));
+        }
         ClusterHealthStatus status = null;
         for (ClusterStatsNodeResponse response : nodes) {
             // only the master node populates the status
@@ -143,6 +177,15 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         builder.startObject("nodes");
         nodesStats.toXContent(builder, params);
         builder.endObject();
+        if (indexPatternStats.isEmpty() == false) {
+            builder.startObject("index_patterns");
+            for (Map.Entry<String, ClusterStatsIndices> entry : indexPatternStats.entrySet()) {
+                builder.startObject(entry.getKey());
+                entry.getValue().toXContent(builder, params);
+                builder.endObject();
+            }
+            builder.endObject();
+        }
         return builder;
     }
 

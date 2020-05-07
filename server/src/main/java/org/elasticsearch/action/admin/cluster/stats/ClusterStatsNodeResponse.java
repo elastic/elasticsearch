@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -30,12 +31,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 public class ClusterStatsNodeResponse extends BaseNodeResponse {
 
     private NodeInfo nodeInfo;
     private NodeStats nodeStats;
-    private ShardStats[] shardsStats;
+    private ShardStatsAndIndexPatterns[] shardsStats;
     private ClusterHealthStatus clusterStatus;
 
     public ClusterStatsNodeResponse(StreamInput in) throws IOException {
@@ -47,14 +50,18 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         this.nodeInfo = new NodeInfo(in);
         this.nodeStats = new NodeStats(in);
         int size = in.readVInt();
-        shardsStats = new ShardStats[size];
+        shardsStats = new ShardStatsAndIndexPatterns[size];
         for (int i = 0; i < size; i++) {
-            shardsStats[i] = new ShardStats(in);
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                shardsStats[i] = new ShardStatsAndIndexPatterns(new ShardStats(in), in.readList(StreamInput::readString));
+            } else {
+                shardsStats[i] = new ShardStatsAndIndexPatterns(new ShardStats(in), Collections.emptyList());
+            }
         }
     }
 
     public ClusterStatsNodeResponse(DiscoveryNode node, @Nullable ClusterHealthStatus clusterStatus,
-                                    NodeInfo nodeInfo, NodeStats nodeStats, ShardStats[] shardsStats) {
+                                    NodeInfo nodeInfo, NodeStats nodeStats, ShardStatsAndIndexPatterns[] shardsStats) {
         super(node);
         this.nodeInfo = nodeInfo;
         this.nodeStats = nodeStats;
@@ -78,7 +85,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         return clusterStatus;
     }
 
-    public ShardStats[] shardsStats() {
+    public ShardStatsAndIndexPatterns[] shardsStats() {
         return this.shardsStats;
     }
 
@@ -98,8 +105,21 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         nodeInfo.writeTo(out);
         nodeStats.writeTo(out);
         out.writeVInt(shardsStats.length);
-        for (ShardStats ss : shardsStats) {
-            ss.writeTo(out);
+        for (ShardStatsAndIndexPatterns ss : shardsStats) {
+            ss.shardStats.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeCollection(ss.indexPatterns, StreamOutput::writeString);
+            }
+        }
+    }
+
+    public static class ShardStatsAndIndexPatterns {
+        public final ShardStats shardStats;
+        public final List<String> indexPatterns;
+
+        ShardStatsAndIndexPatterns(ShardStats shardStats, List<String> indexPatterns) {
+            this.shardStats = shardStats;
+            this.indexPatterns = indexPatterns;
         }
     }
 }

@@ -48,7 +48,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
     private AnalysisStats analysis;
     private MappingStats mappings;
 
-    public ClusterStatsIndices(List<ClusterStatsNodeResponse> nodeResponses,
+    public ClusterStatsIndices(List<org.elasticsearch.action.admin.indices.stats.ShardStats> shardsStats,
             MappingStats mappingStats,
             AnalysisStats analysisStats) {
         ObjectObjectHashMap<String, ShardStats> countsPerIndex = new ObjectObjectHashMap<>();
@@ -60,28 +60,26 @@ public class ClusterStatsIndices implements ToXContentFragment {
         this.completion = new CompletionStats();
         this.segments = new SegmentsStats();
 
-        for (ClusterStatsNodeResponse r : nodeResponses) {
-            for (org.elasticsearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {
-                ShardStats indexShardStats = countsPerIndex.get(shardStats.getShardRouting().getIndexName());
-                if (indexShardStats == null) {
-                    indexShardStats = new ShardStats();
-                    countsPerIndex.put(shardStats.getShardRouting().getIndexName(), indexShardStats);
-                }
-
-                indexShardStats.total++;
-
-                CommonStats shardCommonStats = shardStats.getStats();
-
-                if (shardStats.getShardRouting().primary()) {
-                    indexShardStats.primaries++;
-                    docs.add(shardCommonStats.docs);
-                }
-                store.add(shardCommonStats.store);
-                fieldData.add(shardCommonStats.fieldData);
-                queryCache.add(shardCommonStats.queryCache);
-                completion.add(shardCommonStats.completion);
-                segments.add(shardCommonStats.segments);
+        for (org.elasticsearch.action.admin.indices.stats.ShardStats shardStats : shardsStats) {
+            ShardStats indexShardStats = countsPerIndex.get(shardStats.getShardRouting().getIndexName());
+            if (indexShardStats == null) {
+                indexShardStats = new ShardStats();
+                countsPerIndex.put(shardStats.getShardRouting().getIndexName(), indexShardStats);
             }
+
+            indexShardStats.total++;
+
+            CommonStats shardCommonStats = shardStats.getStats();
+
+            if (shardStats.getShardRouting().primary()) {
+                indexShardStats.primaries++;
+                docs.add(shardCommonStats.docs);
+            }
+            store.add(shardCommonStats.store);
+            fieldData.add(shardCommonStats.fieldData);
+            queryCache.add(shardCommonStats.queryCache);
+            completion.add(shardCommonStats.completion);
+            segments.add(shardCommonStats.segments);
         }
 
         shards = new ShardStats();

@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestClusterStatsAction extends BaseRestHandler {
 
@@ -36,7 +37,9 @@ public class RestClusterStatsAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/_cluster/stats"),
-            new Route(GET, "/_cluster/stats/nodes/{nodeId}"));
+            new Route(POST, "/_cluster/stats"),
+            new Route(GET, "/_cluster/stats/nodes/{nodeId}"),
+            new Route(POST, "/_cluster/stats/nodes/{nodeId}"));
     }
 
     @Override
@@ -46,8 +49,15 @@ public class RestClusterStatsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        ClusterStatsRequest clusterStatsRequest = new ClusterStatsRequest().nodesIds(request.paramAsStringArray("nodeId", null));
+        ClusterStatsRequest clusterStatsRequest = new ClusterStatsRequest(); 
+        request.withContentOrSourceParamParserOrNull(parser -> {
+            if (parser != null) {
+                ClusterStatsRequest.fromXContent(parser, clusterStatsRequest);
+            }
+        });
+        clusterStatsRequest.nodesIds(request.paramAsStringArray("nodeId", null));
         clusterStatsRequest.timeout(request.param("timeout"));
+
         return channel -> client.admin().cluster().clusterStats(clusterStatsRequest, new NodesResponseRestListener<>(channel));
     }
 

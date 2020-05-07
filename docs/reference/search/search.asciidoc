@@ -550,6 +550,7 @@ The API returns the following response:
         "hits" : [
             {
                 "_index" : "twitter",
+                "_type" : "_doc",
                 "_id" : "0",
                 "_score": 1.3862942,
                 "_source" : {

@@ -59,7 +59,6 @@ include::modules/indices/recovery.asciidoc[]
 
 include::modules/indices/indexing_buffer.asciidoc[]
 
-
 include::settings/license-settings.asciidoc[]
 
 include::setup/logging-config.asciidoc[]
@@ -72,9 +71,9 @@ include::modules/indices/query_cache.asciidoc[]
 
 include::modules/indices/search-settings.asciidoc[]
 
-include::modules/indices/request_cache.asciidoc[]
-
 include::settings/security-settings.asciidoc[]
+
+include::modules/indices/request_cache.asciidoc[]
 
 include::settings/slm-settings.asciidoc[]
 

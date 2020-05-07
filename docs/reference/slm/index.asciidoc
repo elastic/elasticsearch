@@ -7,8 +7,8 @@ You can set up snapshot lifecycle policies to automate the timing, frequency, an
 Snapshot policies can apply to multiple indices.
 
 The {slm} ({slm-init}) <<snapshot-lifecycle-management-api, CRUD APIs>> provide
-the building blocks for the snapshot policy features that are part of the Management application in {kib}.
-The  {kib-refers}/snapshot-repositories.html[Snapshot and Restore UI] makes it easy to 
+the building blocks for the snapshot policy features that are part of {kib} Management.
+{kib-refers}/snapshot-repositories.html[Snapshot and Restore] makes it easy to 
 set up policies, register snapshot repositories, view and manage snapshots, and restore indices.
 
 You can stop and restart {slm-init} to temporarily pause automatic backups while performing
@@ -30,7 +30,7 @@ such as getting policies and checking the {slm-init} status.
 `cluster:admin/snapshot/*`:: Allows a user to take and delete snapshots of any
 index, whether or not they have access to that index.
 
-You can create and manage roles to assign these privileges through the {kibana} Management UI.
+You can create and manage roles to assign these privileges through {kibana} Management.
 
 To grant the privileges necessary to create and manage {slm-init} policies and snapshots,
 you can set up a role with the `manage_slm` and `cluster:admin/snapshot/*` cluster privileges

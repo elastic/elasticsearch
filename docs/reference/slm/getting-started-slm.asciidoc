@@ -1,11 +1,13 @@
 [role="xpack"]
 [testenv="basic"]
 [[getting-started-snapshot-lifecycle-management]]
-=== Tutorial: Automate back ups with {slm-init}
+=== Tutorial: Automate backups with {slm-init}
 
 This tutorial demonstrates how to automate daily backups of {es} indices using an {slm-init} policy.
-The policy also defines a retention policy and automatically deletes snapshots when they
-are no longer needed.
+The policy takes <<modules-snapshots, snapshots>> of all indices in the cluster 
+and stores them in a local repository.
+It also defines a retention policy and automatically deletes snapshots 
+when they are no longer needed.
 
 To manage snapshots with {slm-init}, you:
 
@@ -21,10 +23,11 @@ To test the policy, you can manually trigger it to take an initial snapshot.
 To use {slm-init}, you must have a snapshot repository configured. 
 The repository can be local (shared filesystem) or remote (cloud storage).  
 Remote repositories can reside on S3, HDFS, Azure, Google Cloud Storage, 
-or any other platform supported by a repository plugin.
+or any other platform supported by a <<repository, repository plugin>>.
 Remote repositories are generally used for production deployments.
 
-For this tutorial, you can register a local repository from the {kib} Management UI
+For this tutorial, you can register a local repository from 
+{kibana-ref}/snapshot-repositories.html[{kib} Management]
 or use the put repository API:
 
 [source,console]
@@ -42,7 +45,8 @@ PUT /_snapshot/my_repository
 [[slm-gs-create-policy]]
 ==== Setting up a snapshot policy
 
-Once you have a repository in place, you can define an {slm-init} policy to automate your backups. 
+Once you have a repository in place, 
+you can define an {slm-init} policy to take snapshots automatically. 
 The policy defines when to take snapshots, which indices should be included, 
 and what to name the snapshots. 
 A policy can also specify a <<slm-retention,retention policy>> and 
@@ -51,8 +55,7 @@ automatically delete snapshots when they are no longer needed.
 TIP: Don't be afraid to configure a policy that takes frequent snapshots.
 Snapshots are incremental and make efficient use of storage.
 
-You can define and manage policies through the {kibana} Management UI, 
-which invokes the {slm-init} put policy API to create policies according to the options you specify.
+You can define and manage policies through {kibana} Management or with the put policy API.
 
 For example, you could define a `nightly-snapshots` policy 
 to back up all of your indices daily at 2:30AM UTC.
@@ -97,10 +100,11 @@ For more information about snapshot options, see <<snapshots-take-snapshot,snaps
 ==== Test the snapshot policy
 
 A snapshot taken by {slm-init} is just like any other snapshot. 
-You can view information about snapshots in {kib} or get info with the snapshot APIs. 
+You can view information about snapshots in {kib} Management or 
+get info with the <<snapshots-monitor-snapshot-restore, snapshot APIs>>. 
 In addition, {slm-init} keeps track of policy successes and failures so you 
 have insight into how the policy is working. If the policy has executed at
-least once, the <<slm-api-get-policy>> API returns additional metadata
+least once, the <<slm-api-get-policy, get policy>> API returns additional metadata
 that shows if the snapshot succeeded.
 
 You can manually execute a snapshot policy to take a snapshot immediately. 
@@ -126,7 +130,14 @@ GET /_slm/policy/nightly-snapshots?human
 --------------------------------------------------
 // TEST[continued]
 
-The response also shows when the policy is scheduled to execute next:
+Only the most recent success and failure are returned, 
+but all policy executions are recorded in the `.slm-history*` indices.
+The response also shows when the policy is scheduled to execute next.
+
+NOTE: The response shows if the policy succeeded in _initiating_ a snapshot.
+However, that does not guarantee that the snapshot completed successfully. 
+It is possible for the initiated snapshot to fail if, for example, the connection to a remote
+repository is lost while copying files.
 
 [source,console-result]
 --------------------------------------------------
@@ -164,17 +175,3 @@ The response also shows when the policy is scheduled to execute next:
 <2> When the snapshot was initiated
 <3> When the policy will initiate the next snapshot
 
-The response shows if the policy succeeded in _initiating_ a snapshot.
-However, that does not guarantee that the snapshot completed successfully. 
-It is possible for the initiated snapshot to fail if, for example, the connection to a remote
-repository is lost while copying files.
-
-Only the most recent success and failure are returned, 
-but all policy executions are recorded in the `.slm-history*` index.
-
-For more information about using {kib} to set up and manage snapshot policies, 
-see {kibana-ref}/snapshot-repositories.html[Snapshot and Restore]. 
-For more information about using the APIs directly, 
-see the <<snapshot-lifecycle-management-api,{slm-init] API documentation>>.
-For general information about backing up and restoring {es} indices and cluster information,
-see <<modules-snapshots>>.

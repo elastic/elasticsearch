@@ -60,8 +60,9 @@ To override the default for this field, set the
 
 [[ccs-minimize-roundtrips]]
 `ccs_minimize_roundtrips`::
-  (Optional, boolean) Indicates whether network round-trips should be minimized
-  as part of cross-cluster search requests execution. Defaults to `true`.
+(Optional, boolean) If `true`, network round-trips between the 
+coordinating node and the remote clusters are minimized when executing 
+{ccs} (CCS) requests. See <<ccs-network-delays>>. Defaults to `true`.
 
 `docvalue_fields`::
   (Optional, string) A comma-separated list of fields to return as the docvalue
@@ -130,8 +131,9 @@ matching the `query` request body parameter are not returned.
 --
 
 `request_cache`::
-  (Optional, boolean) If `true`, request cache will be used for this request.
-  Defaults to index level settings.
+(Optional, boolean) If `true`, the caching of search results is enabled for
+requests where `size` is `0`. See <<shard-request-cache>>. Defaults to index
+level settings.
 
 `rest_total_hits_as_int`::
   (Optional, boolean) Indicates whether hits.total should be rendered as an

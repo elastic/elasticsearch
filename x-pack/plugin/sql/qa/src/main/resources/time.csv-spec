@@ -106,86 +106,72 @@ SELECT MAX(salary) FROM test_emp GROUP BY CURRENT_TIME;
 ;
 
 selectTimeParse
-schema::dp_time1:time|dp_time2:time
-SELECT TIME_PARSE('11:22:33', 'HH:mm:ss') AS dp_time1,
-TIME_PARSE('11:22:33 -05:33', 'HH:mm:ss zz') AS dp_time2;
+schema::tp_time1:time|tp_time2:time
+SELECT TIME_PARSE('11:22:33', 'HH:mm:ss') AS tp_time1,
+TIME_PARSE('11:22:33 -05:33', 'HH:mm:ss zz') AS tp_time2;
 
-       dp_time1             |    dp_time2
+       tp_time1             |    tp_time2
 ----------------------------+----------------------------
 11:22:33.000Z               | 16:55:33.000Z
 ;
 
 selectTimeParseWithField
-schema::birth_date:ts|dp_birth_time:time
-SELECT birth_date, TIME_PARSE(DATETIME_FORMAT(birth_date, 'HH mm SSS ss'), 'HH mm SSS ss') AS dp_birth_time
-FROM test_emp WHERE gender = 'M' AND emp_no BETWEEN 10037 AND 10052 ORDER BY emp_no;
+schema::@timestamp:ts|tp_time:time
+SELECT "@timestamp", TIME_PARSE(DATETIME_FORMAT("@timestamp", 'HH mm SSS ss'), 'HH mm SSS ss') AS tp_time
+FROM logs WHERE client_ip = '10.0.1.13' ORDER BY "@timestamp" desc;
 
-       birth_date        | dp_birth_time
+       @timestamp        | tp_time
 -------------------------+-------------------------
-1963-07-22 00:00:00.000Z | 00:00:00.000Z
-1960-07-20 00:00:00.000Z | 00:00:00.000Z
-1959-10-01 00:00:00.000Z | 00:00:00.000Z
-null                     | null
-null                     | null
-null                     | null
-null                     | null
-null                     | null
-1958-05-21 00:00:00.000Z | 00:00:00.000Z
-1953-07-28 00:00:00.000Z | 00:00:00.000Z
-1961-02-26 00:00:00.000Z | 00:00:00.000Z
+2017-11-10 20:36:15.000Z | 20:36:15.000Z
+2017-11-10 20:36:07.000Z | 20:36:07.000Z
+2017-11-10 20:35:55.000Z | 20:35:55.000Z
+2017-11-10 20:35:54.000Z | 20:35:54.000Z 
+2017-11-10 17:54:43.000Z | 17:54:43.000Z
 ;
 
 timeParseWhere
-schema::birth_date:ts|dp_birth_time:time
-SELECT birth_date, TIME_PARSE(DATETIME_FORMAT(birth_date, 'HH.mm.ss'), 'HH.mm.ss') AS dp_birth_time
-FROM test_emp WHERE birth_date > '1963-10-20'::date and dp_birth_time = '00:00:00'::time ORDER BY emp_no;
+schema::@timestamp:ts|tp_time:time
+SELECT "@timestamp", TIME_PARSE(DATETIME_FORMAT("@timestamp", 'HH.mm.ss'), 'HH.mm.ss') AS tp_time
+FROM logs WHERE "@timestamp" > '2017-11-10'::date and tp_time = '21:15:39'::time ORDER BY id;
 
-       birth_date        |     dp_birth_time
+       @timestamp        |     tp_time
 -------------------------+------------------------
-1964-06-02 00:00:00.000Z | 00:00:00.000Z
-1963-11-26 00:00:00.000Z | 00:00:00.000Z
-1964-04-18 00:00:00.000Z | 00:00:00.000Z
-1964-10-18 00:00:00.000Z | 00:00:00.000Z
-1964-06-11 00:00:00.000Z | 00:00:00.000Z
-1965-01-03 00:00:00.000Z | 00:00:00.000Z
+2017-11-10 21:15:39.000Z | 21:15:39.000Z
+2017-11-10 21:15:39.000Z | 21:15:39.000Z
+2017-11-10 21:15:39.000Z | 21:15:39.000Z
 ;
 
 timeParseOrderBy
-schema::birth_date:ts|dp_birth_time:time
-SELECT birth_date, TIME_PARSE(DATETIME_FORMAT(birth_date, 'HH:mm:ss.SSS'), 'HH:mm:ss.SSS') AS dp_birth_time
-FROM test_emp  ORDER BY 1 DESC NULLS LAST, 2 LIMIT 10;
+schema::@timestamp:ts|tp_time:time
+SELECT "@timestamp", TIME_PARSE(DATETIME_FORMAT("@timestamp", 'HH:mm:ss.SSS'), 'HH:mm:ss.SSS') AS tp_time
+FROM logs ORDER BY 2 DESC, 1 DESC LIMIT 5;
 
-       birth_date        | dp_birth_time
+       @timestamp        | tp_time
 -------------------------+-------------------------
-1965-01-03 00:00:00.000Z | 00:00:00.000Z
-1964-10-18 00:00:00.000Z | 00:00:00.000Z
-1964-06-11 00:00:00.000Z | 00:00:00.000Z
-1964-06-02 00:00:00.000Z | 00:00:00.000Z
-1964-04-18 00:00:00.000Z | 00:00:00.000Z
-1963-11-26 00:00:00.000Z | 00:00:00.000Z
-1963-09-09 00:00:00.000Z | 00:00:00.000Z
-1963-07-22 00:00:00.000Z | 00:00:00.000Z
-1963-06-07 00:00:00.000Z | 00:00:00.000Z
-1963-06-01 00:00:00.000Z | 00:00:00.000Z
+2017-11-10 23:56:36.000Z | 23:56:36.000Z
+2017-11-10 23:43:10.000Z | 23:43:10.000Z
+2017-11-10 23:36:41.000Z | 23:36:41.000Z
+2017-11-10 23:36:33.000Z | 23:36:33.000Z
+2017-11-10 23:36:32.000Z | 23:36:32.000Z
 ;
 
 timeParseGroupBy
-schema::count:l|df_birth_time:s
-SELECT count(*) AS count, CAST(TIME_PARSE(DATETIME_FORMAT(birth_date, 'HH:mm:ss'), 'HH:mm:ss') AS VARCHAR) AS df_birth_time
-FROM test_emp GROUP BY df_birth_time ORDER BY 1 DESC, 2 DESC NULLS LAST LIMIT 10;
+schema::count:l|df_tp_time:s
+SELECT count(*) AS count, CAST(TIME_PARSE(DATETIME_FORMAT("@timestamp", 'HH:mm:ss'), 'HH:mm:ss') AS VARCHAR) AS df_tp_time
+FROM logs GROUP BY df_tp_time ORDER BY 1 DESC, 2 DESC NULLS LAST LIMIT 1;
 
- count | df_birth_time
+ count | df_tp_time
 -------+---------------
-90     | 00:00:00.000Z
-10     | null
+7      | 20:35:57.000Z
 ;
 
 timeParseHaving
-schema::max:ts|df_birth_date:s
-SELECT MAX(birth_date) AS max, DATETIME_FORMAT(birth_date, 'MM') AS df_birth_date FROM test_emp GROUP BY df_birth_date
-HAVING TIME_PARSE(DATETIME_FORMAT(MAX(birth_date), 'HH:mm:ss'), 'HH:mm:ss') > '00:00:00'::time  ORDER BY 1 DESC NULLS LAST;
+schema::max:ts|tt_month:s
+SELECT MAX("@timestamp") AS max, DATETIME_FORMAT("@timestamp", 'MM') AS tt_month FROM logs GROUP BY tt_month
+HAVING TIME_PARSE(DATETIME_FORMAT(MAX("@timestamp"), 'HH:mm:ss'), 'HH:mm:ss') > '21:15:39'::time  ORDER BY 1 DESC NULLS LAST;
 
-          max            | df_birth_date
+          max            | tt_month
 -------------------------+---------------
+2017-11-10 23:56:36.000Z | 11
 ;
 

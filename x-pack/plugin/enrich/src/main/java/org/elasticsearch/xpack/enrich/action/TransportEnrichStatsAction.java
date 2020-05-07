@@ -34,7 +34,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class TransportEnrichStatsAction extends TransportMasterNodeAction<EnrichStatsAction.Request, EnrichStatsAction.Response> {
+public class TransportEnrichStatsAction extends TransportMasterNodeAction<EnrichStatsAction.Request,
+    EnrichStatsAction.Response> {
 
     private final Client client;
 
@@ -128,6 +129,6 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
 
     @Override
     protected String getMasterActionName(DiscoveryNode node) {
-        return node.getVersion().before(Version.V_7_7_0) ? EnrichStatsAction.BWC_NAME : actionName;
+        return node.getVersion().before(Version.V_7_9_0) ? EnrichStatsAction.BWC_NAME : actionName;
     }
 }

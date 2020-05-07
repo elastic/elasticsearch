@@ -186,8 +186,8 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
         }
 
         @Override
-        protected String getBwcTransportNodeAction(DiscoveryNode node) {
-            return node.getVersion().before(Version.V_7_7_0) ? BWC_NAME + "[n]" : transportNodeAction;
+        protected String getTransportNodeAction(DiscoveryNode node) {
+            return node.getVersion().before(Version.V_7_9_0) ? BWC_NAME + "[n]" : transportNodeAction;
         }
     }
 

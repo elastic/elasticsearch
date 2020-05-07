@@ -25,6 +25,10 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
 
     public static final EnrichStatsAction INSTANCE = new EnrichStatsAction();
     public static final String NAME = "cluster:monitor/xpack/enrich/stats";
+
+    /**
+     * The BWC_NAME is used in version 7.8.x and earlier
+     */
     public static final String BWC_NAME = "cluster:admin/xpack/enrich/stats";
 
     private EnrichStatsAction() {

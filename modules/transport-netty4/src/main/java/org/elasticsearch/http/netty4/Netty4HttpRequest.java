@@ -31,8 +31,6 @@ import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -43,28 +41,16 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 public class Netty4HttpRequest implements HttpRequest {
-
     private final HttpHeadersMap headers;
     private final AtomicBoolean released;
     private final FullHttpRequest request;
     private final boolean pooled;
     private final BytesReference content;
-    private final Exception inboundException = null;
-    private Releasable breakerRelease = null;
-
-    Netty4HttpRequest(FullHttpRequest request, Releasable breakerRelease) {
-        this(request, breakerRelease, null);
-    }
-
-    Netty4HttpRequest(FullHttpRequest request, Releasable breakerRelease, Exception exception) {
-        this(request);
-    }
 
     Netty4HttpRequest(FullHttpRequest request) {
         this(request, new HttpHeadersMap(request.headers()), new AtomicBoolean(false), true,
@@ -132,7 +118,6 @@ public class Netty4HttpRequest implements HttpRequest {
     @Override
     public void release() {
         if (pooled && released.compareAndSet(false, true)) {
-            Releasables.closeWhileHandlingException(breakerRelease);
             request.release();
         }
     }
@@ -203,12 +188,6 @@ public class Netty4HttpRequest implements HttpRequest {
 
     public FullHttpRequest nettyRequest() {
         return request;
-    }
-
-    public Releasable takeBreakerReleaseControl() {
-        final Releasable toReturn = breakerRelease;
-        breakerRelease = null;
-        return Objects.requireNonNullElse(toReturn, () -> {});
     }
 
     /**

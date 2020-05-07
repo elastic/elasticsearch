@@ -32,6 +32,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.http.CorsHandler;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpPipelinedRequest;
+import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.http.nio.cors.NioCorsHandler;
 import org.elasticsearch.nio.FlushOperation;
@@ -68,7 +69,7 @@ public class HttpReadWriteHandler implements NioChannelHandler {
         this.nanoClock = nanoClock;
         this.readTimeoutNanos = TimeUnit.MILLISECONDS.toNanos(settings.getReadTimeoutMillis());
 
-        List<ChannelHandler> handlers = new ArrayList<>(5);
+        List<ChannelHandler> handlers = new ArrayList<>(8);
         HttpRequestDecoder decoder = new HttpRequestDecoder(settings.getMaxInitialLineLength(), settings.getMaxHeaderSize(),
             settings.getMaxChunkSize());
         decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
@@ -79,6 +80,7 @@ public class HttpReadWriteHandler implements NioChannelHandler {
         if (settings.isCompression()) {
             handlers.add(new HttpContentCompressor(settings.getCompressionLevel()));
         }
+        handlers.add(new NioHttpRequestCreator());
         if (settings.isCorsEnabled()) {
             handlers.add(new NioCorsHandler(corsConfig));
         }
@@ -112,15 +114,13 @@ public class HttpReadWriteHandler implements NioChannelHandler {
 
     @Override
     public WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Exception> listener) {
-        assert message instanceof NioHttpResponse : "This channel only supports messages that are of type: "
-            + NioHttpResponse.class + ". Found type: " + message.getClass() + ".";
-        return new HttpWriteOperation(context, (NioHttpResponse) message, listener);
+        assert assertMessageTypes(message);
+        return new HttpWriteOperation(context, (HttpPipelinedResponse) message, listener);
     }
 
     @Override
     public List<FlushOperation> writeToBytes(WriteOperation writeOperation) {
-        assert writeOperation.getObject() instanceof NioHttpResponse : "This channel only supports messages that are of type: "
-            + NioHttpResponse.class + ". Found type: " + writeOperation.getObject().getClass() + ".";
+        assert assertMessageTypes(writeOperation.getObject());
         assert channelActive : "channelActive should have been called";
         --inFlightRequests;
         assert inFlightRequests >= 0 : "Inflight requests should never drop below zero, found: " + inFlightRequests;
@@ -189,5 +189,14 @@ public class HttpReadWriteHandler implements NioChannelHandler {
 
     private void scheduleReadTimeout() {
         taskScheduler.scheduleAtRelativeTime(this::maybeReadTimeout, nanoClock.getAsLong() + readTimeoutNanos);
+    }
+
+    private static boolean assertMessageTypes(Object message) {
+        assert message instanceof HttpPipelinedResponse : "This channel only supports messages that are of type: "
+            + HttpPipelinedResponse.class + ". Found type: " + message.getClass() + ".";
+        assert ((HttpPipelinedResponse) message).getDelegateRequest() instanceof NioHttpResponse :
+            "This channel only pipelined responses with a delegate of type: " + NioHttpResponse.class +
+                ". Found type: " + ((HttpPipelinedResponse) message).getDelegateRequest().getClass() + ".";
+        return true;
     }
 }

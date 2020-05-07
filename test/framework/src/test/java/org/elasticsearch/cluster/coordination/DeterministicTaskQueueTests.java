@@ -28,7 +28,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -39,9 +38,9 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.core.Is.is;
 
 public class DeterministicTaskQueueTests extends ESTestCase {
@@ -57,7 +56,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
 
         assertTrue(taskQueue.hasRunnableTasks());
         taskQueue.runRandomTask();
-        assertThat(strings, contains(isOneOf("foo", "bar")));
+        assertThat(strings, contains(oneOf("foo", "bar")));
 
         assertTrue(taskQueue.hasRunnableTasks());
         taskQueue.runRandomTask();
@@ -245,25 +244,6 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertThat(strings, contains("foo", "bar"));
     }
 
-    public void testExecutorServiceEnqueuesTasks() {
-        final DeterministicTaskQueue taskQueue = newTaskQueue();
-        final List<String> strings = new ArrayList<>(2);
-
-        final ExecutorService executorService = taskQueue.getExecutorService();
-        assertFalse(taskQueue.hasRunnableTasks());
-        executorService.execute(() -> strings.add("foo"));
-        assertTrue(taskQueue.hasRunnableTasks());
-        executorService.execute(() -> strings.add("bar"));
-
-        assertThat(strings, empty());
-
-        while (taskQueue.hasRunnableTasks()) {
-            taskQueue.runRandomTask();
-        }
-
-        assertThat(strings, containsInAnyOrder("foo", "bar"));
-    }
-
     public void testThreadPoolEnqueuesTasks() {
         final DeterministicTaskQueue taskQueue = newTaskQueue();
         final List<String> strings = new ArrayList<>(2);
@@ -292,20 +272,6 @@ public class DeterministicTaskQueueTests extends ESTestCase {
             runnable.run();
         });
         threadPool.generic().execute(() -> logger.info("runnable executed"));
-        assertFalse(called.get());
-        taskQueue.runAllRunnableTasks();
-        assertTrue(called.get());
-    }
-
-    public void testExecutorServiceWrapsRunnable() {
-        final DeterministicTaskQueue taskQueue = newTaskQueue();
-        final AtomicBoolean called = new AtomicBoolean();
-        final ExecutorService executorService = taskQueue.getExecutorService(runnable -> () -> {
-            assertFalse(called.get());
-            called.set(true);
-            runnable.run();
-        });
-        executorService.execute(() -> logger.info("runnable executed"));
         assertFalse(called.get());
         taskQueue.runAllRunnableTasks();
         assertTrue(called.get());
@@ -419,6 +385,20 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         taskQueue.runAllRunnableTasks();
 
         assertThat(strings, contains("periodic-0", "periodic-1", "periodic-2"));
+    }
+
+    public void testSameExecutor() {
+        final DeterministicTaskQueue taskQueue = newTaskQueue();
+        final ThreadPool threadPool = taskQueue.getThreadPool();
+        final AtomicBoolean executed = new AtomicBoolean(false);
+        final AtomicBoolean executedNested = new AtomicBoolean(false);
+        threadPool.generic().execute(() -> {
+            threadPool.executor(ThreadPool.Names.SAME).execute(() -> executedNested.set(true));
+            assertThat(executedNested.get(), is(true));
+            executed.set(true);
+        });
+        taskQueue.runAllRunnableTasks();
+        assertThat(executed.get(), is(true));
     }
 
     static DeterministicTaskQueue newTaskQueue() {

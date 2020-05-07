@@ -22,6 +22,7 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
@@ -76,6 +77,9 @@ import java.util.IdentityHashMap;
 import java.util.Set;
 
 import static org.elasticsearch.search.internal.ContextIndexSearcher.intersectScorerAndBitSet;
+import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitableLeafReader;
+import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitablePointValues;
+import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitableTerms;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -191,6 +195,8 @@ public class ContextIndexSearcherTests extends ESTestCase {
         doc.add(fooField);
         StringField deleteField = new StringField("delete", "no", Field.Store.NO);
         doc.add(deleteField);
+        IntPoint pointField = new IntPoint("point", 1, 2);
+        doc.add(pointField);
         w.addDocument(doc);
         if (deletions) {
             // add a document that matches foo:bar but will be deleted
@@ -234,8 +240,20 @@ public class ContextIndexSearcherTests extends ESTestCase {
         DocumentSubsetDirectoryReader filteredReader = new DocumentSubsetDirectoryReader(reader, cache, roleQuery);
 
         ContextIndexSearcher searcher = new ContextIndexSearcher(filteredReader, IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
-        searcher.setCheckCancelled(() -> {});
+            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), true);
+
+        // Assert wrapping
+        assertEquals(ExitableDirectoryReader.class, searcher.getIndexReader().getClass());
+        for (LeafReaderContext lrc : searcher.getIndexReader().leaves()) {
+            assertEquals(ExitableLeafReader.class, lrc.reader().getClass());
+            assertNotEquals(ExitableTerms.class, lrc.reader().terms("foo").getClass());
+            assertNotEquals(ExitablePointValues.class, lrc.reader().getPointValues("point").getClass());
+        }
+        searcher.addQueryCancellation(() -> {});
+        for (LeafReaderContext lrc : searcher.getIndexReader().leaves()) {
+            assertEquals(ExitableTerms.class, lrc.reader().terms("foo").getClass());
+            assertEquals(ExitablePointValues.class, lrc.reader().getPointValues("point").getClass());
+        }
 
         // Searching a non-existing term will trigger a null scorer
         assertEquals(0, searcher.count(new TermQuery(new Term("non_existing_field", "non_existing_value"))));

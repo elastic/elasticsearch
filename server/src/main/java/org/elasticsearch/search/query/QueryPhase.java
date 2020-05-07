@@ -45,8 +45,8 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.search.SearchShardTask;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.lucene.Lucene;
@@ -54,8 +54,8 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.EWMATrackingEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.index.IndexSortConfig;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.SearchService;
@@ -110,7 +110,24 @@ public class QueryPhase implements SearchPhase {
 
     @Override
     public void preProcess(SearchContext context) {
-        context.preProcess(true);
+        final Runnable cancellation;
+        if (context.lowLevelCancellation()) {
+            cancellation = context.searcher().addQueryCancellation(() -> {
+                SearchShardTask task = context.getTask();
+                if (task != null && task.isCancelled()) {
+                    throw new TaskCancelledException("cancelled");
+                }
+            });
+        } else {
+            cancellation = null;
+        }
+        try {
+            context.preProcess(true);
+        } finally {
+            if (cancellation != null) {
+                context.searcher().removeQueryCancellation(cancellation);
+            }
+        }
     }
 
     @Override
@@ -254,63 +271,58 @@ public class QueryPhase implements SearchPhase {
                 final long startTime = searchContext.getRelativeTimeInMillis();
                 final long timeout = searchContext.timeout().millis();
                 final long maxTime = startTime + timeout;
-                timeoutRunnable = () -> {
+                timeoutRunnable = searcher.addQueryCancellation(() -> {
                     final long time = searchContext.getRelativeTimeInMillis();
                     if (time > maxTime) {
                         throw new TimeExceededException();
                     }
-                };
+                });
             } else {
                 timeoutRunnable = null;
             }
 
-            final Runnable cancellationRunnable;
             if (searchContext.lowLevelCancellation()) {
-                SearchShardTask task = searchContext.getTask();
-                cancellationRunnable = () -> { if (task.isCancelled()) throw new TaskCancelledException("cancelled"); };
-            } else {
-                cancellationRunnable = null;
+                searcher.addQueryCancellation(() -> {
+                    SearchShardTask task = searchContext.getTask();
+                    if (task != null && task.isCancelled()) {
+                        throw new TaskCancelledException("cancelled");
+                    }
+                });
             }
 
-            final Runnable checkCancelled;
-            if (timeoutRunnable != null && cancellationRunnable != null) {
-                checkCancelled = () -> {
-                    timeoutRunnable.run();
-                    cancellationRunnable.run();
-                };
-            } else if (timeoutRunnable != null) {
-                checkCancelled = timeoutRunnable;
-            } else if (cancellationRunnable != null) {
-                checkCancelled = cancellationRunnable;
-            } else {
-                checkCancelled = null;
-            }
-            searcher.setCheckCancelled(checkCancelled);
+            try {
+                boolean shouldRescore;
+                // if we are optimizing sort and there are no other collectors
+                if (sortAndFormatsForRewrittenNumericSort != null && collectors.size() == 0 && searchContext.getProfilers() == null) {
+                    shouldRescore = searchWithCollectorManager(searchContext, searcher, query, leafSorter, timeoutSet);
+                } else {
+                    shouldRescore = searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
+                }
 
-            boolean shouldRescore;
-            // if we are optimizing sort and there are no other collectors
-            if (sortAndFormatsForRewrittenNumericSort != null && collectors.size() == 0 && searchContext.getProfilers() == null) {
-                shouldRescore = searchWithCollectorManager(searchContext, searcher, query, leafSorter, timeoutSet);
-            } else {
-                shouldRescore = searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
-            }
+                // if we rewrote numeric long or date sort, restore fieldDocs based on the original sort
+                if (sortAndFormatsForRewrittenNumericSort != null) {
+                    searchContext.sort(sortAndFormatsForRewrittenNumericSort); // restore SortAndFormats
+                    restoreTopFieldDocs(queryResult, sortAndFormatsForRewrittenNumericSort);
+                }
 
-            // if we rewrote numeric long or date sort, restore fieldDocs based on the original sort
-            if (sortAndFormatsForRewrittenNumericSort != null) {
-                searchContext.sort(sortAndFormatsForRewrittenNumericSort); // restore SortAndFormats
-                restoreTopFieldDocs(queryResult, sortAndFormatsForRewrittenNumericSort);
-            }
+                ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
+                assert executor instanceof EWMATrackingEsThreadPoolExecutor ||
+                    (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */) :
+                    "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
+                if (executor instanceof EWMATrackingEsThreadPoolExecutor) {
+                    EWMATrackingEsThreadPoolExecutor rExecutor = (EWMATrackingEsThreadPoolExecutor) executor;
+                    queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
+                    queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
+                }
 
-            ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
-            assert executor instanceof EWMATrackingEsThreadPoolExecutor ||
-                (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */) :
-                "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
-            if (executor instanceof EWMATrackingEsThreadPoolExecutor) {
-                EWMATrackingEsThreadPoolExecutor rExecutor = (EWMATrackingEsThreadPoolExecutor) executor;
-                queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
-                queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
+                return shouldRescore;
+            } finally {
+                // Search phase has finished, no longer need to check for timeout
+                // otherwise aggregation phase might get cancelled.
+                if (timeoutRunnable != null) {
+                   searcher.removeQueryCancellation(timeoutRunnable);
+                }
             }
-            return shouldRescore;
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute main query", e);
         }
@@ -567,7 +579,7 @@ public class QueryPhase implements SearchPhase {
      * Returns true if more than 50% of data in the index have the same value
      * The evaluation is approximation based on finding the median value and estimating its count
      */
-    static boolean indexFieldHasDuplicateData(IndexReader reader, String field) throws IOException {
+    private static boolean indexFieldHasDuplicateData(IndexReader reader, String field) throws IOException {
         long docsNoDupl = 0; // number of docs in segments with NO duplicate data that would benefit optimization
         long docsDupl = 0; // number of docs in segments with duplicate data that would NOT benefit optimization
         for (LeafReaderContext lrc : reader.leaves()) {
@@ -578,30 +590,33 @@ public class QueryPhase implements SearchPhase {
                 continue;
             }
             assert(pointValues.size() == docCount); // TODO: modify the code to handle multiple values
-
             int duplDocCount = docCount/2; // expected doc count of duplicate data
-            long minValue = LongPoint.decodeDimension(pointValues.getMinPackedValue(), 0);
-            long maxValue = LongPoint.decodeDimension(pointValues.getMaxPackedValue(), 0);
-            boolean hasDuplicateData = true;
-            while ((minValue < maxValue) && hasDuplicateData) {
-                long midValue = Math.floorDiv(minValue, 2) + Math.floorDiv(maxValue, 2); // to avoid overflow first divide each value by 2
-                long countLeft = estimatePointCount(pointValues, minValue, midValue);
-                long countRight = estimatePointCount(pointValues, midValue + 1, maxValue);
-                if ((countLeft >= countRight) && (countLeft > duplDocCount) ) {
-                    maxValue = midValue;
-                } else if ((countRight > countLeft) && (countRight > duplDocCount)) {
-                    minValue = midValue + 1;
-                } else {
-                    hasDuplicateData = false;
-                }
-            }
-            if (hasDuplicateData) {
+            if (pointsHaveDuplicateData(pointValues, duplDocCount)) {
                 docsDupl += docCount;
             } else {
                 docsNoDupl += docCount;
             }
         }
         return (docsDupl > docsNoDupl);
+    }
+
+    static boolean pointsHaveDuplicateData(PointValues pointValues, int duplDocCount) throws IOException {
+        long minValue = LongPoint.decodeDimension(pointValues.getMinPackedValue(), 0);
+        long maxValue = LongPoint.decodeDimension(pointValues.getMaxPackedValue(), 0);
+        boolean hasDuplicateData = true;
+        while ((minValue < maxValue) && hasDuplicateData) {
+            long midValue = Math.floorDiv(minValue, 2) + Math.floorDiv(maxValue, 2); // to avoid overflow first divide each value by 2
+            long countLeft = estimatePointCount(pointValues, minValue, midValue);
+            long countRight = estimatePointCount(pointValues, midValue + 1, maxValue);
+            if ((countLeft >= countRight) && (countLeft > duplDocCount) ) {
+                maxValue = midValue;
+            } else if ((countRight > countLeft) && (countRight > duplDocCount)) {
+                minValue = midValue + 1;
+            } else {
+                hasDuplicateData = false;
+            }
+        }
+        return hasDuplicateData;
     }
 
 

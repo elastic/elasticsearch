@@ -28,7 +28,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -44,13 +44,14 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
 
     protected final int requiredSize;
     protected final int shardSize;
-    protected final CellIdSource valuesSource;
+    protected final ValuesSource.Numeric valuesSource;
     protected final LongHash bucketOrds;
+    protected SortedNumericDocValues values;
 
-    GeoGridAggregator(String name, AggregatorFactories factories, CellIdSource valuesSource,
+    GeoGridAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource,
                       int requiredSize, int shardSize, SearchContext aggregationContext,
-                      Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
+                      Aggregator parent, Map<String, Object> metadata) throws IOException {
+        super(name, factories, aggregationContext, parent, metadata);
         this.valuesSource = valuesSource;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
@@ -68,7 +69,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
-        final SortedNumericDocValues values = valuesSource.longValues(ctx);
+        values = valuesSource.longValues(ctx);
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -95,8 +96,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
         };
     }
 
-    abstract T buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
-                                              List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
+    abstract T buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata);
 
     /**
      * This method is used to return a re-usable instance of the bucket when building
@@ -132,12 +132,12 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
-        return buildAggregation(name, requiredSize, Arrays.asList(list), pipelineAggregators(), metaData());
+        return buildAggregation(name, requiredSize, Arrays.asList(list), metadata());
     }
 
     @Override
     public InternalGeoGrid buildEmptyAggregation() {
-        return buildAggregation(name, requiredSize, Collections.emptyList(), pipelineAggregators(), metaData());
+        return buildAggregation(name, requiredSize, Collections.emptyList(), metadata());
     }
 
     @Override

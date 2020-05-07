@@ -14,7 +14,7 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -39,6 +39,7 @@ import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -173,7 +174,9 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             final NamedXContentRegistry xContentRegistry,
             final Environment environment,
             final NodeEnvironment nodeEnvironment,
-            final NamedWriteableRegistry namedWriteableRegistry) {
+            final NamedWriteableRegistry namedWriteableRegistry,
+            final IndexNameExpressionResolver expressionResolver,
+            final Supplier<RepositoriesService> repositoriesServiceSupplier) {
         this.client = client;
         if (enabled == false) {
             return emptyList();
@@ -202,7 +205,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
                                                                        ThreadPool threadPool,
                                                                        Client client,
-                                                                       SettingsModule settingsModule) {
+                                                                       SettingsModule settingsModule,
+                                                                       IndexNameExpressionResolver expressionResolver) {
         return Collections.singletonList(new ShardFollowTasksExecutor(client, threadPool, clusterService, settingsModule));
     }
 
@@ -291,7 +295,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         return Arrays.asList(
                 // auto-follow metadata, persisted into the cluster state as XContent
                 new NamedXContentRegistry.Entry(
-                        MetaData.Custom.class,
+                        Metadata.Custom.class,
                         new ParseField(AutoFollowMetadata.TYPE),
                         AutoFollowMetadata::fromXContent),
                 // persistent action requests

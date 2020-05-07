@@ -147,7 +147,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     public ClusterHealthResponse(StreamInput in) throws IOException {
         super(in);
         clusterName = in.readString();
-        clusterHealthStatus = ClusterHealthStatus.fromValue(in.readByte());
+        clusterHealthStatus = ClusterHealthStatus.readFrom(in);
         clusterStateHealth = new ClusterStateHealth(in);
         numberOfPendingTasks = in.readInt();
         timedOut = in.readBoolean();

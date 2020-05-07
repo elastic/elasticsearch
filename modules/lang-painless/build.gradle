@@ -16,7 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask;
+apply plugin: 'elasticsearch.validate-rest-spec'
 
 esplugin {
   description 'An easy, safe and fast scripting language for Elasticsearch'
@@ -24,7 +26,7 @@ esplugin {
 }
 
 testClusters.integTest {
-  module file(project(':modules:mapper-extras').tasks.bundlePlugin.archiveFile)
+  module project(':modules:mapper-extras').tasks.bundlePlugin.archiveFile
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'es.transport.cname_in_publish_address', 'true'
@@ -42,6 +44,13 @@ dependencies {
 
 dependencyLicenses {
   mapping from: /asm-.*/, to: 'asm'
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'bulk', 'update',
+                'scripts_painless_execute', 'put_script', 'delete_script'
+  }
 }
 
 test {
@@ -184,3 +193,4 @@ task regen {
     }
   }
 }
+

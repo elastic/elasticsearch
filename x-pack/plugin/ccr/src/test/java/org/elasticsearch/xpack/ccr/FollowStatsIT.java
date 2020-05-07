@@ -13,7 +13,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.CcrSingleNodeTestCase;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
@@ -34,7 +34,7 @@ import static org.hamcrest.collection.IsEmptyCollection.empty;
 
 /*
  * Test scope is important to ensure that other tests added to this suite do not interfere with the expectation in
- * testStatsWhenNoPersistentTasksMetaDataExists that the cluster state does not contain any persistent tasks metadata.
+ * testStatsWhenNoPersistentTasksMetadataExists that the cluster state does not contain any persistent tasks metadata.
  */
 public class FollowStatsIT extends CcrSingleNodeTestCase {
 
@@ -44,9 +44,9 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
      *
      * @throws InterruptedException if we are interrupted waiting on the latch to countdown
      */
-    public void testStatsWhenNoPersistentTasksMetaDataExists() throws InterruptedException {
+    public void testStatsWhenNoPersistentTasksMetadataExists() throws InterruptedException {
         final ClusterStateResponse response = client().admin().cluster().state(new ClusterStateRequest()).actionGet();
-        assertNull(response.getState().metaData().custom(PersistentTasksCustomMetaData.TYPE));
+        assertNull(response.getState().metadata().custom(PersistentTasksCustomMetadata.TYPE));
         final AtomicBoolean onResponse = new AtomicBoolean();
         final CountDownLatch latch = new CountDownLatch(1);
         client().execute(

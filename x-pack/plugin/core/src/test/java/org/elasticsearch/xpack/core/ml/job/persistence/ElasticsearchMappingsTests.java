@@ -17,9 +17,9 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.get.GetResult;
@@ -148,44 +148,44 @@ public class ElasticsearchMappingsTests extends ESTestCase {
     }
 
     public void testMappingRequiresUpdateNullMapping() throws IOException {
-        ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("null_mapping", null));
+        ClusterState cs = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("null_mapping", null));
         String[] indices = new String[] { "null_index" };
         assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT));
     }
 
     public void testMappingRequiresUpdateNoVersion() throws IOException {
-        ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("no_version_field", "NO_VERSION_FIELD"));
+        ClusterState cs = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("no_version_field", "NO_VERSION_FIELD"));
         String[] indices = new String[] { "no_version_field" };
         assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT));
     }
 
     public void testMappingRequiresUpdateRecentMappingVersion() throws IOException {
-        ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("version_current", Version.CURRENT.toString()));
+        ClusterState cs = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("version_current", Version.CURRENT.toString()));
         String[] indices = new String[] { "version_current" };
         assertArrayEquals(new String[] {}, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT));
     }
 
     public void testMappingRequiresUpdateMaliciousMappingVersion() throws IOException {
-        ClusterState cs = getClusterStateWithMappingsWithMetaData(
+        ClusterState cs = getClusterStateWithMappingsWithMetadata(
             Collections.singletonMap("version_current", Collections.singletonMap("nested", "1.0")));
         String[] indices = new String[] { "version_nested" };
         assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT));
     }
 
     public void testMappingRequiresUpdateBogusMappingVersion() throws IOException {
-        ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("version_bogus", "0.0"));
+        ClusterState cs = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("version_bogus", "0.0"));
         String[] indices = new String[] { "version_bogus" };
         assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT));
     }
 
     public void testMappingRequiresUpdateNewerMappingVersion() throws IOException {
-        ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("version_newer", Version.CURRENT));
+        ClusterState cs = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("version_newer", Version.CURRENT));
         String[] indices = new String[] { "version_newer" };
         assertArrayEquals(new String[] {}, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousVersion()));
     }
 
     public void testMappingRequiresUpdateNewerMappingVersionMinor() throws IOException {
-        ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("version_newer_minor", Version.CURRENT));
+        ClusterState cs = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("version_newer_minor", Version.CURRENT));
         String[] indices = new String[] { "version_newer_minor" };
         assertArrayEquals(new String[] {},
             ElasticsearchMappings.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousMinorVersion()));
@@ -204,7 +204,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             })
             .when(client).execute(eq(PutMappingAction.INSTANCE), any(), any(ActionListener.class));
 
-        ClusterState clusterState = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("index-name", "0.0"));
+        ClusterState clusterState = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("index-name", "0.0"));
         ElasticsearchMappings.addDocMappingIfMissing(
             "index-name",
             () -> "{\"_doc\":{\"properties\":{\"some-field\":{\"type\":\"long\"}}}}",
@@ -226,17 +226,17 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         assertThat(request.source(), equalTo("{\"_doc\":{\"properties\":{\"some-field\":{\"type\":\"long\"}}}}"));
     }
 
-    private ClusterState getClusterStateWithMappingsWithMetaData(Map<String, Object> namesAndVersions) {
-        MetaData.Builder metaDataBuilder = MetaData.builder();
+    private ClusterState getClusterStateWithMappingsWithMetadata(Map<String, Object> namesAndVersions) {
+        Metadata.Builder metadataBuilder = Metadata.builder();
 
         for (Map.Entry<String, Object> entry : namesAndVersions.entrySet()) {
 
             String indexName = entry.getKey();
             Object version = entry.getValue();
 
-            IndexMetaData.Builder indexMetaData = IndexMetaData.builder(indexName);
-            indexMetaData.settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
+            indexMetadata.settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
 
             Map<String, Object> mapping = new HashMap<>();
             Map<String, Object> properties = new HashMap<>();
@@ -251,14 +251,14 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             }
             mapping.put("_meta", meta);
 
-            indexMetaData.putMapping(new MappingMetaData("_doc", mapping));
+            indexMetadata.putMapping(new MappingMetadata("_doc", mapping));
 
-            metaDataBuilder.put(indexMetaData);
+            metadataBuilder.put(indexMetadata);
         }
-        MetaData metaData = metaDataBuilder.build();
+        Metadata metadata = metadataBuilder.build();
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
-        csBuilder.metaData(metaData);
+        csBuilder.metadata(metadata);
         return csBuilder.build();
     }
 

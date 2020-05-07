@@ -28,6 +28,7 @@ Updates certain properties of an {anomaly-job}.
 (Required, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
+[role="child_attributes"]
 [[ml-update-job-request-body]]
 ==== {api-request-body-title}
 
@@ -42,8 +43,15 @@ NOTE: If the job is open when you make the update, you must stop the {dfeed},
 close the job, then reopen the job and restart the {dfeed} for the changes to take effect.
 
 --
-
-[[update-analysislimits]]`analysis_limits`.`model_memory_limit`::
+//Begin analysis_limits
+[[update-analysislimits]]`analysis_limits`::
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=analysis-limits]
++
+.Properties of `analysis_limits`
+[%collapsible%open]
+====
+`model_memory_limit`:::
 (long or string) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-memory-limit]
 +
@@ -52,11 +60,13 @@ NOTE: You can update the `analysis_limits` only while the job is closed. The
 `model_memory_limit` property value cannot be decreased below the current usage.
  
 TIP: If the `memory_status` property in the
-<<ml-get-snapshot-results,`model_size_stats` object>> has a value of `hard_limit`,
-this means that it was unable to process some data. You might want to re-run the
-job with an increased `model_memory_limit`.
+<<ml-get-snapshot-results,`model_size_stats` object>> has a value of 
+`hard_limit`,mthis means that it was unable to process some data. You might want 
+to re-run the job with an increased `model_memory_limit`.
 
 --
+====
+//End analysis_limits
 
 `background_persist_interval`::
 (<<time-units,time units>>)
@@ -72,79 +82,113 @@ close the job, then reopen the job and restart the {dfeed} for the changes to ta
 (object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-settings]
 
+`daily_model_snapshot_retention_after_days`::
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=daily-model-snapshot-retention-after-days]
+
 `description`::
 (string) A description of the job.
 
+//Begin detectors
 `detectors`::
 (array) An array of detector update objects.
-
-`detectors`.`custom_rules`:::
 +
---
+.Properties of `detectors`
+[%collapsible%open]
+====
+
+//Begin detectors.custom_rules
+`custom_rules`:::
 (array)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules]
++
+.Properties of `custom_rules`
+[%collapsible%open]
+=====
 
-`detectors`.`custom_rules`.`actions`:::
+`actions`:::
 (array)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-actions]
 
-`detectors`.`custom_rules`.`scope`:::
-(object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope]
-
-`detectors`.`custom_rules`.`scope`.`filter_id`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-id]
-
-`detectors`.`custom_rules`.`scope`.`filter_type`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-type]
-
-`detectors`.`custom_rules`.`conditions`:::
+// Begin detectors.custom_rules.conditions
+`conditions`:::
 (array)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions]
++
+.Properties of `conditions`
+[%collapsible%open]
+======
 
-`detectors`.`custom_rules`.`conditions`.`applies_to`::::
+`applies_to`::::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-applies-to]
 
-`detectors`.`custom_rules`.`conditions`.`operator`::::
+`operator`::::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-operator]
 
-`detectors`.`custom_rules`.`conditions`.`value`::::
+`value`::::
 (double)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-value]
---
+======
+//End detectors.custom_rules.conditions
 
-`detectors`.`description`:::
+//Begin detectors.custom_rules.scope
+`scope`:::
+(object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope]
++
+.Properties of `scope`
+[%collapsible%open]
+======
+`filter_id`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-id]
+
+`filter_type`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-type]
+======
+//End detectors.custom_rules.scope
+=====
+//End detectors.custom_rules
+
+`description`:::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=detector-description]
 
-`detectors`.`detector_index`:::
-+
---
+`detector_index`:::
 (integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=detector-index]
++
+--
 If you want to update a specific detector, you must use this identifier. You
 cannot, however, change the `detector_index` value for a detector.
 --
+====
+//End detectors
 
 `groups`::
 (array of strings)
 include::{docdir}/ml/ml-shared.asciidoc[tag=groups]
 
+//Begin model_plot_config
 `model_plot_config`::
 (object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-plot-config]
-
-`model_plot_config`.`enabled`:::
++
+.Properties of `model_plot_config`
+[%collapsible%open]
+====
+`enabled`:::
 (boolean)
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-plot-config-enabled]
 
-`model_plot_config`.`terms`:::
+`terms`:::
 experimental[] (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-plot-config-terms]
+====
+//End model_plot_config
 
 `model_snapshot_retention_days`::
 (long)

@@ -26,13 +26,13 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.search.aggregations.support.AggregationUsageService.OTHER_SUBTYPE;
 
 public abstract class AggregatorFactory {
 
@@ -170,7 +170,7 @@ public abstract class AggregatorFactory {
     protected final String name;
     protected final AggregatorFactory parent;
     protected final AggregatorFactories factories;
-    protected final Map<String, Object> metaData;
+    protected final Map<String, Object> metadata;
 
     protected final QueryShardContext queryShardContext;
 
@@ -183,12 +183,12 @@ public abstract class AggregatorFactory {
      *             if an error occurs creating the factory
      */
     public AggregatorFactory(String name, QueryShardContext queryShardContext, AggregatorFactory parent,
-                             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+                             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
         this.name = name;
         this.queryShardContext = queryShardContext;
         this.parent = parent;
         this.factories = subFactoriesBuilder.build(queryShardContext, this);
-        this.metaData = metaData;
+        this.metadata = metadata;
     }
 
     public String name() {
@@ -201,8 +201,7 @@ public abstract class AggregatorFactory {
     protected abstract Aggregator createInternal(SearchContext searchContext,
                                                     Aggregator parent,
                                                     boolean collectsFromSingleBucket,
-                                                    List<PipelineAggregator> pipelineAggregators,
-                                                    Map<String, Object> metaData) throws IOException;
+                                                    Map<String, Object> metadata) throws IOException;
 
     /**
      * Creates the aggregator
@@ -222,7 +221,7 @@ public abstract class AggregatorFactory {
      * @return The created aggregator
      */
     public final Aggregator create(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
-        return createInternal(searchContext, parent, collectsFromSingleBucket, this.factories.createPipelineAggregators(), this.metaData);
+        return createInternal(searchContext, parent, collectsFromSingleBucket, this.metadata);
     }
 
     public AggregatorFactory getParent() {
@@ -241,4 +240,13 @@ public abstract class AggregatorFactory {
         return new MultiBucketAggregatorWrapper(bigArrays, searchContext, parent, factory, first);
     }
 
+    /**
+     * Returns the aggregation subtype for nodes usage stats.
+     * <p>
+     * It should match the types registered by calling {@linkplain org.elasticsearch.search.aggregations.support.AggregationUsageService}.
+     * In other words, it should be ValueSourcesType for the VST aggregations OTHER_SUBTYPE for all other aggregations.
+     */
+    public String getStatsSubtype() {
+        return OTHER_SUBTYPE;
+    }
 }

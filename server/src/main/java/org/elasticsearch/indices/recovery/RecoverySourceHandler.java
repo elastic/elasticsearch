@@ -65,7 +65,7 @@ import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardRelocatedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -77,9 +77,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -296,7 +299,7 @@ public class RecoverySourceHandler {
                 final long maxSeenAutoIdTimestamp = shard.getMaxSeenAutoIdTimestamp();
                 final long maxSeqNoOfUpdatesOrDeletes = shard.getMaxSeqNoOfUpdatesOrDeletes();
                 final RetentionLeases retentionLeases = shard.getRetentionLeases();
-                final long mappingVersionOnPrimary = shard.indexSettings().getIndexMetaData().getMappingVersion();
+                final long mappingVersionOnPrimary = shard.indexSettings().getIndexMetadata().getMappingVersion();
                 phase2(startingSeqNo, endingSeqNo, phase2Snapshot, maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes,
                     retentionLeases, mappingVersionOnPrimary, sendSnapshotStep);
                 sendSnapshotStep.whenComplete(
@@ -447,7 +450,7 @@ public class RecoverySourceHandler {
                 throw ex;
             }
             for (String name : snapshot.getFileNames()) {
-                final StoreFileMetaData md = recoverySourceMetadata.get(name);
+                final StoreFileMetadata md = recoverySourceMetadata.get(name);
                 if (md == null) {
                     logger.info("Snapshot differs from actual index for file: {} meta: {}", name, recoverySourceMetadata.asMap());
                     throw new CorruptIndexException("Snapshot differs from actual index - maybe index was removed metadata has " +
@@ -469,7 +472,7 @@ public class RecoverySourceHandler {
                 // segment files on the target node, using the existing files on
                 // the source node
                 final Store.RecoveryDiff diff = recoverySourceMetadata.recoveryDiff(request.metadataSnapshot());
-                for (StoreFileMetaData md : diff.identical) {
+                for (StoreFileMetadata md : diff.identical) {
                     phase1ExistingFileNames.add(md.name());
                     phase1ExistingFileSizes.add(md.length());
                     existingTotalSizeInBytes += md.length();
@@ -479,10 +482,10 @@ public class RecoverySourceHandler {
                     }
                     totalSizeInBytes += md.length();
                 }
-                List<StoreFileMetaData> phase1Files = new ArrayList<>(diff.different.size() + diff.missing.size());
+                List<StoreFileMetadata> phase1Files = new ArrayList<>(diff.different.size() + diff.missing.size());
                 phase1Files.addAll(diff.different);
                 phase1Files.addAll(diff.missing);
-                for (StoreFileMetaData md : phase1Files) {
+                for (StoreFileMetadata md : phase1Files) {
                     if (request.metadataSnapshot().asMap().containsKey(md.name())) {
                         logger.trace("recovery [phase1]: recovering [{}], exists in local store, but is different: remote [{}], local [{}]",
                             md.name(), request.metadataSnapshot().asMap().get(md.name()), md);
@@ -506,7 +509,7 @@ public class RecoverySourceHandler {
                         phase1ExistingFileSizes, translogOps.getAsInt(), sendFileInfoStep);
 
                 sendFileInfoStep.whenComplete(r ->
-                    sendFiles(store, phase1Files.toArray(new StoreFileMetaData[0]), translogOps, sendFilesStep), listener::onFailure);
+                    sendFiles(store, phase1Files.toArray(new StoreFileMetadata[0]), translogOps, sendFilesStep), listener::onFailure);
 
                 sendFilesStep.whenComplete(r -> createRetentionLease(startingSeqNo, createRetentionLeaseStep), listener::onFailure);
 
@@ -810,6 +813,7 @@ public class RecoverySourceHandler {
      */
     public void cancel(String reason) {
         cancellableThreads.cancel(reason);
+        recoveryTarget.cancel();
     }
 
     @Override
@@ -821,37 +825,44 @@ public class RecoverySourceHandler {
                 '}';
     }
 
-    private static class FileChunk implements MultiFileTransfer.ChunkRequest {
-        final StoreFileMetaData md;
+    private static class FileChunk implements MultiFileTransfer.ChunkRequest, Releasable {
+        final StoreFileMetadata md;
         final BytesReference content;
         final long position;
         final boolean lastChunk;
+        final Releasable onClose;
 
-        FileChunk(StoreFileMetaData md, BytesReference content, long position, boolean lastChunk) {
+        FileChunk(StoreFileMetadata md, BytesReference content, long position, boolean lastChunk, Releasable onClose) {
             this.md = md;
             this.content = content;
             this.position = position;
             this.lastChunk = lastChunk;
+            this.onClose = onClose;
         }
 
         @Override
         public boolean lastChunk() {
             return lastChunk;
         }
+
+        @Override
+        public void close() {
+            onClose.close();
+        }
     }
 
-    void sendFiles(Store store, StoreFileMetaData[] files, IntSupplier translogOps, ActionListener<Void> listener) {
-        ArrayUtil.timSort(files, Comparator.comparingLong(StoreFileMetaData::length)); // send smallest first
+    void sendFiles(Store store, StoreFileMetadata[] files, IntSupplier translogOps, ActionListener<Void> listener) {
+        ArrayUtil.timSort(files, Comparator.comparingLong(StoreFileMetadata::length)); // send smallest first
 
         final MultiFileTransfer<FileChunk> multiFileSender =
             new MultiFileTransfer<>(logger, threadPool.getThreadContext(), listener, maxConcurrentFileChunks, Arrays.asList(files)) {
 
-                final byte[] buffer = new byte[chunkSizeInBytes];
+                final Deque<byte[]> buffers = new ConcurrentLinkedDeque<>();
                 InputStreamIndexInput currentInput = null;
                 long offset = 0;
 
                 @Override
-                protected void onNewFile(StoreFileMetaData md) throws IOException {
+                protected void onNewFile(StoreFileMetadata md) throws IOException {
                     offset = 0;
                     IOUtils.close(currentInput, () -> currentInput = null);
                     final IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE);
@@ -864,15 +875,17 @@ public class RecoverySourceHandler {
                 }
 
                 @Override
-                protected FileChunk nextChunkRequest(StoreFileMetaData md) throws IOException {
+                protected FileChunk nextChunkRequest(StoreFileMetadata md) throws IOException {
                     assert Transports.assertNotTransportThread("read file chunk");
                     cancellableThreads.checkForCancel();
+                    final byte[] buffer = Objects.requireNonNullElseGet(buffers.pollFirst(), () -> new byte[chunkSizeInBytes]);
                     final int bytesRead = currentInput.read(buffer);
                     if (bytesRead == -1) {
                         throw new CorruptIndexException("file truncated; length=" + md.length() + " offset=" + offset, md.name());
                     }
                     final boolean lastChunk = offset + bytesRead == md.length();
-                    final FileChunk chunk = new FileChunk(md, new BytesArray(buffer, 0, bytesRead), offset, lastChunk);
+                    final FileChunk chunk = new FileChunk(md, new BytesArray(buffer, 0, bytesRead), offset, lastChunk,
+                        () -> buffers.addFirst(buffer));
                     offset += bytesRead;
                     return chunk;
                 }
@@ -881,12 +894,13 @@ public class RecoverySourceHandler {
                 protected void executeChunkRequest(FileChunk request, ActionListener<Void> listener) {
                     cancellableThreads.checkForCancel();
                     recoveryTarget.writeFileChunk(
-                        request.md, request.position, request.content, request.lastChunk, translogOps.getAsInt(), listener);
+                        request.md, request.position, request.content, request.lastChunk, translogOps.getAsInt(),
+                        ActionListener.runBefore(listener, request::close));
                 }
 
                 @Override
-                protected void handleError(StoreFileMetaData md, Exception e) throws Exception {
-                    handleErrorOnSendFiles(store, e, new StoreFileMetaData[]{md});
+                protected void handleError(StoreFileMetadata md, Exception e) throws Exception {
+                    handleErrorOnSendFiles(store, e, new StoreFileMetadata[]{md});
                 }
 
                 @Override
@@ -911,19 +925,19 @@ public class RecoverySourceHandler {
         cancellableThreads.checkForCancel();
         recoveryTarget.cleanFiles(translogOps.getAsInt(), globalCheckpoint, sourceMetadata,
             ActionListener.delegateResponse(listener, (l, e) -> ActionListener.completeWith(l, () -> {
-                StoreFileMetaData[] mds = StreamSupport.stream(sourceMetadata.spliterator(), false).toArray(StoreFileMetaData[]::new);
-                ArrayUtil.timSort(mds, Comparator.comparingLong(StoreFileMetaData::length)); // check small files first
+                StoreFileMetadata[] mds = StreamSupport.stream(sourceMetadata.spliterator(), false).toArray(StoreFileMetadata[]::new);
+                ArrayUtil.timSort(mds, Comparator.comparingLong(StoreFileMetadata::length)); // check small files first
                 handleErrorOnSendFiles(store, e, mds);
                 throw e;
             })));
     }
 
-    private void handleErrorOnSendFiles(Store store, Exception e, StoreFileMetaData[] mds) throws Exception {
+    private void handleErrorOnSendFiles(Store store, Exception e, StoreFileMetadata[] mds) throws Exception {
         final IOException corruptIndexException = ExceptionsHelper.unwrapCorruption(e);
         assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[handle error on send/clean files]");
         if (corruptIndexException != null) {
             Exception localException = null;
-            for (StoreFileMetaData md : mds) {
+            for (StoreFileMetadata md : mds) {
                 cancellableThreads.checkForCancel();
                 logger.debug("checking integrity for file {} after remove corruption exception", md);
                 if (store.checkIntegrityNoException(md) == false) { // we are corrupted on the primary -- fail!

@@ -31,6 +31,7 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 
@@ -147,11 +148,11 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
                 }
                 connection = getConnection(target.getClusterAlias(), node);
             } catch (Exception ex) {
-                onShardFailure("query", counter, target.getScrollId(),
+                onShardFailure("query", counter, target.getContextId(),
                     ex, null, () -> SearchScrollAsyncAction.this.moveToNextPhase(clusterNodeLookup));
                 continue;
             }
-            final InternalScrollSearchRequest internalRequest = internalScrollSearchRequest(target.getScrollId(), request);
+            final InternalScrollSearchRequest internalRequest = internalScrollSearchRequest(target.getContextId(), request);
             // we can't create a SearchShardTarget here since we don't know the index and shard ID we are talking to
             // we only know the node and the search context ID. Yet, the response will contain the SearchShardTarget
             // from the target node instead...that's why we pass null here
@@ -191,7 +192,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
 
                 @Override
                 public void onFailure(Exception t) {
-                    onShardFailure("query", counter, target.getScrollId(), t, null,
+                    onShardFailure("query", counter, target.getContextId(), t, null,
                         () -> SearchScrollAsyncAction.this.moveToNextPhase(clusterNodeLookup));
                 }
             };
@@ -235,7 +236,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
             final InternalSearchResponse internalResponse = searchPhaseController.merge(true, queryPhase, fetchResults.asList(),
                 fetchResults::get);
             // the scroll ID never changes we always return the same ID. This ID contains all the shards and their context ids
-            // such that we can talk to them abgain in the next roundtrip.
+            // such that we can talk to them again in the next roundtrip.
             String scrollId = null;
             if (request.scroll() != null) {
                 scrollId = request.scrollId();
@@ -247,7 +248,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         }
     }
 
-    protected void onShardFailure(String phaseName, final CountDown counter, final long searchId, Exception failure,
+    protected void onShardFailure(String phaseName, final CountDown counter, final SearchContextId searchId, Exception failure,
                                   @Nullable SearchShardTarget searchShardTarget,
                                   Supplier<SearchPhase> nextPhaseSupplier) {
         if (logger.isDebugEnabled()) {

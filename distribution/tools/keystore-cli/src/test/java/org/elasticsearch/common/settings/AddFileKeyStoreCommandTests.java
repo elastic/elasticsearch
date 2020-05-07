@@ -19,15 +19,19 @@
 
 package org.elasticsearch.common.settings;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Map;
-
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.env.Environment;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -49,7 +53,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         for (int i = 0; i < length; ++i) {
             bytes[i] = randomByte();
         }
-        Path file = env.configFile().resolve("randomfile");
+        Path file = env.configFile().resolve(randomAlphaOfLength(16));
         Files.write(file, bytes);
         return file;
     }
@@ -164,7 +168,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         terminal.addSecretInput(password);
         UserException e = expectThrows(UserException.class, () -> execute("foo"));
         assertEquals(ExitCodes.USAGE, e.exitCode);
-        assertThat(e.getMessage(), containsString("Missing file name"));
+        assertThat(e.getMessage(), containsString("settings and filenames must come in pairs"));
     }
 
     public void testFileDNE() throws Exception {
@@ -183,7 +187,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         terminal.addSecretInput(password);
         UserException e = expectThrows(UserException.class, () -> execute("foo", file.toString(), "bar"));
         assertEquals(e.getMessage(), ExitCodes.USAGE, e.exitCode);
-        assertThat(e.getMessage(), containsString("Unrecognized extra arguments [bar]"));
+        assertThat(e.getMessage(), containsString("settings and filenames must come in pairs"));
     }
 
     public void testIncorrectPassword() throws Exception {
@@ -216,4 +220,20 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         execute("foo", "path/dne");
         assertSecureFile("foo", file, password);
     }
+
+    public void testAddMultipleFiles() throws Exception {
+        final String password = "keystorepassword";
+        createKeystore(password);
+        final int n = randomIntBetween(1, 8);
+        final List<Tuple<String, Path>> settingFilePairs = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            settingFilePairs.add(Tuple.tuple("foo" + i, createRandomFile()));
+        }
+        terminal.addSecretInput(password);
+        execute(settingFilePairs.stream().flatMap(t -> Stream.of(t.v1(), t.v2().toString())).toArray(String[]::new));
+        for (int i = 0; i < n; i++) {
+            assertSecureFile(settingFilePairs.get(i).v1(), settingFilePairs.get(i).v2(), password);
+        }
+    }
+
 }

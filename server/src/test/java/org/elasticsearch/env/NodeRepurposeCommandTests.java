@@ -26,8 +26,8 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -72,7 +72,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
             final String nodeId = randomAlphaOfLength(10);
             try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(nodePaths, nodeId,
                 xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
-                new ClusterSettings(dataMasterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L, true).createWriter()) {
+                new ClusterSettings(dataMasterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L).createWriter()) {
                 writer.writeFullStateAndCommit(1L, ClusterState.EMPTY_STATE);
             }
         }
@@ -237,9 +237,9 @@ public class NodeRepurposeCommandTests extends ESTestCase {
                 try (PersistedClusterStateService.Writer writer =
                          ElasticsearchNodeCommand.createPersistedClusterStateService(Settings.EMPTY, env.nodeDataPaths()).createWriter()) {
                     writer.writeFullStateAndCommit(1L, ClusterState.builder(ClusterName.DEFAULT)
-                        .metaData(MetaData.builder().put(IndexMetaData.builder(INDEX.getName())
+                        .metadata(Metadata.builder().put(IndexMetadata.builder(INDEX.getName())
                             .settings(Settings.builder().put("index.version.created", Version.CURRENT)
-                                .put(IndexMetaData.SETTING_INDEX_UUID, INDEX.getUUID()))
+                                .put(IndexMetadata.SETTING_INDEX_UUID, INDEX.getUUID()))
                             .numberOfShards(1)
                             .numberOfReplicas(1)).build())
                         .build());

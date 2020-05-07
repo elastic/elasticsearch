@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.Cardinality;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -72,9 +73,9 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
     }
 
     static final String STEP_1_AGGREGATE_BY_ACTUAL_CLASS = NAME.getPreferredName() + "_step_1_by_actual_class";
+    static final String STEP_1_CARDINALITY_OF_ACTUAL_CLASS = NAME.getPreferredName() + "_step_1_cardinality_of_actual_class";
     static final String STEP_2_AGGREGATE_BY_ACTUAL_CLASS = NAME.getPreferredName() + "_step_2_by_actual_class";
     static final String STEP_2_AGGREGATE_BY_PREDICTED_CLASS = NAME.getPreferredName() + "_step_2_by_predicted_class";
-    static final String STEP_2_CARDINALITY_OF_ACTUAL_CLASS = NAME.getPreferredName() + "_step_2_cardinality_of_actual_class";
     private static final String OTHER_BUCKET_KEY = "_other_";
     private static final String DEFAULT_AGG_NAME_PREFIX = "";
     private static final int DEFAULT_SIZE = 10;
@@ -83,6 +84,9 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
     private final int size;
     private final String aggNamePrefix;
     private final SetOnce<List<String>> topActualClassNames = new SetOnce<>();
+    private final SetOnce<Long> actualClassesCardinality = new SetOnce<>();
+    /** Accumulates actual classes processed so far. It may take more than 1 call to #process method to fill this field completely. */
+    private final List<ActualClass> actualClasses = new ArrayList<>();
     private final SetOnce<Result> result = new SetOnce<>();
 
     public MulticlassConfusionMatrix() {
@@ -121,34 +125,45 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
     }
 
     @Override
-    public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedField) {
-        if (topActualClassNames.get() == null) {  // This is step 1
+    public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(EvaluationParameters parameters,
+                                                                                        String actualField,
+                                                                                        String predictedField) {
+        if (topActualClassNames.get() == null && actualClassesCardinality.get() == null) {  // This is step 1
             return Tuple.tuple(
                 List.of(
                     AggregationBuilders.terms(aggName(STEP_1_AGGREGATE_BY_ACTUAL_CLASS))
                         .field(actualField)
                         .order(List.of(BucketOrder.count(false), BucketOrder.key(true)))
-                        .size(size)),
+                        .size(size),
+                    AggregationBuilders.cardinality(aggName(STEP_1_CARDINALITY_OF_ACTUAL_CLASS))
+                        .field(actualField)),
                 List.of());
         }
-        if (result.get() == null) {  // This is step 2
-            KeyedFilter[] keyedFiltersActual =
-                topActualClassNames.get().stream()
-                    .map(className -> new KeyedFilter(className, QueryBuilders.termQuery(actualField, className)))
-                    .toArray(KeyedFilter[]::new);
+        if (result.get() == null) {  // These are steps 2, 3, 4 etc.
             KeyedFilter[] keyedFiltersPredicted =
                 topActualClassNames.get().stream()
-                    .map(className -> new KeyedFilter(className, QueryBuilders.termQuery(predictedField, className)))
+                    .map(className -> new KeyedFilter(className, QueryBuilders.matchQuery(predictedField, className).lenient(true)))
                     .toArray(KeyedFilter[]::new);
-            return Tuple.tuple(
-                List.of(
-                    AggregationBuilders.cardinality(aggName(STEP_2_CARDINALITY_OF_ACTUAL_CLASS))
-                        .field(actualField),
-                    AggregationBuilders.filters(aggName(STEP_2_AGGREGATE_BY_ACTUAL_CLASS), keyedFiltersActual)
-                        .subAggregation(AggregationBuilders.filters(aggName(STEP_2_AGGREGATE_BY_PREDICTED_CLASS), keyedFiltersPredicted)
-                            .otherBucket(true)
-                            .otherBucketKey(OTHER_BUCKET_KEY))),
-                List.of());
+            // Knowing exactly how many buckets does each aggregation use, we can choose the size of the batch so that
+            // too_many_buckets_exception exception is not thrown.
+            // The only exception is when "search.max_buckets" is set far too low to even have 1 actual class in the batch.
+            // In such case, the exception will be thrown telling the user they should increase the value of "search.max_buckets".
+            int actualClassesPerBatch = Math.max(parameters.getMaxBuckets() / (topActualClassNames.get().size() + 2), 1);
+            KeyedFilter[] keyedFiltersActual =
+                topActualClassNames.get().stream()
+                    .skip(actualClasses.size())
+                    .limit(actualClassesPerBatch)
+                    .map(className -> new KeyedFilter(className, QueryBuilders.matchQuery(actualField, className).lenient(true)))
+                    .toArray(KeyedFilter[]::new);
+            if (keyedFiltersActual.length > 0) {
+                return Tuple.tuple(
+                    List.of(
+                        AggregationBuilders.filters(aggName(STEP_2_AGGREGATE_BY_ACTUAL_CLASS), keyedFiltersActual)
+                            .subAggregation(AggregationBuilders.filters(aggName(STEP_2_AGGREGATE_BY_PREDICTED_CLASS), keyedFiltersPredicted)
+                                .otherBucket(true)
+                                .otherBucketKey(OTHER_BUCKET_KEY))),
+                    List.of());
+            }
         }
         return Tuple.tuple(List.of(), List.of());
     }
@@ -159,10 +174,12 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
             Terms termsAgg = aggs.get(aggName(STEP_1_AGGREGATE_BY_ACTUAL_CLASS));
             topActualClassNames.set(termsAgg.getBuckets().stream().map(Terms.Bucket::getKeyAsString).sorted().collect(Collectors.toList()));
         }
+        if (actualClassesCardinality.get() == null && aggs.get(aggName(STEP_1_CARDINALITY_OF_ACTUAL_CLASS)) != null) {
+            Cardinality cardinalityAgg = aggs.get(aggName(STEP_1_CARDINALITY_OF_ACTUAL_CLASS));
+            actualClassesCardinality.set(cardinalityAgg.getValue());
+        }
         if (result.get() == null && aggs.get(aggName(STEP_2_AGGREGATE_BY_ACTUAL_CLASS)) != null) {
-            Cardinality cardinalityAgg = aggs.get(aggName(STEP_2_CARDINALITY_OF_ACTUAL_CLASS));
             Filters filtersAgg = aggs.get(aggName(STEP_2_AGGREGATE_BY_ACTUAL_CLASS));
-            List<ActualClass> actualClasses = new ArrayList<>(filtersAgg.getBuckets().size());
             for (Filters.Bucket bucket : filtersAgg.getBuckets()) {
                 String actualClass = bucket.getKeyAsString();
                 long actualClassDocCount = bucket.getDocCount();
@@ -181,7 +198,9 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
                 predictedClasses.sort(comparing(PredictedClass::getPredictedClass));
                 actualClasses.add(new ActualClass(actualClass, actualClassDocCount, predictedClasses, otherPredictedClassDocCount));
             }
-            result.set(new Result(actualClasses, Math.max(cardinalityAgg.getValue() - size, 0)));
+            if (actualClasses.size() == topActualClassNames.get().size()) {
+                result.set(new Result(actualClasses, Math.max(actualClassesCardinality.get() - size, 0)));
+            }
         }
     }
 

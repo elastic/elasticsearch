@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -45,6 +44,8 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -53,7 +54,6 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -90,14 +90,6 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public RangeFieldType fieldType() {
             return (RangeFieldType)fieldType;
-        }
-
-        @Override
-        public Builder docValues(boolean docValues) {
-            if (docValues) {
-                throw new IllegalArgumentException("field [" + name + "] does not currently support " + TypeParsers.DOC_VALUES);
-            }
-            return super.docValues(docValues);
         }
 
         public Builder coerce(boolean coerce) {
@@ -243,6 +235,11 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.RANGE;
+        }
+
+        @Override
         public String typeName() {
             return rangeType.name;
         }
@@ -338,7 +335,7 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         Range range;
         if (context.externalValueSet()) {
             range = context.parseExternalValue(Range.class);
@@ -397,9 +394,10 @@ public class RangeFieldMapper extends FieldMapper {
         boolean indexed = fieldType.indexOptions() != IndexOptions.NONE;
         boolean docValued = fieldType.hasDocValues();
         boolean stored = fieldType.stored();
-        fields.addAll(fieldType().rangeType.createFields(context, name(), range, indexed, docValued, stored));
+        context.doc().addAll(fieldType().rangeType.createFields(context, name(), range, indexed, docValued, stored));
+
         if (docValued == false && (indexed || stored)) {
-            createFieldNamesField(context, fields);
+            createFieldNamesField(context);
         }
     }
 

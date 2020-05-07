@@ -13,7 +13,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -72,9 +71,8 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
 
     private final TDigestState state;
 
-    InternalBoxplot(String name, TDigestState state, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
-                    Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    InternalBoxplot(String name, TDigestState state, DocValueFormat formatter, Map<String, Object> metadata) {
+        super(name, metadata);
         this.state = state;
         this.format = formatter;
     }
@@ -174,7 +172,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
             merged.add(percentiles.state);
         }
-        return new InternalBoxplot(name, merged, format, pipelineAggregators(), metaData);
+        return new InternalBoxplot(name, merged, format, metadata);
     }
 
     @Override

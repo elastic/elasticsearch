@@ -33,28 +33,29 @@ of which must have a start time, end time, and description.
 (Required, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=calendar-id]
 
+[role="child_attributes"]
 [[ml-post-calendar-event-request-body]]
 ==== {api-request-body-title}
 
 `events`::
 (Required, array) A list of one of more scheduled events. The event's start and
 end times may be specified as integer milliseconds since the epoch or as a
-string in ISO 8601 format. An event resource has the following properties:
-
-`events`.`calendar_id`:::
-(Optional, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=calendar-id]
-
-`events`.`description`:::
+string in ISO 8601 format.
++
+.Properties of events
+[%collapsible%open]
+====
+`description`:::
 (Optional, string) A description of the scheduled event.
 
-`events`.`end_time`:::
+`end_time`:::
 (Required, date) The timestamp for the end of the scheduled event in
 milliseconds since the epoch or ISO 8601 format.
 
-`events`.`start_time`:::
+`start_time`:::
 (Required, date) The timestamp for the beginning of the scheduled event in
 milliseconds since the epoch or ISO 8601 format.
+====
 
 [[ml-post-calendar-event-example]]
 ==== {api-examples-title}

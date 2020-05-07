@@ -13,7 +13,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -61,12 +61,12 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, ClusterState clusterState, ClusterStateObserver observer, Listener listener) {
+    public void performAction(IndexMetadata indexMetadata, ClusterState clusterState, ClusterStateObserver observer, Listener listener) {
         final RoutingNodes routingNodes = clusterState.getRoutingNodes();
         RoutingAllocation allocation = new RoutingAllocation(ALLOCATION_DECIDERS, routingNodes, clusterState, null,
                 System.nanoTime());
         List<String> validNodeIds = new ArrayList<>();
-        String indexName = indexMetaData.getIndex().getName();
+        String indexName = indexMetadata.getIndex().getName();
         final Map<ShardId, List<ShardRouting>> routingsByShardId = clusterState.getRoutingTable()
             .allShards(indexName)
             .stream()
@@ -88,7 +88,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
 
             if (nodeId.isPresent()) {
                 Settings settings = Settings.builder()
-                        .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", nodeId.get()).build();
+                        .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", nodeId.get()).build();
                 UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexName)
                         .masterNodeTimeout(getMasterTimeout(clusterState))
                         .settings(settings);
@@ -103,7 +103,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
         } else {
             // There are no shards for the index, the index might be gone. Even though this is a retryable step ILM will not retry in
             // this case as we're using the periodic loop to trigger the retries and that is run over *existing* indices.
-            listener.onFailure(new IndexNotFoundException(indexMetaData.getIndex()));
+            listener.onFailure(new IndexNotFoundException(indexMetadata.getIndex()));
         }
     }
 

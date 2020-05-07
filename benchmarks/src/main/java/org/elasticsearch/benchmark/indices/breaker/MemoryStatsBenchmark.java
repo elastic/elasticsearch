@@ -41,11 +41,11 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
-@SuppressWarnings("unused") //invoked by benchmarking framework
+@SuppressWarnings("unused") // invoked by benchmarking framework
 public class MemoryStatsBenchmark {
     private static final MemoryMXBean MEMORY_MX_BEAN = ManagementFactory.getMemoryMXBean();
 
-    @Param({"0", "16", "256", "4096"})
+    @Param({ "0", "16", "256", "4096" })
     private int tokens;
 
     @Benchmark
@@ -102,4 +102,3 @@ public class MemoryStatsBenchmark {
         return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
     }
 }
-

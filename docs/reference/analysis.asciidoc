@@ -2,6 +2,7 @@
 = Text analysis
 
 :lucene-analysis-docs:  https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis
+:lucene-stop-word-link: https://github.com/apache/lucene-solr/blob/master/lucene/analysis/common/src/resources/org/apache/lucene/analysis
 
 [partintro]
 --

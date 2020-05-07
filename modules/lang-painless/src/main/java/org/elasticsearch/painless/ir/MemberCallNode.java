@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
@@ -95,7 +94,7 @@ public class MemberCallNode extends ArgumentsNode {
     /* ---- end node data ---- */
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
+    public void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
         methodWriter.writeDebugInfo(location);
 
         if (localFunction != null) {
@@ -104,8 +103,8 @@ public class MemberCallNode extends ArgumentsNode {
             }
 
             for (ExpressionNode argumentNode : getArgumentNodes()) {
-                argumentNode.write(classWriter, methodWriter, globals, scopeTable);
-            }
+                argumentNode.write(classWriter, methodWriter, scopeTable);
+           }
 
             if (localFunction.isStatic()) {
                 methodWriter.invokeStatic(CLASS_TYPE, localFunction.getAsmMethod());
@@ -114,8 +113,8 @@ public class MemberCallNode extends ArgumentsNode {
             }
         } else if (importedMethod != null) {
             for (ExpressionNode argumentNode : getArgumentNodes()) {
-                argumentNode.write(classWriter, methodWriter, globals, scopeTable);
-            }
+                argumentNode.write(classWriter, methodWriter, scopeTable);
+           }
 
             methodWriter.invokeStatic(Type.getType(importedMethod.targetClass),
                     new Method(importedMethod.javaMethod.getName(), importedMethod.methodType.toMethodDescriptorString()));
@@ -137,8 +136,8 @@ public class MemberCallNode extends ArgumentsNode {
             }
 
             for (int argument = 0; argument < javaConstructorParameterCount; ++argument) {
-                getArgumentNodes().get(argument).write(classWriter, methodWriter, globals, scopeTable);
-            }
+                getArgumentNodes().get(argument).write(classWriter, methodWriter, scopeTable);
+           }
 
             methodWriter.invokeConstructor(type, Method.getMethod(classBinding.javaConstructor));
             methodWriter.putField(CLASS_TYPE, bindingName, type);
@@ -148,7 +147,7 @@ public class MemberCallNode extends ArgumentsNode {
             methodWriter.getField(CLASS_TYPE, bindingName, type);
 
             for (int argument = 0; argument < classBinding.javaMethod.getParameterCount(); ++argument) {
-                getArgumentNodes().get(argument + javaConstructorParameterCount).write(classWriter, methodWriter, globals, scopeTable);
+                getArgumentNodes().get(argument + javaConstructorParameterCount).write(classWriter, methodWriter, scopeTable);
             }
 
             methodWriter.invokeVirtual(type, Method.getMethod(classBinding.javaMethod));
@@ -159,7 +158,7 @@ public class MemberCallNode extends ArgumentsNode {
             methodWriter.getStatic(CLASS_TYPE, bindingName, type);
 
             for (int argument = 0; argument < instanceBinding.javaMethod.getParameterCount(); ++argument) {
-                getArgumentNodes().get(argument).write(classWriter, methodWriter, globals, scopeTable);
+                getArgumentNodes().get(argument).write(classWriter, methodWriter, scopeTable);
             }
 
             methodWriter.invokeVirtual(type, Method.getMethod(instanceBinding.javaMethod));

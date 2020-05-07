@@ -36,18 +36,16 @@ import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.function.LongUnaryOperator;
 
@@ -88,10 +86,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                                                boolean remapGlobalOrds,
                                                SubAggCollectionMode collectionMode,
                                                boolean showTermDocCountError,
-                                               List<PipelineAggregator> pipelineAggregators,
-                                               Map<String, Object> metaData) throws IOException {
-        super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError,
-            pipelineAggregators, metaData);
+                                               Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
         final IndexReader reader = context.searcher().getIndexReader();
@@ -182,7 +178,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.getShardSize());
         }
         long otherDocCount = 0;
-        BucketPriorityQueue<OrdBucket> ordered = new BucketPriorityQueue<>(size, order.comparator(this));
+        BucketPriorityQueue<OrdBucket> ordered = new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);
         OrdBucket spare = new OrdBucket(-1, 0, null, showTermDocCountError, 0);
         final boolean needsFullScan = bucketOrds == null || bucketCountThresholds.getMinDocCount() == 0;
         final long maxId = needsFullScan ? valueCount : bucketOrds.size();
@@ -240,7 +236,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                pipelineAggregators(), metaData(), format, bucketCountThresholds.getShardSize(), showTermDocCountError,
+                metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError,
                 otherDocCount, Arrays.asList(list), 0);
     }
 
@@ -312,10 +308,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                        boolean forceDenseMode,
                        SubAggCollectionMode collectionMode,
                        boolean showTermDocCountError,
-                       List<PipelineAggregator> pipelineAggregators,
-                       Map<String, Object> metaData) throws IOException {
+                       Map<String, Object> metadata) throws IOException {
             super(name, factories, valuesSource, order, format, bucketCountThresholds, null,
-                context, parent, forceDenseMode, collectionMode, showTermDocCountError, pipelineAggregators, metaData);
+                context, parent, forceDenseMode, collectionMode, showTermDocCountError, metadata);
             assert factories == null || factories.countAggregators() == 0;
             this.segmentDocCounts = context.bigArrays().newIntArray(1, true);
         }

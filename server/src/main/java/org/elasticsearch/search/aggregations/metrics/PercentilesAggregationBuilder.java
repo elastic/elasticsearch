@@ -22,14 +22,15 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -41,28 +42,26 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
     private static final double[] DEFAULT_PERCENTS = new double[] { 1, 5, 25, 50, 75, 95, 99 };
     private static final ParseField PERCENTS_FIELD = new ParseField("percents");
 
-    private static final ConstructingObjectParser<PercentilesAggregationBuilder, String> PARSER;
-    static {
-        PARSER = AbstractPercentilesAggregationBuilder.createParser(
-            PercentilesAggregationBuilder.NAME,
-            (name, values, percentileConfig) -> {
-                if (values == null) {
-                    values = DEFAULT_PERCENTS; // this is needed because Percentiles has a default, while Ranks does not
-                } else {
-                    values = validatePercentiles(values, name);
-                }
-                return new PercentilesAggregationBuilder(name, values, percentileConfig);
-            },
-            PercentilesConfig.TDigest::new,
-            PERCENTS_FIELD);
+    public static final ConstructingObjectParser<PercentilesAggregationBuilder, String> PARSER =
+            AbstractPercentilesAggregationBuilder.createParser(
+                PercentilesAggregationBuilder.NAME,
+                (name, values, percentileConfig) -> {
+                    if (values == null) {
+                        values = DEFAULT_PERCENTS; // this is needed because Percentiles has a default, while Ranks does not
+                    } else {
+                        values = validatePercentiles(values, name);
+                    }
+                    return new PercentilesAggregationBuilder(name, values, percentileConfig);
+                },
+                PercentilesConfig.TDigest::new,
+                PERCENTS_FIELD);
+
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        PercentilesAggregatorFactory.registerAggregators(builder);
     }
 
     public PercentilesAggregationBuilder(StreamInput in) throws IOException {
         super(in);
-    }
-
-    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, aggregationName);
     }
 
     public PercentilesAggregationBuilder(String name) {
@@ -74,13 +73,18 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
     }
 
     protected PercentilesAggregationBuilder(PercentilesAggregationBuilder clone,
-                                            Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                            AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new PercentilesAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new PercentilesAggregationBuilder(this, factoriesBuilder, metadata);
+    }
+
+    @Override
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.NUMERIC;
     }
 
     /**
@@ -99,11 +103,17 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
             throw new IllegalArgumentException("[percents] must not be empty: [" + aggName + "]");
         }
         double[] sortedPercents = Arrays.copyOf(percents, percents.length);
+        double previousPercent = -1.0;
         Arrays.sort(sortedPercents);
         for (double percent : sortedPercents) {
             if (percent < 0.0 || percent > 100.0) {
                 throw new IllegalArgumentException("percent must be in [0,100], got [" + percent + "]: [" + aggName + "]");
             }
+
+            if (percent == previousPercent) {
+                throw new IllegalArgumentException("percent [" + percent + "] has been specified twice: [" + aggName + "]");
+            }
+            previousPercent = percent;
         }
         return sortedPercents;
     }
@@ -116,12 +126,12 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
-                                                                    ValuesSourceConfig<ValuesSource> config,
+    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+                                                                    ValuesSourceConfig config,
                                                                     AggregatorFactory parent,
-                                                                    Builder subFactoriesBuilder) throws IOException {
+                                                                    AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new PercentilesAggregatorFactory(name, config, values, configOrDefault(), keyed,
-            queryShardContext, parent, subFactoriesBuilder, metaData);
+            queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

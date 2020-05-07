@@ -22,7 +22,6 @@ package org.elasticsearch.join.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -43,6 +42,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -92,7 +93,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     private static void checkIndexCompatibility(IndexSettings settings, String name) {
-        if (settings.getIndexMetaData().isRoutingPartitionedIndex()) {
+        if (settings.getIndexMetadata().isRoutingPartitionedIndex()) {
             throw new IllegalStateException("cannot create join field [" + name + "] " +
                 "for the partitioned index " + "[" + settings.getIndex().getName() + "]");
         }
@@ -225,6 +226,11 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder();
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.BYTES;
         }
 
         @Override
@@ -370,7 +376,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         throw new UnsupportedOperationException("parsing is implemented in parse(), this method should NEVER be called");
     }
 

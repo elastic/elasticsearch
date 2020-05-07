@@ -19,7 +19,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -216,7 +216,7 @@ public class MapperMergeValidatorTests extends ESTestCase {
     }
 
     private static final Settings SETTINGS = Settings.builder()
-        .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+        .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
         .build();
 
     private static ObjectMapper createObjectMapper(String name) {

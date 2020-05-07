@@ -138,9 +138,9 @@ import org.elasticsearch.painless.node.EStatic;
 import org.elasticsearch.painless.node.EString;
 import org.elasticsearch.painless.node.EUnary;
 import org.elasticsearch.painless.node.EVariable;
-import org.elasticsearch.painless.node.PBrace;
-import org.elasticsearch.painless.node.PCallInvoke;
-import org.elasticsearch.painless.node.PField;
+import org.elasticsearch.painless.node.EBrace;
+import org.elasticsearch.painless.node.ECall;
+import org.elasticsearch.painless.node.EDot;
 import org.elasticsearch.painless.node.SBlock;
 import org.elasticsearch.painless.node.SBreak;
 import org.elasticsearch.painless.node.SCatch;
@@ -159,7 +159,6 @@ import org.elasticsearch.painless.node.SReturn;
 import org.elasticsearch.painless.node.SThrow;
 import org.elasticsearch.painless.node.STry;
 import org.elasticsearch.painless.node.SWhile;
-import org.objectweb.asm.util.Printer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -170,26 +169,21 @@ import java.util.List;
 public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     public static SClass buildPainlessTree(ScriptClassInfo mainMethod, String sourceName,
-                                            String sourceText, CompilerSettings settings, PainlessLookup painlessLookup,
-                                            Printer debugStream) {
-        return new Walker(mainMethod, sourceName, sourceText, settings, painlessLookup, debugStream).source;
+                                           String sourceText, CompilerSettings settings, PainlessLookup painlessLookup) {
+        return new Walker(mainMethod, sourceName, sourceText, settings, painlessLookup).source;
     }
 
     private final ScriptClassInfo scriptClassInfo;
     private final SClass source;
     private final CompilerSettings settings;
-    private final Printer debugStream;
     private final String sourceName;
-    private final String sourceText;
     private final PainlessLookup painlessLookup;
 
     private Walker(ScriptClassInfo scriptClassInfo, String sourceName, String sourceText,
-                   CompilerSettings settings, PainlessLookup painlessLookup, Printer debugStream) {
+                   CompilerSettings settings, PainlessLookup painlessLookup) {
         this.scriptClassInfo = scriptClassInfo;
-        this.debugStream = debugStream;
         this.settings = settings;
-        this.sourceName = Location.computeSourceName(sourceName);
-        this.sourceText = sourceText;
+        this.sourceName = sourceName;
         this.painlessLookup = painlessLookup;
         this.source = (SClass)visit(buildAntlrTree(sourceText));
     }
@@ -279,7 +273,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
                 location(ctx), statements), true, false, false, true);
         functions.add(execute);
 
-        return new SClass(scriptClassInfo, sourceName, sourceText, debugStream, location(ctx), functions);
+        return new SClass(location(ctx), functions);
     }
 
     @Override
@@ -950,7 +944,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         String name = ctx.DOTID().getText();
         List<AExpression> arguments = collectArguments(ctx.arguments());
 
-        return new PCallInvoke(location(ctx), prefix, name, ctx.NSDOT() != null, arguments);
+        return new ECall(location(ctx), prefix, name, arguments, ctx.NSDOT() != null);
     }
 
     @Override
@@ -969,7 +963,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        return new PField(location(ctx), prefix, ctx.NSDOT() != null, value);
+        return new EDot(location(ctx), prefix, ctx.NSDOT() != null, value);
     }
 
     @Override
@@ -980,7 +974,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     public AExpression visitBraceaccess(BraceaccessContext ctx, AExpression prefix) {
         AExpression expression = (AExpression)visit(ctx.expression());
 
-        return new PBrace(location(ctx), prefix, expression);
+        return new EBrace(location(ctx), prefix, expression);
     }
 
     @Override

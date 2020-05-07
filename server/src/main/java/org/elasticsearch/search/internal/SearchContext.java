@@ -132,7 +132,7 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
      *  alias filters, types filters, etc. */
     public abstract Query buildFilteredQuery(Query query);
 
-    public abstract long id();
+    public abstract SearchContextId id();
 
     public abstract String source();
 

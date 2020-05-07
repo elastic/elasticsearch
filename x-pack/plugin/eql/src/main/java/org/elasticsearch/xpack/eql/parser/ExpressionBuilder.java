@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ComparisonContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.DereferenceContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.FunctionExpressionContext;
+import org.elasticsearch.xpack.eql.parser.EqlBaseParser.JoinKeysContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.LogicalBinaryContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.LogicalNotContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.PredicateContext;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
@@ -43,10 +45,19 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
+import java.time.ZoneId;
 import java.util.List;
+
+import static java.util.Collections.emptyList;
 
 
 public class ExpressionBuilder extends IdentifierBuilder {
+
+    protected final ParserParams params;
+
+    public ExpressionBuilder(ParserParams params) {
+        this.params = params;
+    }
 
     protected Expression expression(ParseTree ctx) {
         return typedParsing(ctx, Expression.class);
@@ -59,6 +70,11 @@ public class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Expression visitSingleExpression(EqlBaseParser.SingleExpressionContext ctx) {
         return expression(ctx.expression());
+    }
+
+    @Override
+    public List<Expression> visitJoinKeys(JoinKeysContext ctx) {
+        return ctx != null ? expressions(ctx.expression()) : emptyList();
     }
 
     @Override
@@ -106,20 +122,21 @@ public class ExpressionBuilder extends IdentifierBuilder {
         TerminalNode op = (TerminalNode) ctx.comparisonOperator().getChild(0);
 
         Source source = source(ctx);
+        ZoneId zoneId = params.zoneId();
 
         switch (op.getSymbol().getType()) {
             case EqlBaseParser.EQ:
-                return new Equals(source, left, right);
+                return new Equals(source, left, right, zoneId);
             case EqlBaseParser.NEQ:
-                return new NotEquals(source, left, right);
+                return new NotEquals(source, left, right, zoneId);
             case EqlBaseParser.LT:
-                return new LessThan(source, left, right);
+                return new LessThan(source, left, right, zoneId);
             case EqlBaseParser.LTE:
-                return new LessThanOrEqual(source, left, right);
+                return new LessThanOrEqual(source, left, right, zoneId);
             case EqlBaseParser.GT:
-                return new GreaterThan(source, left, right);
+                return new GreaterThan(source, left, right, zoneId);
             case EqlBaseParser.GTE:
-                return new GreaterThanOrEqual(source, left, right);
+                return new GreaterThanOrEqual(source, left, right, zoneId);
             default:
                 throw new ParsingException(source, "Unknown operator {}", source.text());
         }
@@ -137,14 +154,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
         }
 
         List<Expression> container = expressions(predicate.expression());
-
-        // TODO: Add IN to QL and use that directly
-        Expression checkInSet = null;
-
-        for (Expression inner : container) {
-            Expression termCheck = new Equals(source, expr, inner);
-            checkInSet = checkInSet == null ? termCheck : new Or(source, checkInSet, termCheck);
-        }
+        Expression checkInSet = new In(source, expr, container);
 
         return predicate.NOT() != null ? new Not(source, checkInSet) : checkInSet;
     }

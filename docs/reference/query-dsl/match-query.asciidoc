@@ -258,7 +258,7 @@ GET /_search
 
 The `match` query supports multi-terms synonym expansion with the <<analysis-synonym-graph-tokenfilter,
 synonym_graph>> token filter. When this filter is used, the parser creates a phrase query for each multi-terms synonyms.
-For example, the following synonym: `"ny, new york" would produce:`
+For example, the following synonym: `"ny, new york"` would produce:
 
 `(ny OR ("new york"))`
 

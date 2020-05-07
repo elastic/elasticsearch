@@ -8,7 +8,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafDocLookup;
@@ -175,12 +175,12 @@ public class FlatObjectFieldLookupTests extends ESTestCase {
     }
 
     private IndexFieldData<?> createFieldData(ScriptDocValues<?> scriptDocValues) {
-        AtomicFieldData atomicFieldData = mock(AtomicFieldData.class);
-        doReturn(scriptDocValues).when(atomicFieldData).getScriptValues();
+        LeafFieldData leafFieldData = mock(LeafFieldData.class);
+        doReturn(scriptDocValues).when(leafFieldData).getScriptValues();
 
         IndexFieldData<?> fieldData = mock(IndexFieldData.class);
         when(fieldData.getFieldName()).thenReturn("field");
-        doReturn(atomicFieldData).when(fieldData).load(anyObject());
+        doReturn(leafFieldData).when(fieldData).load(anyObject());
 
         return fieldData;
     }

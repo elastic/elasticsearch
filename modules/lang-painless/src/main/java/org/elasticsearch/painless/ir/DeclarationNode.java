@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScopeTable;
@@ -78,7 +77,7 @@ public class DeclarationNode extends StatementNode {
     /* ---- end node data ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
         methodWriter.writeStatementOffset(location);
 
         Variable variable = scopeTable.defineVariable(declarationType, name);
@@ -101,7 +100,7 @@ public class DeclarationNode extends StatementNode {
                 }
             }
         } else {
-            expressionNode.write(classWriter, methodWriter, globals, scopeTable);
+            expressionNode.write(classWriter, methodWriter, scopeTable);
         }
 
         methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());

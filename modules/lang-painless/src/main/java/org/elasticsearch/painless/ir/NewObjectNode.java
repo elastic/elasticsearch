@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.symbol.ScopeTable;
@@ -53,7 +52,7 @@ public final class NewObjectNode extends ArgumentsNode {
     /* ---- end node data ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
         methodWriter.writeDebugInfo(location);
 
         methodWriter.newInstance(MethodWriter.getType(getExpressionType()));
@@ -63,7 +62,7 @@ public final class NewObjectNode extends ArgumentsNode {
         }
 
         for (ExpressionNode argumentNode : getArgumentNodes()) {
-            argumentNode.write(classWriter, methodWriter, globals, scopeTable);
+            argumentNode.write(classWriter, methodWriter, scopeTable);
         }
 
         methodWriter.invokeConstructor(

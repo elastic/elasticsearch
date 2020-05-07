@@ -27,7 +27,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -38,11 +38,12 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -61,14 +62,14 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singletonList(ParentJoinPlugin.class);
+        return Arrays.asList(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override
     protected Settings createTestIndexSettings() {
         return Settings.builder()
             .put(super.createTestIndexSettings())
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .build();
     }
 
@@ -81,10 +82,10 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
                     .field("parent", "child")
                 .endObject()
             .endObject()
-            .startObject(STRING_FIELD_NAME)
+            .startObject(TEXT_FIELD_NAME)
                 .field("type", "text")
             .endObject()
-            .startObject(STRING_FIELD_NAME_2)
+            .startObject(KEYWORD_FIELD_NAME)
                 .field("type", "keyword")
             .endObject()
             .startObject(INT_FIELD_NAME)

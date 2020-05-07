@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -65,33 +65,33 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
 
     public void testIsConditionMetThrowsExceptionWhenRolloverAliasIsNotSet() {
         String alias = randomAlphaOfLength(5);
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
-            .putAlias(AliasMetaData.builder(alias))
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
+            .putAlias(AliasMetadata.builder(alias))
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metaData(MetaData.builder().put(indexMetaData, true).build())
+            .metadata(Metadata.builder().put(indexMetadata, true).build())
             .build();
 
         try {
-            createRandomInstance().isConditionMet(indexMetaData.getIndex(), clusterState);
+            createRandomInstance().isConditionMet(indexMetadata.getIndex(), clusterState);
             fail("expected the invocation to fail");
         } catch (IllegalStateException e) {
             assertThat(e.getMessage(), is("setting [" + RolloverAction.LIFECYCLE_ROLLOVER_ALIAS
-                + "] is not set on index [" + indexMetaData.getIndex().getName() + "]"));
+                + "] is not set on index [" + indexMetadata.getIndex().getName() + "]"));
         }
     }
 
     public void testResultEvaluatedOnWriteIndexAliasWhenExists() {
         String alias = randomAlphaOfLength(5);
-        IndexMetaData originalIndex = IndexMetaData.builder("index-000000")
-            .putAlias(AliasMetaData.builder(alias).writeIndex(false))
+        IndexMetadata originalIndex = IndexMetadata.builder("index-000000")
+            .putAlias(AliasMetadata.builder(alias).writeIndex(false))
             .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(1)
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
-        IndexMetaData rolledIndex = IndexMetaData.builder("index-000001")
-            .putAlias(AliasMetaData.builder(alias).writeIndex(true))
+        IndexMetadata rolledIndex = IndexMetadata.builder("index-000001")
+            .putAlias(AliasMetadata.builder(alias).writeIndex(true))
             .settings(settings(Version.CURRENT)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
                 .put("index.write.wait_for_active_shards", "all")
@@ -105,7 +105,7 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         routingTable.addShard(TestShardRouting.newShardRouting(rolledIndex.getIndex().getName(), 0, "node2", null, false,
             ShardRoutingState.STARTED));
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metaData(MetaData.builder().put(originalIndex, true)
+            .metadata(Metadata.builder().put(originalIndex, true)
                 .put(rolledIndex, true)
                 .build())
             .routingTable(RoutingTable.builder().add(routingTable.build()).build())
@@ -117,13 +117,13 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
 
     public void testResultEvaluatedOnOnlyIndexTheAliasPointsToIfWriteIndexIsNull() {
         String alias = randomAlphaOfLength(5);
-        IndexMetaData originalIndex = IndexMetaData.builder("index-000000")
+        IndexMetadata originalIndex = IndexMetadata.builder("index-000000")
             .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(1)
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
-        IndexMetaData rolledIndex = IndexMetaData.builder("index-000001")
-            .putAlias(AliasMetaData.builder(alias).writeIndex(false))
+        IndexMetadata rolledIndex = IndexMetadata.builder("index-000001")
+            .putAlias(AliasMetadata.builder(alias).writeIndex(false))
             .settings(settings(Version.CURRENT)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
                 .put("index.write.wait_for_active_shards", "all")
@@ -137,7 +137,7 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         routingTable.addShard(TestShardRouting.newShardRouting(rolledIndex.getIndex().getName(), 0, "node2", null, false,
             ShardRoutingState.STARTED));
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metaData(MetaData.builder().put(originalIndex, true)
+            .metadata(Metadata.builder().put(originalIndex, true)
                 .put(rolledIndex, true)
                 .build())
             .routingTable(RoutingTable.builder().add(routingTable.build()).build())
@@ -149,14 +149,14 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
 
     public void testResultReportsMeaningfulMessage() throws IOException {
         String alias = randomAlphaOfLength(5);
-        IndexMetaData originalIndex = IndexMetaData.builder("index-000000")
-            .putAlias(AliasMetaData.builder(alias).writeIndex(false))
+        IndexMetadata originalIndex = IndexMetadata.builder("index-000000")
+            .putAlias(AliasMetadata.builder(alias).writeIndex(false))
             .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(1)
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
-        IndexMetaData rolledIndex = IndexMetaData.builder("index-000001")
-            .putAlias(AliasMetaData.builder(alias).writeIndex(true))
+        IndexMetadata rolledIndex = IndexMetadata.builder("index-000001")
+            .putAlias(AliasMetadata.builder(alias).writeIndex(true))
             .settings(settings(Version.CURRENT)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
                 .put("index.write.wait_for_active_shards", "3")
@@ -170,7 +170,7 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         routingTable.addShard(TestShardRouting.newShardRouting(rolledIndex.getIndex().getName(), 0, "node2", null, false,
             ShardRoutingState.STARTED));
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metaData(MetaData.builder().put(originalIndex, true)
+            .metadata(Metadata.builder().put(originalIndex, true)
                 .put(rolledIndex, true)
                 .build())
             .routingTable(RoutingTable.builder().add(routingTable.build()).build())
@@ -188,8 +188,8 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
 
     public void testResultReportsErrorMessage() {
         String alias = randomAlphaOfLength(5);
-        IndexMetaData rolledIndex = IndexMetaData.builder("index-000001")
-            .putAlias(AliasMetaData.builder(alias).writeIndex(true))
+        IndexMetadata rolledIndex = IndexMetadata.builder("index-000001")
+            .putAlias(AliasMetadata.builder(alias).writeIndex(true))
             .settings(settings(Version.CURRENT)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
                 .put("index.write.wait_for_active_shards", "3")
@@ -198,7 +198,7 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
             .numberOfReplicas(2)
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metaData(MetaData.builder().put(rolledIndex, true).build())
+            .metadata(Metadata.builder().put(rolledIndex, true).build())
             .build();
 
         WaitForActiveShardsStep step = createRandomInstance();

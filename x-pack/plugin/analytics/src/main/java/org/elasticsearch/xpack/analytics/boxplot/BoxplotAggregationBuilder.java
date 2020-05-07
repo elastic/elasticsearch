@@ -16,11 +16,11 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -35,38 +35,47 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
     public static final ObjectParser<BoxplotAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME, BoxplotAggregationBuilder::new);
     static {
-        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
         PARSER.declareDouble(BoxplotAggregationBuilder::compression, COMPRESSION_FIELD);
     }
 
     private double compression = 100.0;
 
     public BoxplotAggregationBuilder(String name) {
-        super(name, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name);
     }
 
     protected BoxplotAggregationBuilder(BoxplotAggregationBuilder clone,
-                                        AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                        AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.compression = clone.compression;
     }
 
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        BoxplotAggregatorFactory.registerAggregators(builder);
+    }
+
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new BoxplotAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new BoxplotAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
      * Read from a stream.
      */
     public BoxplotAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(in);
         compression = in.readDouble();
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(compression);
+    }
+
+    @Override
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.NUMERIC;
     }
 
     /**
@@ -92,10 +101,10 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
 
     @Override
     protected BoxplotAggregatorFactory innerBuild(QueryShardContext queryShardContext,
-                                                  ValuesSourceConfig<ValuesSource> config,
+                                                  ValuesSourceConfig config,
                                                   AggregatorFactory parent,
                                                   AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new BoxplotAggregatorFactory(name, config, compression, queryShardContext, parent, subFactoriesBuilder, metaData);
+        return new BoxplotAggregatorFactory(name, config, compression, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

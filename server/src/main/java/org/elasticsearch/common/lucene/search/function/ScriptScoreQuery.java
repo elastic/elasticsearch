@@ -36,7 +36,6 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScoreScript.ExplanationHolder;
@@ -85,7 +84,7 @@ public class ScriptScoreQuery extends Query {
         }
         boolean needsScore = scriptBuilder.needs_score();
         ScoreMode subQueryScoreMode = needsScore ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
-        Weight subQueryWeight = subQuery.createWeight(searcher, subQueryScoreMode, boost);
+        Weight subQueryWeight = subQuery.createWeight(searcher, subQueryScoreMode, 1.0f);
 
         return new Weight(this){
             @Override
@@ -95,7 +94,7 @@ public class ScriptScoreQuery extends Query {
                     if (subQueryBulkScorer == null) {
                         return null;
                     }
-                    return new ScriptScoreBulkScorer(subQueryBulkScorer, subQueryScoreMode, makeScoreScript(context));
+                    return new ScriptScoreBulkScorer(subQueryBulkScorer, subQueryScoreMode, makeScoreScript(context), boost);
                 } else {
                     return super.bulkScorer(context);
                 }
@@ -112,7 +111,7 @@ public class ScriptScoreQuery extends Query {
                 if (subQueryScorer == null) {
                     return null;
                 }
-                Scorer scriptScorer = new ScriptScorer(this, makeScoreScript(context), subQueryScorer, subQueryScoreMode, null);
+                Scorer scriptScorer = new ScriptScorer(this, makeScoreScript(context), subQueryScorer, subQueryScoreMode, boost, null);
                 if (minScore != null) {
                     scriptScorer = new MinScoreScorer(this, scriptScorer, minScore);
                 }
@@ -127,11 +126,11 @@ public class ScriptScoreQuery extends Query {
                 }
                 ExplanationHolder explanationHolder = new ExplanationHolder();
                 Scorer scorer = new ScriptScorer(this, makeScoreScript(context),
-                    subQueryWeight.scorer(context), subQueryScoreMode, explanationHolder);
+                    subQueryWeight.scorer(context), subQueryScoreMode, 1f, explanationHolder);
                 int newDoc = scorer.iterator().advance(doc);
                 assert doc == newDoc; // subquery should have already matched above
-                float score = scorer.score();
-                
+                float score = scorer.score(); // score without boost
+
                 Explanation explanation = explanationHolder.get(score, needsScore ? subQueryExplanation : null);
                 if (explanation == null) {
                     // no explanation provided by user; give a simple one
@@ -143,7 +142,10 @@ public class ScriptScoreQuery extends Query {
                         explanation = Explanation.match(score, desc);
                     }
                 }
-                
+                if (boost != 1f) {
+                    explanation = Explanation.match(boost * explanation.getValue().floatValue(), "Boosted score, product of:",
+                        Explanation.match(boost, "boost"), explanation);
+                }
                 if (minScore != null && minScore > explanation.getValue().floatValue()) {
                     explanation = Explanation.noMatch("Score value is too low, expected at least " + minScore +
                         " but got " + explanation.getValue(), explanation);
@@ -203,16 +205,18 @@ public class ScriptScoreQuery extends Query {
     private static class ScriptScorer extends Scorer {
         private final ScoreScript scoreScript;
         private final Scorer subQueryScorer;
+        private final float boost;
         private final ExplanationHolder explanation;
 
         ScriptScorer(Weight weight, ScoreScript scoreScript, Scorer subQueryScorer,
-                ScoreMode subQueryScoreMode, ExplanationHolder explanation) {
+                ScoreMode subQueryScoreMode, float boost, ExplanationHolder explanation) {
             super(weight);
             this.scoreScript = scoreScript;
             if (subQueryScoreMode == ScoreMode.COMPLETE) {
                 scoreScript.setScorer(subQueryScorer);
             }
             this.subQueryScorer = subQueryScorer;
+            this.boost = boost;
             this.explanation = explanation;
         }
 
@@ -221,12 +225,13 @@ public class ScriptScoreQuery extends Query {
             int docId = docID();
             scoreScript.setDocument(docId);
             float score = (float) scoreScript.execute(explanation);
-            if (score == Float.NEGATIVE_INFINITY || Float.isNaN(score)) {
-                throw new ElasticsearchException(
-                    "script_score query returned an invalid score [" + score + "] for doc [" + docId + "].");
+            if (score < 0f || Float.isNaN(score)) {
+                throw new IllegalArgumentException("script_score script returned an invalid score [" + score + "] " +
+                    "for doc [" + docId + "]. Must be a non-negative score!");
             }
-            return score;
+            return score * boost;
         }
+
         @Override
         public int docID() {
             return subQueryScorer.docID();
@@ -247,15 +252,17 @@ public class ScriptScoreQuery extends Query {
     private static class ScriptScorable extends Scorable {
         private final ScoreScript scoreScript;
         private final Scorable subQueryScorer;
+        private final float boost;
         private final ExplanationHolder explanation;
 
         ScriptScorable(ScoreScript scoreScript, Scorable subQueryScorer,
-                ScoreMode subQueryScoreMode, ExplanationHolder explanation) {
+                ScoreMode subQueryScoreMode, float boost, ExplanationHolder explanation) {
             this.scoreScript = scoreScript;
             if (subQueryScoreMode == ScoreMode.COMPLETE) {
                 scoreScript.setScorer(subQueryScorer);
             }
             this.subQueryScorer = subQueryScorer;
+            this.boost = boost;
             this.explanation = explanation;
         }
 
@@ -264,11 +271,11 @@ public class ScriptScoreQuery extends Query {
             int docId = docID();
             scoreScript.setDocument(docId);
             float score = (float) scoreScript.execute(explanation);
-            if (score == Float.NEGATIVE_INFINITY || Float.isNaN(score)) {
-                throw new ElasticsearchException(
-                    "script_score query returned an invalid score [" + score + "] for doc [" + docId + "].");
+            if (score < 0f || Float.isNaN(score)) {
+                throw new IllegalArgumentException("script_score script returned an invalid score [" + score + "] " +
+                    "for doc [" + docId + "]. Must be a non-negative score!");
             }
-            return score;
+            return score * boost;
         }
         @Override
         public int docID() {
@@ -284,11 +291,13 @@ public class ScriptScoreQuery extends Query {
         private final BulkScorer subQueryBulkScorer;
         private final ScoreMode subQueryScoreMode;
         private final ScoreScript scoreScript;
+        private final float boost;
 
-        ScriptScoreBulkScorer(BulkScorer subQueryBulkScorer, ScoreMode subQueryScoreMode, ScoreScript scoreScript) {
+        ScriptScoreBulkScorer(BulkScorer subQueryBulkScorer, ScoreMode subQueryScoreMode, ScoreScript scoreScript, float boost) {
             this.subQueryBulkScorer = subQueryBulkScorer;
             this.subQueryScoreMode = subQueryScoreMode;
             this.scoreScript = scoreScript;
+            this.boost = boost;
         }
 
         @Override
@@ -300,7 +309,7 @@ public class ScriptScoreQuery extends Query {
             return new FilterLeafCollector(collector) {
                 @Override
                 public void setScorer(Scorable scorer) throws IOException {
-                    in.setScorer(new ScriptScorable(scoreScript, scorer, subQueryScoreMode, null));
+                    in.setScorer(new ScriptScorable(scoreScript, scorer, subQueryScoreMode, boost, null));
                 }
             };
         }

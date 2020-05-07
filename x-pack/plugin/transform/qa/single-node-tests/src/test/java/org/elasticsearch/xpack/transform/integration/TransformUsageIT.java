@@ -22,6 +22,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.transform.TransformField.INDEX_DOC_TYPE;
 import static org.elasticsearch.xpack.transform.TransformInfoTransportAction.PROVIDED_STATS;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class TransformUsageIT extends TransformRestTestCase {
 
@@ -98,16 +100,20 @@ public class TransformUsageIT extends TransformRestTestCase {
             assertEquals(2, XContentMapValues.extractValue("transform.transforms.stopped", statsMap));
             assertEquals(1, XContentMapValues.extractValue("transform.transforms.started", statsMap));
             for (String statName : PROVIDED_STATS) {
-                if (statName.equals(TransformIndexerStats.INDEX_TIME_IN_MS.getPreferredName())
-                    || statName.equals(TransformIndexerStats.SEARCH_TIME_IN_MS.getPreferredName())) {
-                    continue;
+                // the trigger count can be higher if the scheduler kicked before usage has been called, therefore check for gte
+                if (statName.equals(TransformIndexerStats.NUM_INVOCATIONS.getPreferredName())) {
+                    assertThat(
+                        "Incorrect stat " + statName,
+                        extractStatsAsDouble(XContentMapValues.extractValue("transform.stats." + statName, statsMap)),
+                        greaterThanOrEqualTo(expectedStats.get(statName).doubleValue())
+                    );
+                } else {
+                    assertThat(
+                        "Incorrect stat " + statName,
+                        extractStatsAsDouble(XContentMapValues.extractValue("transform.stats." + statName, statsMap)),
+                        equalTo(expectedStats.get(statName).doubleValue())
+                    );
                 }
-                assertEquals(
-                    "Incorrect stat " + statName,
-                    expectedStats.get(statName).doubleValue(),
-                    extractStatsAsDouble(XContentMapValues.extractValue("transform.stats." + statName, statsMap)),
-                    0.0001
-                );
             }
             // Refresh the index so that statistics are searchable
             refreshIndex(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);

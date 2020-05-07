@@ -18,15 +18,14 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
@@ -41,13 +40,11 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -63,13 +60,12 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
     DoubleArray mins;
 
     MinAggregator(String name,
-                    ValuesSourceConfig<ValuesSource.Numeric> config,
+                    ValuesSourceConfig config,
                     ValuesSource.Numeric valuesSource,
                     SearchContext context,
                     Aggregator parent,
-                    List<PipelineAggregator> pipelineAggregators,
-                    Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+                    Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, metadata);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             mins = context.bigArrays().newDoubleArray(1, false);
@@ -150,12 +146,12 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null || bucket >= mins.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalMin(name, mins.get(bucket), format, pipelineAggregators(), metaData());
+        return new InternalMin(name, mins.get(bucket), format, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMin(name, Double.POSITIVE_INFINITY, format, pipelineAggregators(), metaData());
+        return new InternalMin(name, Double.POSITIVE_INFINITY, format, metadata());
     }
 
     @Override
@@ -173,7 +169,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
      * @param config The config for the values source metric.
      */
     static Function<byte[], Number> getPointReaderOrNull(SearchContext context, Aggregator parent,
-                                                                ValuesSourceConfig<ValuesSource.Numeric> config) {
+                                                                ValuesSourceConfig config) {
         if (context.query() != null &&
                 context.query().getClass() != MatchAllDocsQuery.class) {
             return null;
@@ -191,11 +187,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
                 converter = ((NumberFieldMapper.NumberFieldType) fieldType)::parsePoint;
             } else if (fieldType.getClass() == DateFieldMapper.DateFieldType.class) {
                 DateFieldMapper.DateFieldType dft = (DateFieldMapper.DateFieldType) fieldType;
-                /*
-                 * Makes sure that nanoseconds decode to milliseconds, just
-                 * like they do when you run the agg without the optimization.
-                 */
-                converter = (in) -> dft.resolution().toInstant(LongPoint.decodeDimension(in, 0)).toEpochMilli();
+                converter = dft.resolution()::parsePointAsMillis;
             }
             return converter;
         }

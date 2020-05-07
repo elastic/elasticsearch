@@ -25,16 +25,20 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.sql.proto.Protocol.BINARY_FORMAT_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNAR_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.FIELD_MULTI_VALUE_LENIENCY_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.INDEX_INCLUDE_FROZEN_NAME;
 
 /**
  * Request to perform an sql query
  */
 public class SqlQueryRequest extends AbstractSqlQueryRequest {
     private static final ObjectParser<SqlQueryRequest, Void> PARSER = objectParser(SqlQueryRequest::new);
-    static final ParseField COLUMNAR = new ParseField("columnar");
-    static final ParseField FIELD_MULTI_VALUE_LENIENCY = new ParseField("field_multi_value_leniency");
-    static final ParseField INDEX_INCLUDE_FROZEN = new ParseField("index_include_frozen");
-    static final ParseField BINARY_COMMUNICATION = new ParseField("binary_format");
+    static final ParseField COLUMNAR = new ParseField(COLUMNAR_NAME);
+    static final ParseField FIELD_MULTI_VALUE_LENIENCY = new ParseField(FIELD_MULTI_VALUE_LENIENCY_NAME);
+    static final ParseField INDEX_INCLUDE_FROZEN = new ParseField(INDEX_INCLUDE_FROZEN_NAME);
+    static final ParseField BINARY_COMMUNICATION = new ParseField(BINARY_FORMAT_NAME);
 
     static {
         PARSER.declareString(SqlQueryRequest::cursor, CURSOR);
@@ -72,7 +76,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
+        ActionRequestValidationException validationException = super.validate();
         if ((false == Strings.hasText(query())) && Strings.hasText(cursor) == false) {
             validationException = addValidationError("one of [query] or [cursor] is required", validationException);
         }

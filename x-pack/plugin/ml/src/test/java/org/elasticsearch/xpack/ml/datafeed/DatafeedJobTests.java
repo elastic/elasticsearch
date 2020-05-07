@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
@@ -271,15 +272,17 @@ public class DatafeedJobTests extends ESTestCase {
             10,
             XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(2000));
 
-        Annotation expectedAnnotation = new Annotation(msg,
-            new Date(currentTime),
-            XPackUser.NAME,
-            bucket.getTimestamp(),
-            new Date((bucket.getEpoch() + bucket.getBucketSpan()) * 1000),
-            jobId,
-            new Date(currentTime),
-            XPackUser.NAME,
-            "annotation");
+        Annotation expectedAnnotation = new Annotation.Builder()
+            .setAnnotation(msg)
+            .setCreateTime(new Date(currentTime))
+            .setCreateUsername(XPackUser.NAME)
+            .setTimestamp(bucket.getTimestamp())
+            .setEndTimestamp(new Date((bucket.getEpoch() + bucket.getBucketSpan()) * 1000))
+            .setJobId(jobId)
+            .setModifiedTime(new Date(currentTime))
+            .setModifiedUsername(XPackUser.NAME)
+            .setType("annotation")
+            .build();
 
         IndexRequest request = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
         try (XContentBuilder xContentBuilder = expectedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
@@ -311,11 +314,11 @@ public class DatafeedJobTests extends ESTestCase {
         // What we expect the updated annotation to be indexed as
         IndexRequest indexRequest = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
         indexRequest.id(annotationDocId);
-        Annotation updatedAnnotation = new Annotation(expectedAnnotation);
-        updatedAnnotation.setAnnotation(msg);
-        updatedAnnotation.setModifiedTime(new Date(currentTime));
-        updatedAnnotation.setModifiedUsername(XPackUser.NAME);
-        updatedAnnotation.setEndTimestamp(new Date((bucket2.getEpoch() + bucket2.getBucketSpan()) * 1000));
+        Annotation updatedAnnotation = new Annotation.Builder(expectedAnnotation)
+            .setAnnotation(msg)
+            .setEndTimestamp(new Date((bucket2.getEpoch() + bucket2.getBucketSpan()) * 1000))
+            .setModifiedTime(new Date(currentTime))
+            .build();
         try (XContentBuilder xContentBuilder = updatedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
             indexRequest.source(xContentBuilder);
         }
@@ -458,7 +461,7 @@ public class DatafeedJobTests extends ESTestCase {
                                           long latestRecordTimeMs, boolean haveSeenDataPreviously) {
         Supplier<Long> currentTimeSupplier = () -> currentTime;
         return new DatafeedJob(jobId, dataDescription.build(), frequencyMs, queryDelayMs, dataExtractorFactory, timingStatsReporter,
-            client, auditor, currentTimeSupplier, delayedDataDetector, null, latestFinalBucketEndTimeMs, latestRecordTimeMs,
-            haveSeenDataPreviously);
+            client, auditor, new AnnotationPersister(client, auditor), currentTimeSupplier, delayedDataDetector, null,
+            latestFinalBucketEndTimeMs, latestRecordTimeMs, haveSeenDataPreviously);
     }
 }

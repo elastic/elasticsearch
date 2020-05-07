@@ -88,6 +88,10 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
             return fields;
         }
 
+        public void addAll(List<? extends IndexableField> fields) {
+            this.fields.addAll(fields);
+        }
+
         public void add(IndexableField field) {
             // either a meta fields or starts with the prefix
             assert field.name().startsWith("_") || field.name().startsWith(prefix) : field.name() + " " + prefix;
@@ -118,24 +122,6 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
                 }
             }
             return f.toArray(new IndexableField[f.size()]);
-        }
-
-        /**
-         * Returns an array of values of the field specified as the method parameter.
-         * This method returns an empty array when there are no
-         * matching fields.  It never returns null.
-         * If you want the actual numeric field instances back, use {@link #getFields}.
-         * @param name the name of the field
-         * @return a <code>String[]</code> of field values
-         */
-        public final String[] getValues(String name) {
-            List<String> result = new ArrayList<>();
-            for (IndexableField field : fields) {
-                if (field.name().equals(name) && field.stringValue() != null) {
-                    result.add(field.stringValue());
-                }
-            }
-            return result.toArray(new String[result.size()]);
         }
 
         public IndexableField getField(String name) {

@@ -134,8 +134,8 @@ import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -200,11 +200,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             List<User> users = new ArrayList<>(3);
             users.addAll(response.getUsers());
             assertNotNull(response);
-            // 9 users are expected to be returned
+            // 10 users are expected to be returned
             // test_users (3): user1, user2, user3
-            // system_users (6): elastic, beats_system, apm_system, logstash_system, kibana, remote_monitoring_user
+            // system_users (6): elastic, beats_system, apm_system, logstash_system, kibana, kibana_system, remote_monitoring_user
             logger.info(users);
-            assertThat(users.size(), equalTo(9));
+            assertThat(users.size(), equalTo(10));
         }
 
         {
@@ -494,7 +494,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(mappings.size(), is(2));
             for (ExpressionRoleMapping roleMapping : mappings) {
                 assertThat(roleMapping.isEnabled(), is(true));
-                assertThat(roleMapping.getName(), isIn(new String[]{"mapping-example-1", "mapping-example-2"}));
+                assertThat(roleMapping.getName(), in(new String[]{"mapping-example-1", "mapping-example-2"}));
                 if (roleMapping.getName().equals("mapping-example-1")) {
                     assertThat(roleMapping.getMetadata(), equalTo(Collections.emptyMap()));
                     assertThat(roleMapping.getExpression(), equalTo(rules1));
@@ -519,7 +519,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(mappings.size(), is(2));
             for (ExpressionRoleMapping roleMapping : mappings) {
                 assertThat(roleMapping.isEnabled(), is(true));
-                assertThat(roleMapping.getName(), isIn(new String[]{"mapping-example-1", "mapping-example-2"}));
+                assertThat(roleMapping.getName(), in(new String[]{"mapping-example-1", "mapping-example-2"}));
                 if (roleMapping.getName().equals("mapping-example-1")) {
                     assertThat(roleMapping.getMetadata(), equalTo(Collections.emptyMap()));
                     assertThat(roleMapping.getExpression(), equalTo(rules1));

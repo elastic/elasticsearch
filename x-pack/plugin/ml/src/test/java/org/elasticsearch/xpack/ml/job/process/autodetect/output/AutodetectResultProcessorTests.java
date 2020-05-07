@@ -23,6 +23,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
+import org.elasticsearch.xpack.core.ml.annotations.Annotation;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
@@ -35,6 +37,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
@@ -42,9 +45,13 @@ import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Date;
@@ -72,6 +79,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
     private static final String JOB_ID = "valid_id";
     private static final long BUCKET_SPAN_MS = 1000;
+    private static final Instant CURRENT_TIME = Instant.ofEpochMilli(2000000000);
 
     private ThreadPool threadPool;
     private Client client;
@@ -79,6 +87,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
     private Renormalizer renormalizer;
     private JobResultsPersister persister;
     private JobResultsPersister.Builder bulkBuilder;
+    private AnnotationPersister annotationPersister;
     private AutodetectProcess process;
     private FlushListener flushListener;
     private AutodetectResultProcessor processorUnderTest;
@@ -95,6 +104,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         renormalizer = mock(Renormalizer.class);
         persister = mock(JobResultsPersister.class);
         bulkBuilder = mock(JobResultsPersister.Builder.class);
+        annotationPersister = mock(AnnotationPersister.class);
         when(persister.bulkPersisterBuilder(eq(JOB_ID), any())).thenReturn(bulkBuilder);
         process = mock(AutodetectProcess.class);
         flushListener = mock(FlushListener.class);
@@ -104,15 +114,17 @@ public class AutodetectResultProcessorTests extends ESTestCase {
             JOB_ID,
             renormalizer,
             persister,
+            annotationPersister,
             process,
             new ModelSizeStats.Builder(JOB_ID).setTimestamp(new Date(BUCKET_SPAN_MS)).build(),
             new TimingStats(JOB_ID),
+            Clock.fixed(CURRENT_TIME, ZoneId.systemDefault()),
             flushListener);
     }
 
     @After
     public void cleanup() {
-        verifyNoMoreInteractions(auditor, renormalizer, persister);
+        verifyNoMoreInteractions(auditor, renormalizer, persister, annotationPersister);
         executor.shutdown();
     }
 
@@ -353,6 +365,8 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         AutodetectResult result = mock(AutodetectResult.class);
         ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(JOB_ID)
             .setSnapshotId("a_snapshot_id")
+            .setLatestResultTimeStamp(Date.from(Instant.ofEpochMilli(1000_000_000)))
+            .setTimestamp(Date.from(Instant.ofEpochMilli(2000_000_000)))
             .setMinVersion(Version.CURRENT)
             .build();
         when(result.getModelSnapshot()).thenReturn(modelSnapshot);
@@ -366,6 +380,24 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
         verify(persister).persistModelSnapshot(eq(modelSnapshot), eq(WriteRequest.RefreshPolicy.IMMEDIATE), any());
+
+        ArgumentCaptor<Annotation> annotationCaptor = ArgumentCaptor.forClass(Annotation.class);
+        verify(annotationPersister).persistAnnotation(
+            eq(ModelSnapshot.annotationDocumentId(modelSnapshot)), annotationCaptor.capture(), any());
+        Annotation annotation = annotationCaptor.getValue();
+        Annotation expectedAnnotation =
+            new Annotation.Builder()
+                .setAnnotation("Job model snapshot with id [a_snapshot_id] stored")
+                .setCreateTime(Date.from(CURRENT_TIME))
+                .setCreateUsername(XPackUser.NAME)
+                .setTimestamp(Date.from(Instant.ofEpochMilli(1000_000_000)))
+                .setEndTimestamp(Date.from(Instant.ofEpochMilli(1000_000_000)))
+                .setJobId(JOB_ID)
+                .setModifiedTime(Date.from(CURRENT_TIME))
+                .setModifiedUsername(XPackUser.NAME)
+                .setType("annotation")
+                .build();
+        assertThat(annotation, is(equalTo(expectedAnnotation)));
 
         UpdateJobAction.Request expectedJobUpdateRequest = UpdateJobAction.Request.internal(JOB_ID,
                 new JobUpdate.Builder(JOB_ID).setModelSnapshotId("a_snapshot_id").build());

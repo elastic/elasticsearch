@@ -9,12 +9,15 @@ package org.elasticsearch.xpack.sql.util;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Foldables;
+import org.elasticsearch.xpack.ql.expression.Foldables;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -187,7 +190,7 @@ public final class DateUtils {
 
         if (precisionExpression != null) {
             try {
-                precision = Foldables.intValueOf(precisionExpression);
+                precision = (Integer) SqlDataTypeConverter.convert(Foldables.valueOf(precisionExpression), DataTypes.INTEGER);
             } catch (Exception e) {
                 throw new ParsingException(precisionExpression.source(), "invalid precision; " + e.getMessage());
             }
@@ -201,5 +204,9 @@ public final class DateUtils {
         // remove the remainder
         nano = nano - nano % (int) Math.pow(10, (9 - precision));
         return nano;
+    }
+
+    public static ZonedDateTime atTimeZone(LocalDateTime ldt, ZoneId zoneId) {
+        return ZonedDateTime.ofInstant(ldt, zoneId.getRules().getValidOffsets(ldt).get(0), zoneId);
     }
 }

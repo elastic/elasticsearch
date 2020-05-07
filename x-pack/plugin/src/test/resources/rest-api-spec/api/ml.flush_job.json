@@ -1,7 +1,8 @@
 {
   "ml.flush_job":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-flush-job.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-flush-job.html",
+      "description":"Forces any buffered data to be processed by the job."
     },
     "stability":"stable",
     "url":{

@@ -21,6 +21,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.retention.EmptyStateIndexRemover;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredForecastsRemover;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredModelSnapshotsRemover;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredResultsRemover;
@@ -84,7 +85,8 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
                 new ExpiredResultsRemover(client, auditor, threadPool),
                 new ExpiredForecastsRemover(client, threadPool),
                 new ExpiredModelSnapshotsRemover(client, threadPool),
-                new UnusedStateRemover(client, clusterService)
+                new UnusedStateRemover(client, clusterService),
+                new EmptyStateIndexRemover(client)
         );
         Iterator<MlDataRemover> dataRemoversIterator = new VolatileCursorIterator<>(dataRemovers);
         deleteExpiredData(dataRemoversIterator, listener, isTimedOutSupplier, true);

@@ -73,11 +73,11 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanNotQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -836,7 +836,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
 
         Version v = Version.CURRENT;
 
-        try (RAMDirectory directory = new RAMDirectory()) {
+        try (Directory directory = new ByteBuffersDirectory()) {
             try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig())) {
                 List<Document> documents = new ArrayList<>();
                 Document document = new Document();
@@ -875,7 +875,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
 
         // This will trigger using the TermsQuery instead of individual term query clauses in the CoveringQuery:
-        try (RAMDirectory directory = new RAMDirectory()) {
+        try (Directory directory = new ByteBuffersDirectory()) {
             try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig())) {
                 Document document = new Document();
                 for (int i = 0; i < 1024; i++) {
@@ -1109,8 +1109,8 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     }
 
     private void addQuery(Query query, List<ParseContext.Document> docs) {
-        IndexMetaData build = IndexMetaData.builder("")
-            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+        IndexMetadata build = IndexMetadata.builder("")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1).numberOfReplicas(0).build();
         IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
         ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(settings,

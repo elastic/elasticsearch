@@ -26,7 +26,7 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.TransportAnalyzeAction;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -77,8 +77,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
 
         Settings indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
                 .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
                 .put("index.analysis.analyzer.custom_analyzer.filter", "mock")
                 .put("index.analysis.normalizer.my_normalizer.type", "custom")
@@ -117,13 +117,15 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    deprecationLogger.deprecated("Using deprecated token filter [deprecated]");
+                    deprecationLogger.deprecatedAndMaybeLog("deprecated_token_filter_create",
+                        "Using deprecated token filter [deprecated]");
                     return tokenStream;
                 }
 
                 @Override
                 public TokenStream normalize(TokenStream tokenStream) {
-                    deprecationLogger.deprecated("Using deprecated token filter [deprecated]");
+                    deprecationLogger.deprecatedAndMaybeLog("deprecated_token_filter_normalize",
+                        "Using deprecated token filter [deprecated]");
                     return tokenStream;
                 }
             }

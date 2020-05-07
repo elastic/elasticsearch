@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.inference.loadingservice;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -27,7 +28,13 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
@@ -78,6 +85,7 @@ public class ModelLoadingService implements ClusterStateListener {
             Setting.Property.NodeScope);
 
     private static final Logger logger = LogManager.getLogger(ModelLoadingService.class);
+    private final TrainedModelStatsService modelStatsService;
     private final Cache<String, LocalModel> localModelCache;
     private final Set<String> referencedModels = new HashSet<>();
     private final Map<String, Queue<ActionListener<Model>>> loadingListeners = new HashMap<>();
@@ -87,26 +95,32 @@ public class ModelLoadingService implements ClusterStateListener {
     private final InferenceAuditor auditor;
     private final ByteSizeValue maxCacheSize;
     private final NamedXContentRegistry namedXContentRegistry;
+    private final String localNode;
 
     public ModelLoadingService(TrainedModelProvider trainedModelProvider,
                                InferenceAuditor auditor,
                                ThreadPool threadPool,
                                ClusterService clusterService,
                                NamedXContentRegistry namedXContentRegistry,
-                               Settings settings) {
+                               TrainedModelStatsService modelStatsService,
+                               Settings settings,
+                               String localNode) {
         this.provider = trainedModelProvider;
         this.threadPool = threadPool;
         this.maxCacheSize = INFERENCE_MODEL_CACHE_SIZE.get(settings);
         this.auditor = auditor;
+        this.modelStatsService = modelStatsService;
         this.shouldNotAudit = new HashSet<>();
         this.namedXContentRegistry = namedXContentRegistry;
         this.localModelCache = CacheBuilder.<String, LocalModel>builder()
             .setMaximumWeight(this.maxCacheSize.getBytes())
             .weigher((id, localModel) -> localModel.ramBytesUsed())
-            .removalListener(this::cacheEvictionListener)
+            // explicit declaration of the listener lambda necessary for Eclipse IDE 4.14
+            .removalListener(notification -> cacheEvictionListener(notification))
             .setExpireAfterAccess(INFERENCE_MODEL_CACHE_TTL.get(settings))
             .build();
         clusterService.addListener(this);
+        this.localNode = localNode;
     }
 
     /**
@@ -130,23 +144,32 @@ public class ModelLoadingService implements ClusterStateListener {
         LocalModel cachedModel = localModelCache.get(modelId);
         if (cachedModel != null) {
             modelActionListener.onResponse(cachedModel);
-            logger.trace("[{}] loaded from cache", modelId);
+            logger.trace(() -> new ParameterizedMessage("[{}] loaded from cache", modelId));
             return;
         }
         if (loadModelIfNecessary(modelId, modelActionListener) == false) {
             // If we the model is not loaded and we did not kick off a new loading attempt, this means that we may be getting called
             // by a simulated pipeline
-            logger.trace("[{}] not actively loading, eager loading without cache", modelId);
+            logger.trace(() -> new ParameterizedMessage("[{}] not actively loading, eager loading without cache", modelId));
             provider.getTrainedModel(modelId, true, ActionListener.wrap(
-                trainedModelConfig ->
+                trainedModelConfig -> {
+                    trainedModelConfig.ensureParsedDefinition(namedXContentRegistry);
+                    InferenceConfig inferenceConfig = trainedModelConfig.getInferenceConfig() == null ?
+                        inferenceConfigFromTargetType(trainedModelConfig.getModelDefinition().getTrainedModel().targetType()) :
+                        trainedModelConfig.getInferenceConfig();
                     modelActionListener.onResponse(new LocalModel(
                         trainedModelConfig.getModelId(),
-                        trainedModelConfig.ensureParsedDefinition(namedXContentRegistry).getModelDefinition(),
-                        trainedModelConfig.getInput())),
+                        localNode,
+                        trainedModelConfig.getModelDefinition(),
+                        trainedModelConfig.getInput(),
+                        trainedModelConfig.getDefaultFieldMap(),
+                        inferenceConfig,
+                        modelStatsService));
+                },
                 modelActionListener::onFailure
             ));
         } else {
-            logger.trace("[{}] is loading or loaded, added new listener to queue", modelId);
+            logger.trace(() -> new ParameterizedMessage("[{}] is loading or loaded, added new listener to queue", modelId));
         }
     }
 
@@ -170,7 +193,7 @@ public class ModelLoadingService implements ClusterStateListener {
                 if (loadingListeners.computeIfPresent(
                     modelId,
                     (storedModelKey, listenerQueue) -> addFluently(listenerQueue, modelActionListener)) == null) {
-                    logger.trace("[{}] attempting to load and cache", modelId);
+                    logger.trace(() -> new ParameterizedMessage("[{}] attempting to load and cache", modelId));
                     loadingListeners.put(modelId, addFluently(new ArrayDeque<>(), modelActionListener));
                     loadModel(modelId);
                 }
@@ -185,7 +208,7 @@ public class ModelLoadingService implements ClusterStateListener {
     private void loadModel(String modelId) {
         provider.getTrainedModel(modelId, true, ActionListener.wrap(
             trainedModelConfig -> {
-                logger.debug("[{}] successfully loaded model", modelId);
+                logger.debug(() -> new ParameterizedMessage("[{}] successfully loaded model", modelId));
                 handleLoadSuccess(modelId, trainedModelConfig);
             },
             failure -> {
@@ -197,10 +220,18 @@ public class ModelLoadingService implements ClusterStateListener {
 
     private void handleLoadSuccess(String modelId, TrainedModelConfig trainedModelConfig) throws IOException {
         Queue<ActionListener<Model>> listeners;
+        trainedModelConfig.ensureParsedDefinition(namedXContentRegistry);
+        InferenceConfig inferenceConfig = trainedModelConfig.getInferenceConfig() == null ?
+            inferenceConfigFromTargetType(trainedModelConfig.getModelDefinition().getTrainedModel().targetType()) :
+            trainedModelConfig.getInferenceConfig();
         LocalModel loadedModel = new LocalModel(
             trainedModelConfig.getModelId(),
-            trainedModelConfig.ensureParsedDefinition(namedXContentRegistry).getModelDefinition(),
-            trainedModelConfig.getInput());
+            localNode,
+            trainedModelConfig.getModelDefinition(),
+            trainedModelConfig.getInput(),
+            trainedModelConfig.getDefaultFieldMap(),
+            inferenceConfig,
+            modelStatsService);
         synchronized (loadingListeners) {
             listeners = loadingListeners.remove(modelId);
             // If there is no loadingListener that means the loading was canceled and the listener was already notified as such
@@ -233,7 +264,7 @@ public class ModelLoadingService implements ClusterStateListener {
 
     private void cacheEvictionListener(RemovalNotification<String, LocalModel> notification) {
         if (notification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED) {
-            String msg = new ParameterizedMessage(
+            MessageSupplier msg = () -> new ParameterizedMessage(
                 "model cache entry evicted." +
                     "current cache [{}] current max [{}] model size [{}]. " +
                     "If this is undesired, consider updating setting [{}] or [{}].",
@@ -241,21 +272,23 @@ public class ModelLoadingService implements ClusterStateListener {
                 maxCacheSize.getStringRep(),
                 new ByteSizeValue(notification.getValue().ramBytesUsed()).getStringRep(),
                 INFERENCE_MODEL_CACHE_SIZE.getKey(),
-                INFERENCE_MODEL_CACHE_TTL.getKey()).getFormattedMessage();
+                INFERENCE_MODEL_CACHE_TTL.getKey());
             auditIfNecessary(notification.getKey(), msg);
         }
+        // If the model is no longer referenced, flush the stats to persist as soon as possible
+        notification.getValue().persistStats(referencedModels.contains(notification.getKey()) == false);
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         // If ingest data has not changed or if the current node is not an ingest node, don't bother caching models
-        if (event.changedCustomMetaDataSet().contains(IngestMetadata.TYPE) == false ||
+        if (event.changedCustomMetadataSet().contains(IngestMetadata.TYPE) == false ||
             event.state().nodes().getLocalNode().isIngestNode() == false) {
             return;
         }
 
         ClusterState state = event.state();
-        IngestMetadata currentIngestMetadata = state.metaData().custom(IngestMetadata.TYPE);
+        IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
         Set<String> allReferencedModelKeys = getReferencedModelKeys(currentIngestMetadata);
         if (allReferencedModelKeys.equals(referencedModels)) {
             return;
@@ -291,7 +324,7 @@ public class ModelLoadingService implements ClusterStateListener {
 
             // Populate loadingListeners key so we know that we are currently loading the model
             for (String modelId : allReferencedModelKeys) {
-                loadingListeners.put(modelId, new ArrayDeque<>());
+                loadingListeners.computeIfAbsent(modelId, (s) -> new ArrayDeque<>());
             }
         } // synchronized (loadingListeners)
         if (logger.isTraceEnabled()) {
@@ -316,14 +349,14 @@ public class ModelLoadingService implements ClusterStateListener {
         loadModels(allReferencedModelKeys);
     }
 
-    private void auditIfNecessary(String modelId, String msg) {
+    private void auditIfNecessary(String modelId, MessageSupplier msg) {
         if (shouldNotAudit.contains(modelId)) {
-            logger.trace("[{}] {}", modelId, msg);
+            logger.trace(() -> new ParameterizedMessage("[{}] {}", modelId, msg.get().getFormattedMessage()));
             return;
         }
-        auditor.warning(modelId, msg);
+        auditor.info(modelId, msg.get().getFormattedMessage());
         shouldNotAudit.add(modelId);
-        logger.warn("[{}] {}", modelId, msg);
+        logger.info("[{}] {}", modelId, msg.get().getFormattedMessage());
     }
 
     private void loadModels(Set<String> modelIds) {
@@ -377,4 +410,35 @@ public class ModelLoadingService implements ClusterStateListener {
         return allReferencedModelKeys;
     }
 
+    private static InferenceConfig inferenceConfigFromTargetType(TargetType targetType) {
+        switch(targetType) {
+            case REGRESSION:
+                return RegressionConfig.EMPTY_PARAMS;
+            case CLASSIFICATION:
+                return ClassificationConfig.EMPTY_PARAMS;
+            default:
+                throw ExceptionsHelper.badRequestException("unsupported target type [{}]", targetType);
+        }
+    }
+
+    /**
+     * Register a listener for notification when a model is loaded.
+     *
+     * This method is primarily intended for testing (hence package private)
+     * and shouldn't be required outside of testing.
+     *
+     * @param modelId Model Id
+     * @param modelLoadedListener To be notified
+     */
+    void addModelLoadedListener(String modelId, ActionListener<Model> modelLoadedListener) {
+        synchronized (loadingListeners) {
+            loadingListeners.compute(modelId, (modelKey, listenerQueue) -> {
+                    if (listenerQueue == null) {
+                        return addFluently(new ArrayDeque<>(), modelLoadedListener);
+                    } else {
+                        return addFluently(listenerQueue, modelLoadedListener);
+                    }
+                });
+        }
+    }
 }

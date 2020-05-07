@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Objects;
@@ -31,14 +31,14 @@ public abstract class AsyncActionStep extends Step {
 
     public static TimeValue getMasterTimeout(ClusterState clusterState){
         Objects.requireNonNull(clusterState, "cannot determine master timeout when cluster state is null");
-        return LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING.get(clusterState.metaData().settings());
+        return LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING.get(clusterState.metadata().settings());
     }
 
     public boolean indexSurvives() {
         return true;
     }
 
-    public abstract void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState,
+    public abstract void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState,
                                        ClusterStateObserver observer, Listener listener);
 
     public interface Listener {

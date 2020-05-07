@@ -86,7 +86,7 @@ setup:
         datafeed_id: datafeed-job-stats-test
   - match:
       $body: |
-        / #id                             state    bucket.count     search.count
+        / #id                             state    buckets.count     search.count
         ^ (datafeed\-job\-stats\-test \s+ \w+ \s+  \d+         \s+  \d+         \n)+  $/
 
   - do:
@@ -95,7 +95,7 @@ setup:
         datafeed_id: datafeed-job-stats-test
   - match:
       $body: |
-        /^  id                          \s+  state \s+ bucket\.count \s+ search\.count \n
+        /^  id                          \s+  state \s+ buckets\.count \s+ search\.count \n
            (datafeed\-job\-stats\-test  \s+  \w+   \s+ \d+           \s+ \d+           \n)+  $/
 
   - do:

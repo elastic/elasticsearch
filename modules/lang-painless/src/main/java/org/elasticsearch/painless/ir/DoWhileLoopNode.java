@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.symbol.ScopeTable;
 import org.elasticsearch.painless.symbol.ScopeTable.Variable;
@@ -30,7 +29,7 @@ import org.objectweb.asm.Opcodes;
 public class DoWhileLoopNode extends LoopNode {
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
         methodWriter.writeStatementOffset(location);
 
         scopeTable = scopeTable.newScope();
@@ -43,12 +42,12 @@ public class DoWhileLoopNode extends LoopNode {
 
         getBlockNode().continueLabel = begin;
         getBlockNode().breakLabel = end;
-        getBlockNode().write(classWriter, methodWriter, globals, scopeTable);
+        getBlockNode().write(classWriter, methodWriter, scopeTable);
 
         methodWriter.mark(begin);
 
         if (isContinuous() == false) {
-            getConditionNode().write(classWriter, methodWriter, globals, scopeTable);
+            getConditionNode().write(classWriter, methodWriter, scopeTable);
             methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 

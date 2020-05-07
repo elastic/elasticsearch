@@ -269,7 +269,6 @@ Features/ILM+SLM::
 * ILM stop step execution if writeIndex is false {pull}54805[#54805]
 
 Features/Indices APIs::
-* Fix simulating index templates without specified index [OPEN] {pull}56295[#56295] (issues: {issue}53101[#53101], {issue}56255[#56255])
 * Validate non-negative priorities for V2 index templates {pull}56139[#56139] (issue: {issue}53101[#53101])
 * Fix NPE in MetadataIndexTemplateService#findV2Template {pull}54945[#54945]
 * Fix creating filtered alias using now in a date_nanos range query failed {pull}54785[#54785] (issue: {issue}54315[#54315])

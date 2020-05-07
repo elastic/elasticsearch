@@ -13,48 +13,57 @@
 
 
 basic
-process where true;
+process where true
+;
 null
 ;
 
 singleNumericFilterEquals
-process where serial_event_id = 1;
+process where serial_event_id = 1
+;
 "term":{"serial_event_id":{"value":1
 ;
 
 singleNumericFilterLess
-process where serial_event_id < 4;
+process where serial_event_id < 4
+;
 "range":{"serial_event_id":{"from":null,"to":4,"include_lower":false,"include_upper":false
 ;
 
 singleNumericFilterLessEquals
-process where serial_event_id <= 4;
+process where serial_event_id <= 4
+;
 "range":{"serial_event_id":{"from":null,"to":4,"include_lower":false,"include_upper":true
 ;
 
 singleNumericFilterGreater
-process where serial_event_id > 4;
+process where serial_event_id > 4
+;
 "range":{"serial_event_id":{"from":4,"to":null,"include_lower":false,"include_upper":false
 ;
 
 singleNumericFilterGreaterEquals
-process where serial_event_id >= 4;
+process where serial_event_id >= 4
+;
 "range":{"serial_event_id":{"from":4,"to":null,"include_lower":true,"include_upper":false
 ;
 
 mixedTypeFilter
-process where process_name == "notepad.exe" or (serial_event_id < 4.5 and serial_event_id >= 3.1);
+process where process_name == "notepad.exe" or (serial_event_id < 4.5 and serial_event_id >= 3.1)
+;
 "term":{"process_name":{"value":"notepad.exe"
 "range":{"serial_event_id":{"from":3.1,"to":4.5,"include_lower":true,"include_upper":false
 ;
 
 notFilter
-process where not (exit_code > -1);
+process where not (exit_code > -1)
+;
 "range":{"exit_code":{"from":null,"to":-1,"include_lower":false,"include_upper":true
 ;
 
 inFilter
-process where process_name in ("python.exe", "SMSS.exe", "explorer.exe");
+process where process_name in ("python.exe", "SMSS.exe", "explorer.exe")
+;
 "terms":{"process_name":["python.exe","SMSS.exe","explorer.exe"],
 ;
 
@@ -63,6 +72,46 @@ process where process_path == "*\\red_ttp\\wininit.*" and opcode in (0,1,2,3)
 ;
 "wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
 {"terms":{"opcode":[0,1,2,3]
+;
+
+functionEqualsTrue
+process where cidrMatch(source_address, "10.0.0.0/8") == true
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"term":{"source_address":{"value":"10.0.0.0/8"
+;
+
+functionEqualsFalse
+process where cidrMatch(source_address, "10.0.0.0/8") == false
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"bool":{"must_not":[{"term":{"source_address":{"value":"10.0.0.0/8"
+;
+
+functionNotEqualsTrue
+process where cidrMatch(source_address, "10.0.0.0/8") != true
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"bool":{"must_not":[{"term":{"source_address":{"value":"10.0.0.0/8"
+;
+
+functionNotEqualsFalse
+process where cidrMatch(source_address, "10.0.0.0/8") != false
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"term":{"source_address":{"value":"10.0.0.0/8"
+;
+
+twoFunctionsEqualsBooleanLiterals
+process where endsWith(process_path, 'x') == true and endsWith(process_path, 'yx') == false
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process",
+{"bool":{"must":[{"script":{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(
+InternalEqlScriptUtils.endsWith(InternalQlScriptUtils.docValue(doc,params.v0),params.v1))","lang":"painless",
+"params":{"v0":"process_path","v1":"x"}}
+{"script":{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.not(
+InternalEqlScriptUtils.endsWith(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)))","lang":"painless",
+"params":{"v0":"process_path","v1":"yx"}}
 ;
 
 endsWithFunction
@@ -114,7 +163,8 @@ InternalQlScriptUtils.docValue(doc,params.v0),params.v1))"
 ;
 
 stringFunction
-process where string(pid) == "123";
+process where string(pid) == "123"
+;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalEqlScriptUtils.string(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
 "params":{"v0":"pid","v1":"123"}

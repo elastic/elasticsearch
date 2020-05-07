@@ -16,7 +16,7 @@ import java.util.List;
 /**
  * Represents a request to handle LogoutResponse using SAML assertions.
  */
-public final class SamlLogoutResponseRequest extends ActionRequest {
+public final class SamlVerifyLogoutRequest extends ActionRequest {
 
     private byte[] saml;
     private List<String> validRequestIds;
@@ -25,11 +25,11 @@ public final class SamlLogoutResponseRequest extends ActionRequest {
     @Nullable
     private String assertionConsumerServiceURL;
 
-    public SamlLogoutResponseRequest(StreamInput in) throws IOException {
+    public SamlVerifyLogoutRequest(StreamInput in) throws IOException {
         super(in);
     }
 
-    public SamlLogoutResponseRequest() {
+    public SamlVerifyLogoutRequest() {
     }
 
     @Override

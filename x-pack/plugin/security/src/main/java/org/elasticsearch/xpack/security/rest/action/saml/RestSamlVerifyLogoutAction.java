@@ -21,8 +21,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutResponseRequestBuilder;
-import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutResponseResponse;
+import org.elasticsearch.xpack.core.security.action.saml.SamlVerifyLogoutRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.saml.SamlVerifyLogoutResponse;
 
 import java.io.IOException;
 import java.util.Base64;
@@ -30,9 +30,9 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestSamlLogoutResponseAction extends SamlBaseRestHandler{
+public class RestSamlVerifyLogoutAction extends SamlBaseRestHandler{
 
-    private static final Logger logger = LogManager.getLogger(RestSamlLogoutResponseAction.class);
+    private static final Logger logger = LogManager.getLogger(RestSamlVerifyLogoutAction.class);
 
     static class Input {
         String content;
@@ -55,42 +55,42 @@ public class RestSamlLogoutResponseAction extends SamlBaseRestHandler{
         }
     }
 
-    static final ObjectParser<RestSamlLogoutResponseAction.Input, Void>
-        PARSER = new ObjectParser<>("saml_logout_response", RestSamlLogoutResponseAction.Input::new);
+    static final ObjectParser<RestSamlVerifyLogoutAction.Input, Void>
+        PARSER = new ObjectParser<>("saml_verify_logout", RestSamlVerifyLogoutAction.Input::new);
 
     static {
-        PARSER.declareString(RestSamlLogoutResponseAction.Input::setContent, new ParseField("content"));
-        PARSER.declareStringArray(RestSamlLogoutResponseAction.Input::setIds, new ParseField("ids"));
-        PARSER.declareStringOrNull(RestSamlLogoutResponseAction.Input::setRealm, new ParseField("realm"));
-        PARSER.declareString(RestSamlLogoutResponseAction.Input::setAssertionConsumerServiceURL, new ParseField("acs"));
+        PARSER.declareString(RestSamlVerifyLogoutAction.Input::setContent, new ParseField("content"));
+        PARSER.declareStringArray(RestSamlVerifyLogoutAction.Input::setIds, new ParseField("ids"));
+        PARSER.declareStringOrNull(RestSamlVerifyLogoutAction.Input::setRealm, new ParseField("realm"));
+        PARSER.declareString(RestSamlVerifyLogoutAction.Input::setAssertionConsumerServiceURL, new ParseField("acs"));
     }
 
-    public RestSamlLogoutResponseAction(Settings settings, XPackLicenseState licenseState) {
+    public RestSamlVerifyLogoutAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
     }
 
     @Override
     public String getName() {
-        return "security_saml_logout_response_action";
+        return "security_saml_verify_logout_action";
     }
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_security/saml/logout_response"));
+        return List.of(new Route(POST, "/_security/saml/verify_logout"));
     }
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
-            final RestSamlLogoutResponseAction.Input input = PARSER.parse(parser, null);
+            final RestSamlVerifyLogoutAction.Input input = PARSER.parse(parser, null);
             logger.trace("SAML LogoutResponse: [{}...] [{}]", Strings.cleanTruncate(input.content, 128), input.ids);
             return channel -> {
                 final byte[] bytes = decodeBase64(input.content);
-                final SamlLogoutResponseRequestBuilder requestBuilder =
-                    new SamlLogoutResponseRequestBuilder(client).saml(bytes).validRequestIds(input.ids).authenticatingRealm(input.realm);
+                final SamlVerifyLogoutRequestBuilder requestBuilder =
+                    new SamlVerifyLogoutRequestBuilder(client).saml(bytes).validRequestIds(input.ids).authenticatingRealm(input.realm);
                 requestBuilder.execute(new RestBuilderListener<>(channel) {
                     @Override
-                    public RestResponse buildResponse(SamlLogoutResponseResponse response, XContentBuilder builder) throws Exception {
+                    public RestResponse buildResponse(SamlVerifyLogoutResponse response, XContentBuilder builder) throws Exception {
                         builder.startObject()
                             .endObject();
                         return new BytesRestResponse(RestStatus.OK, builder);

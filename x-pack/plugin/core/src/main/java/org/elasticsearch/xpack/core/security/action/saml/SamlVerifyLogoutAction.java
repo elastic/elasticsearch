@@ -10,12 +10,12 @@ import org.elasticsearch.action.ActionType;
 /**
  * ActionType for authenticating using SAML assertions
  */
-public final class SamlLogoutResponseAction extends ActionType<SamlLogoutResponseResponse> {
+public final class SamlVerifyLogoutAction extends ActionType<SamlVerifyLogoutResponse> {
 
-    public static final String NAME = "cluster:admin/xpack/security/saml/logout_response";
-    public static final SamlLogoutResponseAction INSTANCE = new SamlLogoutResponseAction();
+    public static final String NAME = "cluster:admin/xpack/security/saml/verify_logout";
+    public static final SamlVerifyLogoutAction INSTANCE = new SamlVerifyLogoutAction();
 
-    private SamlLogoutResponseAction() {
-        super(NAME, SamlLogoutResponseResponse::new);
+    private SamlVerifyLogoutAction() {
+        super(NAME, SamlVerifyLogoutResponse::new);
     }
 }

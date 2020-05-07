@@ -14,13 +14,13 @@ import java.io.IOException;
 /**
  * The response to the LogoutResponse from idP
  */
-public final class SamlLogoutResponseResponse extends ActionResponse {
+public final class SamlVerifyLogoutResponse extends ActionResponse {
 
-    public SamlLogoutResponseResponse(StreamInput in) throws IOException {
+    public SamlVerifyLogoutResponse(StreamInput in) throws IOException {
         super(in);
     }
 
-    public SamlLogoutResponseResponse() {
+    public SamlVerifyLogoutResponse() {
     }
 
     @Override

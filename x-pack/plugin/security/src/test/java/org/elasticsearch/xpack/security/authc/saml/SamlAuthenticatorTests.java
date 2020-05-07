@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.security.authc.saml;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.xml.security.Init;
-import org.apache.xml.security.encryption.XMLCipher;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
@@ -19,9 +17,7 @@ import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
-import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
 import org.opensaml.core.xml.schema.XSString;
 import org.opensaml.core.xml.schema.impl.XSStringBuilder;
@@ -64,7 +60,6 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
-import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.xml.crypto.dsig.CanonicalizationMethod;
@@ -80,13 +75,11 @@ import javax.xml.crypto.dsig.keyinfo.KeyInfo;
 import javax.xml.crypto.dsig.keyinfo.KeyInfoFactory;
 import javax.xml.crypto.dsig.spec.C14NMethodParameterSpec;
 import javax.xml.crypto.dsig.spec.TransformParameterSpec;
-import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.IOException;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
-import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.time.Instant;
@@ -123,77 +116,16 @@ import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 import static org.opensaml.saml.saml2.core.SubjectConfirmation.METHOD_BEARER;
 import static org.opensaml.saml.saml2.core.SubjectConfirmation.METHOD_HOLDER_OF_KEY;
 
-public class SamlAuthenticatorTests extends SamlTestCase {
+public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
 
-    private static final String SP_ENTITY_ID = "https://sp.saml.elastic.test/";
-    private static final String IDP_ENTITY_ID = "https://idp.saml.elastic.test/";
-    private static final String SP_ACS_URL = SP_ENTITY_ID + "sso/post";
     private static final String UID_OID = "urn:oid:0.9.2342.19200300.100.1.1";
 
-    private static Tuple<X509Certificate, PrivateKey> idpSigningCertificatePair;
-    private static Tuple<X509Certificate, PrivateKey> spSigningCertificatePair;
-    private static List<Tuple<X509Certificate, PrivateKey>> spEncryptionCertificatePairs;
-
-    private static List<Integer> supportedAesKeyLengths;
-    private static List<String> supportedAesTransformations;
-
-    private ClockMock clock;
     private SamlAuthenticator authenticator;
-    private String requestId;
-    private TimeValue maxSkew;
-
-    @BeforeClass
-    public static void init() throws Exception {
-        SamlUtils.initialize(LogManager.getLogger(SamlAuthenticatorTests.class));
-        // Initialise Apache XML security so that the signDoc methods work correctly.
-        Init.init();
-    }
-
-    @BeforeClass
-    public static void calculateAesLength() throws NoSuchAlgorithmException {
-        supportedAesKeyLengths = new ArrayList<>();
-        supportedAesTransformations = new ArrayList<>();
-        supportedAesKeyLengths.add(128);
-        supportedAesTransformations.add(XMLCipher.AES_128);
-        supportedAesTransformations.add(XMLCipher.AES_128_GCM);
-        if (Cipher.getMaxAllowedKeyLength("AES") > 128) {
-            supportedAesKeyLengths.add(192);
-            supportedAesKeyLengths.add(256);
-            supportedAesTransformations.add(XMLCipher.AES_192);
-            supportedAesTransformations.add(XMLCipher.AES_192_GCM);
-            supportedAesTransformations.add(XMLCipher.AES_256);
-            supportedAesTransformations.add(XMLCipher.AES_256_GCM);
-        }
-    }
-
-    /**
-     * Generating X.509 credentials can be CPU intensive and slow, so we only want to do it once per class.
-     */
-    @BeforeClass
-    public static void initCredentials() throws Exception {
-        idpSigningCertificatePair = readRandomKeyPair(randomSigningAlgorithm());
-        spSigningCertificatePair = readRandomKeyPair(randomSigningAlgorithm());
-        spEncryptionCertificatePairs = Arrays.asList(readKeyPair("ENCRYPTION_RSA_2048"), readKeyPair("ENCRYPTION_RSA_4096"));
-    }
-
-    private static String randomSigningAlgorithm() {
-        return randomFrom("RSA", "DSA", "EC");
-    }
-
-    @AfterClass
-    public static void cleanup() {
-        idpSigningCertificatePair = null;
-        spSigningCertificatePair = null;
-        spEncryptionCertificatePairs = null;
-        supportedAesKeyLengths = null;
-        supportedAesTransformations = null;
-    }
 
     @Before
     public void setupAuthenticator() throws Exception {
         this.clock = new ClockMock();
         this.maxSkew = TimeValue.timeValueMinutes(1);
-        this.authenticator = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair), emptyList());
         this.requestId = randomId();
     }
 
@@ -1266,42 +1198,6 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         return signResponseString(xml, c14nMethod, keyPair, true);
     }
 
-    private Document parseDocument(String xml) throws ParserConfigurationException, SAXException, IOException {
-        final DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
-        dbf.setNamespaceAware(true);
-        final DocumentBuilder documentBuilder = dbf.newDocumentBuilder();
-        return documentBuilder.parse(new InputSource(new StringReader(xml)));
-    }
-
-    /**
-     * Randomly selects digital signature algorithm URI for given private key
-     * algorithm ({@link PrivateKey#getAlgorithm()}).
-     *
-     * @param key
-     *            {@link PrivateKey}
-     * @return algorithm URI
-     */
-    private String getSignatureAlgorithmURI(PrivateKey key) {
-        String algoUri = null;
-        switch (key.getAlgorithm()) {
-            case "RSA":
-                algoUri = randomFrom("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
-                    "http://www.w3.org/2001/04/xmldsig-more#rsa-sha512");
-                break;
-            case "DSA":
-                algoUri = "http://www.w3.org/2009/xmldsig11#dsa-sha256";
-                break;
-            case "EC":
-                algoUri = randomFrom("http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha256",
-                    "http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha512");
-                break;
-            default:
-                throw new IllegalArgumentException("Unsupported algorithm : " + key.getAlgorithm()
-                    + " for signature, allowed values for private key algorithm are [RSA, DSA, EC]");
-        }
-        return algoUri;
-    }
-
     private String signAssertions(String xml) throws Exception {
         return signResponseString(xml, EXCLUSIVE, SamlAuthenticatorTests.idpSigningCertificatePair, false);
     }
@@ -1602,10 +1498,6 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         replacements.put("validUntil", validUntil);
 
         return NamedFormatter.format(xml, replacements);
-    }
-
-    private String randomId() {
-        return SamlUtils.generateSecureNCName(randomIntBetween(12, 36));
     }
 
     private SamlToken token(String content) {

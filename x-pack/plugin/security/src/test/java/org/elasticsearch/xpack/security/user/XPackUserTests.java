@@ -44,6 +44,8 @@ public class XPackUserTests extends ESTestCase {
                 assertThat(predicate.test(index), Matchers.is(false));
             }
             assertThat(predicate.test(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2)), Matchers.is(false));
+            assertThat(predicate.test(RestrictedIndicesNames.ASYNC_EQL_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2)),
+                Matchers.is(false));
         }
     }
 

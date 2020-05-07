@@ -262,9 +262,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
         }
         assertThat(snapshotUserRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(
                 RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2)), is(true));
+        assertThat(snapshotUserRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(
+            RestrictedIndicesNames.ASYNC_EQL_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2)), is(true));
 
         assertNoAccessAllowed(snapshotUserRole, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(snapshotUserRole, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
+        assertNoAccessAllowed(snapshotUserRole, RestrictedIndicesNames.ASYNC_EQL_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
     }
 
     public void testIngestAdminRole() {
@@ -295,6 +298,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertNoAccessAllowed(ingestAdminRole, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(ingestAdminRole, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
+        assertNoAccessAllowed(ingestAdminRole, RestrictedIndicesNames.ASYNC_EQL_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
     }
 
     public void testKibanaSystemRole() {
@@ -434,6 +438,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertNoAccessAllowed(kibanaRole, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(kibanaRole, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
+        assertNoAccessAllowed(kibanaRole, RestrictedIndicesNames.ASYNC_EQL_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
     }
 
     public void testKibanaAdminRole() {
@@ -523,6 +528,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertNoAccessAllowed(kibanaUserRole, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(kibanaUserRole, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
+        assertNoAccessAllowed(kibanaUserRole, RestrictedIndicesNames.ASYNC_EQL_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
     }
 
     public void testMonitoringUserRole() {
@@ -571,6 +577,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertNoAccessAllowed(monitoringUserRole, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(monitoringUserRole, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
+        assertNoAccessAllowed(monitoringUserRole, RestrictedIndicesNames.ASYNC_EQL_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
 
         final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
         assertThat(monitoringUserRole.application().grants(
@@ -646,6 +653,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertNoAccessAllowed(remoteMonitoringAgentRole, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(remoteMonitoringAgentRole, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
+        assertNoAccessAllowed(remoteMonitoringAgentRole, RestrictedIndicesNames.ASYNC_EQL_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
     }
 
     public void testRemoteMonitoringCollectorRole() {
@@ -697,52 +705,38 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         // These tests might need to change if we add new non-security restricted indices that the monitoring user isn't supposed to see
         // (but ideally, the monitoring user should see all indices).
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetSettingsAction.NAME)
-                .test(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES)), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetSettingsAction.NAME)
-                .test(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2)), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndicesShardStoresAction.NAME)
-                .test(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES)), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndicesShardStoresAction.NAME)
-                .test(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2)), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(UpgradeStatusAction.NAME)
-                .test(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES)), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(UpgradeStatusAction.NAME)
-                .test(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2)), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(RecoveryAction.NAME)
-                .test(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES)), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(RecoveryAction.NAME)
-                .test(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2)), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndicesStatsAction.NAME)
-                .test(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES)), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndicesStatsAction.NAME)
-                .test(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2)), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndicesSegmentsAction.NAME)
-                .test(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES)), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndicesSegmentsAction.NAME)
-                .test(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2)), is(true));
+        for (String index : new String[] {
+            randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES),
+            RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2),
+            RestrictedIndicesNames.ASYNC_EQL_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2)
+        }) {
+            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetSettingsAction.NAME)
+                .test(index), is(true));
+            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndicesShardStoresAction.NAME)
+                .test(index), is(true));
+            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(UpgradeStatusAction.NAME)
+                .test(index), is(true));
+            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(RecoveryAction.NAME)
+                .test(index), is(true));
+            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndicesStatsAction.NAME)
+                .test(index), is(true));
+            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndicesSegmentsAction.NAME)
+                .test(index), is(true));
 
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME)
-                .test(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES)), is(false));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME)
-                .test(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2)), is(false));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAction.NAME)
-                .test(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES)), is(false));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAction.NAME)
-                .test(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2)), is(false));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteAction.NAME)
-                .test(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES)), is(false));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteAction.NAME)
-                .test(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2)), is(false));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndexAction.NAME)
-                .test(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES)), is(false));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndexAction.NAME)
-                .test(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2)), is(false));
-
+            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME)
+                .test(index), is(false));
+            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAction.NAME)
+                .test(index), is(false));
+            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteAction.NAME)
+                .test(index), is(false));
+            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndexAction.NAME)
+                .test(index), is(false));
+        }
         assertMonitoringOnRestrictedIndices(remoteMonitoringAgentRole);
 
         assertNoAccessAllowed(remoteMonitoringAgentRole, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(remoteMonitoringAgentRole, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
+        assertNoAccessAllowed(remoteMonitoringAgentRole, RestrictedIndicesNames.ASYNC_EQL_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
     }
 
     private void assertMonitoringOnRestrictedIndices(Role role) {
@@ -812,6 +806,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertNoAccessAllowed(reportingUserRole, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(reportingUserRole, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
+        assertNoAccessAllowed(reportingUserRole, RestrictedIndicesNames.ASYNC_EQL_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
     }
 
     public void testKibanaDashboardOnlyUserRole() {
@@ -850,6 +845,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertNoAccessAllowed(dashboardsOnlyUserRole, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(dashboardsOnlyUserRole, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
+        assertNoAccessAllowed(dashboardsOnlyUserRole, RestrictedIndicesNames.ASYNC_EQL_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
     }
 
     public void testSuperuserRole() {
@@ -951,6 +947,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertNoAccessAllowed(logstashSystemRole, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(logstashSystemRole, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
+        assertNoAccessAllowed(logstashSystemRole, RestrictedIndicesNames.ASYNC_EQL_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
     }
 
     public void testBeatsAdminRole() {
@@ -992,6 +989,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertNoAccessAllowed(beatsAdminRole, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(beatsAdminRole, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
+        assertNoAccessAllowed(beatsAdminRole, RestrictedIndicesNames.ASYNC_EQL_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
     }
 
     public void testBeatsSystemRole() {
@@ -1028,6 +1026,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertNoAccessAllowed(beatsSystemRole, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(beatsSystemRole, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
+        assertNoAccessAllowed(beatsSystemRole, RestrictedIndicesNames.ASYNC_EQL_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
     }
 
     public void testAPMSystemRole() {
@@ -1068,7 +1067,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "indices:data/write/index:op_type/" + randomAlphaOfLengthBetween(3,5)).test(index), is(false));
 
         assertNoAccessAllowed(APMSystemRole, RestrictedIndicesNames.RESTRICTED_NAMES);
-        assertNoAccessAllowed(APMSystemRole, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
+        assertNoAccessAllowed(APMSystemRole, RestrictedIndicesNames.ASYNC_EQL_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
     }
 
     public void testAPMUserRole() {
@@ -1163,6 +1162,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(role, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
+        assertNoAccessAllowed(role, RestrictedIndicesNames.ASYNC_EQL_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
 
         final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
         assertThat(role.application().grants(
@@ -1250,6 +1250,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(role, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
+        assertNoAccessAllowed(role, RestrictedIndicesNames.ASYNC_EQL_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
 
 
         final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
@@ -1297,7 +1298,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertNoAccessAllowed(role, TransformInternalIndexConstants.LATEST_INDEX_NAME); // internal use only
 
             assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
-            assertNoAccessAllowed(role, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
+            assertNoAccessAllowed(role, RestrictedIndicesNames.ASYNC_EQL_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
 
             final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
             assertThat(role.application().grants(
@@ -1350,7 +1351,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertNoAccessAllowed(role, TransformInternalIndexConstants.LATEST_INDEX_NAME);
 
             assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
-            assertNoAccessAllowed(role, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
+            assertNoAccessAllowed(role, RestrictedIndicesNames.ASYNC_EQL_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
 
             final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
             assertThat(role.application().grants(
@@ -1401,7 +1402,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         }
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
-        assertNoAccessAllowed(role, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
+        assertNoAccessAllowed(role, RestrictedIndicesNames.ASYNC_EQL_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
     }
 
     public void testWatcherUserRole() {
@@ -1435,7 +1436,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         }
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
-        assertNoAccessAllowed(role, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
+        assertNoAccessAllowed(role, RestrictedIndicesNames.ASYNC_EQL_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
     }
 
     private void assertReadWriteDocsButNotDeleteIndexAllowed(Role role, String index) {
@@ -1460,7 +1461,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(index), is(false));
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
-        assertNoAccessAllowed(role, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
+        assertNoAccessAllowed(role, RestrictedIndicesNames.ASYNC_EQL_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
     }
 
     private void assertNoAccessAllowed(Role role, Collection<String> indices) {

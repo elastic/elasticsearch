@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.core.security.user.AsyncEqlSearchUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
@@ -20,6 +21,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_EQL_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.IDP_ORIGIN;
@@ -122,6 +124,9 @@ public final class AuthorizationUtils {
                 break;
             case ASYNC_SEARCH_ORIGIN:
                 securityContext.executeAsUser(AsyncSearchUser.INSTANCE, consumer, Version.CURRENT);
+                break;
+            case ASYNC_EQL_SEARCH_ORIGIN:
+                securityContext.executeAsUser(AsyncEqlSearchUser.INSTANCE, consumer, Version.CURRENT);
                 break;
             default:
                 assert false : "action.origin [" + actionOrigin + "] is unknown!";

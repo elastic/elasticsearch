@@ -323,8 +323,9 @@ public class IndicesPermissionTests extends ESTestCase {
     }
 
     public void testAsyncSearchIndicesPermissions() {
+        String prefix = randomFrom(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX, RestrictedIndicesNames.ASYNC_EQL_SEARCH_PREFIX);
         final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
-        final String asyncSearchIndex = RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2);
+        final String asyncSearchIndex =  prefix + randomAlphaOfLengthBetween(0, 2);
         final Metadata metadata = new Metadata.Builder()
                 .put(new IndexMetadata.Builder(asyncSearchIndex)
                         .settings(indexSettings)

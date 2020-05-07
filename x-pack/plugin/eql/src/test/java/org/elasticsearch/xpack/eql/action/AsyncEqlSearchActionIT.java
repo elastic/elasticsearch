@@ -24,6 +24,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.StoredAsyncResponse;
 import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
@@ -128,7 +129,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         disableBlocks(plugins);
 
         assertBusy(() -> assertThat(findTaskWithXOpaqueId(opaqueId, EqlSearchAction.NAME + "[a]"), nullValue()));
-        EqlStoredResponse doc = getStoredRecord(id);
+        StoredAsyncResponse<EqlSearchResponse> doc = getStoredRecord(id);
         // Make sure that the expiration time is not more than 1 min different from the current time + keep alive
         assertThat(System.currentTimeMillis() + keepAliveValue.getMillis() - doc.getExpirationTime(),
             lessThan(doc.getExpirationTime() + TimeValue.timeValueMinutes(1).getMillis()));
@@ -162,7 +163,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
             assertThat(response.id(), notNullValue());
             assertThat(response.hits().events().size(), equalTo(1));
             if (keepOnCompletion) {
-                EqlStoredResponse doc = getStoredRecord(response.id());
+                StoredAsyncResponse<EqlSearchResponse> doc = getStoredRecord(response.id());
                 assertThat(doc, notNullValue());
                 assertThat(doc.getException(), nullValue());
                 assertThat(doc.getResponse(), notNullValue());
@@ -177,7 +178,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
 
     }
 
-    public EqlStoredResponse getStoredRecord(String id) throws Exception {
+    public StoredAsyncResponse<EqlSearchResponse> getStoredRecord(String id) throws Exception {
         try {
             GetResponse doc = client().prepareGet(EqlPlugin.INDEX, AsyncExecutionId.decode(id).getDocId()).get();
             if (doc.isExists()) {
@@ -185,7 +186,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
                 try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getDecoder().decode(value)))) {
                     try (StreamInput in = new NamedWriteableAwareStreamInput(buf, registry)) {
                         in.setVersion(Version.readVersion(in));
-                        return new EqlStoredResponse(in);
+                        return new StoredAsyncResponse<>(EqlSearchResponse::new, in);
                     }
                 }
             }

@@ -4,11 +4,11 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.eql.action;
+package org.elasticsearch.xpack.core.async;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.core.async.AsyncResponse;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -16,26 +16,26 @@ import java.util.Objects;
 /**
  * Internal class for temporary storage of eql search results
  */
-public class EqlStoredResponse implements AsyncResponse<EqlStoredResponse> {
-    private final EqlSearchResponse response;
+public class StoredAsyncResponse<R extends Writeable> implements AsyncResponse<StoredAsyncResponse<R>> {
+    private final R response;
     private final Exception exception;
     private final long expirationTimeMillis;
 
-    public EqlStoredResponse(EqlSearchResponse response, long expirationTimeMillis) {
+    public StoredAsyncResponse(R response, long expirationTimeMillis) {
         this(response, null, expirationTimeMillis);
     }
 
-    public EqlStoredResponse(Exception exception, long expirationTimeMillis) {
+    public StoredAsyncResponse(Exception exception, long expirationTimeMillis) {
         this(null, exception, expirationTimeMillis);
     }
 
-    public EqlStoredResponse(StreamInput input) throws IOException {
+    public StoredAsyncResponse(Writeable.Reader<R> reader, StreamInput input) throws IOException {
         expirationTimeMillis = input.readLong();
-        this.response = input.readOptionalWriteable(EqlSearchResponse::new);
+        this.response = input.readOptionalWriteable(reader);
         this.exception = input.readException();
     }
 
-    private EqlStoredResponse(EqlSearchResponse response, Exception exception, long expirationTimeMillis) {
+    private StoredAsyncResponse(R response, Exception exception, long expirationTimeMillis) {
         this.response = response;
         this.exception = exception;
         this.expirationTimeMillis = expirationTimeMillis;
@@ -47,8 +47,8 @@ public class EqlStoredResponse implements AsyncResponse<EqlStoredResponse> {
     }
 
     @Override
-    public EqlStoredResponse withExpirationTime(long expirationTimeMillis) {
-        return new EqlStoredResponse(this.response, this.exception, expirationTimeMillis);
+    public StoredAsyncResponse<R> withExpirationTime(long expirationTimeMillis) {
+        return new StoredAsyncResponse<>(this.response, this.exception, expirationTimeMillis);
     }
 
     @Override
@@ -58,7 +58,7 @@ public class EqlStoredResponse implements AsyncResponse<EqlStoredResponse> {
         out.writeException(exception);
     }
 
-    public EqlSearchResponse getResponse() {
+    public R getResponse() {
         return response;
     }
 
@@ -70,7 +70,7 @@ public class EqlStoredResponse implements AsyncResponse<EqlStoredResponse> {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        EqlStoredResponse response1 = (EqlStoredResponse) o;
+        StoredAsyncResponse<?> response1 = (StoredAsyncResponse<?>) o;
         if (exception != null && response1.exception != null) {
             if (Objects.equals(exception.getClass(), response1.exception.getClass()) == false ||
                 Objects.equals(exception.getMessage(), response1.exception.getMessage()) == false) {

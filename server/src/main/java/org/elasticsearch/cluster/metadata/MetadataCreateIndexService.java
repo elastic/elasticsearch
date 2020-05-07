@@ -579,7 +579,8 @@ public class MetadataCreateIndexService {
 
                 List<Map<String, Object>> innerTemplateDynamicTemplates = (List<Map<String, Object>>) innerTemplateNonProperties.get(
                     "dynamic_templates");
-                List<Map<String, Object>> previouslySeenDynamicTemplates = (List<Map<String, Object>>) nonProperties.get("dynamic_templates");
+                List<Map<String, Object>> previouslySeenDynamicTemplates =
+                    (List<Map<String, Object>>) nonProperties.get("dynamic_templates");
                 // we want "later" defined dynamic templates to override the previously seen ones with the same name
                 List<Map<String, Object>> filteredDefaultDynamicTemplates =
                     removeAll(previouslySeenDynamicTemplates, innerTemplateDynamicTemplates);

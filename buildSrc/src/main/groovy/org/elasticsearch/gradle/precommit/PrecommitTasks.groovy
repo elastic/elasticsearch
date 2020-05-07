@@ -168,10 +168,6 @@ class PrecommitTasks {
             classpath = project.files { sourceSet.runtimeClasspath.plus(sourceSet.compileClasspath) }
 
             targetCompatibility = BuildParams.runtimeJavaVersion.majorVersion
-            if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_13) {
-                // forbidden apis does not yet support java 14 (it will in version 3.0), so we must use java 13 target
-                targetCompatibility = JavaVersion.VERSION_13.majorVersion
-            }
             bundledSignatures = [
                     "jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"
             ]

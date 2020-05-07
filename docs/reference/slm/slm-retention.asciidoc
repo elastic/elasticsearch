@@ -9,7 +9,7 @@ The retention criteria are evaluated as part of the retention task, not when the
 For the retention task to automatically delete snapshots, 
 you need to include a  <<slm-api-put-retention,`retention`>> object in your {slm-init} policy.
 
-To control when the retention task runs, you configure 
+To control when the retention task runs, configure 
 <<slm-retention-schedule,`slm.retention_schedule`>> in the cluster settings.
 You can define the schedule as a periodic or absolute <<schedule-cron,cron schedule>.
 The <<slm-retention-duration>>`slm.retention_duration`>> setting limits how long 

@@ -1046,7 +1046,7 @@ public final class OptimizerRules {
         }
     }
     
-    public static abstract class PruneFilters extends OptimizerRule<Filter> {
+    public abstract static class PruneFilters extends OptimizerRule<Filter> {
 
         @Override
         protected LogicalPlan rule(Filter filter) {

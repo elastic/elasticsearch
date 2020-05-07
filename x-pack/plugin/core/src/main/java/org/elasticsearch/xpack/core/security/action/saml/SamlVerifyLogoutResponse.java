@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * The response to the LogoutResponse from idP
+ * The verification response to the LogoutResponse from idP
  */
 public final class SamlVerifyLogoutResponse extends ActionResponse {
 

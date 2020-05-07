@@ -24,7 +24,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.security.authc.saml.SamlRealm.findSamlRealms;
 
 /**
- * Transport action responsible for taking saml content and turning it into a token.
+ * Transport action responsible for verifying SAML LogoutResponse
  */
 public final class TransportSamlVerifyLogoutAction extends HandledTransportAction<SamlVerifyLogoutRequest, SamlVerifyLogoutResponse> {
 

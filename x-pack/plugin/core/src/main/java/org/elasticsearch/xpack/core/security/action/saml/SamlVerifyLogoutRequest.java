@@ -14,7 +14,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Represents a request to handle LogoutResponse using SAML assertions.
+ * Represents a request to verify SAML LogoutResponse
  */
 public final class SamlVerifyLogoutRequest extends ActionRequest {
 

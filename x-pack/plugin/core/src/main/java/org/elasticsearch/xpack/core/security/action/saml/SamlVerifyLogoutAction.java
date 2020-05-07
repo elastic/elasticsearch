@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.security.action.saml;
 import org.elasticsearch.action.ActionType;
 
 /**
- * ActionType for authenticating using SAML assertions
+ * ActionType for verifying SAML LogoutResponse
  */
 public final class SamlVerifyLogoutAction extends ActionType<SamlVerifyLogoutResponse> {
 

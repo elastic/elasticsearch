@@ -4,7 +4,10 @@ about: A test failure in CI
 
 ---
 
-<!-- Please fill out the following information, and ensure you have attempted to reproduce locally -->
+<!--
+Please fill out the following information, and ensure you have attempted
+to reproduce locally
+-->
 
 **Build scan**:
 

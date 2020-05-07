@@ -37,7 +37,7 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
-public class BinaryDVIndexFieldData implements IndexFieldData<BinaryDVLeafFieldData> {
+public class BinaryIndexFieldData implements IndexFieldData<BinaryDVLeafFieldData> {
 
     public static class Builder implements IndexFieldData.Builder {
         @Override
@@ -49,13 +49,13 @@ public class BinaryDVIndexFieldData implements IndexFieldData<BinaryDVLeafFieldD
             MapperService mapperService
         ) {
             final String fieldName = fieldType.name();
-            return new BinaryDVIndexFieldData(indexSettings.getIndex(), fieldName);
+            return new BinaryIndexFieldData(indexSettings.getIndex(), fieldName);
         }
     }
     protected final Index index;
     protected final String fieldName;
 
-    public BinaryDVIndexFieldData(Index index, String fieldName) {
+    public BinaryIndexFieldData(Index index, String fieldName) {
         this.index = index;
         this.fieldName = fieldName;
     }

@@ -1,25 +1,12 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.DocValues;
+package org.elasticsearch.xpack.vectors.query;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Nullable;
@@ -37,14 +24,13 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
-import java.io.IOException;
 
-public class BytesBinaryDVIndexFieldData implements IndexFieldData<BytesBinaryDVLeafFieldData> {
+public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldData> {
 
     protected final Index index;
     protected final String fieldName;
 
-    public BytesBinaryDVIndexFieldData(Index index, String fieldName) {
+    public VectorIndexFieldData(Index index, String fieldName) {
         this.index = index;
         this.fieldName = fieldName;
     }
@@ -66,26 +52,22 @@ public class BytesBinaryDVIndexFieldData implements IndexFieldData<BytesBinaryDV
 
     @Override
     public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-        throw new IllegalArgumentException("can't sort on binary field");
+        throw new IllegalArgumentException("can't sort on the vector field");
     }
 
     @Override
     public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
             SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
-        throw new IllegalArgumentException("can't sort on binary field");
+        throw new IllegalArgumentException("only supported on numeric fields");
     }
 
     @Override
-    public BytesBinaryDVLeafFieldData load(LeafReaderContext context) {
-        try {
-            return new BytesBinaryDVLeafFieldData(DocValues.getBinary(context.reader(), fieldName));
-        } catch (IOException e) {
-            throw new IllegalStateException("Cannot load doc values", e);
-        }
+    public VectorDVLeafFieldData load(LeafReaderContext context) {
+        return new VectorDVLeafFieldData(context.reader(), fieldName);
     }
 
     @Override
-    public BytesBinaryDVLeafFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public VectorDVLeafFieldData loadDirect(LeafReaderContext context) {
         return load(context);
     }
 
@@ -94,9 +76,8 @@ public class BytesBinaryDVIndexFieldData implements IndexFieldData<BytesBinaryDV
         @Override
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
-            // Ignore breaker
             final String fieldName = fieldType.name();
-            return new BytesBinaryDVIndexFieldData(indexSettings.getIndex(), fieldName);
+            return new VectorIndexFieldData(indexSettings.getIndex(), fieldName);
         }
 
     }

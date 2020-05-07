@@ -66,13 +66,13 @@ import java.util.function.LongUnaryOperator;
  * FieldData backed by {@link LeafReader#getSortedNumericDocValues(String)}
  * @see DocValuesType#SORTED_NUMERIC
  */
-public class SortedNumericDVIndexFieldData implements IndexNumericFieldData {
+public class SortedNumericIndexFieldData implements IndexNumericFieldData {
     public static class Builder implements IndexFieldData.Builder {
 
-        private NumericType numericType;
-        public Builder numericType(NumericType type) {
-            this.numericType = type;
-            return this;
+        private final NumericType numericType;
+
+        public Builder(NumericType numericType) {
+            this.numericType = numericType;
         }
 
         @Override
@@ -84,7 +84,7 @@ public class SortedNumericDVIndexFieldData implements IndexNumericFieldData {
             MapperService mapperService
         ) {
             final String fieldName = fieldType.name();
-            return new SortedNumericDVIndexFieldData(indexSettings.getIndex(), fieldName, numericType);
+            return new SortedNumericIndexFieldData(indexSettings.getIndex(), fieldName, numericType);
         }
     }
 
@@ -92,7 +92,7 @@ public class SortedNumericDVIndexFieldData implements IndexNumericFieldData {
     protected final Index index;
     protected final String fieldName;
 
-    public SortedNumericDVIndexFieldData(Index index, String fieldName, NumericType numericType) {
+    public SortedNumericIndexFieldData(Index index, String fieldName, NumericType numericType) {
         this.index = index;
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);

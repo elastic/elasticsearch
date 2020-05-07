@@ -34,7 +34,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointDVIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.VectorGeoPointShapeQueryProcessor;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -179,7 +179,7 @@ public class GeoPointFieldMapper extends AbstractGeometryFieldMapper implements 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new AbstractLatLonPointDVIndexFieldData.Builder();
+            return new AbstractLatLonPointIndexFieldData.Builder();
         }
 
         @Override

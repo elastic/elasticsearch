@@ -53,14 +53,17 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.util.function.Function;
 
-public class SortedSetDVOrdinalsIndexFieldData implements IndexOrdinalsFieldData {
+public class SortedSetOrdinalsIndexFieldData implements IndexOrdinalsFieldData {
 
     public static class Builder implements IndexFieldData.Builder {
-        private Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction = AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION;
+        private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
 
-        public Builder scriptFunction(Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) {
+        public Builder() {
+            this(AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+        }
+
+        public Builder(Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) {
             this.scriptFunction = scriptFunction;
-            return this;
         }
 
         @Override
@@ -72,7 +75,7 @@ public class SortedSetDVOrdinalsIndexFieldData implements IndexOrdinalsFieldData
             MapperService mapperService
         ) {
             final String fieldName = fieldType.name();
-            return new SortedSetDVOrdinalsIndexFieldData(indexSettings, cache, fieldName, breakerService, scriptFunction);
+            return new SortedSetOrdinalsIndexFieldData(indexSettings, cache, fieldName, breakerService, scriptFunction);
         }
     }
 
@@ -82,10 +85,15 @@ public class SortedSetDVOrdinalsIndexFieldData implements IndexOrdinalsFieldData
     private final IndexFieldDataCache cache;
     private final CircuitBreakerService breakerService;
     private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
-    private static final Logger logger = LogManager.getLogger(SortedSetDVOrdinalsIndexFieldData.class);
+    private static final Logger logger = LogManager.getLogger(SortedSetOrdinalsIndexFieldData.class);
 
-    public SortedSetDVOrdinalsIndexFieldData(IndexSettings indexSettings, IndexFieldDataCache cache, String fieldName,
-            CircuitBreakerService breakerService, Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) {
+    public SortedSetOrdinalsIndexFieldData(
+        IndexSettings indexSettings,
+        IndexFieldDataCache cache,
+        String fieldName,
+        CircuitBreakerService breakerService,
+        Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction
+    ) {
         this.index = indexSettings.getIndex();
         this.fieldName = fieldName;
         this.indexSettings = indexSettings;
@@ -136,7 +144,7 @@ public class SortedSetDVOrdinalsIndexFieldData implements IndexOrdinalsFieldData
 
     @Override
     public LeafOrdinalsFieldData load(LeafReaderContext context) {
-        return new SortedSetDVBytesLeafFieldData(context.reader(), fieldName, scriptFunction);
+        return new SortedSetBytesLeafFieldData(context.reader(), fieldName, scriptFunction);
     }
 
     @Override

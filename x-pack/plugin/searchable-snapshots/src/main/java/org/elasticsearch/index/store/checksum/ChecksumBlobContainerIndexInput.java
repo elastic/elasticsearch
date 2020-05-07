@@ -16,6 +16,7 @@ import org.elasticsearch.index.store.Store;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -25,18 +26,17 @@ public class ChecksumBlobContainerIndexInput extends IndexInput {
 
     private final byte[] checksum;
     private final long length;
-    private final long offset;
 
-    private int position;
+    private long position;
 
     private ChecksumBlobContainerIndexInput(String name, long length, byte[] checksum, IOContext context) {
         super("ChecksumBlobContainerIndexInput(" + name + ')');
         ensureReadOnceChecksumContext(context);
         assert checksum.length == CodecUtil.footerLength();
         this.checksum = Objects.requireNonNull(checksum);
+        assert length >= this.checksum.length;
         this.length = length;
-        this.offset = length - this.checksum.length;
-        assert offset > 0;
+        this.position = 0L;
     }
 
     @Override
@@ -46,7 +46,7 @@ public class ChecksumBlobContainerIndexInput extends IndexInput {
 
     @Override
     public long getFilePointer() {
-        return offset + position;
+        return position;
     }
 
     @Override
@@ -54,7 +54,7 @@ public class ChecksumBlobContainerIndexInput extends IndexInput {
         if (getFilePointer() >= length()) {
             throw new EOFException("seek past EOF");
         }
-        return checksum[position++];
+        return checksum[checksumPositionOrThrow(position++)];
     }
 
     @Override
@@ -62,7 +62,7 @@ public class ChecksumBlobContainerIndexInput extends IndexInput {
         if (getFilePointer() + len > length()) {
             throw new EOFException("seek past EOF");
         }
-        System.arraycopy(checksum, position, b, off, len);
+        System.arraycopy(checksum, checksumPositionOrThrow(position), b, off, len);
         position += len;
     }
 
@@ -72,24 +72,46 @@ public class ChecksumBlobContainerIndexInput extends IndexInput {
             throw new IllegalArgumentException("Seeking to negative position: " + pos);
         } else if (pos > length()) {
             throw new EOFException("seek past EOF");
-        } else if (pos < offset) {
-            throw new EOFException("Can't read before footer checksum");
         }
-        position = Math.toIntExact(pos - offset);
+        checksumPositionOrThrow(pos);
+        position = pos;
     }
 
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length) {
+        assert false : "unexpected slicing (" + sliceDescription + ") for " + this;
         throw new UnsupportedOperationException();
     }
 
     @Override
     public IndexInput clone() {
+        assert false : "unexpected cloning for " + this;
         throw new UnsupportedOperationException();
     }
 
     @Override
     public void close() {}
+
+    @Override
+    public String toString() {
+        return "ChecksumBlobContainerIndexInput{"
+            + "checksum="
+            + Arrays.toString(checksum)
+            + ", length="
+            + length
+            + ", position="
+            + position
+            + '}';
+    }
+
+    private int checksumPositionOrThrow(long pos) {
+        final long checksumPosition = length - checksum.length;
+        if (pos < checksumPosition) {
+            assert false : "unexpected read or seek at position [" + pos + "] but checksum starts at [" + checksumPosition + ']';
+            throw new IllegalArgumentException("Can't read or seek before footer checksum");
+        }
+        return Math.toIntExact(checksum.length - (length - pos));
+    }
 
     private static void ensureReadOnceChecksumContext(IOContext context) {
         if (context != Store.READONCE_CHECKSUM) {

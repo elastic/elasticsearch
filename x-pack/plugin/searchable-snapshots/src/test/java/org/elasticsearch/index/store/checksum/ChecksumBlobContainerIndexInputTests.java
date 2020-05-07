@@ -38,15 +38,12 @@ public class ChecksumBlobContainerIndexInputTests extends ESTestCase {
             Store.READONCE_CHECKSUM
         );
         assertThat(indexInput.length(), equalTo((long) bytes.length));
-        assertThat(indexInput.getFilePointer(), equalTo((long) bytes.length - CodecUtil.footerLength()));
+        assertThat(indexInput.getFilePointer(), equalTo(0L));
         assertThat(CodecUtil.retrieveChecksum(indexInput), equalTo(checksum));
+        assertThat(indexInput.getFilePointer(), equalTo((long) bytes.length));
 
         expectThrows(EOFException.class, () -> indexInput.readByte());
         expectThrows(EOFException.class, () -> indexInput.readBytes(new byte[0], 0, 1));
         expectThrows(EOFException.class, () -> indexInput.seek(bytes.length + 1));
-        expectThrows(EOFException.class, () -> indexInput.seek(0L));
-        expectThrows(IllegalArgumentException.class, () -> indexInput.seek(-1L));
-        expectThrows(UnsupportedOperationException.class, () -> indexInput.clone());
-        expectThrows(UnsupportedOperationException.class, () -> indexInput.slice("slice", 0, 0));
     }
 }

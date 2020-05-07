@@ -9,11 +9,18 @@ package org.elasticsearch.xpack.ml.utils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MlStringsTests extends ESTestCase {
+
     public void testDoubleQuoteIfNotAlphaNumeric() {
         assertEquals("foo2", MlStrings.doubleQuoteIfNotAlphaNumeric("foo2"));
         assertEquals("\"fo o\"", MlStrings.doubleQuoteIfNotAlphaNumeric("fo o"));
@@ -45,5 +52,22 @@ public class MlStringsTests extends ESTestCase {
     public void testHasValidLengthForId() {
         assertThat(MlStrings.hasValidLengthForId(randomAlphaOfLength(64)), is(true));
         assertThat(MlStrings.hasValidLengthForId(randomAlphaOfLength(65)), is(false));
+    }
+
+    public void testFindMatching_GivenEmptyItems() {
+        assertThat(MlStrings.findMatching(new String[0], Collections.emptySet()), is(empty()));
+    }
+
+    public void testFindMatching_GivenAllPattern() {
+        assertThat(MlStrings.findMatching(new String[] {"_all"}, new HashSet<>(Arrays.asList("a", "b"))), hasItems("a", "b"));
+    }
+
+    public void testFindMatching_GivenWildcardPattern() {
+        assertThat(MlStrings.findMatching(new String[] {"*"}, new HashSet<>(Arrays.asList("a", "b"))), hasItems("a", "b"));
+    }
+
+    public void testFindMatching_GivenMixedPatterns() {
+        assertThat(MlStrings.findMatching(new String[] {"concrete", "wild-*"}, new HashSet<>(
+            Arrays.asList("a", "concrete", "con*", "wild-1", "wild-2"))), hasItems("concrete", "wild-1", "wild-2"));
     }
 }

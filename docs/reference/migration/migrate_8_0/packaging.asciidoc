@@ -3,7 +3,7 @@
 === Packaging changes
 
 //tag::notable-breaking-changes[]
-.Java 11 is required
+.Java 11 is required.
 [%collapsible]
 ====
 *Details* +

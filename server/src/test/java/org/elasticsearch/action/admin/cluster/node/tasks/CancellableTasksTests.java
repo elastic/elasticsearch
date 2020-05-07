@@ -53,6 +53,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReference;
@@ -61,6 +62,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class CancellableTasksTests extends TaskManagerTestCase {
 
@@ -345,6 +347,26 @@ public class CancellableTasksTests extends TaskManagerTestCase {
                 new ListTasksRequest().setTaskId(new TaskId(testNodes[0].getNodeId(), mainTask.getId())));
             assertEquals(0, listTasksResponse.getTasks().size());
         });
+    }
+
+    public void testRegisterAndExecuteChildTaskWhileParentTaskIsBeingCanceled() throws Exception {
+        setupTestNodes(Settings.EMPTY);
+        connectNodes(testNodes);
+        final TaskManager taskManager = testNodes[0].transportService.getTaskManager();
+        CancellableNodesRequest parentRequest = new CancellableNodesRequest("parent");
+        final Task parentTask = taskManager.register("test", "test", parentRequest);
+        final TaskId parentTaskId = parentTask.taskInfo(testNodes[0].getNodeId(), false).getTaskId();
+        taskManager.setBan(new TaskId(testNodes[0].getNodeId(), parentTask.getId()), "test");
+        CancellableNodesRequest childRequest = new CancellableNodesRequest("child");
+        childRequest.setParentTask(parentTaskId);
+        CancellableTestNodesAction testAction = new CancellableTestNodesAction("internal:testAction", threadPool, testNodes[1]
+            .clusterService, testNodes[0].transportService, false, new CountDownLatch(1));
+        TaskCancelledException cancelledException = expectThrows(TaskCancelledException.class,
+            () -> taskManager.registerAndExecute("test", testAction, childRequest, (task, response) -> {}, (task, e) -> {}));
+        assertThat(cancelledException.getMessage(), startsWith("Task cancelled before it started:"));
+        CountDownLatch latch = new CountDownLatch(1);
+        taskManager.startBanOnChildrenNodes(parentTaskId.getId(), latch::countDown);
+        assertTrue("onChildTasksCompleted() is not invoked", latch.await(1, TimeUnit.SECONDS));
     }
 
     public void testTaskCancellationOnCoordinatingNodeLeavingTheCluster() throws Exception {

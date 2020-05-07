@@ -34,8 +34,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class TransportEnrichStatsAction extends TransportMasterNodeAction<EnrichStatsAction.Request,
-    EnrichStatsAction.Response> {
+public class TransportEnrichStatsAction extends TransportMasterNodeAction<EnrichStatsAction.Request, EnrichStatsAction.Response> {
 
     private final Client client;
 

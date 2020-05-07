@@ -803,12 +803,20 @@ public class RoundingTests extends ESTestCase {
         assertThat(prepared.round(time("9000-03-31T15:25:15.148Z")), isDate(time("9000-03-31T15:00:00Z"), tz));
     }
 
+    /**
+     * Example of when we round past when local clocks were wound forward.
+     */
     public void testIntervalBeforeGap() {
         ZoneId tz = ZoneId.of("Africa/Cairo");
         Rounding rounding = Rounding.builder(TimeValue.timeValueDays(257)).timeZone(tz).build();
         assertThat(rounding.round(time("1969-07-08T09:00:14.599Z")), isDate(time("1969-04-18T22:00:00Z"), tz));
     }
 
+    /**
+     * Example of when we round past when local clocks were wound backwards,
+     * <strong>and</strong> then past the time they were wound forwards before
+     * that. So, we jumped back a long, long way.
+     */
     public void testIntervalTwoTransitions() {
         ZoneId tz = ZoneId.of("America/Detroit");
         Rounding rounding = Rounding.builder(TimeValue.timeValueDays(279)).timeZone(tz).build();

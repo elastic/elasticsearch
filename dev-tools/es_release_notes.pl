@@ -32,7 +32,7 @@ my @Groups = (
     ">enhancement", ">bug",           ">regression",  ">upgrade"
 );
 my %Ignore = map { $_ => 1 }
-    ( ">non-issue", ">refactoring", ">docs", ">test", ">test-failure", ">test-mute", ":Core/Infra/Build", "backport" );
+    ( ">non-issue", ">refactoring", ">docs", ">test", ">test-failure", ">test-mute", ":Core/Infra/Build", "backport", "WIP" );
 
 my %Group_Labels = (
     '>breaking'      => 'Breaking changes',
@@ -78,6 +78,11 @@ sub dump_issues {
     my $branch = $version;
     $branch =~ s/\.\d+$//;
 
+    my %header_reverse_lookup;
+    while (my ($label, $override) = each %Area_Overrides) {
+        $header_reverse_lookup{$override} = substr $label, 1;
+    }
+
     my ( $day, $month, $year ) = (gmtime)[ 3 .. 5 ];
     $month++;
     $year += 1900;
@@ -109,6 +114,21 @@ ASCIIDOC
 
             for my $issue (@$header_issues) {
                 my $title = $issue->{title};
+
+                # Remove redundant prefixes from the title. For example,
+                # given:
+                #
+                #     SQL: add support for foo queries
+                #
+                # the prefix is redundant under the "SQL" section.
+                my $header_prefix = $header_reverse_lookup{$header} || $header;
+                $title =~ s/^\[$header_prefix\]\s+//i;
+                $title =~ s/^$header_prefix:\s+//i;
+
+                # Remove any issue number prefix
+                $title =~ s/^#\d+\s+//;
+
+                $title = ucfirst $title;
 
                 if ( $issue->{state} eq 'open' ) {
                     $title .= " [OPEN]";

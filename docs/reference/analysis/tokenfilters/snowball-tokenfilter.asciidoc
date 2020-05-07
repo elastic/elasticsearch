@@ -4,34 +4,223 @@
 <titleabbrev>Snowball</titleabbrev>
 ++++
 
-A filter that stems words using a Snowball-generated stemmer. The
-`language` parameter controls the stemmer with the following available
-values: `Armenian`, `Basque`, `Catalan`, `Danish`, `Dutch`, `English`,
-`Finnish`, `French`, `German`, `German2`, `Hungarian`, `Italian`, `Kp`,
-`Lithuanian`, `Lovins`, `Norwegian`, `Porter`, `Portuguese`, `Romanian`,
-`Russian`, `Spanish`, `Swedish`, `Turkish`.
+Provides <<algorithmic-stemmers,algorithmic stemming>> for several languages,
+based on the http://snowball.tartarus.org/[Snowball] algorithm.
 
-For example:
+When not customized, the filter defaults to the
+http://snowball.tartarus.org/algorithms/english/stemmer.html[`english`] stemming
+algorithm.
+
+The `snowball` filter uses Lucene's
+{lucene-analysis-docs}/snowball/SnowballFilter.html[SnowballFilter].
+
+[[analysis-snowball-tokenfilter-analyze-ex]]
+==== Example
+
+The following analyze API request uses the `snowball` filter's default `english`
+stemming algorithm to stem `the foxes jumping quickly` to `the fox jump quick`:
 
 [source,console]
---------------------------------------------------
+----
+GET /_analyze
+{
+  "tokenizer": "standard",
+  "filter": [ "snowball" ],
+  "text": "the foxes jumping quickly"
+}
+----
+
+The filter produces the following tokens:
+
+[source,text]
+----
+[ the, fox, jump, quick ]
+----
+
+////
+[source,console-result]
+----
+{
+  "tokens": [
+    {
+      "token": "the",
+      "start_offset": 0,
+      "end_offset": 3,
+      "type": "<ALPHANUM>",
+      "position": 0
+    },
+    {
+      "token": "fox",
+      "start_offset": 4,
+      "end_offset": 9,
+      "type": "<ALPHANUM>",
+      "position": 1
+    },
+    {
+      "token": "jump",
+      "start_offset": 10,
+      "end_offset": 17,
+      "type": "<ALPHANUM>",
+      "position": 2
+    },
+    {
+      "token": "quick",
+      "start_offset": 18,
+      "end_offset": 25,
+      "type": "<ALPHANUM>",
+      "position": 3
+    }
+  ]
+}
+----
+////
+
+[[analysis-snowball-tokenfilter-analyzer-ex]]
+==== Add to an analyzer
+
+The following <<indices-create-index,create index API>> request uses the
+`snowball` filter to configure a new <<analysis-custom-analyzer,custom
+analyzer>>.
+
+[source,console]
+----
 PUT /my_index
 {
-    "settings": {
-        "analysis" : {
-            "analyzer" : {
-                "my_analyzer" : {
-                    "tokenizer" : "standard",
-                    "filter" : ["lowercase", "my_snow"]
-                }
-            },
-            "filter" : {
-                "my_snow" : {
-                    "type" : "snowball",
-                    "language" : "Lovins"
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "whitespace",
+          "filter": [ "snowball" ]
         }
+      }
     }
+  }
 }
---------------------------------------------------
+----
+
+[role="child_attributes"]
+[[analysis-snowball-tokenfilter-configure-parms]]
+==== Configurable parameters
+
+[[analysis-snowball-tokenfilter-language-parm]]
+`language`::
+(Optional, string)
+Language-dependent stemming algorithm used to stem tokens.
++
+[%collapsible%open]
+.Valid values for `language`
+====
+Valid values are sorted by language. Defaults to `english`.
+
+Arabic::
+{lucene-analysis-docs}/ar/ArabicStemmer.html[`arabic`]
+
+Armenian::
+http://snowball.tartarus.org/algorithms/armenian/stemmer.html[`armenian`]
+
+Basque::
+http://snowball.tartarus.org/algorithms/basque/stemmer.html[`basque`]
+
+Catalan::
+http://snowball.tartarus.org/algorithms/catalan/stemmer.html[`catalan`]
+
+Danish::
+http://snowball.tartarus.org/algorithms/danish/stemmer.html[`danish`]
+
+Dutch::
+http://snowball.tartarus.org/algorithms/dutch/stemmer.html[`dutch`],
+http://snowball.tartarus.org/algorithms/kraaij_pohlmann/stemmer.html[`kp`]
+
+English::
+http://snowball.tartarus.org/algorithms/english/stemmer.html[`english`],
+http://snowball.tartarus.org/algorithms/lovins/stemmer.html[`lovins`],
+http://snowball.tartarus.org/algorithms/porter/stemmer.html[`porter`]
+
+Estonian::
+https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/tartarus/snowball/ext/EstonianStemmer.html[`estonian`]
+
+Finnish::
+http://snowball.tartarus.org/algorithms/finnish/stemmer.html[`finnish`]
+
+French::
+http://snowball.tartarus.org/algorithms/french/stemmer.html[`french`]
+
+German::
+http://snowball.tartarus.org/algorithms/german/stemmer.html[`german`],
+http://snowball.tartarus.org/algorithms/german2/stemmer.html[`german2`]
+
+Hungarian::
+http://snowball.tartarus.org/algorithms/hungarian/stemmer.html[`hungarian`]
+
+Irish::
+http://snowball.tartarus.org/otherapps/oregan/intro.html[`irish`]
+
+Italian::
+http://snowball.tartarus.org/algorithms/italian/stemmer.html[`italian`]
+
+Lithuanian::
+http://svn.apache.org/viewvc/lucene/dev/branches/lucene_solr_5_3/lucene/analysis/common/src/java/org/apache/lucene/analysis/lt/stem_ISO_8859_1.sbl?view=markup[`lithuanian`]
+
+Norwegian::
+http://snowball.tartarus.org/algorithms/norwegian/stemmer.html[`norwegian`]
+
+Portuguese::
+http://snowball.tartarus.org/algorithms/portuguese/stemmer.html[`portuguese`]
+
+Romanian::
+http://snowball.tartarus.org/algorithms/romanian/stemmer.html[`romanian`]
+
+Russian::
+http://snowball.tartarus.org/algorithms/russian/stemmer.html[`russian`]
+
+Spanish::
+http://snowball.tartarus.org/algorithms/spanish/stemmer.html[`spanish`]
+
+Swedish::
+http://snowball.tartarus.org/algorithms/swedish/stemmer.html[`swedish`]
+
+Turkish::
+http://snowball.tartarus.org/algorithms/turkish/stemmer.html[`turkish`]
+====
+
+`name`::
+An alias for the <<analysis-snowball-tokenfilter-language-parm,`language`>>
+parameter. If both this and the `language` parameter are specified, the
+`language` parameter argument is used.
+
+[[analysis-snowball-tokenfilter-customize]]
+==== Customize
+
+To customize the `snowball` filter, duplicate it to create the basis for a new
+custom token filter. You can modify the filter using its configurable
+parameters.
+
+For example, the following request creates a custom `snowball` filter that stems
+words using the `lovins` algorithm for the English language:
+
+[source,console]
+----
+PUT /my_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "my_snow"
+          ]
+        }
+      },
+      "filter": {
+        "my_snow": {
+          "type": "snowball",
+          "language": "lovins"
+        }
+      }
+    }
+  }
+}
+----

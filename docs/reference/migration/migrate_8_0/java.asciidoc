@@ -9,7 +9,7 @@
 
 // end::notable-breaking-changes[]
 
-.Changes to fuzziness
+.Changes to `Fuzziness`.
 [%collapsible]
 ====
 *Details* +
@@ -31,7 +31,7 @@ own instance using the above mentioned factory methods. Use only allowed
 `Fuzziness` values.
 ====
 
-.Changes to Repository
+.Changes to `Repository`.
 [%collapsible]
 ====
 *Details* +

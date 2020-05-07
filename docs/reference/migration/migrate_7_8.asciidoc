@@ -94,8 +94,13 @@ setting.
 
 [[deprecate-basic-license-feature-enabled]]
 
-.In {es} 7.8.0, the following settings no longer have any effect, and
-have been deprecated:
+.Several {xpack} settings no longer have any effect and are deprecated. 
+
+[%collapsible]
+====
+*Details* +
+Basic {xpack} license features are always enabled for the {default-dist} 
+and the following settings no longer have any effect: 
 
 * `xpack.enrich.enabled`
 * `xpack.flattened.enabled`
@@ -107,12 +112,7 @@ have been deprecated:
 * `xpack.transform.enabled`
 * `xpack.vectors.enabled`
 
-[%collapsible]
-====
-*Details* +
-Previously, these settings could be set to `false` in order to disable the
-feature's APIs in a cluster. As of 7.8.0, these basic license features are
-always enabled for the {default-dist}.
+Previously, they could be set to `false` to disable the feature's APIs in a cluster.
 
 *Impact* +
 To avoid deprecation warnings, discontinue use of these settings.

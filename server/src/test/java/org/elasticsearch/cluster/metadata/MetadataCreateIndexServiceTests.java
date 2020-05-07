@@ -1180,7 +1180,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             "{\n" +
             "   \"docker.container.labels\": {\n" +
             "     \"mapping\": {\n" +
-            "         \"type\": \"keyword\"\n" +
+            "         \"type\": \"text\",\n" +
+            "         \"copy_to\": \"text_labels\"\n" +
             "       },\n" +
             "       \"match_mapping_type\": \"string\",\n" +
             "       \"path_match\": \"source.template.*\"\n" +
@@ -1208,6 +1209,79 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(dynamicMapping, is(notNullValue()));
         assertThat("last mapping with the same name must override previously defined mappings with the same name",
             dynamicMapping.get("path_match"), is("source.request.*"));
+        Map<String, Object> mapping = (Map<String, Object>) dynamicMapping.get("mapping");
+        assertThat("the dynamic template defined in the request must not be merged with the dynamic template with the " +
+            "same name defined in the index template", mapping.size(), is(1));
+        assertThat(mapping.get("type"), is("keyword"));
+    }
+
+    public void testMultipleComponentTemplatesDefineSameDynamicTemplate() throws Exception {
+        String ct1Mapping = "{\"_doc\":{\"_source\":{\"enabled\": false}, \"dynamic_templates\": [" +
+            "{\n" +
+            "   \"docker.container.labels\": {\n" +
+            "     \"mapping\": {\n" +
+            "         \"type\": \"text\",\n" +
+            "         \"copy_to\": \"text_labels\"\n" +
+            "       },\n" +
+            "       \"match_mapping_type\": \"string\",\n" +
+            "       \"path_match\": \"source.first.ct.*\"\n" +
+            "     }\n" +
+            "   },\n" +
+            "{\n" +
+            "   \"other.labels\": {\n" +
+            "     \"mapping\": {\n" +
+            "         \"type\": \"keyword\"\n" +
+            "       },\n" +
+            "       \"match_mapping_type\": \"string\",\n" +
+            "       \"path_match\": \"source.first.ct.other.labels*\"\n" +
+            "     }\n" +
+            "   }\n" +
+            "]}}";
+        String ct2Mapping = "{\"_doc\":{\"_source\":{\"enabled\": false}, \"dynamic_templates\": [" +
+            "{\n" +
+            "   \"docker.container.labels\": {\n" +
+            "     \"mapping\": {\n" +
+            "         \"type\": \"keyword\"\n" +
+            "       },\n" +
+            "       \"match_mapping_type\": \"string\",\n" +
+            "       \"path_match\": \"source.second.ct.*\"\n" +
+            "     }\n" +
+            "   }\n" +
+            "]}}";
+
+        Template ctt1 = new Template(null, new CompressedXContent(ct1Mapping), null);
+        Template ctt2 = new Template(null, new CompressedXContent(ct2Mapping), null);
+        ComponentTemplate ct1 = new ComponentTemplate(ctt1, null, null);
+        ComponentTemplate ct2 = new ComponentTemplate(ctt2, null, null);
+
+        IndexTemplateV2 template = new IndexTemplateV2(Collections.singletonList("index"), null, Arrays.asList("ct1", "ct2"),
+            null, null, null);
+
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
+                .put("ct1", ct1)
+                .put("ct2", ct2)
+                .put("index-template", template)
+                .build())
+            .build();
+
+        Map<String, Object> resolved =
+            MetadataCreateIndexService.resolveV2Mappings("{}", state,
+                "index-template", new NamedXContentRegistry(Collections.emptyList()));
+
+        Map<String, Object> doc = (Map<String, Object>) resolved.get(MapperService.SINGLE_MAPPING_NAME);
+        List<Map<String, Object>> dynamicTemplates = (List<Map<String, Object>>) doc.get("dynamic_templates");
+        assertThat(dynamicTemplates.size(), is(2));
+        Map<String, Object> dockerLabelsDynamicTemplate = dynamicTemplates.get(0).get("docker.container.labels") != null ?
+            dynamicTemplates.get(0) : dynamicTemplates.get(1);
+        Map<String, Object> dynamicMapping = (Map<String, Object>) dockerLabelsDynamicTemplate.get("docker.container.labels");
+        assertThat(dynamicMapping, is(notNullValue()));
+        assertThat("dynamic template defined in the last defined component template must override the previously defined dynamic templates",
+            dynamicMapping.get("path_match"), is("source.second.ct.*"));
+        Map<String, Object> mapping = (Map<String, Object>) dynamicMapping.get("mapping");
+        assertThat("the dynamic template defined in the second component template must not be merged with the dynamic template with the " +
+            "same name defined in the first component template", mapping.size(), is(1));
+        assertThat(mapping.get("type"), is("keyword"));
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {

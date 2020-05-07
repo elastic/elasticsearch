@@ -82,7 +82,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -578,6 +577,17 @@ public class MetadataCreateIndexService {
                 Map<String, Object> innerTemplateNonProperties = new HashMap<>(innerTemplateMapping);
                 Map<String, Object> maybeProperties = (Map<String, Object>) innerTemplateNonProperties.remove("properties");
 
+                List<Map<String, Object>> innerTemplateDynamicTemplates = (List<Map<String, Object>>) innerTemplateNonProperties.get(
+                    "dynamic_templates");
+                List<Map<String, Object>> previouslySeenDynamicTemplates = (List<Map<String, Object>>) nonProperties.get("dynamic_templates");
+                // we want "later" defined dynamic templates to override the previously seen ones with the same name
+                List<Map<String, Object>> filteredDefaultDynamicTemplates =
+                    removeAll(previouslySeenDynamicTemplates, innerTemplateDynamicTemplates);
+
+                if (filteredDefaultDynamicTemplates != previouslySeenDynamicTemplates) {
+                    nonProperties.put("dynamic_templates", filteredDefaultDynamicTemplates);
+                }
+
                 XContentHelper.mergeDefaults(innerTemplateNonProperties, nonProperties);
                 nonProperties = innerTemplateNonProperties;
 
@@ -592,6 +602,18 @@ public class MetadataCreateIndexService {
             Map<String, Object> innerRequestNonProperties = new HashMap<>(innerRequestMappings);
             Map<String, Object> maybeRequestProperties = (Map<String, Object>) innerRequestNonProperties.remove("properties");
 
+            List<Map<String, Object>> innerRequestDynamicTemplates = (List<Map<String, Object>>) innerRequestMappings.get(
+                "dynamic_templates");
+            List<Map<String, Object>> previouslySeenDynamicTemplates = (List<Map<String, Object>>) nonProperties.get("dynamic_templates");
+            // we want the dynamic templates specified in the request to override the ones defined in index/component templates with the
+            // same name
+            List<Map<String, Object>> filteredDefaultDynamicTemplates =
+                removeAll(previouslySeenDynamicTemplates, innerRequestDynamicTemplates);
+
+            if (filteredDefaultDynamicTemplates != previouslySeenDynamicTemplates) {
+                nonProperties.put("dynamic_templates", filteredDefaultDynamicTemplates);
+            }
+
             XContentHelper.mergeDefaults(innerRequestNonProperties, nonProperties);
             nonProperties = innerRequestNonProperties;
 
@@ -603,6 +625,48 @@ public class MetadataCreateIndexService {
         Map<String, Object> finalMappings = dedupDynamicTemplates(nonProperties);
         finalMappings.put("properties", properties);
         return Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, finalMappings);
+    }
+
+    /**
+     * Removes all the items from the first list that are already present in the second list
+     *
+     * Similar to {@link List#removeAll(Collection)} but the list parameters are not modified.
+     *
+     * This expects both list values to be Maps of size one and the "contains" operation that will determine if a value
+     * from the second list is present in the first list (and be removed from the first list) is based on key name.
+     *
+     * eg.
+     *      removeAll([ {"key1" : {}}, {"key2" : {}} ], [ {"key1" : {}}, {"key3" : {}} ])
+     * Returns:
+     *     [ {"key2" : {}} ]
+     */
+    private static List<Map<String, Object>> removeAll(List<Map<String, Object>> first, List<Map<String, Object>> second) {
+        if (first == null) {
+            return first;
+        } else {
+            validateValuesAreMapsOfSizeOne(first);
+        }
+
+        if (second == null) {
+            return first;
+        } else {
+            validateValuesAreMapsOfSizeOne(second);
+        }
+
+        Set<String> keys = second.stream()
+            .map(value -> value.keySet().iterator().next())
+            .collect(Collectors.toSet());
+
+        return first.stream().filter(value -> keys.contains(value.keySet().iterator().next()) == false).collect(toList());
+    }
+
+    private static void validateValuesAreMapsOfSizeOne(List<Map<String, Object>> second) {
+        for (Map<String, Object> map : second) {
+            // all are in the form of [ {"key1" : {}}, {"key2" : {}} ]
+            if (map.size() != 1) {
+                throw new IllegalArgumentException("unexpected argument, expected maps with one key, but got " + map);
+            }
+        }
     }
 
     /**
@@ -623,11 +687,7 @@ public class MetadataCreateIndexService {
 
         LinkedHashMap<String, Map<String, Object>> dedupedDynamicTemplates = new LinkedHashMap<>(dynamicTemplates.size(), 1f);
         for (Map<String, Object> dynamicTemplate : dynamicTemplates) {
-            Iterator<String> dynamicTemplateIterator = dynamicTemplate.keySet().iterator();
-            if (dynamicTemplateIterator.hasNext()) {
-                String templateName = dynamicTemplateIterator.next();
-                dedupedDynamicTemplates.put(templateName, dynamicTemplate);
-            }
+            dedupedDynamicTemplates.put(dynamicTemplate.keySet().iterator().next(), dynamicTemplate);
         }
 
         results.put("dynamic_templates", new ArrayList<>(dedupedDynamicTemplates.values()));

@@ -42,7 +42,7 @@ public class ThrottlingAndHeaderWarningLogger {
      */
     //TODO fix this
     @SuppressLoggerChecks(reason = "safely delegates to logger")
-    public void logAndWarnOnHeader(String msg, Object... params) {
+    public void logAndAddWarning(String msg, Object... params) {
         HeaderWarningLogger.addWarning(msg, params);
         Message message = new ParameterizedMessage(msg, params);
         throttlingLogger.log(message);
@@ -58,13 +58,13 @@ public class ThrottlingAndHeaderWarningLogger {
      */
     //TODO fix this
     @SuppressLoggerChecks(reason = "safely delegates to logger")
-    public void throttleLogAndWarnOnHeader(final String key, final String msg, final Object... params) {
+    public void throttleLogAndAddWarning(final String key, final String msg, final Object... params) {
         HeaderWarningLogger.addWarning(msg, params);
         ESLogMessage message = new ESLogMessage(msg, params);
         throttlingLogger.throttleLog(key, message);
     }
 
-    public void throttleLogAndWarnOnHeader(final String key, ESLogMessage message) {
+    public void throttleLogAndAddWarning(final String key, ESLogMessage message) {
         HeaderWarningLogger.addWarning(message.getMessagePattern(), message.getArguments());
         throttlingLogger.throttleLog(key, message);
     }

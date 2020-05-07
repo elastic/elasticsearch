@@ -79,7 +79,7 @@ public class DeprecationLogger {
         }
 
         public void log() {
-            deprecationLogger.throttleLogAndWarnOnHeader(deprecationKey, deprecationMessage);
+            deprecationLogger.throttleLogAndAddWarning(deprecationKey, deprecationMessage);
         }
     }
 }

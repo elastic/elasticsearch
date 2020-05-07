@@ -92,12 +92,11 @@ chosen.
 `format`::
 (Optional, string) The high level structure of the file. Valid values are
 `ndjson`, `xml`, `delimited`, and `semi_structured_text`. By default, the
-structure finder chooses the format.  In this default scenario, all rows must
+API chooses the format. In this default scenario, all rows must
 have the same number of fields for a delimited format to be detected. If the
 `format` is set to `delimited` and the `delimiter` is not set, however, the
-format determination tolerates up to 5% of rows that have a different number of
-columns than the first row for each of the following possible delimiters:
-comma, tab, semi-colon, and pipe (`|`).
+the API tolerates up to 5% of rows that have a different number of
+columns than the first row.
 
 `grok_pattern`::
   (Optional, string) If you have set `format` to `semi_structured_text`, you can

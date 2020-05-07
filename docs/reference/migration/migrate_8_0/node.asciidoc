@@ -48,7 +48,7 @@ all the corresponding subfolders in parallel. Each node uses the same subfolder
 (e.g. `nodes/2`) across all its data paths.
 ====
 
-.Closed indices created in {es} 7.0 and earlier versions are not supported.
+.Closed indices created in {es} 6.x and earlier versions are not supported.
 [%collapsible]
 ====
 *Details* +

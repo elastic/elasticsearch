@@ -161,7 +161,6 @@
             "additionalProperties": false,
             "properties": {
                 "url": {
-                    "type": ["string"],
                     "format": "uri"
                 },
                 "description": {

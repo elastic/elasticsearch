@@ -4,7 +4,7 @@
       "url":null,
       "description":"Validates an anomaly detection detector."
     },
-    "stability":"stable",
+    "stability":"private",
     "url":{
       "paths":[
         {

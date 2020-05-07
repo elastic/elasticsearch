@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Binar
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanEqualsSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
@@ -47,6 +48,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // boolean
                 new BooleanSimplification(),
                 new BooleanLiteralsOnTheRight(),
+                new BooleanEqualsSimplification(),
                 // needs to occur before BinaryComparison combinations
                 new ReplaceWildcards(),
                 new ReplaceNullChecks(),

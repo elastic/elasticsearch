@@ -169,7 +169,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Started writing results",
             "Finished analysis");
     }
-
+    
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/56282")
     public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty() throws Exception {
         initialize("regression_only_training_data_and_training_percent_is_50");
         String predictedClassField = DEPENDENT_VARIABLE_FIELD + "_prediction";

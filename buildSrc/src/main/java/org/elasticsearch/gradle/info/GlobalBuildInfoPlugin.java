@@ -78,7 +78,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
         BuildParams.init(params -> {
             // Initialize global build parameters
-            boolean internalUse = GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null;
+            boolean isInternal = GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null;
 
             params.reset();
             params.setCompilerJavaHome(compilerJavaHome);
@@ -95,11 +95,11 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setBuildDate(ZonedDateTime.now(ZoneOffset.UTC));
             params.setTestSeed(getTestSeed());
             params.setIsCi(System.getenv("JENKINS_URL") != null);
-            params.setIsInternal(internalUse);
+            params.setIsInternal(isInternal);
             params.setDefaultParallel(findDefaultParallel(project));
             params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
-            if (internalUse) {
+            if (isInternal) {
                 params.setBwcVersions(resolveBwcVersions(rootDir));
             }
         });

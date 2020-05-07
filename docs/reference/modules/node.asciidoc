@@ -1,5 +1,5 @@
 [[modules-node]]
-=== Node settings
+=== Node
 
 Any time that you start an instance of Elasticsearch, you are starting a _node_.
 A collection of connected nodes is called a <<modules-cluster,cluster>>. If you

@@ -45,33 +45,37 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
- * An aggregator for date values. Every date is rounded down using a configured
- * {@link Rounding}.
- *
- * @see Rounding
+ * An aggregator for date values that attempts to return a specific number of
+ * buckets, reconfiguring how it rounds dates to buckets on the fly as new
+ * data arrives. 
  */
 class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat formatter;
     private final RoundingInfo[] roundingInfos;
+    private final Function<Rounding, Rounding.Prepared> roundingPreparer;
     private int roundingIdx = 0;
+    private Rounding.Prepared preparedRounding;
 
     private LongHash bucketOrds;
     private int targetBuckets;
     private MergingBucketsDeferringCollector deferringCollector;
 
     AutoDateHistogramAggregator(String name, AggregatorFactories factories, int numBuckets, RoundingInfo[] roundingInfos,
-            @Nullable ValuesSource valuesSource, DocValueFormat formatter, SearchContext aggregationContext, Aggregator parent,
-            Map<String, Object> metadata) throws IOException {
+        Function<Rounding, Rounding.Prepared> roundingPreparer, @Nullable ValuesSource valuesSource, DocValueFormat formatter,
+        SearchContext aggregationContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
 
         super(name, factories, aggregationContext, parent, metadata);
         this.targetBuckets = numBuckets;
         this.valuesSource = (ValuesSource.Numeric) valuesSource;
         this.formatter = formatter;
         this.roundingInfos = roundingInfos;
+        this.roundingPreparer = roundingPreparer;
+        preparedRounding = roundingPreparer.apply(roundingInfos[roundingIdx].rounding);
 
         bucketOrds = new LongHash(1, aggregationContext.bigArrays());
 
@@ -113,7 +117,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                     long previousRounded = Long.MIN_VALUE;
                     for (int i = 0; i < valuesCount; ++i) {
                         long value = values.nextValue();
-                        long rounded = roundingInfos[roundingIdx].rounding.round(value);
+                        long rounded = preparedRounding.round(value);
                         assert rounded >= previousRounded;
                         if (rounded == previousRounded) {
                             continue;
@@ -138,10 +142,10 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 try (LongHash oldBucketOrds = bucketOrds) {
                     LongHash newBucketOrds = new LongHash(1, context.bigArrays());
                     long[] mergeMap = new long[(int) oldBucketOrds.size()];
-                    Rounding newRounding = roundingInfos[++roundingIdx].rounding;
+                    preparedRounding = roundingPreparer.apply(roundingInfos[++roundingIdx].rounding);
                     for (int i = 0; i < oldBucketOrds.size(); i++) {
                         long oldKey = oldBucketOrds.get(i);
-                        long newKey = newRounding.round(oldKey);
+                        long newKey = preparedRounding.round(oldKey);
                         long newBucketOrd = newBucketOrds.add(newKey);
                         if (newBucketOrd >= 0) {
                             mergeMap[i] = newBucketOrd;

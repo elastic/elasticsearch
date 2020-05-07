@@ -88,6 +88,6 @@ public class ProgressTrackerTests extends ESTestCase {
         assertThat(progressTracker.getReindexingProgressPercent(), equalTo(11));
 
         progressTracker.updateReindexingProgress(10);
-        progressTracker.updateReindexingProgress(11);
+        assertThat(progressTracker.getReindexingProgressPercent(), equalTo(11));
     }
 }

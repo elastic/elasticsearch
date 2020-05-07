@@ -9,12 +9,18 @@
 
 // end::notable-breaking-changes[]
 
-[float]
-==== StartRollupJob endpoint returns success if job already started
-
+.The StartRollupJob endpoint now returns a success status if a job has already started.
+[%collapsible]
+====
+*Details* +
 Previously, attempting to start an already-started rollup job would
 result in a `500 InternalServerError: Cannot start task for Rollup Job
 [job] because state was [STARTED]` exception.
 
 Now, attempting to start a job that is already started will just
 return a successful `200 OK: started` response.
+
+*Impact* +
+Update your workflow and applications to assume a `200` status response for
+requests attempting to start a rollup job that has already started.
+====

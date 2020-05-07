@@ -25,6 +25,9 @@ setup:
 
 ---
 "basic":
+  - skip:
+      version: " - 7.8.99"
+      reason:  interval had a in bug before 7.9.0
   - do:
       search:
         rest_total_hits_as_int: true
@@ -37,6 +40,7 @@ setup:
                 buckets: 2
   - match: { hits.total: 4 }
   - length: { aggregations.histo.buckets: 2 }
+  - match: { aggregations.histo.interval: "7d" }
   - match: { aggregations.histo.buckets.0.key_as_string: "2020-03-01T00:00:00.000Z" }
   - match: { aggregations.histo.buckets.0.doc_count: 2 }
   - match: { aggregations.histo.buckets.1.key_as_string: "2020-03-08T00:00:00.000Z" }

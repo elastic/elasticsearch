@@ -91,7 +91,7 @@ public abstract class LocalTimeOffset {
      *
      * @return a lookup function of {@code null} if none could be built 
      */
-    public static LocalTimeOffset lookupFixedOffset(ZoneId zone) {
+    public static LocalTimeOffset fixedOffset(ZoneId zone) {
         return checkForFixedZone(zone, zone.getRules());
     }
 

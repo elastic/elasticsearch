@@ -111,7 +111,7 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
             if (request instanceof GetIndexRequest) {
                 // for this test we only need the indices
                 assert (indices != null);
-                final GetIndexResponse indexResponse = new GetIndexResponse(indices, null, null, null, null);
+                final GetIndexResponse indexResponse = new GetIndexResponse(indices, null, null, null, null, null);
 
                 listener.onResponse((Response) indexResponse);
                 return;

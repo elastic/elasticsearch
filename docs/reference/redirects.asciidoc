@@ -493,3 +493,8 @@ See <<ilm-actions>>.
 === {ilm-init} policy definition
 
 See <<ilm-index-lifecycle>>.
+
+[role="exclude",id="search-uri-request"]
+=== URI Search
+
+See <<search-search>>.

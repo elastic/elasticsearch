@@ -607,8 +607,8 @@ public class MetadataCreateIndexService {
     }
 
     /**
-     * Removes the already seen/processed dynamic templates from the {@param previouslySeenMapping} if they are defined (we're
-     * identifying the dynamic templates based on the name only, *not* on the full definition) in the {@param newMapping} we are about to
+     * Removes the already seen/processed dynamic templates from the previouslySeenMapping if they are defined (we're
+     * identifying the dynamic templates based on the name only, *not* on the full definition) in the newMapping we are about to
      * process (and merge)
      */
     @SuppressWarnings("unchecked")

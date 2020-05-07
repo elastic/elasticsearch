@@ -328,16 +328,17 @@ public class AutodetectResultProcessor {
     private Annotation createModelSnapshotAnnotation(ModelSnapshot modelSnapshot) {
         assert modelSnapshot != null;
         Date currentTime = new Date(clock.millis());
-        return new Annotation(
-            Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOT_STORED, modelSnapshot.getSnapshotId()),
-            currentTime,
-            XPackUser.NAME,
-            modelSnapshot.getLatestResultTimeStamp(),
-            modelSnapshot.getLatestResultTimeStamp(),
-            jobId,
-            currentTime,
-            XPackUser.NAME,
-            "annotation");
+        return new Annotation.Builder()
+            .setAnnotation(Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOT_STORED, modelSnapshot.getSnapshotId()))
+            .setCreateTime(currentTime)
+            .setCreateUsername(XPackUser.NAME)
+            .setTimestamp(modelSnapshot.getLatestResultTimeStamp())
+            .setEndTimestamp(modelSnapshot.getLatestResultTimeStamp())
+            .setJobId(jobId)
+            .setModifiedTime(currentTime)
+            .setModifiedUsername(XPackUser.NAME)
+            .setType("annotation")
+            .build();
     }
 
     private void processModelSizeStats(ModelSizeStats modelSizeStats) {

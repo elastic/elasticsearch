@@ -637,3 +637,36 @@ setup:
             "description": "yaml test transform on airline-data"
           }
   - match: {acknowledged: true}
+---
+"Test put transform with bad query due to script compilation":
+  - do:
+      catch: bad_request
+      transform.put_transform:
+        transform_id: "airline-transform-with-bad-scripts"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-with-bad-scripts" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {
+                "sumState": {
+                  "scripted_metric": {
+                    "combine_script": {
+                      "source": "foobar boom"
+                    },
+                    "init_script": {
+                      "source": "state.state = []"
+                    },
+                    "map_script": {
+                      "source": "state.state.add(1)"
+                    },
+                    "reduce_script": {
+                      "source": "long sum = 0; for (s in states) { sum += s } return sum"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "yaml test transform on airline-data"
+          }

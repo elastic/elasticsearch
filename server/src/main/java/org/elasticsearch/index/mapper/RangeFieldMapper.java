@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -55,7 +54,6 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -337,7 +335,7 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         Range range;
         if (context.externalValueSet()) {
             range = context.parseExternalValue(Range.class);
@@ -396,9 +394,10 @@ public class RangeFieldMapper extends FieldMapper {
         boolean indexed = fieldType.indexOptions() != IndexOptions.NONE;
         boolean docValued = fieldType.hasDocValues();
         boolean stored = fieldType.stored();
-        fields.addAll(fieldType().rangeType.createFields(context, name(), range, indexed, docValued, stored));
+        context.doc().addAll(fieldType().rangeType.createFields(context, name(), range, indexed, docValued, stored));
+
         if (docValued == false && (indexed || stored)) {
-            createFieldNamesField(context, fields);
+            createFieldNamesField(context);
         }
     }
 

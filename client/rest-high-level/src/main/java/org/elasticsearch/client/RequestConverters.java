@@ -577,6 +577,11 @@ final class RequestConverters {
         if (reindexRequest.getScrollTime() != null) {
             params.putParam("scroll", reindexRequest.getScrollTime());
         }
+
+        if (reindexRequest.preferV2Templates() != null) {
+            params.putParam("prefer_v2_templates", reindexRequest.preferV2Templates().toString());
+        }
+
         request.addParameters(params.asMap());
         request.setEntity(createEntity(reindexRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;

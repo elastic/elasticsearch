@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
@@ -33,7 +34,7 @@ import static org.elasticsearch.xpack.ql.tree.SourceTests.randomSource;
 public class IifTests extends AbstractNodeTestCase<Iif, Expression> {
 
     public static Iif randomIif() {
-        return new Iif(randomSource(), new Equals(randomSource(), randomStringLiteral(), randomStringLiteral()),
+        return new Iif(randomSource(), new Equals(randomSource(), randomStringLiteral(), randomStringLiteral(), randomZone()),
             randomIntLiteral(), randomIntLiteral());
     }
 
@@ -86,7 +87,8 @@ public class IifTests extends AbstractNodeTestCase<Iif, Expression> {
         Equals eq = (Equals) iif.conditions().get(0).condition();
         expressions.add(new Equals(randomSource(),
             randomValueOtherThan(eq.left(), FunctionTestUtils::randomStringLiteral),
-            randomValueOtherThan(eq.right(), FunctionTestUtils::randomStringLiteral)));
+            randomValueOtherThan(eq.right(), FunctionTestUtils::randomStringLiteral),
+            randomValueOtherThan(eq.zoneId(), ESTestCase::randomZone)));
         expressions.add(randomValueOtherThan(iif.conditions().get(0).result(), FunctionTestUtils::randomIntLiteral));
         expressions.add(randomValueOtherThan(iif.elseResult(), FunctionTestUtils::randomIntLiteral));
         return expressions;

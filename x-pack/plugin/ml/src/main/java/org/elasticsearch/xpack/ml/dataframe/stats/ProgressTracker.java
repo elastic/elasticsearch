@@ -73,7 +73,7 @@ public class ProgressTracker {
     }
 
     public void updatePhase(PhaseProgress phase) {
-        progressPercentPerPhase.computeIfPresent(phase.getPhase(), (k, v) -> phase.getProgressPercent());
+        progressPercentPerPhase.computeIfPresent(phase.getPhase(), (k, v) -> Math.max(v, phase.getProgressPercent()));
     }
 
     public List<PhaseProgress> report() {

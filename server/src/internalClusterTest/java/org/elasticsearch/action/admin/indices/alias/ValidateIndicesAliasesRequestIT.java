@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 
-public class ValidateIndiesAliasesRequestIT extends ESSingleNodeTestCase {
+public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
 
     public static class IndicesAliasesPlugin extends Plugin implements ActionPlugin {
 

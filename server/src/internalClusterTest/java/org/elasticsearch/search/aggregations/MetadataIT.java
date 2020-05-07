@@ -38,7 +38,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 
 
-public class MetaDataIT extends ESIntegTestCase {
+public class MetadataIT extends ESIntegTestCase {
 
     public void testMetaDataSetOnAggregationResult() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("idx")

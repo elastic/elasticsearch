@@ -109,11 +109,6 @@ subprojects {
   }
 }
 
-/* Introspect all versions of ES that may be tested against for backwards
- * compatibility. It is *super* important that this logic is the same as the
- * logic in VersionUtils.java. */
-BwcVersions versions = new BwcVersions(file('server/src/main/java/org/elasticsearch/Version.java').readLines('UTF-8'))
-
 task updateCIBwcVersions() {
   doLast {
     File yml = file(".ci/bwcVersions")
@@ -144,9 +139,6 @@ allprojects {
       gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
       gradle.startParameter.taskNames.contains('cleanEclipse')
 
-    // for BWC testing
-    bwcVersions = versions
-
     buildMetadata = buildMetadataMap
   }
 }
@@ -160,7 +152,7 @@ task verifyVersions {
     // Fetch the metadata and parse the xml into Version instances because it's more straight forward here
     // rather than bwcVersion ( VersionCollection ).
     new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
-      bwcVersions.compareToAuthoritative(
+      BuildParams.bwcVersions.compareToAuthoritative(
         new XmlParser().parse(s)
           .versioning.versions.version
           .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
@@ -168,7 +160,7 @@ task verifyVersions {
       )
     }
     String ciYml = file(".ci/bwcVersions").text
-    bwcVersions.indexCompatible.each {
+    BuildParams.bwcVersions.indexCompatible.each {
       if (ciYml.contains("\"$it\"\n") == false) {
         throw new Exception(".ci/bwcVersions is outdated, run `./gradlew updateCIBwcVersions` and check in the results");
       }

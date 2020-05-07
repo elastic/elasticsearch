@@ -577,18 +577,7 @@ public class MetadataCreateIndexService {
                 Map<String, Object> innerTemplateNonProperties = new HashMap<>(innerTemplateMapping);
                 Map<String, Object> maybeProperties = (Map<String, Object>) innerTemplateNonProperties.remove("properties");
 
-                List<Map<String, Object>> innerTemplateDynamicTemplates = (List<Map<String, Object>>) innerTemplateNonProperties.get(
-                    "dynamic_templates");
-                List<Map<String, Object>> previouslySeenDynamicTemplates =
-                    (List<Map<String, Object>>) nonProperties.get("dynamic_templates");
-                // we want "later" defined dynamic templates to override the previously seen ones with the same name
-                List<Map<String, Object>> filteredDefaultDynamicTemplates =
-                    removeAll(previouslySeenDynamicTemplates, innerTemplateDynamicTemplates);
-
-                if (filteredDefaultDynamicTemplates != previouslySeenDynamicTemplates) {
-                    nonProperties.put("dynamic_templates", filteredDefaultDynamicTemplates);
-                }
-
+                nonProperties = removeDuplicatedDynamicTemplates(nonProperties, innerTemplateNonProperties);
                 XContentHelper.mergeDefaults(innerTemplateNonProperties, nonProperties);
                 nonProperties = innerTemplateNonProperties;
 
@@ -603,18 +592,7 @@ public class MetadataCreateIndexService {
             Map<String, Object> innerRequestNonProperties = new HashMap<>(innerRequestMappings);
             Map<String, Object> maybeRequestProperties = (Map<String, Object>) innerRequestNonProperties.remove("properties");
 
-            List<Map<String, Object>> innerRequestDynamicTemplates = (List<Map<String, Object>>) innerRequestMappings.get(
-                "dynamic_templates");
-            List<Map<String, Object>> previouslySeenDynamicTemplates = (List<Map<String, Object>>) nonProperties.get("dynamic_templates");
-            // we want the dynamic templates specified in the request to override the ones defined in index/component templates with the
-            // same name
-            List<Map<String, Object>> filteredDefaultDynamicTemplates =
-                removeAll(previouslySeenDynamicTemplates, innerRequestDynamicTemplates);
-
-            if (filteredDefaultDynamicTemplates != previouslySeenDynamicTemplates) {
-                nonProperties.put("dynamic_templates", filteredDefaultDynamicTemplates);
-            }
-
+            nonProperties = removeDuplicatedDynamicTemplates(nonProperties, innerRequestMappings);
             XContentHelper.mergeDefaults(innerRequestNonProperties, nonProperties);
             nonProperties = innerRequestNonProperties;
 
@@ -626,6 +604,29 @@ public class MetadataCreateIndexService {
         Map<String, Object> finalMappings = dedupDynamicTemplates(nonProperties);
         finalMappings.put("properties", properties);
         return Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, finalMappings);
+    }
+
+    /**
+     * Removes the already seen/processed dynamic templates from the {@param previouslySeenMapping} if they are defined (we're
+     * identifying the dynamic templates based on the name only, *not* on the full definition) in the {@param newMapping} we are about to
+     * process (and merge)
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> removeDuplicatedDynamicTemplates(Map<String, Object> previouslySeenMapping,
+                                                                        Map<String, Object> newMapping) {
+        Map<String, Object> result = new HashMap<>(previouslySeenMapping);
+        List<Map<String, Object>> newDynamicTemplates = (List<Map<String, Object>>) newMapping.get("dynamic_templates");
+        List<Map<String, Object>> previouslySeenDynamicTemplates =
+            (List<Map<String, Object>>) previouslySeenMapping.get("dynamic_templates");
+
+        List<Map<String, Object>> filteredDynamicTemplates = removeOverlapping(previouslySeenDynamicTemplates, newDynamicTemplates);
+
+        // if we removed any mappings from the previously seen ones, we'll re-add them on merge time, see
+        // {@link XContentHelper#mergeDefaults}, so update the result to contain the filtered ones
+        if (filteredDynamicTemplates != previouslySeenDynamicTemplates) {
+            result.put("dynamic_templates", filteredDynamicTemplates);
+        }
+        return result;
     }
 
     /**
@@ -641,7 +642,7 @@ public class MetadataCreateIndexService {
      * Returns:
      *     [ {"key2" : {}} ]
      */
-    private static List<Map<String, Object>> removeAll(List<Map<String, Object>> first, List<Map<String, Object>> second) {
+    private static List<Map<String, Object>> removeOverlapping(List<Map<String, Object>> first, List<Map<String, Object>> second) {
         if (first == null) {
             return first;
         } else {

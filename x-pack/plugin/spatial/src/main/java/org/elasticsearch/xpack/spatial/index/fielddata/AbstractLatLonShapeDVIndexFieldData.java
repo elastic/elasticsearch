@@ -17,7 +17,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -26,9 +25,28 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
-public abstract class AbstractLatLonShapeDVIndexFieldData extends DocValuesIndexFieldData implements IndexGeoShapeFieldData {
+public abstract class AbstractLatLonShapeDVIndexFieldData implements IndexGeoShapeFieldData {
+    protected final Index index;
+    protected final String fieldName;
+
     AbstractLatLonShapeDVIndexFieldData(Index index, String fieldName) {
-        super(index, fieldName);
+        this.index = index;
+        this.fieldName = fieldName;
+    }
+
+    @Override
+    public final String getFieldName() {
+        return fieldName;
+    }
+
+    @Override
+    public final void clear() {
+        // can't do
+    }
+
+    @Override
+    public final Index index() {
+        return index;
     }
 
     @Override

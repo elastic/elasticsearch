@@ -31,6 +31,7 @@ import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -52,7 +53,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.util.function.Function;
 
-public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData implements IndexOrdinalsFieldData {
+public class SortedSetDVOrdinalsIndexFieldData implements IndexOrdinalsFieldData {
 
     public static class Builder implements IndexFieldData.Builder {
         private Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction = AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION;
@@ -75,6 +76,8 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
         }
     }
 
+    protected final Index index;
+    protected final String fieldName;
     private final IndexSettings indexSettings;
     private final IndexFieldDataCache cache;
     private final CircuitBreakerService breakerService;
@@ -83,11 +86,27 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
 
     public SortedSetDVOrdinalsIndexFieldData(IndexSettings indexSettings, IndexFieldDataCache cache, String fieldName,
             CircuitBreakerService breakerService, Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) {
-        super(indexSettings.getIndex(), fieldName);
+        this.index = indexSettings.getIndex();
+        this.fieldName = fieldName;
         this.indexSettings = indexSettings;
         this.cache = cache;
         this.breakerService = breakerService;
         this.scriptFunction = scriptFunction;
+    }
+
+    @Override
+    public final String getFieldName() {
+        return fieldName;
+    }
+
+    @Override
+    public final void clear() {
+        // can't do
+    }
+
+    @Override
+    public final Index index() {
+        return index;
     }
 
     @Override

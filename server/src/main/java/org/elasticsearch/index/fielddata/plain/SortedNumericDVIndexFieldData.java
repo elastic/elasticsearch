@@ -59,13 +59,14 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.function.LongUnaryOperator;
 
 /**
  * FieldData backed by {@link LeafReader#getSortedNumericDocValues(String)}
  * @see DocValuesType#SORTED_NUMERIC
  */
-public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData implements IndexNumericFieldData {
+public class SortedNumericDVIndexFieldData implements IndexNumericFieldData {
     public static class Builder implements IndexFieldData.Builder {
 
         private NumericType numericType;
@@ -88,13 +89,28 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
     }
 
     private final NumericType numericType;
+    protected final Index index;
+    protected final String fieldName;
 
-    public SortedNumericDVIndexFieldData(Index index, String fieldNames, NumericType numericType) {
-        super(index, fieldNames);
-        if (numericType == null) {
-            throw new IllegalArgumentException("numericType must be non-null");
-        }
-        this.numericType = numericType;
+    public SortedNumericDVIndexFieldData(Index index, String fieldName, NumericType numericType) {
+        this.index = index;
+        this.fieldName = fieldName;
+        this.numericType = Objects.requireNonNull(numericType);
+    }
+
+    @Override
+    public final String getFieldName() {
+        return fieldName;
+    }
+
+    @Override
+    public final void clear() {
+        // can't do
+    }
+
+    @Override
+    public final Index index() {
+        return index;
     }
 
     /**

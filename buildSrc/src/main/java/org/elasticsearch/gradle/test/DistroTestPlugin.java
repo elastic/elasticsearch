@@ -291,8 +291,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             Path upgradePath = upgradeDir.get().getAsFile().toPath();
 
             // write bwc version, and append -SNAPSHOT if it is an unreleased version
-            ExtraPropertiesExtension extraProperties = project.getExtensions().getByType(ExtraPropertiesExtension.class);
-            BwcVersions bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
+            BwcVersions bwcVersions = BuildParams.getBwcVersions();
             final String upgradeFromVersion;
             if (bwcVersions.unreleasedInfo(upgradeVersion) != null) {
                 upgradeFromVersion = upgradeVersion.toString() + "-SNAPSHOT";

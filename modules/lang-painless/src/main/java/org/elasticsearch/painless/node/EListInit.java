@@ -19,10 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ListInitializationNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
@@ -75,20 +77,22 @@ public class EListInit extends AExpression {
         }
 
         List<Output> valueOutputs = new ArrayList<>(values.size());
+        List<PainlessCast> valueCasts = new ArrayList<>(values.size());
 
         for (AExpression expression : values) {
             Input expressionInput = new Input();
             expressionInput.expected = def.class;
             expressionInput.internal = true;
             Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
-            expression.cast(expressionInput, expressionOutput);
             valueOutputs.add(expressionOutput);
+            valueCasts.add(AnalyzerCaster.getLegalCast(expression.location,
+                    expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
         }
 
         ListInitializationNode listInitializationNode = new ListInitializationNode();
 
         for (int i = 0; i < values.size(); ++i) {
-            listInitializationNode.addArgumentNode(values.get(i).cast(valueOutputs.get(i)));
+            listInitializationNode.addArgumentNode(cast(valueOutputs.get(i).expressionNode, valueCasts.get(i)));
         }
 
         listInitializationNode.setLocation(location);

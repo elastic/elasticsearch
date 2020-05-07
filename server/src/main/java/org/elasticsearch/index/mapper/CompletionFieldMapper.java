@@ -20,7 +20,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -52,7 +51,6 @@ import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -503,12 +501,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             }
         }
 
-        List<IndexableField> fields = new ArrayList<>(1);
         createFieldNamesField(context);
-        for (IndexableField field : fields) {
-            context.doc().add(field);
-        }
-
         for (CompletionInputMetadata metadata: inputMap.values()) {
             ParseContext externalValueContext = context.createExternalValueContext(metadata);
             multiFields.parse(this, externalValueContext);

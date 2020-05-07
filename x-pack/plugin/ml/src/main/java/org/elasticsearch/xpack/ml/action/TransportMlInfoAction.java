@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.ml.process.MlControllerHolder;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
@@ -80,10 +81,12 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
     }
 
     private Map<String, Object> anomalyDetectorsDefaults() {
-        Map<String, Object> defaults = new HashMap<>();
+        Map<String, Object> defaults = new LinkedHashMap<>();
         defaults.put(AnalysisLimits.MODEL_MEMORY_LIMIT.getPreferredName(), defaultModelMemoryLimit());
         defaults.put(AnalysisLimits.CATEGORIZATION_EXAMPLES_LIMIT.getPreferredName(), AnalysisLimits.DEFAULT_CATEGORIZATION_EXAMPLES_LIMIT);
         defaults.put(Job.MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), Job.DEFAULT_MODEL_SNAPSHOT_RETENTION_DAYS);
+        defaults.put(Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS.getPreferredName(),
+            Job.DEFAULT_DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS);
         try {
             defaults.put(CategorizationAnalyzerConfig.CATEGORIZATION_ANALYZER.getPreferredName(),
                 CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(Collections.emptyList())

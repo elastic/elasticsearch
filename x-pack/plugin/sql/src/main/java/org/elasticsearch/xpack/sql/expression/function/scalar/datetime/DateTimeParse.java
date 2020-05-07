@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -16,11 +15,9 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZoneId;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser.DATE_TIME;
 
-
-public class DateTimeParse extends BinaryDateTimeFunction {
+public class DateTimeParse extends BaseDateTimeParseFunction {
 
     public DateTimeParse(Source source, Expression timestamp, Expression pattern, ZoneId zoneId) {
         super(source, timestamp, pattern, zoneId);
@@ -29,19 +26,6 @@ public class DateTimeParse extends BinaryDateTimeFunction {
     @Override
     public DataType dataType() {
         return DataTypes.DATETIME;
-    }
-
-    @Override
-    protected TypeResolution resolveType() {
-        TypeResolution resolution = isString(left(), sourceText(), Expressions.ParamOrdinal.FIRST);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        resolution = isString(right(), sourceText(), Expressions.ParamOrdinal.SECOND);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override

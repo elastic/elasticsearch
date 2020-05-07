@@ -58,8 +58,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
     protected final ClusterService clusterService;
     protected final TransportService transportService;
     protected final Class<NodeResponse> nodeResponseClass;
-
-    final String transportNodeAction;
+    protected final String transportNodeAction;
 
     protected TransportNodesAction(String actionName, ThreadPool threadPool,
                                    ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
@@ -134,6 +133,12 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
         request.setConcreteNodes(Arrays.stream(nodesIds).map(clusterState.nodes()::get).toArray(DiscoveryNode[]::new));
     }
 
+    /**
+     * Get a backwards compatible transport action name
+     */
+    protected String getTransportNodeAction(DiscoveryNode node) {
+        return transportNodeAction;
+    }
 
     class AsyncAction {
 
@@ -175,7 +180,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                         nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                     }
 
-                    transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(),
+                    transportService.sendRequest(node, getTransportNodeAction(node), nodeRequest, builder.build(),
                             new TransportResponseHandler<NodeResponse>() {
                                 @Override
                                 public NodeResponse read(StreamInput in) throws IOException {

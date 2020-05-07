@@ -59,7 +59,7 @@ import java.util.Objects;
  */
 public class JodaCompatibleZonedDateTime
         implements Comparable<ChronoZonedDateTime<?>>, ChronoZonedDateTime<LocalDate>, Temporal, TemporalAccessor {
-    
+
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("strict_date_time");
     private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(JodaCompatibleZonedDateTime.class));
@@ -67,7 +67,8 @@ public class JodaCompatibleZonedDateTime
     private static void logDeprecated(String key, String message, Object... params) {
         // NOTE: we don't check SpecialPermission because this will be called (indirectly) from scripts
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            deprecationLogger.deprecatedAndMaybeLog(key, message, params);
+            deprecationLogger.deprecate(key, message, params)
+                .log();
             return null;
         });
     }

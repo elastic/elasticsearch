@@ -184,9 +184,10 @@ public class MetadataCreateIndexService {
                 .filter(descriptor -> descriptor.matchesIndexPattern(index))
                 .collect(toList());
             if (matchingDescriptors.isEmpty() && (isHidden == null || isHidden == Boolean.FALSE)) {
-                deprecationLogger.deprecatedAndMaybeLog("index_name_starts_with_dot",
+                deprecationLogger.deprecate("index_name_starts_with_dot",
                     "index name [{}] starts with a dot '.', in the next major version, index names " +
-                    "starting with a dot are reserved for hidden indices and system indices", index);
+                            "starting with a dot are reserved for hidden indices and system indices", index)
+                    .log();
             } else if (matchingDescriptors.size() > 1) {
                 // This should be prevented by erroring on overlapping patterns at startup time, but is here just in case.
                 StringBuilder errorMessage = new StringBuilder()
@@ -347,9 +348,12 @@ public class MetadataCreateIndexService {
                     request.index(), isHiddenFromRequest);
 
                 if (v1Templates.size() > 1) {
-                    deprecationLogger.deprecatedAndMaybeLog("index_template_multiple_match", "index [{}] matches multiple v1 templates " +
-                        "[{}], v2 index templates will only match a single index template", request.index(),
-                        v1Templates.stream().map(IndexTemplateMetadata::name).sorted().collect(Collectors.joining(", ")));
+                    deprecationLogger.deprecate("index_template_multiple_match",
+                        "index [{}] matches multiple v1 templates " +
+                        "[{}], v2 index templates will only match a single index template",
+                        request.index(),
+                        v1Templates.stream().map(IndexTemplateMetadata::name).sorted().collect(Collectors.joining(", ")))
+                        .log();
                 }
 
                 return applyCreateIndexRequestWithV1Templates(currentState, request, silent, v1Templates, metadataTransformer);
@@ -1189,8 +1193,9 @@ public class MetadataCreateIndexService {
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings) &&
             (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexSettings)
                 || IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexSettings))) {
-            deprecationLogger.deprecatedAndMaybeLog("translog_retention", "Translog retention settings [index.translog.retention.age] "
-                + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
+            deprecationLogger.deprecate("translog_retention", "Translog retention settings [index.translog.retention.age] "
+                + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.")
+                .log();
         }
     }
 }

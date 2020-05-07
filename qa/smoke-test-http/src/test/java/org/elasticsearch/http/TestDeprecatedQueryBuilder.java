@@ -80,7 +80,8 @@ public class TestDeprecatedQueryBuilder extends AbstractQueryBuilder<TestDepreca
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        deprecationLogger.deprecatedAndMaybeLog(NAME, "[{}] query is deprecated, but used on [{}] index", NAME, context.index().getName());
+        deprecationLogger.deprecate(NAME, "[{}] query is deprecated, but used on [{}] index", NAME, context.index().getName())
+            .log();
 
         return Queries.newMatchAllQuery();
     }

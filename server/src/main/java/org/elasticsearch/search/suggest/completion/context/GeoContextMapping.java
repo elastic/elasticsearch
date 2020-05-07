@@ -296,17 +296,19 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
             MappedFieldType mappedFieldType = fieldResolver.apply(fieldName);
             if (mappedFieldType == null) {
                 if (indexVersionCreated.before(Version.V_7_0_0)) {
-                    deprecationLogger.deprecatedAndMaybeLog("geo_context_mapping",
-                        "field [{}] referenced in context [{}] is not defined in the mapping", fieldName, name);
+                    deprecationLogger.deprecate("geo_context_mapping",
+                        "field [{}] referenced in context [{}] is not defined in the mapping", fieldName, name)
+                        .log();
                 } else {
                     throw new ElasticsearchParseException(
                         "field [{}] referenced in context [{}] is not defined in the mapping", fieldName, name);
                 }
             } else if (GeoPointFieldMapper.CONTENT_TYPE.equals(mappedFieldType.typeName()) == false) {
                 if (indexVersionCreated.before(Version.V_7_0_0)) {
-                    deprecationLogger.deprecatedAndMaybeLog("geo_context_mapping",
+                    deprecationLogger.deprecate("geo_context_mapping",
                         "field [{}] referenced in context [{}] must be mapped to geo_point, found [{}]",
-                        fieldName, name, mappedFieldType.typeName());
+                        fieldName, name, mappedFieldType.typeName())
+                        .log();
                 } else {
                     throw new ElasticsearchParseException(
                         "field [{}] referenced in context [{}] must be mapped to geo_point, found [{}]",

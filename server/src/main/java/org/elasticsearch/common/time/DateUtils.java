@@ -198,8 +198,9 @@ public class DateUtils {
     public static ZoneId of(String zoneId) {
         String deprecatedId = DEPRECATED_SHORT_TIMEZONES.get(zoneId);
         if (deprecatedId != null) {
-            deprecationLogger.deprecatedAndMaybeLog("timezone",
-                "Use of short timezone id " + zoneId + " is deprecated. Use " + deprecatedId + " instead");
+            deprecationLogger.deprecate("timezone",
+                "Use of short timezone id " + zoneId + " is deprecated. Use " + deprecatedId + " instead")
+                .log();
             return ZoneId.of(deprecatedId);
         }
         return ZoneId.of(zoneId).normalized();

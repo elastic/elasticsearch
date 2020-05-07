@@ -145,9 +145,11 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             if (source == null) {
                 if (ignoreEmpty || Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
                     if (Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
-                        deprecationLogger.deprecatedAndMaybeLog("empty_templates", "empty templates should no longer be used");
+                        deprecationLogger.deprecate("empty_templates", "empty templates should no longer be used")
+                            .log();
                     } else {
-                        deprecationLogger.deprecatedAndMaybeLog("empty_scripts", "empty scripts should no longer be used");
+                        deprecationLogger.deprecate("empty_scripts", "empty scripts should no longer be used")
+                            .log();
                     }
                 } else {
                     throw new IllegalArgumentException("must specify source for stored script");
@@ -155,9 +157,11 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             } else if (source.isEmpty()) {
                 if (ignoreEmpty || Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
                     if (Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
-                        deprecationLogger.deprecatedAndMaybeLog("empty_templates", "empty templates should no longer be used");
+                        deprecationLogger.deprecate("empty_templates", "empty templates should no longer be used")
+                            .log();
                     } else {
-                        deprecationLogger.deprecatedAndMaybeLog("empty_scripts", "empty scripts should no longer be used");
+                        deprecationLogger.deprecate("empty_scripts", "empty scripts should no longer be used")
+                            .log();
                     }
                 } else {
                     throw new IllegalArgumentException("source cannot be empty");
@@ -257,7 +261,8 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             token = parser.nextToken();
 
             if (token == Token.END_OBJECT) {
-                deprecationLogger.deprecatedAndMaybeLog("empty_templates", "empty templates should no longer be used");
+                deprecationLogger.deprecate("empty_templates", "empty templates should no longer be used")
+                    .log();
 
                 return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, "", Collections.emptyMap());
             }

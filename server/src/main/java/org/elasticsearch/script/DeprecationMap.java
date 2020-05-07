@@ -67,7 +67,8 @@ public final class DeprecationMap implements Map<String, Object> {
     public Object get(final Object key) {
         String deprecationMessage = deprecations.get(key);
         if (deprecationMessage != null) {
-            deprecationLogger.deprecatedAndMaybeLog(logKeyPrefix + "_" + key, deprecationMessage);
+            deprecationLogger.deprecate(logKeyPrefix + "_" + key, deprecationMessage)
+                .log();
         }
         return delegate.get(key);
     }

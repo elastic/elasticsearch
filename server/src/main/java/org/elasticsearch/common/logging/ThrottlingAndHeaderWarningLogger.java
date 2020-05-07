@@ -40,6 +40,7 @@ public class ThrottlingAndHeaderWarningLogger {
     /**
      * Logs a message, adding a formatted warning message as a response header on the thread context.
      */
+    //TODO fix this
     @SuppressLoggerChecks(reason = "safely delegates to logger")
     public void logAndWarnOnHeader(String msg, Object... params) {
         HeaderWarningLogger.addWarning(msg, params);
@@ -55,6 +56,7 @@ public class ThrottlingAndHeaderWarningLogger {
      * @param msg    the message to log
      * @param params parameters to the message
      */
+    //TODO fix this
     @SuppressLoggerChecks(reason = "safely delegates to logger")
     public void throttleLogAndWarnOnHeader(final String key, final String msg, final Object... params) {
         HeaderWarningLogger.addWarning(msg, params);

@@ -57,7 +57,8 @@ public class DeprecationRestHandler implements RestHandler {
      */
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        deprecationLogger.deprecatedAndMaybeLog("deprecated_route", deprecationMessage);
+        deprecationLogger.deprecate("deprecated_route", deprecationMessage)
+            .log();
 
         handler.handleRequest(request, channel, client);
     }

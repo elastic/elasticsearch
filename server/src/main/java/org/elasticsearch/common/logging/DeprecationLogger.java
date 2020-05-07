@@ -60,29 +60,13 @@ public class DeprecationLogger {
     /**
      * Logs a deprecation message, adding a formatted warning message as a response header on the thread context.
      */
-    public void deprecated(String msg, Object... params) {
-        deprecationLogger.logAndWarnOnHeader(msg, params);
-    }
-
-    /**
-     * Adds a formatted warning message as a response header on the thread context, and logs a deprecation message if the associated key has
-     * not recently been seen.
-     *
-     * @param key    the key used to determine if this deprecation should be logged
-     * @param msg    the message to log
-     * @param params parameters to the message
-     */
-    public void deprecatedAndMaybeLog(final String key, final String msg, final Object... params) {
-        this.deprecate(key, msg, params)
-            .log();
-    }
-
+    //TODO fix logger usage check
     public DeprecationLoggerBuilder deprecate(final String key, final String msg, final Object... params) {
         return new DeprecationLoggerBuilder()
             .withDeprecation(key, msg, params);
     }
 
-    class DeprecationLoggerBuilder {
+    public class DeprecationLoggerBuilder {
 
         private String deprecationKey;
         private ESLogMessage deprecationMessage;

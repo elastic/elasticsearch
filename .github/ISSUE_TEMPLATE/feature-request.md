@@ -1,6 +1,7 @@
 ---
 name: Feature Request
 about: Request a new feature we haven't thought of
+labels: ">enhancement,needs:triage"
 
 ---
 <!--

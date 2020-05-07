@@ -2,6 +2,7 @@
 name: Bug
 about: "Report a confirmed bug. For unconfirmed bugs please
  visit https://discuss.elastic.co/c/elasticsearch"
+labels: ">bug,needs:triage"
 
 ---
 <!--

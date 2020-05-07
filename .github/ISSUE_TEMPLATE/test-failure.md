@@ -1,6 +1,7 @@
 ---
 name: Test Failure
 about: A test failure in CI
+labels: ">test-failure"
 
 ---
 

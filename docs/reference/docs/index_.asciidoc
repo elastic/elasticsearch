@@ -235,7 +235,7 @@ and a status code of 409. See <<optimistic-concurrency-control>> for more detail
 [[index-routing]]
 ===== Routing
 
-By default, shard placement ? or `routing` ? is controlled by using a
+By default, shard placement -- or `routing` -- is controlled by using a
 hash of the document's id value. For more explicit control, the value
 fed into the hash function used by the router can be directly specified
 on a per-operation basis using the `routing` parameter. For example:

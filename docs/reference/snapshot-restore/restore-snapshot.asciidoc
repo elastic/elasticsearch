@@ -39,13 +39,14 @@ using regular expression that supports referencing the original text as
 explained
 http://docs.oracle.com/javase/6/docs/api/java/util/regex/Matcher.html#appendReplacement(java.lang.StringBuffer,%20java.lang.String)[here].
 Set `include_aliases` to `false` to prevent aliases from being restored together
-with associated indices
+with associated indices.
 
 [source,console]
 -----------------------------------
 POST /_snapshot/my_backup/snapshot_1/_restore
 {
   "indices": "index_1,index_2",
+  "include_aliases": false,
   "ignore_unavailable": true,
   "include_global_state": true,
   "rename_pattern": "index_(.+)",

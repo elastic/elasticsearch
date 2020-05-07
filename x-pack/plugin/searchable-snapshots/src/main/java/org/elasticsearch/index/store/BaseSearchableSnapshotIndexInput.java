@@ -145,7 +145,8 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
 
             // Unit tests access the blob store on the main test thread; simplest just to permit this rather than have them override this
             // method somehow.
-            || threadName.startsWith("TEST-") : "current thread [" + Thread.currentThread() + "] may not read " + fileInfo;
+            || threadName.startsWith("TEST-")
+            || threadName.startsWith("LuceneTestCase") : "current thread [" + Thread.currentThread() + "] may not read " + fileInfo;
         return true;
     }
 

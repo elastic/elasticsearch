@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question
+    url: https://discuss.elastic.co/c/elasticsearch
+    about: Ask (and answer) questions here.
+  - name: Security Vulnerability
+    url: https://www.elastic.co/community/security
+    about: Send security vulnerability reports to security@elastic.co.

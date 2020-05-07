@@ -165,8 +165,7 @@ class PrecommitTasks {
             }
 
             SourceSet sourceSet = project.sourceSets.getByName(sourceSetName)
-            FileCollection runtime = sourceSet.runtimeClasspath
-            classpath = runtime.plus(sourceSet.compileClasspath)
+            classpath = project.files { sourceSet.runtimeClasspath.plus(sourceSet.compileClasspath) }
 
             targetCompatibility = BuildParams.runtimeJavaVersion.majorVersion
             if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_13) {

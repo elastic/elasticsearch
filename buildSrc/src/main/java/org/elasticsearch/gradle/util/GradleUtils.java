@@ -41,6 +41,7 @@ import org.gradle.api.tasks.testing.Test;
 import org.gradle.plugins.ide.eclipse.model.EclipseModel;
 import org.gradle.plugins.ide.idea.model.IdeaModel;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -170,7 +171,12 @@ public abstract class GradleUtils {
         });
         project.getPluginManager().withPlugin("eclipse", p -> {
             EclipseModel eclipse = project.getExtensions().getByType(EclipseModel.class);
-            eclipse.getClasspath().setSourceSets(List.of(testSourceSet));
+            List<SourceSet> eclipseSourceSets = new ArrayList<>();
+            for (SourceSet old : eclipse.getClasspath().getSourceSets()) {
+                eclipseSourceSets.add(old);
+            }
+            eclipseSourceSets.add(testSourceSet);
+            eclipse.getClasspath().setSourceSets(sourceSets);
             eclipse.getClasspath().getPlusConfigurations().add(runtimeClasspathConfiguration);
         });
 

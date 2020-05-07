@@ -103,7 +103,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                     PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
                     connection.addCloseListener(closeFuture);
                     connectionManager.disconnectFromNode(remoteNode);
-                    closeFuture.actionGet();
+                    closeFuture.get();
 
                     Client client = remoteClusterService.getRemoteClusterClient(threadPool, "test");
                     ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().execute().get();

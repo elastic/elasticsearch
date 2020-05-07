@@ -36,10 +36,13 @@ import java.util.stream.Stream;
  */
 public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
     private final List<Object> arguments = new ArrayList<>();
+    private String messagePattern;
 
     public ESLogMessage(String messagePattern, Object... args) {
         super(new LinkedHashMap<>());
         Collections.addAll(this.arguments, args);
+        this.messagePattern = messagePattern;
+
         Object message = new Object() {
             @Override
             public String toString() {
@@ -107,5 +110,13 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
         return "[" + stream
             .map(ESLogMessage::inQuotes)
             .collect(Collectors.joining(", ")) + "]";
+    }
+
+    public List<Object> getArguments() {
+        return arguments;
+    }
+
+    public String getMessagePattern() {
+        return messagePattern;
     }
 }

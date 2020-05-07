@@ -19,14 +19,15 @@
 
 package org.elasticsearch.common.logging;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 /**
  * A logger that logs deprecation notices.
  */
-public class DeprecationLogger   {
-    private final ThrottlingAndHeaderWarningLogger logger;
+public class DeprecationLogger {
+    private final ThrottlingAndHeaderWarningLogger deprecationLogger;
 
     /**
      * Creates a new deprecation logger based on the parent logger. Automatically
@@ -35,17 +36,17 @@ public class DeprecationLogger   {
      * the "org.elasticsearch" namespace.
      */
     public DeprecationLogger(Logger parentLogger) {
-        logger = new ThrottlingAndHeaderWarningLogger(deprecatedLoggerName(parentLogger));
+        deprecationLogger = new ThrottlingAndHeaderWarningLogger(deprecatedLoggerName(parentLogger));
     }
 
-    private static String deprecatedLoggerName(Logger parentLogger) {
+    private static Logger deprecatedLoggerName(Logger parentLogger) {
         String name = parentLogger.getName();
         if (name.startsWith("org.elasticsearch")) {
             name = name.replace("org.elasticsearch.", "org.elasticsearch.deprecation.");
         } else {
             name = "deprecation." + name;
         }
-        return name;
+        return LogManager.getLogger(name);
     }
 
     public static void setThreadContext(ThreadContext threadContext) {
@@ -60,7 +61,7 @@ public class DeprecationLogger   {
      * Logs a deprecation message, adding a formatted warning message as a response header on the thread context.
      */
     public void deprecated(String msg, Object... params) {
-        logger.logAndWarnOnHeader(msg,params);
+        deprecationLogger.logAndWarnOnHeader(msg, params);
     }
 
     /**
@@ -72,6 +73,29 @@ public class DeprecationLogger   {
      * @param params parameters to the message
      */
     public void deprecatedAndMaybeLog(final String key, final String msg, final Object... params) {
-        logger.throttleLogAndWarnOnHeader(key, msg, params);
+        this.deprecate(key, msg, params)
+            .log();
+    }
+
+    public DeprecationLoggerBuilder deprecate(final String key, final String msg, final Object... params) {
+        return new DeprecationLoggerBuilder()
+            .withDeprecation(key, msg, params);
+    }
+
+    class DeprecationLoggerBuilder {
+
+        private String deprecationKey;
+        private ESLogMessage deprecationMessage;
+
+        public DeprecationLoggerBuilder withDeprecation(String key, String msg, Object[] params) {
+            this.deprecationKey = key;
+            String opaqueId = HeaderWarningLogger.getXOpaqueId();
+            this.deprecationMessage = DeprecatedMessage.of(opaqueId, msg, params);
+            return this;
+        }
+
+        public void log() {
+            deprecationLogger.throttleLogAndWarnOnHeader(deprecationKey, deprecationMessage);
+        }
     }
 }

@@ -20,9 +20,8 @@
 package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.Message;
 import org.elasticsearch.common.SuppressLoggerChecks;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.tasks.Task;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -30,18 +29,20 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+
 /**
- *TODO wrapping logging this way limits the usage of %location. It will think this is used from that class.
- *
+ * TODO wrapping logging this way limits the usage of %location. It will think this is used from that class.
+ * <p>
  * This is a wrapper around a logger that allows to throttle log messages.
  * In order to throttle a key has to be used and throttling happens per each key combined with X-Opaque-Id.
  * X-Opaque-Id allows throttling per user. This value is set in ThreadContext from X-Opaque-Id HTTP header.
- *
+ * <p>
  * The throttling algorithm is relying on LRU set of keys which evicts entries when its size is &gt; 128.
  * When a log with a key is emitted, it won't be logged again until the set reaches size 128 and the key is removed from the set.
+ *
  * @see HeaderWarningLogger
  */
-public class ThrottlingLogger {
+class ThrottlingLogger {
 
     // LRU set of keys used to determine if a message should be emitted to the logs
     private final Set<String> keys = Collections.newSetFromMap(Collections.synchronizedMap(new LinkedHashMap<String, Boolean>() {
@@ -53,44 +54,26 @@ public class ThrottlingLogger {
 
     private final Logger logger;
 
-
-    public ThrottlingLogger(Logger logger) {
+    ThrottlingLogger(Logger logger) {
         this.logger = logger;
     }
 
-    public void log(String message, Object... params) {
-        log(true, message, params);
-    }
-
-    public void throttleLog(String key, String message, Object[] params) {
-        String xOpaqueId = getXOpaqueId(HeaderWarningLogger.THREAD_CONTEXT);
+    void throttleLog(String key, Message message) {
+        String xOpaqueId = HeaderWarningLogger.getXOpaqueId();
         boolean shouldLog = keys.add(xOpaqueId + key);
-        log(shouldLog, message, params);
-    }
-
-    private void log(boolean shouldLog, String message, Object... params) {
         if (shouldLog) {
-            AccessController.doPrivileged(new PrivilegedAction<Void>() {
-                @SuppressLoggerChecks(reason = "safely delegates to logger")
-                @Override
-                public Void run() {
-                    /**
-                     * There should be only one threadContext (in prod env), @see DeprecationLogger#setThreadContext
-                     */
-                    String opaqueId = getXOpaqueId(HeaderWarningLogger.THREAD_CONTEXT);
-
-                    logger.warn(DeprecatedMessage.of(opaqueId, message, params));
-                    return null;
-                }
-            });
+            log(message);
         }
     }
 
-    private String getXOpaqueId(Set<ThreadContext> threadContexts) {
-        return threadContexts.stream()
-            .filter(t -> t.getHeader(Task.X_OPAQUE_ID) != null)
-            .findFirst()
-            .map(t -> t.getHeader(Task.X_OPAQUE_ID))
-            .orElse("");
+    void log(Message message) {
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            @SuppressLoggerChecks(reason = "safely delegates to logger")
+            @Override
+            public Void run() {
+                logger.warn(message);
+                return null;
+            }
+        });
     }
 }

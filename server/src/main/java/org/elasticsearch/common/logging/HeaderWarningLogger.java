@@ -22,6 +22,7 @@ package org.elasticsearch.common.logging;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.tasks.Task;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -312,11 +313,19 @@ public class HeaderWarningLogger {
         }
     }
 
-    public void log(String msg, Object... params) {
-        addWarningToHeaders(THREAD_CONTEXT, msg, params);
+    public static String getXOpaqueId() {
+        return THREAD_CONTEXT.stream()
+            .filter(t -> t.getHeader(Task.X_OPAQUE_ID) != null)
+            .findFirst()
+            .map(t -> t.getHeader(Task.X_OPAQUE_ID))
+            .orElse("");
     }
 
-    public static void addWarningToHeaders(Set<ThreadContext> threadContexts, String message, Object... params) {
+    public static void addWarning(String message, Object... params) {
+        addWarning(THREAD_CONTEXT, message, params);
+    }
+
+    public static void addWarning(Set<ThreadContext> threadContexts, String message, Object... params) {
         final Iterator<ThreadContext> iterator = threadContexts.iterator();
         if (iterator.hasNext()) {
             final String formattedMessage = LoggerMessageFormat.format(message, params);

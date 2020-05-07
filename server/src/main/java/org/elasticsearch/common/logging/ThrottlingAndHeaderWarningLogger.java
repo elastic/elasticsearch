@@ -20,6 +20,10 @@
 package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.Message;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.common.SuppressLoggerChecks;
 
 /**
  * This class wraps both <code>HeaderWarningLogger</code> and <code>ThrottlingLogger</code>
@@ -29,16 +33,18 @@ public class ThrottlingAndHeaderWarningLogger {
     private final HeaderWarningLogger headerWarningLogger = new HeaderWarningLogger();
     private final ThrottlingLogger throttlingLogger;
 
-    public ThrottlingAndHeaderWarningLogger(String loggerName) {
+    public ThrottlingAndHeaderWarningLogger(Logger loggerName) {
         this.throttlingLogger = new ThrottlingLogger(LogManager.getLogger(loggerName));
     }
 
     /**
      * Logs a message, adding a formatted warning message as a response header on the thread context.
      */
+    @SuppressLoggerChecks(reason = "safely delegates to logger")
     public void logAndWarnOnHeader(String msg, Object... params) {
-        headerWarningLogger.log(msg, params);
-        throttlingLogger.log(msg, params);
+        HeaderWarningLogger.addWarning(msg, params);
+        Message message = new ParameterizedMessage(msg, params);
+        throttlingLogger.log(message);
     }
 
     /**
@@ -49,8 +55,16 @@ public class ThrottlingAndHeaderWarningLogger {
      * @param msg    the message to log
      * @param params parameters to the message
      */
+    @SuppressLoggerChecks(reason = "safely delegates to logger")
     public void throttleLogAndWarnOnHeader(final String key, final String msg, final Object... params) {
-        headerWarningLogger.log(msg, params);
-        throttlingLogger.throttleLog(key, msg, params);
+        HeaderWarningLogger.addWarning(msg, params);
+        ESLogMessage message = new ESLogMessage(msg, params);
+        throttlingLogger.throttleLog(key, message);
     }
+
+    public void throttleLogAndWarnOnHeader(final String key, ESLogMessage message) {
+        HeaderWarningLogger.addWarning(message.getMessagePattern(), message.getArguments());
+        throttlingLogger.throttleLog(key, message);
+    }
+
 }

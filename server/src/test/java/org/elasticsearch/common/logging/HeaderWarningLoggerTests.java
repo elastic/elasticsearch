@@ -61,7 +61,7 @@ public class HeaderWarningLoggerTests extends ESTestCase {
         final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
 
         final String param = randomAlphaOfLengthBetween(1, 5);
-        HeaderWarningLogger.addWarningToHeaders(threadContexts, "A simple message [{}]", param);
+        HeaderWarningLogger.addWarning(threadContexts, "A simple message [{}]", param);
 
         final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
 
@@ -76,7 +76,7 @@ public class HeaderWarningLoggerTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
 
-        HeaderWarningLogger.addWarningToHeaders(threadContexts, "this message contains a newline\n");
+        HeaderWarningLogger.addWarning(threadContexts, "this message contains a newline\n");
 
         final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
 
@@ -91,7 +91,7 @@ public class HeaderWarningLoggerTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
 
-        HeaderWarningLogger.addWarningToHeaders(threadContexts, "this message contains a surrogate pair 😱");
+        HeaderWarningLogger.addWarning(threadContexts, "this message contains a surrogate pair 😱");
 
         final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
 
@@ -123,9 +123,9 @@ public class HeaderWarningLoggerTests extends ESTestCase {
         final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
 
         final String param = randomAlphaOfLengthBetween(1, 5);
-        HeaderWarningLogger.addWarningToHeaders(threadContexts, "A simple message [{}]", param);
+        HeaderWarningLogger.addWarning(threadContexts, "A simple message [{}]", param);
         final String second = randomAlphaOfLengthBetween(1, 10);
-        HeaderWarningLogger.addWarningToHeaders(threadContexts, second);
+        HeaderWarningLogger.addWarning(threadContexts, second);
 
         final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
 
@@ -146,7 +146,8 @@ public class HeaderWarningLoggerTests extends ESTestCase {
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         HeaderWarningLogger.setThreadContext(threadContext);
-        logger.log(/*"testCanRemoveThreadContext_key1",*/ expected);
+        /*"testCanRemoveThreadContext_key1",*/
+        HeaderWarningLogger.addWarning(HeaderWarningLogger.THREAD_CONTEXT, expected);
 
         {
             final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
@@ -158,7 +159,8 @@ public class HeaderWarningLoggerTests extends ESTestCase {
         }
 
         HeaderWarningLogger.removeThreadContext(threadContext);
-        logger.log(/*"testCanRemoveThreadContext_key2", */unexpected);
+        /*"testCanRemoveThreadContext_key2", */
+        HeaderWarningLogger.addWarning(HeaderWarningLogger.THREAD_CONTEXT, unexpected);
 
         {
             final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
@@ -172,12 +174,12 @@ public class HeaderWarningLoggerTests extends ESTestCase {
     }
 
     public void testSafeWithoutThreadContext() {
-        HeaderWarningLogger.addWarningToHeaders(Collections.emptySet(), "Ignored");
+        HeaderWarningLogger.addWarning(Collections.emptySet(), "Ignored");
     }
 
     public void testFailsWithoutThreadContextSet() {
         expectThrows(NullPointerException.class,
-            () -> HeaderWarningLogger.addWarningToHeaders((Set<ThreadContext>)null, "Does not explode"));
+            () -> HeaderWarningLogger.addWarning((Set<ThreadContext>)null, "Does not explode"));
     }
 
     public void testFailsWhenDoubleSettingSameThreadContext() throws IOException {
@@ -245,9 +247,9 @@ public class HeaderWarningLoggerTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(settings);
         final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
         // try to log three warning messages
-        HeaderWarningLogger.addWarningToHeaders(threadContexts, "A simple message 1");
-        HeaderWarningLogger.addWarningToHeaders(threadContexts, "A simple message 2");
-        HeaderWarningLogger.addWarningToHeaders(threadContexts, "A simple message 3");
+        HeaderWarningLogger.addWarning(threadContexts, "A simple message 1");
+        HeaderWarningLogger.addWarning(threadContexts, "A simple message 2");
+        HeaderWarningLogger.addWarning(threadContexts, "A simple message 3");
         final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         final List<String> responses = responseHeaders.get("Warning");
 
@@ -272,9 +274,9 @@ public class HeaderWarningLoggerTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(settings);
         final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
         // try to log three warning messages
-        HeaderWarningLogger.addWarningToHeaders(threadContexts, message1);
-        HeaderWarningLogger.addWarningToHeaders(threadContexts, message2);
-        HeaderWarningLogger.addWarningToHeaders(threadContexts, message3);
+        HeaderWarningLogger.addWarning(threadContexts, message1);
+        HeaderWarningLogger.addWarning(threadContexts, message2);
+        HeaderWarningLogger.addWarning(threadContexts, message3);
         final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         final List<String> responses = responseHeaders.get("Warning");
 

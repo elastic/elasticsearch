@@ -78,8 +78,7 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 public class MetadataIndexTemplateService {
 
     private static final Logger logger = LogManager.getLogger(MetadataIndexTemplateService.class);
-//    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-    private static final ThrottlingAndHeaderWarningLogger deprecationLogger = new ThrottlingAndHeaderWarningLogger(logger.getName());
+    private static final ThrottlingAndHeaderWarningLogger deprecationLogger = new ThrottlingAndHeaderWarningLogger(logger);
     private final ClusterService clusterService;
     private final AliasValidator aliasValidator;
     private final IndicesService indicesService;

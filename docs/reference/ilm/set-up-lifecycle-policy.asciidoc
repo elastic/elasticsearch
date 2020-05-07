@@ -12,6 +12,19 @@ you create the policy and add it to the index template.
 To use a policy to manage an index that doesn't roll over,
 you can specify the policy directly when you create it.
 
+IMPORTANT: When you enable {ilm} for {beats} or the {ls} {es} output plugin, 
+the necessary policies and configuration changes are applied automatically. 
+You can modify the default policies, but do not need to explicitly configure a policy or
+bootstrap an initial index.
+
+https://www.elastic.co/guide/en/elasticsearch/reference/current/set-up-lifecycle-policy.html 
+ its 2 subpages to tell users that Logstash and Beats will take care of setting up the policy for the appropriate indices. 
+ In other words, the 2 steps (and related subpages) specified under the "set the policy for an index" paragraph do not apply when using ILM with Logstash and Beats. And also link to these relevant pages as part of the notice:
+
+https://www.elastic.co/guide/en/logstash/current/plugins-outputs-elasticsearch.html#plugins-outputs-elasticsearch-ilm
+
+https://www.elastic.co/guide/en/beats/filebeat/current/ilm.html
+
 [discrete]
 [[ilm-create-policy]]
 === Create lifecycle policy

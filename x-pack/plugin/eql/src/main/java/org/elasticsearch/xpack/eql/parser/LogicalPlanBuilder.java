@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.eql.parser;
 
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.eql.parser.EqlBaseParser.EventFilterContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.IntegerLiteralContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.JoinContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.JoinTermContext;
@@ -57,6 +58,11 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitEventQuery(EqlBaseParser.EventQueryContext ctx) {
+        return new Project(source(ctx), visitEventFilter(ctx.eventFilter()), emptyList());
+    }
+
+    @Override
+    public LogicalPlan visitEventFilter(EventFilterContext ctx) {
         Source source = source(ctx);
         Expression condition = expression(ctx.expression());
 
@@ -121,7 +127,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
     public KeyedFilter visitJoinTerm(JoinTermContext ctx, List<Attribute> joinKeys) {
         List<Attribute> keys = CollectionUtils.combine(joinKeys, visitJoinKeys(ctx.by));
-        LogicalPlan eventQuery = visitEventQuery(ctx.subquery().eventQuery());
+        LogicalPlan eventQuery = visitEventFilter(ctx.subquery().eventFilter());
         LogicalPlan child = new Project(source(ctx), eventQuery, CollectionUtils.combine(keys, fieldTimestamp()));
         return new KeyedFilter(source(ctx), child, keys, fieldTimestamp());
     }
@@ -178,7 +184,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         List<Attribute> keys = CollectionUtils.combine(joinKeys, visitJoinKeys(ctx.by));
-        LogicalPlan eventQuery = visitEventQuery(ctx.subquery().eventQuery());
+        LogicalPlan eventQuery = visitEventFilter(ctx.subquery().eventFilter());
         LogicalPlan child = new Project(source(ctx), eventQuery, CollectionUtils.combine(keys, fieldTimestamp()));
         return new KeyedFilter(source(ctx), child, keys, fieldTimestamp());
     }

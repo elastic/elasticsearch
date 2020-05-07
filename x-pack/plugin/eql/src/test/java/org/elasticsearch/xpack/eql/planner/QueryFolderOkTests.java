@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.hamcrest.Matchers.containsString;
 
 public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
@@ -35,8 +34,7 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
         PhysicalPlan p = plan(query);
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
-        assertEquals(27, eqe.output().size());
-        assertEquals(KEYWORD, eqe.output().get(0).dataType());
+        assertEquals(0, eqe.output().size());
 
         final String query = eqe.queryContainer().toString().replaceAll("\\s+", "");
 

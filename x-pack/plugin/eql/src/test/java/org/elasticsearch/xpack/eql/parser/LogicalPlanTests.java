@@ -21,12 +21,14 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.type.DateUtils.UTC;
 
@@ -44,7 +46,8 @@ public class LogicalPlanTests extends ESTestCase {
 
         LogicalPlan filter = new Filter(Source.EMPTY, new UnresolvedRelation(Source.EMPTY, null, "", false, ""), fullExpression);
         Order order = new Order(Source.EMPTY, new UnresolvedAttribute(Source.EMPTY, "@timestamp"), OrderDirection.ASC, NullsPosition.FIRST);
-        LogicalPlan expected = new OrderBy(Source.EMPTY, filter, singletonList(order));
+        LogicalPlan sorted = new OrderBy(Source.EMPTY, filter, singletonList(order));
+        LogicalPlan expected = new Project(Source.EMPTY, sorted, emptyList());
         assertEquals(expected, fullQuery);
     }
 
@@ -54,7 +57,8 @@ public class LogicalPlanTests extends ESTestCase {
 
         LogicalPlan filter = new Filter(Source.EMPTY, new UnresolvedRelation(Source.EMPTY, null, "", false, ""), fullExpression);
         Order order = new Order(Source.EMPTY, new UnresolvedAttribute(Source.EMPTY, "@timestamp"), OrderDirection.ASC, NullsPosition.FIRST);
-        LogicalPlan expected = new OrderBy(Source.EMPTY, filter, singletonList(order));
+        LogicalPlan sorted = new OrderBy(Source.EMPTY, filter, singletonList(order));
+        LogicalPlan expected = new Project(Source.EMPTY, sorted, emptyList());
         assertEquals(expected, fullQuery);
     }
 
@@ -65,7 +69,8 @@ public class LogicalPlanTests extends ESTestCase {
 
         LogicalPlan filter = new Filter(Source.EMPTY, new UnresolvedRelation(Source.EMPTY, null, "", false, ""), fullExpression);
         Order order = new Order(Source.EMPTY, new UnresolvedAttribute(Source.EMPTY, "@timestamp"), OrderDirection.ASC, NullsPosition.FIRST);
-        LogicalPlan expected = new OrderBy(Source.EMPTY, filter, singletonList(order));
+        LogicalPlan sorted = new OrderBy(Source.EMPTY, filter, singletonList(order));
+        LogicalPlan expected = new Project(Source.EMPTY, sorted, emptyList());
         assertEquals(expected, fullQuery);
     }
     

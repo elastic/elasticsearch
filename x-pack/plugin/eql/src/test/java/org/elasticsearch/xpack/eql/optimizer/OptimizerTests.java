@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 
@@ -64,6 +65,8 @@ public class OptimizerTests extends ESTestCase {
 
         for (String q : tests) {
             LogicalPlan plan = accept(q);
+            assertTrue(plan instanceof Project);
+            plan = ((Project) plan).child();
             assertTrue(plan instanceof OrderBy);
             plan = ((OrderBy) plan).child();
             assertTrue(plan instanceof Filter);
@@ -84,6 +87,8 @@ public class OptimizerTests extends ESTestCase {
 
         for (String q : tests) {
             LogicalPlan plan = accept(q);
+            assertTrue(plan instanceof Project);
+            plan = ((Project) plan).child();
             assertTrue(plan instanceof OrderBy);
             plan = ((OrderBy) plan).child();
             assertTrue(plan instanceof Filter);
@@ -105,6 +110,8 @@ public class OptimizerTests extends ESTestCase {
 
         for (String q : tests) {
             LogicalPlan plan = accept(q);
+            assertTrue(plan instanceof Project);
+            plan = ((Project) plan).child();
             assertTrue(plan instanceof OrderBy);
             plan = ((OrderBy) plan).child();
             assertTrue(plan instanceof Filter);
@@ -128,8 +135,9 @@ public class OptimizerTests extends ESTestCase {
         );
 
         for (String q : tests) {
-
             LogicalPlan plan = accept(q);
+            assertTrue(plan instanceof Project);
+            plan = ((Project) plan).child();
             assertTrue(plan instanceof OrderBy);
             plan = ((OrderBy) plan).child();
             assertTrue(plan instanceof Filter);
@@ -149,6 +157,8 @@ public class OptimizerTests extends ESTestCase {
 
     public void testWildcardEscapes() {
         LogicalPlan plan = accept("foo where command_line == '* %bar_ * \\\\ \\n \\r \\t'");
+        assertTrue(plan instanceof Project);
+        plan = ((Project) plan).child();
         assertTrue(plan instanceof OrderBy);
         plan = ((OrderBy) plan).child();
         assertTrue(plan instanceof Filter);

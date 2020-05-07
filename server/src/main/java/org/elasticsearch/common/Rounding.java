@@ -835,6 +835,15 @@ public abstract class Rounding implements Writeable {
             }
         }
 
+        /**
+         * Rounds to down inside of a time zone with an "effectively fixed"
+         * time zone. A time zone can be "effectively fixed" if:
+         * <ul>
+         * <li>It is UTC</li>
+         * <li>It is a fixed offset from UTC at all times (UTC-5, America/Phoenix)</li>
+         * <li>It is fixed over the entire range of dates that will be rounded</li>
+         * </ul>
+         */
         private class FixedRounding implements Prepared {
             private final LocalTimeOffset offset;
 
@@ -854,6 +863,11 @@ public abstract class Rounding implements Writeable {
             }
         }
 
+        /**
+         * Rounds down inside of any time zone, even if it is not
+         * "effectively fixed". See {@link FixedRounding} for a description of
+         * "effectively fixed".
+         */
         private class VariableRounding implements Prepared, LocalTimeOffset.Strategy {
             private final LocalTimeOffset.Lookup lookup;
 
@@ -895,7 +909,20 @@ public abstract class Rounding implements Writeable {
             }
         }
 
-
+        /**
+         * Rounds down inside of any time zone using {@link LocalDateTime}
+         * directly. It'll be slower than {@link VariableRounding} and much
+         * slower than {@link FixedRounding}. We use it when we don' have an
+         * "effectively fixed" time zone and we can't get a
+         * {@link LocalTimeOffset.Lookup}. We might not be able to get one
+         * because:
+         * <ul>
+         * <li>We don't know how to look up the minimum and maximum dates we
+         * are going to round.</li>
+         * <li>We expect to round over thousands and thousands of years worth
+         * of dates with the same {@link Prepared} instance.</li>
+         * </ul>
+         */
         private class JavaTimeRounding implements Prepared {
             @Override
             public long round(long utcMillis) {

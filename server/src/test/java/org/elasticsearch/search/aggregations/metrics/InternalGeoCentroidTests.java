@@ -73,9 +73,7 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
     public void testReduceMaxCount() {
         InternalGeoCentroid maxValueGeoCentroid = new InternalGeoCentroid("agg", new GeoPoint(10, 0),
             Long.MAX_VALUE, Collections.emptyMap());
-        InternalGeoCentroid reducingGeoCentroid = new InternalGeoCentroid("agg", new GeoPoint(10, 0),
-            randomNonNegativeLong(), Collections.emptyMap());
-        InternalGeoCentroid reducedGeoCentroid = reducingGeoCentroid
+        InternalGeoCentroid reducedGeoCentroid =maxValueGeoCentroid
             .reduce(Collections.singletonList(maxValueGeoCentroid), null);
         assertThat(reducedGeoCentroid.count(), equalTo(Long.MAX_VALUE));
     }

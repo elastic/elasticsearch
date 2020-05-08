@@ -1,5 +1,6 @@
 package org.elasticsearch.gradle.info;
 
+import org.elasticsearch.gradle.BwcVersions;
 import org.gradle.api.JavaVersion;
 
 import java.io.File;
@@ -30,6 +31,7 @@ public class BuildParams {
     private static Boolean isInternal;
     private static Integer defaultParallel;
     private static Boolean isSnapshotBuild;
+    private static BwcVersions bwcVersions;
 
     /**
      * Initialize global build parameters. This method accepts and a initialization function which in turn accepts a
@@ -93,6 +95,10 @@ public class BuildParams {
 
     public static ZonedDateTime getBuildDate() {
         return value(buildDate);
+    }
+
+    public static BwcVersions getBwcVersions() {
+        return value(bwcVersions);
     }
 
     public static String getTestSeed() {
@@ -228,5 +234,8 @@ public class BuildParams {
             BuildParams.isSnapshotBuild = isSnapshotBuild;
         }
 
+        public void setBwcVersions(BwcVersions bwcVersions) {
+            BuildParams.bwcVersions = requireNonNull(bwcVersions);
+        }
     }
 }

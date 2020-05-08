@@ -86,7 +86,8 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
         if (enabled == false) {
-            MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(licenseState.isMachineLearningAllowed(), enabled,
+            MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(
+                licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING), enabled,
                 Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), 0);
             listener.onResponse(new XPackUsageFeatureResponse(usage));
             return;
@@ -102,7 +103,8 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         ActionListener<SearchResponse> trainedModelConfigCountListener = ActionListener.wrap(
             response -> {
                 addTrainedModelStats(response, inferenceUsage);
-                MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(licenseState.isMachineLearningAllowed(),
+                MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(
+                    licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING),
                     enabled, jobsUsage, datafeedsUsage, analyticsUsage, inferenceUsage, nodeCount);
                 listener.onResponse(new XPackUsageFeatureResponse(usage));
             },

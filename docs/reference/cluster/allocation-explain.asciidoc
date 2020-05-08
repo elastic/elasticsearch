@@ -239,7 +239,7 @@ allocation:
         {
           "decider" : "same_shard",
           "decision" : "NO",
-          "explanation" : "the shard cannot be allocated to the same node on which a copy of the shard already exists [[my_index][0], node[3sULLVJrRneSg0EfBB-2Ew], [P], s[STARTED], a[id=eV9P8BN1QPqRc3B4PLx6cg]]"
+          "explanation" : "a copy of this shard is already allocated to this node [[my_index][0], node[3sULLVJrRneSg0EfBB-2Ew], [P], s[STARTED], a[id=eV9P8BN1QPqRc3B4PLx6cg]]"
         }
       ]
     }

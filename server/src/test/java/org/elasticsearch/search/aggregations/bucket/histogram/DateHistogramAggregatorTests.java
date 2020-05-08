@@ -23,6 +23,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
@@ -49,8 +50,17 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DateHistogramAggregatorTests extends AggregatorTestCase {
 
-    private static final String DATE_FIELD = "date";
-    private static final String INSTANT_FIELD = "instant";
+    /**
+     * A date that is always "aggregable" because it has doc values but may or
+     * may not have a search index. If it doesn't then we can't use our fancy
+     * date rounding mechanism that needs to know the minimum and maximum dates
+     * it is going to round because it ready *that* out of the search index.
+     */
+    private static final String AGGREGABLE_DATE = "aggregable_date";
+    /**
+     * A date that is always "searchable" because it is indexed.
+     */
+    private static final String SEARCHABLE_DATE = "searchable_date";
 
     private static final List<String> dataset = Arrays.asList(
             "2010-03-12T01:07:45",
@@ -66,7 +76,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
 
     public void testMatchNoDocsDeprecatedInterval() throws IOException {
         testBothCases(new MatchNoDocsQuery(), dataset,
-                aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.YEAR).field(DATE_FIELD),
+                aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.YEAR).field(AGGREGABLE_DATE),
                 histogram -> {
                     assertEquals(0, histogram.getBuckets().size());
                     assertFalse(AggregationInspectionHelper.hasValue(histogram));
@@ -77,11 +87,11 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
 
     public void testMatchNoDocs() throws IOException {
         testBothCases(new MatchNoDocsQuery(), dataset,
-            aggregation -> aggregation.calendarInterval(DateHistogramInterval.YEAR).field(DATE_FIELD),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.YEAR).field(AGGREGABLE_DATE),
             histogram -> assertEquals(0, histogram.getBuckets().size()), false
         );
         testBothCases(new MatchNoDocsQuery(), dataset,
-            aggregation -> aggregation.fixedInterval(new DateHistogramInterval("365d")).field(DATE_FIELD),
+            aggregation -> aggregation.fixedInterval(new DateHistogramInterval("365d")).field(AGGREGABLE_DATE),
             histogram -> assertEquals(0, histogram.getBuckets().size()), false
         );
     }
@@ -90,21 +100,21 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
         Query query = new MatchAllDocsQuery();
 
         testSearchCase(query, dataset,
-                aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.YEAR).field(DATE_FIELD),
+                aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.YEAR).field(AGGREGABLE_DATE),
                 histogram -> {
                     assertEquals(6, histogram.getBuckets().size());
                     assertTrue(AggregationInspectionHelper.hasValue(histogram));
                 }, false
         );
         testSearchAndReduceCase(query, dataset,
-                aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.YEAR).field(DATE_FIELD),
+                aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.YEAR).field(AGGREGABLE_DATE),
                 histogram -> {
                     assertEquals(8, histogram.getBuckets().size());
                     assertTrue(AggregationInspectionHelper.hasValue(histogram));
                 }, false
         );
         testBothCases(query, dataset,
-                aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.YEAR).field(DATE_FIELD).minDocCount(1L),
+                aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.YEAR).field(AGGREGABLE_DATE).minDocCount(1L),
                 histogram -> {
                     assertEquals(6, histogram.getBuckets().size());
                     assertTrue(AggregationInspectionHelper.hasValue(histogram));
@@ -121,33 +131,34 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
             foo.add(dataset.get(randomIntBetween(0, dataset.size()-1)));
         }
         testSearchAndReduceCase(query, foo,
-            aggregation -> aggregation.fixedInterval(new DateHistogramInterval("365d")).field(DATE_FIELD).order(BucketOrder.count(false)),
+            aggregation -> aggregation.fixedInterval(new DateHistogramInterval("365d"))
+                    .field(AGGREGABLE_DATE).order(BucketOrder.count(false)),
             histogram -> assertEquals(8, histogram.getBuckets().size()), false
         );
 
         testSearchCase(query, dataset,
-            aggregation -> aggregation.calendarInterval(DateHistogramInterval.YEAR).field(DATE_FIELD),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.YEAR).field(AGGREGABLE_DATE),
             histogram -> assertEquals(6, histogram.getBuckets().size()), false
         );
         testSearchAndReduceCase(query, dataset,
-            aggregation -> aggregation.calendarInterval(DateHistogramInterval.YEAR).field(DATE_FIELD),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.YEAR).field(AGGREGABLE_DATE),
             histogram -> assertEquals(8, histogram.getBuckets().size()), false
         );
         testBothCases(query, dataset,
-            aggregation -> aggregation.calendarInterval(DateHistogramInterval.YEAR).field(DATE_FIELD).minDocCount(1L),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.YEAR).field(AGGREGABLE_DATE).minDocCount(1L),
             histogram -> assertEquals(6, histogram.getBuckets().size()), false
         );
 
         testSearchCase(query, dataset,
-            aggregation -> aggregation.fixedInterval(new DateHistogramInterval("365d")).field(DATE_FIELD),
+            aggregation -> aggregation.fixedInterval(new DateHistogramInterval("365d")).field(AGGREGABLE_DATE),
             histogram -> assertEquals(6, histogram.getBuckets().size()), false
         );
         testSearchAndReduceCase(query, dataset,
-            aggregation -> aggregation.fixedInterval(new DateHistogramInterval("365d")).field(DATE_FIELD),
+            aggregation -> aggregation.fixedInterval(new DateHistogramInterval("365d")).field(AGGREGABLE_DATE),
             histogram -> assertEquals(8, histogram.getBuckets().size()), false
         );
         testBothCases(query, dataset,
-            aggregation -> aggregation.fixedInterval(new DateHistogramInterval("365d")).field(DATE_FIELD).minDocCount(1L),
+            aggregation -> aggregation.fixedInterval(new DateHistogramInterval("365d")).field(AGGREGABLE_DATE).minDocCount(1L),
             histogram -> assertEquals(6, histogram.getBuckets().size()), false
         );
     }
@@ -155,18 +166,17 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
     public void testNoDocsDeprecatedInterval() throws IOException {
         Query query = new MatchNoDocsQuery();
         List<String> dates = Collections.emptyList();
-        Consumer<DateHistogramAggregationBuilder> aggregation = agg ->
-                agg.dateHistogramInterval(DateHistogramInterval.YEAR).field(DATE_FIELD);
+        Consumer<DateHistogramAggregationBuilder> aggregation =
+            agg -> agg.dateHistogramInterval(DateHistogramInterval.YEAR).field(AGGREGABLE_DATE);
 
-        testSearchCase(query, dates, aggregation,
-                histogram -> {
-                    assertEquals(0, histogram.getBuckets().size());
-                    assertFalse(AggregationInspectionHelper.hasValue(histogram));
-                }, false
-        );
-        testSearchAndReduceCase(query, dates, aggregation,
-                histogram -> assertNull(histogram), false
-        );
+        testSearchCase(query, dates, aggregation, histogram -> {
+            assertEquals(0, histogram.getBuckets().size());
+            assertFalse(AggregationInspectionHelper.hasValue(histogram));
+        }, false);
+        testSearchAndReduceCase(query, dates, aggregation, histogram -> {
+            assertEquals(0, histogram.getBuckets().size());
+            assertFalse(AggregationInspectionHelper.hasValue(histogram));
+        }, false);
         assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
@@ -174,21 +184,21 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
         Query query = new MatchNoDocsQuery();
         List<String> dates = Collections.emptyList();
         Consumer<DateHistogramAggregationBuilder> aggregation = agg ->
-            agg.calendarInterval(DateHistogramInterval.YEAR).field(DATE_FIELD);
+            agg.calendarInterval(DateHistogramInterval.YEAR).field(AGGREGABLE_DATE);
         testSearchCase(query, dates, aggregation,
             histogram -> assertEquals(0, histogram.getBuckets().size()), false
         );
         testSearchAndReduceCase(query, dates, aggregation,
-            histogram -> assertNull(histogram), false
+            histogram -> assertEquals(0, histogram.getBuckets().size()), false
         );
 
         aggregation = agg ->
-            agg.fixedInterval(new DateHistogramInterval("365d")).field(DATE_FIELD);
+            agg.fixedInterval(new DateHistogramInterval("365d")).field(AGGREGABLE_DATE);
         testSearchCase(query, dates, aggregation,
             histogram -> assertEquals(0, histogram.getBuckets().size()), false
         );
         testSearchAndReduceCase(query, dates, aggregation,
-            histogram -> assertNull(histogram), false
+            histogram -> assertEquals(0, histogram.getBuckets().size()), false
         );
     }
 
@@ -215,8 +225,8 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testIntervalYearDeprecated() throws IOException {
-        testBothCases(LongPoint.newRangeQuery(INSTANT_FIELD, asLong("2015-01-01"), asLong("2017-12-31")), dataset,
-                aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.YEAR).field(DATE_FIELD),
+        testBothCases(LongPoint.newRangeQuery(SEARCHABLE_DATE, asLong("2015-01-01"), asLong("2017-12-31")), dataset,
+                aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.YEAR).field(AGGREGABLE_DATE),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                     assertEquals(3, buckets.size());
@@ -238,8 +248,8 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testIntervalYear() throws IOException {
-        testBothCases(LongPoint.newRangeQuery(INSTANT_FIELD, asLong("2015-01-01"), asLong("2017-12-31")), dataset,
-            aggregation -> aggregation.calendarInterval(DateHistogramInterval.YEAR).field(DATE_FIELD),
+        testBothCases(LongPoint.newRangeQuery(SEARCHABLE_DATE, asLong("2015-01-01"), asLong("2017-12-31")), dataset,
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.YEAR).field(AGGREGABLE_DATE),
             histogram -> {
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(3, buckets.size());
@@ -262,7 +272,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
     public void testIntervalMonthDeprecated() throws IOException {
         testBothCases(new MatchAllDocsQuery(),
                 Arrays.asList("2017-01-01", "2017-02-02", "2017-02-03", "2017-03-04", "2017-03-05", "2017-03-06"),
-                aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.MONTH).field(DATE_FIELD),
+                aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.MONTH).field(AGGREGABLE_DATE),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                     assertEquals(3, buckets.size());
@@ -286,7 +296,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
     public void testIntervalMonth() throws IOException {
         testBothCases(new MatchAllDocsQuery(),
             Arrays.asList("2017-01-01", "2017-02-02", "2017-02-03", "2017-03-04", "2017-03-05", "2017-03-06"),
-            aggregation -> aggregation.calendarInterval(DateHistogramInterval.MONTH).field(DATE_FIELD),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.MONTH).field(AGGREGABLE_DATE),
             histogram -> {
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(3, buckets.size());
@@ -317,7 +327,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                         "2017-02-03",
                         "2017-02-05"
                 ),
-                aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.DAY).field(DATE_FIELD).minDocCount(1L),
+                aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.DAY).field(AGGREGABLE_DATE).minDocCount(1L),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                     assertEquals(4, buckets.size());
@@ -353,7 +363,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                 "2017-02-03",
                 "2017-02-05"
             ),
-            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY).field(DATE_FIELD).minDocCount(1L),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY).field(AGGREGABLE_DATE).minDocCount(1L),
             histogram -> {
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(4, buckets.size());
@@ -385,7 +395,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                 "2017-02-03",
                 "2017-02-05"
             ),
-            aggregation -> aggregation.fixedInterval(new DateHistogramInterval("24h")).field(DATE_FIELD).minDocCount(1L),
+            aggregation -> aggregation.fixedInterval(new DateHistogramInterval("24h")).field(AGGREGABLE_DATE).minDocCount(1L),
             histogram -> {
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(4, buckets.size());
@@ -423,7 +433,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                         "2017-02-01T16:48:00.000Z",
                         "2017-02-01T16:59:00.000Z"
                 ),
-                aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.HOUR).field(DATE_FIELD).minDocCount(1L),
+                aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.HOUR).field(AGGREGABLE_DATE).minDocCount(1L),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                     assertEquals(6, buckets.size());
@@ -470,7 +480,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                 "2017-02-01T16:48:00.000Z",
                 "2017-02-01T16:59:00.000Z"
             ),
-            aggregation -> aggregation.calendarInterval(DateHistogramInterval.HOUR).field(DATE_FIELD).minDocCount(1L),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.HOUR).field(AGGREGABLE_DATE).minDocCount(1L),
             histogram -> {
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(6, buckets.size());
@@ -513,7 +523,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                 "2017-02-01T16:48:00.000Z",
                 "2017-02-01T16:59:00.000Z"
             ),
-            aggregation -> aggregation.fixedInterval(new DateHistogramInterval("60m")).field(DATE_FIELD).minDocCount(1L),
+            aggregation -> aggregation.fixedInterval(new DateHistogramInterval("60m")).field(AGGREGABLE_DATE).minDocCount(1L),
             histogram -> {
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(6, buckets.size());
@@ -554,7 +564,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                         "2017-02-01T09:16:04.000Z",
                         "2017-02-01T09:16:42.000Z"
                 ),
-                aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.MINUTE).field(DATE_FIELD).minDocCount(1L),
+                aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.MINUTE).field(AGGREGABLE_DATE).minDocCount(1L),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                     assertEquals(3, buckets.size());
@@ -584,7 +594,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                 "2017-02-01T09:16:04.000Z",
                 "2017-02-01T09:16:42.000Z"
             ),
-            aggregation -> aggregation.calendarInterval(DateHistogramInterval.MINUTE).field(DATE_FIELD).minDocCount(1L),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.MINUTE).field(AGGREGABLE_DATE).minDocCount(1L),
             histogram -> {
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(3, buckets.size());
@@ -610,7 +620,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                 "2017-02-01T09:16:04.000Z",
                 "2017-02-01T09:16:42.000Z"
             ),
-            aggregation -> aggregation.fixedInterval(new DateHistogramInterval("60s")).field(DATE_FIELD).minDocCount(1L),
+            aggregation -> aggregation.fixedInterval(new DateHistogramInterval("60s")).field(AGGREGABLE_DATE).minDocCount(1L),
             histogram -> {
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(3, buckets.size());
@@ -640,7 +650,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                         "2017-02-01T00:00:37.210Z",
                         "2017-02-01T00:00:37.380Z"
                 ),
-                aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.SECOND).field(DATE_FIELD).minDocCount(1L),
+                aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.SECOND).field(AGGREGABLE_DATE).minDocCount(1L),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                     assertEquals(3, buckets.size());
@@ -671,7 +681,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                 "2017-02-01T00:00:37.210Z",
                 "2017-02-01T00:00:37.380Z"
             ),
-            aggregation -> aggregation.calendarInterval(DateHistogramInterval.SECOND).field(DATE_FIELD).minDocCount(1L),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.SECOND).field(AGGREGABLE_DATE).minDocCount(1L),
             histogram -> {
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(3, buckets.size());
@@ -698,7 +708,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                 "2017-02-01T00:00:37.210Z",
                 "2017-02-01T00:00:37.380Z"
             ),
-            aggregation -> aggregation.fixedInterval(new DateHistogramInterval("1000ms")).field(DATE_FIELD).minDocCount(1L),
+            aggregation -> aggregation.fixedInterval(new DateHistogramInterval("1000ms")).field(AGGREGABLE_DATE).minDocCount(1L),
             histogram -> {
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(3, buckets.size());
@@ -728,7 +738,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                 "2017-02-01T00:00:37.210328172Z",
                 "2017-02-01T00:00:37.380889483Z"
             ),
-            aggregation -> aggregation.calendarInterval(DateHistogramInterval.SECOND).field(DATE_FIELD).minDocCount(1L),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.SECOND).field(AGGREGABLE_DATE).minDocCount(1L),
             histogram -> {
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(3, buckets.size());
@@ -755,7 +765,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                 "2017-02-01T00:00:37.210328172Z",
                 "2017-02-01T00:00:37.380889483Z"
             ),
-            aggregation -> aggregation.fixedInterval(new DateHistogramInterval("1000ms")).field(DATE_FIELD).minDocCount(1L),
+            aggregation -> aggregation.fixedInterval(new DateHistogramInterval("1000ms")).field(AGGREGABLE_DATE).minDocCount(1L),
             histogram -> {
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(3, buckets.size());
@@ -776,7 +786,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMinDocCountDeprecated() throws IOException {
-        Query query = LongPoint.newRangeQuery(INSTANT_FIELD, asLong("2017-02-01T00:00:00.000Z"), asLong("2017-02-01T00:00:30.000Z"));
+        Query query = LongPoint.newRangeQuery(SEARCHABLE_DATE, asLong("2017-02-01T00:00:00.000Z"), asLong("2017-02-01T00:00:30.000Z"));
         List<String> timestamps = Arrays.asList(
                 "2017-02-01T00:00:05.015Z",
                 "2017-02-01T00:00:11.299Z",
@@ -787,7 +797,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
 
         // 5 sec interval with minDocCount = 0
         testSearchAndReduceCase(query, timestamps,
-                aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(DATE_FIELD).minDocCount(0L),
+                aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(AGGREGABLE_DATE).minDocCount(0L),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                     assertEquals(4, buckets.size());
@@ -812,7 +822,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
 
         // 5 sec interval with minDocCount = 3
         testSearchAndReduceCase(query, timestamps,
-                aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(DATE_FIELD).minDocCount(3L),
+                aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(AGGREGABLE_DATE).minDocCount(3L),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                     assertEquals(1, buckets.size());
@@ -826,7 +836,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMinDocCount() throws IOException {
-        Query query = LongPoint.newRangeQuery(INSTANT_FIELD, asLong("2017-02-01T00:00:00.000Z"), asLong("2017-02-01T00:00:30.000Z"));
+        Query query = LongPoint.newRangeQuery(SEARCHABLE_DATE, asLong("2017-02-01T00:00:00.000Z"), asLong("2017-02-01T00:00:30.000Z"));
         List<String> timestamps = Arrays.asList(
             "2017-02-01T00:00:05.015Z",
             "2017-02-01T00:00:11.299Z",
@@ -837,7 +847,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
 
         // 5 sec interval with minDocCount = 0
         testSearchAndReduceCase(query, timestamps,
-            aggregation -> aggregation.fixedInterval(DateHistogramInterval.seconds(5)).field(DATE_FIELD).minDocCount(0L),
+            aggregation -> aggregation.fixedInterval(DateHistogramInterval.seconds(5)).field(AGGREGABLE_DATE).minDocCount(0L),
             histogram -> {
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(4, buckets.size());
@@ -862,7 +872,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
 
         // 5 sec interval with minDocCount = 3
         testSearchAndReduceCase(query, timestamps,
-            aggregation -> aggregation.fixedInterval(DateHistogramInterval.seconds(5)).field(DATE_FIELD).minDocCount(3L),
+            aggregation -> aggregation.fixedInterval(DateHistogramInterval.seconds(5)).field(AGGREGABLE_DATE).minDocCount(3L),
             histogram -> {
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(1, buckets.size());
@@ -883,25 +893,25 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
         );
 
         expectThrows(TooManyBucketsException.class, () -> testSearchCase(query, timestamps,
-            aggregation -> aggregation.fixedInterval(DateHistogramInterval.seconds(5)).field(DATE_FIELD),
+            aggregation -> aggregation.fixedInterval(DateHistogramInterval.seconds(5)).field(AGGREGABLE_DATE),
             histogram -> {}, 2, false));
 
         expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
-            aggregation -> aggregation.fixedInterval(DateHistogramInterval.seconds(5)).field(DATE_FIELD),
+            aggregation -> aggregation.fixedInterval(DateHistogramInterval.seconds(5)).field(AGGREGABLE_DATE),
             histogram -> {}, 2, false));
 
         expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
-            aggregation -> aggregation.fixedInterval(DateHistogramInterval.seconds(5)).field(DATE_FIELD).minDocCount(0L),
+            aggregation -> aggregation.fixedInterval(DateHistogramInterval.seconds(5)).field(AGGREGABLE_DATE).minDocCount(0L),
             histogram -> {}, 100, false));
 
         expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
             aggregation ->
                 aggregation.fixedInterval(DateHistogramInterval.seconds(5))
-                    .field(DATE_FIELD)
+                    .field(AGGREGABLE_DATE)
                     .subAggregation(
                         AggregationBuilders.dateHistogram("1")
                             .fixedInterval(DateHistogramInterval.seconds(5))
-                            .field(DATE_FIELD)
+                            .field(AGGREGABLE_DATE)
                     ),
             histogram -> {}, 5, false));
     }
@@ -915,25 +925,25 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
         );
 
         expectThrows(TooManyBucketsException.class, () -> testSearchCase(query, timestamps,
-            aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(DATE_FIELD),
+            aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(AGGREGABLE_DATE),
             histogram -> {}, 2, false));
 
         expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
-            aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(DATE_FIELD),
+            aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(AGGREGABLE_DATE),
             histogram -> {}, 2, false));
 
         expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
-            aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(DATE_FIELD).minDocCount(0L),
+            aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(AGGREGABLE_DATE).minDocCount(0L),
             histogram -> {}, 100, false));
 
         expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
             aggregation ->
                 aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5))
-                    .field(DATE_FIELD)
+                    .field(AGGREGABLE_DATE)
                     .subAggregation(
                         AggregationBuilders.dateHistogram("1")
                             .dateHistogramInterval(DateHistogramInterval.seconds(5))
-                            .field(DATE_FIELD)
+                            .field(AGGREGABLE_DATE)
                     ),
             histogram -> {}, 5, false));
         assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
@@ -950,7 +960,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                 "2017-02-03",
                 "2017-02-05"
             ),
-            aggregation -> aggregation.fixedInterval(DateHistogramInterval.WEEK).field(DATE_FIELD),
+            aggregation -> aggregation.fixedInterval(DateHistogramInterval.WEEK).field(AGGREGABLE_DATE),
             histogram -> {}, false
         ));
         assertThat(e.getMessage(), equalTo("failed to parse setting [date_histogram.fixedInterval] with value [1w] as a time value: " +
@@ -968,7 +978,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                 "2017-02-03",
                 "2017-02-05"
             ),
-            aggregation -> aggregation.calendarInterval(new DateHistogramInterval("5d")).field(DATE_FIELD),
+            aggregation -> aggregation.calendarInterval(new DateHistogramInterval("5d")).field(AGGREGABLE_DATE),
             histogram -> {}, false
         ));
         assertThat(e.getMessage(), equalTo("The supplied interval [5d] could not be parsed as a calendar interval."));
@@ -987,7 +997,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
             ),
             aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY)
                 .fixedInterval(new DateHistogramInterval("2d"))
-                .field(DATE_FIELD),
+                .field(AGGREGABLE_DATE),
             histogram -> {}, false
         ));
         assertThat(e.getMessage(), equalTo("Cannot use [fixed_interval] with [calendar_interval] configuration option."));
@@ -1006,7 +1016,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
             ),
             aggregation -> aggregation.fixedInterval(new DateHistogramInterval("2d"))
                 .calendarInterval(DateHistogramInterval.DAY)
-                .field(DATE_FIELD),
+                .field(AGGREGABLE_DATE),
             histogram -> {}, false
         ));
         assertThat(e.getMessage(), equalTo("Cannot use [calendar_interval] with [fixed_interval] configuration option."));
@@ -1025,7 +1035,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
             ),
             aggregation -> aggregation.fixedInterval(new DateHistogramInterval("2d"))
                 .dateHistogramInterval(DateHistogramInterval.DAY)
-                .field(DATE_FIELD),
+                .field(AGGREGABLE_DATE),
             histogram -> {}, false
         ));
         assertThat(e.getMessage(), equalTo("Cannot use [interval] with [fixed_interval] or [calendar_interval] configuration options."));
@@ -1042,7 +1052,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
             ),
             aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY)
                 .dateHistogramInterval(DateHistogramInterval.DAY)
-                .field(DATE_FIELD),
+                .field(AGGREGABLE_DATE),
             histogram -> {}, false
         ));
         assertThat(e.getMessage(), equalTo("Cannot use [interval] with [fixed_interval] or [calendar_interval] configuration options."));
@@ -1059,7 +1069,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
             ),
             aggregation -> aggregation.fixedInterval(new DateHistogramInterval("2d"))
                 .interval(1000)
-                .field(DATE_FIELD),
+                .field(AGGREGABLE_DATE),
             histogram -> {}, false
         ));
         assertThat(e.getMessage(), equalTo("Cannot use [interval] with [fixed_interval] or [calendar_interval] configuration options."));
@@ -1076,7 +1086,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
             ),
             aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY)
                 .interval(1000)
-                .field(DATE_FIELD),
+                .field(AGGREGABLE_DATE),
             histogram -> {}, false
         ));
         assertThat(e.getMessage(), equalTo("Cannot use [interval] with [fixed_interval] or [calendar_interval] configuration options."));
@@ -1095,7 +1105,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
             ),
             aggregation -> aggregation .dateHistogramInterval(DateHistogramInterval.DAY)
                 .fixedInterval(new DateHistogramInterval("2d"))
-                .field(DATE_FIELD),
+                .field(AGGREGABLE_DATE),
             histogram -> {}, false
         ));
         assertThat(e.getMessage(), equalTo("Cannot use [fixed_interval] with [interval] configuration option."));
@@ -1112,7 +1122,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
             ),
             aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.DAY)
                 .calendarInterval(DateHistogramInterval.DAY)
-                .field(DATE_FIELD),
+                .field(AGGREGABLE_DATE),
             histogram -> {}, false
         ));
         assertThat(e.getMessage(), equalTo("Cannot use [calendar_interval] with [interval] configuration option."));
@@ -1129,7 +1139,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
             ),
             aggregation -> aggregation.interval(1000)
                 .fixedInterval(new DateHistogramInterval("2d"))
-                .field(DATE_FIELD),
+                .field(AGGREGABLE_DATE),
             histogram -> {}, false
         ));
         assertThat(e.getMessage(), equalTo("Cannot use [fixed_interval] with [interval] configuration option."));
@@ -1146,7 +1156,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
             ),
             aggregation -> aggregation.interval(1000)
                 .calendarInterval(DateHistogramInterval.DAY)
-                .field(DATE_FIELD),
+                .field(AGGREGABLE_DATE),
             histogram -> {}, false
         ));
         assertThat(e.getMessage(), equalTo("Cannot use [calendar_interval] with [interval] configuration option."));
@@ -1157,7 +1167,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
     public void testIllegalInterval() throws IOException {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testSearchCase(new MatchAllDocsQuery(),
             Collections.emptyList(),
-            aggregation -> aggregation.dateHistogramInterval(new DateHistogramInterval("foobar")).field(DATE_FIELD),
+            aggregation -> aggregation.dateHistogramInterval(new DateHistogramInterval("foobar")).field(AGGREGABLE_DATE),
             histogram -> {}, false
         ));
         assertThat(e.getMessage(), equalTo("Unable to parse interval [foobar]"));
@@ -1211,13 +1221,17 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                                  Consumer<InternalDateHistogram> verify,
                                  int maxBucket, boolean useNanosecondResolution) throws IOException {
 
+        boolean aggregableDateIsSearchable = randomBoolean();
+
+        DateFieldMapper.Builder builder = new DateFieldMapper.Builder("_name");
+        if (useNanosecondResolution) {
+            builder.withResolution(DateFieldMapper.Resolution.NANOSECONDS);
+        }
+        DateFieldMapper.DateFieldType fieldType = builder.fieldType();
+        fieldType.setHasDocValues(true);
+        fieldType.setIndexOptions(aggregableDateIsSearchable ? IndexOptions.DOCS : IndexOptions.NONE);
+
         try (Directory directory = newDirectory()) {
-            DateFieldMapper.Builder builder = new DateFieldMapper.Builder("_name");
-            if (useNanosecondResolution) {
-                builder.withResolution(DateFieldMapper.Resolution.NANOSECONDS);
-            }
-            DateFieldMapper.DateFieldType fieldType = builder.fieldType();
-            fieldType.setHasDocValues(true);
 
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
@@ -1227,8 +1241,11 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                     }
 
                     long instant = asLong(date, fieldType);
-                    document.add(new SortedNumericDocValuesField(DATE_FIELD, instant));
-                    document.add(new LongPoint(INSTANT_FIELD, instant));
+                    document.add(new SortedNumericDocValuesField(AGGREGABLE_DATE, instant));
+                    if (aggregableDateIsSearchable) {
+                        document.add(new LongPoint(AGGREGABLE_DATE, instant));
+                    }
+                    document.add(new LongPoint(SEARCHABLE_DATE, instant));
                     indexWriter.addDocument(document);
                     document.clear();
                 }

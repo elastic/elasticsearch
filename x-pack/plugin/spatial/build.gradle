@@ -27,6 +27,7 @@ restResources {
 
 testClusters.integTest {
   setting 'xpack.license.self_generated.type', 'trial'
+  setting 'indices.breaker.request.limit', '25kb'
   testDistribution = 'DEFAULT'
 }
 

@@ -71,14 +71,20 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
     @Override
     protected void masterOperation(Task task, final CreateIndexRequest request, final ClusterState state,
                                    final ActionListener<CreateIndexResponse> listener) {
-        String cause = request.cause();
-        if (cause.length() == 0) {
-            cause = "api";
+        if (request.cause().length() == 0) {
+            request.cause("api");
         }
 
+        innerCreateIndex(request, listener, indexNameExpressionResolver, createIndexService);
+    }
+
+    static void innerCreateIndex(CreateIndexRequest request,
+                                 ActionListener<CreateIndexResponse> listener,
+                                 IndexNameExpressionResolver indexNameExpressionResolver,
+                                 MetadataCreateIndexService createIndexService) {
         final String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
         final CreateIndexClusterStateUpdateRequest updateRequest =
-            new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index())
+            new CreateIndexClusterStateUpdateRequest(request.cause(), indexName, request.index())
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .settings(request.settings()).mappings(request.mappings())
                 .aliases(request.aliases())

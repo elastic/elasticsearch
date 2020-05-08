@@ -64,7 +64,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
     public void testActualProcessor() throws Exception {
         TestProcessor actualProcessor = new TestProcessor(ingestDocument -> {});
-        TrackingResultProcessor trackingProcessor = new TrackingResultProcessor(false, actualProcessor, resultList);
+        TrackingResultProcessor trackingProcessor = new TrackingResultProcessor(false, actualProcessor, null, resultList);
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
 
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getTag(), ingestDocument);
@@ -81,7 +81,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         RuntimeException exception = new RuntimeException("processor failed");
         TestProcessor testProcessor = new TestProcessor(ingestDocument -> { throw exception; });
         CompoundProcessor actualProcessor = new CompoundProcessor(testProcessor);
-        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList);
+        CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
 
         Exception[] holder = new Exception[1];
         trackingProcessor.execute(ingestDocument, (result, e) -> holder[0] = e);
@@ -104,7 +104,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
                 Arrays.asList(failProcessor, onFailureProcessor),
                 Arrays.asList(onFailureProcessor, failProcessor))),
             Arrays.asList(onFailureProcessor));
-        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList);
+        CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
 
         SimulateProcessorResult expectedFailResult = new SimulateProcessorResult(failProcessor.getTag(), ingestDocument);
@@ -142,7 +142,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         TestProcessor testProcessor = new TestProcessor(ingestDocument -> { throw exception; });
         CompoundProcessor actualProcessor = new CompoundProcessor(true, Collections.singletonList(testProcessor),
             Collections.emptyList());
-        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList);
+        CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
 
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
 
@@ -173,7 +173,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
                 new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key2, randomInt()); })),
             new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key3, randomInt()); }));
 
-        CompoundProcessor trackingProcessor = decorate(compoundProcessor, resultList);
+        CompoundProcessor trackingProcessor = decorate(compoundProcessor, null, resultList);
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(compoundProcessor.getTag(), ingestDocument);
 
@@ -215,7 +215,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, pipelineConfig);
         CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
 
-        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList);
+        CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
 
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
 
@@ -282,7 +282,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, pipelineConfig0);
         CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
 
-        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList);
+        CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
 
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
 
@@ -351,7 +351,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, pipelineConfig0);
         CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
 
-        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList);
+        CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
 
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
 
@@ -404,7 +404,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, pipelineConfig);
         CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
 
-        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList);
+        CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
 
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
 
@@ -455,7 +455,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, pipelineConfig0);
         CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
 
-        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList);
+        CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
 
         Exception[] holder = new Exception[1];
         trackingProcessor.execute(ingestDocument, (result, e) -> holder[0] = e);
@@ -481,7 +481,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor, pipelineProcessor);
 
-        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList);
+        CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
 
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
 

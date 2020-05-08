@@ -537,6 +537,12 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[timeParse1]
 include-tagged::{sql-specs}/docs/docs.csv-spec[timeParse2]
 --------------------------------------------------
 
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[timeParse3]
+--------------------------------------------------
+====
+
 [[sql-functions-datetime-part]]
 ==== `DATE_PART/DATEPART`
 

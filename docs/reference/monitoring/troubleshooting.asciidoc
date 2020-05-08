@@ -41,16 +41,16 @@ instances in your cluster.
 
 *Resolution*:
 Verify that the missing items have unique UUIDs. Each {es} node, {ls} node,
-{kib} instance, and Beat instance is considered unique based on its persistent 
-UUID, which is found in its `path.data` directory. Alternatively, you can find
-the UUIDs in the product logs at startup.
+{kib} instance, Beat instance, and APM Server is considered unique based on its
+persistent UUID, which is found in its `path.data` directory. Alternatively, you
+can find the UUIDs in the product logs at startup.
 
 For {ls} nodes, you can also determine the UUID from the `id` property returned
 by the {logstash-ref}/monitoring-logstash.html[monitoring APIs root resource].
 
 
-TIP: When you install {kib} or Beat instances, do not copy existing content into
-the `path.data` directory; it should be non-existent or empty immediately after
-installation.
+TIP: When you install {es}, {ls}, {kib}, APM Server, or Beats, their `path.data`
+directory should be non-existent or empty; do not copy this directory from other
+installations.
 
 

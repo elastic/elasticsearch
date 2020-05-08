@@ -17,6 +17,10 @@ The `/{index}/{type}/_search`, `/{index}/{type}/_msearch`, `/{index}/{type}/_sea
 The `/{index}/{type}/_termvectors`, `/{index}/{type}/{id}/_termvectors` and `/{index}/{type}/_mtermvectors` REST endpoints have been removed in favour of `/{index}/_termvectors`, `/{index}/{id}/_termvectors` and `/{index}/_mtermvectors`; since indexes no longer contain types, these typed endpoints are obsolete..
 
 The `/{index}/{type}/{doc}` and `/{index}/{type}/_mget` REST endpoints have been removed in favour of `/{index}/_doc/{doc}` and `/{index}/_mget`; since indexes no longer contain types, these typed endpoints are obsolete.
+
+*Impact* +
+Use the replacement REST API endpoints. Requests submitted to API endpoints that
+contain a mapping type will return an error.
 ====
 
 .The `common` query has been removed.
@@ -25,6 +29,10 @@ The `/{index}/{type}/{doc}` and `/{index}/{type}/_mget` REST endpoints have been
 *Details* +
 The `common` query, deprecated in 7.x, has been removed in 8.0.
 The same functionality can be achieved by the `match` query if the total number of hits is not tracked.
+
+*Impact* +
+Discontinue use of the `common` query. Search requests containing a `common`
+query will return an error.
 ====
 
 .The `cutoff_frequency` parameter has been removed from the `match` and `multi_match` query.
@@ -33,6 +41,10 @@ The same functionality can be achieved by the `match` query if the total number 
 *Details* +
 The `cutoff_frequency` parameter, deprecated in 7.x, has been removed in 8.0 from `match` and `multi_match` queries.
 The same functionality can be achieved without any configuration provided that the total number of hits is not tracked.
+
+*Impact* +
+Discontinue use of the `cutoff_frequency` parameter. Search requests containing
+this parameter in a `match` or `multi_match` query will return an error.
 ====
 
 .The `nested_filter` and `nested_path` properties have been removed from the search API's `sort` request body parameter.
@@ -40,6 +52,11 @@ The same functionality can be achieved without any configuration provided that t
 ====
 *Details* +
 The `nested_filter` and `nested_path` options, deprecated in 6.x, have been removed in favor of the `nested` context.
+
+*Impact* +
+Discontinue use of the `sort` request body parameter's `nested_filter` and
+`nested_path` properties. Requests containing these properties will return an
+error.
 ====
 
 .Search and get requests are now routed to shards using adaptive replica selection by default.
@@ -49,6 +66,9 @@ The `nested_filter` and `nested_path` options, deprecated in 6.x, have been remo
 {es} will no longer prefer using shards in the same location (with the same awareness attribute values) to process
 `_search` and `_get` requests. Adaptive replica selection (activated by default in this version) will route requests
 more efficiently using the service time of prior inter-node communications.
+
+*Impact* +
+No action needed.
 ====
 
 .The `sparse_vector` field datatype has been removed.
@@ -60,6 +80,10 @@ The `sparse_vector` field type was deprecated in 7.6 and is now removed in
 see a clear use case as it's currently designed. If you have feedback or
 suggestions around sparse vector functionality, please let us know through
 GitHub or the 'discuss' forums.
+
+*Impact* +
+Discontinue use of the `sparse_vector` field datatype. Requests containing 
+a mapping for this field datatype will return an error.
 ====
 
 .Vector functions using `(query, doc['field'])` are no longer supported.
@@ -71,6 +95,11 @@ deprecated in 7.6, and are now removed in 8.x. The form
 `function(query, 'field')` should be used instead. For example,
 `cosineSimilarity(query, doc['field'])` is replaced by
 `cosineSimilarity(query, 'field')`.
+
+*Impact* +
+Use the `function(query, 'field')` form. Discontinue use of the `function(query,
+doc['field'])` form. Requests containing the `function(query,
+doc['field'])` form will return an error.
 ====
 
 .The search API's `indices_boost` request body parameter no longer accepts object values.
@@ -80,6 +109,10 @@ deprecated in 7.6, and are now removed in 8.x. The form
 The `indices_boost` option in the search request used to accept the boosts
 both as an object and as an array. The object format has been deprecated since
 5.2 and is now removed in 8.0.
+
+*Impact* +
+Use only array values in the `indices_boost` parameter. Requests containing an
+object value in the `indices_boost` parameter will return an error.
 ====
 
 .The search API's `use_field_mapping` request body parameter has been removed.
@@ -90,4 +123,8 @@ In 7.0, we began formatting `docvalue_fields` by default using each field's
 mapping definition. To ease the transition from 6.x, we added the format
 option `use_field_mapping`. This parameter was deprecated in 7.0, and is now
 removed in 8.0.
+
+*Impact* +
+Discontinue use of the `use_field_mapping` request body parameter. Requests
+containing this parameter will return an error.
 ====

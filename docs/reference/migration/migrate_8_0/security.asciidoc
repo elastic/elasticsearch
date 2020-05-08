@@ -74,6 +74,7 @@ the Transport Client has been removed and therefore all client traffic now uses
 the HTTP transport. Transport profiles using this setting should be removed.
 ====
 
+[discrete]
 [[ssl-validation-changes]]
 ==== SSL/TLS configuration validation
 
@@ -149,6 +150,7 @@ setting or the `xpack.security.http.ssl.certificate` and
 `xpack.security.http.ssl.key` settings.
 ====
 
+[discrete]
 [[builtin-users-changes]]
 ==== Changes to built-in users
 
@@ -174,6 +176,7 @@ elasticsearch.username: kibana_system
 --------------------------------------------------
 ====
 
+[discrete]
 [[builtin-roles-changes]]
 ==== Changes to built-in roles
 

@@ -784,12 +784,15 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testAddInvalidTemplate() throws Exception {
         IndexTemplateV2 template = new IndexTemplateV2(Collections.singletonList("a"), null,
             Arrays.asList("good", "bad"), null, null, null);
-        ComponentTemplate ct = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
+        ComponentTemplate ct = new ComponentTemplate(new Template(Settings.EMPTY, null, null), null, null);
 
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         CountDownLatch ctLatch = new CountDownLatch(1);
         service.putComponentTemplate("api", randomBoolean(), "good", TimeValue.timeValueSeconds(5), ct,
-            ActionListener.wrap(r -> ctLatch.countDown(), e -> fail("unexpected error")));
+            ActionListener.wrap(r -> ctLatch.countDown(), e -> {
+                logger.error("unexpected error", e);
+                fail("unexpected error");
+            }));
         ctLatch.await(5, TimeUnit.SECONDS);
         InvalidIndexTemplateException e = expectThrows(InvalidIndexTemplateException.class,
             () -> {

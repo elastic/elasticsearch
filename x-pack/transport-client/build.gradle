@@ -30,11 +30,3 @@ testingConventions {
     }
   }
 }
-
-publishing {
-  publications {
-    nebula(MavenPublication) {
-      artifactId = archivesBaseName
-    }
-  }
-}

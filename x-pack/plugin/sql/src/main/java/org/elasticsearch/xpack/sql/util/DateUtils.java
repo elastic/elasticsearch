@@ -213,12 +213,12 @@ public final class DateUtils {
     }
     
     public static OffsetTime atTimeZone(OffsetTime ot, ZoneId zoneId) {
-        LocalDateTime ldt = ZonedDateTime.now(zoneId).toLocalDateTime();
+        LocalDateTime ldt = ot.atDate(LocalDate.EPOCH).toLocalDateTime();
         return ot.withOffsetSameInstant(zoneId.getRules().getValidOffsets(ldt).get(0));
     }
     
     public static OffsetTime atTimeZone(LocalTime lt, ZoneId zoneId) {
-        LocalDateTime ldt = ZonedDateTime.now(zoneId).toLocalDateTime();
+        LocalDateTime ldt = lt.atDate(LocalDate.EPOCH);
         return OffsetTime.of(lt, zoneId.getRules().getValidOffsets(ldt).get(0));
     }
     

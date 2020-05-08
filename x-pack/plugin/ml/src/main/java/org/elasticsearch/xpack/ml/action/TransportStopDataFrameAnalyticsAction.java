@@ -154,11 +154,16 @@ public class TransportStopDataFrameAnalyticsAction
         ExpandedIdsMatcher expandedIdsMatcher = new ExpandedIdsMatcher(tokens, request.allowNoMatch());
         expandedIdsMatcher.filterMatchedIds(startedIds);
         if (expandedIdsMatcher.hasUnmatchedIds()) {
-            matchingIdsListener.onFailure(ExceptionsHelper.missingDataFrameAnalytics(expandedIdsMatcher.unmatchedIdsString()));
-            return;
+            // There are expressions that did not match any started task.
+            // If there are no configs for those either, we should error.
+            // We check this by trying a get with the unmatched expressions.
+            configProvider.getMultiple(expandedIdsMatcher.unmatchedIdsString(), request.allowNoMatch(), ActionListener.wrap(
+                configs -> matchingIdsListener.onResponse(MlStrings.findMatching(tokens, startedIds)),
+                matchingIdsListener::onFailure
+            ));
+        } else {
+            matchingIdsListener.onResponse(MlStrings.findMatching(tokens, startedIds));
         }
-        Set<String> matchingStartedIds = MlStrings.findMatching(tokens, startedIds);
-        matchingIdsListener.onResponse(matchingStartedIds);
     }
 
     private void normalStop(Task task, StopDataFrameAnalyticsAction.Request request,

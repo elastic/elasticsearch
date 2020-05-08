@@ -501,7 +501,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     checkKeepAliveLimit(keepAlive);
                     readerContext.keepAlive(keepAlive);
                 }
-                readerContext.indexShard().getSearchOperationListener().validateSearchContext(readerContext, searchContext, request);
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(null));
                 processScroll(request, readerContext, searchContext);
                 queryPhase.execute(searchContext);
@@ -526,7 +525,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             try (Releasable ignored = readerContext.markAsUsed();
                  SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, true);
                  SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)) {
-                readerContext.indexShard().getSearchOperationListener().validateSearchContext(readerContext, searchContext, request);
                 searchContext.searcher().setAggregatedDfs(request.dfs());
                 queryPhase.execute(searchContext);
                 if (searchContext.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
@@ -569,7 +567,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(null));
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(null));
-                readerContext.indexShard().getSearchOperationListener().validateSearchContext(readerContext, searchContext, request);
                 processScroll(request, readerContext, searchContext);
                 queryPhase.execute(searchContext);
                 final long afterQueryTime = executor.success();
@@ -589,7 +586,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
             try (Releasable ignored = readerContext.markAsUsed();
                  SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false)) {
-                readerContext.indexShard().getSearchOperationListener().validateSearchContext(readerContext, searchContext, request);
                 if (request.lastEmittedDoc() != null) {
                     searchContext.scrollContext().lastEmittedDoc = request.lastEmittedDoc();
                 }
@@ -635,7 +631,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     final ReaderContext createOrGetReaderContext(ShardSearchRequest request, boolean keepStatesInContext) {
         if (request.readerId() != null) {
             assert keepStatesInContext == false;
-            // NORELEASE: either wrap the searcher with the right security context or make sure the user owns it.
             final ReaderContext readerContext = findReaderContext(request.readerId());
             final long keepAlive = request.keepAlive().millis();
             checkKeepAliveLimit(keepAlive);
@@ -730,11 +725,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         });
     }
 
-    final SearchContext createContext(ReaderContext reader,
+    final SearchContext createContext(ReaderContext readerContext,
                                       ShardSearchRequest request,
                                       SearchShardTask task,
                                       boolean includeAggregations) throws IOException {
-        final DefaultSearchContext context = createSearchContext(reader, request, defaultSearchTimeout);
+        readerContext.indexShard().getSearchOperationListener().validateSearchContext(readerContext, request);
+        final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout);
         try {
             if (request.scroll() != null) {
                 context.scrollContext().scroll = request.scroll();
@@ -754,7 +750,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             dfsPhase.preProcess(context);
             queryPhase.preProcess(context);
             fetchPhase.preProcess(context);
-            context.addReleasable(() -> reader.indexShard().getSearchOperationListener().onFreeSearchContext(context));
         } catch (Exception e) {
             context.close();
             throw e;

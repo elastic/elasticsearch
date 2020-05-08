@@ -22,15 +22,15 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.internal.SearchContextId;
 
-final class ReaderIdForNode {
+final class SearchContextIdForNode {
     private final String node;
-    private final SearchContextId contextId;
+    private final SearchContextId searchContextId;
     private final String clusterAlias;
 
-    ReaderIdForNode(@Nullable String clusterAlias, String node, SearchContextId contextId) {
+    SearchContextIdForNode(@Nullable String clusterAlias, String node, SearchContextId searchContextId) {
         this.node = node;
         this.clusterAlias = clusterAlias;
-        this.contextId = contextId;
+        this.searchContextId = searchContextId;
     }
 
     public String getNode() {
@@ -42,15 +42,15 @@ final class ReaderIdForNode {
         return clusterAlias;
     }
 
-    public SearchContextId getContextId() {
-        return contextId;
+    public SearchContextId getSearchContextId() {
+        return searchContextId;
     }
 
     @Override
     public String toString() {
-        return "ReaderIdForNode{" +
+        return "SearchContextIdForNode{" +
             "node='" + node + '\'' +
-            ", scrollId=" + contextId +
+            ", seachContextId=" + searchContextId +
             ", clusterAlias='" + clusterAlias + '\'' +
             '}';
     }

@@ -124,7 +124,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             for (int from = 0; from < 3; from++) {
                 searchResponse = client().prepareSearch()
                     .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
-                    .setReader(readerId, TimeValue.timeValueMinutes(1))
+                    .setSearchContext(readerId, TimeValue.timeValueMinutes(1))
                     .setSize(1)
                     .setFrom(from)
                     .get();

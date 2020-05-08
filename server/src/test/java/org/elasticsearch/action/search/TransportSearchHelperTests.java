@@ -65,55 +65,55 @@ public class TransportSearchHelperTests extends ESTestCase {
         assertEquals(3, parseScrollId.getContext().length);
         assertEquals("node_1", parseScrollId.getContext()[0].getNode());
         assertEquals("cluster_x", parseScrollId.getContext()[0].getClusterAlias());
-        assertEquals(1, parseScrollId.getContext()[0].getContextId().getId());
+        assertEquals(1, parseScrollId.getContext()[0].getSearchContextId().getId());
         if (includeUUID) {
-            assertThat(parseScrollId.getContext()[0].getContextId().getReaderId(), equalTo("a"));
+            assertThat(parseScrollId.getContext()[0].getSearchContextId().getReaderId(), equalTo("a"));
         } else {
-            assertThat(parseScrollId.getContext()[0].getContextId().getReaderId(), equalTo(""));
+            assertThat(parseScrollId.getContext()[0].getSearchContextId().getReaderId(), equalTo(""));
         }
 
         assertEquals("node_2", parseScrollId.getContext()[1].getNode());
         assertEquals("cluster_y", parseScrollId.getContext()[1].getClusterAlias());
-        assertEquals(12, parseScrollId.getContext()[1].getContextId().getId());
+        assertEquals(12, parseScrollId.getContext()[1].getSearchContextId().getId());
         if (includeUUID) {
-            assertThat(parseScrollId.getContext()[1].getContextId().getReaderId(), equalTo("b"));
+            assertThat(parseScrollId.getContext()[1].getSearchContextId().getReaderId(), equalTo("b"));
         } else {
-            assertThat(parseScrollId.getContext()[1].getContextId().getReaderId(), equalTo(""));
+            assertThat(parseScrollId.getContext()[1].getSearchContextId().getReaderId(), equalTo(""));
         }
 
         assertEquals("node_3", parseScrollId.getContext()[2].getNode());
         assertNull(parseScrollId.getContext()[2].getClusterAlias());
-        assertEquals(42, parseScrollId.getContext()[2].getContextId().getId());
+        assertEquals(42, parseScrollId.getContext()[2].getSearchContextId().getId());
         if (includeUUID) {
-            assertThat(parseScrollId.getContext()[2].getContextId().getReaderId(), equalTo("c"));
+            assertThat(parseScrollId.getContext()[2].getSearchContextId().getReaderId(), equalTo("c"));
         } else {
-            assertThat(parseScrollId.getContext()[2].getContextId().getReaderId(), equalTo(""));
+            assertThat(parseScrollId.getContext()[2].getSearchContextId().getReaderId(), equalTo(""));
         }
     }
 
     public void testEncodeDecodeReaderId() {
         final AtomicArray<SearchPhaseResult> queryResults = generateQueryResults();
         final Version version = VersionUtils.randomVersion(random());
-        final String readerId = TransportSearchHelper.encodeReaderIds(queryResults, version);
-        final Map<ShardId, ReaderIdForNode> contextIds = TransportSearchHelper.decodeReaderIds(readerId);
+        final String readerId = TransportSearchHelper.encodeSearchContextId(queryResults, version);
+        final Map<ShardId, SearchContextIdForNode> contextIds = TransportSearchHelper.decodeSearchContextId(readerId);
         assertThat(contextIds.keySet(), hasSize(3));
 
-        ReaderIdForNode node1 = contextIds.get(new ShardId("idx", "uuid1", 2));
+        SearchContextIdForNode node1 = contextIds.get(new ShardId("idx", "uuid1", 2));
         assertThat(node1.getClusterAlias(), equalTo("cluster_x"));
         assertThat(node1.getNode(), equalTo("node_1"));
-        assertThat(node1.getContextId().getId(), equalTo(1L));
-        assertThat(node1.getContextId().getReaderId(), equalTo("a"));
+        assertThat(node1.getSearchContextId().getId(), equalTo(1L));
+        assertThat(node1.getSearchContextId().getReaderId(), equalTo("a"));
 
-        ReaderIdForNode node2 = contextIds.get(new ShardId("idy", "uuid2", 42));
+        SearchContextIdForNode node2 = contextIds.get(new ShardId("idy", "uuid2", 42));
         assertThat(node2.getClusterAlias(), equalTo("cluster_y"));
         assertThat(node2.getNode(), equalTo("node_2"));
-        assertThat(node2.getContextId().getId(), equalTo(12L));
-        assertThat(node2.getContextId().getReaderId(), equalTo("b"));
+        assertThat(node2.getSearchContextId().getId(), equalTo(12L));
+        assertThat(node2.getSearchContextId().getReaderId(), equalTo("b"));
 
-        ReaderIdForNode node3 = contextIds.get(new ShardId("idy", "uuid2", 43));
+        SearchContextIdForNode node3 = contextIds.get(new ShardId("idy", "uuid2", 43));
         assertThat(node3.getClusterAlias(), nullValue());
         assertThat(node3.getNode(), equalTo("node_3"));
-        assertThat(node3.getContextId().getId(), equalTo(42L));
-        assertThat(node3.getContextId().getReaderId(), equalTo("c"));
+        assertThat(node3.getSearchContextId().getId(), equalTo(42L));
+        assertThat(node3.getSearchContextId().getReaderId(), equalTo("c"));
     }
 }

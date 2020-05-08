@@ -758,7 +758,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                 response = client()
                     .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                     .prepareSearch()
-                    .setReader(readerId, TimeValue.timeValueMinutes(1L))
+                    .setSearchContext(readerId, TimeValue.timeValueMinutes(1L))
                     .setSize(1)
                     .setFrom(from)
                     .setQuery(constantScoreQuery(termQuery("field1", "value1")))

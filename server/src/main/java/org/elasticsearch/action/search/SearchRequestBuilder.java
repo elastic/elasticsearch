@@ -522,13 +522,13 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Specifies the point in time reader contexts that this request should execute against
+     * Specifies the search context that Elasticsearch should use to perform the query
      *
-     * @param readerId  the base64 string of the set of reader ids.
-     * @param keepAlive the extended keep alive for the readers used in this request
+     * @param searchContextId the base64 encoded string of the search context id
+     * @param keepAlive       the extended time to live for the search context
      */
-    public SearchRequestBuilder setReader(@Nullable String readerId, @Nullable TimeValue keepAlive) {
-        sourceBuilder().searchContextBuilder(new SearchSourceBuilder.SearchContextBuilder(readerId, keepAlive));
+    public SearchRequestBuilder setSearchContext(String searchContextId, TimeValue keepAlive) {
+        sourceBuilder().searchContextBuilder(new SearchSourceBuilder.SearchContextBuilder(searchContextId, keepAlive));
         return this;
     }
 

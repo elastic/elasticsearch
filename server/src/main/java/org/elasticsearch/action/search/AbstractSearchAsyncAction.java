@@ -528,14 +528,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return request;
     }
 
-    protected final SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse,
-                                                       AtomicArray<SearchPhaseResult> queryResults,
-                                                       ShardSearchFailure[] failures) {
-        final Version minNodeVersion = clusterState.nodes().getMinNodeVersion();
-        String scrollId = request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults, minNodeVersion) : null;
-        String readerId = includeSearchContextInResponse() ? TransportSearchHelper.encodeReaderIds(queryResults, minNodeVersion) : null;
+    protected final SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse, ShardSearchFailure[] failures,
+                                                       String scrollId, String searchContextId) {
         return new SearchResponse(internalSearchResponse, scrollId, getNumShards(), successfulOps.get(),
-            skippedOps.get(), buildTookInMillis(), failures, clusters, readerId);
+            skippedOps.get(), buildTookInMillis(), failures, clusters, searchContextId);
     }
 
     boolean includeSearchContextInResponse() {
@@ -550,7 +546,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (request.searchContextBuilder() == null && allowPartialResults == false && failures.length > 0) {
             raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
         } else {
-            listener.onResponse(buildSearchResponse(internalSearchResponse, queryResults, failures));
+            final Version minNodeVersion = clusterState.nodes().getMinNodeVersion();
+            final String scrollId = request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults, minNodeVersion) : null;
+            final String searchContextId =
+                includeSearchContextInResponse() ? TransportSearchHelper.encodeSearchContextId(queryResults, minNodeVersion) : null;
+            listener.onResponse(buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId));
         }
     }
 
@@ -618,11 +618,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             .toArray(new String[0]);
         ShardSearchRequest shardRequest = new ShardSearchRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(), getNumShards(),
             filter, indexBoost, timeProvider.getAbsoluteStartMillis(), shardIt.getClusterAlias(), routings,
-            shardIt.getReaderId(), shardIt.getReaderKeepAlive());
+            shardIt.getSearchContextId(), shardIt.getSearchContextKeepAlive());
         // if we already received a search result we can inform the shard that it
         // can return a null response if the request rewrites to match none rather
         // than creating an empty response in the search thread pool.
-        // Note that, we have to disable this shortcut for queries that create a context (scroll and reader_id).
+        // Note that, we have to disable this shortcut for queries that create a context (scroll and search context).
         shardRequest.canReturnNullResponseIfMatchNoDocs(hasShardResponse.get() && shardRequest.shouldCreatePersistentReader() == false);
         return shardRequest;
     }

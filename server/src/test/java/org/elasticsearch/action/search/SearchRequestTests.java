@@ -184,7 +184,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("[index] cannot be used with reader contexts", validationErrors.validationErrors().get(0));
+            assertEquals("[index] cannot be used with search context", validationErrors.validationErrors().get(0));
         }
         {
             // Reader context with preference
@@ -195,7 +195,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("[preference] cannot be used with reader contexts", validationErrors.validationErrors().get(0));
+            assertEquals("[preference] cannot be used with search context", validationErrors.validationErrors().get(0));
         }
         {
             // Reader context with routing
@@ -206,7 +206,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("[routing] cannot be used with reader contexts", validationErrors.validationErrors().get(0));
+            assertEquals("[routing] cannot be used with search context", validationErrors.validationErrors().get(0));
         }
     }
 

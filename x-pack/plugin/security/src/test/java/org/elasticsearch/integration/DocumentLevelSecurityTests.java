@@ -789,7 +789,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                     .prepareSearch()
                     .setSize(1)
                     .setFrom(from)
-                    .setReader(readerId, TimeValue.timeValueMinutes(1))
+                    .setSearchContext(readerId, TimeValue.timeValueMinutes(1))
                     .setQuery(termQuery("field1", "value1"))
                     .get();
                 assertNoFailures(response);

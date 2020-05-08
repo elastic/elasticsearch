@@ -44,7 +44,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class ClearContextControllerTests extends ESTestCase {
+public class ClearSearchContextControllerTests extends ESTestCase {
 
     public void testClearAll() throws InterruptedException {
         DiscoveryNode node1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -80,7 +80,7 @@ public class ClearContextControllerTests extends ESTestCase {
         };
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         clearScrollRequest.scrollIds(Arrays.asList("_all"));
-        ClearContextController controller = new ClearContextController(
+        ClearSearchContextController controller = new ClearSearchContextController(
             clearScrollRequest, listener, nodes, logger, searchTransportService);
         controller.run();
         latch.await();
@@ -145,7 +145,7 @@ public class ClearContextControllerTests extends ESTestCase {
         };
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         clearScrollRequest.scrollIds(Arrays.asList(scrollId));
-        ClearContextController controller = new ClearContextController(clearScrollRequest, listener,
+        ClearSearchContextController controller = new ClearSearchContextController(clearScrollRequest, listener,
             nodes, logger, searchTransportService);
         controller.run();
         latch.await();
@@ -229,7 +229,7 @@ public class ClearContextControllerTests extends ESTestCase {
         };
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         clearScrollRequest.scrollIds(Arrays.asList(scrollId));
-        ClearContextController controller = new ClearContextController(clearScrollRequest, listener,
+        ClearSearchContextController controller = new ClearSearchContextController(clearScrollRequest, listener,
             nodes, logger, searchTransportService);
         controller.run();
         latch.await();

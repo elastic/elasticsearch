@@ -88,7 +88,7 @@ final class TransportSearchHelper {
                 includeContextUUID = false;
                 type = firstChunk;
             }
-            ReaderIdForNode[] context = new ReaderIdForNode[in.readVInt()];
+            SearchContextIdForNode[] context = new SearchContextIdForNode[in.readVInt()];
             for (int i = 0; i < context.length; ++i) {
                 final String contextUUID = includeContextUUID ? in.readString() : "";
                 long id = in.readLong();
@@ -101,7 +101,7 @@ final class TransportSearchHelper {
                     clusterAlias = target.substring(0, index);
                     target = target.substring(index+1);
                 }
-                context[i] = new ReaderIdForNode(clusterAlias, target, new SearchContextId(contextUUID, id));
+                context[i] = new SearchContextIdForNode(clusterAlias, target, new SearchContextId(contextUUID, id));
             }
             if (in.getPosition() != bytes.length) {
                 throw new IllegalArgumentException("Not all bytes were read");
@@ -112,7 +112,7 @@ final class TransportSearchHelper {
         }
     }
 
-    static String encodeReaderIds(AtomicArray<? extends SearchPhaseResult> searchPhaseResults, Version version) {
+    static String encodeSearchContextId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults, Version version) {
         try (RAMOutputStream out = new RAMOutputStream()) {
             out.writeVInt(version.id);
             out.writeVInt(searchPhaseResults.asList().size());
@@ -143,13 +143,13 @@ final class TransportSearchHelper {
         }
     }
 
-    static Map<ShardId, ReaderIdForNode> decodeReaderIds(String readerId) {
+    static Map<ShardId, SearchContextIdForNode> decodeSearchContextId(String searchContextId) {
         try {
-            final byte[] bytes = Base64.getUrlDecoder().decode(readerId);
+            final byte[] bytes = Base64.getUrlDecoder().decode(searchContextId);
             final ByteArrayDataInput in = new ByteArrayDataInput(bytes);
             Version.fromId(in.readVInt());
             final int numOfContexts = in.readVInt();
-            final Map<ShardId, ReaderIdForNode> contexts = new HashMap<>();
+            final Map<ShardId, SearchContextIdForNode> contexts = new HashMap<>();
             for (int i = 0; i < numOfContexts; i++) {
                 final ShardId shardId = new ShardId(new Index(in.readString(), in.readString()), in.readVInt());
                 final String clusterAlias;
@@ -160,7 +160,7 @@ final class TransportSearchHelper {
                 }
                 final String nodeId = in.readString();
                 final SearchContextId contextId = new SearchContextId(in.readString(), in.readLong());
-                contexts.put(shardId, new ReaderIdForNode(clusterAlias, nodeId, contextId));
+                contexts.put(shardId, new SearchContextIdForNode(clusterAlias, nodeId, contextId));
             }
             if (in.getPosition() != bytes.length) {
                 throw new IllegalArgumentException("Not all bytes were read");

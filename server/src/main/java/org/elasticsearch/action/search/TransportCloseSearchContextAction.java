@@ -42,7 +42,7 @@ public class TransportCloseSearchContextAction extends HandledTransportAction<Cl
 
     @Override
     protected void doExecute(Task task, CloseSearchContextRequest request, ActionListener<CloseSearchContextResponse> listener) {
-        Runnable runnable = new ClearContextController(
+        Runnable runnable = new ClearSearchContextController(
             request, listener, clusterService.state().nodes(), logger, searchTransportService);
         runnable.run();
     }

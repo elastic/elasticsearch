@@ -44,8 +44,8 @@ public final class SearchShardIterator extends PlainShardIterator {
     private final String clusterAlias;
     private boolean skip = false;
 
-    private final SearchContextId readerId;
-    private final TimeValue readerKeepAlive;
+    private final SearchContextId searchContextId;
+    private final TimeValue searchContextKeepAlive;
 
     /**
      * Creates a {@link PlainShardIterator} instance that iterates over a subset of the given shards
@@ -62,12 +62,13 @@ public final class SearchShardIterator extends PlainShardIterator {
 
     public SearchShardIterator(@Nullable String clusterAlias, ShardId shardId,
                                List<ShardRouting> shards, OriginalIndices originalIndices,
-                               SearchContextId readerId, TimeValue readerKeepAlive) {
+                               SearchContextId searchContextId, TimeValue searchContextKeepAlive) {
         super(shardId, shards);
         this.originalIndices = originalIndices;
         this.clusterAlias = clusterAlias;
-        this.readerId = readerId;
-        this.readerKeepAlive = readerKeepAlive;
+        this.searchContextId = searchContextId;
+        this.searchContextKeepAlive = searchContextKeepAlive;
+        assert (searchContextId == null) == (searchContextKeepAlive == null);
     }
 
     /**
@@ -94,18 +95,14 @@ public final class SearchShardIterator extends PlainShardIterator {
     }
 
     /**
-     * Returns a non-null value if this request should execute using a specific point-in-time reader;
-     * otherwise, using the most up to date point-in-time reader.
+     * Returns a non-null value if this request should use a specific search context instead of the latest one.
      */
-    SearchContextId getReaderId() {
-        return readerId;
+    SearchContextId getSearchContextId() {
+        return searchContextId;
     }
 
-    /**
-     * Returns a non-null to specify the time to live of the point-in-time reader that is used to execute this request.
-     */
-    TimeValue getReaderKeepAlive() {
-        return readerKeepAlive;
+    TimeValue getSearchContextKeepAlive() {
+        return searchContextKeepAlive;
     }
 
     /**

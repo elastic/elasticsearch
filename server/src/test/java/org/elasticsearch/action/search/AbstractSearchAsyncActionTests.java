@@ -167,8 +167,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest,
             phaseResults, null, false, new AtomicLong());
         InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
-        SearchResponse searchResponse = action.buildSearchResponse(
-            internalSearchResponse, phaseResults.results, action.buildShardFailures());
+        SearchResponse searchResponse = action.buildSearchResponse(internalSearchResponse, action.buildShardFailures(), null, null);
         assertSame(searchResponse.getAggregations(), internalSearchResponse.aggregations());
         assertSame(searchResponse.getSuggest(), internalSearchResponse.suggest());
         assertSame(searchResponse.getProfileResults(), internalSearchResponse.profile());
@@ -182,8 +181,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         action.onShardFailure(0, new SearchShardTarget("node", new ShardId("index", "index-uuid", 0), null, OriginalIndices.NONE),
             new IllegalArgumentException());
         InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
-        SearchResponse searchResponse = action.buildSearchResponse(
-            internalSearchResponse, queryResult.results, action.buildShardFailures());
+        SearchResponse searchResponse = action.buildSearchResponse(internalSearchResponse, action.buildShardFailures(), null, null);
         assertSame(searchResponse.getAggregations(), internalSearchResponse.aggregations());
         assertSame(searchResponse.getSuggest(), internalSearchResponse.suggest());
         assertSame(searchResponse.getProfileResults(), internalSearchResponse.profile());

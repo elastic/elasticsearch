@@ -104,7 +104,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
     }
 
     public final void run() {
-        final ReaderIdForNode[] context = scrollId.getContext();
+        final SearchContextIdForNode[] context = scrollId.getContext();
         if (context.length == 0) {
             listener.onFailure(new SearchPhaseExecutionException("query", "no nodes to search on", ShardSearchFailure.EMPTY_ARRAY));
         } else {
@@ -117,11 +117,11 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
      * This method collects nodes from the remote clusters asynchronously if any of the scroll IDs references a remote cluster.
      * Otherwise the action listener will be invoked immediately with a function based on the given discovery nodes.
      */
-    static void collectNodesAndRun(final Iterable<ReaderIdForNode> scrollIds, DiscoveryNodes nodes,
+    static void collectNodesAndRun(final Iterable<SearchContextIdForNode> scrollIds, DiscoveryNodes nodes,
                                    SearchTransportService searchTransportService,
                                    ActionListener<BiFunction<String, String, DiscoveryNode>> listener) {
         Set<String> clusters = new HashSet<>();
-        for (ReaderIdForNode target : scrollIds) {
+        for (SearchContextIdForNode target : scrollIds) {
             if (target.getClusterAlias() != null) {
                 clusters.add(target.getClusterAlias());
             }
@@ -135,10 +135,10 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         }
     }
 
-    private void run(BiFunction<String, String, DiscoveryNode> clusterNodeLookup, final ReaderIdForNode[] context) {
+    private void run(BiFunction<String, String, DiscoveryNode> clusterNodeLookup, final SearchContextIdForNode[] context) {
         final CountDown counter = new CountDown(scrollId.getContext().length);
         for (int i = 0; i < context.length; i++) {
-            ReaderIdForNode target = context[i];
+            SearchContextIdForNode target = context[i];
             final int shardIndex = i;
             final Transport.Connection connection;
             try {
@@ -148,11 +148,11 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
                 }
                 connection = getConnection(target.getClusterAlias(), node);
             } catch (Exception ex) {
-                onShardFailure("query", counter, target.getContextId(),
+                onShardFailure("query", counter, target.getSearchContextId(),
                     ex, null, () -> SearchScrollAsyncAction.this.moveToNextPhase(clusterNodeLookup));
                 continue;
             }
-            final InternalScrollSearchRequest internalRequest = internalScrollSearchRequest(target.getContextId(), request);
+            final InternalScrollSearchRequest internalRequest = internalScrollSearchRequest(target.getSearchContextId(), request);
             // we can't create a SearchShardTarget here since we don't know the index and shard ID we are talking to
             // we only know the node and the search context ID. Yet, the response will contain the SearchShardTarget
             // from the target node instead...that's why we pass null here
@@ -192,7 +192,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
 
                 @Override
                 public void onFailure(Exception t) {
-                    onShardFailure("query", counter, target.getContextId(), t, null,
+                    onShardFailure("query", counter, target.getSearchContextId(), t, null,
                         () -> SearchScrollAsyncAction.this.moveToNextPhase(clusterNodeLookup));
                 }
             };

@@ -10,7 +10,6 @@ import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.internal.ReaderContext;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -55,13 +54,13 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
      * authentication context
      */
     @Override
-    public void validateSearchContext(ReaderContext readerContext, SearchContext searchContext, TransportRequest request) {
+    public void validateSearchContext(ReaderContext readerContext, TransportRequest request) {
         if (licenseState.isSecurityEnabled()) {
             final Authentication originalAuth = readerContext.getFromContext(AuthenticationField.AUTHENTICATION_KEY);
             final Authentication current = securityContext.getAuthentication();
             final ThreadContext threadContext = securityContext.getThreadContext();
             final String action = threadContext.getTransient(ORIGINATING_ACTION_KEY);
-            ensureAuthenticatedUserIsSame(originalAuth, current, auditTrailService, searchContext.id(), action, request,
+            ensureAuthenticatedUserIsSame(originalAuth, current, auditTrailService, readerContext.id(), action, request,
                 AuditUtil.extractRequestId(threadContext), threadContext.getTransient(AUTHORIZATION_INFO_KEY));
         }
     }

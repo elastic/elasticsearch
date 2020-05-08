@@ -62,7 +62,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 public class SearchResponse extends ActionResponse implements StatusToXContentObject {
 
     private static final ParseField SCROLL_ID = new ParseField("_scroll_id");
-    private static final ParseField READER_ID = new ParseField("reader_id");
+    private static final ParseField SEARCH_CONTEXT_ID = new ParseField("search_context_id");
     private static final ParseField TOOK = new ParseField("took");
     private static final ParseField TIMED_OUT = new ParseField("timed_out");
     private static final ParseField TERMINATED_EARLY = new ParseField("terminated_early");
@@ -259,7 +259,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             builder.field(SCROLL_ID.getPreferredName(), scrollId);
         }
         if (searchContextId != null) {
-            builder.field(READER_ID.getPreferredName(), searchContextId);
+            builder.field(SEARCH_CONTEXT_ID.getPreferredName(), searchContextId);
         }
         builder.field(TOOK.getPreferredName(), tookInMillis);
         builder.field(TIMED_OUT.getPreferredName(), isTimedOut());
@@ -297,7 +297,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         int totalShards = -1;
         int skippedShards = 0; // 0 for BWC
         String scrollId = null;
-        String readerContextId = null;
+        String searchContextId = null;
         List<ShardSearchFailure> failures = new ArrayList<>();
         Clusters clusters = Clusters.EMPTY;
         for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
@@ -306,8 +306,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             } else if (token.isValue()) {
                 if (SCROLL_ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     scrollId = parser.text();
-                } else if (READER_ID.match(currentFieldName, parser.getDeprecationHandler())) {
-                    readerContextId = parser.text();
+                } else if (SEARCH_CONTEXT_ID.match(currentFieldName, parser.getDeprecationHandler())) {
+                    searchContextId = parser.text();
                 } else if (TOOK.match(currentFieldName, parser.getDeprecationHandler())) {
                     tookInMillis = parser.longValue();
                 } else if (TIMED_OUT.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -386,7 +386,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         SearchResponseSections searchResponseSections = new SearchResponseSections(hits, aggs, suggest, timedOut, terminatedEarly,
                 profile, numReducePhases);
         return new SearchResponse(searchResponseSections, scrollId, totalShards, successfulShards, skippedShards, tookInMillis,
-                failures.toArray(ShardSearchFailure.EMPTY_ARRAY), clusters, readerContextId);
+                failures.toArray(ShardSearchFailure.EMPTY_ARRAY), clusters, searchContextId);
     }
 
     @Override

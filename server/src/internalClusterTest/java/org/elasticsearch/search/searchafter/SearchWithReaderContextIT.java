@@ -71,7 +71,7 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
         }
         refresh("test");
         String readerId = openSearchContext(new String[]{"test"}, TimeValue.timeValueMinutes(2));
-        SearchResponse resp1 = client().prepareSearch().setPreference(null).setReader(readerId, TimeValue.timeValueMinutes(2)).get();
+        SearchResponse resp1 = client().prepareSearch().setPreference(null).setSearchContext(readerId, TimeValue.timeValueMinutes(2)).get();
         assertThat(resp1.searchContextId(), equalTo(readerId));
         assertHitCount(resp1, numDocs);
         int deletedDocs = 0;
@@ -90,7 +90,7 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
         }
         try {
             SearchResponse resp3 = client().prepareSearch().setPreference(null).setQuery(new MatchAllQueryBuilder())
-                .setReader(resp1.searchContextId(), TimeValue.timeValueMinutes(2))
+                .setSearchContext(resp1.searchContextId(), TimeValue.timeValueMinutes(2))
                 .get();
             assertNoFailures(resp3);
             assertHitCount(resp3, numDocs);
@@ -113,7 +113,7 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
         }
         refresh();
         String readerId = openSearchContext(new String[]{"*"}, TimeValue.timeValueMinutes(2));
-        SearchResponse resp1 = client().prepareSearch().setPreference(null).setReader(readerId, TimeValue.timeValueMinutes(2)).get();
+        SearchResponse resp1 = client().prepareSearch().setPreference(null).setSearchContext(readerId, TimeValue.timeValueMinutes(2)).get();
         assertNoFailures(resp1);
         assertHitCount(resp1, numDocs);
         int moreDocs = randomIntBetween(10, 50);
@@ -129,7 +129,7 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
             assertHitCount(resp2, numDocs + moreDocs);
 
             SearchResponse resp3 = client().prepareSearch().setPreference(null)
-                .setReader(resp1.searchContextId(), TimeValue.timeValueMinutes(1)).get();
+                .setSearchContext(resp1.searchContextId(), TimeValue.timeValueMinutes(1)).get();
             assertNoFailures(resp3);
             assertHitCount(resp3, numDocs);
         } finally {
@@ -147,7 +147,7 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
         refresh();
         String readerId = openSearchContext(new String[]{"index"}, TimeValue.timeValueSeconds(5));
         SearchResponse resp1 = client().prepareSearch().setPreference(null)
-            .setReader(readerId, TimeValue.timeValueMillis(randomIntBetween(0, 10))).get();
+            .setSearchContext(readerId, TimeValue.timeValueMillis(randomIntBetween(0, 10))).get();
         assertNoFailures(resp1);
         assertHitCount(resp1, index1);
         if (rarely()) {
@@ -158,8 +158,9 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
         } else {
             closeSearchContext(resp1.searchContextId());
         }
-        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class,
-            () -> client().prepareSearch().setPreference(null).setReader(resp1.searchContextId(), TimeValue.timeValueMinutes(1)).get());
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () ->
+            client().prepareSearch().setPreference(null)
+                .setSearchContext(resp1.searchContextId(), TimeValue.timeValueMinutes(1)).get());
         for (ShardSearchFailure failure : e.shardFailures()) {
             assertThat(ExceptionsHelper.unwrapCause(failure.getCause()), instanceOf(SearchContextMissingException.class));
         }
@@ -182,7 +183,7 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
         }
         refresh();
         String readerId = openSearchContext(new String[]{"index-*"}, TimeValue.timeValueMinutes(2));
-        SearchResponse resp1 = client().prepareSearch().setPreference(null).setReader(readerId, TimeValue.timeValueMinutes(2)).get();
+        SearchResponse resp1 = client().prepareSearch().setPreference(null).setSearchContext(readerId, TimeValue.timeValueMinutes(2)).get();
         assertNoFailures(resp1);
         assertHitCount(resp1, index1 + index2);
         client().admin().indices().prepareDelete("index-1").get();
@@ -194,7 +195,7 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
         }
         expectThrows(IndexNotFoundException.class, () -> client().prepareSearch()
             .setPreference(null)
-            .setReader(resp1.searchContextId(), TimeValue.timeValueMinutes(1)).get());
+            .setSearchContext(resp1.searchContextId(), TimeValue.timeValueMinutes(1)).get());
         closeSearchContext(resp1.searchContextId());
     }
 
@@ -222,7 +223,7 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
                 .setPreference(null)
                 .setPreFilterShardSize(randomIntBetween(2, 3))
                 .setMaxConcurrentShardRequests(randomIntBetween(1, 2))
-                .setReader(readerId, TimeValue.timeValueMinutes(2))
+                .setSearchContext(readerId, TimeValue.timeValueMinutes(2))
                 .get();
             assertThat(resp.getHits().getHits(), arrayWithSize(0));
             for (String node : internalCluster().nodesInclude("test")) {

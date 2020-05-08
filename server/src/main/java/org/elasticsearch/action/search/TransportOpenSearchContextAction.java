@@ -174,7 +174,7 @@ public class TransportOpenSearchContextAction extends HandledTransportAction<Ope
             final SearchShardTarget searchShardTarget = shardIt.newSearchShardTarget(shard.currentNodeId());
             final ShardOpenReaderRequest shardRequest = new ShardOpenReaderRequest(searchShardTarget.getShardId(),
                 searchShardTarget.getOriginalIndices(), request.keepAlive());
-            getSearchTransport().sendShardOpenReader(connection, getTask(), shardRequest, ActionListener.map(listener, r -> r));
+            getSearchTransport().sendOpenShardReaderContext(connection, getTask(), shardRequest, ActionListener.map(listener, r -> r));
         }
 
         @Override

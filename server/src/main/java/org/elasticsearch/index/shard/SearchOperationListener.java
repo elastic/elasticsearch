@@ -107,22 +107,14 @@ public interface SearchOperationListener {
     default void onFreeScrollContext(ReaderContext readerContext) {}
 
     /**
-     * Executed prior to using a {@link SearchContext} that has been retrieved
+     * Executed prior to using a {@link ReaderContext} that has been retrieved
      * from the active contexts. If the context is deemed invalid a runtime
      * exception can be thrown, which will prevent the context from being used.
-     * @param readerContext The reader context used by this request.
-     * @param searchContext The newly created {@link SearchContext}.
+     *
+     * @param readerContext    The reader context used by this request.
      * @param transportRequest the request that is going to use the search context
      */
-    default void validateSearchContext(ReaderContext readerContext, SearchContext searchContext, TransportRequest transportRequest) {}
-
-    /**
-     * Executed when a search context was freed. The implementor can implement
-     * this method to release resources used by the search context.
-     */
-    default void onFreeSearchContext(SearchContext context) {
-
-    }
+    default void validateSearchContext(ReaderContext readerContext, TransportRequest transportRequest) {}
 
     /**
      * A Composite listener that multiplexes calls to each of the listeners methods.
@@ -247,27 +239,16 @@ public interface SearchOperationListener {
         }
 
         @Override
-        public void validateSearchContext(ReaderContext readerContext, SearchContext searchContext, TransportRequest request) {
+        public void validateSearchContext(ReaderContext readerContext, TransportRequest request) {
             Exception exception = null;
             for (SearchOperationListener listener : listeners) {
                 try {
-                    listener.validateSearchContext(readerContext, searchContext, request);
+                    listener.validateSearchContext(readerContext, request);
                 } catch (Exception e) {
                     exception = ExceptionsHelper.useOrSuppress(exception, e);
                 }
             }
             ExceptionsHelper.reThrowIfNotNull(exception);
-        }
-
-        @Override
-        public void onFreeSearchContext(SearchContext context) {
-            for (SearchOperationListener listener : listeners) {
-                try {
-                    listener.onFreeSearchContext(context);
-                } catch (Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("onFreeSearchContext listener [{}] failed", listener), e);
-                }
-            }
         }
     }
 }

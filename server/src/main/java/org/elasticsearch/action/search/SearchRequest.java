@@ -288,13 +288,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         if (searchContextBuilder() != null) {
             if (indices.length > 0) {
-                validationException = addValidationError("[index] cannot be used with reader contexts", validationException);
+                validationException = addValidationError("[index] cannot be used with search context", validationException);
             }
             if (routing() != null) {
-                validationException = addValidationError("[routing] cannot be used with reader contexts", validationException);
+                validationException = addValidationError("[routing] cannot be used with search context", validationException);
             }
             if (preference() != null) {
-                validationException = addValidationError("[preference] cannot be used with reader contexts", validationException);
+                validationException = addValidationError("[preference] cannot be used with search context", validationException);
             }
         }
         return validationException;

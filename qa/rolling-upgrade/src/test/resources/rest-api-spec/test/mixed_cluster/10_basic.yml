@@ -73,9 +73,3 @@
       nodes.usage: {}
   - is_true: nodes
   - match: { _nodes.failed: 0 }
----
-"Get index works":
-  - do:
-     indices.get:
-       index: queries
-  - match: { queries.mappings.properties.id.type: "keyword" }

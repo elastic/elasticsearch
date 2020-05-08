@@ -21,13 +21,11 @@ package org.elasticsearch.http.nio;
 
 import io.netty.channel.ChannelHandler;
 import io.netty.handler.codec.ByteToMessageDecoder;
-import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.http.CorsHandler;
 import org.elasticsearch.http.HttpHandlingSettings;
@@ -155,21 +153,9 @@ public class HttpReadWriteHandler implements NioChannelHandler {
     @SuppressWarnings("unchecked")
     private void handleRequest(Object msg) {
         final HttpPipelinedRequest pipelinedRequest = (HttpPipelinedRequest) msg;
-        final NioHttpRequest nioRequest = (NioHttpRequest) pipelinedRequest.getDelegateRequest();
-        final DecoderResult decoderResult = nioRequest.nettyRequest().decoderResult();
         boolean success = false;
         try {
-            if (decoderResult.isFailure()) {
-                Throwable cause = decoderResult.cause();
-                if (cause instanceof Error) {
-                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                    transport.incomingRequestError(pipelinedRequest, nioHttpChannel, new Exception(cause));
-                } else {
-                    transport.incomingRequestError(pipelinedRequest, nioHttpChannel, (Exception) cause);
-                }
-            } else {
-                transport.incomingRequest(pipelinedRequest, nioHttpChannel);
-            }
+            transport.incomingRequest(pipelinedRequest, nioHttpChannel);
             success = true;
         } finally {
             if (success == false) {

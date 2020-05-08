@@ -22,7 +22,6 @@ package org.elasticsearch.http.netty4;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.handler.codec.DecoderResult;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.http.HttpPipelinedRequest;
 
@@ -38,20 +37,9 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest httpRequest) {
         final Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
-        final DecoderResult decoderResult = ((Netty4HttpRequest) httpRequest.getDelegateRequest()).nettyRequest().decoderResult();
         boolean success = false;
         try {
-            if (decoderResult.isFailure()) {
-                Throwable cause = decoderResult.cause();
-                if (cause instanceof Error) {
-                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                    serverTransport.incomingRequestError(httpRequest, channel, new Exception(cause));
-                } else {
-                    serverTransport.incomingRequestError(httpRequest, channel, (Exception) cause);
-                }
-            } else {
-                serverTransport.incomingRequest(httpRequest, channel);
-            }
+            serverTransport.incomingRequest(httpRequest, channel);
             success = true;
         } finally {
             if (success == false) {

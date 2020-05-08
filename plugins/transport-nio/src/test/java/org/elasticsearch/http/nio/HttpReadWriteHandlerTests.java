@@ -150,10 +150,11 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
 
             handler.consumeReads(toChannelBuffer(buf));
 
-            ArgumentCaptor<Exception> exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
-            verify(transport).incomingRequestError(any(HttpRequest.class), any(NioHttpChannel.class), exceptionCaptor.capture());
+            ArgumentCaptor<HttpRequest> requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
+            verify(transport).incomingRequest(requestCaptor.capture(), any(NioHttpChannel.class));
 
-            assertTrue(exceptionCaptor.getValue() instanceof IllegalArgumentException);
+            assertTrue(requestCaptor.getValue().hasInboundException());
+            assertTrue(requestCaptor.getValue().getInboundException() instanceof IllegalArgumentException);
         } finally {
             buf.release();
         }
@@ -171,7 +172,6 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         } finally {
             buf.release();
         }
-        verify(transport, times(0)).incomingRequestError(any(), any(), any());
         verify(transport, times(0)).incomingRequest(any(), any());
 
         List<FlushOperation> flushOperations = handler.pollFlushOperations();

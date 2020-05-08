@@ -65,7 +65,8 @@ If `true`, cluster states are included in snapshots. Defaults to `false`.
 
 `indices`::
 (Optional, array of strings)
-Array of index names or wildcard pattern of index names included in snapshots.
+Array of index names or wildcard pattern of index names included in snapshots. It
+supports <<date-math-index-names,date math>> expressions.
 ====
 
 `name`::

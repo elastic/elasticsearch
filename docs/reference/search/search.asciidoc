@@ -58,9 +58,11 @@ To override the default for this field, set the
   to reduce the memory overhead per search request if the potential number of
   shards in the request can be large. Defaults to `512`.
 
+[[ccs-minimize-roundtrips]]
 `ccs_minimize_roundtrips`::
-  (Optional, boolean) Indicates whether network round-trips should be minimized
-  as part of cross-cluster search requests execution. Defaults to `true`.
+(Optional, boolean) If `true`, network round-trips between the 
+coordinating node and the remote clusters are minimized when executing 
+{ccs} (CCS) requests. See <<ccs-network-delays>>. Defaults to `true`.
 
 `docvalue_fields`::
   (Optional, string) A comma-separated list of fields to return as the docvalue
@@ -75,6 +77,14 @@ Defaults to `open`.
   computation as part of a hit. Defaults to `false`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=from]
++
+--
+[IMPORTANT]
+====
+You can also specify this value using the `from` request body parameter. If
+both parameters are specified, only the query parameter is used.
+====
+--
 
 `ignore_throttled`::
   (Optional, boolean) If `true`, concrete, expanded or aliased indices will be
@@ -121,8 +131,9 @@ matching the `query` request body parameter are not returned.
 --
 
 `request_cache`::
-  (Optional, boolean) If `true`, request cache will be used for this request.
-  Defaults to index level settings.
+(Optional, boolean) If `true`, the caching of search results is enabled for
+requests where `size` is `0`. See <<shard-request-cache>>. Defaults to index
+level settings.
 
 `rest_total_hits_as_int`::
   (Optional, boolean) Indicates whether hits.total should be rendered as an
@@ -139,7 +150,15 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=search_type]
   last modification of each hit.
 
 `size`::
-  (Optional, integer) Defines the number of hits to return. Defaults to `10`.
+(Optional, integer) Defines the number of hits to return. Defaults to `10`.
++
+--
+[IMPORTANT]
+====
+You can also specify this value using the `size` request body parameter. If
+both parameters are specified, only the query parameter is used.
+====
+--
 
 `sort`::
   (Optional, string) A comma-separated list of <field>:<direction> pairs.
@@ -171,12 +190,29 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 +
+--
 Defaults to `0`, which does not terminate query execution early.
 
+[IMPORTANT]
+====
+You can also specify this value using the `terminate_after` request body
+parameter. If both parameters are specified, only the query parameter is used.
+====
+--
+
 `timeout`::
-  (Optional, <<time-units, time units>>) Specifies the period of time to wait
-  for a response. If no response is received before the timeout expires, the
-  request fails and returns an error. Defaults to no timeout.
++
+--
+(Optional, <<time-units, time units>>) Specifies the period of time to wait
+for a response. If no response is received before the timeout expires, the
+request fails and returns an error. Defaults to no timeout.
+
+[IMPORTANT]
+====
+You can also specify this value using the `timeout` request body
+parameter. If both parameters are specified, only the query parameter is used.
+====
+--
 
 `track_scores`::
   (Optional, boolean) If `true`, calculate and return document scores, even if
@@ -201,10 +237,57 @@ include the total number of hits matching the query.
 [[search-search-api-request-body]]
 ==== {api-request-body-title}
 
+include::{docdir}/rest-api/common-parms.asciidoc[tag=from]
++
+--
+[IMPORTANT]
+====
+You can also specify this value using the `from` query parameter. If both
+parameters are specified, only the query parameter is used.
+====
+--
+
 [[search-api-request-body-query]]
 `query`::
   (Optional, <<query-dsl,query object>>) Defines the search definition using the
   <<query-dsl,Query DSL>>.
+
+`size`:: 
+(Optional, integer) The number of hits to return. Defaults to `10`.
++
+--
+[IMPORTANT]
+====
+You can also specify this value using the `size` query parameter. If both
+parameters are specified, only the query parameter is used.
+====
+--
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=terminate_after]
++
+--
+Defaults to `0`, which does not terminate query execution early.
+
+[IMPORTANT]
+====
+You can also specify this value using the `terminate_after` query parameter. If
+both parameters are specified, only the query parameter is used.
+====
+--
+
+`timeout`::
++
+--
+(Optional, <<time-units, time units>>) Specifies the period of time to wait
+for a response. If no response is received before the timeout expires, the
+request fails and returns an error. Defaults to no timeout.
+
+[IMPORTANT]
+====
+You can also specify this value using the `timeout` query parameter. If both
+parameters are specified, only the query parameter is used.
+====
+--
 
 [role="child_attributes"]
 [[search-api-response-body]]
@@ -422,3 +505,54 @@ GET /_all/_search?q=user:kimchy
 GET /*/_search?q=user:kimchy
 ----
 // TEST[continued]
+
+[[search-request-body-api-example]]
+===== Search an index using the `query` request body parameter
+
+[source,console]
+--------------------------------------------------
+GET /twitter/_search
+{
+    "query" : {
+        "term" : { "user" : "kimchy" }
+    }
+}
+--------------------------------------------------
+// TEST[setup:twitter]
+
+The API returns the following response:
+
+[source,console-result]
+--------------------------------------------------
+{
+    "took": 1,
+    "timed_out": false,
+    "_shards":{
+        "total" : 1,
+        "successful" : 1,
+        "skipped" : 0,
+        "failed" : 0
+    },
+    "hits":{
+        "total" : {
+            "value": 1,
+            "relation": "eq"
+        },
+        "max_score": 1.3862942,
+        "hits" : [
+            {
+                "_index" : "twitter",
+                "_id" : "0",
+                "_score": 1.3862942,
+                "_source" : {
+                    "user" : "kimchy",
+                    "message": "trying out Elasticsearch",
+                    "date" : "2009-11-15T14:12:12",
+                    "likes" : 0
+                }
+            }
+        ]
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 1/"took": $body.took/]

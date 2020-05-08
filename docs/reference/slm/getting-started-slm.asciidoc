@@ -43,7 +43,7 @@ PUT /_snapshot/my_repository
 
 [discrete]
 [[slm-gs-create-policy]]
-==== Setting up a snapshot policy
+==== Set up a snapshot policy
 
 Once you have a repository in place, 
 you can define an {slm-init} policy to take snapshots automatically. 

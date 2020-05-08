@@ -163,7 +163,7 @@ public class DateTimeParsePipeTests extends AbstractNodeTestCase<DateTimeParsePi
                 f.left(),
                 f.right(),
                 f.zoneId(),
-                randomFrom(Parser.values())
+                randomValueOtherThan(f.parser(), () -> randomFrom(Parser.values()))
             )
         );
 

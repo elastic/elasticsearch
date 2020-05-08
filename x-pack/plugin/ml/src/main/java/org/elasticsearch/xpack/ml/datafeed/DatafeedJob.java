@@ -243,26 +243,27 @@ class DatafeedJob {
 
     private Annotation createDelayedDataAnnotation(Date startTime, Date endTime, String msg) {
        Date currentTime = new Date(currentTimeSupplier.get());
-       return new Annotation(
-           msg,
-           currentTime,
-           XPackUser.NAME,
-           startTime,
-           endTime,
-           jobId,
-           currentTime,
-           XPackUser.NAME,
-           "annotation");
+       return new Annotation.Builder()
+           .setAnnotation(msg)
+           .setCreateTime(currentTime)
+           .setCreateUsername(XPackUser.NAME)
+           .setTimestamp(startTime)
+           .setEndTimestamp(endTime)
+           .setJobId(jobId)
+           .setModifiedTime(currentTime)
+           .setModifiedUsername(XPackUser.NAME)
+           .setType("annotation")
+           .build();
     }
 
     private Annotation updateAnnotation(Annotation annotation) {
-        Annotation updatedAnnotation = new Annotation(lastDataCheckAnnotationWithId.v2());
-        updatedAnnotation.setModifiedUsername(XPackUser.NAME);
-        updatedAnnotation.setModifiedTime(new Date(currentTimeSupplier.get()));
-        updatedAnnotation.setAnnotation(annotation.getAnnotation());
-        updatedAnnotation.setTimestamp(annotation.getTimestamp());
-        updatedAnnotation.setEndTimestamp(annotation.getEndTimestamp());
-        return updatedAnnotation;
+        return new Annotation.Builder(lastDataCheckAnnotationWithId.v2())
+            .setAnnotation(annotation.getAnnotation())
+            .setTimestamp(annotation.getTimestamp())
+            .setEndTimestamp(annotation.getEndTimestamp())
+            .setModifiedTime(new Date(currentTimeSupplier.get()))
+            .setModifiedUsername(XPackUser.NAME)
+            .build();
     }
 
     /**

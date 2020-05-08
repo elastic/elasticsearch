@@ -251,7 +251,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         if (fieldType().isEnabled() == false) {
             return;
         }

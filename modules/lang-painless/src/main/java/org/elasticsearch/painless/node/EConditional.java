@@ -24,6 +24,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConditionalNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -61,7 +62,8 @@ public class EConditional extends AExpression {
         Input conditionInput = new Input();
         conditionInput.expected = boolean.class;
         Output conditionOutput = condition.analyze(classNode, scriptRoot, scope, conditionInput);
-        condition.cast(conditionInput, conditionOutput);
+        PainlessCast conditionCast = AnalyzerCaster.getLegalCast(condition.location,
+                conditionOutput.actual, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
 
         Input leftInput = new Input();
         leftInput.expected = input.expected;
@@ -91,14 +93,16 @@ public class EConditional extends AExpression {
             output.actual = promote;
         }
 
-        left.cast(leftInput, leftOutput);
-        right.cast(rightInput, rightOutput);
+        PainlessCast leftCast = AnalyzerCaster.getLegalCast(left.location,
+                leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
+        PainlessCast rightCast = AnalyzerCaster.getLegalCast(right.location,
+                rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
 
         ConditionalNode conditionalNode = new ConditionalNode();
 
-        conditionalNode.setLeftNode(left.cast(leftOutput));
-        conditionalNode.setRightNode(right.cast(rightOutput));
-        conditionalNode.setConditionNode(condition.cast(conditionOutput));
+        conditionalNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
+        conditionalNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
+        conditionalNode.setConditionNode(cast(conditionOutput.expressionNode, conditionCast));
 
         conditionalNode.setLocation(location);
         conditionalNode.setExpressionType(output.actual);

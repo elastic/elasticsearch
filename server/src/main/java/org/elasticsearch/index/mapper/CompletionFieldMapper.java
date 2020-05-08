@@ -20,7 +20,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -52,7 +51,6 @@ import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -423,7 +421,8 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                     throw new IllegalArgumentException(
                         "Limit of completion field contexts [" + COMPLETION_CONTEXTS_LIMIT + "] has been exceeded");
                 } else {
-                    deprecationLogger.deprecated("You have defined more than [" + COMPLETION_CONTEXTS_LIMIT + "] completion contexts" +
+                    deprecationLogger.deprecatedAndMaybeLog("excessive_completion_contexts",
+                        "You have defined more than [" + COMPLETION_CONTEXTS_LIMIT + "] completion contexts" +
                         " in the mapping for index [" + context.indexSettings().get(IndexMetadata.SETTING_INDEX_PROVIDED_NAME) + "]. " +
                         "The maximum allowed number of completion contexts in a mapping will be limited to " +
                         "[" + COMPLETION_CONTEXTS_LIMIT + "] starting in version [8.0].");
@@ -502,12 +501,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             }
         }
 
-        List<IndexableField> fields = new ArrayList<>(1);
-        createFieldNamesField(context, fields);
-        for (IndexableField field : fields) {
-            context.doc().add(field);
-        }
-
+        createFieldNamesField(context);
         for (CompletionInputMetadata metadata: inputMap.values()) {
             ParseContext externalValueContext = context.createExternalValueContext(metadata);
             multiFields.parse(this, externalValueContext);
@@ -666,7 +660,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         // no-op
     }
 

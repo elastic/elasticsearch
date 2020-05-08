@@ -56,6 +56,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -100,7 +101,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean allowUnmappedFields;
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
-    private ValuesSourceRegistry valuesSourceRegistry;
+    private final ValuesSourceRegistry valuesSourceRegistry;
 
     public QueryShardContext(int shardId,
                              IndexSettings indexSettings,
@@ -469,5 +470,9 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public BitsetFilterCache getBitsetFilterCache() {
         return bitsetFilterCache;
+    }
+
+    public AggregationUsageService getUsageService() {
+        return valuesSourceRegistry.getUsageService();
     }
 }

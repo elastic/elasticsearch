@@ -29,9 +29,11 @@ import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -50,7 +52,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
@@ -71,14 +72,22 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         "cluster state is empty, cluster has never been bootstrapped?";
 
     // fake the registry here, as command-line tools are not loading plugins, and ensure that it preserves the parsed XContent
-    public static final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList()) {
+    public static final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(ClusterModule.getNamedXWriteables()) {
 
         @SuppressWarnings("unchecked")
         @Override
         public <T, C> T parseNamedObject(Class<T> categoryClass, String name, XContentParser parser, C context) throws IOException {
             // Currently, two unknown top-level objects are present
             if (Metadata.Custom.class.isAssignableFrom(categoryClass)) {
-                return (T) new UnknownMetadataCustom(name, parser.mapOrdered());
+                if (DataStreamMetadata.TYPE.equals(name)) {
+                    // DataStreamMetadata is used inside Metadata class for validation purposes and building the indicesLookup,
+                    // therefor even es node commands need to be able to parse it.
+                    return super.parseNamedObject(categoryClass, name, parser, context);
+                    // TODO: Try to parse other named objects (e.g. stored scripts, ingest pipelines) that are part of core es as well?
+                    // Note that supporting PersistentTasksCustomMetadata is trickier, because PersistentTaskParams is a named object too.
+                } else {
+                    return (T) new UnknownMetadataCustom(name, parser.mapOrdered());
+                }
             }
             if (Condition.class.isAssignableFrom(categoryClass)) {
                 // The parsing for conditions is a bit weird as these represent JSON primitives (strings or numbers)

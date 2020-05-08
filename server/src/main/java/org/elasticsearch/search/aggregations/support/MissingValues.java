@@ -57,7 +57,7 @@ public enum MissingValues {
         };
     }
 
-    static SortedBinaryDocValues replaceMissing(final SortedBinaryDocValues values, final BytesRef missing) {
+    public static SortedBinaryDocValues replaceMissing(final SortedBinaryDocValues values, final BytesRef missing) {
         return new SortedBinaryDocValues() {
 
             private int count;

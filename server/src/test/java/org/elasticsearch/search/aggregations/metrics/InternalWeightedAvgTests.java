@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -38,11 +37,6 @@ public class InternalWeightedAvgTests extends InternalAggregationTestCase<Intern
             randomDoubleBetween(0, 100000, true),
             randomDoubleBetween(0, 100000, true),
             formatter, metadata);
-    }
-
-    @Override
-    protected Reader<InternalWeightedAvg> instanceReader() {
-        return InternalWeightedAvg::new;
     }
 
     @Override

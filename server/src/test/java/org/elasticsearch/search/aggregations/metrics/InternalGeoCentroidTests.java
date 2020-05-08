@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
@@ -47,11 +46,6 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
             centroid = null;
         }
         return new InternalGeoCentroid(name, centroid, count, Collections.emptyMap());
-    }
-
-    @Override
-    protected Writeable.Reader<InternalGeoCentroid> instanceReader() {
-        return InternalGeoCentroid::new;
     }
 
     @Override

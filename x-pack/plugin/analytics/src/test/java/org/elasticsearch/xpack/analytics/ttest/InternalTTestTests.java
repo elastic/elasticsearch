@@ -9,13 +9,10 @@ package org.elasticsearch.xpack.analytics.ttest;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -27,9 +24,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyList;
-
 public class InternalTTestTests extends InternalAggregationTestCase<InternalTTest> {
+
+    @Override
+    protected SearchPlugin registerPlugin() {
+        return new AnalyticsPlugin();
+    }
 
     @Override
     protected InternalTTest createTestInstance(String name, Map<String, Object> metadata) {
@@ -62,11 +62,6 @@ public class InternalTTestTests extends InternalAggregationTestCase<InternalTTes
 
     private TTestStats randomStats(long maxCount) {
         return new TTestStats(randomLongBetween(0, maxCount), randomDouble(), randomDouble());
-    }
-
-    @Override
-    protected Writeable.Reader<InternalTTest> instanceReader() {
-        return InternalTTest::new;
     }
 
     @Override
@@ -128,13 +123,4 @@ public class InternalTTestTests extends InternalAggregationTestCase<InternalTTes
         ));
         return extendedNamedXContents;
     }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
-        entries.addAll(new AnalyticsPlugin().getNamedWriteables());
-        return new NamedWriteableRegistry(entries);
-    }
-
 }

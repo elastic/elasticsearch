@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
@@ -55,11 +54,6 @@ public class SignificantStringTermsTests extends InternalSignificantTermsTestCas
         }
         return new SignificantStringTerms(name, requiredSize, 1L, metadata, format, subsetSize,
                 supersetSize, significanceHeuristic, buckets);
-    }
-
-    @Override
-    protected Writeable.Reader<InternalSignificantTerms<?, ?>> instanceReader() {
-        return SignificantStringTerms::new;
     }
 
     @Override

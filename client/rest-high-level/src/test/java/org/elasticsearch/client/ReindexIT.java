@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -30,7 +31,12 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.indices.PutIndexTemplateRequest;
+import org.elasticsearch.client.indices.PutIndexTemplateV2Request;
 import org.elasticsearch.client.tasks.TaskSubmissionResponse;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateV2;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -50,6 +56,9 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -111,6 +120,44 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             assertEquals(0, bulkResponse.getBulkFailures().size());
             assertEquals(0, bulkResponse.getSearchFailures().size());
         }
+    }
+
+    public void testReindexPreferV2Templates() throws Exception {
+        //we don't care about warnings here
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> false).build();
+
+        IndexRequest indexRequest = new IndexRequest("sourcev2").source(Collections.singletonMap("foo", "bar"), XContentType.JSON);
+        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        RestHighLevelClient client = highLevelClient();
+        assertEquals(RestStatus.CREATED, client.index(indexRequest, options).status());
+
+        PutIndexTemplateRequest putIndexTemplateRequest = new PutIndexTemplateRequest("v1", Collections.singletonList("target*"));
+        assertTrue(client.indices().putTemplate(putIndexTemplateRequest, options).isAcknowledged());
+
+        AliasMetadata alias = AliasMetadata.builder("alias").build();
+        Template template = new Template(null, null, Map.of("alias", alias));
+        List<String> pattern = Collections.singletonList("target*");
+        IndexTemplateV2 indexTemplate = new IndexTemplateV2(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>());
+        PutIndexTemplateV2Request putTemplateRequest = new PutIndexTemplateV2Request().name("v2").indexTemplate(indexTemplate);
+        assertTrue(client.indices().putIndexTemplate(putTemplateRequest, options).isAcknowledged());
+
+        ReindexRequest reindexRequest = new ReindexRequest()
+            .preferV2Templates(true)
+            .setSourceIndices("sourcev2")
+            .setDestIndex("target1")
+            .setRefresh(true);
+        assertEquals(1, client.reindex(reindexRequest, options).getStatus().getSuccessfullyProcessed());
+
+        GetAliasesResponse aliases = client.indices().getAlias(new GetAliasesRequest().indices("target1"), options);
+        assertEquals(RestStatus.OK, aliases.status());
+        assertEquals(Collections.singletonMap("target1", Collections.singleton(alias)), aliases.getAliases());
+
+        reindexRequest.setDestIndex("target2").preferV2Templates(false);
+        assertEquals(1, client.reindex(reindexRequest, options).getStatus().getSuccessfullyProcessed());
+
+        aliases = client.indices().getAlias(new GetAliasesRequest().indices("target2"), options);
+        assertEquals(RestStatus.OK, aliases.status());
+        assertEquals(Collections.singletonMap("target2", Collections.emptySet()), aliases.getAliases());
     }
 
     public void testReindexTask() throws Exception {

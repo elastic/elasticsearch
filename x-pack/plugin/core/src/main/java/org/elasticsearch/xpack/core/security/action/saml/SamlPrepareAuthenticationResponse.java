@@ -48,4 +48,4 @@ public final class SamlPrepareAuthenticationResponse extends ActionResponse {
         out.writeString(redirectUrl);
     }
 
-    }
+}

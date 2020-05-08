@@ -36,6 +36,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -108,8 +109,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<?
      */
     @Override
     protected void parsePointIgnoringMalformed(XContentParser parser, ParsedPoint point) throws IOException {
-        super.parsePointIgnoringMalformed(parser, point);
         GeoUtils.parseGeoPoint(parser, (GeoPoint)point, ignoreZValue().value());
+        super.parsePointIgnoringMalformed(parser, point);
     }
 
     public GeoPointFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
@@ -128,6 +129,10 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<?
     @Override
     protected void addMultiFields(ParseContext context, List<? extends GeoPoint> points) throws IOException {
         // @todo phase out geohash (which is currently used in the CompletionSuggester)
+        if (points.isEmpty()) {
+            return;
+        }
+
         StringBuilder s = new StringBuilder();
         if (points.size() > 1) {
             s.append('[');
@@ -264,7 +269,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<?
         @Override
         public List<ParsedGeoPoint> prepareForIndexing(List<ParsedGeoPoint> geoPoints) {
             if (geoPoints == null || geoPoints.isEmpty()) {
-                return null;
+                return Collections.EMPTY_LIST;
             }
             return geoPoints;
         }

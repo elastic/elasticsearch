@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.spatial.index.query.ShapeQueryPointProcessor;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -224,7 +225,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? ex
         @Override
         public List<ParsedCartesianPoint> prepareForIndexing(List<ParsedCartesianPoint> points) {
             if (points == null || points.isEmpty()) {
-                return null;
+                return Collections.EMPTY_LIST;
             }
             return points;
         }

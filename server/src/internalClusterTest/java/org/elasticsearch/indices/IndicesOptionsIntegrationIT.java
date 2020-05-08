@@ -20,6 +20,7 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
@@ -638,6 +639,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verifyResolvability(dataStreamName, getFieldMapping(dataStreamName), true);
         verifyResolvability(dataStreamName, getMapping(dataStreamName), true);
         verifyResolvability(dataStreamName, getSettings(dataStreamName), true);
+        verifyResolvability(dataStreamName, health(dataStreamName), false);
 
         request = new CreateDataStreamAction.Request("logs-barbaz");
         request.setTimestampFieldName("ts");
@@ -661,9 +663,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, getFieldMapping(wildcardExpression), true);
         verifyResolvability(wildcardExpression, getMapping(wildcardExpression), true);
         verifyResolvability(wildcardExpression, getSettings(wildcardExpression), true);
-
-        DeleteDataStreamAction.Request deleteRequest = new DeleteDataStreamAction.Request("*");
-        client().admin().indices().deleteDataStream(deleteRequest).actionGet();
+        verifyResolvability(wildcardExpression, health(wildcardExpression), false);
     }
 
     private static void verifyResolvability(String dataStream, ActionRequestBuilder requestBuilder, boolean fail) {
@@ -765,6 +765,10 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
                 .setRenamePattern("(.+)").setRenameReplacement("$1-copy-" + name)
                 .setWaitForCompletion(true)
                 .setIndices(indices);
+    }
+
+    private static ClusterHealthRequestBuilder health(String... indices) {
+        return client().admin().cluster().prepareHealth(indices);
     }
 
     private static void verify(ActionRequestBuilder requestBuilder, boolean fail) {

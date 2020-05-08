@@ -816,17 +816,17 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testRemoveComponentTemplateInUse() throws Exception {
         IndexTemplateV2 template = new IndexTemplateV2(Collections.singletonList("a"), null,
-            Collections.singletonList("good"), null, null, null);
+            Collections.singletonList("ct"), null, null, null);
         ComponentTemplate ct = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
 
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         CountDownLatch ctLatch = new CountDownLatch(1);
-        service.putComponentTemplate("api", randomBoolean(), "good", TimeValue.timeValueSeconds(5), ct,
+        service.putComponentTemplate("api", false, "ct", TimeValue.timeValueSeconds(5), ct,
             ActionListener.wrap(r -> ctLatch.countDown(), e -> fail("unexpected error")));
         ctLatch.await(5, TimeUnit.SECONDS);
 
         CountDownLatch latch = new CountDownLatch(1);
-        service.putIndexTemplateV2("api", randomBoolean(), "template", TimeValue.timeValueSeconds(30), template,
+        service.putIndexTemplateV2("api", false, "template", TimeValue.timeValueSeconds(30), template,
             ActionListener.wrap(r -> latch.countDown(), e -> fail("unexpected error")));
         latch.await(5, TimeUnit.SECONDS);
 
@@ -834,7 +834,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             () -> {
                 AtomicReference<Exception> err = new AtomicReference<>();
                 CountDownLatch errLatch = new CountDownLatch(1);
-                service.removeComponentTemplate("go*", TimeValue.timeValueSeconds(30),
+                service.removeComponentTemplate("c*", TimeValue.timeValueSeconds(30),
                     ActionListener.wrap(r -> fail("should have failed!"), exception -> {
                         err.set(exception);
                         errLatch.countDown();
@@ -846,7 +846,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             });
 
         assertThat(e.getMessage(),
-            containsString("component templates [good] cannot be removed as they are still in use by index templates [template]"));
+            containsString("component templates [ct] cannot be removed as they are still in use by index templates [template]"));
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {

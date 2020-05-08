@@ -312,7 +312,6 @@ class BuildPlugin implements Plugin<Project> {
                 // Workaround for https://github.com/johnrengelman/shadow/issues/334
                 // Here we manually add any project dependencies in the "shadow" configuration to our generated POM
                 publication.pom.withXml(this.&addScmInfo)
-                publication.pom.withXml(configureArtifactId(project))
                 publication.pom.withXml { xml ->
                     Node root = xml.asNode()
                     root.appendNode('name', project.name)
@@ -329,6 +328,11 @@ class BuildPlugin implements Plugin<Project> {
                     }
                 }
                 generatePomTask.configure({ Task t -> t.dependsOn = ['generatePomFileForShadowPublication'] } as Action<Task>)
+
+                // have to defer this until archivesBaseName is set
+                project.afterEvaluate {
+                    publication.artifactId = project.convention.getPlugin(BasePluginConvention).archivesBaseName
+                }
             }
         }
 
@@ -337,15 +341,12 @@ class BuildPlugin implements Plugin<Project> {
             PublishingExtension publishing = project.extensions.getByType(PublishingExtension)
             MavenPublication nebulaPublication = (MavenPublication) publishing.publications.getByName('nebula')
             nebulaPublication.pom.withXml(this.&addScmInfo)
-            nebulaPublication.pom.withXml(configureArtifactId(project))
-        }
-    }
 
-    private static Action<? super XmlProvider> configureArtifactId(Project project) {
-        return { XmlProvider xml ->
-            String artifactId = project.convention.getPlugin(BasePluginConvention).archivesBaseName
-            ((xml.asNode().get('artifactId') as NodeList).get(0) as Node).setValue(artifactId)
-        } as Action<XmlProvider>
+            // have to defer this until archivesBaseName is set
+            project.afterEvaluate {
+                nebulaPublication.artifactId = project.convention.getPlugin(BasePluginConvention).archivesBaseName
+            }
+        }
     }
 
     private static void addScmInfo(XmlProvider xml) {

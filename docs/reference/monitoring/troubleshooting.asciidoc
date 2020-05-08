@@ -45,11 +45,16 @@ Verify that the missing items have unique UUIDs. Each {es} node, {ls} node,
 persistent UUID, which is found in its `path.data` directory. Alternatively, you
 can find the UUIDs in the product logs at startup.
 
-For {ls} nodes, you can also determine the UUID from the `id` property returned
-by the {logstash-ref}/monitoring-logstash.html[monitoring APIs root resource].
-Likewise, if you have enabled the HTTP endpoint for your Beat instances, it
-returns a `uuid` property. For example, refer to
+In some cases, you can also retrieve this information via APIs:
+
+* For Beat instances, use the HTTP endpoint to retrieve the `uuid` property.
+For example, refer to
 {filebeat-ref}/http-endpoint.html[Configure an HTTP endpoint for {filebeat} metrics].
+* For {kib} instances, use the
+{kibana-ref}/access.html#status[status endpoint] to retrieve the `uuid` property.
+* For {ls} nodes, use the
+{logstash-ref}/monitoring-logstash.html[monitoring APIs root resource] to
+retrieve the `id` property.
 
 TIP: When you install {es}, {ls}, {kib}, APM Server, or Beats, their `path.data`
 directory should be non-existent or empty; do not copy this directory from other

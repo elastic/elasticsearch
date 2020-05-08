@@ -300,7 +300,7 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             project.tasks.withType(GenerateMavenPom).configureEach({ GenerateMavenPom pomTask ->
-                pomTask.destination = "${project.buildDir}/distributions/${project.convention.getPlugin(BasePluginConvention).archivesBaseName}-${project.version}.pom"
+                pomTask.destination = { "${project.buildDir}/distributions/${project.convention.getPlugin(BasePluginConvention).archivesBaseName}-${project.version}.pom" }
             } as Action<GenerateMavenPom>)
 
             PublishingExtension publishing = project.extensions.getByType(PublishingExtension)
@@ -312,8 +312,9 @@ class BuildPlugin implements Plugin<Project> {
                 // Workaround for https://github.com/johnrengelman/shadow/issues/334
                 // Here we manually add any project dependencies in the "shadow" configuration to our generated POM
                 publication.pom.withXml(this.&addScmInfo)
+                publication.pom.withXml(configureArtifactId(project))
                 publication.pom.withXml { xml ->
-                    Node root = xml.asNode();
+                    Node root = xml.asNode()
                     root.appendNode('name', project.name)
                     root.appendNode('description', project.description)
                     Node dependenciesNode = (root.get('dependencies') as NodeList).get(0) as Node
@@ -336,7 +337,15 @@ class BuildPlugin implements Plugin<Project> {
             PublishingExtension publishing = project.extensions.getByType(PublishingExtension)
             MavenPublication nebulaPublication = (MavenPublication) publishing.publications.getByName('nebula')
             nebulaPublication.pom.withXml(this.&addScmInfo)
+            nebulaPublication.pom.withXml(configureArtifactId(project))
         }
+    }
+
+    private static Action<? super XmlProvider> configureArtifactId(Project project) {
+        return { XmlProvider xml ->
+            String artifactId = project.convention.getPlugin(BasePluginConvention).archivesBaseName
+            ((xml.asNode().get('artifactId') as NodeList).get(0) as Node).setValue(artifactId)
+        } as Action<XmlProvider>
     }
 
     private static void addScmInfo(XmlProvider xml) {

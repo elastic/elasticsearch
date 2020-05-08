@@ -2,10 +2,11 @@
 [[realms]]
 === Realms
 
-Authentication in the {stack} {security-features} is handled by one or more
-authentication services called _realms_. A _realm_ is used to resolve and
-authenticate users based on authentication tokens. The {security-features}
-provide the following built-in realms:
+The {stack-security-features} authenticate users by using realms and one or more
+<<token-authentication-services,token-based authentication services>>.
+
+A _realm_ is used to resolve and authenticate users based on authentication
+tokens. The {security-features} provide the following built-in realms:
 
 _native_::
 An internal realm where users are stored in a dedicated {es} index.

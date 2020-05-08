@@ -47,13 +47,15 @@ public class GetIndexResponse {
     private Map<String, List<AliasMetadata>> aliases;
     private Map<String, Settings> settings;
     private Map<String, Settings> defaultSettings;
+    private Map<String, String> dataStreams;
     private String[] indices;
 
     GetIndexResponse(String[] indices,
                      Map<String, MappingMetadata> mappings,
                      Map<String, List<AliasMetadata>> aliases,
                      Map<String, Settings> settings,
-                     Map<String, Settings> defaultSettings) {
+                     Map<String, Settings> defaultSettings,
+                     Map<String, String> dataStreams) {
         this.indices = indices;
         // to have deterministic order
         Arrays.sort(indices);
@@ -68,6 +70,9 @@ public class GetIndexResponse {
         }
         if (defaultSettings != null) {
             this.defaultSettings = defaultSettings;
+        }
+        if (dataStreams != null) {
+            this.dataStreams = dataStreams;
         }
     }
 
@@ -97,6 +102,10 @@ public class GetIndexResponse {
 
     public Map<String, Settings> getSettings() {
         return settings;
+    }
+
+    public Map<String, String> getDataStreams() {
+        return dataStreams;
     }
 
     /**
@@ -142,6 +151,7 @@ public class GetIndexResponse {
         MappingMetadata indexMappings = null;
         Settings indexSettings = null;
         Settings indexDefaultSettings = null;
+        String dataStream = null;
         // We start at START_OBJECT since fromXContent ensures that
         while (parser.nextToken() != Token.END_OBJECT) {
             ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
@@ -163,11 +173,16 @@ public class GetIndexResponse {
                     default:
                         parser.skipChildren();
                 }
+            } else if (parser.currentToken() == Token.VALUE_STRING) {
+                if (parser.currentName().equals("data_stream")) {
+                    dataStream = parser.text();
+                }
+                parser.skipChildren();
             } else if (parser.currentToken() == Token.START_ARRAY) {
                 parser.skipChildren();
             }
         }
-        return new IndexEntry(indexAliases, indexMappings, indexSettings, indexDefaultSettings);
+        return new IndexEntry(indexAliases, indexMappings, indexSettings, indexDefaultSettings, dataStream);
     }
 
     // This is just an internal container to make stuff easier for returning
@@ -176,11 +191,14 @@ public class GetIndexResponse {
         MappingMetadata indexMappings;
         Settings indexSettings = Settings.EMPTY;
         Settings indexDefaultSettings = Settings.EMPTY;
-        IndexEntry(List<AliasMetadata> indexAliases, MappingMetadata indexMappings, Settings indexSettings, Settings indexDefaultSettings) {
+        String dataStream;
+        IndexEntry(List<AliasMetadata> indexAliases, MappingMetadata indexMappings, Settings indexSettings, Settings indexDefaultSettings,
+                   String dataStream) {
             if (indexAliases != null) this.indexAliases = indexAliases;
             if (indexMappings != null) this.indexMappings = indexMappings;
             if (indexSettings != null) this.indexSettings = indexSettings;
             if (indexDefaultSettings != null) this.indexDefaultSettings = indexDefaultSettings;
+            if (dataStream != null) this.dataStream = dataStream;
         }
     }
 
@@ -189,6 +207,7 @@ public class GetIndexResponse {
         Map<String, MappingMetadata> mappings = new HashMap<>();
         Map<String, Settings> settings = new HashMap<>();
         Map<String, Settings> defaultSettings = new HashMap<>();
+        Map<String, String> dataStreams = new HashMap<>();
         List<String> indices = new ArrayList<>();
 
         if (parser.currentToken() == null) {
@@ -211,12 +230,15 @@ public class GetIndexResponse {
                 if (indexEntry.indexDefaultSettings.isEmpty() == false) {
                     defaultSettings.put(indexName, indexEntry.indexDefaultSettings);
                 }
+                if (indexEntry.dataStream != null) {
+                    dataStreams.put(indexName, indexEntry.dataStream);
+                }
             } else if (parser.currentToken() == Token.START_ARRAY) {
                 parser.skipChildren();
             } else {
                 parser.nextToken();
             }
         }
-        return new GetIndexResponse(indices.toArray(new String[0]), mappings, aliases, settings, defaultSettings);
+        return new GetIndexResponse(indices.toArray(new String[0]), mappings, aliases, settings, defaultSettings, dataStreams);
     }
 }

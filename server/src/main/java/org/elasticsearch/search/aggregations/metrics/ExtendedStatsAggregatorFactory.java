@@ -24,13 +24,16 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 
 class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
@@ -46,6 +49,12 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     Map<String, Object> metadata) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.sigma = sigma;
+    }
+
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(ExtendedStatsAggregationBuilder.NAME,
+            Arrays.asList(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            (ExtendedStatsAggregatorProvider) ExtendedStatsAggregator::new);
     }
 
     @Override

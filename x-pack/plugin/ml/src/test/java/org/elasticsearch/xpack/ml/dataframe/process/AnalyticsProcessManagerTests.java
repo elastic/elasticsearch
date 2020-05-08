@@ -22,12 +22,14 @@ import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
+import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
 import java.util.Arrays;
@@ -93,7 +95,8 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
 
         task = mock(DataFrameAnalyticsTask.class);
         when(task.getAllocationId()).thenReturn(TASK_ALLOCATION_ID);
-        when(task.getStatsHolder()).thenReturn(new StatsHolder());
+        when(task.getStatsHolder()).thenReturn(new StatsHolder(
+            ProgressTracker.fromZeroes(Collections.singletonList("analyzing")).report()));
         when(task.getParentTaskId()).thenReturn(new TaskId(""));
         dataFrameAnalyticsConfig = DataFrameAnalyticsConfigTests.createRandomBuilder(CONFIG_ID,
             false,
@@ -139,7 +142,11 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         inOrder.verify(task).getStatsHolder();
         inOrder.verify(task).isStopping();
         inOrder.verify(task).getAllocationId();
-        inOrder.verify(task).setFailed("[config-id] Could not create process as one already exists");
+
+        ArgumentCaptor<Exception> failureCaptor = ArgumentCaptor.forClass(Exception.class);
+        inOrder.verify(task).setFailed(failureCaptor.capture());
+        assertThat(failureCaptor.getValue().getMessage(), equalTo("[config-id] Could not create process as one already exists"));
+
         verifyNoMoreInteractions(task);
     }
 

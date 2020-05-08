@@ -87,8 +87,8 @@ public class QuerySearchResultTests extends ESTestCase {
         assertEquals(querySearchResult.size(), deserialized.size());
         assertEquals(querySearchResult.hasAggs(), deserialized.hasAggs());
         if (deserialized.hasAggs()) {
-            Aggregations aggs = querySearchResult.consumeAggs().get();
-            Aggregations deserializedAggs = deserialized.consumeAggs().get();
+            Aggregations aggs = querySearchResult.consumeAggs().expand();
+            Aggregations deserializedAggs = deserialized.consumeAggs().expand();
             assertEquals(aggs.asList(), deserializedAggs.asList());
         }
         assertEquals(querySearchResult.terminatedEarly(), deserialized.terminatedEarly());
@@ -114,7 +114,7 @@ public class QuerySearchResultTests extends ESTestCase {
             QuerySearchResult querySearchResult = new QuerySearchResult(in);
             assertEquals(100, querySearchResult.getContextId().getId());
             assertTrue(querySearchResult.hasAggs());
-            InternalAggregations aggs = querySearchResult.consumeAggs().get();
+            InternalAggregations aggs = querySearchResult.consumeAggs().expand();
             assertEquals(1, aggs.asList().size());
             // We deserialize and throw away top level pipeline aggs
         }

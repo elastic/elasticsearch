@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.search;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -250,7 +249,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertNull(response.getSearchResponse());
         assertNotNull(response.getFailure());
         assertFalse(response.isRunning());
-        ElasticsearchException exc = response.getFailure();
+        Exception exc = response.getFailure();
         assertThat(exc.getMessage(), containsString("no such index"));
     }
 
@@ -364,7 +363,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertThat(response.getExpirationTime(), greaterThan(now));
 
         // remove the async search index
-        client().admin().indices().prepareDelete(AsyncSearchIndexService.INDEX).get();
+        client().admin().indices().prepareDelete(AsyncSearch.INDEX).get();
 
         Exception exc = expectThrows(Exception.class, () -> getAsyncSearch(response.getId()));
         Throwable cause = exc instanceof ExecutionException ?

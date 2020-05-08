@@ -43,6 +43,7 @@ public class GeoTileGridTests extends BaseAggregationTestCase<GeoGridAggregation
     protected GeoTileGridAggregationBuilder createTestAggregatorBuilder() {
         String name = randomAlphaOfLengthBetween(3, 20);
         GeoTileGridAggregationBuilder factory = new GeoTileGridAggregationBuilder(name);
+        factory.field("foo");
         if (randomBoolean()) {
             factory.precision(randomIntBetween(0, GeoTileUtils.MAX_ZOOM));
         }

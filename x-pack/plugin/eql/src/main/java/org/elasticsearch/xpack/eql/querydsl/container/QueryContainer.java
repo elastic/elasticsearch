@@ -95,9 +95,6 @@ public class QueryContainer {
 
         if (expression instanceof FieldAttribute) {
             FieldAttribute fa = (FieldAttribute) expression;
-            if (fa.isNested()) {
-                throw new UnsupportedOperationException("Nested not yet supported");
-            }
             return new Tuple<>(this, topHitFieldRef(fa));
         }
 

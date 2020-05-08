@@ -39,7 +39,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
-import org.elasticsearch.cluster.shards.ClusterShardLimitIT;
+import org.elasticsearch.cluster.shards.ShardCounts;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -104,9 +104,9 @@ import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.aggr
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.buildIndexMetadata;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.clusterStateCreateIndex;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.getIndexNumberOfRoutingShards;
-import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.parseMappings;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.parseV1Mappings;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.resolveAndValidateAliases;
-import static org.elasticsearch.cluster.shards.ClusterShardLimitIT.ShardCounts.forDataNodeCount;
+import static org.elasticsearch.cluster.shards.ShardCounts.forDataNodeCount;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.indices.IndicesServiceTests.createClusterForShardLimitTest;
 import static org.hamcrest.Matchers.containsString;
@@ -560,7 +560,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     public void testShardLimit() {
         int nodesInCluster = randomIntBetween(2,90);
-        ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster);
+        ShardCounts counts = forDataNodeCount(nodesInCluster);
         Settings clusterSettings = Settings.builder()
             .put(Metadata.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())
             .build();
@@ -647,7 +647,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         });
         request.mappings(singletonMap("type", createMapping("mapping_from_request", "text").string()));
 
-        Map<String, Map<String, Object>> parsedMappings = MetadataCreateIndexService.parseMappings(request.mappings(),
+        Map<String, Map<String, Object>> parsedMappings = MetadataCreateIndexService.parseV1Mappings(request.mappings(),
             Collections.singletonList(convertMappings(templateMetadata.getMappings())), NamedXContentRegistry.EMPTY);
 
         assertThat(parsedMappings, hasKey("type"));
@@ -705,7 +705,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         request.aliases(singleton(new Alias("alias").searchRouting("fromRequest")));
         request.settings(Settings.builder().put("key1", "requestValue").build());
 
-        Map<String, Map<String, Object>> parsedMappings = MetadataCreateIndexService.parseMappings(request.mappings(),
+        Map<String, Map<String, Object>> parsedMappings = MetadataCreateIndexService.parseV1Mappings(request.mappings(),
             Collections.singletonList(convertMappings(templateMetadata.mappings())), xContentRegistry());
         List<AliasMetadata> resolvedAliases = resolveAndValidateAliases(request.index(), request.aliases(),
             MetadataIndexTemplateService.resolveAliases(Collections.singletonList(templateMetadata)),
@@ -878,7 +878,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             }
         });
 
-        Map<String, Map<String, Object>> mappings = parseMappings(singletonMap(MapperService.SINGLE_MAPPING_NAME, "{\"_doc\":{}}"),
+        Map<String, Map<String, Object>> mappings = parseV1Mappings(singletonMap(MapperService.SINGLE_MAPPING_NAME, "{\"_doc\":{}}"),
             Collections.singletonList(convertMappings(templateMetadata.mappings())), xContentRegistry());
         assertThat(mappings, Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
     }
@@ -892,7 +892,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 ExceptionsHelper.reThrowIfNotNull(e);
             }
         });
-        Map<String, Map<String, Object>> mappings = parseMappings(emptyMap(),
+        Map<String, Map<String, Object>> mappings = parseV1Mappings(emptyMap(),
             Collections.singletonList(convertMappings(templateMetadata.mappings())), xContentRegistry());
         assertThat(mappings, Matchers.hasKey("type"));
     }
@@ -905,7 +905,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 ExceptionsHelper.reThrowIfNotNull(e);
             }
         });
-        Map<String, Map<String, Object>> mappings = parseMappings(emptyMap(),
+        Map<String, Map<String, Object>> mappings = parseV1Mappings(emptyMap(),
             Collections.singletonList(convertMappings(templateMetadata.mappings())), xContentRegistry());
         assertThat(mappings, Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
     }
@@ -999,6 +999,133 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
         assertWarnings("Translog retention settings [index.translog.retention.age] "
             + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMappingsMergingIsSmart() throws Exception {
+        Template ctt1 = new Template(null,
+            new CompressedXContent("{\"_doc\":{\"_source\":{\"enabled\": false},\"_meta\":{\"ct1\":{\"ver\": \"text\"}}," +
+                "\"properties\":{\"foo\":{\"type\":\"text\",\"ignore_above\":7,\"analyzer\":\"english\"}}}}"), null);
+        Template ctt2 = new Template(null,
+            new CompressedXContent("{\"_doc\":{\"_meta\":{\"ct1\":{\"ver\": \"keyword\"},\"ct2\":\"potato\"}," +
+                "\"properties\":{\"foo\":{\"type\":\"keyword\",\"ignore_above\":13}}}}"), null);
+
+        ComponentTemplate ct1 = new ComponentTemplate(ctt1, null, null);
+        ComponentTemplate ct2 = new ComponentTemplate(ctt2, null, null);
+
+        boolean shouldBeText = randomBoolean();
+        List<String> composedOf = shouldBeText ? Arrays.asList("ct2", "ct1") : Arrays.asList("ct1", "ct2");
+        logger.info("--> the {} analyzer should win ({})", shouldBeText ? "text" : "keyword", composedOf);
+        IndexTemplateV2 template = new IndexTemplateV2(Collections.singletonList("index"), null, composedOf, null, null, null);
+
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
+                .put("ct1", ct1)
+                .put("ct2", ct2)
+                .put("index-template", template)
+                .build())
+            .build();
+
+        Map<String, Map<String, Object>> resolved =
+            MetadataCreateIndexService.resolveV2Mappings("{\"_doc\":{\"_meta\":{\"ct2\":\"eggplant\"}," +
+                    "\"properties\":{\"bar\":{\"type\":\"text\"}}}}", state,
+                "index-template", new NamedXContentRegistry(Collections.emptyList()));
+
+        assertThat("expected exactly one type but was: " + resolved, resolved.size(), equalTo(1));
+        Map<String, Object> innerResolved = (Map<String, Object>) resolved.get(MapperService.SINGLE_MAPPING_NAME);
+        assertThat("was: " + innerResolved, innerResolved.size(), equalTo(3));
+
+        Map<String, Object> nonProperties = new HashMap<>(innerResolved);
+        nonProperties.remove("properties");
+        Map<String, Object> expectedNonProperties = new HashMap<>();
+        expectedNonProperties.put("_source", Collections.singletonMap("enabled", false));
+        Map<String, Object> meta = new HashMap<>();
+        meta.put("ct2", "eggplant");
+        if (shouldBeText) {
+            meta.put("ct1", Collections.singletonMap("ver", "text"));
+        } else {
+            meta.put("ct1", Collections.singletonMap("ver", "keyword"));
+        }
+        expectedNonProperties.put("_meta", meta);
+        assertThat(nonProperties, equalTo(expectedNonProperties));
+
+        Map<String, Object> innerInnerResolved = (Map<String, Object>) innerResolved.get("properties");
+        assertThat(innerInnerResolved.size(), equalTo(2));
+        assertThat(innerInnerResolved.get("bar"), equalTo(Collections.singletonMap("type", "text")));
+        Map<String, Object> fooMappings = new HashMap<>();
+        if (shouldBeText) {
+            fooMappings.put("type", "text");
+            fooMappings.put("ignore_above", 7);
+            fooMappings.put("analyzer", "english");
+        } else {
+            fooMappings.put("type", "keyword");
+            fooMappings.put("ignore_above", 13);
+        }
+        assertThat(innerInnerResolved.get("foo"), equalTo(fooMappings));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMappingsMergingHandlesDots() throws Exception {
+        Template ctt1 = new Template(null,
+            new CompressedXContent("{\"_doc\":{\"properties\":{\"foo\":{\"properties\":{\"bar\":{\"type\": \"long\"}}}}}}"), null);
+        Template ctt2 = new Template(null,
+            new CompressedXContent("{\"_doc\":{\"properties\":{\"foo.bar\":{\"type\": \"text\",\"analyzer\":\"english\"}}}}"), null);
+
+        ComponentTemplate ct1 = new ComponentTemplate(ctt1, null, null);
+        ComponentTemplate ct2 = new ComponentTemplate(ctt2, null, null);
+
+        IndexTemplateV2 template = new IndexTemplateV2(Collections.singletonList("index"), null, Arrays.asList("ct2", "ct1"),
+            null, null, null);
+
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
+                .put("ct1", ct1)
+                .put("ct2", ct2)
+                .put("index-template", template)
+                .build())
+            .build();
+
+        Map<String, Map<String, Object>> resolved =
+            MetadataCreateIndexService.resolveV2Mappings("{}", state,
+                "index-template", new NamedXContentRegistry(Collections.emptyList()));
+
+        assertThat("expected exactly one type but was: " + resolved, resolved.size(), equalTo(1));
+        Map<String, Object> innerResolved = (Map<String, Object>) resolved.get(MapperService.SINGLE_MAPPING_NAME);
+        assertThat("was: " + innerResolved, innerResolved.size(), equalTo(1));
+
+        Map<String, Object> innerInnerResolved = (Map<String, Object>) innerResolved.get("properties");
+        assertThat(innerInnerResolved.size(), equalTo(1));
+        assertThat(innerInnerResolved.get("foo"),
+            equalTo(Collections.singletonMap("properties", Collections.singletonMap("bar", Collections.singletonMap("type", "long")))));
+    }
+
+    public void testMergeIgnoringDots() throws Exception {
+        Map<String, Object> first = new HashMap<>();
+        first.put("foo", Collections.singletonMap("type", "long"));
+        Map<String, Object> second = new HashMap<>();
+        second.put("foo.bar", Collections.singletonMap("type", "long"));
+        Map<String, Object> results = MetadataCreateIndexService.mergeIgnoringDots(first, second);
+        assertThat(results, equalTo(second));
+
+        results = MetadataCreateIndexService.mergeIgnoringDots(second, first);
+        assertThat(results, equalTo(first));
+
+        second.clear();
+        Map<String, Object> inner = new HashMap<>();
+        inner.put("type", "text");
+        inner.put("analyzer", "english");
+        second.put("foo", inner);
+
+        results = MetadataCreateIndexService.mergeIgnoringDots(first, second);
+        assertThat(results, equalTo(second));
+
+        first.put("baz", 3);
+        second.put("egg", 7);
+
+        results = MetadataCreateIndexService.mergeIgnoringDots(first, second);
+        Map<String, Object> expected = new HashMap<>(second);
+        expected.put("baz", 3);
+        assertThat(results, equalTo(expected));
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {

@@ -19,15 +19,14 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.geometry.Point;
@@ -37,7 +36,6 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
@@ -88,7 +86,7 @@ public class ExternalMapper extends FieldMapper {
             BinaryFieldMapper binMapper = binBuilder.build(context);
             BooleanFieldMapper boolMapper = boolBuilder.build(context);
             GeoPointFieldMapper pointMapper = latLonPointBuilder.build(context);
-            AbstractGeometryFieldMapper shapeMapper = (context.indexCreatedVersion().before(Version.V_6_6_0))
+            AbstractShapeGeometryFieldMapper shapeMapper = (context.indexCreatedVersion().before(Version.V_6_6_0))
                 ? legacyShapeBuilder.build(context)
                 : shapeBuilder.build(context);
             FieldMapper stringMapper = (FieldMapper)stringBuilder.build(context);
@@ -154,13 +152,13 @@ public class ExternalMapper extends FieldMapper {
     private BinaryFieldMapper binMapper;
     private BooleanFieldMapper boolMapper;
     private GeoPointFieldMapper pointMapper;
-    private AbstractGeometryFieldMapper shapeMapper;
+    private AbstractShapeGeometryFieldMapper shapeMapper;
     private FieldMapper stringMapper;
 
     public ExternalMapper(String simpleName, MappedFieldType fieldType,
                           String generatedValue, String mapperName,
                           BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
-                          AbstractGeometryFieldMapper shapeMapper, FieldMapper stringMapper, Settings indexSettings,
+                          AbstractShapeGeometryFieldMapper shapeMapper, FieldMapper stringMapper, Settings indexSettings,
                           MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, new ExternalFieldType(), indexSettings, multiFields, copyTo);
         this.generatedValue = generatedValue;
@@ -202,7 +200,7 @@ public class ExternalMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         throw new UnsupportedOperationException();
     }
 
@@ -218,7 +216,8 @@ public class ExternalMapper extends FieldMapper {
         BinaryFieldMapper binMapperUpdate = (BinaryFieldMapper) binMapper.updateFieldType(fullNameToFieldType);
         BooleanFieldMapper boolMapperUpdate = (BooleanFieldMapper) boolMapper.updateFieldType(fullNameToFieldType);
         GeoPointFieldMapper pointMapperUpdate = (GeoPointFieldMapper) pointMapper.updateFieldType(fullNameToFieldType);
-        AbstractGeometryFieldMapper shapeMapperUpdate = (AbstractGeometryFieldMapper) shapeMapper.updateFieldType(fullNameToFieldType);
+        AbstractShapeGeometryFieldMapper shapeMapperUpdate =
+            (AbstractShapeGeometryFieldMapper) shapeMapper.updateFieldType(fullNameToFieldType);
         TextFieldMapper stringMapperUpdate = (TextFieldMapper) stringMapper.updateFieldType(fullNameToFieldType);
         if (update == this
                 && multiFieldsUpdate == multiFields

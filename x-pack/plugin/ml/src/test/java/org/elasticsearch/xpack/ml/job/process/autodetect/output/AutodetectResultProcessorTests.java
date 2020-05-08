@@ -365,7 +365,8 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         AutodetectResult result = mock(AutodetectResult.class);
         ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(JOB_ID)
             .setSnapshotId("a_snapshot_id")
-            .setTimestamp(Date.from(Instant.ofEpochMilli(1000000000)))
+            .setLatestResultTimeStamp(Date.from(Instant.ofEpochMilli(1000_000_000)))
+            .setTimestamp(Date.from(Instant.ofEpochMilli(2000_000_000)))
             .setMinVersion(Version.CURRENT)
             .build();
         when(result.getModelSnapshot()).thenReturn(modelSnapshot);
@@ -385,16 +386,17 @@ public class AutodetectResultProcessorTests extends ESTestCase {
             eq(ModelSnapshot.annotationDocumentId(modelSnapshot)), annotationCaptor.capture(), any());
         Annotation annotation = annotationCaptor.getValue();
         Annotation expectedAnnotation =
-            new Annotation(
-                "Job model snapshot with id [a_snapshot_id] stored",
-                Date.from(CURRENT_TIME),
-                XPackUser.NAME,
-                modelSnapshot.getTimestamp(),
-                modelSnapshot.getTimestamp(),
-                JOB_ID,
-                Date.from(CURRENT_TIME),
-                XPackUser.NAME,
-                "annotation");
+            new Annotation.Builder()
+                .setAnnotation("Job model snapshot with id [a_snapshot_id] stored")
+                .setCreateTime(Date.from(CURRENT_TIME))
+                .setCreateUsername(XPackUser.NAME)
+                .setTimestamp(Date.from(Instant.ofEpochMilli(1000_000_000)))
+                .setEndTimestamp(Date.from(Instant.ofEpochMilli(1000_000_000)))
+                .setJobId(JOB_ID)
+                .setModifiedTime(Date.from(CURRENT_TIME))
+                .setModifiedUsername(XPackUser.NAME)
+                .setType("annotation")
+                .build();
         assertThat(annotation, is(equalTo(expectedAnnotation)));
 
         UpdateJobAction.Request expectedJobUpdateRequest = UpdateJobAction.Request.internal(JOB_ID,

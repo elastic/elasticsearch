@@ -104,33 +104,6 @@ public class EvilLoggerTests extends ESTestCase {
         assertLogLine(events.get(4), Level.TRACE, location, "This is a trace message");
     }
 
-    public void testDeprecationLogger() throws IOException, UserException {
-        setupLogging("deprecation");
-
-        final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger("deprecation"));
-
-        final int deprecatedIterations = randomIntBetween(0, 256);
-        for (int i = 0; i < deprecatedIterations; i++) {
-            deprecationLogger.deprecated("This is a deprecation message");
-            assertWarnings("This is a deprecation message");
-        }
-
-        final String deprecationPath =
-            System.getProperty("es.logs.base_path") +
-                System.getProperty("file.separator") +
-                System.getProperty("es.logs.cluster_name") +
-                "_deprecation.log";
-        final List<String> deprecationEvents = Files.readAllLines(PathUtils.get(deprecationPath));
-        assertThat(deprecationEvents.size(), equalTo(deprecatedIterations));
-        for (int i = 0; i < deprecatedIterations; i++) {
-            assertLogLine(
-                    deprecationEvents.get(i),
-                    Level.WARN,
-                    "org.elasticsearch.common.logging.DeprecationLogger\\$2\\.run",
-                    "This is a deprecation message");
-        }
-    }
-
     public void testConcurrentDeprecationLogger() throws IOException, UserException, BrokenBarrierException, InterruptedException {
         setupLogging("deprecation");
 

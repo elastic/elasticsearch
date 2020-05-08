@@ -53,7 +53,7 @@ public class EqlFeatureSetTests extends ESTestCase {
     public void testAvailable() {
         EqlFeatureSet featureSet = new EqlFeatureSet(Settings.EMPTY, licenseState, client);
         boolean available = randomBoolean();
-        when(licenseState.isEqlAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.EQL)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 
@@ -96,11 +96,11 @@ public class EqlFeatureSetTests extends ESTestCase {
         PlainActionFuture<EqlFeatureSet.Usage> future = new PlainActionFuture<>();
         new EqlFeatureSet(Settings.builder().put("xpack.eql.enabled", true).build(), licenseState, client).usage(future);
         EqlFeatureSetUsage eqlUsage = (EqlFeatureSetUsage) future.get();
-        
+
         long fooBarBaz = ObjectPath.eval("foo.bar.baz", eqlUsage.stats());
         long fooFoo = ObjectPath.eval("foo.foo", eqlUsage.stats());
         long spam = ObjectPath.eval("spam", eqlUsage.stats());
-        
+
         assertThat(eqlUsage.stats().keySet(), containsInAnyOrder("foo", "spam"));
         assertThat(fooBarBaz, is(5L));
         assertThat(fooFoo, is(1L));

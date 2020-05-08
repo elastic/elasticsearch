@@ -54,7 +54,10 @@ class DateHistogramAggregator extends BucketsAggregator {
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat formatter;
     private final Rounding rounding;
-    private final Rounding shardRounding;
+    /**
+     * The rounding prepared for rewriting the data in the shard.
+     */
+    private final Rounding.Prepared preparedRounding;
     private final BucketOrder order;
     private final boolean keyed;
 
@@ -63,21 +66,21 @@ class DateHistogramAggregator extends BucketsAggregator {
 
     private final LongHash bucketOrds;
 
-    DateHistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, Rounding shardRounding,
+    DateHistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, Rounding.Prepared preparedRounding,
             BucketOrder order, boolean keyed,
-            long minDocCount, @Nullable ExtendedBounds extendedBounds, @Nullable ValuesSource.Numeric valuesSource,
+            long minDocCount, @Nullable ExtendedBounds extendedBounds, @Nullable ValuesSource valuesSource,
             DocValueFormat formatter, SearchContext aggregationContext,
             Aggregator parent, Map<String, Object> metadata) throws IOException {
 
         super(name, factories, aggregationContext, parent, metadata);
         this.rounding = rounding;
-        this.shardRounding = shardRounding;
+        this.preparedRounding = preparedRounding;
         this.order = order;
         order.validate(this);
         this.keyed = keyed;
         this.minDocCount = minDocCount;
         this.extendedBounds = extendedBounds;
-        this.valuesSource = valuesSource;
+        this.valuesSource = (ValuesSource.Numeric) valuesSource;
         this.formatter = formatter;
 
         bucketOrds = new LongHash(1, aggregationContext.bigArrays());
@@ -110,7 +113,7 @@ class DateHistogramAggregator extends BucketsAggregator {
                         long value = values.nextValue();
                         // We can use shardRounding here, which is sometimes more efficient
                         // if daylight saving times are involved.
-                        long rounded = shardRounding.round(value);
+                        long rounded = preparedRounding.round(value);
                         assert rounded >= previousRounded;
                         if (rounded == previousRounded) {
                             continue;

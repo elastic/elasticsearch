@@ -354,7 +354,8 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         assertThat(SnapshotRetentionTask.okayToDeleteSnapshots(state), equalTo(false));
 
         SnapshotDeletionsInProgress delInProgress = new SnapshotDeletionsInProgress(
-            Collections.singletonList(new SnapshotDeletionsInProgress.Entry(snapshot, 0, 0)));
+                Collections.singletonList(new SnapshotDeletionsInProgress.Entry(
+                        Collections.singletonList(snapshot.getSnapshotId()), snapshot.getRepository(), 0, 0)));
         state = ClusterState.builder(new ClusterName("cluster"))
             .putCustom(SnapshotDeletionsInProgress.TYPE, delInProgress)
             .build();
@@ -472,7 +473,6 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 threadPool);
 
             AtomicBoolean onFailureCalled = new AtomicBoolean(false);
-            AtomicReference<Exception> errHandlerCalled = new AtomicReference<>(null);
             task.deleteSnapshot("policy", "foo", new SnapshotId("name", "uuid"),
                 new SnapshotLifecycleStats(0, 0, 0, 0, new HashMap<>()), new ActionListener<AcknowledgedResponse>() {
                     @Override

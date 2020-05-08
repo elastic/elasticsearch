@@ -18,8 +18,8 @@ public class LogstashFeatureSetUsage extends XPackFeatureSet.Usage {
         super(in);
     }
 
-    public LogstashFeatureSetUsage(boolean available, boolean enabled) {
-        super(XPackField.LOGSTASH, available, enabled);
+    public LogstashFeatureSetUsage(boolean available) {
+        super(XPackField.LOGSTASH, available, true);
     }
 
     @Override

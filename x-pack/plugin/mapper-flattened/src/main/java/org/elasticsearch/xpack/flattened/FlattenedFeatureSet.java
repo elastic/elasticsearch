@@ -10,11 +10,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.flattened.FlattenedFeatureSetUsage;
 import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper;
 
@@ -22,13 +20,11 @@ import java.util.Map;
 
 public class FlattenedFeatureSet implements XPackFeatureSet {
 
-    private final boolean enabled;
     private final XPackLicenseState licenseState;
     private final ClusterService clusterService;
 
     @Inject
-    public FlattenedFeatureSet(Settings settings, XPackLicenseState licenseState, ClusterService clusterService) {
-        this.enabled = XPackSettings.FLATTENED_ENABLED.get(settings);
+    public FlattenedFeatureSet(XPackLicenseState licenseState, ClusterService clusterService) {
         this.licenseState = licenseState;
         this.clusterService = clusterService;
     }
@@ -40,12 +36,12 @@ public class FlattenedFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isFlattenedAllowed();
+        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.FLATTENED);
     }
 
     @Override
     public boolean enabled() {
-        return enabled;
+        return true;
     }
 
     @Override
@@ -78,6 +74,6 @@ public class FlattenedFeatureSet implements XPackFeatureSet {
             }
         }
 
-        listener.onResponse(new FlattenedFeatureSetUsage(available(), enabled(), fieldCount));
+        listener.onResponse(new FlattenedFeatureSetUsage(available(), fieldCount));
     }
 }

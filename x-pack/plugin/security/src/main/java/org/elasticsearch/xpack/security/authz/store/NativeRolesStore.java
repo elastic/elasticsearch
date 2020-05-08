@@ -38,6 +38,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheResponse;
@@ -200,7 +201,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     public void putRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
-        if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
+        if (licenseState.isAllowed(Feature.SECURITY_DLS_FLS)) {
             innerPutRole(request, role, listener);
         } else if (role.isUsingDocumentOrFieldLevelSecurity()) {
             listener.onFailure(LicenseUtils.newComplianceException("field and document level security"));
@@ -381,7 +382,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             // we pass true as last parameter because we do not want to reject permissions if the field permissions
             // are given in 2.x syntax
             RoleDescriptor roleDescriptor = RoleDescriptor.parse(name, sourceBytes, true, XContentType.JSON);
-            if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
+            if (licenseState.isAllowed(Feature.SECURITY_DLS_FLS)) {
                 return roleDescriptor;
             } else {
                 final boolean dlsEnabled =

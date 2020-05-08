@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfi
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceParseHelper;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -53,6 +54,10 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
     private TTestType testType = TTestType.HETEROSCEDASTIC;
 
     private int tails = 2;
+
+    public static void registerUsage(ValuesSourceRegistry.Builder builder) {
+        builder.registerUsage(NAME, CoreValuesSourceType.NUMERIC);
+    }
 
     public TTestAggregationBuilder(String name) {
         super(name);

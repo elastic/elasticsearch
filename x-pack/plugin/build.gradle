@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.validate-rest-spec'
 
 archivesBaseName = 'x-pack'
 
@@ -159,3 +160,7 @@ testClusters.integTest {
   extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
 }
 
+validateRestSpec {
+  ignore 'ml.validate.json'
+  ignore 'ml.validate_detector.json'
+}

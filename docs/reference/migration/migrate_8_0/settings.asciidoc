@@ -8,67 +8,82 @@
 //tag::notable-breaking-changes[]
 //end::notable-breaking-changes[]
 
-[float]
 [[search-remote-settings-removed]]
-==== The `search.remote` settings have been removed
-
+.The `search.remote.*` settings have been removed.
+[%collapsible]
+====
+*Details* +
 In 6.5 these settings were deprecated in favor of `cluster.remote`. In 7.x we
 provided automatic upgrading of these settings to their `cluster.remote`
 counterparts. In 8.0.0, these settings have been removed. Elasticsearch will
 refuse to start if you have these settings in your configuration or cluster
 state.
+====
 
-[float]
 [[remove-pidfile]]
-==== `pidfile` setting is replaced by `node.pidfile`
-
+.The `pidfile` setting has been replaced by `node.pidfile`.
+[%collapsible]
+====
+*Details* +
 To ensure that all settings are in a proper namespace, the `pidfile` setting was
 previously deprecated in version 7.4.0 of Elasticsearch, and is removed in
 version 8.0.0. Instead, use `node.pidfile`.
+====
 
-[float]
 [[remove-processors]]
-==== `processors` setting is replaced by `node.processors`
-
+.The `processors` setting has been replaced by `node.processors`.
+[%collapsible]
+====
+*Details* +
 To ensure that all settings are in a proper namespace, the `processors` setting
 was previously deprecated in version 7.4.0 of Elasticsearch, and is removed in
 version 8.0.0. Instead, use `node.processors`.
+====
 
-[float]
-==== `node.processors` can no longer exceed the available number of processors
-
+.The `node.processors` setting can no longer exceed the available number of processors.
+[%collapsible]
+====
+*Details* +
 Previously it was possible to set the number of processors used to set the
 default sizes for the thread pools to be more than the number of available
 processors. As this leads to more context switches and more threads but without
 an increase in the number of physical CPUs on which to schedule these additional
 threads, the `node.processors` setting is now bounded by the number of available
 processors.
+====
 
-[float]
-==== `cluster.remote.connect` is removed
-
+.The `cluster.remote.connect` setting has been removed.
+[%collapsible]
+====
+*Details* +
 In Elasticsearch 7.7.0, the setting `cluster.remote.connect` was deprecated in
 favor of setting `node.remote_cluster_client`. In Elasticsearch 8.0.0, the
 setting `cluster.remote.connect` is removed.
+====
 
-[float]
-==== `node.local_storage` is removed
-
+.The `node.local_storage` setting has been removed.
+[%collapsible]
+====
+*Details* +
 In Elasticsearch 7.8.0, the setting `node.local_storage` was deprecated and
 beginning in Elasticsearch 8.0.0 all nodes will require local storage. Therefore,
 the `node.local_storage` setting has been removed.
+====
 
-[float]
-==== `auth.password` for HTTP monitoring is removed
-
+.The `auth.password` setting for HTTP monitoring has been removed.
+[%collapsible]
+====
+*Details* +
 In Elasticsearch 7.7.0, the setting `xpack.monitoring.exporters.<exporterName>.auth.password`
 was deprecated in favor of setting `xpack.monitoring.exporters.<exporterName>.auth.secure_password`.
 In Elasticsearch 8.0.0, the setting `xpack.monitoring.exporters.<exporterName>.auth.password` is
 removed.
+====
 
-[float]
-==== Option to disable basic license features is removed.
-
+.Settings used to disable basic license features have been removed.
+[%collapsible]
+====
+*Details* +
 The following settings were deprecated in {es} 7.8.0 and have been removed
 in {es} 8.0.0:
 
@@ -87,10 +102,12 @@ These basic license features are now always enabled for the {default-dist}.
 If you have disabled ILM so that you can use another tool to manage Watcher
 indices, the newly introduced `xpack.watcher.use_ilm_index_management` setting
 may be set to false.
+====
 
-[float]
-==== The `prefer_v2_templates` parameter now defaults to `true`
-
+.The `prefer_v2_templates` parameter now defaults to `true` for several document and index APIs.
+[%collapsible]
+====
+*Details* +
 In Elasticsearch 7.8.0 the `?prefer_v2_templates=true|false` parameter was introduced to allow
 specifying whether to favor V1 or V2 templates when a new index is created. In 8.0 this now defaults
 to `true`, meaning that V2 index templates will always take precedence if they match. V1 templates
@@ -99,3 +116,4 @@ will continue to be applied if no V2 index template matches the newly created in
 The `?prefer_v2_templates` parameter is supported on the <<indices-create-index,Create Index>>,
 <<docs-index_,Index>>, <<docs-bulk,Bulk>>, <<docs-update,Update>>, and
 <<indices-rollover-index,Rollover>> APIs.
+====

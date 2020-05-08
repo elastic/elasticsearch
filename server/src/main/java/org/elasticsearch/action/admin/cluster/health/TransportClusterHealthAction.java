@@ -277,7 +277,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         }
         if (request.indices() != null && request.indices().length > 0) {
             try {
-                indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.strictExpand(), request.indices());
+                indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.strictExpand(), true, request.indices());
                 waitForCounter++;
             } catch (IndexNotFoundException e) {
                 response.setStatus(ClusterHealthStatus.RED); // no indices, make sure its RED
@@ -344,7 +344,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
 
         String[] concreteIndices;
         try {
-            concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
+            concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request, true);
         } catch (IndexNotFoundException e) {
             // one of the specified indices is not there - treat it as RED.
             ClusterHealthResponse response = new ClusterHealthResponse(clusterState.getClusterName().value(), Strings.EMPTY_ARRAY,

@@ -1,3 +1,8 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -28,7 +33,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class EnrichResiliencyTests extends ESSingleNodeTestCase {
 
@@ -122,16 +129,21 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
         BulkResponse bulkItemResponses = client().bulk(bulk).actionGet(new TimeValue(30, TimeUnit.SECONDS));
 
         assertTrue(bulkItemResponses.hasFailures());
+        BulkItemResponse.Failure firstFailure = null;
+        int successfulItems = 0;
         for (BulkItemResponse item : bulkItemResponses.getItems()) {
-            if (item.isFailed()) {
-                assertThat(item.getFailure().getStatus().getStatus(), is(equalTo(429)));
-                assertThat(item.getFailureMessage(), containsString("Could not perform enrichment, enrich coordination queue at capacity"));
-                break;
+            if (item.isFailed() && firstFailure == null) {
+                firstFailure = item.getFailure();
+            } else if (item.isFailed() == false) {
+                successfulItems++;
             }
         }
+        assertNotNull(firstFailure);
+        assertThat(firstFailure.getStatus().getStatus(), is(equalTo(429)));
+        assertThat(firstFailure.getMessage(), containsString("Could not perform enrichment, enrich coordination queue at capacity"));
 
         client().admin().indices().refresh(new RefreshRequest(enrichedIndexName)).actionGet();
-        logger.info(client().search(new SearchRequest(enrichedIndexName)).actionGet().toString());
+        assertEquals(successfulItems, client().search(new SearchRequest(enrichedIndexName)).actionGet().getHits().getTotalHits().value);
     }
 
     public void testWriteThreadLivenessWithPipeline() throws Exception {
@@ -235,15 +247,20 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
         BulkResponse bulkItemResponses = client().bulk(bulk).actionGet(new TimeValue(30, TimeUnit.SECONDS));
 
         assertTrue(bulkItemResponses.hasFailures());
+        BulkItemResponse.Failure firstFailure = null;
+        int successfulItems = 0;
         for (BulkItemResponse item : bulkItemResponses.getItems()) {
-            if (item.isFailed()) {
-                assertThat(item.getFailure().getStatus().getStatus(), is(equalTo(429)));
-                assertThat(item.getFailureMessage(), containsString("Could not perform enrichment, enrich coordination queue at capacity"));
-                break;
+            if (item.isFailed() && firstFailure == null) {
+                firstFailure = item.getFailure();
+            } else if (item.isFailed() == false) {
+                successfulItems++;
             }
         }
+        assertNotNull(firstFailure);
+        assertThat(firstFailure.getStatus().getStatus(), is(equalTo(429)));
+        assertThat(firstFailure.getMessage(), containsString("Could not perform enrichment, enrich coordination queue at capacity"));
 
         client().admin().indices().refresh(new RefreshRequest(enrichedIndexName)).actionGet();
-        logger.info(client().search(new SearchRequest(enrichedIndexName)).actionGet().toString());
+        assertEquals(successfulItems, client().search(new SearchRequest(enrichedIndexName)).actionGet().getHits().getTotalHits().value);
     }
 }

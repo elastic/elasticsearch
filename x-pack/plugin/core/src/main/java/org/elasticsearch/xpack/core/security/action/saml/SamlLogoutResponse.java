@@ -25,8 +25,7 @@ public final class SamlLogoutResponse extends ActionResponse {
         redirectUrl = in.readString();
     }
 
-    public
-    SamlLogoutResponse(String requestId, String redirectUrl) {
+    public SamlLogoutResponse(String requestId, String redirectUrl) {
         this.requestId = requestId;
         this.redirectUrl = redirectUrl;
     }

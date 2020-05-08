@@ -83,6 +83,7 @@ Repository used to store snapshots created by this policy. This repository must
 exist prior to the policy's creation. You can create a repository using the 
 <<modules-snapshots,snapshot repository API>>.
 
+[[slm-api-put-retention]]
 `retention`::
 (Optional, object)
 Retention rules used to retain and delete snapshots created by the policy.

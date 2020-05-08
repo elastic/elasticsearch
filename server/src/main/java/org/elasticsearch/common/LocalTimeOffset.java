@@ -496,7 +496,8 @@ public abstract class LocalTimeOffset {
             long offsetAfterMillis = transition.getOffsetAfter().getTotalSeconds() * 1000;
             assert (false == previous instanceof Transition) || ((Transition) previous).startUtcMillis < utcStart :
                     "transition list out of order at [" + previous + "] and [" + transition + "]";
-            assert previous.millis != offsetAfterMillis : "transition list is has a duplicate at [" + previous + "] and [" + transition + "]";
+            assert previous.millis != offsetAfterMillis :
+                    "transition list is has a duplicate at [" + previous + "] and [" + transition + "]";
             if (transition.isGap()) {
                 long firstMissingLocalTime = utcStart + offsetBeforeMillis;
                 long firstLocalTimeAfterGap = utcStart + offsetAfterMillis;

@@ -152,6 +152,12 @@ public abstract class AggregatorFactory {
                 if (owningBucketOrds[ordIdx] < aggregators.size()) {
                     Aggregator aggregator = aggregators.get(owningBucketOrds[ordIdx]);
                     if (aggregator != null) {
+                        /*
+                         * This is the same call as buildTopLevel but since
+                         * this aggregator may not be the top level we don't
+                         * call that method here. It'd be weird sounding. And
+                         * it'd trip assertions. Both bad.
+                         */
                         results[ordIdx] = aggregator.buildAggregations(new long [] {0})[0];
                     } else {
                         results[ordIdx] = buildEmptyAggregation();

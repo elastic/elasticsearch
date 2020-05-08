@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -203,5 +204,9 @@ public final class DateUtils {
         // remove the remainder
         nano = nano - nano % (int) Math.pow(10, (9 - precision));
         return nano;
+    }
+
+    public static ZonedDateTime atTimeZone(LocalDateTime ldt, ZoneId zoneId) {
+        return ZonedDateTime.ofInstant(ldt, zoneId.getRules().getValidOffsets(ldt).get(0), zoneId);
     }
 }

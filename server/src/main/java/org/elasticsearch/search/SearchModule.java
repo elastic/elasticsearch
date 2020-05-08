@@ -273,14 +273,14 @@ public class SearchModule {
     private final Settings settings;
     private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
     private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
-    private ValuesSourceRegistry valuesSourceRegistry;
+    private final ValuesSourceRegistry valuesSourceRegistry;
 
     /**
      * Constructs a new SearchModule object
      *
      * NOTE: This constructor should not be called in production unless an accurate {@link Settings} object is provided.
      *       When constructed, a static flag is set in Lucene {@link BooleanQuery#setMaxClauseCount} according to the settings.
-     *  @param settings Current settings
+     * @param settings Current settings
      * @param plugins List of included {@link SearchPlugin} objects.
      */
     public SearchModule(Settings settings, List<SearchPlugin> plugins) {
@@ -328,7 +328,8 @@ public class SearchModule {
             .addResultReader(InternalAvg::new)
             .setAggregatorRegistrar(AvgAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(WeightedAvgAggregationBuilder.NAME, WeightedAvgAggregationBuilder::new,
-            WeightedAvgAggregationBuilder.PARSER).addResultReader(InternalWeightedAvg::new), builder);
+            WeightedAvgAggregationBuilder.PARSER).addResultReader(InternalWeightedAvg::new)
+            .setAggregatorRegistrar(WeightedAvgAggregationBuilder::registerUsage), builder);
         registerAggregation(new AggregationSpec(SumAggregationBuilder.NAME, SumAggregationBuilder::new, SumAggregationBuilder.PARSER)
             .addResultReader(InternalSum::new)
             .setAggregatorRegistrar(SumAggregationBuilder::registerAggregators), builder);
@@ -384,7 +385,7 @@ public class SearchModule {
                     .addResultReader(UnmappedSampler.NAME, UnmappedSampler::new),
             builder);
         registerAggregation(new AggregationSpec(DiversifiedAggregationBuilder.NAME, DiversifiedAggregationBuilder::new,
-                DiversifiedAggregationBuilder.PARSER)
+                DiversifiedAggregationBuilder.PARSER).setAggregatorRegistrar(DiversifiedAggregationBuilder::registerAggregators)
                     /* Reuses result readers from SamplerAggregator*/, builder);
         registerAggregation(new AggregationSpec(TermsAggregationBuilder.NAME, TermsAggregationBuilder::new,
                 TermsAggregationBuilder.PARSER)
@@ -416,7 +417,9 @@ public class SearchModule {
                     .addResultReader(InternalDateRange::new)
                     .setAggregatorRegistrar(DateRangeAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(IpRangeAggregationBuilder.NAME, IpRangeAggregationBuilder::new,
-                IpRangeAggregationBuilder.PARSER).addResultReader(InternalBinaryRange::new), builder);
+                IpRangeAggregationBuilder.PARSER)
+                    .addResultReader(InternalBinaryRange::new)
+                    .setAggregatorRegistrar(IpRangeAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(HistogramAggregationBuilder.NAME, HistogramAggregationBuilder::new,
                 HistogramAggregationBuilder.PARSER)
                     .addResultReader(InternalHistogram::new)
@@ -426,9 +429,13 @@ public class SearchModule {
                     .addResultReader(InternalDateHistogram::new)
                     .setAggregatorRegistrar(DateHistogramAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(AutoDateHistogramAggregationBuilder.NAME, AutoDateHistogramAggregationBuilder::new,
-                AutoDateHistogramAggregationBuilder.PARSER).addResultReader(InternalAutoDateHistogram::new), builder);
+                AutoDateHistogramAggregationBuilder.PARSER)
+                    .addResultReader(InternalAutoDateHistogram::new)
+                    .setAggregatorRegistrar(AutoDateHistogramAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(GeoDistanceAggregationBuilder.NAME, GeoDistanceAggregationBuilder::new,
-                GeoDistanceAggregationBuilder::parse).addResultReader(InternalGeoDistance::new), builder);
+                GeoDistanceAggregationBuilder::parse)
+                    .addResultReader(InternalGeoDistance::new)
+                    .setAggregatorRegistrar(GeoDistanceAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(GeoHashGridAggregationBuilder.NAME, GeoHashGridAggregationBuilder::new,
                 GeoHashGridAggregationBuilder.PARSER)
                     .addResultReader(InternalGeoHashGrid::new)
@@ -479,6 +486,10 @@ public class SearchModule {
         Consumer<ValuesSourceRegistry.Builder> register = spec.getAggregatorRegistrar();
         if (register != null) {
             register.accept(builder);
+        } else {
+            // Register is typically handling usage registration, but for the older aggregations that don't use register, we
+            // have to register usage explicitly here.
+            builder.registerUsage(spec.getName().getPreferredName());
         }
     }
 
@@ -528,7 +539,7 @@ public class SearchModule {
         registerPipelineAggregation(new PipelineAggregationSpec(
                 CumulativeSumPipelineAggregationBuilder.NAME,
                 CumulativeSumPipelineAggregationBuilder::new,
-                CumulativeSumPipelineAggregationBuilder::parse));
+                CumulativeSumPipelineAggregationBuilder.PARSER));
         registerPipelineAggregation(new PipelineAggregationSpec(
                 BucketScriptPipelineAggregationBuilder.NAME,
                 BucketScriptPipelineAggregationBuilder::new,

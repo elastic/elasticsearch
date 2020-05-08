@@ -82,6 +82,10 @@ close the job, then reopen the job and restart the {dfeed} for the changes to ta
 (object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-settings]
 
+`daily_model_snapshot_retention_after_days`::
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=daily-model-snapshot-retention-after-days]
+
 `description`::
 (string) A description of the job.
 

@@ -53,7 +53,13 @@ public class DateTimeParsePipeTests extends AbstractNodeTestCase<DateTimeParsePi
         DateTimeParsePipe b1 = randomInstance();
 
         Expression newExpression = randomValueOtherThan(b1.expression(), this::randomDateTimeParsePipeExpression);
-        DateTimeParsePipe newB = new DateTimeParsePipe(b1.source(), newExpression, b1.left(), b1.right(), b1.zoneId(), randomFrom(Parser.values()));
+        DateTimeParsePipe newB = new DateTimeParsePipe(
+                b1.source(), 
+                newExpression, 
+                b1.left(), 
+                b1.right(), 
+                b1.zoneId(), 
+                randomFrom(Parser.values()));
         assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
 
         DateTimeParsePipe b2 = randomInstance();
@@ -67,7 +73,13 @@ public class DateTimeParsePipeTests extends AbstractNodeTestCase<DateTimeParsePi
         DateTimeParsePipe b = randomInstance();
         Pipe newLeft = pipe(((Expression) randomValueOtherThan(b.left(), FunctionTestUtils::randomDatetimeLiteral)));
         Pipe newRight = pipe(((Expression) randomValueOtherThan(b.right(), FunctionTestUtils::randomStringLiteral)));
-        DateTimeParsePipe newB = new DateTimeParsePipe(b.source(), b.expression(), b.left(), b.right(), b.zoneId(), randomFrom(Parser.values()));
+        DateTimeParsePipe newB = new DateTimeParsePipe(
+                b.source(), 
+                b.expression(), 
+                b.left(), 
+                b.right(), 
+                b.zoneId(), 
+                randomFrom(Parser.values()));
         BinaryPipe transformed = newB.replaceChildren(newLeft, b.right());
 
         assertEquals(transformed.left(), newLeft);

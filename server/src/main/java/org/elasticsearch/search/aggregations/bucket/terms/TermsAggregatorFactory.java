@@ -90,7 +90,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     Aggregator parent,
                                     SubAggCollectionMode subAggCollectMode,
                                     boolean showTermDocCountError,
+                                    boolean collectsFromSingleBucket,
                                     Map<String, Object> metadata) throws IOException {
+                assert collectsFromSingleBucket;
 
                 ExecutionMode execution = null;
                 if (executionHint != null) {
@@ -124,6 +126,11 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     context, parent, subAggCollectMode, showTermDocCountError, metadata);
 
             }
+
+            @Override
+            public boolean needsToCollectFromSingleBucket() {
+                return true;
+            }
         };
     }
 
@@ -146,6 +153,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     Aggregator parent,
                                     SubAggCollectionMode subAggCollectMode,
                                     boolean showTermDocCountError,
+                                    boolean collectsFromSingleBucket,
                                     Map<String, Object> metadata) throws IOException {
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased())) {
@@ -169,14 +177,19 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     }
                     return new DoubleTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, format, order,
                         bucketCountThresholds, context, parent, subAggCollectMode, showTermDocCountError, longFilter,
-                        metadata);
+                        collectsFromSingleBucket, metadata);
                 }
                 if (includeExclude != null) {
                     longFilter = includeExclude.convertToLongFilter(format);
                 }
                 return new LongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, format, order,
                     bucketCountThresholds, context, parent, subAggCollectMode, showTermDocCountError, longFilter,
-                    metadata);
+                    collectsFromSingleBucket, metadata);
+            }
+
+            @Override
+            public boolean needsToCollectFromSingleBucket() {
+                return false;
             }
         };
     }
@@ -236,10 +249,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
                                           Map<String, Object> metadata) throws IOException {
-        if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, searchContext, parent);
-        }
-
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             TermsAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof TermsAggregatorSupplier == false) {
@@ -248,6 +257,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
 
         TermsAggregatorSupplier termsAggregatorSupplier = (TermsAggregatorSupplier) aggregatorSupplier;
+        if (collectsFromSingleBucket == false && termsAggregatorSupplier.needsToCollectFromSingleBucket()) {
+            return asMultiBucketAggregator(this, searchContext, parent);
+        }
+
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
         if (InternalOrder.isKeyOrder(order) == false
             && bucketCountThresholds.getShardSize() == TermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
@@ -260,7 +273,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
         return termsAggregatorSupplier.build(name, factories, valuesSource, order, config.format(),
             bucketCountThresholds, includeExclude, executionHint, searchContext, parent, collectMode,
-            showTermDocCountError, metadata);
+            showTermDocCountError, collectsFromSingleBucket, metadata);
     }
 
     // return the SubAggCollectionMode that this aggregation should use based on the expected size

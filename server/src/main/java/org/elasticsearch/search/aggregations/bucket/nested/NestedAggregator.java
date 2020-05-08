@@ -122,11 +122,12 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), metadata());
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
+            new InternalNested(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
     }
 
-        @Override
+    @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalNested(name, 0, buildEmptySubAggregations(), metadata());
     }

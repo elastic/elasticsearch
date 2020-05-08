@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
@@ -135,6 +136,23 @@ public class MetadataTests extends ESTestCase {
             metadata.findAliases(new GetAliasesRequest().aliases("*", "-alias1"), new String[] {"index"}).get("index");
         assertThat(aliases.size(), equalTo(1));
         assertThat(aliases.get(0).alias(), equalTo("alias2"));
+    }
+
+    public void testFindDataStreams() {
+        final int numIndices = randomIntBetween(2, 5);
+        final int numBackingIndices = randomIntBetween(2, 5);
+        final String dataStreamName = "my-data-stream";
+        CreateIndexResult result = createIndices(numIndices, numBackingIndices, dataStreamName);
+
+        List<Index> allIndices = new ArrayList<>(result.indices);
+        allIndices.addAll(result.backingIndices);
+        String[] concreteIndices = allIndices.stream().map(Index::getName).collect(Collectors.toList()).toArray(new String[]{});
+        ImmutableOpenMap<String, IndexAbstraction.DataStream> dataStreams = result.metadata.findDataStreams(concreteIndices);
+        assertThat(dataStreams.size(), equalTo(numBackingIndices));
+        for (Index backingIndex : result.backingIndices) {
+            assertThat(dataStreams.containsKey(backingIndex.getName()), is(true));
+            assertThat(dataStreams.get(backingIndex.getName()).getName(), equalTo(dataStreamName));
+        }
     }
 
     public void testFindAliasWithExclusionAndOverride() {
@@ -1032,47 +1050,18 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testIndicesLookupRecordsDataStreamForBackingIndices() {
-        // create some indices that do not back a data stream
-        final List<Index> indices = new ArrayList<>();
         final int numIndices = randomIntBetween(2, 5);
-        int lastIndexNum = randomIntBetween(9, 50);
-        Metadata.Builder b = Metadata.builder();
-        for (int k = 1; k <= numIndices; k++) {
-            IndexMetadata im = IndexMetadata.builder(DataStream.getBackingIndexName("index", lastIndexNum))
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            b.put(im, false);
-            indices.add(im.getIndex());
-            lastIndexNum = randomIntBetween(lastIndexNum + 1, lastIndexNum + 50);
-        }
-
-        // create some backing indices for a data stream
-        final String dataStreamName = "my-data-stream";
-        final List<Index> backingIndices = new ArrayList<>();
         final int numBackingIndices = randomIntBetween(2, 5);
-        int lastBackingIndexNum = 0;
-        for (int k = 1; k <= numBackingIndices; k++) {
-            lastBackingIndexNum = randomIntBetween(lastBackingIndexNum + 1, lastBackingIndexNum + 50);
-            IndexMetadata im = IndexMetadata.builder(DataStream.getBackingIndexName(dataStreamName, lastBackingIndexNum))
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            b.put(im, false);
-            backingIndices.add(im.getIndex());
-        }
-        b.put(new DataStream(dataStreamName, "ts", backingIndices, lastBackingIndexNum));
-        Metadata metadata = b.build();
+        final String dataStreamName = "my-data-stream";
+        CreateIndexResult result = createIndices(numIndices, numBackingIndices, dataStreamName);
 
-        SortedMap<String, IndexAbstraction> indicesLookup = metadata.getIndicesLookup();
-        assertThat(indicesLookup.size(), equalTo(indices.size() + backingIndices.size() + 1));
-        for (Index index : indices) {
+        SortedMap<String, IndexAbstraction> indicesLookup = result.metadata.getIndicesLookup();
+        assertThat(indicesLookup.size(), equalTo(result.indices.size() + result.backingIndices.size() + 1));
+        for (Index index : result.indices) {
             assertTrue(indicesLookup.containsKey(index.getName()));
             assertNull(indicesLookup.get(index.getName()).getParentDataStream());
         }
-        for (Index index : backingIndices) {
+        for (Index index : result.backingIndices) {
             assertTrue(indicesLookup.containsKey(index.getName()));
             assertNotNull(indicesLookup.get(index.getName()).getParentDataStream());
             assertThat(indicesLookup.get(index.getName()).getParentDataStream().getName(), equalTo(dataStreamName));
@@ -1118,5 +1107,50 @@ public class MetadataTests extends ESTestCase {
         md.put(randomDataStream);
 
         return md.build();
+    }
+
+    private static CreateIndexResult createIndices(int numIndices, int numBackingIndices, String dataStreamName) {
+        // create some indices that do not back a data stream
+        final List<Index> indices = new ArrayList<>();
+        int lastIndexNum = randomIntBetween(9, 50);
+        Metadata.Builder b = Metadata.builder();
+        for (int k = 1; k <= numIndices; k++) {
+            IndexMetadata im = IndexMetadata.builder(DataStream.getBackingIndexName("index", lastIndexNum))
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+            b.put(im, false);
+            indices.add(im.getIndex());
+            lastIndexNum = randomIntBetween(lastIndexNum + 1, lastIndexNum + 50);
+        }
+
+        // create some backing indices for a data stream
+        final List<Index> backingIndices = new ArrayList<>();
+        int lastBackingIndexNum = 0;
+        for (int k = 1; k <= numBackingIndices; k++) {
+            lastBackingIndexNum = randomIntBetween(lastBackingIndexNum + 1, lastBackingIndexNum + 50);
+            IndexMetadata im = IndexMetadata.builder(DataStream.getBackingIndexName(dataStreamName, lastBackingIndexNum))
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+            b.put(im, false);
+            backingIndices.add(im.getIndex());
+        }
+        b.put(new DataStream(dataStreamName, "ts", backingIndices, lastBackingIndexNum));
+        return new CreateIndexResult(indices, backingIndices, b.build());
+    }
+
+    private static class CreateIndexResult {
+        final List<Index> indices;
+        final List<Index> backingIndices;
+        final Metadata metadata;
+
+        CreateIndexResult(List<Index> indices, List<Index> backingIndices, Metadata metadata) {
+            this.indices = indices;
+            this.backingIndices = backingIndices;
+            this.metadata = metadata;
+        }
     }
 }

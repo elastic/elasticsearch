@@ -523,6 +523,7 @@ protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBu
                                                        AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         final ZoneId tz = timeZone();
         final Rounding rounding = dateHistogramInterval.createRounding(tz, offset);
+        // TODO once we optimize TimeIntervalRounding we won't need to rewrite the time zone 
         final ZoneId rewrittenTimeZone = rewriteTimeZone(queryShardContext);
         final Rounding shardRounding;
         if (tz == rewrittenTimeZone) {

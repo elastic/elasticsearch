@@ -62,6 +62,34 @@ public final class OptimizerRules {
             return e.foldable() ? Literal.of(e) : e;
         }
     }
+
+    /**
+     * This rule must always be placed after {@link BooleanLiteralsOnTheRight}, since it looks at TRUE/FALSE literals' existence
+     * on the right hand-side of the {@link Equals}/{@link NotEquals} expressions.
+     */
+    public static final class BooleanEqualsSimplification extends OptimizerExpressionRule {
+
+        public BooleanEqualsSimplification() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected Expression rule(Expression e) {
+            if (e instanceof Equals || e instanceof NotEquals) {
+                // for expression "==" or "!=" TRUE/FALSE, return the expression itself or its negated variant
+                BinaryComparison bc = (BinaryComparison) e;
+
+                if (TRUE.equals(bc.right())) {
+                    return e instanceof Equals ? bc.left() : new Not(bc.left().source(), bc.left());
+                }
+                if (FALSE.equals(bc.right())) {
+                    return e instanceof Equals ? new Not(bc.left().source(), bc.left()) : bc.left();
+                }
+            }
+
+            return e;
+        }
+    }
     
     public static final class BooleanSimplification extends OptimizerExpressionRule {
 
@@ -255,7 +283,7 @@ public final class OptimizerRules {
                                     if (comp != null) {
                                         // var cannot be equal to two different values at the same time
                                         if (comp != 0) {
-                                        return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                                            return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
                                         }
                                     }
                                 }
@@ -263,7 +291,7 @@ public final class OptimizerRules {
                         equals.add(otherEq);
                     } else {
                         exps.add(otherEq);
-                        }
+                    }
                 } else if (ex instanceof GreaterThan || ex instanceof GreaterThanOrEqual ||
                     ex instanceof LessThan || ex instanceof LessThanOrEqual) {
                     BinaryComparison bc = (BinaryComparison) ex;

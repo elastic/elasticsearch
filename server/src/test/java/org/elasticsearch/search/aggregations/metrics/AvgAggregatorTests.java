@@ -703,7 +703,9 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         return List.of(
-            CoreValuesSourceType.NUMERIC
+            CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.BOOLEAN,
+            CoreValuesSourceType.DATE
         );
     }
 

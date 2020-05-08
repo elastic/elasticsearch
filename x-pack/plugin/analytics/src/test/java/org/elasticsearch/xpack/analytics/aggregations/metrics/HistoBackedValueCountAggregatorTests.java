@@ -140,6 +140,9 @@ public class HistoBackedValueCountAggregatorTests extends AggregatorTestCase {
             CoreValuesSourceType.BYTES,
             CoreValuesSourceType.GEOPOINT,
             CoreValuesSourceType.RANGE,
+            CoreValuesSourceType.BOOLEAN,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.IP,
             AnalyticsValuesSourceType.HISTOGRAM
         );
     }

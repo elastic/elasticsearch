@@ -14,7 +14,10 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -62,16 +65,40 @@ public class TTestAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
+            return new TTestAggregationBuilder("foo")
+                .a(new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
+                    .setFilter(QueryBuilders.rangeQuery(fieldName).lt(10)).build())
+                .b(new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
+                    .setFilter(QueryBuilders.rangeQuery(fieldName).gte(10)).build());
+        } else if (fieldType.typeName().equals(DateFieldMapper.CONTENT_TYPE)
+            || fieldType.typeName().equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE)) {
+
+            return new TTestAggregationBuilder("foo")
+                .a(new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
+                    .setFilter(QueryBuilders.rangeQuery(fieldName).lt(DateUtils.toInstant(10))).build())
+                .b(new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
+                    .setFilter(QueryBuilders.rangeQuery(fieldName).gte(DateUtils.toInstant(10))).build());
+        } else if (fieldType.typeName().equals(BooleanFieldMapper.CONTENT_TYPE)) {
+            return new TTestAggregationBuilder("foo")
+                .a(new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
+                    .setFilter(QueryBuilders.rangeQuery(fieldName).lt("true")).build())
+                .b(new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
+                    .setFilter(QueryBuilders.rangeQuery(fieldName).gte("false")).build());
+        }
+        // if it's "unsupported" just use matchall filters to avoid parsing issues
         return new TTestAggregationBuilder("foo")
             .a(new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
-                .setFilter(QueryBuilders.rangeQuery(fieldName).lt(10)).build())
+                .setFilter(QueryBuilders.matchAllQuery()).build())
             .b(new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
-                .setFilter(QueryBuilders.rangeQuery(fieldName).gte(10)).build());
+                .setFilter(QueryBuilders.matchAllQuery()).build());
     }
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return List.of(CoreValuesSourceType.NUMERIC);
+        return List.of(CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.BOOLEAN,
+            CoreValuesSourceType.DATE);
     }
 
     @Override

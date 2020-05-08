@@ -79,7 +79,10 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
         return List.of(CoreValuesSourceType.NUMERIC,
             CoreValuesSourceType.BYTES,
             CoreValuesSourceType.RANGE,
-            CoreValuesSourceType.GEOPOINT);
+            CoreValuesSourceType.GEOPOINT,
+            CoreValuesSourceType.BOOLEAN,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.IP);
     }
 
     @Override

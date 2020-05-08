@@ -24,8 +24,10 @@ import com.carrotsearch.hppc.ObjectArrayList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -72,6 +74,7 @@ public abstract class TestCluster implements Closeable {
      * Wipes any data that a test can leave behind: indices, templates (except exclude templates) and repositories
      */
     public void wipe(Set<String> excludeTemplates) {
+        wipeAllDataStreams();
         wipeIndices("_all");
         wipeAllTemplates(excludeTemplates);
         wipeRepositories();
@@ -126,6 +129,17 @@ public abstract class TestCluster implements Closeable {
      */
     @Override
     public abstract void close() throws IOException;
+
+    /**
+     * Deletes all data streams from the test cluster.
+     */
+    public void wipeAllDataStreams() {
+        if (size() > 0) {
+            AcknowledgedResponse response =
+                client().admin().indices().deleteDataStream(new DeleteDataStreamAction.Request("*")).actionGet();
+            assertAcked(response);
+        }
+    }
 
     /**
      * Deletes the given indices from the tests cluster. If no index name is passed to this method

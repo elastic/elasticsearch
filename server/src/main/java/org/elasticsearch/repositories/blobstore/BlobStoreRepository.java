@@ -702,7 +702,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             listener,
             l -> {
                 try {
-                    blobContainer().deleteBlobsIgnoringIfNotExists(resolveFilesToDelete(snapshotIds, deleteResults));
+                    deleteFromContainer(blobContainer(), resolveFilesToDelete(snapshotIds, deleteResults));
                     l.onResponse(null);
                 } catch (Exception e) {
                     logger.warn(
@@ -934,7 +934,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     logger.info("[{}] Found stale root level blobs {}. Cleaning them up", metadata.name(), blobsToLog);
                 }
             }
-            blobContainer().deleteBlobsIgnoringIfNotExists(blobsToDelete);
+            deleteFromContainer(blobContainer(), blobsToDelete);
             return blobsToDelete;
         } catch (IOException e) {
             logger.warn(() -> new ParameterizedMessage(
@@ -1053,7 +1053,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             (indexId, gens) -> gens.forEach((shardId, oldGen) -> toDelete.add(
                 shardContainer(indexId, shardId).path().buildAsString().substring(prefixPathLen) + INDEX_FILE_PREFIX + oldGen)));
         try {
-            blobContainer().deleteBlobsIgnoringIfNotExists(toDelete);
+            deleteFromContainer(blobContainer(), toDelete);
         } catch (Exception e) {
             logger.warn("Failed to clean up old shard generation blobs", e);
         }
@@ -1088,6 +1088,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } catch (NoSuchFileException e) {
             throw new SnapshotMissingException(metadata.name(), snapshotId, e);
         }
+    }
+
+    private void deleteFromContainer(BlobContainer container, List<String> blobs) throws IOException {
+        logger.trace(() -> new ParameterizedMessage("[{}] Deleting {} from [{}]", metadata.name(), blobs, container.path()));
+        container.deleteBlobsIgnoringIfNotExists(blobs);
     }
 
     private BlobPath indicesPath() {
@@ -1561,7 +1566,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 .mapToObj(gen -> INDEX_FILE_PREFIX + gen)
                                 .collect(Collectors.toList());
                             try {
-                                blobContainer().deleteBlobsIgnoringIfNotExists(oldIndexN);
+                                deleteFromContainer(blobContainer(), oldIndexN);
                             } catch (IOException e) {
                                 logger.warn(() -> new ParameterizedMessage("Failed to clean up old index blobs {}", oldIndexN), e);
                             }
@@ -1641,6 +1646,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private void writeAtomic(final String blobName, final BytesReference bytesRef, boolean failIfAlreadyExists) throws IOException {
         try (InputStream stream = bytesRef.streamInput()) {
+            logger.trace(() ->
+                    new ParameterizedMessage("[{}] Writing [{}] to the base path atomically", metadata.name(), blobName));
             blobContainer().writeBlobAtomic(blobName, stream, bytesRef.length(), failIfAlreadyExists);
         }
     }
@@ -1812,7 +1819,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
                 if (writeShardGens == false) {
                     try {
-                        shardContainer.deleteBlobsIgnoringIfNotExists(blobsToDelete);
+                        deleteFromContainer(shardContainer, blobsToDelete);
                     } catch (IOException e) {
                         logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete old index-N blobs during finalization",
                             snapshotId, shardId), e);
@@ -2056,6 +2063,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                      BlobStoreIndexShardSnapshots updatedSnapshots) throws IOException {
         assert ShardGenerations.NEW_SHARD_GEN.equals(indexGeneration) == false;
         assert ShardGenerations.DELETED_SHARD_GEN.equals(indexGeneration) == false;
+        logger.trace(() -> new ParameterizedMessage("[{}] Writing shard index [{}] to [{}]", metadata.name(),
+                indexGeneration, shardContainer.path()));
         indexShardSnapshotsFormat.writeAtomic(updatedSnapshots, shardContainer, indexGeneration);
     }
 
@@ -2164,7 +2173,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         }
                     }
                 };
-                shardContainer.writeBlob(fileInfo.partName(i), inputStream, partBytes, true);
+                final String partName = fileInfo.partName(i);
+                logger.trace(() ->
+                        new ParameterizedMessage("[{}] Writing [{}] to [{}]", metadata.name(), partName, shardContainer.path()));
+                shardContainer.writeBlob(partName, inputStream, partBytes, true);
             }
             Store.verify(indexInput);
             snapshotStatus.addProcessedFile(fileInfo.length());

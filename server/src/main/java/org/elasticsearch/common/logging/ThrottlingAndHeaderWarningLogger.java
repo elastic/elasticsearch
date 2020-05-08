@@ -30,7 +30,6 @@ import org.elasticsearch.common.SuppressLoggerChecks;
  * which is a common use case across Elasticsearch
  */
 public class ThrottlingAndHeaderWarningLogger {
-    private final HeaderWarningLogger headerWarningLogger = new HeaderWarningLogger();
     private final ThrottlingLogger throttlingLogger;
 
     public ThrottlingAndHeaderWarningLogger(Logger loggerName) {
@@ -40,7 +39,6 @@ public class ThrottlingAndHeaderWarningLogger {
     /**
      * Logs a message, adding a formatted warning message as a response header on the thread context.
      */
-    //TODO fix this
     @SuppressLoggerChecks(reason = "safely delegates to logger")
     public void logAndAddWarning(String msg, Object... params) {
         HeaderWarningLogger.addWarning(msg, params);
@@ -52,19 +50,10 @@ public class ThrottlingAndHeaderWarningLogger {
      * Adds a formatted warning message as a response header on the thread context, and logs a message if the associated key has
      * not recently been seen.
      *
-     * @param key    the key used to determine if this message should be logged
-     * @param msg    the message to log
-     * @param params parameters to the message
+     * @param key     the key used to determine if this message should be logged
+     * @param message the message to log
      */
-    //TODO fix this
-    @SuppressLoggerChecks(reason = "safely delegates to logger")
-    public void throttleLogAndAddWarning(final String key, final String msg, final Object... params) {
-        HeaderWarningLogger.addWarning(msg, params);
-        ESLogMessage message = new ESLogMessage(msg, params);
-        throttlingLogger.throttleLog(key, message);
-    }
-
-    public void throttleLogAndAddWarning(final String key, ESLogMessage message) {
+    void throttleLogAndAddWarning(final String key, ESLogMessage message) {
         HeaderWarningLogger.addWarning(message.getMessagePattern(), message.getArguments());
         throttlingLogger.throttleLog(key, message);
     }

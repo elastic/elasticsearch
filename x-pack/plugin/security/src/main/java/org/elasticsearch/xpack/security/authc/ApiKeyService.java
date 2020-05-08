@@ -639,7 +639,7 @@ public class ApiKeyService {
         public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
             deprecationLogger.deprecate("api_key_field",
-                "{}Deprecated field [{}] used in api key [{}], which is unused and will be removed entirely", prefix, usedName)
+                "{}Deprecated field [{}] used in api key [{}], which is unused and will be removed entirely", prefix, usedName, apiKeyId)
                 .log();
         }
     }

@@ -25,8 +25,7 @@ import org.apache.logging.log4j.message.Message;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.common.SuppressLoggerChecks;
-import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.loggerusage.ESLoggerUsageChecker.WrongLoggerUsage;
 
@@ -119,144 +118,150 @@ public class ESLoggerUsageTests extends ESTestCase {
         assertEquals(5, ParameterizedMessage.class.getConstructors().length);
     }
 
-    public void checkArgumentsProvidedInConstructor() {
-        logger.debug(new ESLogMessage("message {}", "some-arg")
-            .field("x-opaque-id", "some-value"));
-    }
+//    public void checkArgumentsProvidedInConstructor() {
+//        logger.debug(new ESLogMessage("message {}", "some-arg")
+//            .field("x-opaque-id", "some-value"));
+//    }
+//
+//    public void checkWithUsage() {
+//        logger.debug(new ESLogMessage("message {}")
+//            .argAndField("x-opaque-id", "some-value")
+//            .field("field", "value")
+//            .with("field2", "value2"));
+//    }
+//
+//
+//    public void checkFailArraySizeForSubclasses(Object... arr) {
+//        logger.debug(new ESLogMessage("message {}", arr));
+//    }
+//
+//    public void checkFailForTooManyArgumentsInConstr() {
+//        logger.debug(new ESLogMessage("message {}", "arg1", "arg2"));
+//    }
+//
+//    public void checkFailForTooManyArgumentsWithChain() {
+//        logger.debug(new ESLogMessage("message {}").argAndField("x-opaque-id", "some-value")
+//                                                   .argAndField("too-many-arg", "xxx"));
+//    }
+//
+//    public void checkFailArraySize(String... arr) {
+//        logger.debug(new ParameterizedMessage("text {}", (Object[])arr));
+//    }
+//
+//    public void checkNumberOfArguments1() {
+//        logger.info("Hello {}", "world");
+//    }
+//
+//    public void checkFailNumberOfArguments1() {
+//        logger.info("Hello {}");
+//    }
+//
+//    @SuppressLoggerChecks(reason = "test ignore functionality")
+//    public void checkIgnoreWhenAnnotationPresent() {
+//        logger.info("Hello {}");
+//    }
+//
+//    public void checkNumberOfArguments2() {
+//        logger.info("Hello {}, {}, {}", "world", 2, "third argument");
+//    }
+//
+//    public void checkFailNumberOfArguments2() {
+//        logger.info("Hello {}, {}", "world", 2, "third argument");
+//    }
+//
+//    public void checkNumberOfArguments3() {
+//        logger.info("Hello {}, {}, {}, {}, {}, {}, {}", "world", 2, "third argument", 4, 5, 6, new String("last arg"));
+//    }
+//
+//    public void checkFailNumberOfArguments3() {
+//        logger.info("Hello {}, {}, {}, {}, {}, {}, {}", "world", 2, "third argument", 4, 5, 6, 7, new String("last arg"));
+//    }
+//
+//    public void checkNumberOfArgumentsParameterizedMessage1() {
+//        logger.info(new ParameterizedMessage("Hello {}, {}, {}", "world", 2, "third argument"));
+//    }
+//
+//    public void checkFailNumberOfArgumentsParameterizedMessage1() {
+//        logger.info(new ParameterizedMessage("Hello {}, {}", "world", 2, "third argument"));
+//    }
+//
+//    public void checkNumberOfArgumentsParameterizedMessage2() {
+//        logger.info(new ParameterizedMessage("Hello {}, {}", "world", 2));
+//    }
+//
+//    public void checkFailNumberOfArgumentsParameterizedMessage2() {
+//        logger.info(new ParameterizedMessage("Hello {}, {}, {}", "world", 2));
+//    }
+//
+//    public void checkNumberOfArgumentsParameterizedMessage3() {
+//        logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}, {}, {}", "world", 2, "third argument"));
+//    }
+//
+//    public void checkFailNumberOfArgumentsParameterizedMessage3() {
+//        logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}, {}", "world", 2, "third argument"));
+//    }
+//
+//    public void checkOrderOfExceptionArgument() {
+//        logger.info("Hello", new Exception());
+//    }
+//
+//    public void checkOrderOfExceptionArgument1() {
+//        logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}", "world"), new Exception());
+//    }
+//
+//    public void checkFailOrderOfExceptionArgument1() {
+//        logger.info("Hello {}", "world", new Exception());
+//    }
+//
+//    public void checkOrderOfExceptionArgument2() {
+//        logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}, {}", "world", 42), new Exception());
+//    }
+//
+//    public void checkFailOrderOfExceptionArgument2() {
+//        logger.info("Hello {}, {}", "world", 42, new Exception());
+//    }
+//
+//    public void checkNonConstantMessageWithZeroArguments(boolean b) {
+//        logger.info(Boolean.toString(b), new Exception());
+//    }
+//
+//    public void checkFailNonConstantMessageWithArguments(boolean b) {
+//        logger.info((Supplier<?>) () -> new ParameterizedMessage(Boolean.toString(b), 42), new Exception());
+//    }
+//
+//    public void checkComplexUsage(boolean b) {
+//        String message = "Hello {}, {}";
+//        Object[] args = new Object[] { "world", 42 };
+//        if (b) {
+//            message = "also two args {}{}";
+//            args = new Object[] { "world", 43 };
+//        }
+//        logger.info(message, args);
+//    }
+//
+//    public void checkFailComplexUsage1(boolean b) {
+//        String message = "Hello {}, {}";
+//        Object[] args = new Object[] { "world", 42 };
+//        if (b) {
+//            message = "just one arg {}";
+//            args = new Object[] { "world", 43 };
+//        }
+//        logger.info(message, args);
+//    }
+//
+//    public void checkFailComplexUsage2(boolean b) {
+//        String message = "Hello {}, {}";
+//        Object[] args = new Object[] { "world", 42 };
+//        if (b) {
+//            message = "also two args {}{}";
+//            args = new Object[] { "world", 43, "another argument" };
+//        }
+//        logger.info(message, args);
+//    }
 
-    public void checkWithUsage() {
-        logger.debug(new ESLogMessage("message {}")
-            .argAndField("x-opaque-id", "some-value")
-            .field("field", "value")
-            .with("field2", "value2"));
-    }
-
-    public void checkFailArraySizeForSubclasses(Object... arr) {
-        logger.debug(new ESLogMessage("message {}", arr));
-    }
-
-    public void checkFailForTooManyArgumentsInConstr() {
-        logger.debug(new ESLogMessage("message {}", "arg1", "arg2"));
-    }
-
-    public void checkFailForTooManyArgumentsWithChain() {
-        logger.debug(new ESLogMessage("message {}").argAndField("x-opaque-id", "some-value")
-                                                   .argAndField("too-many-arg", "xxx"));
-    }
-
-    public void checkFailArraySize(String... arr) {
-        logger.debug(new ParameterizedMessage("text {}", (Object[])arr));
-    }
-
-    public void checkNumberOfArguments1() {
-        logger.info("Hello {}", "world");
-    }
-
-    public void checkFailNumberOfArguments1() {
-        logger.info("Hello {}");
-    }
-
-    @SuppressLoggerChecks(reason = "test ignore functionality")
-    public void checkIgnoreWhenAnnotationPresent() {
-        logger.info("Hello {}");
-    }
-
-    public void checkNumberOfArguments2() {
-        logger.info("Hello {}, {}, {}", "world", 2, "third argument");
-    }
-
-    public void checkFailNumberOfArguments2() {
-        logger.info("Hello {}, {}", "world", 2, "third argument");
-    }
-
-    public void checkNumberOfArguments3() {
-        logger.info("Hello {}, {}, {}, {}, {}, {}, {}", "world", 2, "third argument", 4, 5, 6, new String("last arg"));
-    }
-
-    public void checkFailNumberOfArguments3() {
-        logger.info("Hello {}, {}, {}, {}, {}, {}, {}", "world", 2, "third argument", 4, 5, 6, 7, new String("last arg"));
-    }
-
-    public void checkNumberOfArgumentsParameterizedMessage1() {
-        logger.info(new ParameterizedMessage("Hello {}, {}, {}", "world", 2, "third argument"));
-    }
-
-    public void checkFailNumberOfArgumentsParameterizedMessage1() {
-        logger.info(new ParameterizedMessage("Hello {}, {}", "world", 2, "third argument"));
-    }
-
-    public void checkNumberOfArgumentsParameterizedMessage2() {
-        logger.info(new ParameterizedMessage("Hello {}, {}", "world", 2));
-    }
-
-    public void checkFailNumberOfArgumentsParameterizedMessage2() {
-        logger.info(new ParameterizedMessage("Hello {}, {}, {}", "world", 2));
-    }
-
-    public void checkNumberOfArgumentsParameterizedMessage3() {
-        logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}, {}, {}", "world", 2, "third argument"));
-    }
-
-    public void checkFailNumberOfArgumentsParameterizedMessage3() {
-        logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}, {}", "world", 2, "third argument"));
-    }
-
-    public void checkOrderOfExceptionArgument() {
-        logger.info("Hello", new Exception());
-    }
-
-    public void checkOrderOfExceptionArgument1() {
-        logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}", "world"), new Exception());
-    }
-
-    public void checkFailOrderOfExceptionArgument1() {
-        logger.info("Hello {}", "world", new Exception());
-    }
-
-    public void checkOrderOfExceptionArgument2() {
-        logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}, {}", "world", 42), new Exception());
-    }
-
-    public void checkFailOrderOfExceptionArgument2() {
-        logger.info("Hello {}, {}", "world", 42, new Exception());
-    }
-
-    public void checkNonConstantMessageWithZeroArguments(boolean b) {
-        logger.info(Boolean.toString(b), new Exception());
-    }
-
-    public void checkFailNonConstantMessageWithArguments(boolean b) {
-        logger.info((Supplier<?>) () -> new ParameterizedMessage(Boolean.toString(b), 42), new Exception());
-    }
-
-    public void checkComplexUsage(boolean b) {
-        String message = "Hello {}, {}";
-        Object[] args = new Object[] { "world", 42 };
-        if (b) {
-            message = "also two args {}{}";
-            args = new Object[] { "world", 43 };
-        }
-        logger.info(message, args);
-    }
-
-    public void checkFailComplexUsage1(boolean b) {
-        String message = "Hello {}, {}";
-        Object[] args = new Object[] { "world", 42 };
-        if (b) {
-            message = "just one arg {}";
-            args = new Object[] { "world", 43 };
-        }
-        logger.info(message, args);
-    }
-
-    public void checkFailComplexUsage2(boolean b) {
-        String message = "Hello {}, {}";
-        Object[] args = new Object[] { "world", 42 };
-        if (b) {
-            message = "also two args {}{}";
-            args = new Object[] { "world", 43, "another argument" };
-        }
-        logger.info(message, args);
+    public void checkDeprecationLogger() {
+        DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+        deprecationLogger.deprecate("key","message {}", 123);
     }
 
 }

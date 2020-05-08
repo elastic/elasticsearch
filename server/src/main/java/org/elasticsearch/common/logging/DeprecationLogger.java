@@ -60,7 +60,6 @@ public class DeprecationLogger {
     /**
      * Logs a deprecation message, adding a formatted warning message as a response header on the thread context.
      */
-    //TODO fix logger usage check
     public DeprecationLoggerBuilder deprecate(final String key, final String msg, final Object... params) {
         return new DeprecationLoggerBuilder()
             .withDeprecation(key, msg, params);

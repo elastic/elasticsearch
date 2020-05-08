@@ -79,7 +79,7 @@ public class DeprecationLoggerTests extends ESTestCase {
                 new ProtectionDomain[]{new ProtectionDomain(null, new Permissions())}
             );
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                deprecationLogger.deprecate("testLogPermissions_key", "foo", "bar")
+                deprecationLogger.deprecate("testLogPermissions_key", "foo {}", "bar")
                     .log();
                 return null;
             }, noPermissionsAcc);

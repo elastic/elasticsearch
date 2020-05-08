@@ -78,7 +78,7 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 public class MetadataIndexTemplateService {
 
     private static final Logger logger = LogManager.getLogger(MetadataIndexTemplateService.class);
-    private static final ThrottlingAndHeaderWarningLogger deprecationLogger = new ThrottlingAndHeaderWarningLogger(logger);
+    private static final ThrottlingAndHeaderWarningLogger warningLogger = new ThrottlingAndHeaderWarningLogger(logger);
     private final ClusterService clusterService;
     private final AliasValidator aliasValidator;
     private final IndicesService indicesService;
@@ -365,8 +365,7 @@ public class MetadataIndexTemplateService {
                     .map(e -> e.getKey() + " => " + e.getValue())
                     .collect(Collectors.joining(",")),
                 name);
-            logger.warn(warning);
-            deprecationLogger.logAndAddWarning("index_template_pattern_overlap", warning);
+            warningLogger.logAndAddWarning(warning);
         }
 
         IndexTemplateV2 finalIndexTemplate = template;
@@ -599,8 +598,7 @@ public class MetadataIndexTemplateService {
                         .map(e -> e.getKey() + " => " + e.getValue())
                         .collect(Collectors.joining(",")),
                     request.name);
-                logger.warn(warning);
-                deprecationLogger.logAndAddWarning("index_template_pattern_overlap", warning);
+                warningLogger.logAndAddWarning(warning);
             } else {
                 // Otherwise, this is a hard error, the user should use V2 index templates instead
                 String error = String.format(Locale.ROOT, "template [%s] has index patterns %s matching patterns" +

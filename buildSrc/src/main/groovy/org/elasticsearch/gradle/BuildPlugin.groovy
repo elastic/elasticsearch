@@ -365,6 +365,16 @@ class BuildPlugin implements Plugin<Project> {
 
     /**Configuration generation of maven poms. */
     static void configurePomGeneration(Project project) {
+        // have to defer this until archivesBaseName is set
+        project.afterEvaluate {
+            project.pluginManager.withPlugin('maven-publish') {
+                PublishingExtension publishing = project.extensions.getByType(PublishingExtension)
+                publishing.publications.withType(MavenPublication) { MavenPublication publication ->
+                    publication.artifactId = project.convention.getPlugin(BasePluginConvention).archivesBaseName
+                }
+            }
+        }
+
         project.plugins.withType(MavenPublishPlugin).whenPluginAdded {
             TaskProvider generatePomTask = project.tasks.register("generatePom") { Task task ->
                 task.dependsOn 'generatePomFileForNebulaPublication'
@@ -375,7 +385,7 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             project.tasks.withType(GenerateMavenPom).configureEach({ GenerateMavenPom pomTask ->
-                pomTask.destination = "${project.buildDir}/distributions/${project.convention.getPlugin(BasePluginConvention).archivesBaseName}-${project.version}.pom"
+                pomTask.destination = { "${project.buildDir}/distributions/${project.convention.getPlugin(BasePluginConvention).archivesBaseName}-${project.version}.pom" }
             } as Action<GenerateMavenPom>)
 
             PublishingExtension publishing = project.extensions.getByType(PublishingExtension)

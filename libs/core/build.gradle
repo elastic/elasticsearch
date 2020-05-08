@@ -64,14 +64,6 @@ if (!isEclipse) {
   }
 }
 
-publishing {
-  publications {
-    nebula {
-      artifactId = archivesBaseName
-    }
-  }
-}
-
 dependencies {
   // This dependency is used only by :libs:core for null-checking interop with other tools
   compileOnly "com.google.code.findbugs:jsr305:3.0.2"

@@ -41,5 +41,3 @@ include::modules/discovery.asciidoc[]
 include::modules/cluster.asciidoc[]
 
 include::modules/gateway.asciidoc[]
-
-include::modules/http.asciidoc[]

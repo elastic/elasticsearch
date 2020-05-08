@@ -46,24 +46,37 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 public class Netty4HttpRequest implements HttpRequest {
+
+    private final FullHttpRequest request;
+    private final BytesReference content;
     private final HttpHeadersMap headers;
     private final AtomicBoolean released;
-    private final FullHttpRequest request;
+    private final Exception inboundException;
     private final boolean pooled;
-    private final BytesReference content;
 
     Netty4HttpRequest(FullHttpRequest request) {
         this(request, new HttpHeadersMap(request.headers()), new AtomicBoolean(false), true,
             Netty4Utils.toBytesReference(request.content()));
     }
 
+    Netty4HttpRequest(FullHttpRequest request, Exception inboundException) {
+        this(request, new HttpHeadersMap(request.headers()), new AtomicBoolean(false), true,
+            Netty4Utils.toBytesReference(request.content()), inboundException);
+    }
+
     private Netty4HttpRequest(FullHttpRequest request, HttpHeadersMap headers, AtomicBoolean released, boolean pooled,
                               BytesReference content) {
+        this(request, headers, released, pooled, content, null);
+    }
+
+    private Netty4HttpRequest(FullHttpRequest request, HttpHeadersMap headers, AtomicBoolean released, boolean pooled,
+                              BytesReference content, Exception inboundException) {
         this.request = request;
         this.headers = headers;
         this.content = content;
         this.pooled = pooled;
         this.released = released;
+        this.inboundException = inboundException;
     }
 
     @Override
@@ -184,6 +197,16 @@ public class Netty4HttpRequest implements HttpRequest {
     @Override
     public Netty4HttpResponse createResponse(RestStatus status, BytesReference content) {
         return new Netty4HttpResponse(this, status, content);
+    }
+
+    @Override
+    public boolean hasInboundException() {
+        return inboundException != null;
+    }
+
+    @Override
+    public Exception getInboundException() {
+        return inboundException;
     }
 
     public FullHttpRequest nettyRequest() {

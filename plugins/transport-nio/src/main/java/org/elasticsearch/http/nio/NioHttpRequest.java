@@ -50,6 +50,7 @@ public class NioHttpRequest implements HttpRequest {
     private final BytesReference content;
     private final HttpHeadersMap headers;
     private final AtomicBoolean released;
+    private final Exception inboundException;
     private final boolean pooled;
 
     NioHttpRequest(FullHttpRequest request) {
@@ -57,13 +58,24 @@ public class NioHttpRequest implements HttpRequest {
             ByteBufUtils.toBytesReference(request.content()));
     }
 
+    NioHttpRequest(FullHttpRequest request, Exception inboundException) {
+        this(request, new HttpHeadersMap(request.headers()), new AtomicBoolean(false), true,
+            ByteBufUtils.toBytesReference(request.content()), inboundException);
+    }
+
     private NioHttpRequest(FullHttpRequest request, HttpHeadersMap headers, AtomicBoolean released, boolean pooled,
                            BytesReference content) {
+        this(request, headers, released, pooled, content, null);
+    }
+
+    private NioHttpRequest(FullHttpRequest request, HttpHeadersMap headers, AtomicBoolean released, boolean pooled,
+                           BytesReference content, Exception inboundException) {
         this.request = request;
         this.headers = headers;
         this.content = content;
         this.pooled = pooled;
         this.released = released;
+        this.inboundException = inboundException;
     }
 
     @Override
@@ -183,6 +195,16 @@ public class NioHttpRequest implements HttpRequest {
     @Override
     public NioHttpResponse createResponse(RestStatus status, BytesReference content) {
         return new NioHttpResponse(this, status, content);
+    }
+
+    @Override
+    public boolean hasInboundException() {
+        return inboundException != null;
+    }
+
+    @Override
+    public Exception getInboundException() {
+        return inboundException;
     }
 
     public FullHttpRequest nettyRequest() {

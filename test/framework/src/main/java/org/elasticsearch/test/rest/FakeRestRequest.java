@@ -122,6 +122,16 @@ public class FakeRestRequest extends RestRequest {
         public HttpRequest releaseAndCopy() {
             return this;
         }
+
+        @Override
+        public boolean hasInboundException() {
+            return false;
+        }
+
+        @Override
+        public Exception getInboundException() {
+            return null;
+        }
     }
 
     private static class FakeHttpChannel implements HttpChannel {

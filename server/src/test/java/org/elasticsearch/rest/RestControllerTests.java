@@ -593,6 +593,16 @@ public class RestControllerTests extends ESTestCase {
             public HttpRequest releaseAndCopy() {
                 return this;
             }
+
+            @Override
+            public boolean hasInboundException() {
+                return false;
+            }
+
+            @Override
+            public Exception getInboundException() {
+                return null;
+            }
         }, null);
 
         final AssertingChannel channel = new AssertingChannel(request, true, RestStatus.METHOD_NOT_ALLOWED);

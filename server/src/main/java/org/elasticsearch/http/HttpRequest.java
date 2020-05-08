@@ -68,6 +68,10 @@ public interface HttpRequest {
      */
     HttpResponse createResponse(RestStatus status, BytesReference content);
 
+    boolean hasInboundException();
+
+    Exception getInboundException();
+
     /**
      * Release any resources associated with this request. Implementations should be idempotent. The behavior of {@link #content()}
      * after this method has been invoked is undefined and implementation specific.

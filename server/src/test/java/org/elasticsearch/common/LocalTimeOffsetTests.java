@@ -28,6 +28,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.zone.ZoneOffsetTransition;
+import java.time.zone.ZoneRules;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -154,15 +155,17 @@ public class LocalTimeOffsetTests extends ESTestCase {
         assertRoundingAtOffset(lookup.lookup(time), time, TimeUnit.MINUTES.toMillis(345));
     }
 
+    /**
+     * America/Tijuana's
+     * {@link ZoneRules#getTransitions() fully defined transitions} overlap
+     * with its {@link ZoneRules#getTransitionRules() future rules} and if
+     * we're not careful we can end up with duplicate transitions because we
+     * have to collect them independently. That will trip assertions, failing
+     * this test real fast. If they don't trip the assertions then trying to
+     * use the transitions will produce incorrect results, failing the
+     * size assertion.
+     */
     public void testLastTransitionOverlapsRules() {
-        /*
-         * America/Tijuana's fully defined transitions overlap with its future
-         * rules and if we're not careful we can end up with duplicate
-         * transitions because we have to collect them independently. That
-         * will trip assertions, failing this test real fast. If they don't
-         * trip the assertions then trying to use the transitions will produce
-         * incorrect results, failing the size assertion.
-         */
         ZoneId zone = ZoneId.of("America/Tijuana");
         long min = utcTime("2011-11-06T08:31:57.091Z");
         long max = utcTime("2011-11-06T09:02:57.091Z");

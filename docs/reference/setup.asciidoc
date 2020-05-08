@@ -53,6 +53,8 @@ include::settings/ccr-settings.asciidoc[]
 
 include::modules/indices/fielddata.asciidoc[]
 
+include::modules/http.asciidoc[]
+
 include::settings/ilm-settings.asciidoc[]
 
 include::modules/indices/recovery.asciidoc[]

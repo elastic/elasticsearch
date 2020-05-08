@@ -124,11 +124,6 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
         return Objects.equals(left(), other.left()) && Objects.equals(right(), other.right())
                 && Objects.equals(parser, other.parser);
     }
-
-    @Override
-    public String toString(){
-        return parser.toString();
-    }
     
     public Parser parser() {
         return parser;

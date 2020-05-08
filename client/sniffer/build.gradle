@@ -25,14 +25,6 @@ sourceCompatibility = JavaVersion.VERSION_1_8
 group = 'org.elasticsearch.client'
 archivesBaseName = 'elasticsearch-rest-client-sniffer'
 
-publishing {
-  publications {
-    nebula {
-      artifactId = archivesBaseName
-    }
-  }
-}
-
 dependencies {
   compile project(":client:rest")
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"

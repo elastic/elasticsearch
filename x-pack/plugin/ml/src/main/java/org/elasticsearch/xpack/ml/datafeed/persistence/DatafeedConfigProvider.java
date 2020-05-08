@@ -53,13 +53,13 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -492,27 +492,7 @@ public class DatafeedConfigProvider {
     }
 
     static Collection<String> matchingDatafeedIdsWithTasks(String[] datafeedIdPatterns, PersistentTasksCustomMetadata tasksMetadata) {
-        Set<String> startedDatafeedIds = MlTasks.startedDatafeedIds(tasksMetadata);
-        if (startedDatafeedIds.isEmpty()) {
-            return Collections.emptyList()  ;
-        }
-        if (Strings.isAllOrWildcard(datafeedIdPatterns)) {
-            return startedDatafeedIds;
-        }
-
-        List<String> matchingDatafeedIds = new ArrayList<>();
-        for (String datafeedIdPattern : datafeedIdPatterns) {
-            if (startedDatafeedIds.contains(datafeedIdPattern))  {
-                matchingDatafeedIds.add(datafeedIdPattern);
-            } else if (Regex.isSimpleMatchPattern(datafeedIdPattern)) {
-                for (String startedDatafeedId : startedDatafeedIds) {
-                    if (Regex.simpleMatch(datafeedIdPattern, startedDatafeedId)) {
-                        matchingDatafeedIds.add(startedDatafeedId);
-                    }
-                }
-            }
-        }
-        return matchingDatafeedIds;
+        return MlStrings.findMatching(datafeedIdPatterns, MlTasks.startedDatafeedIds(tasksMetadata));
     }
 
     private QueryBuilder buildDatafeedJobIdsQuery(Collection<String> jobIds) {

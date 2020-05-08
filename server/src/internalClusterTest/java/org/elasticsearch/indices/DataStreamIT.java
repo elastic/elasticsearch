@@ -177,9 +177,6 @@ public class DataStreamIT extends ESIntegTestCase {
             BulkResponse bulkItemResponses  = client().bulk(bulkRequest).actionGet();
             assertThat(bulkItemResponses.getItems()[0].getIndex(), equalTo(DataStream.getBackingIndexName(dataStreamName, 1)));
         }
-
-        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request("*");
-        client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();
     }
 
     private static void indexDocs(String dataStream, int numDocs) {

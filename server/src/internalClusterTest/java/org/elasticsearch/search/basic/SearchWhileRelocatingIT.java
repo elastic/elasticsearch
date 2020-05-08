@@ -88,8 +88,8 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                                 }
 
                                 final SearchHits sh = sr.getHits();
-                                assertThat("Expected hits to be the same size the actual hits array", sh.getTotalHits().value,
-                                        equalTo((long) (sh.getHits().length)));
+                                assertThat("Expected hits to be the same size the actual hits array [" + sh.getTotalHits() + "]",
+                                    sh.getTotalHits().value, equalTo((long) (sh.getHits().length)));
                                 // this is the more critical but that we hit the actual hit array has a different size than the
                                 // actual number of hits.
                             }

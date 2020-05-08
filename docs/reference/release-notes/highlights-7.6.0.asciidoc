@@ -12,7 +12,7 @@
 ==== New histogram field type
 
 A new {ref}/histogram.html[histogram field type] has been added. The new `histogram` field accepts
-pre-aggregated histograms which can later be used directly in the
+pre-aggregated histograms that can later be used directly in the
 {ref}/search-aggregations-metrics-percentile-aggregation.html[percentiles] and
 {ref}/search-aggregations-metrics-percentile-rank-aggregation.html[percentile_ranks] aggregations.
 This allows users to pre-aggregate histogram data locally and only send the final

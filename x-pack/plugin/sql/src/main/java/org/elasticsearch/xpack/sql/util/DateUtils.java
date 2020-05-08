@@ -213,13 +213,13 @@ public final class DateUtils {
     }
     
     public static OffsetTime atTimeZone(OffsetTime ot, ZoneId zoneId) {
-        Instant instant = ZonedDateTime.now(zoneId).toInstant();
-        return ot.withOffsetSameInstant(zoneId.getRules().getStandardOffset(instant));
+        LocalDateTime ldt = ZonedDateTime.now(zoneId).toLocalDateTime();
+        return ot.withOffsetSameInstant(zoneId.getRules().getValidOffsets(ldt).get(0));
     }
     
     public static OffsetTime atTimeZone(LocalTime lt, ZoneId zoneId) {
-        Instant instant = ZonedDateTime.now(zoneId).toInstant();
-        return OffsetTime.of(lt, zoneId.getRules().getStandardOffset(instant));
+        LocalDateTime ldt = ZonedDateTime.now(zoneId).toLocalDateTime();
+        return OffsetTime.of(lt, zoneId.getRules().getValidOffsets(ldt).get(0));
     }
     
     public static ZonedDateTime atTimeZone(ZonedDateTime zdt, ZoneId zoneId) {

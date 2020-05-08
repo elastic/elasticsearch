@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfig
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -141,7 +140,7 @@ public class TransportStopDataFrameAnalyticsAction
         }
     }
 
-    private Set<String> getAllStartedIds(ClusterState clusterState) {
+    private static Set<String> getAllStartedIds(ClusterState clusterState) {
         PersistentTasksCustomMetadata tasksMetadata = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         return tasksMetadata == null ? Collections.emptySet() : tasksMetadata.tasks().stream()
             .filter(t -> t.getId().startsWith(MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX))
@@ -158,8 +157,8 @@ public class TransportStopDataFrameAnalyticsAction
             matchingIdsListener.onFailure(ExceptionsHelper.missingDataFrameAnalytics(expandedIdsMatcher.unmatchedIdsString()));
             return;
         }
-        Collection<String> matchingStartedIds = MlStrings.findMatching(tokens, startedIds);
-        matchingIdsListener.onResponse(new HashSet<>(matchingStartedIds));
+        Set<String> matchingStartedIds = MlStrings.findMatching(tokens, startedIds);
+        matchingIdsListener.onResponse(matchingStartedIds);
     }
 
     private void normalStop(Task task, StopDataFrameAnalyticsAction.Request request,

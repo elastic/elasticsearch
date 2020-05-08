@@ -12,10 +12,11 @@ import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Set;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -59,15 +60,20 @@ public class MlStringsTests extends ESTestCase {
     }
 
     public void testFindMatching_GivenAllPattern() {
-        assertThat(MlStrings.findMatching(new String[] {"_all"}, new HashSet<>(Arrays.asList("a", "b"))), hasItems("a", "b"));
+        assertThat(MlStrings.findMatching(new String[] {"_all"}, new HashSet<>(Arrays.asList("a", "b"))), contains("a", "b"));
     }
 
     public void testFindMatching_GivenWildcardPattern() {
-        assertThat(MlStrings.findMatching(new String[] {"*"}, new HashSet<>(Arrays.asList("a", "b"))), hasItems("a", "b"));
+        assertThat(MlStrings.findMatching(new String[] {"*"}, new HashSet<>(Arrays.asList("a", "b"))), contains("a", "b"));
     }
 
     public void testFindMatching_GivenMixedPatterns() {
         assertThat(MlStrings.findMatching(new String[] {"concrete", "wild-*"}, new HashSet<>(
-            Arrays.asList("a", "concrete", "con*", "wild-1", "wild-2"))), hasItems("concrete", "wild-1", "wild-2"));
+            Arrays.asList("a", "concrete", "con*", "wild-1", "wild-2"))), contains("concrete", "wild-1", "wild-2"));
+    }
+
+    public void testFindMatching_GivenItemMatchedByTwoPatterns() {
+        Set<String> matching = MlStrings.findMatching(new String[]{"a*", "ab*"}, new HashSet<>(Collections.singletonList("abc")));
+        assertThat(matching, contains("abc"));
     }
 }

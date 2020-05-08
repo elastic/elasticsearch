@@ -12,6 +12,7 @@ import org.elasticsearch.common.regex.Regex;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -108,15 +109,15 @@ public final class MlStrings {
      * @param items the collections of strings
      * @return the strings from {@code items} that match against at least one pattern
      */
-    public static Collection<String> findMatching(String[] patterns, Set<String> items) {
+    public static Set<String> findMatching(String[] patterns, Set<String> items) {
         if (items.isEmpty()) {
-            return Collections.emptyList();
+            return Collections.emptySet();
         }
         if (Strings.isAllOrWildcard(patterns)) {
             return items;
         }
 
-        List<String> matchingItems = new ArrayList<>();
+        Set<String> matchingItems = new LinkedHashSet<>();
         for (String pattern : patterns) {
             if (items.contains(pattern))  {
                 matchingItems.add(pattern);

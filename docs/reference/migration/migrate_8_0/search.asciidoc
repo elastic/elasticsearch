@@ -42,8 +42,7 @@ The same functionality can be achieved without any configuration provided that t
 The `nested_filter` and `nested_path` options, deprecated in 6.x, have been removed in favor of the `nested` context.
 ====
 
-
-.{es} now routes search and get requests to shards using adaptive replica selection.
+.Search and get requests are now routed to shards using adaptive replica selection by default.
 [%collapsible]
 ====
 *Details* +

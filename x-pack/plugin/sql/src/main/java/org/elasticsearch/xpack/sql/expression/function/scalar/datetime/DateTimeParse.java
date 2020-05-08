@@ -22,17 +22,17 @@ public class DateTimeParse extends BaseDateTimeParseFunction {
     public DateTimeParse(Source source, Expression timestamp, Expression pattern, ZoneId zoneId) {
         super(source, timestamp, pattern, zoneId);
     }
-    
+
     @Override
     protected Parser parser() {
         return DATE_TIME;
     }
-    
+
     @Override
     protected NodeInfo.NodeCtor3<Expression, Expression, ZoneId, BaseDateTimeParseFunction> ctorForInfo() {
         return DateTimeParse::new;
     }
-    
+
     @Override
     public DataType dataType() {
         return DataTypes.DATETIME;

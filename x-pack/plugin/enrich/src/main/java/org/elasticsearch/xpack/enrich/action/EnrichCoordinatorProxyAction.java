@@ -67,7 +67,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
             // Write tp is expected when executing enrich processor from index / bulk api
             // Management tp is expected when executing enrich processor from ingest simulate api
             // Search tp is allowed for now - After enriching, the remaining parts of the pipeline are processed on the
-            //   search thread, which could end up here again if there is more than one enrich processor in a pipeline.
+            // search thread, which could end up here again if there is more than one enrich processor in a pipeline.
             assert Thread.currentThread().getName().contains(ThreadPool.Names.WRITE)
                 || Thread.currentThread().getName().contains(ThreadPool.Names.SEARCH)
                 || Thread.currentThread().getName().contains(ThreadPool.Names.MANAGEMENT);
@@ -122,8 +122,11 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
             coordinateLookups();
 
             if (accepted == false) {
-                listener.onFailure(new EsRejectedExecutionException("Could not perform enrichment, " +
-                    "enrich coordination queue at capacity [" + queueSize + "/" + queueCapacity + "]"));
+                listener.onFailure(
+                    new EsRejectedExecutionException(
+                        "Could not perform enrichment, " + "enrich coordination queue at capacity [" + queueSize + "/" + queueCapacity + "]"
+                    )
+                );
             }
         }
 

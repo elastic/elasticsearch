@@ -64,19 +64,26 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
         String enrichPipelineName = "enrich_pipeline_" + testSuffix;
         String enrichedIndexName = "enrich_results_" + testSuffix;
 
-        client().index(new IndexRequest(enrichIndexName).source(
-            JsonXContent.contentBuilder().startObject().field("my_key", "key").field("my_value", "data").endObject()))
-            .actionGet();
+        client().index(
+            new IndexRequest(enrichIndexName).source(
+                JsonXContent.contentBuilder().startObject().field("my_key", "key").field("my_value", "data").endObject()
+            )
+        ).actionGet();
 
         client().admin().indices().refresh(new RefreshRequest(enrichIndexName)).actionGet();
 
-        client().execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request(
-            enrichPolicyName,
-            new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(enrichIndexName), "my_key", List.of("my_value"))
-        )).actionGet();
+        client().execute(
+            PutEnrichPolicyAction.INSTANCE,
+            new PutEnrichPolicyAction.Request(
+                enrichPolicyName,
+                new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(enrichIndexName), "my_key", List.of("my_value"))
+            )
+        ).actionGet();
 
-        client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(enrichPolicyName)
-            .setWaitForCompletion(true)).actionGet();
+        client().execute(
+            ExecuteEnrichPolicyAction.INSTANCE,
+            new ExecuteEnrichPolicyAction.Request(enrichPolicyName).setWaitForCompletion(true)
+        ).actionGet();
 
         XContentBuilder pipe1 = JsonXContent.contentBuilder();
         pipe1.startObject();
@@ -110,11 +117,10 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
         }
         pipe1.endObject();
 
-        client().execute(PutPipelineAction.INSTANCE, new PutPipelineRequest(
-            enrichPipelineName,
-            BytesReference.bytes(pipe1),
-            XContentType.JSON
-        )).actionGet();
+        client().execute(
+            PutPipelineAction.INSTANCE,
+            new PutPipelineRequest(enrichPipelineName, BytesReference.bytes(pipe1), XContentType.JSON)
+        ).actionGet();
 
         client().admin().indices().create(new CreateIndexRequest(enrichedIndexName)).actionGet();
 
@@ -157,19 +163,26 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
         String enrichPipelineName1 = enrichPipelineName + "_1";
         String enrichPipelineName2 = enrichPipelineName + "_2";
 
-        client().index(new IndexRequest(enrichIndexName).source(
-            JsonXContent.contentBuilder().startObject().field("my_key", "key").field("my_value", "data").endObject()))
-            .actionGet();
+        client().index(
+            new IndexRequest(enrichIndexName).source(
+                JsonXContent.contentBuilder().startObject().field("my_key", "key").field("my_value", "data").endObject()
+            )
+        ).actionGet();
 
         client().admin().indices().refresh(new RefreshRequest(enrichIndexName)).actionGet();
 
-        client().execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request(
-            enrichPolicyName,
-            new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(enrichIndexName), "my_key", List.of("my_value"))
-        )).actionGet();
+        client().execute(
+            PutEnrichPolicyAction.INSTANCE,
+            new PutEnrichPolicyAction.Request(
+                enrichPolicyName,
+                new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(enrichIndexName), "my_key", List.of("my_value"))
+            )
+        ).actionGet();
 
-        client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(enrichPolicyName)
-            .setWaitForCompletion(true)).actionGet();
+        client().execute(
+            ExecuteEnrichPolicyAction.INSTANCE,
+            new ExecuteEnrichPolicyAction.Request(enrichPolicyName).setWaitForCompletion(true)
+        ).actionGet();
 
         XContentBuilder pipe1 = JsonXContent.contentBuilder();
         pipe1.startObject();
@@ -222,17 +235,15 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
         }
         pipe2.endObject();
 
-        client().execute(PutPipelineAction.INSTANCE, new PutPipelineRequest(
-            enrichPipelineName1,
-            BytesReference.bytes(pipe1),
-            XContentType.JSON
-        )).actionGet();
+        client().execute(
+            PutPipelineAction.INSTANCE,
+            new PutPipelineRequest(enrichPipelineName1, BytesReference.bytes(pipe1), XContentType.JSON)
+        ).actionGet();
 
-        client().execute(PutPipelineAction.INSTANCE, new PutPipelineRequest(
-            enrichPipelineName2,
-            BytesReference.bytes(pipe2),
-            XContentType.JSON
-        )).actionGet();
+        client().execute(
+            PutPipelineAction.INSTANCE,
+            new PutPipelineRequest(enrichPipelineName2, BytesReference.bytes(pipe2), XContentType.JSON)
+        ).actionGet();
 
         client().admin().indices().create(new CreateIndexRequest(enrichedIndexName)).actionGet();
 

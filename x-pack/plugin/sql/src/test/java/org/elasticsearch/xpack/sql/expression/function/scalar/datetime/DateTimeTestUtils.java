@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.time.OffsetTime;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -57,7 +58,9 @@ public class DateTimeTestUtils {
     }
     
     public static OffsetTime time(int hour, int minute, int second, int nano, ZoneId zoneId) {
-        return time(hour, minute, second, nano, ZoneOffset.UTC, zoneId);
+        LocalTime lt = LocalTime.of(hour, minute, second, nano);
+        LocalDateTime ldt = lt.atDate(LocalDate.EPOCH);
+        return OffsetTime.of(lt, zoneId.getRules().getValidOffsets(ldt).get(0));
     }
 
     static ZonedDateTime nowWithMillisResolution() {

@@ -27,23 +27,31 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Da
 
 
 public class DateTimeParsePipeTests extends AbstractNodeTestCase<DateTimeParsePipe, Pipe> {
-
-    public static DateTimeParsePipe randomDateTimeParsePipe() {
-        return (DateTimeParsePipe) new DateTimeParse(
-            randomSource(),
-            randomStringLiteral(),
-            randomStringLiteral(),
-            randomZone()
-        ).makePipe();
+    
+    public static DateTimeParsePipe randomBinaryStringNumericPipe() {
+        List<Pipe> functions = new ArrayList<>();
+        functions.add(new DateTimeParse(            
+                randomSource(),
+                randomStringLiteral(),
+                randomStringLiteral(),
+                randomZone()
+        ).makePipe());
+        functions.add(new TimeParse(
+                randomSource(),
+                randomStringLiteral(),
+                randomStringLiteral(),
+                randomZone()
+        ).makePipe());
+        return (DateTimeParsePipe) randomFrom(functions);
     }
 
     @Override
     protected DateTimeParsePipe randomInstance() {
-        return randomDateTimeParsePipe();
+        return randomBinaryStringNumericPipe();
     }
 
     private Expression randomDateTimeParsePipeExpression() {
-        return randomDateTimeParsePipe().expression();
+        return randomBinaryStringNumericPipe().expression();
     }
 
     @Override
@@ -59,13 +67,18 @@ public class DateTimeParsePipeTests extends AbstractNodeTestCase<DateTimeParsePi
                 b1.left(), 
                 b1.right(), 
                 b1.zoneId(), 
-                randomFrom(Parser.values()));
+                b1.parser());
         assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
 
         DateTimeParsePipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), SourceTests::randomSource);
-        newB = new DateTimeParsePipe(newLoc, b2.expression(), b2.left(), b2.right(), b2.zoneId(), randomFrom(Parser.values()));
+        newB = new DateTimeParsePipe(newLoc, b2.expression(), b2.left(), b2.right(), b2.zoneId(), b2.parser());
         assertEquals(newB, b2.transformPropertiesOnly(v -> Objects.equals(v, b2.source()) ? newLoc : v, Source.class));
+    
+        DateTimeParsePipe b3 = randomInstance();
+        Parser newPr = randomValueOtherThan(b3.parser(), () -> randomFrom(Parser.values()));
+        newB = new DateTimeParsePipe(newLoc, b3.expression(), b3.left(), b3.right(), b3.zoneId(), newPr);
+        assertEquals(newB, b3.transformPropertiesOnly(v -> Objects.equals(v, b3.parser()) ? newPr : v, Parser.class));
     }
 
     @Override
@@ -79,7 +92,7 @@ public class DateTimeParsePipeTests extends AbstractNodeTestCase<DateTimeParsePi
                 b.left(), 
                 b.right(), 
                 b.zoneId(), 
-                randomFrom(Parser.values()));
+                b.parser());
         BinaryPipe transformed = newB.replaceChildren(newLeft, b.right());
 
         assertEquals(transformed.left(), newLeft);
@@ -110,7 +123,7 @@ public class DateTimeParsePipeTests extends AbstractNodeTestCase<DateTimeParsePi
                 pipe(((Expression) randomValueOtherThan(f.left(), FunctionTestUtils::randomDatetimeLiteral))),
                 f.right(),
                 f.zoneId(),
-                randomFrom(Parser.values())
+                f.parser()
             )
         );
         randoms.add(
@@ -119,8 +132,8 @@ public class DateTimeParsePipeTests extends AbstractNodeTestCase<DateTimeParsePi
                 f.expression(),
                 f.left(),
                 pipe(((Expression) randomValueOtherThan(f.right(), FunctionTestUtils::randomStringLiteral))),
-                f.zoneId(),
-                randomFrom(Parser.values())
+                f.zoneId(), 
+                f.parser()
             )
         );
         randoms.add(
@@ -130,7 +143,7 @@ public class DateTimeParsePipeTests extends AbstractNodeTestCase<DateTimeParsePi
                 f.left(),
                 f.right(),
                 randomValueOtherThan(f.zoneId(), ESTestCase::randomZone),
-                randomFrom(Parser.values())
+                f.parser()
             )
         );
         randoms.add(
@@ -140,6 +153,16 @@ public class DateTimeParsePipeTests extends AbstractNodeTestCase<DateTimeParsePi
                 pipe(((Expression) randomValueOtherThan(f.left(), FunctionTestUtils::randomDatetimeLiteral))),
                 pipe(((Expression) randomValueOtherThan(f.right(), FunctionTestUtils::randomStringLiteral))),
                 randomValueOtherThan(f.zoneId(), ESTestCase::randomZone), 
+                f.parser()
+            )
+        );
+        randoms.add(
+            f -> new DateTimeParsePipe(
+                f.source(),
+                f.expression(),
+                f.left(),
+                f.right(),
+                f.zoneId(),
                 randomFrom(Parser.values())
             )
         );
@@ -155,6 +178,6 @@ public class DateTimeParsePipeTests extends AbstractNodeTestCase<DateTimeParsePi
                 instance.left(), 
                 instance.right(), 
                 instance.zoneId(),
-                randomFrom(Parser.values()));
+                instance.parser());
     }
 }

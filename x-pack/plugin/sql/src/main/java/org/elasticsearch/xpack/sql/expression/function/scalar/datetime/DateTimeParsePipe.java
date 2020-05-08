@@ -58,4 +58,8 @@ public class DateTimeParsePipe extends BinaryDateTimePipe {
         DateTimeParsePipe that = (DateTimeParsePipe) o;
         return super.equals(o) && this.parser == that.parser;
     }
+    
+    public Parser parser() {
+        return parser;
+    }
 }

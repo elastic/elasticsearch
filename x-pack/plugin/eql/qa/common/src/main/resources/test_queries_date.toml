@@ -1,0 +1,26 @@
+# This file is populated with additional EQL queries regarding date tests that were not present in the original EQL python implementation
+# test_queries.toml file in order to keep the original unchanges and easier to sync with the EQL reference implementation tests.
+
+[[queries]]
+expected_event_ids  = [18, 19, 20, 21, 22, 23, 24]
+query = '''
+process where @timestamp = '+4168595-05-12T13:00Z'
+'''
+
+[[queries]]
+expected_event_ids  = [1, 2, 3, 4, 5, 6, 7]
+query = '''
+process where @timestamp < '+4168595-05-12T10:13:20Z'
+'''
+
+[[queries]]
+expected_event_ids  = [97]
+query = '''
+process where @timestamp = 131605904083494370
+'''
+
+[[queries]]
+expected_event_ids  = [98, 75273, 75303]
+query = '''
+process where @timestamp > 131605904083494370
+'''

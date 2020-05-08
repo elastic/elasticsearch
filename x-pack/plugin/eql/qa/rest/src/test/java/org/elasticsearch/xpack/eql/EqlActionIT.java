@@ -11,7 +11,7 @@ import org.elasticsearch.test.eql.EqlSpec;
 
 public class EqlActionIT extends CommonEqlActionTestCase {
     // Constructor for parameterized test
-    public EqlActionIT(int num, String name, EqlSpec spec) {
-        super(num, name, spec);
+    public EqlActionIT(TestSuite testSuite, int num, String name, EqlSpec spec) {
+        super(testSuite, num, name, spec);
     }
 }

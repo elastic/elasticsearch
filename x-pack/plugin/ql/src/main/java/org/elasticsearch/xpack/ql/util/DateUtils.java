@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.ql.util;
 
+import org.elasticsearch.common.time.DateFormatters;
+
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.OffsetTime;
@@ -63,6 +65,13 @@ public class DateUtils {
     public static final int SECONDS_PER_DAY = SECONDS_PER_HOUR * 24;
 
     private DateUtils() {}
+
+    /**
+     * Parses the given string into a DateTime using in the defined timezone.
+     */
+    public static ZonedDateTime asDateTime(String dateFormat, ZoneId zoneId) {
+        return DateFormatters.from(ISO_DATE_WITH_NANOS.parse(dateFormat)).withZoneSameInstant(zoneId);
+    }
 
     public static String toString(Object value) {
         if (value == null) {

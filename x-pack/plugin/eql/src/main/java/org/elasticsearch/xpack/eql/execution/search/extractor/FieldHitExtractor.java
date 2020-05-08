@@ -18,6 +18,7 @@ import java.time.ZonedDateTime;
 import java.util.List;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 
 public class FieldHitExtractor extends AbstractFieldHitExtractor {
 
@@ -49,6 +50,11 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         if (dataType == DATETIME) {
             if (values instanceof String) {
                 return ZonedDateTime.ofInstant(Instant.ofEpochMilli(Long.parseLong(values.toString())), zoneId());
+            }
+        }
+        if (dataType == DATETIME_NANOS) {
+            if (values instanceof String) {
+                return DateUtils.asDateTime(values.toString(), zoneId());
             }
         }
 

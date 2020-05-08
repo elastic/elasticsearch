@@ -67,7 +67,7 @@ public class SortedSetOrdinalsIndexFieldData implements IndexOrdinalsFieldData {
         }
 
         @Override
-        public IndexFieldData<?> build(
+        public SortedSetOrdinalsIndexFieldData build(
             IndexSettings indexSettings,
             MappedFieldType fieldType,
             IndexFieldDataCache cache,

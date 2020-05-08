@@ -289,7 +289,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 @Override
                 public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                         CircuitBreakerService breakerService, MapperService mapperService) {
-                    final IndexNumericFieldData scaledValues = (IndexNumericFieldData) new SortedNumericIndexFieldData.Builder(
+                    final IndexNumericFieldData scaledValues = new SortedNumericIndexFieldData.Builder(
                         IndexNumericFieldData.NumericType.LONG
                     )
                             .build(indexSettings, fieldType, cache, breakerService, mapperService);

@@ -76,7 +76,7 @@ public class SortedNumericIndexFieldData implements IndexNumericFieldData {
         }
 
         @Override
-        public IndexFieldData<?> build(
+        public SortedNumericIndexFieldData build(
             IndexSettings indexSettings,
             MappedFieldType fieldType,
             IndexFieldDataCache cache,

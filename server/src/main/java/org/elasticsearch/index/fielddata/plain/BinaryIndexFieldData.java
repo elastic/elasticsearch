@@ -41,7 +41,7 @@ public class BinaryIndexFieldData implements IndexFieldData<BinaryDVLeafFieldDat
 
     public static class Builder implements IndexFieldData.Builder {
         @Override
-        public IndexFieldData<?> build(
+        public BinaryIndexFieldData build(
             IndexSettings indexSettings,
             MappedFieldType fieldType,
             IndexFieldDataCache cache,

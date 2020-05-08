@@ -484,7 +484,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected void parseCreateField(ParseContext context, List<IndexableField> fields) {
+        protected void parseCreateField(ParseContext context) {
             throw new UnsupportedOperationException();
         }
 
@@ -511,7 +511,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected void parseCreateField(ParseContext context, List<IndexableField> fields) {
+        protected void parseCreateField(ParseContext context) {
             throw new UnsupportedOperationException();
         }
 
@@ -675,22 +675,21 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         final String value = context.externalValueSet() ? context.externalValue().toString() : context.parser().textOrNull();
         if (value == null) {
             return;
         }
 
         List<IndexableField> newFields = new ArrayList<>();
-        newFields.add(new Field(fieldType().name(), value, fieldType()));
+        context.doc().add(new Field(fieldType().name(), value, fieldType()));
         for (ShingleFieldMapper subFieldMapper : shingleFields) {
-            fields.add(new Field(subFieldMapper.fieldType().name(), value, subFieldMapper.fieldType()));
+            context.doc().add(new Field(subFieldMapper.fieldType().name(), value, subFieldMapper.fieldType()));
         }
-        newFields.add(new Field(prefixField.fieldType().name(), value, prefixField.fieldType()));
+        context.doc().add(new Field(prefixField.fieldType().name(), value, prefixField.fieldType()));
         if (fieldType().omitNorms()) {
-            createFieldNamesField(context, newFields);
+            createFieldNamesField(context);
         }
-        fields.addAll(newFields);
     }
 
     @Override

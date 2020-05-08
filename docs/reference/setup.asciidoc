@@ -45,17 +45,19 @@ include::setup/jvm-options.asciidoc[]
 
 include::setup/secure-settings.asciidoc[]
 
-include::settings/ccr-settings.asciidoc[]
+include::settings/audit-settings.asciidoc[]
 
 include::modules/indices/circuit_breaker.asciidoc[]
 
-include::modules/indices/recovery.asciidoc[]
-
-include::modules/indices/indexing_buffer.asciidoc[]
+include::settings/ccr-settings.asciidoc[]
 
 include::modules/indices/fielddata.asciidoc[]
 
 include::settings/ilm-settings.asciidoc[]
+
+include::modules/indices/recovery.asciidoc[]
+
+include::modules/indices/indexing_buffer.asciidoc[]
 
 include::settings/license-settings.asciidoc[]
 
@@ -69,13 +71,13 @@ include::modules/network.asciidoc[]
 
 include::modules/indices/query_cache.asciidoc[]
 
-include::modules/indices/request_cache.asciidoc[]
-
 include::modules/indices/search-settings.asciidoc[]
 
 include::settings/security-settings.asciidoc[]
 
-include::settings/audit-settings.asciidoc[]
+include::modules/indices/request_cache.asciidoc[]
+
+include::settings/slm-settings.asciidoc[]
 
 include::settings/sql-settings.asciidoc[]
 

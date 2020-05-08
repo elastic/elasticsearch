@@ -78,4 +78,4 @@
   - do:
      indices.get:
        index: queries
-  - match: { queries.mappings.properties.id.type: "keyword" }
+  - match: { queries.settings.provided_name: "queries" }

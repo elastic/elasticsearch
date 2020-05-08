@@ -19,11 +19,12 @@
 
 package org.elasticsearch.common.logging;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.Message;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.SuppressLoggerChecks;
+
+import java.util.List;
 
 /**
  * This class wraps both <code>HeaderWarningLogger</code> and <code>ThrottlingLogger</code>
@@ -32,8 +33,8 @@ import org.elasticsearch.common.SuppressLoggerChecks;
 public class ThrottlingAndHeaderWarningLogger {
     private final ThrottlingLogger throttlingLogger;
 
-    public ThrottlingAndHeaderWarningLogger(Logger loggerName) {
-        this.throttlingLogger = new ThrottlingLogger(LogManager.getLogger(loggerName));
+    public ThrottlingAndHeaderWarningLogger(Logger logger) {
+        this.throttlingLogger = new ThrottlingLogger(logger);
     }
 
     /**
@@ -54,7 +55,9 @@ public class ThrottlingAndHeaderWarningLogger {
      * @param message the message to log
      */
     void throttleLogAndAddWarning(final String key, ESLogMessage message) {
-        HeaderWarning.addWarning(message.getMessagePattern(), message.getArguments());
+        String messagePattern = message.getMessagePattern();
+        List<Object> arguments = message.getArguments();
+        HeaderWarning.addWarning(messagePattern, arguments);
         throttlingLogger.throttleLog(key, message);
     }
 

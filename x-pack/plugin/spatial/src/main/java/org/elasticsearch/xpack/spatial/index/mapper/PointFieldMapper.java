@@ -225,7 +225,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? ex
         @Override
         public List<ParsedCartesianPoint> prepareForIndexing(List<ParsedCartesianPoint> points) {
             if (points == null || points.isEmpty()) {
-                return Collections.EMPTY_LIST;
+                return Collections.emptyList();
             }
             return points;
         }

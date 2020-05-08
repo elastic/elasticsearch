@@ -269,7 +269,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<?
         @Override
         public List<ParsedGeoPoint> prepareForIndexing(List<ParsedGeoPoint> geoPoints) {
             if (geoPoints == null || geoPoints.isEmpty()) {
-                return Collections.EMPTY_LIST;
+                return Collections.emptyList();
             }
             return geoPoints;
         }

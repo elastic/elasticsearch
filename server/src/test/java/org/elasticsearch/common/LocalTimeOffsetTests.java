@@ -46,7 +46,7 @@ public class LocalTimeOffsetTests extends ESTestCase {
 
     public void testNotFixed() {
         ZoneId zone = ZoneId.of("America/New_York");
-        assertThat(LocalTimeOffset.lookupFixedOffset(zone), nullValue());
+        assertThat(LocalTimeOffset.fixedOffset(zone), nullValue());
     }
 
     public void testUtc() {
@@ -59,7 +59,7 @@ public class LocalTimeOffsetTests extends ESTestCase {
     }
 
     private void assertFixOffset(ZoneId zone, long offsetMillis) {
-        LocalTimeOffset fixed = LocalTimeOffset.lookupFixedOffset(zone);
+        LocalTimeOffset fixed = LocalTimeOffset.fixedOffset(zone);
         assertThat(fixed, notNullValue());
 
         LocalTimeOffset.Lookup lookup = LocalTimeOffset.lookup(zone, Long.MIN_VALUE, Long.MAX_VALUE);

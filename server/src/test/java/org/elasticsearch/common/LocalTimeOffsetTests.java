@@ -76,11 +76,10 @@ public class LocalTimeOffsetTests extends ESTestCase {
 
         assertRoundingAtOffset(randomBoolean() ? fixed : fixedInRange, randomLong(), offsetMillis);
     }
-    
+
     private void assertRoundingAtOffset(LocalTimeOffset offset, long time, long offsetMillis) {
         assertThat(offset.utcToLocalTime(time), equalTo(time + offsetMillis));
         assertThat(offset.localToUtcInThisOffset(time + offsetMillis), equalTo(time));
-        assertThat(offset.localToUtc(time + offsetMillis, unusedStrategy()), equalTo(time));
     }
 
     public void testJustTransitions() {
@@ -153,6 +152,22 @@ public class LocalTimeOffsetTests extends ESTestCase {
         assertThat(lookup.size(), equalTo(2));
         assertRoundingAtOffset(lookup.lookup(time - 1), time - 1, TimeUnit.MINUTES.toMillis(330));
         assertRoundingAtOffset(lookup.lookup(time), time, TimeUnit.MINUTES.toMillis(345));
+    }
+
+    public void testLastTransitionOverlapsRules() {
+        /*
+         * America/Tijuana's transitions overlap its rules and we have to make
+         * sure not to collect duplicate transitions or we'll trip assertions.
+         * If we don't trip the assertions then trying to use the transitions
+         * will produce incorrect results.
+         */
+        ZoneId zone = ZoneId.of("America/Tijuana");
+        long min = utcTime("2011-11-06T08:31:57.091Z");
+        long max = utcTime("2011-11-06T09:02:57.091Z");
+        LocalTimeOffset.Lookup lookup = LocalTimeOffset.lookup(zone, min, max);
+        assertThat(lookup.size(), equalTo(2));
+        assertRoundingAtOffset(lookup.lookup(min), min, -TimeUnit.HOURS.toMillis(7));
+        assertRoundingAtOffset(lookup.lookup(max), max, -TimeUnit.HOURS.toMillis(8));
     }
 
     public void testOverlap() {

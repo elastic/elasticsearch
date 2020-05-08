@@ -38,6 +38,7 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.cache.CacheFile;
 import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.index.store.cache.CachedBlobContainerIndexInput;
+import org.elasticsearch.index.store.checksum.ChecksumBlobContainerIndexInput;
 import org.elasticsearch.index.store.direct.DirectBlobContainerIndexInput;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -322,6 +323,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         if (fileInfo.metadata().hashEqualsContents()) {
             final BytesRef content = fileInfo.metadata().hash();
             return new ByteArrayIndexInput("ByteArrayIndexInput(" + name + ')', content.bytes, content.offset, content.length);
+        }
+        if (context == Store.READONCE_CHECKSUM) {
+            return ChecksumBlobContainerIndexInput.create(fileInfo.physicalName(), fileInfo.length(), fileInfo.checksum(), context);
         }
 
         final IndexInputStats inputStats = stats.computeIfAbsent(name, n -> createIndexInputStats(fileInfo.length()));

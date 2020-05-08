@@ -40,7 +40,7 @@ final class ClearContextController implements Runnable {
     private final DiscoveryNodes nodes;
     private final SearchTransportService searchTransportService;
     private final CountDown expectedOps;
-    private final ActionListener<? super ClearReaderResponse> listener;
+    private final ActionListener<? super CloseSearchContextResponse> listener;
     private final AtomicBoolean hasFailed = new AtomicBoolean(false);
     private final AtomicInteger freedSearchContexts = new AtomicInteger(0);
     private final Logger logger;
@@ -68,14 +68,14 @@ final class ClearContextController implements Runnable {
         this.expectedOps = new CountDown(expectedOps);
     }
 
-    ClearContextController(ClearReaderRequest clearReaderRequest, ActionListener<ClearReaderResponse> listener,
+    ClearContextController(CloseSearchContextRequest closeSearchContextRequest, ActionListener<CloseSearchContextResponse> listener,
                            DiscoveryNodes nodes, Logger logger, SearchTransportService searchTransportService) {
         this.nodes = nodes;
         this.logger = logger;
         this.searchTransportService = searchTransportService;
         this.listener = listener;
         final Collection<ReaderIdForNode> contexts =
-            TransportSearchHelper.decodeReaderIds(clearReaderRequest.getId()).values();
+            TransportSearchHelper.decodeReaderIds(closeSearchContextRequest.getId()).values();
         expectedOps = new CountDown(contexts.size());
         runner = () -> cleanReaderIds(contexts);
     }
@@ -108,7 +108,7 @@ final class ClearContextController implements Runnable {
 
     void cleanReaderIds(Collection<ReaderIdForNode> readerIds) {
         if (readerIds.isEmpty()) {
-            listener.onResponse(new ClearReaderResponse(true, 0));
+            listener.onResponse(new CloseSearchContextResponse(true, 0));
             return;
         }
         SearchScrollAsyncAction.collectNodesAndRun(readerIds, nodes, searchTransportService, ActionListener.wrap(
@@ -136,7 +136,7 @@ final class ClearContextController implements Runnable {
         }
         if (expectedOps.countDown()) {
             boolean succeeded = hasFailed.get() == false;
-            listener.onResponse(new ClearReaderResponse(succeeded, freedSearchContexts.get()));
+            listener.onResponse(new CloseSearchContextResponse(succeeded, freedSearchContexts.get()));
         }
     }
 
@@ -148,7 +148,7 @@ final class ClearContextController implements Runnable {
          */
         hasFailed.set(true);
         if (expectedOps.countDown()) {
-            listener.onResponse(new ClearReaderResponse(false, freedSearchContexts.get()));
+            listener.onResponse(new CloseSearchContextResponse(false, freedSearchContexts.get()));
         }
     }
 }

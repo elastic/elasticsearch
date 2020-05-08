@@ -533,13 +533,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                                                        ShardSearchFailure[] failures) {
         final Version minNodeVersion = clusterState.nodes().getMinNodeVersion();
         String scrollId = request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults, minNodeVersion) : null;
-        String readerId = includeReaderIdInResponse() ? TransportSearchHelper.encodeReaderIds(queryResults, minNodeVersion) : null;
+        String readerId = includeSearchContextInResponse() ? TransportSearchHelper.encodeReaderIds(queryResults, minNodeVersion) : null;
         return new SearchResponse(internalSearchResponse, scrollId, getNumShards(), successfulOps.get(),
             skippedOps.get(), buildTookInMillis(), failures, clusters, readerId);
     }
 
-    boolean includeReaderIdInResponse() {
-        return request.reader() != null;
+    boolean includeSearchContextInResponse() {
+        return request.searchContextBuilder() != null;
     }
 
     @Override
@@ -547,7 +547,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         ShardSearchFailure[] failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
-        if (request.reader() == null && allowPartialResults == false && failures.length > 0) {
+        if (request.searchContextBuilder() == null && allowPartialResults == false && failures.length > 0) {
             raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
         } else {
             listener.onResponse(buildSearchResponse(internalSearchResponse, queryResults, failures));

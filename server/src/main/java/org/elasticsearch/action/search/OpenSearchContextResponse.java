@@ -28,34 +28,34 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public final class OpenReaderResponse extends ActionResponse implements ToXContentObject {
-    private static final ParseField READER_ID = new ParseField("reader_id");
+public final class OpenSearchContextResponse extends ActionResponse implements ToXContentObject {
+    private static final ParseField ID = new ParseField("id");
 
-    private final String readerId;
+    private final String searchContextId;
 
-    public OpenReaderResponse(String readerId) {
-        this.readerId = readerId;
+    public OpenSearchContextResponse(String searchContextId) {
+        this.searchContextId = searchContextId;
     }
 
-    public OpenReaderResponse(StreamInput in) throws IOException {
+    public OpenSearchContextResponse(StreamInput in) throws IOException {
         super(in);
-        readerId = in.readString();
+        searchContextId = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(readerId);
+        out.writeString(searchContextId);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(READER_ID.getPreferredName(), readerId);
+        builder.field(ID.getPreferredName(), searchContextId);
         builder.endObject();
         return builder;
     }
 
-    public String getReaderId() {
-        return readerId;
+    public String getSearchContextId() {
+        return searchContextId;
     }
 }

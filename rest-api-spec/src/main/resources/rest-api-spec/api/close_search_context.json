@@ -1,0 +1,23 @@
+{
+  "close_search_context":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/search-context.html",
+      "description":"Close a search context"
+    },
+    "stability":"beta",
+    "url":{
+      "paths":[
+        {
+          "path":"/_search_context",
+          "methods":[
+            "DELETE"
+          ]
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description": "a search context to close"
+    }
+  }
+}

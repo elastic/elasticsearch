@@ -114,7 +114,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField SEARCH_AFTER = new ParseField("search_after");
     public static final ParseField COLLAPSE = new ParseField("collapse");
     public static final ParseField SLICE = new ParseField("slice");
-    public static final ParseField READER_CONTEXT = new ParseField("reader");
+    public static final ParseField SEARCH_CONTEXT = new ParseField("search_context");
 
     public static SearchSourceBuilder fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, true);
@@ -193,7 +193,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private CollapseBuilder collapse = null;
 
-    private ReaderBuilder reader = null;
+    private SearchContextBuilder searchContextBuilder = null;
 
     /**
      * Constructs a new search source builder.
@@ -250,7 +250,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         collapse = in.readOptionalWriteable(CollapseBuilder::new);
         trackTotalHitsUpTo = in.readOptionalInt();
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            reader = in.readOptionalWriteable(ReaderBuilder::new);
+            searchContextBuilder = in.readOptionalWriteable(SearchContextBuilder::new);
         }
     }
 
@@ -307,7 +307,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalWriteable(collapse);
         out.writeOptionalInt(trackTotalHitsUpTo);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalWriteable(reader);
+            out.writeOptionalWriteable(searchContextBuilder);
         }
     }
 
@@ -928,17 +928,17 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
-     * Returns the reader context that is configured with this query
+     * Returns the search context that is configured with this query
      */
-    public ReaderBuilder reader() {
-        return reader;
+    public SearchContextBuilder searchContextBuilder() {
+        return searchContextBuilder;
     }
 
     /**
-     * Specify the reader context that this query should use to execute.
+     * Specify a search context that this query should execute against.
      */
-    public SearchSourceBuilder reader(ReaderBuilder reader) {
-        this.reader = reader;
+    public SearchSourceBuilder searchContextBuilder(SearchContextBuilder reader) {
+        this.searchContextBuilder = reader;
         return this;
     }
 
@@ -1026,7 +1026,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.version = version;
         rewrittenBuilder.seqNoAndPrimaryTerm = seqNoAndPrimaryTerm;
         rewrittenBuilder.collapse = collapse;
-        rewrittenBuilder.reader = reader;
+        rewrittenBuilder.searchContextBuilder = searchContextBuilder;
         return rewrittenBuilder;
     }
 
@@ -1135,8 +1135,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     sliceBuilder = SliceBuilder.fromXContent(parser);
                 } else if (COLLAPSE.match(currentFieldName, parser.getDeprecationHandler())) {
                     collapse = CollapseBuilder.fromXContent(parser);
-                } else if (READER_CONTEXT.match(currentFieldName, parser.getDeprecationHandler())) {
-                    reader = ReaderBuilder.fromXContent(parser);
+                } else if (SEARCH_CONTEXT.match(currentFieldName, parser.getDeprecationHandler())) {
+                    searchContextBuilder = SearchContextBuilder.
+                        fromXContent(parser);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());
@@ -1333,8 +1334,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (collapse != null) {
             builder.field(COLLAPSE.getPreferredName(), collapse);
         }
-        if (reader != null) {
-            builder.field(READER_CONTEXT.getPreferredName(), reader);
+        if (searchContextBuilder != null) {
+            builder.field(SEARCH_CONTEXT.getPreferredName(), searchContextBuilder);
         }
         return builder;
     }
@@ -1548,7 +1549,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return Objects.hash(aggregations, explain, fetchSourceContext, docValueFields, storedFieldsContext, from, highlightBuilder,
                 indexBoosts, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields, size,
                 sorts, searchAfterBuilder, sliceBuilder, stats, suggestBuilder, terminateAfter, timeout, trackScores, version,
-                seqNoAndPrimaryTerm, profile, extBuilders, collapse, trackTotalHitsUpTo, reader);
+                seqNoAndPrimaryTerm, profile, extBuilders, collapse, trackTotalHitsUpTo, searchContextBuilder);
     }
 
     @Override
@@ -1588,7 +1589,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 && Objects.equals(extBuilders, other.extBuilders)
                 && Objects.equals(collapse, other.collapse)
                 && Objects.equals(trackTotalHitsUpTo, other.trackTotalHitsUpTo)
-                && Objects.equals(reader, other.reader);
+                && Objects.equals(searchContextBuilder, other.searchContextBuilder);
     }
 
     @Override
@@ -1607,13 +1608,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Specify whether this search should use specific reader contexts instead of the latest ones.
      */
-    public static final class ReaderBuilder implements Writeable, ToXContentObject {
+    public static final class SearchContextBuilder implements Writeable, ToXContentObject {
         private static final ParseField ID_FIELD = new ParseField("id");
         private static final ParseField KEEP_ALIVE_FIELD = new ParseField("keep_alive");
         private static final ObjectParser<XContentParams, Void> PARSER;
 
         static {
-            PARSER = new ObjectParser<>(READER_CONTEXT.getPreferredName(), XContentParams::new);
+            PARSER = new ObjectParser<>(SEARCH_CONTEXT.getPreferredName(), XContentParams::new);
             PARSER.declareString((params, id) -> params.id = id, ID_FIELD);
             PARSER.declareField((params, keepAlive) -> params.keepAlive = keepAlive,
                 (p, c) -> TimeValue.parseTimeValue(p.text(), KEEP_ALIVE_FIELD.getPreferredName()),
@@ -1628,12 +1629,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         private final String id;
         private final TimeValue keepAlive;
 
-        public ReaderBuilder(String id, TimeValue keepAlive) {
+        public SearchContextBuilder(String id, TimeValue keepAlive) {
             this.id = Objects.requireNonNull(id);
             this.keepAlive = Objects.requireNonNull(keepAlive);
         }
 
-        public ReaderBuilder(StreamInput in) throws IOException {
+        public SearchContextBuilder(StreamInput in) throws IOException {
             id = in.readString();
             keepAlive = in.readTimeValue();
         }
@@ -1651,12 +1652,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             return builder;
         }
 
-        public static ReaderBuilder fromXContent(XContentParser parser) throws IOException {
+        public static SearchContextBuilder fromXContent(XContentParser parser) throws IOException {
             final XContentParams params = PARSER.parse(parser, null);
             if (params.id == null || params.keepAlive == null) {
                 throw new IllegalArgumentException("id and keep_alive must be specified");
             }
-            return new ReaderBuilder(params.id, params.keepAlive);
+            return new SearchContextBuilder(params.id, params.keepAlive);
         }
 
         public TimeValue getKeepAlive() {
@@ -1671,7 +1672,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            final ReaderBuilder that = (ReaderBuilder) o;
+            final SearchContextBuilder that = (SearchContextBuilder) o;
             return Objects.equals(id, that.id) && Objects.equals(keepAlive, that.keepAlive);
         }
 

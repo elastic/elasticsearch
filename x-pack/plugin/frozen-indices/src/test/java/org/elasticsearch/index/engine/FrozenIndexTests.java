@@ -11,14 +11,14 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.ClearReaderAction;
-import org.elasticsearch.action.search.ClearReaderRequest;
-import org.elasticsearch.action.search.OpenReaderRequest;
-import org.elasticsearch.action.search.OpenReaderResponse;
+import org.elasticsearch.action.search.CloseSearchContextAction;
+import org.elasticsearch.action.search.CloseSearchContextRequest;
+import org.elasticsearch.action.search.OpenSearchContextRequest;
+import org.elasticsearch.action.search.OpenSearchContextResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.search.TransportOpenReaderAction;
+import org.elasticsearch.action.search.TransportOpenSearchContextAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -71,11 +71,11 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
     }
 
     String openReaders(TimeValue keepAlive, String... indices) {
-        OpenReaderRequest request = new OpenReaderRequest(indices, IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED,
+        OpenSearchContextRequest request = new OpenSearchContextRequest(indices, IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED,
             keepAlive, null, null);
-        final OpenReaderResponse response = client()
-            .execute(TransportOpenReaderAction.INSTANCE, request).actionGet();
-        return response.getReaderId();
+        final OpenSearchContextResponse response = client()
+            .execute(TransportOpenSearchContextAction.INSTANCE, request).actionGet();
+        return response.getSearchContextId();
     }
 
     public void testCloseFreezeAndOpen() throws Exception {
@@ -139,7 +139,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
                 }
             }
         } finally {
-            client().execute(ClearReaderAction.INSTANCE, new ClearReaderRequest(searchResponse.getReaderId())).get();
+            client().execute(CloseSearchContextAction.INSTANCE, new CloseSearchContextRequest(searchResponse.searchContextId())).get();
         }
     }
 

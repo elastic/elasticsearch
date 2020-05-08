@@ -27,21 +27,21 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportClearReaderAction extends HandledTransportAction<ClearReaderRequest, ClearReaderResponse> {
+public class TransportCloseSearchContextAction extends HandledTransportAction<CloseSearchContextRequest, CloseSearchContextResponse> {
 
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
 
     @Inject
-    public TransportClearReaderAction(TransportService transportService, ClusterService clusterService,
-                                      ActionFilters actionFilters, SearchTransportService searchTransportService) {
-        super(ClearReaderAction.NAME, transportService, actionFilters, ClearReaderRequest::new);
+    public TransportCloseSearchContextAction(TransportService transportService, ClusterService clusterService,
+                                             ActionFilters actionFilters, SearchTransportService searchTransportService) {
+        super(CloseSearchContextAction.NAME, transportService, actionFilters, CloseSearchContextRequest::new);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
     }
 
     @Override
-    protected void doExecute(Task task, ClearReaderRequest request, ActionListener<ClearReaderResponse> listener) {
+    protected void doExecute(Task task, CloseSearchContextRequest request, ActionListener<CloseSearchContextResponse> listener) {
         Runnable runnable = new ClearContextController(
             request, listener, clusterService.state().nodes(), logger, searchTransportService);
         runnable.run();

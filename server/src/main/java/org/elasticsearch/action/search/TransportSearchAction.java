@@ -216,8 +216,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
             final Map<ShardId, ReaderIdForNode> readerContexts;
             final Map<String, OriginalIndices> remoteClusterIndices;
-            if (searchRequest.reader() != null) {
-                readerContexts = TransportSearchHelper.decodeReaderIds(searchRequest.reader().getId());
+            if (searchRequest.searchContextBuilder() != null) {
+                readerContexts = TransportSearchHelper.decodeReaderIds(searchRequest.searchContextBuilder().getId());
                 remoteClusterIndices = indicesFromReaderContexts(readerContexts, searchRequest.indicesOptions());
             } else {
                 readerContexts = null;
@@ -272,7 +272,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         if (searchRequest.scroll() != null) {
             return false;
         }
-        if (searchRequest.reader() != null) {
+        if (searchRequest.searchContextBuilder() != null) {
             // TODO: support reader contexts
             return false;
         }
@@ -311,7 +311,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     listener.onResponse(new SearchResponse(internalSearchResponse, searchResponse.getScrollId(),
                         searchResponse.getTotalShards(), searchResponse.getSuccessfulShards(), searchResponse.getSkippedShards(),
                         timeProvider.buildTookInMillis(), searchResponse.getShardFailures(), new SearchResponse.Clusters(1, 1, 0),
-                        searchResponse.getReaderId()));
+                        searchResponse.searchContextId()));
                 }
 
                 @Override
@@ -509,14 +509,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         boolean preFilterSearchShards;
         if (readerContexts != null) {
-            assert searchRequest.reader() != null;
+            assert searchRequest.searchContextBuilder() != null;
             aliasFilter = new HashMap<>();
             for (ShardId shardId : readerContexts.keySet()) {
                 aliasFilter.put(shardId.getIndex().getUUID(), AliasFilter.EMPTY);
             }
             indexRoutings = Map.of();
-            localShardIterators = searchShardsFromReaderContexts(
-                clusterState, localIndices, searchRequest.getLocalClusterAlias(), readerContexts, searchRequest.reader().getKeepAlive());
+            localShardIterators = searchShardsFromReaderContexts(clusterState, localIndices, searchRequest.getLocalClusterAlias(),
+                readerContexts, searchRequest.searchContextBuilder().getKeepAlive());
             preFilterSearchShards = shouldPreFilterSearchShards(clusterState, searchRequest, localIndices.indices(),
                 localShardIterators.size() + remoteShardIterators.size());
         } else {

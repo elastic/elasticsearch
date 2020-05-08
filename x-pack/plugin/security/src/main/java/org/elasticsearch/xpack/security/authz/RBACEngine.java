@@ -20,7 +20,7 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.index.IndexAction;
-import org.elasticsearch.action.search.ClearReaderAction;
+import org.elasticsearch.action.search.CloseSearchContextAction;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchScrollAction;
@@ -278,7 +278,7 @@ public class RBACEngine implements AuthorizationEngine {
                     // the same as the user that submitted the original request so we can skip security here.
                     listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                 }
-            } else if (action.equals(ClearReaderAction.NAME)) {
+            } else if (action.equals(CloseSearchContextAction.NAME)) {
                 // NORELEASE: ensure security works correctly
                 listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
             } else {

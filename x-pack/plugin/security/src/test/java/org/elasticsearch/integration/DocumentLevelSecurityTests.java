@@ -12,8 +12,8 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.action.search.ClearReaderAction;
-import org.elasticsearch.action.search.ClearReaderRequest;
+import org.elasticsearch.action.search.CloseSearchContextAction;
+import org.elasticsearch.action.search.CloseSearchContextRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -65,7 +65,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.integration.FieldLevelSecurityTests.openReaders;
+import static org.elasticsearch.integration.FieldLevelSecurityTests.openSearchContext;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -780,7 +780,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         }
         refresh();
 
-        String readerId = openReaders("user1", TimeValue.timeValueMinutes(1), "test");
+        String readerId = openSearchContext("user1", TimeValue.timeValueMinutes(1), "test");
         SearchResponse response = null;
         try {
             for (int from = 0; from < numVisible; from++) {
@@ -798,7 +798,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
             }
         } finally {
-            client().execute(ClearReaderAction.INSTANCE, new ClearReaderRequest(response.getReaderId())).actionGet();
+            client().execute(CloseSearchContextAction.INSTANCE, new CloseSearchContextRequest(response.searchContextId())).actionGet();
         }
     }
 

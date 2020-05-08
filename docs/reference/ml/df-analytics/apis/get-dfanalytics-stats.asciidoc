@@ -483,6 +483,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=node-transport-address]
 * `feature_selection` (for {regression} and {classification} only),
 * `coarse_parameter_search` (for {regression} and {classification} only),
 * `fine_tuning_parameters` (for {regression} and {classification} only),
+* `final_training` (for {regression} and {classification} only),
 * `writing_results`.
 
 To learn more about the different phases, refer to

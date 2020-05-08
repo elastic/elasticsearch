@@ -146,9 +146,10 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             final long mappingVersionOnPrimary,
             final ActionListener<Long> listener) {
         final String action = PeerRecoveryTargetService.Actions.TRANSLOG_OPS;
+        final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
         final RecoveryTranslogOperationsRequest request = new RecoveryTranslogOperationsRequest(
                 recoveryId,
-                -1,
+                requestSeqNo,
                 shardId,
                 operations,
                 totalTranslogOps,
@@ -213,12 +214,13 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         }
 
         final String action = PeerRecoveryTargetService.Actions.FILE_CHUNK;
+        final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
         /* we send estimateTotalOperations with every request since we collect stats on the target and that way we can
          * see how many translog ops we accumulate while copying files across the network. A future optimization
          * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
          */
         final RecoveryFileChunkRequest request = new RecoveryFileChunkRequest(
-            recoveryId, -1, shardId, fileMetadata, position, content, lastChunk, totalTranslogOps, throttleTimeInNanos);
+            recoveryId, requestSeqNo, shardId, fileMetadata, position, content, lastChunk, totalTranslogOps, throttleTimeInNanos);
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
         executeRetryableAction(action, request, fileChunkRequestOptions, ActionListener.map(listener, r -> null), reader);
     }

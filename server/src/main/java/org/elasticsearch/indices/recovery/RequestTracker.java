@@ -58,7 +58,7 @@ public class RequestTracker {
 
                 @Override
                 public void onFailure(Exception e) {
-                    // We do not remote the future to cache the error for retried requests
+                    // We do not remove the future to cache the error for retried requests
                     listener.onFailure(e);
                 }
             }, EsExecutors.newDirectExecutorService());

@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -299,9 +300,12 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         @Override
         public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel, Task task) {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
-                final ActionListener<TransportResponse> listener = new ChannelActionListener<>(channel, Actions.PREPARE_TRANSLOG, request);
-                recoveryRef.target().prepareForTranslogOperations(request.totalTranslogOps(),
-                    ActionListener.map(listener, nullVal -> TransportResponse.Empty.INSTANCE));
+                final ActionListener<Void> listener = createOrFinishListener(recoveryRef, channel, Actions.PREPARE_TRANSLOG, request);
+                if (listener == null) {
+                    return;
+                }
+
+                recoveryRef.target().prepareForTranslogOperations(request.totalTranslogOps(), listener);
             }
         }
     }
@@ -311,9 +315,12 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         @Override
         public void messageReceived(RecoveryFinalizeRecoveryRequest request, TransportChannel channel, Task task) throws Exception {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
-                final ActionListener<TransportResponse> listener = new ChannelActionListener<>(channel, Actions.FINALIZE, request);
-                recoveryRef.target().finalizeRecovery(request.globalCheckpoint(), request.trimAboveSeqNo(),
-                    ActionListener.map(listener, nullVal -> TransportResponse.Empty.INSTANCE));
+                final ActionListener<Void> listener = createOrFinishListener(recoveryRef, channel, Actions.FINALIZE, request);
+                if (listener == null) {
+                    return;
+                }
+
+                recoveryRef.target().finalizeRecovery(request.globalCheckpoint(), request.trimAboveSeqNo(), listener);
             }
         }
     }
@@ -339,20 +346,10 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             try (RecoveryRef recoveryRef =
                      onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
                 final RecoveryTarget recoveryTarget = recoveryRef.target();
-                final ActionListener<RecoveryTranslogOperationsResponse> channelListener =
-                    new ChannelActionListener<>(channel, Actions.TRANSLOG_OPS, request);
-                final ActionListener<Void> listenerWithCheckpoint = ActionListener.map(channelListener,
+                final ActionListener<Void> listener = createOrFinishListener(recoveryRef, channel, Actions.FILES_INFO, request,
                     nullVal -> new RecoveryTranslogOperationsResponse(recoveryTarget.indexShard().getLocalCheckpoint()));
-                final ActionListener<Void> listener;
-
-                final long requestSeqNo = request.requestSeqNo();
-                if (requestSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                    listener = recoveryTarget.markRequestReceivedAndCreateListener(requestSeqNo, listenerWithCheckpoint);
-                    if (listener == null) {
-                        return;
-                    }
-                } else {
-                    listener = listenerWithCheckpoint;
+                if (listener == null) {
+                    return;
                 }
 
                 final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
@@ -416,10 +413,14 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         @Override
         public void messageReceived(RecoveryFilesInfoRequest request, TransportChannel channel, Task task) throws Exception {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
-                final ActionListener<TransportResponse> listener = new ChannelActionListener<>(channel, Actions.FILES_INFO, request);
+                final ActionListener<Void> listener = createOrFinishListener(recoveryRef, channel, Actions.FILES_INFO, request);
+                if (listener == null) {
+                    return;
+                }
+
                 recoveryRef.target().receiveFileInfo(
                     request.phase1FileNames, request.phase1FileSizes, request.phase1ExistingFileNames, request.phase1ExistingFileSizes,
-                    request.totalTranslogOps, ActionListener.map(listener, nullVal -> TransportResponse.Empty.INSTANCE));
+                    request.totalTranslogOps, listener);
             }
         }
     }
@@ -429,9 +430,13 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         @Override
         public void messageReceived(RecoveryCleanFilesRequest request, TransportChannel channel, Task task) throws Exception {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
-                final ActionListener<TransportResponse> listener = new ChannelActionListener<>(channel, Actions.CLEAN_FILES, request);
+                final ActionListener<Void> listener = createOrFinishListener(recoveryRef, channel, Actions.CLEAN_FILES, request);
+                if (listener == null) {
+                    return;
+                }
+
                 recoveryRef.target().cleanFiles(request.totalTranslogOps(), request.getGlobalCheckpoint(), request.sourceMetaSnapshot(),
-                    ActionListener.map(listener, nullVal -> TransportResponse.Empty.INSTANCE));
+                    listener);
             }
         }
     }
@@ -445,18 +450,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public void messageReceived(final RecoveryFileChunkRequest request, TransportChannel channel, Task task) throws Exception {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
                 final RecoveryTarget recoveryTarget = recoveryRef.target();
-                final ActionListener<TransportResponse> channelListener = new ChannelActionListener<>(channel, Actions.FILE_CHUNK, request);
-                final ActionListener<Void> voidListener = ActionListener.map(channelListener, nullVal -> TransportResponse.Empty.INSTANCE);
-
-                final long requestSeqNo = request.requestSeqNo();
-                final ActionListener<Void> listener;
-                if (requestSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                    listener = recoveryTarget.markRequestReceivedAndCreateListener(requestSeqNo, voidListener);
-                    if (listener == null) {
-                        return;
-                    }
-                } else {
-                    listener = voidListener;
+                final ActionListener<Void> listener = createOrFinishListener(recoveryRef, channel, Actions.FILE_CHUNK, request);
+                if (listener == null) {
+                    return;
                 }
 
                 final RecoveryState.Index indexState = recoveryTarget.state().getIndex();
@@ -479,6 +475,29 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     request.totalTranslogOps(), listener);
             }
         }
+    }
+
+    private ActionListener<Void> createOrFinishListener(final RecoveryRef recoveryRef, final TransportChannel channel,
+                                                        final String action, final RecoveryTransportRequest request) {
+        return createOrFinishListener(recoveryRef, channel, action, request, nullVal -> TransportResponse.Empty.INSTANCE);
+    }
+
+    private ActionListener<Void> createOrFinishListener(final RecoveryRef recoveryRef, final TransportChannel channel,
+                                                        final String action, final RecoveryTransportRequest request,
+                                                        final CheckedFunction<Void, TransportResponse, Exception> responseFn) {
+        final RecoveryTarget recoveryTarget = recoveryRef.target();
+        final ActionListener<TransportResponse> channelListener = new ChannelActionListener<>(channel, action, request);
+        final ActionListener<Void> voidListener = ActionListener.map(channelListener, responseFn);
+
+        final long requestSeqNo = request.requestSeqNo();
+        final ActionListener<Void> listener;
+        if (requestSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            listener = recoveryTarget.markRequestReceivedAndCreateListener(requestSeqNo, voidListener);
+        } else {
+            listener = voidListener;
+        }
+
+        return listener;
     }
 
     class RecoveryRunner extends AbstractRunnable {

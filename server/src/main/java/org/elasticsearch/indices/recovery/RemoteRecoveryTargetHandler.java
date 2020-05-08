@@ -48,7 +48,6 @@ import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TransportFuture;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -105,8 +104,9 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     @Override
     public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
         final String action = PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG;
+        final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
         final RecoveryPrepareForTranslogOperationsRequest request =
-            new RecoveryPrepareForTranslogOperationsRequest(recoveryId, shardId, totalTranslogOps);
+            new RecoveryPrepareForTranslogOperationsRequest(recoveryId, requestSeqNo, shardId, totalTranslogOps);
         final TransportRequestOptions options =
             TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build();
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
@@ -117,8 +117,9 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     @Override
     public void finalizeRecovery(final long globalCheckpoint, final long trimAboveSeqNo, final ActionListener<Void> listener) {
         final String action = PeerRecoveryTargetService.Actions.FINALIZE;
+        final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
         final RecoveryFinalizeRecoveryRequest request =
-            new RecoveryFinalizeRecoveryRequest(recoveryId, shardId, globalCheckpoint, trimAboveSeqNo);
+            new RecoveryFinalizeRecoveryRequest(recoveryId, requestSeqNo, shardId, globalCheckpoint, trimAboveSeqNo);
         final TransportRequestOptions options =
             TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build();
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
@@ -166,7 +167,8 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     public void receiveFileInfo(List<String> phase1FileNames, List<Long> phase1FileSizes, List<String> phase1ExistingFileNames,
                                 List<Long> phase1ExistingFileSizes, int totalTranslogOps, ActionListener<Void> listener) {
         final String action = PeerRecoveryTargetService.Actions.FILES_INFO;
-        RecoveryFilesInfoRequest request = new RecoveryFilesInfoRequest(recoveryId, shardId, phase1FileNames, phase1FileSizes,
+        final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
+        RecoveryFilesInfoRequest request = new RecoveryFilesInfoRequest(recoveryId, requestSeqNo, shardId, phase1FileNames, phase1FileSizes,
             phase1ExistingFileNames, phase1ExistingFileSizes, totalTranslogOps);
         final TransportRequestOptions options =
             TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build();
@@ -179,8 +181,9 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetadata,
                            ActionListener<Void> listener) {
         final String action = PeerRecoveryTargetService.Actions.CLEAN_FILES;
+        final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
         final RecoveryCleanFilesRequest request =
-            new RecoveryCleanFilesRequest(recoveryId, shardId, sourceMetadata, totalTranslogOps, globalCheckpoint);
+            new RecoveryCleanFilesRequest(recoveryId, requestSeqNo, shardId, sourceMetadata, totalTranslogOps, globalCheckpoint);
         final TransportRequestOptions options =
             TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build();
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
@@ -241,7 +244,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         });
     }
 
-    private <T extends TransportResponse> void executeRetryableAction(String action, TransportRequest request,
+    private <T extends TransportResponse> void executeRetryableAction(String action, RecoveryTransportRequest request,
                                                                       TransportRequestOptions options, ActionListener<T> actionListener,
                                                                       Writeable.Reader<T> reader) {
         final Object key = new Object();

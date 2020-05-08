@@ -137,6 +137,47 @@ public class TrackingResultProcessorTests extends ESTestCase {
         assertThat(resultList.get(3).getProcessorTag(), equalTo(expectedSuccessResult.getProcessorTag()));
     }
 
+    public void testActualCompoundProcessorWithOnFailureAndTrueCondition() throws Exception {
+        String scriptName = "conditionalScript";
+        ScriptService scriptService = new ScriptService(Settings.builder().build(), Collections.singletonMap(Script.DEFAULT_SCRIPT_LANG,
+            new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Collections.singletonMap(scriptName, ctx -> true), Collections.emptyMap())),
+            new HashMap<>(ScriptModule.CORE_CONTEXTS)
+        );
+        RuntimeException exception = new RuntimeException("fail");
+        TestProcessor failProcessor = new TestProcessor("fail", "test", exception);
+        ConditionalProcessor conditionalProcessor = new ConditionalProcessor(
+            randomAlphaOfLength(10),
+            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap()), scriptService,
+            failProcessor);
+        TestProcessor onFailureProcessor = new TestProcessor("success", "test", ingestDocument -> {});
+        CompoundProcessor actualProcessor =
+            new CompoundProcessor(false,
+                Arrays.asList(conditionalProcessor),
+                Arrays.asList(onFailureProcessor));
+        CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
+        trackingProcessor.execute(ingestDocument, (result, e) -> {
+        });
+
+        SimulateProcessorResult expectedFailResult = new SimulateProcessorResult(failProcessor.getTag(), ingestDocument);
+        SimulateProcessorResult expectedSuccessResult = new SimulateProcessorResult(onFailureProcessor.getTag(), ingestDocument);
+
+        assertThat(failProcessor.getInvokedCounter(), equalTo(1));
+        assertThat(onFailureProcessor.getInvokedCounter(), equalTo(1));
+        assertThat(resultList.size(), equalTo(2));
+
+        assertThat(resultList.get(0).getIngestDocument(), nullValue());
+        assertThat(resultList.get(0).getFailure(), equalTo(exception));
+        assertThat(resultList.get(0).getProcessorTag(), equalTo(expectedFailResult.getProcessorTag()));
+
+        Map<String, Object> metadata = resultList.get(1).getIngestDocument().getIngestMetadata();
+        assertThat(metadata.get(ON_FAILURE_MESSAGE_FIELD), equalTo("fail"));
+        assertThat(metadata.get(ON_FAILURE_PROCESSOR_TYPE_FIELD), equalTo("test"));
+        assertThat(metadata.get(ON_FAILURE_PROCESSOR_TAG_FIELD), equalTo("fail"));
+        assertThat(resultList.get(1).getFailure(), nullValue());
+        assertThat(resultList.get(1).getProcessorTag(), equalTo(expectedSuccessResult.getProcessorTag()));
+    }
+
+
     public void testActualCompoundProcessorWithIgnoreFailure() throws Exception {
         RuntimeException exception = new RuntimeException("processor failed");
         TestProcessor testProcessor = new TestProcessor(ingestDocument -> { throw exception; });
@@ -503,5 +544,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         assertNotEquals(resultList.get(0).getIngestDocument().getSourceAndMetadata().get(key1),
             resultList.get(1).getIngestDocument().getSourceAndMetadata().get(key1));
     }
+
+
 
 }

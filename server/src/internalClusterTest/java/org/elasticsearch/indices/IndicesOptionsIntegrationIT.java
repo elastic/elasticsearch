@@ -635,7 +635,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verifyResolvability(dataStreamName, forceMerge(dataStreamName), false);
         verifyResolvability(dataStreamName, validateQuery(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareUpgrade(dataStreamName), false);
-        verifyResolvability(dataStreamName, client().admin().indices().prepareRecoveries(dataStreamName), true);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareRecoveries(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareUpgradeStatus(dataStreamName), false);
         verifyResolvability(dataStreamName, getAliases(dataStreamName), true);
         verifyResolvability(dataStreamName, getFieldMapping(dataStreamName), true);
@@ -661,7 +661,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, forceMerge(wildcardExpression), false);
         verifyResolvability(wildcardExpression, validateQuery(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareUpgrade(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, client().admin().indices().prepareRecoveries(wildcardExpression), true);
+        verifyResolvability(wildcardExpression, client().admin().indices().prepareRecoveries(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareUpgradeStatus(wildcardExpression), false);
         verifyResolvability(wildcardExpression, getAliases(wildcardExpression), true);
         verifyResolvability(wildcardExpression, getFieldMapping(wildcardExpression), true);

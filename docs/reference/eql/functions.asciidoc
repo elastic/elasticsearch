@@ -8,18 +8,73 @@ experimental::[]
 
 {es} supports the following EQL functions:
 
+* <<eql-fn-add>>
 * <<eql-fn-between>>
 * <<eql-fn-cidrmatch>>
 * <<eql-fn-concat>>
+* <<eql-fn-divide>>
 * <<eql-fn-endswith>>
 * <<eql-fn-indexof>>
 * <<eql-fn-length>>
 * <<eql-fn-match>>
+* <<eql-fn-modulo>>
+* <<eql-fn-multiply>>
 * <<eql-fn-startswith>>
 * <<eql-fn-string>>
 * <<eql-fn-stringcontains>>
 * <<eql-fn-substring>>
+* <<eql-fn-subtract>>
 * <<eql-fn-wildcard>>
+
+[discrete]
+[[eql-fn-add]]
+=== `add`
+Returns the sum of two provided addends.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+add(4, 5)                                           // returns 9
+add(4, 0.5)                                         // returns 4.5
+add(0.5, 0.25)                                      // returns 0.75
+add(4, -2)                                          // returns 2
+add(-2, -2)                                         // returns -4
+
+// process.args_count = 4
+add(process.args_count, 5)                          // returns 9
+add(process.args_count, 0.5)                        // returns 4.5
+
+// process.parent.args_count = 2
+add(process.args_count, process.parent.args_count)  // returns 6
+
+// null handling
+add(null, 4)                                        // returns null
+add(4. null)                                        // returns null
+add(null, process.args_count)                       // returns null
+add(process.args_count null)                        // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+add(<addend>, <addend>)
+----
+
+*Parameters:*
+
+`<addend>`::
+(Required, integer or float or `null`)
+Addend to add. If `null`, the function returns `null`.
++
+Two addends are required. No more than two addends can be provided.
++
+If using a field as the argument, this parameter supports only
+<<number,`numeric`>> field datatypes.
+
+*Returns:* integer, float, or `null`
+====
 
 [discrete]
 [[eql-fn-between]]
@@ -233,6 +288,111 @@ If using a field as the argument, this parameter does not support the
 ====
 
 [discrete]
+[[eql-fn-divide]]
+==== `divide`
+Returns the quotient of a provided dividend and divisor.
+
+[%collapsible]
+====
+
+[[eql-divide-fn-float-rounding]]
+[WARNING]
+=====
+If both the dividend and divisor are integers, the `divide` function _rounds
+down_ any returned floating point numbers to the nearest integer.
+
+EQL queries in {es} should account for this rounding. To avoid rounding, convert
+either the dividend or divisor to a float.
+
+[%collapsible]
+.**Example**
+======
+The `process.args_count` field is a <<number,`long`>> integer field containing a
+count of process arguments.
+
+A user might expect the following EQL query to only match events with a
+`process.args_count` value of `4`.
+
+[source,eql]
+----
+process where divide(4, process.args_count) == 1
+----
+
+However, the EQL query matches events with a `process.args_count` value of `3`
+or `4`.
+
+For events with a `process.args_count` value of `3`, the `divide` function
+returns a floating point number of `1.333...`, which is rounded down to `1`.
+
+To match only events with a `process.args_count` value of `4`, convert
+either the dividend or divisor to a float.
+
+The following EQL query changes the integer `4` to the equivalent float `4.0`.
+
+[source,eql]
+----
+process where divide(4.0, process.args_count) == 1
+----
+======
+=====
+
+*Example*
+[source,eql]
+----
+divide(4, 2)                                            // returns 2
+divide(4, 3)                                            // returns 1
+divide(4, 3.0)                                          // returns 1.333...
+divide(4, 0.5)                                          // returns 8
+divide(0.5, 4)                                          // returns 0.125
+divide(0.5, 0.25)                                       // returns 2.0
+divide(4, -2)                                           // returns -2
+divide(-4, -2)                                          // returns 2
+
+// process.args_count = 4
+divide(process.args_count, 2)                           // returns 2
+divide(process.args_count, 3)                           // returns 1
+divide(process.args_count, 3.0)                         // returns 1.333...
+divide(12, process.args_count)                          // returns 3
+divide(process.args_count, 0.5)                         // returns 8
+divide(0.5, process.args_count)                         // returns 0.125
+
+// process.parent.args_count = 2
+divide(process.args_count, process.parent.args_count)   // returns 2
+
+// null handling
+divide(null, 4)                                         // returns null
+divide(4, null)                                         // returns null
+divide(null, process.args_count)                        // returns null
+divide(process.args_count, null)                        // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+divide(<dividend>, <divisor>)
+----
+
+*Parameters*
+
+`<dividend>`::
+(Required, integer or float or `null`)
+Dividend to divide. If `null`, the function returns `null`.
++
+If using a field as the argument, this parameter supports only
+<<number,`numeric`>> field datatypes.
+
+`<divisor>`::
+(Required, integer or float or `null`)
+Divisor to divide by. If `null`, the function returns `null`. This value cannot
+be zero (`0`).
++
+If using a field as the argument, this parameter supports only
+<<number,`numeric`>> field datatypes.
+
+*Returns:* integer, float, or null
+====
+
+[discrete]
 [[eql-fn-endswith]]
 === `endsWith`
 
@@ -261,7 +421,7 @@ endsWith(file.name, ".exe")               // returns false
 
 // null handling
 endsWith("regsvr32.exe", null)            // returns null
-endsWith("", null)                        // returns null 
+endsWith("", null)                        // returns null
 endsWith(null, ".exe")                    // returns null
 endsWith(null, null)                      // returns null
 ----
@@ -533,6 +693,119 @@ Fields are not supported as arguments.
 ====
 
 [discrete]
+[[eql-fn-modulo]]
+=== `modulo`
+Returns the remainder of the division of a provided dividend and divisor.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+modulo(10, 6)                                       // returns 4
+modulo(10, 5)                                       // returns 0
+modulo(10, 0.5)                                     // returns 0
+modulo(10, -6)                                      // returns 4
+modulo(-10, -6)                                     // returns -4
+
+// process.args_count = 10
+modulo(process.args_count, 6)                       // returns 4
+modulo(process.args_count, 5)                       // returns 0
+modulo(106, process.args_count)                     // returns 6
+modulo(process.args_count, -6)                      // returns 4
+modulo(process.args_count, 0.5)                     // returns 0
+
+// process.parent.args_count = 6
+add(process.args_count, process.parent.args_count)  // returns 4
+
+// null handling
+modulo(null, 5)                                     // returns null
+modulo(7, null)                                     // returns null
+modulo(null, process.args_count)                    // returns null
+modulo(process.args_count, null)                    // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+modulo(<dividend>, <divisor>)
+----
+
+*Parameters*
+
+`<dividend>`::
+(Required, integer or float or `null`)
+Dividend to divide. If `null`, the function returns `null`. Floating point
+numbers return `0`.
++
+If using a field as the argument, this parameter supports only
+<<number,`numeric`>> field datatypes.
+
+`<divisor>`::
+(Required, integer or float or `null`)
+Divisor to divide by. If `null`, the function returns `null`. Floating point
+numbers return `0`. This value cannot be zero (`0`).
++
+If using a field as the argument, this parameter supports only
+<<number,`numeric`>> field datatypes.
+
+*Returns:* integer, float, or `null`
+====
+
+[discrete]
+[[eql-fn-multiply]]
+=== `multiply`
+
+Returns the product of two provided factors.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+multiply(2, 2)                                           // returns 4
+multiply(0.5, 2)                                         // returns 1
+multiply(0.25, 2)                                        // returns 0.5
+multiply(-2, 2)                                          // returns -4
+multiply(-2, -2)                                         // returns 4
+
+// process.args_count = 2
+multiply(process.args_count, 2)                          // returns 4
+multiply(0.5, process.args_count)                        // returns 1
+multiply(0.25, process.args_count)                       // returns 0.5
+
+// process.parent.args_count = 3
+multiply(process.args_count, process.parent.args_count)  // returns 6
+
+// null handling
+multiply(null, 2)                                        // returns null
+multiply(2, null)                                        // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+multiply(<factor, <factor>)
+----
+
+*Parameters*
+
+`<factor>`::
++
+--
+(Required, integer or float or `null`)
+Factor to multiply.  If `null`, the function returns `null`.
+
+Two factors are required. No more than two factors can be provided.
+
+If using a field as the argument, this parameter supports only
+<<number,`numeric`>> field datatypes.
+--
+
+*Returns:* integer, float, or `null`
+====
+
+[discrete]
 [[eql-fn-startswith]]
 === `startsWith`
 
@@ -561,7 +834,7 @@ startsWith(process.name, "regsvr32")    // returns false
 
 // null handling
 startsWith("regsvr32.exe", null)        // returns null
-startsWith("", null)                    // returns null 
+startsWith("", null)                    // returns null
 startsWith(null, "regsvr32")            // returns null
 startsWith(null, null)                  // returns null
 ----
@@ -765,8 +1038,64 @@ Positions are zero-indexed. Negative offsets are supported.
 ====
 
 [discrete]
+[[eql-fn-subtract]]
+=== `subtract`
+Returns the difference between a provided minuend and subtrahend.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+subtract(10, 2)                                          // returns 8
+subtract(10.5, 0.5)                                      // returns 10
+subtract(1, 0.2)                                         // returns 0.8
+subtract(-2, 4)                                          // returns -8
+subtract(-2, -4)                                         // returns 8
+
+// process.args_count = 10
+subtract(process.args_count, 6)                          // returns 4
+subtract(process.args_count, 5)                          // returns 5
+subtract(15, process.args_count)                         // returns 5
+subtract(process.args_count, 0.5)                        // returns 9.5
+
+// process.parent.args_count = 6
+subtract(process.args_count, process.parent.args_count)  // returns 4
+
+// null handling
+subtract(null, 2)                                        // returns null
+subtract(2, null)                                        // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+subtract(<minuend>, <subtrahend>)
+----
+
+*Parameters*
+
+`<minuend>`::
+(Required, integer or float or `null`)
+Minuend to subtract from.
++
+If using a field as the argument, this parameter supports only
+<<number,`numeric`>> field datatypes.
+
+`<subtrahend>`::
+(Optional, integer or float or `null`)
+Subtrahend to subtract. If `null`, the function returns `null`.
++
+If using a field as the argument, this parameter supports only
+<<number,`numeric`>> field datatypes.
+
+*Returns:* integer, float, or `null`
+====
+
+[discrete]
 [[eql-fn-wildcard]]
 === `wildcard`
+
 Returns `true` if a source string matches one or more provided wildcard
 expressions.
 
@@ -824,7 +1153,7 @@ field datatypes:
 (Required{multi-arg-ref}, string)
 Wildcard expression used to match the source string. If `null`, the function
 returns `null`. Fields are not supported as arguments.
--- 
+--
 
 *Returns:* boolean
 ====

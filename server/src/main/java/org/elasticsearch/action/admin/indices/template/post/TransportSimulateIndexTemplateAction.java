@@ -44,17 +44,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.Closeable;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -68,7 +64,6 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.fi
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV2Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 public class TransportSimulateIndexTemplateAction
     extends TransportMasterNodeReadAction<SimulateIndexTemplateRequest, SimulateIndexTemplateResponse> {
@@ -139,37 +134,28 @@ public class TransportSimulateIndexTemplateAction
             .build();
         final IndexMetadata indexMetadata = IndexMetadata.builder(request.getIndexName()).settings(dummySettings).build();
 
-        simulateOnClusterState = ClusterState.builder(simulateOnClusterState)
-            .metadata(Metadata.builder(simulateOnClusterState.metadata())
-                .put(indexMetadata, true)
-                .build())
-            .build();
+        final ClusterState tempClusterState = ClusterState.builder(simulateOnClusterState)
+                .metadata(Metadata.builder(simulateOnClusterState.metadata())
+                        .put(indexMetadata, true)
+                        .build())
+                .build();
+        List<AliasMetadata> aliases = indicesService.withTempIndexService(indexMetadata, tempIndexService ->
+                MetadataCreateIndexService.resolveAndValidateAliases(request.getIndexName(), Set.of(),
+                        resolvedAliases, tempClusterState.metadata(), aliasValidator, xContentRegistry,
+                        // the context is only used for validation so it's fine to pass fake values for the
+                        // shard id and the current timestamp
+                        tempIndexService.newQueryShardContext(0, null, () -> 0L, null)));
 
-        IndexService tempIndexService = indicesService.createIndex(indexMetadata, Collections.emptyList(), false);
-        final Index index = tempIndexService.index();
-        try (Closeable dummy = () -> tempIndexService.close("temp", false)) {
-            List<AliasMetadata> aliases = MetadataCreateIndexService.resolveAndValidateAliases(request.getIndexName(), Set.of(),
-                resolvedAliases, simulateOnClusterState.metadata(), aliasValidator, xContentRegistry,
-                // the context is only used for validation so it's fine to pass fake values for the
-                // shard id and the current timestamp
-                tempIndexService.newQueryShardContext(0, null, () -> 0L, null));
+        IndexTemplateV2 templateV2 = tempClusterState.metadata().templatesV2().get(matchingTemplate);
+        assert templateV2 != null : "the matched template must exist";
 
-            IndexTemplateV2 templateV2 = simulateOnClusterState.metadata().templatesV2().get(matchingTemplate);
-            assert templateV2 != null : "the matched template must exist";
+        Map<String, List<String>> overlapping = new HashMap<>();
+        overlapping.putAll(findConflictingV1Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
+        overlapping.putAll(findConflictingV2Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
 
-            Map<String, List<String>> overlapping = new HashMap<>();
-            overlapping.putAll(findConflictingV1Templates(simulateOnClusterState, matchingTemplate, templateV2.indexPatterns()));
-            overlapping.putAll(findConflictingV2Templates(simulateOnClusterState, matchingTemplate, templateV2.indexPatterns()));
-
-            Template template = new Template(settings, mappingsJson == null ? null : new CompressedXContent(mappingsJson),
+        Template template = new Template(settings, mappingsJson == null ? null : new CompressedXContent(mappingsJson),
                 aliases.stream().collect(Collectors.toMap(AliasMetadata::getAlias, Function.identity())));
-            listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
-        } finally {
-            if (index != null) {
-                indicesService.removeIndex(index, NO_LONGER_ASSIGNED,
-                    "created as part of a simulation for an index name matching the index templates in the system");
-            }
-        }
+        listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
     }
 
     @Override

@@ -63,6 +63,8 @@ include::settings/monitoring-settings.asciidoc[]
 
 include::settings/security-settings.asciidoc[]
 
+include::settings/slm-settings.asciidoc[]
+
 include::settings/sql-settings.asciidoc[]
 
 include::settings/notification-settings.asciidoc[]

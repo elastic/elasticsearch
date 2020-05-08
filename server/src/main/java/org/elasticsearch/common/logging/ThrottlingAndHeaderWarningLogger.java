@@ -39,9 +39,9 @@ public class ThrottlingAndHeaderWarningLogger {
     /**
      * Logs a message, adding a formatted warning message as a response header on the thread context.
      */
-    @SuppressLoggerChecks(reason = "safely delegates to logger")
+    @SuppressLoggerChecks(reason = "ParametrizedMessage parameters are passed from the method arguments which is verified. Safe")
     public void logAndAddWarning(String msg, Object... params) {
-        HeaderWarningLogger.addWarning(msg, params);
+        HeaderWarning.addWarning(msg, params);
         Message message = new ParameterizedMessage(msg, params);
         throttlingLogger.log(message);
     }
@@ -54,7 +54,7 @@ public class ThrottlingAndHeaderWarningLogger {
      * @param message the message to log
      */
     void throttleLogAndAddWarning(final String key, ESLogMessage message) {
-        HeaderWarningLogger.addWarning(message.getMessagePattern(), message.getArguments());
+        HeaderWarning.addWarning(message.getMessagePattern(), message.getArguments());
         throttlingLogger.throttleLog(key, message);
     }
 

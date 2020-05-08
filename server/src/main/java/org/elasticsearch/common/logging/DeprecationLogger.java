@@ -50,15 +50,16 @@ public class DeprecationLogger {
     }
 
     public static void setThreadContext(ThreadContext threadContext) {
-        HeaderWarningLogger.setThreadContext(threadContext);
+        HeaderWarning.setThreadContext(threadContext);
     }
 
     public static void removeThreadContext(ThreadContext threadContext) {
-        HeaderWarningLogger.removeThreadContext(threadContext);
+        HeaderWarning.removeThreadContext(threadContext);
     }
 
     /**
      * Logs a deprecation message, adding a formatted warning message as a response header on the thread context.
+     * The deprecation message will be throttled to deprecation log.
      */
     public DeprecationLoggerBuilder deprecate(final String key, final String msg, final Object... params) {
         return new DeprecationLoggerBuilder()
@@ -72,7 +73,7 @@ public class DeprecationLogger {
 
         public DeprecationLoggerBuilder withDeprecation(String key, String msg, Object[] params) {
             this.deprecationKey = key;
-            String opaqueId = HeaderWarningLogger.getXOpaqueId();
+            String opaqueId = HeaderWarning.getXOpaqueId();
             this.deprecationMessage = DeprecatedMessage.of(opaqueId, msg, params);
             return this;
         }

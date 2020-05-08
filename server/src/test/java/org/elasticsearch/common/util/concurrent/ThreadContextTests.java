@@ -19,7 +19,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.logging.HeaderWarningLogger;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -204,12 +204,12 @@ public class ThreadContextTests extends ESTestCase {
             threadContext.addResponseHeader("foo", "bar");
         }
 
-        final String value = HeaderWarningLogger.formatWarning("qux");
-        threadContext.addResponseHeader("baz", value, s -> HeaderWarningLogger.extractWarningValueFromWarningHeader(s, false));
+        final String value = HeaderWarning.formatWarning("qux");
+        threadContext.addResponseHeader("baz", value, s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false));
         // pretend that another thread created the same response at a different time
         if (randomBoolean()) {
-            final String duplicateValue = HeaderWarningLogger.formatWarning("qux");
-            threadContext.addResponseHeader("baz", duplicateValue, s -> HeaderWarningLogger.extractWarningValueFromWarningHeader(s, false));
+            final String duplicateValue = HeaderWarning.formatWarning("qux");
+            threadContext.addResponseHeader("baz", duplicateValue, s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false));
         }
 
         threadContext.addResponseHeader("Warning", "One is the loneliest number");

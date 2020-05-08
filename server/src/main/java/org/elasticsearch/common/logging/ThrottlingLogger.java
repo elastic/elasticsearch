@@ -40,7 +40,7 @@ import java.util.Set;
  * The throttling algorithm is relying on LRU set of keys which evicts entries when its size is &gt; 128.
  * When a log with a key is emitted, it won't be logged again until the set reaches size 128 and the key is removed from the set.
  *
- * @see HeaderWarningLogger
+ * @see HeaderWarning
  */
 class ThrottlingLogger {
 
@@ -59,7 +59,7 @@ class ThrottlingLogger {
     }
 
     void throttleLog(String key, Message message) {
-        String xOpaqueId = HeaderWarningLogger.getXOpaqueId();
+        String xOpaqueId = HeaderWarning.getXOpaqueId();
         boolean shouldLog = keys.add(xOpaqueId + key);
         if (shouldLog) {
             log(message);

@@ -34,7 +34,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.common.logging.HeaderWarningLogger.WARNING_HEADER_PATTERN;
+import static org.elasticsearch.common.logging.HeaderWarning.WARNING_HEADER_PATTERN;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -42,13 +42,13 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Tests {@link HeaderWarningLogger}
+ * Tests {@link HeaderWarning}
  */
-public class HeaderWarningLoggerTests extends ESTestCase {
+public class HeaderWarningTests extends ESTestCase {
 
     private static final RegexMatcher warningValueMatcher = matches(WARNING_HEADER_PATTERN.pattern());
 
-    private final HeaderWarningLogger logger = new HeaderWarningLogger();
+    private final HeaderWarning logger = new HeaderWarning();
 
     @Override
     protected boolean enableWarningsCheck() {
@@ -61,7 +61,7 @@ public class HeaderWarningLoggerTests extends ESTestCase {
         final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
 
         final String param = randomAlphaOfLengthBetween(1, 5);
-        HeaderWarningLogger.addWarning(threadContexts, "A simple message [{}]", param);
+        HeaderWarning.addWarning(threadContexts, "A simple message [{}]", param);
 
         final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
 
@@ -76,7 +76,7 @@ public class HeaderWarningLoggerTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
 
-        HeaderWarningLogger.addWarning(threadContexts, "this message contains a newline\n");
+        HeaderWarning.addWarning(threadContexts, "this message contains a newline\n");
 
         final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
 
@@ -91,7 +91,7 @@ public class HeaderWarningLoggerTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
 
-        HeaderWarningLogger.addWarning(threadContexts, "this message contains a surrogate pair 😱");
+        HeaderWarning.addWarning(threadContexts, "this message contains a surrogate pair 😱");
 
         final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
 
@@ -123,9 +123,9 @@ public class HeaderWarningLoggerTests extends ESTestCase {
         final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
 
         final String param = randomAlphaOfLengthBetween(1, 5);
-        HeaderWarningLogger.addWarning(threadContexts, "A simple message [{}]", param);
+        HeaderWarning.addWarning(threadContexts, "A simple message [{}]", param);
         final String second = randomAlphaOfLengthBetween(1, 10);
-        HeaderWarningLogger.addWarning(threadContexts, second);
+        HeaderWarning.addWarning(threadContexts, second);
 
         final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
 
@@ -145,9 +145,9 @@ public class HeaderWarningLoggerTests extends ESTestCase {
         final String unexpected = "testCannotRemoveThreadContext";
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        HeaderWarningLogger.setThreadContext(threadContext);
+        HeaderWarning.setThreadContext(threadContext);
         /*"testCanRemoveThreadContext_key1",*/
-        HeaderWarningLogger.addWarning(HeaderWarningLogger.THREAD_CONTEXT, expected);
+        HeaderWarning.addWarning(HeaderWarning.THREAD_CONTEXT, expected);
 
         {
             final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
@@ -158,9 +158,9 @@ public class HeaderWarningLoggerTests extends ESTestCase {
             assertThat(responses.get(0), containsString(expected));
         }
 
-        HeaderWarningLogger.removeThreadContext(threadContext);
+        HeaderWarning.removeThreadContext(threadContext);
         /*"testCanRemoveThreadContext_key2", */
-        HeaderWarningLogger.addWarning(HeaderWarningLogger.THREAD_CONTEXT, unexpected);
+        HeaderWarning.addWarning(HeaderWarning.THREAD_CONTEXT, unexpected);
 
         {
             final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
@@ -174,67 +174,67 @@ public class HeaderWarningLoggerTests extends ESTestCase {
     }
 
     public void testSafeWithoutThreadContext() {
-        HeaderWarningLogger.addWarning(Collections.emptySet(), "Ignored");
+        HeaderWarning.addWarning(Collections.emptySet(), "Ignored");
     }
 
     public void testFailsWithoutThreadContextSet() {
         expectThrows(NullPointerException.class,
-            () -> HeaderWarningLogger.addWarning((Set<ThreadContext>)null, "Does not explode"));
+            () -> HeaderWarning.addWarning((Set<ThreadContext>)null, "Does not explode"));
     }
 
     public void testFailsWhenDoubleSettingSameThreadContext() throws IOException {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        HeaderWarningLogger.setThreadContext(threadContext);
+        HeaderWarning.setThreadContext(threadContext);
 
         try {
-            expectThrows(IllegalStateException.class, () -> HeaderWarningLogger.setThreadContext(threadContext));
+            expectThrows(IllegalStateException.class, () -> HeaderWarning.setThreadContext(threadContext));
         } finally {
             // cleanup after ourselves
-            HeaderWarningLogger.removeThreadContext(threadContext);
+            HeaderWarning.removeThreadContext(threadContext);
         }
     }
 
     public void testFailsWhenRemovingUnknownThreadContext() throws IOException {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        expectThrows(IllegalStateException.class, () -> HeaderWarningLogger.removeThreadContext(threadContext));
+        expectThrows(IllegalStateException.class, () -> HeaderWarning.removeThreadContext(threadContext));
     }
 
     public void testWarningValueFromWarningHeader() {
         final String s = randomAlphaOfLength(16);
-        final String first = HeaderWarningLogger.formatWarning(s);
-        assertThat(HeaderWarningLogger.extractWarningValueFromWarningHeader(first, false), equalTo(s));
+        final String first = HeaderWarning.formatWarning(s);
+        assertThat(HeaderWarning.extractWarningValueFromWarningHeader(first, false), equalTo(s));
 
         final String withPos = "[context][1:11] Blah blah blah";
-        final String formatted = HeaderWarningLogger.formatWarning(withPos);
-        assertThat(HeaderWarningLogger.extractWarningValueFromWarningHeader(formatted, true), equalTo("Blah blah blah"));
+        final String formatted = HeaderWarning.formatWarning(withPos);
+        assertThat(HeaderWarning.extractWarningValueFromWarningHeader(formatted, true), equalTo("Blah blah blah"));
 
         final String withNegativePos = "[context][-1:-1] Blah blah blah";
-        assertThat(HeaderWarningLogger.extractWarningValueFromWarningHeader(HeaderWarningLogger.formatWarning(withNegativePos), true),
+        assertThat(HeaderWarning.extractWarningValueFromWarningHeader(HeaderWarning.formatWarning(withNegativePos), true),
             equalTo("Blah blah blah"));
     }
 
     public void testEscapeBackslashesAndQuotes() {
-        assertThat(HeaderWarningLogger.escapeBackslashesAndQuotes("\\"), equalTo("\\\\"));
-        assertThat(HeaderWarningLogger.escapeBackslashesAndQuotes("\""), equalTo("\\\""));
-        assertThat(HeaderWarningLogger.escapeBackslashesAndQuotes("\\\""), equalTo("\\\\\\\""));
-        assertThat(HeaderWarningLogger.escapeBackslashesAndQuotes("\"foo\\bar\""),equalTo("\\\"foo\\\\bar\\\""));
+        assertThat(HeaderWarning.escapeBackslashesAndQuotes("\\"), equalTo("\\\\"));
+        assertThat(HeaderWarning.escapeBackslashesAndQuotes("\""), equalTo("\\\""));
+        assertThat(HeaderWarning.escapeBackslashesAndQuotes("\\\""), equalTo("\\\\\\\""));
+        assertThat(HeaderWarning.escapeBackslashesAndQuotes("\"foo\\bar\""),equalTo("\\\"foo\\\\bar\\\""));
         // test that characters other than '\' and '"' are left unchanged
         String chars = "\t !" + range(0x23, 0x24) + range(0x26, 0x5b) + range(0x5d, 0x73) + range(0x80, 0xff);
         final String s = new CodepointSetGenerator(chars.toCharArray()).ofCodePointsLength(random(), 16, 16);
-        assertThat(HeaderWarningLogger.escapeBackslashesAndQuotes(s), equalTo(s));
+        assertThat(HeaderWarning.escapeBackslashesAndQuotes(s), equalTo(s));
     }
 
     public void testEncode() {
-        assertThat(HeaderWarningLogger.encode("\n"), equalTo("%0A"));
-        assertThat(HeaderWarningLogger.encode("😱"), equalTo("%F0%9F%98%B1"));
-        assertThat(HeaderWarningLogger.encode("福島深雪"), equalTo("%E7%A6%8F%E5%B3%B6%E6%B7%B1%E9%9B%AA"));
-        assertThat(HeaderWarningLogger.encode("100%\n"), equalTo("100%25%0A"));
+        assertThat(HeaderWarning.encode("\n"), equalTo("%0A"));
+        assertThat(HeaderWarning.encode("😱"), equalTo("%F0%9F%98%B1"));
+        assertThat(HeaderWarning.encode("福島深雪"), equalTo("%E7%A6%8F%E5%B3%B6%E6%B7%B1%E9%9B%AA"));
+        assertThat(HeaderWarning.encode("100%\n"), equalTo("100%25%0A"));
         // test that valid characters are left unchanged
         String chars = "\t !" + range(0x23, 0x24) + range(0x26, 0x5b) + range(0x5d, 0x73) + range(0x80, 0xff) + '\\' + '"';
         final String s = new CodepointSetGenerator(chars.toCharArray()).ofCodePointsLength(random(), 16, 16);
-        assertThat(HeaderWarningLogger.encode(s), equalTo(s));
+        assertThat(HeaderWarning.encode(s), equalTo(s));
         // when no encoding is needed, the original string is returned (optimization)
-        assertThat(HeaderWarningLogger.encode(s), IsSame.sameInstance(s));
+        assertThat(HeaderWarning.encode(s), IsSame.sameInstance(s));
     }
 
 
@@ -247,9 +247,9 @@ public class HeaderWarningLoggerTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(settings);
         final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
         // try to log three warning messages
-        HeaderWarningLogger.addWarning(threadContexts, "A simple message 1");
-        HeaderWarningLogger.addWarning(threadContexts, "A simple message 2");
-        HeaderWarningLogger.addWarning(threadContexts, "A simple message 3");
+        HeaderWarning.addWarning(threadContexts, "A simple message 1");
+        HeaderWarning.addWarning(threadContexts, "A simple message 2");
+        HeaderWarning.addWarning(threadContexts, "A simple message 3");
         final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         final List<String> responses = responseHeaders.get("Warning");
 
@@ -274,9 +274,9 @@ public class HeaderWarningLoggerTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(settings);
         final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
         // try to log three warning messages
-        HeaderWarningLogger.addWarning(threadContexts, message1);
-        HeaderWarningLogger.addWarning(threadContexts, message2);
-        HeaderWarningLogger.addWarning(threadContexts, message3);
+        HeaderWarning.addWarning(threadContexts, message1);
+        HeaderWarning.addWarning(threadContexts, message2);
+        HeaderWarning.addWarning(threadContexts, message3);
         final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         final List<String> responses = responseHeaders.get("Warning");
 

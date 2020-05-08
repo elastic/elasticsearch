@@ -40,7 +40,7 @@ import java.util.regex.Pattern;
  * It uses ThreadContext - which is assumed to be one per JVM (except for tests) - to store warning headers.
  * Warning values are formatted according to RFC7234.
  */
-public class HeaderWarningLogger {
+public class HeaderWarning {
     /**
      * Regular expression to test if a string matches the RFC7234 specification for warning headers. This pattern assumes that the warn code
      * is always 299. Further, this pattern assumes that the warn agent represents a version of Elasticsearch including the build hash.

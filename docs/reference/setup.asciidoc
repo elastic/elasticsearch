@@ -67,6 +67,8 @@ include::settings/ml-settings.asciidoc[]
 
 include::settings/monitoring-settings.asciidoc[]
 
+include::modules/node.asciidoc[]
+
 include::modules/network.asciidoc[]
 
 include::modules/indices/query_cache.asciidoc[]

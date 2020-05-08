@@ -29,6 +29,7 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
@@ -92,11 +94,11 @@ public class TransportStopDataFrameAnalyticsAction
         logger.debug("Received request to stop data frame analytics [{}]", request.getId());
 
         ActionListener<Set<String>> expandedIdsListener = ActionListener.wrap(
-            expandedIds -> {
-                logger.debug("Resolved data frame analytics to stop: {}", expandedIds);
+            idsToStop -> {
+                logger.debug("Resolved data frame analytics to stop: {}", idsToStop);
 
                 PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-                AnalyticsByTaskState analyticsByTaskState = AnalyticsByTaskState.build(expandedIds, tasks);
+                AnalyticsByTaskState analyticsByTaskState = AnalyticsByTaskState.build(idsToStop, tasks);
 
                 if (analyticsByTaskState.isEmpty()) {
                     listener.onResponse(new StopDataFrameAnalyticsAction.Response(true));
@@ -112,26 +114,51 @@ public class TransportStopDataFrameAnalyticsAction
             listener::onFailure
         );
 
-        expandIds(state, request, expandedIdsListener);
+        findIdsToStop(state, request, expandedIdsListener);
     }
 
-    private void expandIds(ClusterState clusterState, StopDataFrameAnalyticsAction.Request request,
-                           ActionListener<Set<String>> expandedIdsListener) {
-        ActionListener<List<DataFrameAnalyticsConfig>> configsListener = ActionListener.wrap(
-            configs -> {
-                Set<String> matchingIds = configs.stream().map(DataFrameAnalyticsConfig::getId).collect(Collectors.toSet());
-                PersistentTasksCustomMetadata tasksMetadata = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-                Set<String> startedIds = tasksMetadata == null ? Collections.emptySet() : tasksMetadata.tasks().stream()
-                    .filter(t -> t.getId().startsWith(MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX))
-                    .map(t -> t.getId().replaceFirst(MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX, ""))
-                    .collect(Collectors.toSet());
+    private void findIdsToStop(ClusterState clusterState, StopDataFrameAnalyticsAction.Request request,
+                               ActionListener<Set<String>> expandedIdsListener) {
+        Set<String> startedIds = getAllStartedIds(clusterState);
+
+        ActionListener<Set<String>> matchingIdsListener = ActionListener.wrap(
+            matchingIds -> {
                 startedIds.retainAll(matchingIds);
                 expandedIdsListener.onResponse(startedIds);
             },
             expandedIdsListener::onFailure
         );
 
-        configProvider.getMultiple(request.getId(), request.allowNoMatch(), configsListener);
+        if (request.isForce()) {
+            matchAllStartedIds(request, startedIds, matchingIdsListener);
+        } else {
+            configProvider.getMultiple(request.getId(), request.allowNoMatch(), ActionListener.wrap(
+                configs -> matchingIdsListener.onResponse(
+                    configs.stream().map(DataFrameAnalyticsConfig::getId).collect(Collectors.toSet())),
+                matchingIdsListener::onFailure
+            ));
+        }
+    }
+
+    private static Set<String> getAllStartedIds(ClusterState clusterState) {
+        PersistentTasksCustomMetadata tasksMetadata = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        return tasksMetadata == null ? Collections.emptySet() : tasksMetadata.tasks().stream()
+            .filter(t -> t.getId().startsWith(MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX))
+            .map(t -> t.getId().replaceFirst(MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX, ""))
+            .collect(Collectors.toSet());
+    }
+
+    private void matchAllStartedIds(StopDataFrameAnalyticsAction.Request request, Set<String> startedIds,
+                                    ActionListener<Set<String>> matchingIdsListener) {
+        String[] tokens = ExpandedIdsMatcher.tokenizeExpression(request.getId());
+        ExpandedIdsMatcher expandedIdsMatcher = new ExpandedIdsMatcher(tokens, request.allowNoMatch());
+        expandedIdsMatcher.filterMatchedIds(startedIds);
+        if (expandedIdsMatcher.hasUnmatchedIds()) {
+            matchingIdsListener.onFailure(ExceptionsHelper.missingDataFrameAnalytics(expandedIdsMatcher.unmatchedIdsString()));
+            return;
+        }
+        Set<String> matchingStartedIds = MlStrings.findMatching(tokens, startedIds);
+        matchingIdsListener.onResponse(matchingStartedIds);
     }
 
     private void normalStop(Task task, StopDataFrameAnalyticsAction.Request request,

@@ -493,7 +493,7 @@ public class JobResultsProvider {
                         SearchResponse searchResponse = itemResponse.getResponse();
                         ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
                         int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
-                        if (!CollectionUtils.isEmpty(shardFailures)) {
+                        if (CollectionUtils.isEmpty(shardFailures) == false) {
                             LOGGER.error("[{}] Search request returned shard failures: {}", jobId, Arrays.toString(shardFailures));
                             listener.onFailure(
                                 new ElasticsearchException(ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
@@ -599,7 +599,7 @@ public class JobResultsProvider {
                                 SearchResponse searchResponse = itemResponse.getResponse();
                                 ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
                                 int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
-                                if (!CollectionUtils.isEmpty(shardFailures)) {
+                                if (CollectionUtils.isEmpty(shardFailures) == false) {
                                     LOGGER.error("[{}] Search request returned shard failures: {}", jobId,
                                         Arrays.toString(shardFailures));
                                     errorHandler.accept(new ElasticsearchException(

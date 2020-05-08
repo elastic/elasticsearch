@@ -210,7 +210,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         }
         // Now add snapshots on disk that are not currently running
         final String repositoryName = request.repository();
-        if (Strings.hasText(repositoryName) && !CollectionUtils.isEmpty(request.snapshots())) {
+        if (Strings.hasText(repositoryName) && CollectionUtils.isEmpty(request.snapshots()) == false) {
             loadRepositoryData(snapshotsInProgress, request, builder, currentSnapshotNames, repositoryName, listener);
         } else {
             listener.onResponse(new SnapshotsStatusResponse(Collections.unmodifiableList(builder)));

@@ -101,7 +101,7 @@ class CompletionStatsCache implements ReferenceManager.RefreshListener {
 
     private static CompletionStats filterCompletionStatsByFieldName(String[] fieldNamePatterns, CompletionStats fullCompletionStats) {
         final FieldMemoryStats fieldMemoryStats;
-        if (!CollectionUtils.isEmpty(fieldNamePatterns)) {
+        if (CollectionUtils.isEmpty(fieldNamePatterns) == false) {
             final ObjectLongHashMap<String> completionFields = new ObjectLongHashMap<>(fieldNamePatterns.length);
             for (ObjectLongCursor<String> fieldCursor : fullCompletionStats.getFields()) {
                 if (Regex.simpleMatch(fieldNamePatterns, fieldCursor.key)) {

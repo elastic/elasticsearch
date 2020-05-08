@@ -183,7 +183,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
 
         private FileObserver[] listChildren(boolean initial) throws IOException {
             Path[] files = listFiles();
-            if (!CollectionUtils.isEmpty(files)) {
+            if (CollectionUtils.isEmpty(files) == false) {
                 FileObserver[] children = new FileObserver[files.length];
                 for (int i = 0; i < files.length; i++) {
                     children[i] = createChild(files[i], initial);
@@ -196,7 +196,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
 
         private void updateChildren() throws IOException {
             Path[] files = listFiles();
-            if (!CollectionUtils.isEmpty(files)) {
+            if (CollectionUtils.isEmpty(files) == false) {
                 FileObserver[] newChildren = new FileObserver[files.length];
                 int child = 0;
                 int file = 0;

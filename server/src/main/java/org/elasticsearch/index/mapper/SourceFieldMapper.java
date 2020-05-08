@@ -194,7 +194,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         this.enabled = enabled;
         this.includes = includes;
         this.excludes = excludes;
-        final boolean filtered = !CollectionUtils.isEmpty(includes) || !CollectionUtils.isEmpty(excludes);
+        final boolean filtered = CollectionUtils.isEmpty(includes) == false || CollectionUtils.isEmpty(excludes) == false;
         this.filter = enabled && filtered && fieldType().stored() ? XContentMapValues.filter(includes, excludes) : null;
         this.complete = enabled && includes == null && excludes == null;
     }

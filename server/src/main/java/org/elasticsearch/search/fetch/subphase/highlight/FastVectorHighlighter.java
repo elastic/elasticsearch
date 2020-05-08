@@ -183,7 +183,7 @@ public class FastVectorHighlighter implements Highlighter {
                     entry.fragmentsBuilder, field.fieldOptions().preTags(), field.fieldOptions().postTags(), encoder);
             }
 
-            if (!CollectionUtils.isEmpty(fragments)) {
+            if (CollectionUtils.isEmpty(fragments) == false) {
                 return new HighlightField(highlighterContext.fieldName, Text.convertFromStringArray(fragments));
             }
 
@@ -196,7 +196,7 @@ public class FastVectorHighlighter implements Highlighter {
                 fragments = entry.fragmentsBuilder.createFragments(hitContext.reader(), hitContext.docId(),
                     fieldType.name(), fieldFragList, 1, field.fieldOptions().preTags(),
                     field.fieldOptions().postTags(), encoder);
-                if (!CollectionUtils.isEmpty(fragments)) {
+                if (CollectionUtils.isEmpty(fragments) == false) {
                     return new HighlightField(highlighterContext.fieldName, Text.convertFromStringArray(fragments));
                 }
             }

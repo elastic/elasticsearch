@@ -968,7 +968,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.stats() != null) {
             context.groupStats(source.stats());
         }
-        if (!CollectionUtils.isEmpty(source.searchAfter())) {
+        if (CollectionUtils.isEmpty(source.searchAfter()) == false) {
             if (context.scrollContext() != null) {
                 throw new SearchException(shardTarget, "`search_after` cannot be used in a scroll context.");
             }

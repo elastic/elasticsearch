@@ -160,7 +160,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     }
 
     public boolean match(Task task) {
-        if (!CollectionUtils.isEmpty(getActions()) && Regex.simpleMatch(getActions(), task.getAction()) == false) {
+        if (CollectionUtils.isEmpty(getActions()) == false && Regex.simpleMatch(getActions(), task.getAction()) == false) {
             return false;
         }
         if (getTaskId().isSet()) {

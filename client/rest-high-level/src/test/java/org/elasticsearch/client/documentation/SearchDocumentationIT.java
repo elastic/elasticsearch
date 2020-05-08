@@ -716,7 +716,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             String scrollId = searchResponse.getScrollId();
             SearchHit[] searchHits = searchResponse.getHits().getHits();
 
-            while (!CollectionUtils.isEmpty(searchHits)) { // <2>
+            while (CollectionUtils.isEmpty(searchHits) == false) { // <2>
                 // <3>
                 SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId); // <4>
                 scrollRequest.scroll(scroll);

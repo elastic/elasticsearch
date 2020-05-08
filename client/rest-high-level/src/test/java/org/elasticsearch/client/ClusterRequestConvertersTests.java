@@ -143,7 +143,7 @@ public class ClusterRequestConvertersTests extends ESTestCase {
         Assert.assertThat(request, CoreMatchers.notNullValue());
         Assert.assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
         Assert.assertThat(request.getEntity(), nullValue());
-        if (!CollectionUtils.isEmpty(indices)) {
+        if (CollectionUtils.isEmpty(indices) == false) {
             Assert.assertThat(request.getEndpoint(), equalTo("/_cluster/health/" + String.join(",", indices)));
         } else {
             Assert.assertThat(request.getEndpoint(), equalTo("/_cluster/health"));

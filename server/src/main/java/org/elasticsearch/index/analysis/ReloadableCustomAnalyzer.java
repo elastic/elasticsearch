@@ -153,7 +153,7 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
     @Override
     protected Reader initReader(String fieldName, Reader reader) {
         final AnalyzerComponents components = getStoredComponents();
-        if (!CollectionUtils.isEmpty(components.getCharFilters())) {
+        if (CollectionUtils.isEmpty(components.getCharFilters()) == false) {
             for (CharFilterFactory charFilter : components.getCharFilters()) {
                 reader = charFilter.create(reader);
             }

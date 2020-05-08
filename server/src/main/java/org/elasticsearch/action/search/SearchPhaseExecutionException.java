@@ -120,7 +120,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     private static String buildMessage(String phaseName, String msg, ShardSearchFailure[] shardFailures) {
         StringBuilder sb = new StringBuilder();
         sb.append("Failed to execute phase [").append(phaseName).append("], ").append(msg);
-        if (!CollectionUtils.isEmpty(shardFailures)) {
+        if (CollectionUtils.isEmpty(shardFailures) == false) {
             sb.append("; shardFailures ");
             for (ShardSearchFailure shardFailure : shardFailures) {
                 if (shardFailure.shard() != null) {

@@ -294,7 +294,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         }
 
         StringJoiner endpoint = new StringJoiner("/", "/", "");
-        if (!CollectionUtils.isEmpty(indicesUnderTest)) {
+        if (CollectionUtils.isEmpty(indicesUnderTest) == false) {
             endpoint.add(String.join(",", indicesUnderTest));
         }
         endpoint.add("_settings");
@@ -307,7 +307,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
                 }
             }
             getSettingsRequest.names(names);
-            if (!CollectionUtils.isEmpty(names)) {
+            if (CollectionUtils.isEmpty(names) == false) {
                 endpoint.add(String.join(",", names));
             }
         }
@@ -873,7 +873,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     public void testReloadAnalyzers() {
         String[] indices = RequestConvertersTests.randomIndicesNames(1, 5);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
-        if (!CollectionUtils.isEmpty(indices)) {
+        if (CollectionUtils.isEmpty(indices) == false) {
             endpoint.add(String.join(",", indices));
         }
         ReloadAnalyzersRequest reloadRequest = new ReloadAnalyzersRequest(indices);

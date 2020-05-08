@@ -39,7 +39,7 @@ public class ShardFieldData implements IndexFieldDataCache.Listener {
 
     public FieldDataStats stats(String... fields) {
         ObjectLongHashMap<String> fieldTotals = null;
-        if (!CollectionUtils.isEmpty(fields)) {
+        if (CollectionUtils.isEmpty(fields) == false) {
             fieldTotals = new ObjectLongHashMap<>();
             for (Map.Entry<String, CounterMetric> entry : perFieldTotals.entrySet()) {
                 if (Regex.simpleMatch(fields, entry.getKey())) {

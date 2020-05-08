@@ -222,7 +222,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         if (request.waitForNodes().isEmpty() == false) {
             waitCount++;
         }
-        if (!CollectionUtils.isEmpty(request.indices())) { // check that they actually exists in the meta data
+        if (CollectionUtils.isEmpty(request.indices()) == false) { // check that they actually exists in the meta data
             waitCount++;
         }
         return waitCount;
@@ -276,7 +276,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                 waitForCounter++;
             }
         }
-        if (!CollectionUtils.isEmpty(request.indices())) {
+        if (CollectionUtils.isEmpty(request.indices()) == false) {
             try {
                 indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.strictExpand(), request.indices());
                 waitForCounter++;

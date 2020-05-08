@@ -98,7 +98,7 @@ public final class CustomAnalyzer extends Analyzer implements AnalyzerComponents
     @Override
     protected Reader initReader(String fieldName, Reader reader) {
         CharFilterFactory[] charFilters = charFilters();
-        if (!CollectionUtils.isEmpty(charFilters)) {
+        if (CollectionUtils.isEmpty(charFilters) == false) {
             for (CharFilterFactory charFilter : charFilters) {
                 reader = charFilter.create(reader);
             }

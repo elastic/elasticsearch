@@ -269,7 +269,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
      * none are specified.
      */
     public SimpleQueryStringBuilder flags(SimpleQueryStringFlag... flags) {
-        if (!CollectionUtils.isEmpty(flags)) {
+        if (CollectionUtils.isEmpty(flags) == false) {
             int value = 0;
             for (SimpleQueryStringFlag flag : flags) {
                 value |= flag.value;

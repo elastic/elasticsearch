@@ -844,10 +844,10 @@ final class RequestConverters {
                 if (fetchSourceContext.fetchSource() == false) {
                     putParam("_source", Boolean.FALSE.toString());
                 }
-                if (!CollectionUtils.isEmpty(fetchSourceContext.includes())) {
+                if (CollectionUtils.isEmpty(fetchSourceContext.includes()) == false) {
                     putParam("_source_includes", String.join(",", fetchSourceContext.includes()));
                 }
-                if (!CollectionUtils.isEmpty(fetchSourceContext.excludes())) {
+                if (CollectionUtils.isEmpty(fetchSourceContext.excludes()) == false) {
                     putParam("_source_excludes", String.join(",", fetchSourceContext.excludes()));
                 }
             }
@@ -855,7 +855,7 @@ final class RequestConverters {
         }
 
         Params withFields(String[] fields) {
-            if (!CollectionUtils.isEmpty(fields)) {
+            if (CollectionUtils.isEmpty(fields) == false) {
                 return putParam("fields", String.join(",", fields));
             }
             return this;
@@ -956,7 +956,7 @@ final class RequestConverters {
         }
 
         Params withStoredFields(String[] storedFields) {
-            if (!CollectionUtils.isEmpty(storedFields)) {
+            if (CollectionUtils.isEmpty(storedFields) == false) {
                 return putParam("stored_fields", String.join(",", storedFields));
             }
             return this;

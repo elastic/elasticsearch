@@ -187,7 +187,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
             if (shard.totalHits.relation == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
                 totalHitsRelation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
             }
-            if (!CollectionUtils.isEmpty(shard.scoreDocs)) {
+            if (CollectionUtils.isEmpty(shard.scoreDocs) == false) {
                 availHitCount += shard.scoreDocs.length;
                 queue.add(new ShardRef(shardIDX, setShardIndex == false));
             }

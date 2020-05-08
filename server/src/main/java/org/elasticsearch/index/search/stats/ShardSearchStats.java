@@ -48,7 +48,7 @@ public final class ShardSearchStats implements SearchOperationListener {
     public SearchStats stats(String... groups) {
         SearchStats.Stats total = totalStats.stats();
         Map<String, SearchStats.Stats> groupsSt = null;
-        if (!CollectionUtils.isEmpty(groups)) {
+        if (CollectionUtils.isEmpty(groups) == false) {
             groupsSt = new HashMap<>(groupsStats.size());
             if (groups.length == 1 && groups[0].equals("_all")) {
                 for (Map.Entry<String, StatsHolder> entry : groupsStats.entrySet()) {

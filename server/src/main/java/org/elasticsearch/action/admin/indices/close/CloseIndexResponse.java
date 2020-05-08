@@ -204,7 +204,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
         }
 
         public boolean hasFailures() {
-            return !CollectionUtils.isEmpty(failures);
+            return CollectionUtils.isEmpty(failures) == false;
         }
 
         public int getId() {

@@ -122,8 +122,10 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
 
     public void testIsRunningOnMlPlatform() {
         assertTrue(MachineLearningFeatureSet.isRunningOnMlPlatform("Linux", "amd64", true));
-        assertTrue(MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "amd64", true));
+        assertTrue(MachineLearningFeatureSet.isRunningOnMlPlatform("Linux", "aarch64", true));
         assertTrue(MachineLearningFeatureSet.isRunningOnMlPlatform("Mac OS X", "x86_64", true));
+        assertTrue(MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "amd64", true));
+        assertFalse(MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "arm64", false));
         assertFalse(MachineLearningFeatureSet.isRunningOnMlPlatform("Linux", "i386", false));
         assertFalse(MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "i386", false));
         assertFalse(MachineLearningFeatureSet.isRunningOnMlPlatform("SunOS", "amd64", false));
@@ -131,6 +133,8 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
                 () -> MachineLearningFeatureSet.isRunningOnMlPlatform("Linux", "i386", true));
         expectThrows(ElasticsearchException.class,
                 () -> MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "i386", true));
+        expectThrows(ElasticsearchException.class,
+                () -> MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "arm64", true));
         expectThrows(ElasticsearchException.class,
                 () -> MachineLearningFeatureSet.isRunningOnMlPlatform("SunOS", "amd64", true));
     }

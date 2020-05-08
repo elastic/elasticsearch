@@ -78,7 +78,7 @@ import static org.hamcrest.Matchers.startsWith;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
-    private static final TimeValue TEST_COOLDOWN_PERIOD = TimeValue.timeValueSeconds(5L);
+    private static final TimeValue TEST_COOLDOWN_PERIOD = TimeValue.timeValueSeconds(10L);
 
     private String region;
     private String signerOverride;

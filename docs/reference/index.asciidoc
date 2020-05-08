@@ -18,13 +18,17 @@ include::setup.asciidoc[]
 
 include::upgrade.asciidoc[]
 
-include::aggregations.asciidoc[]
+include::search/index.asciidoc[]
 
 include::query-dsl.asciidoc[]
 
-include::modules/cross-cluster-search.asciidoc[]
+ifdef::permanently-unreleased-branch[]
+include::eql/index.asciidoc[]
+endif::[]
 
-include::async-search.asciidoc[]
+include::sql/index.asciidoc[]
+
+include::aggregations.asciidoc[]
 
 include::scripting.asciidoc[]
 
@@ -44,11 +48,7 @@ ifdef::permanently-unreleased-branch[]
 
 include::autoscaling/index.asciidoc[]
 
-include::eql/index.asciidoc[]
-
 endif::[]
-
-include::sql/index.asciidoc[]
 
 include::monitoring/index.asciidoc[]
 

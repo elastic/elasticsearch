@@ -385,7 +385,7 @@ public class SearchModule {
                     .addResultReader(UnmappedSampler.NAME, UnmappedSampler::new),
             builder);
         registerAggregation(new AggregationSpec(DiversifiedAggregationBuilder.NAME, DiversifiedAggregationBuilder::new,
-                DiversifiedAggregationBuilder.PARSER)
+                DiversifiedAggregationBuilder.PARSER).setAggregatorRegistrar(DiversifiedAggregationBuilder::registerAggregators)
                     /* Reuses result readers from SamplerAggregator*/, builder);
         registerAggregation(new AggregationSpec(TermsAggregationBuilder.NAME, TermsAggregationBuilder::new,
                 TermsAggregationBuilder.PARSER)
@@ -539,7 +539,7 @@ public class SearchModule {
         registerPipelineAggregation(new PipelineAggregationSpec(
                 CumulativeSumPipelineAggregationBuilder.NAME,
                 CumulativeSumPipelineAggregationBuilder::new,
-                CumulativeSumPipelineAggregationBuilder::parse));
+                CumulativeSumPipelineAggregationBuilder.PARSER));
         registerPipelineAggregation(new PipelineAggregationSpec(
                 BucketScriptPipelineAggregationBuilder.NAME,
                 BucketScriptPipelineAggregationBuilder::new,

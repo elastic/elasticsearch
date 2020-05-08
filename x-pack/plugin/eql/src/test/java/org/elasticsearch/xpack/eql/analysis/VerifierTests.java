@@ -119,8 +119,6 @@ public class VerifierTests extends ESTestCase {
     public void testFunctionVerificationUnknown() {
         assertEquals("1:34: Unknown function [number]",
                 error("process where serial_event_id == number('5')"));
-        assertEquals("1:15: Unknown function [concat]",
-                error("process where concat(serial_event_id, ':', process_name, opcode) == '5:winINIT.exe3'"));
     }
 
     // Test unsupported array indexes

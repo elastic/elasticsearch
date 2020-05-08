@@ -537,6 +537,12 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[timeParse1]
 include-tagged::{sql-specs}/docs/docs.csv-spec[timeParse2]
 --------------------------------------------------
 
+[NOTE]
+====
+The resulting `time` will have the Offset time of time zone which specified by the user through 
+the <<sql-rest-fields-timezone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver parameters
+with no conversion applied.
+
 [source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[timeParse3]

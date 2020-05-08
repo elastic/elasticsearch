@@ -58,7 +58,7 @@ GET /_slm/stats
 --------------------------------------------------
 // TEST[continued]
 
-Which returns a response
+The response includes the following statistics:
 
 [source,js]
 --------------------------------------------------

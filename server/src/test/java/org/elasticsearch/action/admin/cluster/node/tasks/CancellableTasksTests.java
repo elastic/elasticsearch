@@ -59,6 +59,7 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -295,7 +296,8 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         // while the ban is still there, but it should disappear shortly
         assertBusy(() -> {
             for (int i = 0; i < testNodes.length; i++) {
-                assertEquals("No bans on the node " + i, 0, testNodes[i].transportService.getTaskManager().getBanCount());
+                final TaskManager taskManager = testNodes[i].transportService.getTaskManager();
+                assertThat("No bans on the node " + i, taskManager.getBannedTaskIds(), empty());
             }
         });
     }
@@ -434,9 +436,12 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             assertThat(response.getTaskFailures().size() + response.getTasks().size(), lessThanOrEqualTo(1));
         }
 
-        for (int i = 1; i < testNodes.length; i++) {
-            assertEquals("No bans on the node " + i, 0, testNodes[i].transportService.getTaskManager().getBanCount());
-        }
+        assertBusy(() -> {
+            for (int i = 1; i < testNodes.length; i++) {
+                final TaskManager taskManager = testNodes[i].transportService.getTaskManager();
+                assertThat("No bans on the node " + i, taskManager.getBannedTaskIds(), empty());
+            }
+        });
 
         // Close the first node
         testNodes[0].close();

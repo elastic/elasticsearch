@@ -44,6 +44,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskHeartbeatService;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
@@ -87,7 +88,11 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         nodesCount = randomIntBetween(2, 10);
         testNodes = new TestNode[nodesCount];
         for (int i = 0; i < testNodes.length; i++) {
-            testNodes[i] = new TestNode("node" + i, threadPool, settings);
+            final Settings nodeSettings = Settings.builder().put(settings)
+                .put(TaskHeartbeatService.TASK_HEARTBEAT_INTERVAL_SETTING.getKey(), "100ms")
+                .put(TaskManager.TASK_KEEP_ALIVE_INTERVAL_SETTING.getKey(), "100ms")
+                .build();
+            testNodes[i] = new TestNode("node" + i, threadPool, nodeSettings);
         }
     }
 
@@ -189,7 +194,9 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             clusterService.addStateApplier(transportService.getTaskManager());
             ActionFilters actionFilters = new ActionFilters(emptySet());
             transportListTasksAction = new TransportListTasksAction(clusterService, transportService, actionFilters);
-            transportCancelTasksAction = new TransportCancelTasksAction(clusterService, transportService, actionFilters);
+            taskHeartbeatService = new TaskHeartbeatService(transportService, settings, clusterService.getClusterSettings());
+            transportCancelTasksAction = new TransportCancelTasksAction(
+                clusterService, transportService, taskHeartbeatService, actionFilters);
             transportService.acceptIncomingRequests();
         }
 
@@ -197,6 +204,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         public final TransportService transportService;
         private final SetOnce<DiscoveryNode> discoveryNode = new SetOnce<>();
         public final TransportListTasksAction transportListTasksAction;
+        private final TaskHeartbeatService taskHeartbeatService;
         public final TransportCancelTasksAction transportCancelTasksAction;
 
         @Override

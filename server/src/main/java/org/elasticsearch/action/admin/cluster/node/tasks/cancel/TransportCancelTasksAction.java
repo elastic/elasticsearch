@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -36,10 +37,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskHeartbeatService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
@@ -52,6 +57,8 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -63,13 +70,23 @@ import java.util.function.Consumer;
 public class TransportCancelTasksAction extends TransportTasksAction<CancellableTask, CancelTasksRequest, CancelTasksResponse, TaskInfo> {
 
     public static final String BAN_PARENT_ACTION_NAME = "internal:admin/tasks/ban";
+    private volatile TimeValue taskKeepAlive;
+    private final TaskHeartbeatService taskHeartbeatService;
 
     @Inject
-    public TransportCancelTasksAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+    public TransportCancelTasksAction(ClusterService clusterService, TransportService transportService,
+                                      TaskHeartbeatService taskHeartbeatService, ActionFilters actionFilters) {
         super(CancelTasksAction.NAME, clusterService, transportService, actionFilters,
             CancelTasksRequest::new, CancelTasksResponse::new, TaskInfo::new, ThreadPool.Names.MANAGEMENT);
+        this.taskKeepAlive = TaskManager.TASK_KEEP_ALIVE_INTERVAL_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(TaskManager.TASK_KEEP_ALIVE_INTERVAL_SETTING,
+            newInterval -> this.taskKeepAlive = newInterval);
         transportService.registerRequestHandler(BAN_PARENT_ACTION_NAME, ThreadPool.Names.SAME, BanParentTaskRequest::new,
             new BanParentRequestHandler());
+        this.taskHeartbeatService = taskHeartbeatService;
+        taskHeartbeatService.addApplier(new CancelOrphanedTasks());
+        taskHeartbeatService.addApplier(new RemoveOldBanMarkers());
+        taskHeartbeatService.addSource(() -> transportService.getTaskManager().getPendingChildNodes());
     }
 
     @Override
@@ -129,10 +146,16 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             StepListener<Void> banOnNodesListener = new StepListener<>();
             setBanOnNodes(reason, waitForCompletion, task, childrenNodes, banOnNodesListener);
             banOnNodesListener.whenComplete(groupedListener::onResponse, groupedListener::onFailure);
+            // Send task heartbeats to the child nodes to keep the ban markers until we decide to remove them
+            final TaskHeartbeatService.TaskHeartbeatSource childNodesSource = () -> childrenNodes;
+            taskHeartbeatService.addSource(childNodesSource);
             // If we start unbanning when the last child task completed and that child task executed with a specific user, then unban
             // requests are denied because internal requests can't run with a user. We need to remove bans with the current thread context.
             final Runnable removeBansRunnable = transportService.getThreadPool().getThreadContext()
-                .preserveContext(() -> removeBanOnNodes(task, childrenNodes));
+                .preserveContext(() -> {
+                    taskHeartbeatService.removeSource(childNodesSource);
+                    removeBanOnNodes(task, childrenNodes);
+                });
             // We remove bans after all child tasks are completed although in theory we can do it on a per-node basis.
             completedListener.whenComplete(r -> removeBansRunnable.run(), e -> removeBansRunnable.run());
             // if wait_for_completion is true, then only return when (1) bans are placed on child nodes, (2) child tasks are
@@ -176,7 +199,8 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
                     @Override
                     public void handleException(TransportException exp) {
                         assert ExceptionsHelper.unwrapCause(exp) instanceof ElasticsearchSecurityException == false;
-                        logger.warn("Cannot send ban for tasks with the parent [{}] to the node [{}]", taskId, node);
+                        logger.warn(new ParameterizedMessage("Cannot send ban for tasks with the parent [{}] to the node [{}]",
+                            taskId, node), exp);
                         groupedListener.onFailure(exp);
                     }
                 });
@@ -192,7 +216,8 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
                 @Override
                 public void handleException(TransportException exp) {
                     assert ExceptionsHelper.unwrapCause(exp) instanceof ElasticsearchSecurityException == false;
-                    logger.info("failed to remove the parent ban for task {} on node {}", request.parentTaskId, node);
+                    logger.info(new ParameterizedMessage("failed to remove the parent ban for task {} on node {}",
+                        request.parentTaskId, node), exp);
                 }
             });
         }
@@ -276,4 +301,26 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         }
     }
 
+    class CancelOrphanedTasks implements TaskHeartbeatService.TaskHeartbeatApplier {
+        private final Set<CancellableTask> cancellingTasks = ConcurrentCollections.newConcurrentSet();
+
+        @Override
+        public void onUpdateTaskHeartbeats(Map<String, Long> lastHeartbeatsInMillis) {
+            final TimeValue keepAlive = TransportCancelTasksAction.this.taskKeepAlive;
+            final Collection<CancellableTask> orphanedTasks = taskManager.updateHeartbeatsForTasks(lastHeartbeatsInMillis, keepAlive);
+            for (CancellableTask task : orphanedTasks) {
+                if (cancellingTasks.add(task)) {
+                    cancelTaskAndDescendants(task, "not receiving heartbeats within [" + keepAlive + "]",
+                        true, ActionListener.wrap(() -> cancellingTasks.remove(task)));
+                }
+            }
+        }
+    }
+
+    class RemoveOldBanMarkers implements TaskHeartbeatService.TaskHeartbeatApplier {
+        @Override
+        public void onUpdateTaskHeartbeats(Map<String, Long> lastHeartbeatsInMillis) {
+            taskManager.removeOldBanMarkers(lastHeartbeatsInMillis, TransportCancelTasksAction.this.taskKeepAlive);
+        }
+    }
 }

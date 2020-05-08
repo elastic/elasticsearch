@@ -154,6 +154,7 @@ import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskHeartbeatService;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -551,6 +552,8 @@ public class Node implements Closeable {
                 new PersistentTasksClusterService(settings, registry, clusterService, threadPool);
             resourcesToClose.add(persistentTasksClusterService);
             final PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
+            final TaskHeartbeatService taskHeartbeatService =
+                new TaskHeartbeatService(transportService, settings, clusterService.getClusterSettings());
 
             modules.add(b -> {
                     b.bind(Node.class).toInstance(this);
@@ -609,6 +612,7 @@ public class Node implements Closeable {
                     b.bind(SnapshotShardsService.class).toInstance(snapshotShardsService);
                     b.bind(RestoreService.class).toInstance(restoreService);
                     b.bind(RerouteService.class).toInstance(rerouteService);
+                    b.bind(TaskHeartbeatService.class).toInstance(taskHeartbeatService);
                 }
             );
             injector = modules.createInjector();
@@ -749,6 +753,9 @@ public class Node implements Closeable {
                 .flatMap(p -> p.getBootstrapChecks().stream()).collect(Collectors.toList()));
 
         clusterService.addStateApplier(transportService.getTaskManager());
+        final TaskHeartbeatService taskHeartbeatService = injector.getInstance(TaskHeartbeatService.class);
+        clusterService.addListener(taskHeartbeatService);
+        taskHeartbeatService.start();
         // start after transport service so the local disco is known
         discovery.start(); // start before cluster service so that it can set initial state on ClusterApplierService
         clusterService.start();

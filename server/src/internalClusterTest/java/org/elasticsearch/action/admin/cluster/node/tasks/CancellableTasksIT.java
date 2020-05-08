@@ -37,9 +37,11 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
@@ -48,10 +50,12 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskHeartbeatService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -78,6 +82,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 
 public class CancellableTasksIT extends ESIntegTestCase {
 
@@ -279,6 +284,92 @@ public class CancellableTasksIT extends ESIntegTestCase {
         ensureAllBansRemoved();
     }
 
+    public void testCancelOrphanedTasks() throws Exception {
+        final String nodeWithRootTask = internalCluster().startDataOnlyNode();
+        Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
+        TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 3));
+        client(nodeWithRootTask).execute(TransportTestAction.ACTION, rootRequest);
+        allowPartialRequest(rootRequest);
+        client().admin().cluster().prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .put(TaskHeartbeatService.TASK_HEARTBEAT_INTERVAL_SETTING.getKey(), "100ms")
+                .put(TaskManager.TASK_KEEP_ALIVE_INTERVAL_SETTING.getKey(), "500ms"))
+            .get();
+        try {
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithRootTask));
+            assertBusy(() -> {
+                for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+                    for (CancellableTask task : transportService.getTaskManager().getCancellableTasks().values()) {
+                        if (task.getAction().equals(TransportTestAction.ACTION.name())) {
+                            assertTrue(task.isCancelled());
+                            assertNotNull(task.getReasonCancelled());
+                            assertThat(task.getReasonCancelled(), startsWith("not receiving heartbeats within ["));
+                        }
+                    }
+                }
+            }, 30, TimeUnit.SECONDS);
+        } finally {
+            client().admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(Settings.builder()
+                    .putNull(TaskHeartbeatService.TASK_HEARTBEAT_INTERVAL_SETTING.getKey())
+                    .putNull(TaskManager.TASK_KEEP_ALIVE_INTERVAL_SETTING.getKey()))
+                .get();
+            allowEntireRequest(rootRequest);
+            ensureAllBansRemoved();
+        }
+    }
+
+    public void testRemoveBanMarkersAfterSenderLeftCluster() throws Exception {
+        final String nodeWithRootTask = internalCluster().startDataOnlyNode();
+        Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
+        final TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 3));
+        client().execute(TransportTestAction.ACTION, rootRequest);
+        Set<TestRequest> pendingRequests = allowPartialRequest(rootRequest);
+        TaskId rootTaskId = getRootTaskId(rootRequest);
+        client().admin().cluster().prepareCancelTasks().setTaskId(rootTaskId).waitForCompletion(randomBoolean()).execute();
+        assertBusy(() -> {
+            for (DiscoveryNode node : nodes) {
+                TaskManager taskManager = internalCluster().getInstance(TransportService.class, node.getName()).getTaskManager();
+                Set<TaskId> expectedBans = new HashSet<>();
+                for (TestRequest req : pendingRequests) {
+                    if (req.node.equals(node)) {
+                        List<Task> childTasks = taskManager.getTasks().values().stream()
+                            .filter(t -> t.getParentTaskId() != null && t.getDescription().equals(req.taskDescription()))
+                            .collect(Collectors.toList());
+                        assertThat(childTasks, hasSize(1));
+                        CancellableTask childTask = (CancellableTask) childTasks.get(0);
+                        assertTrue(childTask.isCancelled());
+                        expectedBans.add(childTask.getParentTaskId());
+                    }
+                }
+                assertThat(taskManager.getBannedTaskIds(), equalTo(expectedBans));
+            }
+        }, 30, TimeUnit.SECONDS);
+        client().admin().cluster().prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .put(TaskHeartbeatService.TASK_HEARTBEAT_INTERVAL_SETTING.getKey(), "100ms")
+                .put(TaskManager.TASK_KEEP_ALIVE_INTERVAL_SETTING.getKey(), "100ms"))
+            .get();
+        try {
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithRootTask));
+            assertBusy(() -> {
+                for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+                    Set<TaskId> bannedTaskIds = transportService.getTaskManager().getBannedTaskIds()
+                        .stream().filter(rootTaskId::equals).collect(Collectors.toSet());
+                    assertThat(bannedTaskIds, empty());
+                }
+            }, 30, TimeUnit.SECONDS);
+        } finally {
+            client().admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(Settings.builder()
+                    .putNull(TaskHeartbeatService.TASK_HEARTBEAT_INTERVAL_SETTING.getKey())
+                    .putNull(TaskManager.TASK_KEEP_ALIVE_INTERVAL_SETTING.getKey()))
+                .get();
+            allowEntireRequest(rootRequest);
+            ensureAllBansRemoved();
+        }
+    }
+
     static TaskId getRootTaskId(TestRequest request) throws Exception {
         SetOnce<TaskId> taskId = new SetOnce<>();
         assertBusy(() -> {
@@ -287,7 +378,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
             List<TaskInfo> tasks = listTasksResponse.getTasks().stream()
                 .filter(t -> t.getDescription().equals(request.taskDescription()))
                 .collect(Collectors.toList());
-            assertThat(tasks, hasSize(1));
+            assertThat(Strings.toString(listTasksResponse), tasks, hasSize(1));
             taskId.set(tasks.get(0).getTaskId());
         });
         return taskId.get();
@@ -459,7 +550,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
 
                                 @Override
                                 public String executor() {
-                                    return ThreadPool.Names.SAME;
+                                    return ThreadPool.Names.GENERIC;
                                 }
 
                                 @Override

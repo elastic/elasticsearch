@@ -18,7 +18,6 @@ import java.time.LocalTime;
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalQuery;
@@ -60,15 +59,7 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
             }
             try {
                 TemporalAccessor ta = parser.apply((String) timestamp, (String) pattern);
-                if (ta instanceof LocalDateTime) {
-                    return DateUtils.atTimeZone((LocalDateTime) ta, zoneId);
-                } else if (ta instanceof LocalTime) {
-                    return OffsetTime.of((LocalTime) ta, ZoneOffset.UTC);
-                } else if (ta instanceof ZonedDateTime){
-                    return ((ZonedDateTime) ta).withZoneSameInstant(zoneId);
-                } else {
-                    return ta;
-                }
+                return DateUtils.atTimeZone(ta, zoneId);
             } catch (IllegalArgumentException | DateTimeException e) {
                 String msg = e.getMessage();
                 if (msg.contains("Unable to convert parsed text using any of the specified queries")) {
@@ -89,7 +80,7 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
 
     public static final String NAME = "dtparse";
 
-    public DateTimeParseProcessor(Processor source1, Processor source2, ZoneId zoneId , Parser parser) {
+    public DateTimeParseProcessor(Processor source1, Processor source2, ZoneId zoneId, Parser parser) {
         super(source1, source2, zoneId);
         this.parser = parser;
     }
@@ -130,8 +121,8 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
         }
 
         DateTimeParseProcessor other = (DateTimeParseProcessor) obj;
-        return Objects.equals(parser, other.parser)
-            && Objects.equals(left(), other.left()) && Objects.equals(right(), other.right());
+        return Objects.equals(left(), other.left()) && Objects.equals(right(), other.right())
+                && Objects.equals(parser, other.parser);
     }
 
     @Override
@@ -139,7 +130,7 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
         return parser.toString();
     }
     
-    public Parser extractor() {
+    public Parser parser() {
         return parser;
     }
 }

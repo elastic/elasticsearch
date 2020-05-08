@@ -387,23 +387,48 @@ public class RoundingTests extends ESTestCase {
 
     public void testRandomTimeIntervalRounding() {
         for (int i = 0; i < 1000; i++) {
+            int unitCount = randomIntBetween(1, 365);
             TimeUnit unit = randomFrom(TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS);
-            long interval = unit.toMillis(randomIntBetween(1, 365));
+            long interval = unit.toMillis(unitCount);
             ZoneId tz = randomZone();
             Rounding rounding = new Rounding.TimeIntervalRounding(interval, tz);
             long mainDate = Math.abs(randomLong() % (2 * (long) 10e11)); // 1970-01-01T00:00:00Z - 2033-05-18T05:33:20.000+02:00
             if (randomBoolean()) {
                 mainDate = nastyDate(mainDate, tz, interval);
             }
+            long min = mainDate - 2 * interval;
+            long max = mainDate + 2 * interval;
+
+            // Round a whole bunch of dates and make sure they line up with the known good java time implementation
+            Rounding.Prepared prepared = rounding.prepare(min, max);
+            Rounding.Prepared javaTimeRounding = rounding.prepareJavaTime();
+            for (int d = 0; d < 1000; d++) {
+                long date = dateBetween(min, max);
+                long javaRounded = javaTimeRounding.round(date);
+                long esRounded = prepared.round(date);
+                if (javaRounded != esRounded) {
+                    fail("Expected [" + unitCount + " " + unit + " in " + tz + "] to round [" + Instant.ofEpochMilli(date) + "] to ["
+                            + Instant.ofEpochMilli(javaRounded) + "] but instead rounded to [" + Instant.ofEpochMilli(esRounded) + "]");
+                }
+                long javaNextRoundingValue = javaTimeRounding.nextRoundingValue(date);
+                long esNextRoundingValue = prepared.nextRoundingValue(date);
+                if (javaNextRoundingValue != esNextRoundingValue) {
+                    fail("Expected [" + unitCount + " " + unit + " in " + tz + "] to round [" + Instant.ofEpochMilli(date) + "] to ["
+                            + Instant.ofEpochMilli(esRounded) + "] and nextRoundingValue to be ["
+                            + Instant.ofEpochMilli(javaNextRoundingValue) + "] but instead was to ["
+                            + Instant.ofEpochMilli(esNextRoundingValue) + "]");
+                }
+            }
+
             // check two intervals around date
             long previousRoundedValue = Long.MIN_VALUE;
-            for (long date = mainDate - 2 * interval; date < mainDate + 2 * interval; date += interval / 2) {
+            for (long date = min; date < max; date += interval / 2) {
                 try {
                     final long roundedDate = rounding.round(date);
-                    final long nextRoundingValue = rounding.nextRoundingValue(roundedDate);
-                    assertThat("Rounding should be idempotent", roundedDate, equalTo(rounding.round(roundedDate)));
+                    final long nextRoundingValue = prepared.nextRoundingValue(roundedDate);
+                    assertThat("Rounding should be idempotent", roundedDate, equalTo(prepared.round(roundedDate)));
                     assertThat("Rounded value smaller or equal than unrounded", roundedDate, lessThanOrEqualTo(date));
-                    assertThat("Values smaller than rounded value should round further down", rounding.round(roundedDate - 1),
+                    assertThat("Values smaller than rounded value should round further down", prepared.round(roundedDate - 1),
                         lessThan(roundedDate));
                     assertThat("Rounding should be >= previous rounding value", roundedDate, greaterThanOrEqualTo(previousRoundedValue));
 
@@ -776,6 +801,26 @@ public class RoundingTests extends ESTestCase {
         Rounding.Prepared prepared = rounding.prepare(min, max);
         assertThat(prepared.round(time("2018-03-31T15:25:15.148Z")), isDate(time("2018-03-31T14:00:00Z"), tz));
         assertThat(prepared.round(time("9000-03-31T15:25:15.148Z")), isDate(time("9000-03-31T15:00:00Z"), tz));
+    }
+
+    /**
+     * Example of when we round past when local clocks were wound forward.
+     */
+    public void testIntervalBeforeGap() {
+        ZoneId tz = ZoneId.of("Africa/Cairo");
+        Rounding rounding = Rounding.builder(TimeValue.timeValueDays(257)).timeZone(tz).build();
+        assertThat(rounding.round(time("1969-07-08T09:00:14.599Z")), isDate(time("1969-04-18T22:00:00Z"), tz));
+    }
+
+    /**
+     * Example of when we round past when local clocks were wound backwards,
+     * <strong>and</strong> then past the time they were wound forwards before
+     * that. So, we jumped back a long, long way.
+     */
+    public void testIntervalTwoTransitions() {
+        ZoneId tz = ZoneId.of("America/Detroit");
+        Rounding rounding = Rounding.builder(TimeValue.timeValueDays(279)).timeZone(tz).build();
+        assertThat(rounding.round(time("1982-11-10T02:51:22.662Z")), isDate(time("1982-03-23T05:00:00Z"), tz));
     }
 
     private void assertInterval(long rounded, long nextRoundingValue, Rounding rounding, int minutes,

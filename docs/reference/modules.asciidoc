@@ -30,10 +30,6 @@ The modules in this section are:
 
     How many nodes need to join the cluster before recovery can start.
 
-<<modules-http,HTTP>>::
-
-    Settings to control the HTTP REST interface.
-
 <<modules-indices,Indices>>::
 
     Global index-related settings.
@@ -45,5 +41,3 @@ include::modules/discovery.asciidoc[]
 include::modules/cluster.asciidoc[]
 
 include::modules/gateway.asciidoc[]
-
-include::modules/http.asciidoc[]

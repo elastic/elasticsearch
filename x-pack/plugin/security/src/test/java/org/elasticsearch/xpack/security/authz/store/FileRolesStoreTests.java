@@ -563,7 +563,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
     // Replace the file content atomically to prevent FileWatcher from reading incomplete/empty file
     private void replaceFileContent(Path target, Consumer<StringBuilder> consumer) throws IOException {
-        final Path tempFile = Files.createTempFile(null, null);
+        final Path tempFile = createTempFile(null, null);
         final StringBuilder sb = new StringBuilder();
         consumer.accept(sb);
         try (BufferedWriter writer = Files.newBufferedWriter(tempFile, UTF_8, CREATE, TRUNCATE_EXISTING, WRITE)) {

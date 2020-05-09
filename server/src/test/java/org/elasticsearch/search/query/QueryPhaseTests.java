@@ -645,8 +645,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.fieldType(fieldNameLong)).thenReturn(fieldTypeLong);
         when(mapperService.fieldType(fieldNameDate)).thenReturn(fieldTypeDate);
-
-        final int numDocs = 7000;
+        // enough docs to have a tree with several leaf nodes
+        final int numDocs = 3500 * 20;
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(null));
         for (int i = 1; i <= numDocs; ++i) {
@@ -675,7 +675,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         searchContext.sort(sortAndFormats);
         searchContext.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         searchContext.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
-        searchContext.setSize(10);
+        searchContext.setSize(numDocs);
         QueryPhase.executeInternal(searchContext);
         assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, false);
 

@@ -198,7 +198,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         return u.withUnresolvedMessage("Reference [" + u.qualifiedName()
                 + "] is ambiguous (to disambiguate use quotes or qualifiers); matches any of " +
                  matches.stream()
-                 .map(a -> "\"" + a.qualifier() + "\".\"" + a.name() + "\"")
+                 .map(a -> (a.qualifier() != null ? "\"" + a.qualifier() + "\".\"" + a.name() + "\"" : a.name()))
                  .sorted()
                  .collect(toList())
                 );
@@ -341,8 +341,12 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                             Attribute maybeResolved = resolveAgainstList((UnresolvedAttribute) grouping, resolved.keySet());
                             if (maybeResolved != null) {
                                 changed = true;
-                                // use the matched expression (not its attribute)
-                                grouping = resolved.get(maybeResolved);
+                                if (maybeResolved.resolved()) {
+                                    // use the matched expression (not its attribute)
+                                    grouping = resolved.get(maybeResolved);
+                                } else {
+                                    grouping = maybeResolved;
+                                }
                             }
                         }
                         newGroupings.add(grouping);

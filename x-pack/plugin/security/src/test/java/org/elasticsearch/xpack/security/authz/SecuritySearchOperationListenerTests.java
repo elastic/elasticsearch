@@ -7,20 +7,16 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.LegacyReaderContext;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContextId;
-import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequest.Empty;
@@ -99,17 +95,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
     }
 
     public void testValidateSearchContext() throws Exception {
-        final ReaderContext readerContext;
-        if (randomBoolean()) {
-            readerContext = new ReaderContext(0L, shard, shard.acquireSearcherSupplier(), Long.MAX_VALUE, false);
-        } else {
-            ShardSearchRequest request = mock(ShardSearchRequest.class);
-            when(request.scroll()).thenReturn(new Scroll(TimeValue.timeValueMinutes(between(1, 10))));
-            readerContext = new LegacyReaderContext(0L, shard, shard.acquireSearcherSupplier(), request, Long.MAX_VALUE);
-        }
-        try {
-            readerContext.putInContext(AuthenticationField.AUTHENTICATION_KEY,
-                new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null));
+        try (ReaderContext readerContext = new ReaderContext(0L, shard, shard.acquireSearcherSupplier(), Long.MAX_VALUE, false)) {
             XPackLicenseState licenseState = mock(XPackLicenseState.class);
             when(licenseState.isSecurityEnabled()).thenReturn(true);
             when(licenseState.isAllowed(Feature.SECURITY_AUDITING)).thenReturn(true);
@@ -194,8 +180,6 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 verify(auditTrail).accessDenied(eq(null), eq(authentication), eq("action"), eq(request),
                     authzInfoRoles(authentication.getUser().roles()));
             }
-        } finally {
-            readerContext.close();
         }
     }
 

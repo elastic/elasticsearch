@@ -110,8 +110,7 @@ public interface SearchOperationListener {
      * Executed prior to using a {@link ReaderContext} that has been retrieved
      * from the active contexts. If the context is deemed invalid a runtime
      * exception can be thrown, which will prevent the context from being used.
-     *
-     * @param readerContext    The reader context used by this request.
+     * @param readerContext The reader context used by this request.
      * @param transportRequest the request that is going to use the search context
      */
     default void validateSearchContext(ReaderContext readerContext, TransportRequest transportRequest) {}

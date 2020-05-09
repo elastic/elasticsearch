@@ -279,7 +279,6 @@ public class RBACEngine implements AuthorizationEngine {
                     listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                 }
             } else if (action.equals(CloseSearchContextAction.NAME)) {
-                // NORELEASE: ensure security works correctly
                 listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
             } else {
                 assert false : "only scroll and async-search related requests are known indices api that don't " +

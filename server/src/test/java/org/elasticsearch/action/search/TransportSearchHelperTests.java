@@ -91,7 +91,7 @@ public class TransportSearchHelperTests extends ESTestCase {
         }
     }
 
-    public void testEncodeDecodeReaderId() {
+    public void testEncodeDecodeSearchContext() {
         final AtomicArray<SearchPhaseResult> queryResults = generateQueryResults();
         final Version version = VersionUtils.randomVersion(random());
         final String readerId = TransportSearchHelper.encodeSearchContextId(queryResults, version);

@@ -520,10 +520,6 @@ https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/Da
 If any of the two arguments is `null` or an empty string `null` is returned.
 
 [NOTE]
-If timezone is not specified in the time string expression and the parsing pattern, the resulting `time` will
-be in `UTC` timezone.
-
-[NOTE]
 If the parsing pattern contains date units (e.g. 'dd/MM/uuuu', 'dd-MM HH:mm:ss', etc.) an error is returned
 as the function needs to return a value of `time` type which will contain only time.
 
@@ -539,9 +535,10 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[timeParse2]
 
 [NOTE]
 ====
-The resulting `time` will have the offset time of time zone in The Unix epoch which specified by the user
-through the <<sql-rest-fields-timezone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver parameters
-with no conversion applied.
+If timezone is not specified in the time string expression and the parsing pattern, 
+the resulting `time` will have the offset of the time zone specified by the user through the
+ <<sql-rest-fields-timezone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver 
+parameters at the Unix epoch date (`1970-01-01`) with no conversion applied.
 
 [source, sql]
 --------------------------------------------------

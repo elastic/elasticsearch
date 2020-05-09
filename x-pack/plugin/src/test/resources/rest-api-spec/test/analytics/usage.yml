@@ -171,12 +171,13 @@ setup:
                 field: "timestamp"
                 calendar_interval: "day"
               aggs:
-                distinct_s:
+                total_users:
                   sum:
                     field: "s"
-                total_users:
+                percent_of_total_users:
                   normalize:
-                    buckets_path: "percentage_s"
+                    buckets_path: "total_users"
+                    normalizer: "percent_of_sum"
 
   - length: { aggregations.histo.buckets: 1 }
 

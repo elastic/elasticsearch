@@ -7,19 +7,22 @@
 package org.elasticsearch.xpack.analytics.normalize;
 
 
-import java.util.List;
+import java.util.function.DoubleUnaryOperator;
 
-abstract class NormalizePipelineNormalizer {
+class NormalizePipelineNormalizers {
+
+    // never to be instantiated
+    private NormalizePipelineNormalizers() {}
 
     static class RescaleZeroToOne extends SinglePassSimpleStatisticsNormalizer {
         static final String NAME = "rescale_0_1";
 
-        RescaleZeroToOne(List<Double> values) {
+        RescaleZeroToOne(double[] values) {
             super(values);
         }
 
         @Override
-        double normalize(double value) {
+        public double applyAsDouble(double value) {
             return (value - min) / (max - min);
         }
     }
@@ -27,12 +30,12 @@ abstract class NormalizePipelineNormalizer {
     static class RescaleZeroToOneHundred extends SinglePassSimpleStatisticsNormalizer {
         static final String NAME = "rescale_0_100";
 
-        RescaleZeroToOneHundred(List<Double> values) {
+        RescaleZeroToOneHundred(double[] values) {
             super(values);
         }
 
         @Override
-        double normalize(double value) {
+        public double applyAsDouble(double value) {
             return 100 * (value - min) / (max - min);
         }
     }
@@ -40,25 +43,25 @@ abstract class NormalizePipelineNormalizer {
     static class Mean extends SinglePassSimpleStatisticsNormalizer {
         static final String NAME = "mean";
 
-        Mean(List<Double> values) {
+        Mean(double[] values) {
             super(values);
         }
 
         @Override
-        double normalize(double value) {
+        public double applyAsDouble(double value) {
             return (value - mean) / (max - min);
         }
     }
 
     static class Percent extends SinglePassSimpleStatisticsNormalizer {
-        static final String NAME = "percent";
+        static final String NAME = "percent_of_sum";
 
-        Percent(List<Double> values) {
+        Percent(double[] values) {
             super(values);
         }
 
         @Override
-        double normalize(double value) {
+        public double applyAsDouble(double value) {
             return value / sum;
         }
     }
@@ -68,7 +71,7 @@ abstract class NormalizePipelineNormalizer {
 
         private final double stdev;
 
-        ZScore(List<Double> values) {
+        ZScore(double[] values) {
             super(values);
             double variance = 0.0;
             for (Double value : values) {
@@ -80,17 +83,17 @@ abstract class NormalizePipelineNormalizer {
         }
 
         @Override
-        double normalize(double value) {
+        public double applyAsDouble(double value) {
             return (value - mean) / stdev;
         }
     }
 
-    static class Softmax extends NormalizePipelineNormalizer {
+    static class Softmax implements DoubleUnaryOperator {
         static final String NAME = "softmax";
 
         private double sumExp;
 
-        Softmax(List<Double> values) {
+        Softmax(double[] values) {
             double sumExp = 0.0;
             for (Double value :  values) {
                 if (value.isNaN() == false) {
@@ -102,27 +105,26 @@ abstract class NormalizePipelineNormalizer {
         }
 
         @Override
-        double normalize(double value) {
+        public double applyAsDouble(double value) {
             return Math.exp(value) / sumExp;
         }
     }
 
-    abstract double normalize(double value);
-
-    abstract static class SinglePassSimpleStatisticsNormalizer extends NormalizePipelineNormalizer {
+    abstract static class SinglePassSimpleStatisticsNormalizer implements DoubleUnaryOperator {
         protected final double max;
         protected final double min;
         protected final double sum;
         protected final double mean;
         protected final int count;
 
-        SinglePassSimpleStatisticsNormalizer(List<Double> values) {
+        SinglePassSimpleStatisticsNormalizer(double[] values) {
             int count = 0;
             double sum = 0.0;
             double min = Double.MAX_VALUE;
             double max = Double.MIN_VALUE;
-            for (Double value :  values) {
-                if (value.isNaN() == false) {
+
+            for (double value : values) {
+                if (Double.isNaN(value)) {
                     count += 1;
                     min = Math.min(value, min);
                     max = Math.max(value, max);

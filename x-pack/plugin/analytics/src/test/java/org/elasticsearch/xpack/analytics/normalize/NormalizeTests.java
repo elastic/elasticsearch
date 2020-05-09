@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.analytics.normalize;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
@@ -47,6 +48,6 @@ public class NormalizeTests extends BasePipelineAggregationTestCase<NormalizePip
             format = randomAlphaOfLengthBetween(1, 10);
         }
         String normalizer = randomFrom(NormalizePipelineAggregationBuilder.NAME_MAP.keySet());
-        return new NormalizePipelineAggregationBuilder(name, format, normalizer, bucketsPath);
+        return new NormalizePipelineAggregationBuilder(name, format, normalizer, Collections.singletonList(bucketsPath));
     }
 }

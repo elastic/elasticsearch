@@ -14,8 +14,6 @@ setup:
 
 
   - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       bulk:
         refresh: true
         body:
@@ -63,24 +61,22 @@ setup:
                 field: "timestamp"
                 calendar_interval: "day"
               aggs:
-                sum_users:
-                  sum:
-                    field: "user"
-                total_users:
-                  cumulative_cardinality:
-                    buckets_path: "sum_users"
+                percent_of_total_users:
+                  normalize:
+                    buckets_path: "_count"
+                    normalizer: "percent_of_sum"
 
   - length: { aggregations.histo.buckets: 3 }
   - match: { aggregations.histo.buckets.0.key_as_string: "2017-01-01T00:00:00.000Z" }
   - match: { aggregations.histo.buckets.0.doc_count: 3 }
-  - match: { aggregations.histo.buckets.0.distinct_users.value: 3 }
+  - match: { aggregations.histo.buckets.0.percent_of_total_users.value: 3 }
   - match: { aggregations.histo.buckets.0.total_users.value: 3 }
   - match: { aggregations.histo.buckets.1.key_as_string: "2017-01-02T00:00:00.000Z" }
   - match: { aggregations.histo.buckets.1.doc_count: 2 }
-  - match: { aggregations.histo.buckets.1.distinct_users.value: 2 }
+  - match: { aggregations.histo.buckets.1.percent_of_total_users.value: 2 }
   - match: { aggregations.histo.buckets.1.total_users.value: 3 }
   - match: { aggregations.histo.buckets.2.key_as_string: "2017-01-03T00:00:00.000Z" }
   - match: { aggregations.histo.buckets.2.doc_count: 1 }
-  - match: { aggregations.histo.buckets.2.distinct_users.value: 1 }
+  - match: { aggregations.histo.buckets.2.percent_of_total_users.value: 1 }
   - match: { aggregations.histo.buckets.2.total_users.value: 4 }
 

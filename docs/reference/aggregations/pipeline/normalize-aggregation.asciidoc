@@ -1,3 +1,5 @@
+[role="xpack"]
+[testenv="basic"]
 [[search-aggregations-pipeline-normalize-aggregation]]
 === Normalize Aggregation
 
@@ -12,7 +14,7 @@ A `normalize` aggregation looks like this in isolation:
 {
     "normalize": {
         "buckets_path": "normalized",
-        "normalizer": "percent"
+        "normalizer": "percent_of_sum"
     }
 }
 --------------------------------------------------
@@ -50,7 +52,7 @@ POST /sales/_search
                 "percent_of_total_sales": {
                     "normalize": {
                         "buckets_path": "sales", <1>
-                        "normalizer": "percent"  <2>
+                        "normalizer": "percent_of_sum"  <2>
                     }
                 }
             }
@@ -61,7 +63,7 @@ POST /sales/_search
 // TEST[setup:sales]
 
 <1> `buckets_path` instructs this normalize aggregation to use the output of the `sales` aggregation for rescaling
-<2> `normalizer` sets which rescaling to apply. In this case, `percent` will calculate the sales value as a percent of all sales
+<2> `normalizer` sets which rescaling to apply. In this case, `percent_of_sum` will calculate the sales value as a percent of all sales
     in the parent bucket
 
 And the following may be the response:

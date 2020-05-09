@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.DoubleUnaryOperator;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -28,10 +29,10 @@ import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resol
 
 public class NormalizePipelineAggregator extends PipelineAggregator {
     private final DocValueFormat formatter;
-    private final Function<List<Double>, NormalizePipelineNormalizer> normalizerSupplier;
+    private final Function<double[], DoubleUnaryOperator> normalizerSupplier;
 
     NormalizePipelineAggregator(String name, String[] bucketsPaths, DocValueFormat formatter,
-                                Function<List<Double>, NormalizePipelineNormalizer> normalizerSupplier,
+                                Function<double[], DoubleUnaryOperator> normalizerSupplier,
                                 Map<String, Object> metadata) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
@@ -47,22 +48,21 @@ public class NormalizePipelineAggregator extends PipelineAggregator {
         HistogramFactory factory = (HistogramFactory) histo;
         List<Bucket> newBuckets = new ArrayList<>(buckets.size());
 
-        List<Double> values = buckets.stream().map(bucket -> resolveBucketValue(histo, bucket, bucketsPaths()[0], GapPolicy.SKIP))
-            .collect(Collectors.toList());
+        double[] values = buckets.stream()
+            .mapToDouble(bucket -> resolveBucketValue(histo, bucket, bucketsPaths()[0], GapPolicy.SKIP)).toArray();
 
-        NormalizePipelineNormalizer normalizer = normalizerSupplier.apply(values);
+        DoubleUnaryOperator normalizer = normalizerSupplier.apply(values);
 
         for (int i = 0; i < buckets.size(); i++) {
             InternalMultiBucketAggregation.InternalBucket bucket = buckets.get(i);
-            Double thisBucketValue = values.get(i);
 
             final double normalizedBucketValue;
 
             // Only account for finite values
-            if (thisBucketValue.isNaN()) {
+            if (Double.isNaN(values[i])) {
                 normalizedBucketValue = Double.NaN;
             } else {
-                normalizedBucketValue = normalizer.normalize(thisBucketValue);
+                normalizedBucketValue = normalizer.applyAsDouble(values[i]);
             }
 
             List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)

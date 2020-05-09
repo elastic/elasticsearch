@@ -31,8 +31,7 @@ For an introduction to rolling indices, see <<index-rollover>>.
 NOTE: {filebeat} includes a default {ilm-init} policy that initiates the rollover action when
 the index size reaches 50GB or becomes 30 days old. 
 You can use this policy as a starting point, or replace it with a custom policy.
-See 
-{kib}/example-using-index-lifecycle-policy.html[Use {ilm-init} to manage Filebeat time-based indices].
+See {kibana-ref}/example-using-index-lifecycle-policy.html[Use {ilm-init} to manage Filebeat time-based indices].
 
 
 [discrete]

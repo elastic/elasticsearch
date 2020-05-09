@@ -123,7 +123,7 @@ public class AggregationPhase implements SearchPhase {
         for (Aggregator aggregator : context.aggregations().aggregators()) {
             try {
                 aggregator.postCollection();
-                aggregations.add(aggregator.buildAggregation(0));
+                aggregations.add(aggregator.buildTopLevel());
             } catch (IOException e) {
                 throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);
             }
@@ -134,5 +134,4 @@ public class AggregationPhase implements SearchPhase {
         context.aggregations(null);
         context.queryCollectors().remove(AggregationPhase.class);
     }
-
 }

@@ -73,8 +73,9 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalMissing(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), metadata());
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
+            new InternalMissing(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
     }
 
     @Override

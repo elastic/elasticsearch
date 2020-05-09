@@ -494,6 +494,10 @@ public abstract class LocalTimeOffset {
             long utcStart = transition.toEpochSecond() * 1000;
             long offsetBeforeMillis = transition.getOffsetBefore().getTotalSeconds() * 1000;
             long offsetAfterMillis = transition.getOffsetAfter().getTotalSeconds() * 1000;
+            assert (false == previous instanceof Transition) || ((Transition) previous).startUtcMillis < utcStart :
+                    "transition list out of order at [" + previous + "] and [" + transition + "]";
+            assert previous.millis != offsetAfterMillis :
+                    "transition list is has a duplicate at [" + previous + "] and [" + transition + "]";
             if (transition.isGap()) {
                 long firstMissingLocalTime = utcStart + offsetBeforeMillis;
                 long firstLocalTimeAfterGap = utcStart + offsetAfterMillis;
@@ -560,6 +564,11 @@ public abstract class LocalTimeOffset {
         if (false == itr.hasNext()) {
             if (minSecond < t.toEpochSecond() && t.toEpochSecond() < maxSecond) {
                 transitions.add(t);
+                /*
+                 * Sometimes the rules duplicate the transitions. And
+                 * duplicates confuse us. So we have to skip past them.
+                 */
+                minSecond = t.toEpochSecond() + 1;
             }
             transitions = buildTransitionsFromRules(transitions, zone, rules, minSecond, maxSecond);
             if (transitions != null && transitions.isEmpty()) {

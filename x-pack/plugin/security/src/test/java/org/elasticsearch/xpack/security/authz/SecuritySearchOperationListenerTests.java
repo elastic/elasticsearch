@@ -16,12 +16,12 @@ import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
+import org.elasticsearch.search.internal.LegacyReaderContext;
 import org.elasticsearch.search.internal.ReaderContext;
-import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequest.Empty;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -54,7 +54,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
     private IndexShard shard;
 
     @Before
-    private void setupShard() {
+    public void setupShard() {
         shard = createIndex("index").getShard(0);
     }
 
@@ -99,12 +99,17 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
     }
 
     public void testValidateSearchContext() throws Exception {
-        try (ReaderContext readerContext = new ReaderContext(0L, shard, shard.acquireSearcherSupplier(), Long.MAX_VALUE, false)) {
-            ScrollContext scrollContext = new ScrollContext();
-            TestSearchContext testSearchContext = new TestSearchContext(null, null, null, scrollContext);
+        final ReaderContext readerContext;
+        if (randomBoolean()) {
+            readerContext = new ReaderContext(0L, shard, shard.acquireSearcherSupplier(), Long.MAX_VALUE, false);
+        } else {
+            ShardSearchRequest request = mock(ShardSearchRequest.class);
+            when(request.scroll()).thenReturn(new Scroll(TimeValue.timeValueMinutes(between(1, 10))));
+            readerContext = new LegacyReaderContext(0L, shard, shard.acquireSearcherSupplier(), request, Long.MAX_VALUE);
+        }
+        try {
             readerContext.putInContext(AuthenticationField.AUTHENTICATION_KEY,
                 new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null));
-            testSearchContext.scrollContext().scroll = new Scroll(TimeValue.timeValueSeconds(2L));
             XPackLicenseState licenseState = mock(XPackLicenseState.class);
             when(licenseState.isSecurityEnabled()).thenReturn(true);
             when(licenseState.isAllowed(Feature.SECURITY_AUDITING)).thenReturn(true);
@@ -148,7 +153,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
                 SearchContextMissingException expected = expectThrows(SearchContextMissingException.class,
                     () -> listener.validateSearchContext(readerContext, request));
-                assertEquals(testSearchContext.id(), expected.contextId());
+                assertEquals(readerContext.id(), expected.contextId());
                 verify(licenseState, Mockito.atLeast(3)).isSecurityEnabled();
                 verify(auditTrail).accessDenied(eq(null), eq(authentication), eq("action"), eq(request),
                     authzInfoRoles(authentication.getUser().roles()));
@@ -184,11 +189,13 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
                 SearchContextMissingException expected = expectThrows(SearchContextMissingException.class,
                     () -> listener.validateSearchContext(readerContext, request));
-                assertEquals(testSearchContext.id(), expected.contextId());
+                assertEquals(readerContext.id(), expected.contextId());
                 verify(licenseState, Mockito.atLeast(5)).isSecurityEnabled();
                 verify(auditTrail).accessDenied(eq(null), eq(authentication), eq("action"), eq(request),
                     authzInfoRoles(authentication.getUser().roles()));
             }
+        } finally {
+            readerContext.close();
         }
     }
 

@@ -1,0 +1,82 @@
+[[copy-processor]]
+=== COPY Processor
+Copy the value of an existed field to other field or the root of the document.
+
+[[copy-options]]
+.Copy Options
+[options="header"]
+|======
+| Name             | Required  | Default    | Description
+| `field`          | yes       | -          | The field copied from
+| `target_field`   | no        | -          | The field copied to, `add_to_root` cannot be set to `true` when this field is set
+| `add_to_root`    | no        | `false`    | Flag that copy the value of `field` to the top level of the document. `target_field` must not be set when this option is chosen.
+| `ignore_missing` | no        | `false`    | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+include::common-options.asciidoc[]
+|======
+
+The supported types which can be copied are `boolean`, `number`, `array`, `object`, `string`, `date`.
+
+We can copy the sub-field of an object to another field:
+
+[source,js]
+--------------------------------------------------
+{
+  "copy" : {
+    "field" : "foo.bar",
+    "target_field" : "zoo"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+If the following document is processed:
+
+[source,js]
+--------------------------------------------------
+{
+  "foo": {
+    "bar": 1
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+after the `copy` processor operates on it, it will look like:
+
+[source,js]
+--------------------------------------------------
+{
+  "foo": {
+    "bar": 1
+  },
+  "zoo": 1
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+We can set `add_to_root` to `true` if we want to copy one field to the top level of the document:
+[source,js]
+--------------------------------------------------
+{
+  "copy" : {
+    "field" : "foo",
+    "add_to_root": true
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+then after the `copy` processor operates on the document above, it will look like:
+
+[source,js]
+--------------------------------------------------
+{
+  "foo": {
+    "bar": 1
+  },
+  "bar": 1
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+Note that we can only copy an `object` field to the root of the document.

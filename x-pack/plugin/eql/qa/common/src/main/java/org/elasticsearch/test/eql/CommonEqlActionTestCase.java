@@ -30,6 +30,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -42,23 +43,41 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
 
     private RestHighLevelClient highLevelClient;
 
-    static final String indexPrefix = "endgame";
-    static final String testIndexName = indexPrefix + "-1.4.0";
-    static final String DATE_NANOS_INDEX_NAME = "eql_date_nanos";
+    private static final String INDEX_PREFIX = "endgame";
+    private static final String DATA_FILE = "test_data.json";
+    private static final String DEFAULT_INDEX_NAME = INDEX_PREFIX + "-1.4.0";
+    private static final String DATE_NANOS_INDEX_NAME = "eql_date_nanos";
+    private static final String DEFAULT_MAPPING = "mapping-default.json";
+    private static final String DATE_NANOS_MAPPING = "mapping-date_nanos.json";
+    private static final String DEFAULT_DATE_QUERIES = "test_queries_date.toml";
+    private static final String DATE_NANOS_DATE_QUERIES = "test_queries_date_nanos.toml";
+
     protected static final String PARAM_FORMATTING = "%1$s.test -> %2$s";
 
     public enum TestSuite {
-        DEFAULT(testIndexName),
-        DATE_NANOS(DATE_NANOS_INDEX_NAME);
+        DEFAULT(DEFAULT_INDEX_NAME, DEFAULT_MAPPING, DEFAULT_DATE_QUERIES ),
+        DATE_NANOS(DATE_NANOS_INDEX_NAME, DATE_NANOS_MAPPING, DATE_NANOS_DATE_QUERIES);
 
         private final String indexName;
+        private final String mapping;
+        private final String[] queriesFiles;
 
-        TestSuite(String indexName) {
+        TestSuite(String indexName, String mapping, String... queriesFiles) {
             this.indexName = indexName;
+            this.mapping = mapping;
+            this.queriesFiles = queriesFiles;
         }
 
         String indexName() {
             return indexName;
+        }
+
+        String mapping() {
+            return mapping;
+        }
+
+        String[] queriesFiles() {
+            return queriesFiles;
         }
     }
 
@@ -70,103 +89,76 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
     private static boolean isSetUp = false;
     private static int counter = 0;
 
-    private static void setupData(CommonEqlActionTestCase tc) throws Exception {
+    private static void setupData(CommonEqlActionTestCase tc) throws IOException {
         if (isSetUp) {
             return;
         }
-        isSetUp = setupDefaultData(tc) && setupDateNanosData(tc);
+        isSetUp = setupDefaultData(tc);
     }
 
     @SuppressWarnings("unchecked")
-    private static boolean setupDefaultData(CommonEqlActionTestCase tc) throws Exception {
-        CreateIndexRequest request = new CreateIndexRequest(testIndexName)
-                .mapping(Streams.readFully(CommonEqlActionTestCase.class.getResourceAsStream("/mapping-default.json")),
-                        XContentType.JSON);
+    private static boolean setupDefaultData(CommonEqlActionTestCase tc) throws IOException {
+        boolean isSetupSuccessful = false;
+        for (TestSuite testSuite : TestSuite.values()) {
+            CreateIndexRequest
+                request =
+                new CreateIndexRequest(testSuite.indexName()).mapping(Streams.readFully(CommonEqlActionTestCase.class.getResourceAsStream(
+                    "/" + testSuite.mapping())), XContentType.JSON);
 
-        tc.highLevelClient().indices().create(request, RequestOptions.DEFAULT);
+            tc.highLevelClient().indices().create(request, RequestOptions.DEFAULT);
 
-        BulkRequest bulk = new BulkRequest();
-        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            BulkRequest bulk = new BulkRequest();
+            bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        try (XContentParser parser = tc.createParser(JsonXContent.jsonXContent,
-                CommonEqlActionTestCase.class.getResourceAsStream("/test_data.json"))) {
-            List<Object> list = parser.list();
-            for (Object item : list) {
-                assertThat(item, instanceOf(HashMap.class));
+            try (
+                XContentParser parser = tc.createParser(
+                    JsonXContent.jsonXContent,
+                    CommonEqlActionTestCase.class.getResourceAsStream("/" + DATA_FILE)
+                )
+            ) {
+                List<Object> list = parser.list();
+                for (Object item : list) {
+                    assertThat(item, instanceOf(HashMap.class));
 
-                HashMap<String, Object> entry = (HashMap<String, Object>) item;
+                    HashMap<String, Object> entry = (HashMap<String, Object>) item;
 
-                // Adjust the structure of the document with additional event.category and @timestamp fields
-                // Add event.category field
-                HashMap<String, Object> objEvent = new HashMap<>();
-                objEvent.put("category", entry.get("event_type"));
-                entry.put("event", objEvent);
+                    // Adjust the structure of the document with additional event.category and @timestamp fields
+                    // Add event.category field
+                    HashMap<String, Object> objEvent = new HashMap<>();
+                    objEvent.put("category", entry.get("event_type"));
+                    entry.put("event", objEvent);
 
-                // Add @timestamp field
-                entry.put("@timestamp", entry.get("timestamp"));
+                    // Add @timestamp field
+                    if (testSuite == TestSuite.DEFAULT) {
+                        entry.put("@timestamp", entry.get("timestamp"));
+                    } else if (testSuite == TestSuite.DATE_NANOS) {
+                        String dateNanos = asString(asDateNanos((Long) entry.get("timestamp")));
+                        entry.put("timestamp", dateNanos);
+                        entry.put("@timestamp", dateNanos);
+                    }
 
-                bulk.add(new IndexRequest(testIndexName).source(entry, XContentType.JSON));
+                    bulk.add(new IndexRequest(testSuite.indexName()).source(entry, XContentType.JSON));
+                }
+            }
+
+            if (bulk.numberOfActions() > 0) {
+                BulkResponse bulkResponse = tc.highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
+                assertEquals(RestStatus.OK, bulkResponse.status());
+                assertFalse(bulkResponse.hasFailures());
+                isSetupSuccessful = true;
+            } else {
+                isSetupSuccessful = false;
             }
         }
-
-        if (bulk.numberOfActions() > 0) {
-            BulkResponse bulkResponse = tc.highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
-            assertEquals(RestStatus.OK, bulkResponse.status());
-            assertFalse(bulkResponse.hasFailures());
-            return true;
-        }
-        return false;
+        return isSetupSuccessful;
     }
 
-    @SuppressWarnings("unchecked")
-    private static boolean setupDateNanosData(CommonEqlActionTestCase tc) throws Exception {
-        CreateIndexRequest request = new CreateIndexRequest(DATE_NANOS_INDEX_NAME).mapping(
-            Streams.readFully(CommonEqlActionTestCase.class.getResourceAsStream("/mapping-date_nanos.json")),
-            XContentType.JSON
-        );
-
-        tc.highLevelClient().indices().create(request, RequestOptions.DEFAULT);
-
-        BulkRequest bulk = new BulkRequest();
-        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-
-        try (XContentParser parser = tc.createParser(JsonXContent.jsonXContent,
-                CommonEqlActionTestCase.class.getResourceAsStream("/test_data.json"))) {
-            List<Object> list = parser.list();
-            for (Object item : list) {
-                assertThat(item, instanceOf(HashMap.class));
-
-                HashMap<String, Object> entry = (HashMap<String, Object>) item;
-
-                // Adjust the structure of the document with additional event.category and @timestamp fields
-                // Add event.category field
-                HashMap<String, Object> objEvent = new HashMap<>();
-                objEvent.put("category", entry.get("event_type"));
-                entry.put("event", objEvent);
-
-                // Add @timestamp field
-                String dateNanos = asString(asDateNanos((Long) entry.get("timestamp")));
-                entry.put("timestamp", dateNanos);
-                entry.put("@timestamp", dateNanos);
-
-                bulk.add(new IndexRequest(DATE_NANOS_INDEX_NAME).source(entry, XContentType.JSON));
-            }
-        }
-
-        if (bulk.numberOfActions() > 0) {
-            BulkResponse bulkResponse = tc.highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
-            assertEquals(RestStatus.OK, bulkResponse.status());
-            assertFalse(bulkResponse.hasFailures());
-            return true;
-        }
-        return false;
-    }
-
-    private static void cleanupData(CommonEqlActionTestCase tc) throws Exception {
+    private static void cleanupData(CommonEqlActionTestCase tc) throws IOException {
         // Delete index after all tests ran
         if (isSetUp && (--counter == 0)) {
-            deleteIndex(testIndexName);
-            deleteIndex(DATE_NANOS_INDEX_NAME);
+            for (TestSuite testSuite : TestSuite.values()) {
+                deleteIndex(testSuite.indexName());
+            }
             isSetUp = false;
         }
     }
@@ -183,7 +175,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
     }
 
     @After
-    public void cleanup() throws Exception {
+    public void cleanup() throws IOException {
         cleanupData(this);
     }
 
@@ -195,13 +187,8 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
             // Load EQL validation specs
             List<EqlSpec> specs = EqlSpecLoader.load("/test_queries.toml", true);
             specs.addAll(EqlSpecLoader.load("/test_queries_supported.toml", true));
-            switch (testSuite) {
-                case DEFAULT:
-                    specs.addAll(EqlSpecLoader.load("/test_queries_date.toml", true));
-                    break;
-                case DATE_NANOS:
-                    specs.addAll(EqlSpecLoader.load("/test_queries_date_nanos.toml", true));
-                    break;
+            for (String queriesFile : testSuite.queriesFiles()) {
+                specs.addAll(EqlSpecLoader.load("/" + queriesFile, true));
             }
             List<EqlSpec> unsupportedSpecs = EqlSpecLoader.load("/test_queries_unsupported.toml", false);
 
@@ -244,7 +231,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
         this.spec = spec;
     }
 
-    public void test() throws Exception {
+    public void test() throws IOException {
        EqlSearchRequest request = new EqlSearchRequest(testSuite.indexName(), spec.query());
        EqlSearchResponse response = highLevelClient().eql().search(request, RequestOptions.DEFAULT);
        assertSpec(response.hits().events());
@@ -252,7 +239,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
 
     private static long[] extractIds(List<SearchHit> events) {
         final int len = events.size();
-        final long ids[] = new long[len];
+        final long[] ids = new long[len];
         for (int i = 0; i < len; i++) {
             ids[i] = ((Number) events.get(i).getSourceAsMap().get("serial_event_id")).longValue();
         }

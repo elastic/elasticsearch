@@ -46,6 +46,7 @@ final class JdbcTestUtils {
 
     private static final int MAX_WIDTH = 20;
 
+    static final ZoneId UTC = ZoneId.of("Z");
     static final String SQL_TRACE = "org.elasticsearch.xpack.sql:TRACE";
     static final String JDBC_TIMEZONE = "timezone";
     static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);

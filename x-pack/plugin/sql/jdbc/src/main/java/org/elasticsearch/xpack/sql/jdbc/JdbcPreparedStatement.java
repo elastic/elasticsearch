@@ -39,7 +39,10 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 
+import static java.time.ZoneOffset.UTC;
+
 class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
+
     final PreparedQuery query;
 
     JdbcPreparedStatement(JdbcConnection con, JdbcConfiguration info, String sql) throws SQLException {
@@ -383,10 +386,7 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
                     dateToSet = new java.util.Date(((Date) x).getTime());
                 } else if (x instanceof LocalDateTime){
                     LocalDateTime ldt = (LocalDateTime) x;
-                    Calendar cal = getDefaultCalendar();
-                    cal.set(ldt.getYear(), ldt.getMonthValue() - 1, ldt.getDayOfMonth(), ldt.getHour(), ldt.getMinute(), ldt.getSecond());
-
-                    dateToSet = cal.getTime();
+                    dateToSet = new java.util.Date(ldt.toInstant(UTC).toEpochMilli());
                 } else if (x instanceof Time) {
                     dateToSet = new java.util.Date(((Time) x).getTime());
                 } else {

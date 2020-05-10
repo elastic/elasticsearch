@@ -6,8 +6,11 @@
 
 package org.elasticsearch.xpack.eql.analysis;
 
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.Match;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.Function;
@@ -19,9 +22,10 @@ import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
-import static java.util.Arrays.asList;
+import static java.util.Collections.*;
 import static org.elasticsearch.xpack.eql.analysis.AnalysisUtils.resolveAgainstList;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
@@ -38,9 +42,10 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
         Batch resolution = new Batch("Resolution",
                 new ResolveRefs(),
-                new ResolveFunctions());
-        
-        return asList(resolution);
+                new ResolveFunctions(),
+                new MatchLiteralsOnTheRight());
+
+        return singletonList(resolution);
     }
 
     public LogicalPlan analyze(LogicalPlan plan) {
@@ -115,6 +120,26 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     FunctionDefinition def = functionRegistry.resolveFunction(functionName);
                     Function f = uf.buildResolved(null, def);
                     return f;
+                }
+                return e;
+            });
+        }
+    }
+
+    private class MatchLiteralsOnTheRight extends AnalyzerRule<LogicalPlan> {
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan) {
+            return plan.transformExpressionsUp(e -> {
+                if (e instanceof Match) {
+                    Match m = (Match) e;
+                    int size = m.children().size();
+                    if ((m.children().get(size - 1) instanceof Literal) == false) {
+                        List<Expression> newChildren = new ArrayList<>(m.children().size());
+                        newChildren.add(m.children().get(size - 1));
+                        newChildren.addAll(m.children().subList(0, size - 1));
+                        return m.replaceChildren(newChildren);
+                    }
                 }
                 return e;
             });

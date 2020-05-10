@@ -55,6 +55,10 @@
         "metadata" : {
           "type" : "object",
           "dynamic": true
+        },
+        "description" : {
+          "type" : "object",
+          "dynamic": true
         }
       }
     }

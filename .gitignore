@@ -5,6 +5,15 @@
 *.ipr
 *.iws
 build-idea/
+out/
+
+# include shared intellij config
+!.idea/scopes/x_pack.xml
+!.idea/inspectionProfiles/Project_Default.xml
+!.idea/runConfigurations/Debug_Elasticsearch.xml
+
+# These files are generated in the main tree by IntelliJ
+benchmarks/src/main/generated/*
 
 # eclipse files
 .project
@@ -42,5 +51,8 @@ html_docs
 /tmp/
 eclipse-build
 
-# projects using testfixtures 
+# projects using testfixtures
 testfixtures_shared/
+
+# These are generated from .ci/jobs.t
+.ci/jobs/

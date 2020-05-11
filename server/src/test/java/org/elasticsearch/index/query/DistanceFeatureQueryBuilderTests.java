@@ -28,12 +28,11 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.DistanceFeatureQueryBuilder.Origin;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.joda.time.DateTime;
-import org.elasticsearch.index.query.DistanceFeatureQueryBuilder.Origin;
-import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
-
 
 import java.io.IOException;
 import java.time.Instant;
@@ -87,8 +86,8 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
             expectedQuery = LatLonPoint.newDistanceFeatureQuery(fieldName, boost, originGeoPoint.lat(), originGeoPoint.lon(), pivotDouble);
         } else { // if (fieldName.equals(DATE_FIELD_NAME))
             MapperService mapperService = context.getMapperService();
-            DateFieldType fieldType = (DateFieldType) mapperService.fullName(fieldName);
-            long originLong = fieldType.parseToLong(origin, true, null, null, context);
+            DateFieldType fieldType = (DateFieldType) mapperService.fieldType(fieldName);
+            long originLong = fieldType.parseToLong(origin, true, null, null, context::nowInMillis);
             TimeValue pivotVal = TimeValue.parseTimeValue(pivot, DistanceFeatureQueryBuilder.class.getSimpleName() + ".pivot");
             long pivotLong;
             if (fieldType.resolution() == DateFieldMapper.Resolution.MILLISECONDS) {

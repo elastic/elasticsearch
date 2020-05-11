@@ -239,7 +239,7 @@ Time (UTC)].
 `unassigned.details`, `ud`::
 Details about why the shard became unassigned.
 
-`unassigned.for`, `ua`::
+`unassigned.for`, `uf`::
 Time at which the shard was requested to be unassigned in
 https://en.wikipedia.org/wiki/List_of_UTC_time_offsets[Coordinated Universal
 Time (UTC)].
@@ -257,7 +257,7 @@ Reason the shard is unassigned. Returned values are:
 * `NEW_INDEX_RESTORED`: Unassigned as a result of restoring into a new index.
 * `NODE_LEFT`: Unassigned as a result of the node hosting it leaving the cluster.
 * `REALLOCATED_REPLICA`: A better replica location is identified and causes the existing replica allocation to be cancelled.
-* `REINITIALIZED`: When a shard moves from started back to initializing, for example, with shadow replicas.
+* `REINITIALIZED`: When a shard moves from started back to initializing.
 * `REPLICA_ADDED`: Unassigned as a result of explicit addition of a replica.
 * `REROUTE_CANCELLED`: Unassigned as a result of explicit cancel reroute command.
 

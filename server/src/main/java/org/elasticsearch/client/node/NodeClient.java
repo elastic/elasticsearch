@@ -42,6 +42,7 @@ import java.util.function.Supplier;
  */
 public class NodeClient extends AbstractClient {
 
+    @SuppressWarnings("rawtypes")
     private Map<ActionType, TransportAction> actions;
 
     private TaskManager taskManager;
@@ -57,6 +58,7 @@ public class NodeClient extends AbstractClient {
         super(settings, threadPool);
     }
 
+    @SuppressWarnings("rawtypes")
     public void initialize(Map<ActionType, TransportAction> actions, TaskManager taskManager, Supplier<String> localNodeId,
                            RemoteClusterService remoteClusterService) {
         this.actions = actions;

@@ -6,19 +6,26 @@
 
 package org.elasticsearch.xpack.sql.plan.logical;
 
-import org.elasticsearch.xpack.sql.capabilities.Resolvables;
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.AttributeSet;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.ExpressionId;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.expression.function.Function;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.ql.capabilities.Resolvables;
+import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeMap;
+import org.elasticsearch.xpack.ql.expression.AttributeSet;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.function.Function;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
@@ -28,26 +35,48 @@ public class Pivot extends UnaryPlan {
     private final Expression column;
     private final List<NamedExpression> values;
     private final List<NamedExpression> aggregates;
+    private final List<Attribute> grouping;
     // derived properties
     private AttributeSet groupingSet;
     private AttributeSet valueOutput;
     private List<Attribute> output;
+    private AttributeMap<Expression> aliases;
 
     public Pivot(Source source, LogicalPlan child, Expression column, List<NamedExpression> values, List<NamedExpression> aggregates) {
+        this(source, child, column, values, aggregates, null);
+    }
+    
+    public Pivot(Source source, LogicalPlan child, Expression column, List<NamedExpression> values, List<NamedExpression> aggregates,
+            List<Attribute> grouping) {
         super(source, child);
         this.column = column;
         this.values = values;
         this.aggregates = aggregates;
+        
+        // resolve the grouping set ASAP so it doesn't get re-resolved after analysis (since the aliasing information has been removed)
+        if (grouping == null && expressionsResolved()) {
+            AttributeSet columnSet = Expressions.references(singletonList(column));
+            // grouping can happen only on "primitive" fields, thus exclude multi-fields or nested docs
+            // the verifier enforces this rule so it does not catch folks by surprise
+            grouping = new ArrayList<>(new AttributeSet(Expressions.onlyPrimitiveFieldAttributes(child().output()))
+                    // make sure to have the column as the last entry (helps with translation) so substract it
+                    .subtract(columnSet)
+                    .subtract(Expressions.references(aggregates))
+                    .combine(columnSet));
+        }
+
+        this.grouping = grouping;
+        this.groupingSet = grouping != null ? new AttributeSet(grouping) : null;
     }
 
     @Override
     protected NodeInfo<Pivot> info() {
-        return NodeInfo.create(this, Pivot::new, child(), column, values, aggregates);
+        return NodeInfo.create(this, Pivot::new, child(), column, values, aggregates, grouping);
     }
 
     @Override
     protected Pivot replaceChild(LogicalPlan newChild) {
-        return new Pivot(source(), newChild, column, values, aggregates);
+        return new Pivot(source(), newChild, column, values, aggregates, grouping);
     }
 
     public Expression column() {
@@ -62,38 +91,39 @@ public class Pivot extends UnaryPlan {
         return aggregates;
     }
     
+    public List<Attribute> groupings() {
+        return grouping;
+    }
+    
     public AttributeSet groupingSet() {
         if (groupingSet == null) {
-            AttributeSet columnSet = Expressions.references(singletonList(column));
-            // grouping can happen only on "primitive" fields, thus exclude multi-fields or nested docs
-            // the verifier enforces this rule so it does not catch folks by surprise
-            groupingSet = new AttributeSet(Expressions.onlyPrimitiveFieldAttributes(child().output()))
-                    // make sure to have the column as the last entry (helps with translation)
-                    .subtract(columnSet)
-                    .subtract(Expressions.references(aggregates))
-                    .combine(columnSet);
+            throw new SqlIllegalArgumentException("Cannot determine grouping in unresolved PIVOT");
         }
         return groupingSet;
     }
 
-    public AttributeSet valuesOutput() {
-        // TODO: the generated id is a hack since it can clash with other potentially generated ids
+    private AttributeSet valuesOutput() {
         if (valueOutput == null) {
             List<Attribute> out = new ArrayList<>(aggregates.size() * values.size());
             if (aggregates.size() == 1) {
                 NamedExpression agg = aggregates.get(0);
                 for (NamedExpression value : values) {
-                    ExpressionId id = new ExpressionId(agg.id().hashCode() + value.id().hashCode());
-                    out.add(value.toAttribute().withDataType(agg.dataType()).withId(id));
+                    out.add(value.toAttribute().withDataType(agg.dataType()));
                 }
             }
             // for multiple args, concat the function and the value
             else {
                 for (NamedExpression agg : aggregates) {
-                    String name = agg instanceof Function ? ((Function) agg).functionName() : agg.name();
+                    String name = agg.name();
+                    if (agg instanceof Alias) {
+                        Alias a = (Alias) agg;
+                        if (a.child() instanceof Function) {
+                            name = ((Function) a.child()).functionName();
+                        }
+                    }
+                    //FIXME: the value attributes are reused and thus will clash - new ids need to be created
                     for (NamedExpression value : values) {
-                        ExpressionId id = new ExpressionId(agg.id().hashCode() + value.id().hashCode());
-                        out.add(value.toAttribute().withName(value.name() + "_" + name).withDataType(agg.dataType()).withId(id));
+                        out.add(value.toAttribute().withName(value.name() + "_" + name).withDataType(agg.dataType()));
                     }
                 }
             }
@@ -102,6 +132,29 @@ public class Pivot extends UnaryPlan {
         return valueOutput;
     }
     
+    public AttributeMap<Literal> valuesToLiterals() {
+        AttributeSet outValues = valuesOutput();
+        Map<Attribute, Literal> valuesMap = new LinkedHashMap<>();
+
+        int index = 0;
+        // for each attribute, associate its value
+        // take into account while iterating that attributes are a multiplication of actual values
+        for (Attribute attribute : outValues) {
+            NamedExpression namedExpression = values.get(index % values.size());
+            index++;
+            // everything should have resolved to an alias
+            if (namedExpression instanceof Alias) {
+                valuesMap.put(attribute, Literal.of(((Alias) namedExpression).child()));
+            }
+            // fallback - verifier should prevent this
+            else {
+                throw new SqlIllegalArgumentException("Unexpected alias", namedExpression);
+            }
+        }
+
+        return new AttributeMap<>(valuesMap);
+    }
+
     @Override
     public List<Attribute> output() {
         if (output == null) {
@@ -111,6 +164,14 @@ public class Pivot extends UnaryPlan {
         }
 
         return output;
+    }
+
+    // Since pivot creates its own columns (and thus aliases)
+    // remember the backing expressions inside a dedicated aliases map
+    public AttributeMap<Expression> aliases() {
+        // make sure to initialize all expressions
+        output();
+        return aliases;
     }
 
     @Override

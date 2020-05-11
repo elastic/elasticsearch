@@ -19,26 +19,23 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.DeclarationBlockNode;
+import org.elasticsearch.painless.ir.DeclarationNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
-
-import static java.util.Collections.emptyList;
 
 /**
  * Represents a series of declarations.
  */
-public final class SDeclBlock extends AStatement {
+public class SDeclBlock extends AStatement {
 
-    private final List<SDeclaration> declarations;
+    protected final List<SDeclaration> declarations;
 
     public SDeclBlock(Location location, List<SDeclaration> declarations) {
         super(location);
@@ -47,37 +44,27 @@ public final class SDeclBlock extends AStatement {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        for (SDeclaration declaration: declarations) {
-            declaration.storeSettings(settings);
-        }
-    }
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
-    @Override
-    void extractVariables(Set<String> variables) {
+        List<Output> declarationOutputs = new ArrayList<>(declarations.size());
+
         for (SDeclaration declaration : declarations) {
-            declaration.extractVariables(variables);
-        }
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        for (SDeclaration declaration : declarations) {
-            declaration.analyze(scriptRoot, locals);
+            declarationOutputs.add(declaration.analyze(classNode, scriptRoot, scope, new Input()));
         }
 
-        statementCount = declarations.size();
-    }
+        output.statementCount = declarations.size();
 
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        for (AStatement declaration : declarations) {
-            declaration.write(classWriter, methodWriter, globals);
+        DeclarationBlockNode declarationBlockNode = new DeclarationBlockNode();
+
+        for (Output declarationOutput : declarationOutputs) {
+            declarationBlockNode.addDeclarationNode((DeclarationNode)declarationOutput.statementNode);
         }
-    }
 
-    @Override
-    public String toString() {
-        return multilineToString(emptyList(), declarations);
+        declarationBlockNode.setLocation(location);
+
+        output.statementNode = declarationBlockNode;
+
+        return output;
     }
 }

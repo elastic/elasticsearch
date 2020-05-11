@@ -26,6 +26,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.internal.SearchContextId;
 
 import java.io.IOException;
 
@@ -41,7 +42,7 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
 
     }
 
-    public ShardFetchSearchRequest(OriginalIndices originalIndices, long id, IntArrayList list, ScoreDoc lastEmittedDoc) {
+    public ShardFetchSearchRequest(OriginalIndices originalIndices, SearchContextId id, IntArrayList list, ScoreDoc lastEmittedDoc) {
         super(id, list, lastEmittedDoc);
         this.originalIndices = originalIndices;
     }

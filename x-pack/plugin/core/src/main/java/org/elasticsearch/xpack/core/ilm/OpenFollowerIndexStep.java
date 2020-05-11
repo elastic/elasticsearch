@@ -10,7 +10,7 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 
 final class OpenFollowerIndexStep extends AsyncActionStep {
 
@@ -21,15 +21,20 @@ final class OpenFollowerIndexStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState,
+    public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState,
                               ClusterStateObserver observer, Listener listener) {
-        OpenIndexRequest request = new OpenIndexRequest(indexMetaData.getIndex().getName());
-        getClient().admin().indices().open(request, ActionListener.wrap(
-            r -> {
-                assert r.isAcknowledged() :  "open index response is not acknowledged";
-                listener.onResponse(true);
-            },
-            listener::onFailure
-        ));
+        if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
+            OpenIndexRequest request = new OpenIndexRequest(indexMetadata.getIndex().getName())
+                .masterNodeTimeout(getMasterTimeout(currentClusterState));
+            getClient().admin().indices().open(request, ActionListener.wrap(
+                r -> {
+                    assert r.isAcknowledged() : "open index response is not acknowledged";
+                    listener.onResponse(true);
+                },
+                listener::onFailure
+            ));
+        } else {
+            listener.onResponse(true);
+        }
     }
 }

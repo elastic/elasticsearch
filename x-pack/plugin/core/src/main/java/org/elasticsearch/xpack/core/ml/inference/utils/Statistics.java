@@ -5,8 +5,9 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.utils;
 
-import java.util.List;
-import java.util.stream.Collectors;
+import org.elasticsearch.common.Numbers;
+
+import java.util.Arrays;
 
 public final class Statistics {
 
@@ -18,35 +19,40 @@ public final class Statistics {
      * Any {@link Double#isInfinite()}, {@link Double#NaN}, or `null` values are ignored in calculation and returned as 0.0 in the
      * softMax.
      * @param values Values on which to run SoftMax.
-     * @return A new list containing the softmax of the passed values
+     * @return A new array containing the softmax of the passed values
      */
-    public static List<Double> softMax(List<Double> values) {
-        Double expSum = 0.0;
-        Double max = values.stream().filter(v -> isInvalid(v) == false).max(Double::compareTo).orElse(null);
-        if (max == null) {
+    public static double[] softMax(double[] values) {
+        double expSum = 0.0;
+        double max = Arrays.stream(values).filter(Statistics::isValid).max().orElse(Double.NaN);
+        if (isValid(max) == false) {
             throw new IllegalArgumentException("no valid values present");
         }
-        List<Double> exps = values.stream().map(v -> isInvalid(v) ? Double.NEGATIVE_INFINITY : v - max)
-            .collect(Collectors.toList());
-        for (int i = 0; i < exps.size(); i++) {
-            if (isInvalid(exps.get(i)) == false) {
-                Double exp = Math.exp(exps.get(i));
+        double[] exps = new double[values.length];
+        for (int i = 0; i < exps.length; i++) {
+            if (isValid(values[i])) {
+                double exp = Math.exp(values[i] - max);
                 expSum += exp;
-                exps.set(i, exp);
+                exps[i] = exp;
+            } else {
+                exps[i] = Double.NaN;
             }
         }
-        for (int i = 0; i < exps.size(); i++) {
-            if (isInvalid(exps.get(i))) {
-                exps.set(i, 0.0);
+        for (int i = 0; i < exps.length; i++) {
+            if (isValid(exps[i])) {
+                exps[i] /= expSum;
             } else {
-                exps.set(i, exps.get(i)/expSum);
+                exps[i] = 0.0;
             }
         }
         return exps;
     }
 
-    public static boolean isInvalid(Double v) {
-        return v == null || Double.isInfinite(v) || Double.isNaN(v);
+    public static double sigmoid(double value) {
+        return 1/(1 + Math.exp(-value));
+    }
+
+    private static boolean isValid(double v) {
+        return Numbers.isValidDouble(v);
     }
 
 }

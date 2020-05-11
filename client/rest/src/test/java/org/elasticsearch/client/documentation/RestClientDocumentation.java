@@ -51,10 +51,14 @@ import org.elasticsearch.client.RestClientBuilder.HttpClientConfigCallback;
 import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.KeyStore;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateFactory;
+import java.util.Base64;
 import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
 
@@ -379,11 +383,11 @@ public class RestClientDocumentation {
             //end::rest-client-config-disable-preemptive-auth
         }
         {
-            Path keyStorePath = Paths.get("");
             String keyStorePass = "";
             //tag::rest-client-config-encrypted-communication
-            KeyStore truststore = KeyStore.getInstance("jks");
-            try (InputStream is = Files.newInputStream(keyStorePath)) {
+            Path trustStorePath = Paths.get("/path/to/truststore.p12");
+            KeyStore truststore = KeyStore.getInstance("pkcs12");
+            try (InputStream is = Files.newInputStream(trustStorePath)) {
                 truststore.load(is, keyStorePass.toCharArray());
             }
             SSLContextBuilder sslBuilder = SSLContexts.custom()
@@ -400,5 +404,87 @@ public class RestClientDocumentation {
                 });
             //end::rest-client-config-encrypted-communication
         }
+        {
+            //tag::rest-client-config-trust-ca-pem
+            Path caCertificatePath = Paths.get("/path/to/ca.crt");
+            CertificateFactory factory =
+                CertificateFactory.getInstance("X.509");
+            Certificate trustedCa;
+            try (InputStream is = Files.newInputStream(caCertificatePath)) {
+                trustedCa = factory.generateCertificate(is);
+            }
+            KeyStore trustStore = KeyStore.getInstance("pkcs12");
+            trustStore.load(null, null);
+            trustStore.setCertificateEntry("ca", trustedCa);
+            SSLContextBuilder sslContextBuilder = SSLContexts.custom()
+                .loadTrustMaterial(trustStore, null);
+            final SSLContext sslContext = sslContextBuilder.build();
+            RestClient.builder(
+                new HttpHost("localhost", 9200, "https"))
+                .setHttpClientConfigCallback(new HttpClientConfigCallback() {
+                    @Override
+                    public HttpAsyncClientBuilder customizeHttpClient(
+                        HttpAsyncClientBuilder httpClientBuilder) {
+                        return httpClientBuilder.setSSLContext(sslContext);
+                    }
+                });
+            //end::rest-client-config-trust-ca-pem
+        }
+        {
+            String trustStorePass = "";
+            String keyStorePass = "";
+            //tag::rest-client-config-mutual-tls-authentication
+            Path trustStorePath = Paths.get("/path/to/your/truststore.p12");
+            Path keyStorePath = Paths.get("/path/to/your/keystore.p12");
+            KeyStore trustStore = KeyStore.getInstance("pkcs12");
+            KeyStore keyStore = KeyStore.getInstance("pkcs12");
+            try (InputStream is = Files.newInputStream(trustStorePath)) {
+                trustStore.load(is, trustStorePass.toCharArray());
+            }
+            try (InputStream is = Files.newInputStream(keyStorePath)) {
+                keyStore.load(is, keyStorePass.toCharArray());
+            }
+            SSLContextBuilder sslBuilder = SSLContexts.custom()
+                .loadTrustMaterial(trustStore, null)
+                .loadKeyMaterial(keyStore, keyStorePass.toCharArray());
+            final SSLContext sslContext = sslBuilder.build();
+            RestClientBuilder builder = RestClient.builder(
+                new HttpHost("localhost", 9200, "https"))
+                .setHttpClientConfigCallback(new HttpClientConfigCallback() {
+                    @Override
+                    public HttpAsyncClientBuilder customizeHttpClient(
+                        HttpAsyncClientBuilder httpClientBuilder) {
+                        return httpClientBuilder.setSSLContext(sslContext);
+                    }
+                });
+            //end::rest-client-config-mutual-tls-authentication
+        }
+        {
+            //tag::rest-client-auth-bearer-token
+            RestClientBuilder builder = RestClient.builder(
+                new HttpHost("localhost", 9200, "http"));
+            Header[] defaultHeaders =
+                new Header[]{new BasicHeader("Authorization",
+                    "Bearer u6iuAxZ0RG1Kcm5jVFI4eU4tZU9aVFEwT2F3")};
+            builder.setDefaultHeaders(defaultHeaders);
+            //end::rest-client-auth-bearer-token
+        }
+        {
+            //tag::rest-client-auth-api-key
+            String apiKeyId = "uqlEyn8B_gQ_jlvwDIvM";
+            String apiKeySecret = "HxHWk2m4RN-V_qg9cDpuX";
+            String apiKeyAuth =
+                Base64.getEncoder().encodeToString(
+                    (apiKeyId + ":" + apiKeySecret)
+                        .getBytes(StandardCharsets.UTF_8));
+            RestClientBuilder builder = RestClient.builder(
+                new HttpHost("localhost", 9200, "http"));
+            Header[] defaultHeaders =
+                new Header[]{new BasicHeader("Authorization",
+                    "ApiKey " + apiKeyAuth)};
+            builder.setDefaultHeaders(defaultHeaders);
+            //end::rest-client-auth-api-key
+        }
+
     }
 }

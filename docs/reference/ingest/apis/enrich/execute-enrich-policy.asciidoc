@@ -6,7 +6,7 @@
 <titleabbrev>Execute enrich policy</titleabbrev>
 ++++
 
-Executes an existing enrich policy.
+Executes an existing <<enrich-policy,enrich policy>>.
 
 ////
 
@@ -87,7 +87,7 @@ Avoid using enrich indices for other purposes.
 Once created, you cannot update 
 or index documents to an enrich index.
 Instead, update your source indices
-and execute the enrich policy again.
+and <<execute-enrich-policy-api,execute>> the enrich policy again.
 This creates a new enrich index from your updated source indices
 and deletes the previous enrich index.
 // end::update-enrich-index[]

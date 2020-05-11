@@ -36,7 +36,7 @@ public class MultiTermVectorsResponse {
         this.responses = responses;
     }
 
-    private static ConstructingObjectParser<MultiTermVectorsResponse, Void> PARSER =
+    private static final ConstructingObjectParser<MultiTermVectorsResponse, Void> PARSER =
         new ConstructingObjectParser<>("multi_term_vectors", true,
         args -> {
             // as the response comes from server, we are sure that args[0] will be a list of TermVectorsResponse

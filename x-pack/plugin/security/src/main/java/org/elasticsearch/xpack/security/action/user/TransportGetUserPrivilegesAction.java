@@ -12,6 +12,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
@@ -26,21 +27,28 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
 
     private final ThreadPool threadPool;
     private final AuthorizationService authorizationService;
+    private final SecurityContext securityContext;
 
     @Inject
     public TransportGetUserPrivilegesAction(ThreadPool threadPool, TransportService transportService,
-                                            ActionFilters actionFilters, AuthorizationService authorizationService) {
+                                            ActionFilters actionFilters, AuthorizationService authorizationService,
+                                            SecurityContext securityContext) {
         super(GetUserPrivilegesAction.NAME, transportService, actionFilters, GetUserPrivilegesRequest::new);
         this.threadPool = threadPool;
         this.authorizationService = authorizationService;
+        this.securityContext = securityContext;
     }
 
     @Override
     protected void doExecute(Task task, GetUserPrivilegesRequest request, ActionListener<GetUserPrivilegesResponse> listener) {
         final String username = request.username();
 
-        final Authentication authentication = Authentication.getAuthentication(threadPool.getThreadContext());
-        final User user = authentication.getUser();
+        final Authentication authentication = securityContext.getAuthentication();
+        final User user = securityContext.getUser();
+        if (authentication == null || user == null) {
+            listener.onFailure(new IllegalArgumentException("cannot list privileges as there is no active user"));
+            return;
+        }
         if (user.principal().equals(username) == false) {
             listener.onFailure(new IllegalArgumentException("users may only list the privileges of their own account"));
             return;

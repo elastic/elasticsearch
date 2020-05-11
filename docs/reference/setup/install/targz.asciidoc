@@ -169,11 +169,6 @@ directory so that you do not delete important data later on.
  d| Not configured
   | path.repo
 
-| script
-  | Location of script files.
-  | $ES_HOME/scripts
-  | path.scripts
-
 |=======================================================================
 
 

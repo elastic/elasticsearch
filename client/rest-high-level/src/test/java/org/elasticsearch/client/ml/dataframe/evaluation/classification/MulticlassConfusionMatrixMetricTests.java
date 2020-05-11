@@ -32,10 +32,14 @@ public class MulticlassConfusionMatrixMetricTests extends AbstractXContentTestCa
         return new NamedXContentRegistry(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
     }
 
-    @Override
-    protected MulticlassConfusionMatrixMetric createTestInstance() {
+    static MulticlassConfusionMatrixMetric createRandom() {
         Integer size = randomBoolean() ? randomIntBetween(1, 1000) : null;
         return new MulticlassConfusionMatrixMetric(size);
+    }
+
+    @Override
+    protected MulticlassConfusionMatrixMetric createTestInstance() {
+        return createRandom();
     }
 
     @Override

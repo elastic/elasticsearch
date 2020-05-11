@@ -33,6 +33,7 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -194,7 +195,8 @@ public class LeaderCheckerTests extends ESTestCase {
 
             assertThat(deterministicTaskQueue.getCurrentTimeMillis() - failureTime,
                 lessThanOrEqualTo((leaderCheckIntervalMillis + leaderCheckTimeoutMillis) * leaderCheckRetryCount
-                    + leaderCheckTimeoutMillis // needed because a successful check response might be in flight at the time of failure
+                    // needed because a successful check response might be in flight at the time of failure
+                    + leaderCheckTimeoutMillis
                 ));
         }
         leaderChecker.updateLeader(null);
@@ -305,7 +307,8 @@ public class LeaderCheckerTests extends ESTestCase {
 
         leaderChecker.updateLeader(leader);
         {
-            transportService.connectToNode(leader); // need to connect first for disconnect to have any effect
+            // need to connect first for disconnect to have any effect
+            AbstractSimpleTransportTestCase.connectToNode(transportService, leader);
 
             transportService.disconnectFromNode(leader);
             deterministicTaskQueue.runAllRunnableTasks();

@@ -18,13 +18,11 @@
  */
 package org.elasticsearch.common.logging;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.apache.logging.log4j.message.MapMessage;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Chars;
 import org.apache.logging.log4j.util.StringBuilders;
 
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -37,25 +35,32 @@ import java.util.stream.Stream;
  * A base class for custom log4j logger messages. Carries additional fields which will populate JSON fields in logs.
  */
 public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
-    private static final JsonStringEncoder JSON_STRING_ENCODER = JsonStringEncoder.getInstance();
-
-    private final String messagePattern;
     private final List<Object> arguments = new ArrayList<>();
 
-    public ESLogMessage(String messagePattern, Object... arguments) {
+    public ESLogMessage(String messagePattern, Object... args) {
         super(new LinkedHashMap<>());
-        this.messagePattern = messagePattern;
-        Collections.addAll(this.arguments, arguments);
+        Collections.addAll(this.arguments, args);
+        Object message = new Object() {
+            @Override
+            public String toString() {
+                return ParameterizedMessage.format(messagePattern, arguments.toArray());
+            }
+        };
+        with("message", message);
+    }
+
+    public ESLogMessage() {
+        super(new LinkedHashMap<>());
     }
 
     public ESLogMessage argAndField(String key, Object value) {
         this.arguments.add(value);
-        super.with(key,value);
+        super.with(key, value);
         return this;
     }
 
     public ESLogMessage field(String key, Object value) {
-        super.with(key,value);
+        super.with(key, value);
         return this;
     }
 
@@ -64,15 +69,12 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
         return this;
     }
 
-    @Override
-    protected void appendMap(final StringBuilder sb) {
-        String message = ParameterizedMessage.format(messagePattern, arguments.toArray());
-        sb.append(message);
-    }
-
-    //taken from super.asJson without the wrapping '{' '}'
-    @Override
-    protected void asJson(StringBuilder sb) {
+    /**
+     * This method is used in order to support ESJsonLayout which replaces %CustomMapFields from a pattern with JSON fields
+     * It is a modified version of {@link MapMessage#asJson(StringBuilder)} where the curly brackets are not added
+     * @param sb a string builder where JSON fields will be attached
+     */
+    protected void addJsonNoBrackets(StringBuilder sb) {
         for (int i = 0; i < getIndexedReadOnlyStringMap().size(); i++) {
             if (i > 0) {
                 sb.append(", ");
@@ -83,7 +85,7 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
             StringBuilders.escapeJson(sb, start);
             sb.append(Chars.DQUOTE).append(':').append(Chars.DQUOTE);
             start = sb.length();
-            sb.append(getIndexedReadOnlyStringMap().getValueAt(i).toString());
+            sb.append((Object) getIndexedReadOnlyStringMap().getValueAt(i));
             StringBuilders.escapeJson(sb, start);
             sb.append(Chars.DQUOTE);
         }
@@ -105,10 +107,5 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
         return "[" + stream
             .map(ESLogMessage::inQuotes)
             .collect(Collectors.joining(", ")) + "]";
-    }
-
-    public static String escapeJson(String text) {
-        byte[] sourceEscaped = JSON_STRING_ENCODER.quoteAsUTF8(text);
-        return new String(sourceEscaped, Charset.defaultCharset());
     }
 }

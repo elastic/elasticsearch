@@ -1,5 +1,8 @@
 [[analysis-hunspell-tokenfilter]]
-=== Hunspell Token Filter
+=== Hunspell token filter
+++++
+<titleabbrev>Hunspell</titleabbrev>
+++++
 
 Basic support for hunspell stemming. Hunspell dictionaries will be
 picked up from a dedicated hunspell directory on the filesystem

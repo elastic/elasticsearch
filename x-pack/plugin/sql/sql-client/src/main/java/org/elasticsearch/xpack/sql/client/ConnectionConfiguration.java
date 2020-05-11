@@ -31,7 +31,11 @@ public class ConnectionConfiguration {
     
     // Validation
     public static final String PROPERTIES_VALIDATION = "validate.properties";
-    public static final String PROPERTIES_VALIDATION_DEFAULT = "true";
+    private static final String PROPERTIES_VALIDATION_DEFAULT = "true";
+    
+    // Binary communication
+    public static final String BINARY_COMMUNICATION = "binary.format";
+    private static final String BINARY_COMMUNICATION_DEFAULT = "true";
 
     // Timeouts
 
@@ -53,8 +57,6 @@ public class ConnectionConfiguration {
 
     public static final String PAGE_SIZE = "page.size";
     private static final String PAGE_SIZE_DEFAULT = "1000";
-    
-    public static final String CLIENT_ID = "client_id";
 
     // Auth
 
@@ -63,8 +65,8 @@ public class ConnectionConfiguration {
     public static final String AUTH_PASS = "password";
 
     protected static final Set<String> OPTION_NAMES = new LinkedHashSet<>(
-            Arrays.asList(PROPERTIES_VALIDATION, CONNECT_TIMEOUT, NETWORK_TIMEOUT, QUERY_TIMEOUT, PAGE_TIMEOUT, PAGE_SIZE,
-                    AUTH_USER, AUTH_PASS));
+            Arrays.asList(PROPERTIES_VALIDATION, BINARY_COMMUNICATION, CONNECT_TIMEOUT, NETWORK_TIMEOUT, QUERY_TIMEOUT, PAGE_TIMEOUT,
+                    PAGE_SIZE, AUTH_USER, AUTH_PASS));
 
     static {
         OPTION_NAMES.addAll(SslConfig.OPTION_NAMES);
@@ -72,6 +74,7 @@ public class ConnectionConfiguration {
     }
     
     private final boolean validateProperties;
+    private final boolean binaryCommunication;
 
     // Base URI for all request
     private final URI baseURI;
@@ -100,6 +103,9 @@ public class ConnectionConfiguration {
             checkPropertyNames(settings, optionNames());
         }
 
+        binaryCommunication = parseValue(BINARY_COMMUNICATION, settings.getProperty(BINARY_COMMUNICATION, BINARY_COMMUNICATION_DEFAULT),
+                Boolean::parseBoolean);
+
         connectTimeout = parseValue(CONNECT_TIMEOUT, settings.getProperty(CONNECT_TIMEOUT, CONNECT_TIMEOUT_DEFAULT), Long::parseLong);
         networkTimeout = parseValue(NETWORK_TIMEOUT, settings.getProperty(NETWORK_TIMEOUT, NETWORK_TIMEOUT_DEFAULT), Long::parseLong);
         queryTimeout = parseValue(QUERY_TIMEOUT, settings.getProperty(QUERY_TIMEOUT, QUERY_TIMEOUT_DEFAULT), Long::parseLong);
@@ -117,10 +123,11 @@ public class ConnectionConfiguration {
         this.baseURI = normalizeSchema(baseURI, connectionString, sslConfig.isEnabled());
     }
 
-    public ConnectionConfiguration(URI baseURI, String connectionString, boolean validateProperties, long connectTimeout,
-                                   long networkTimeout, long queryTimeout, long pageTimeout, int pageSize, String user, String pass,
-                                   SslConfig sslConfig, ProxyConfig proxyConfig) throws ClientException {
+    public ConnectionConfiguration(URI baseURI, String connectionString, boolean validateProperties, boolean binaryCommunication,
+                                   long connectTimeout, long networkTimeout, long queryTimeout, long pageTimeout, int pageSize,
+                                   String user, String pass, SslConfig sslConfig, ProxyConfig proxyConfig) throws ClientException {
         this.validateProperties = validateProperties;
+        this.binaryCommunication = binaryCommunication;
         this.connectionString = connectionString;
         this.connectTimeout = connectTimeout;
         this.networkTimeout = networkTimeout;
@@ -190,6 +197,10 @@ public class ConnectionConfiguration {
     
     public boolean validateProperties() {
         return validateProperties;
+    }
+
+    public boolean binaryCommunication() {
+        return binaryCommunication;
     }
 
     public SslConfig sslConfig() {

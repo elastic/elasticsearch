@@ -25,30 +25,38 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.sql.proto.Protocol.BINARY_FORMAT_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNAR_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.FIELD_MULTI_VALUE_LENIENCY_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.INDEX_INCLUDE_FROZEN_NAME;
 
 /**
  * Request to perform an sql query
  */
 public class SqlQueryRequest extends AbstractSqlQueryRequest {
     private static final ObjectParser<SqlQueryRequest, Void> PARSER = objectParser(SqlQueryRequest::new);
-    static final ParseField COLUMNAR = new ParseField("columnar");
-    static final ParseField FIELD_MULTI_VALUE_LENIENCY = new ParseField("field_multi_value_leniency");
-    static final ParseField INDEX_INCLUDE_FROZEN = new ParseField("index_include_frozen");
-
+    static final ParseField COLUMNAR = new ParseField(COLUMNAR_NAME);
+    static final ParseField FIELD_MULTI_VALUE_LENIENCY = new ParseField(FIELD_MULTI_VALUE_LENIENCY_NAME);
+    static final ParseField INDEX_INCLUDE_FROZEN = new ParseField(INDEX_INCLUDE_FROZEN_NAME);
+    static final ParseField BINARY_COMMUNICATION = new ParseField(BINARY_FORMAT_NAME);
 
     static {
         PARSER.declareString(SqlQueryRequest::cursor, CURSOR);
         PARSER.declareBoolean(SqlQueryRequest::columnar, COLUMNAR);
         PARSER.declareBoolean(SqlQueryRequest::fieldMultiValueLeniency, FIELD_MULTI_VALUE_LENIENCY);
         PARSER.declareBoolean(SqlQueryRequest::indexIncludeFrozen, INDEX_INCLUDE_FROZEN);
+        PARSER.declareBoolean(SqlQueryRequest::binaryCommunication, BINARY_COMMUNICATION);
     }
 
     private String cursor = "";
     /*
-     * Using the Boolean object here so that SqlTranslateRequest to set this to null (since it doesn't need a "columnar" parameter).
+     * Using the Boolean object here so that SqlTranslateRequest to set this to null (since it doesn't need a "columnar" or 
+     * binary parameter).
      * See {@code SqlTranslateRequest.toXContent}
      */
-    private Boolean columnar = Boolean.FALSE;
+    private Boolean columnar = Protocol.COLUMNAR;
+    private Boolean binaryCommunication = Protocol.BINARY_COMMUNICATION;
+
     private boolean fieldMultiValueLeniency = Protocol.FIELD_MULTI_VALUE_LENIENCY;
     private boolean indexIncludeFrozen = Protocol.INDEX_INCLUDE_FROZEN;
 
@@ -58,7 +66,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
 
     public SqlQueryRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, ZoneId zoneId,
                            int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, Boolean columnar,
-            String cursor, RequestInfo requestInfo, boolean fieldMultiValueLeniency, boolean indexIncludeFrozen) {
+                           String cursor, RequestInfo requestInfo, boolean fieldMultiValueLeniency, boolean indexIncludeFrozen) {
         super(query, params, filter, zoneId, fetchSize, requestTimeout, pageTimeout, requestInfo);
         this.cursor = cursor;
         this.columnar = columnar;
@@ -68,7 +76,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
+        ActionRequestValidationException validationException = super.validate();
         if ((false == Strings.hasText(query())) && Strings.hasText(cursor) == false) {
             validationException = addValidationError("one of [query] or [cursor] is required", validationException);
         }
@@ -109,7 +117,6 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         return this;
     }
 
-
     public SqlQueryRequest fieldMultiValueLeniency(boolean leniency) {
         this.fieldMultiValueLeniency = leniency;
         return this;
@@ -128,12 +135,22 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         return indexIncludeFrozen;
     }
 
+    public SqlQueryRequest binaryCommunication(boolean binaryCommunication) {
+        this.binaryCommunication = binaryCommunication;
+        return this;
+    }
+
+    public Boolean binaryCommunication() {
+        return binaryCommunication;
+    }
+
     public SqlQueryRequest(StreamInput in) throws IOException {
         super(in);
         cursor = in.readString();
         columnar = in.readOptionalBoolean();
         fieldMultiValueLeniency = in.readBoolean();
         indexIncludeFrozen = in.readBoolean();
+        binaryCommunication = in.readOptionalBoolean();
     }
 
     @Override
@@ -143,11 +160,12 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         out.writeOptionalBoolean(columnar);
         out.writeBoolean(fieldMultiValueLeniency);
         out.writeBoolean(indexIncludeFrozen);
+        out.writeOptionalBoolean(binaryCommunication);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), cursor, columnar, fieldMultiValueLeniency, indexIncludeFrozen);
+        return Objects.hash(super.hashCode(), cursor, columnar, fieldMultiValueLeniency, indexIncludeFrozen, binaryCommunication);
     }
 
     @Override
@@ -156,7 +174,8 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
                 && Objects.equals(cursor, ((SqlQueryRequest) obj).cursor)
                 && Objects.equals(columnar, ((SqlQueryRequest) obj).columnar)
                 && fieldMultiValueLeniency == ((SqlQueryRequest) obj).fieldMultiValueLeniency
-                && indexIncludeFrozen == ((SqlQueryRequest) obj).indexIncludeFrozen;
+                && indexIncludeFrozen == ((SqlQueryRequest) obj).indexIncludeFrozen
+                && binaryCommunication == ((SqlQueryRequest) obj).binaryCommunication;
     }
 
     @Override
@@ -168,11 +187,13 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // This is needed just to test round-trip compatibility with proto.SqlQueryRequest
         return new org.elasticsearch.xpack.sql.proto.SqlQueryRequest(query(), params(), zoneId(), fetchSize(), requestTimeout(),
-                pageTimeout(), filter(), columnar(), cursor(), requestInfo(), fieldMultiValueLeniency(), indexIncludeFrozen())
-                .toXContent(builder, params);
+                pageTimeout(), filter(), columnar(), cursor(), requestInfo(), fieldMultiValueLeniency(), indexIncludeFrozen(),
+                binaryCommunication()).toXContent(builder, params);
     }
 
     public static SqlQueryRequest fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+        SqlQueryRequest request = PARSER.apply(parser,  null);
+        validateParams(request.params(), request.mode());
+        return request;
     }
 }

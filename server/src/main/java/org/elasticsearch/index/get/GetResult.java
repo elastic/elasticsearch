@@ -65,8 +65,8 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
     private long seqNo;
     private long primaryTerm;
     private boolean exists;
-    private Map<String, DocumentField> documentFields;
-    private Map<String, DocumentField> metaFields;
+    private final Map<String, DocumentField> documentFields;
+    private final Map<String, DocumentField> metaFields;
     private Map<String, Object> sourceAsMap;
     private BytesReference source;
     private byte[] sourceAsBytes;
@@ -95,6 +95,9 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
                 metaFields = new HashMap<>();
                 splitFieldsByMetadata(fields, documentFields, metaFields);
             }
+        } else {
+            metaFields = Collections.emptyMap();
+            documentFields = Collections.emptyMap();
         }
     }
 
@@ -111,14 +114,8 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
         this.version = version;
         this.exists = exists;
         this.source = source;
-        this.documentFields = documentFields;
-        if (this.documentFields == null) {
-            this.documentFields = emptyMap();
-        }
-        this.metaFields = metaFields;
-        if (this.metaFields == null) {
-            this.metaFields = emptyMap();
-        }
+        this.documentFields = documentFields == null ? emptyMap() : documentFields;
+        this.metaFields = metaFields == null ? emptyMap() : metaFields;
     }
 
     /**

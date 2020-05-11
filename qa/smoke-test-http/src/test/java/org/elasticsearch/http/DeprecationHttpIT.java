@@ -99,7 +99,7 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
             int randomDocCount = randomIntBetween(1, 2);
 
             for (int j = 0; j < randomDocCount; ++j) {
-                index(indices[i], "type", Integer.toString(j), "{\"field\":" + j + "}");
+                index(indices[i], Integer.toString(j), "{\"field\":" + j + "}");
             }
         }
 
@@ -187,7 +187,8 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
             assertThat(deprecatedWarning, matches(WARNING_HEADER_PATTERN.pattern()));
         }
         final List<String> actualWarningValues =
-                deprecatedWarnings.stream().map(DeprecationLogger::extractWarningValueFromWarningHeader).collect(Collectors.toList());
+                deprecatedWarnings.stream().map(s -> DeprecationLogger.extractWarningValueFromWarningHeader(s, true))
+                    .collect(Collectors.toList());
         for (Matcher<String> headerMatcher : headerMatchers) {
             assertThat(actualWarningValues, hasItem(headerMatcher));
         }

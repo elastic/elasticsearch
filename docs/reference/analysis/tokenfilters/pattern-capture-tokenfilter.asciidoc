@@ -1,5 +1,8 @@
 [[analysis-pattern-capture-tokenfilter]]
-=== Pattern Capture Token Filter
+=== Pattern capture token filter
+++++
+<titleabbrev>Pattern capture</titleabbrev>
+++++
 
 The `pattern_capture` token filter, unlike the `pattern` tokenizer,
 emits a token for every capture group in the regular expression.

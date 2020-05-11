@@ -119,12 +119,16 @@ public final class FieldPermissions implements Accountable {
         assert groups.size() > 0 : "there must always be a single group for field inclusion/exclusion";
         List<Automaton> automatonList =
                 groups.stream()
-                        .map(g -> FieldPermissions.initializePermittedFieldsAutomaton(g.getGrantedFields(), g.getExcludedFields()))
+                        .map(g -> FieldPermissions.buildPermittedFieldsAutomaton(g.getGrantedFields(), g.getExcludedFields()))
                         .collect(Collectors.toList());
         return Automatons.unionAndMinimize(automatonList);
     }
 
-    private static Automaton initializePermittedFieldsAutomaton(final String[] grantedFields, final String[] deniedFields) {
+    /**
+     * Construct a single automaton to represent the set of {@code grantedFields} except for the {@code deniedFields}.
+     * @throws ElasticsearchSecurityException If {@code deniedFields} is not a subset of {@code grantedFields}.
+     */
+    public static Automaton buildPermittedFieldsAutomaton(final String[] grantedFields, final String[] deniedFields) {
         Automaton grantedFieldsAutomaton;
         if (grantedFields == null || Arrays.stream(grantedFields).anyMatch(Regex::isMatchAllPattern)) {
             grantedFieldsAutomaton = Automatons.MATCH_ALL;

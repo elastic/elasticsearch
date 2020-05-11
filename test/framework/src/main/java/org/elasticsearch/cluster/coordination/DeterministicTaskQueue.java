@@ -24,13 +24,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Delayed;
@@ -196,86 +199,6 @@ public class DeterministicTaskQueue {
     }
 
     /**
-     * @return A <code>ExecutorService</code> that uses this task queue.
-     */
-    public ExecutorService getExecutorService() {
-        return getExecutorService(Function.identity());
-    }
-
-    /**
-     * @return A <code>ExecutorService</code> that uses this task queue and wraps <code>Runnable</code>s in the given wrapper.
-     */
-    public ExecutorService getExecutorService(Function<Runnable, Runnable> runnableWrapper) {
-        return new ExecutorService() {
-
-            @Override
-            public void shutdown() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public List<Runnable> shutdownNow() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public boolean isShutdown() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public boolean isTerminated() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public boolean awaitTermination(long timeout, TimeUnit unit) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public <T> Future<T> submit(Callable<T> task) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public <T> Future<T> submit(Runnable task, T result) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public Future<?> submit(Runnable task) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public <T> T invokeAny(Collection<? extends Callable<T>> tasks) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public <T> T invokeAny(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public void execute(Runnable command) {
-                scheduleNow(runnableWrapper.apply(command));
-            }
-        };
-    }
-
-    /**
      * @return A <code>ThreadPool</code> that uses this task queue.
      */
     public ThreadPool getThreadPool() {
@@ -291,6 +214,76 @@ public class DeterministicTaskQueue {
             {
                 stopCachedTimeThread();
             }
+
+            private final Map<String, ThreadPool.Info> infos = new HashMap<>();
+
+            private final ExecutorService forkingExecutor = new ExecutorService() {
+
+                @Override
+                public void shutdown() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public List<Runnable> shutdownNow() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public boolean isShutdown() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public boolean isTerminated() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public boolean awaitTermination(long timeout, TimeUnit unit) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public <T> Future<T> submit(Callable<T> task) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public <T> Future<T> submit(Runnable task, T result1) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public Future<?> submit(Runnable task) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public <T> T invokeAny(Collection<? extends Callable<T>> tasks) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public <T> T invokeAny(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public void execute(Runnable command) {
+                    scheduleNow(runnableWrapper.apply(command));
+                }
+            };
 
             @Override
             public long relativeTimeInMillis() {
@@ -309,7 +302,7 @@ public class DeterministicTaskQueue {
 
             @Override
             public Info info(String name) {
-                throw new UnsupportedOperationException();
+                return infos.computeIfAbsent(name, n -> new Info(n, ThreadPoolType.FIXED, random.nextInt(10) + 1));
             }
 
             @Override
@@ -319,12 +312,12 @@ public class DeterministicTaskQueue {
 
             @Override
             public ExecutorService generic() {
-                return getExecutorService(runnableWrapper);
+                return executor(Names.GENERIC);
             }
 
             @Override
             public ExecutorService executor(String name) {
-                return getExecutorService(runnableWrapper);
+                return Names.SAME.equals(name) ? EsExecutors.newDirectExecutorService() : forkingExecutor;
             }
 
             @Override
@@ -375,11 +368,6 @@ public class DeterministicTaskQueue {
             @Override
             public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
                 return super.scheduleWithFixedDelay(command, interval, executor);
-            }
-
-            @Override
-            public Runnable preserveContext(Runnable command) {
-                throw new UnsupportedOperationException();
             }
 
             @Override

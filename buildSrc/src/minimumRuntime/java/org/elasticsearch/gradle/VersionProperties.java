@@ -15,7 +15,7 @@ public class VersionProperties {
         return elasticsearch;
     }
 
-    public static Version getElasticsearchVersion()  {
+    public static Version getElasticsearchVersion() {
         return Version.fromString(elasticsearch);
     }
 
@@ -23,8 +23,18 @@ public class VersionProperties {
         return lucene;
     }
 
-    public static String getBundledJdk() {
-        return bundledJdk;
+    public static String getBundledJdk(final String platform) {
+        switch (platform) {
+            case "darwin": // fall trough
+            case "mac":
+                return bundledJdkDarwin;
+            case "linux":
+                return bundledJdkLinux;
+            case "windows":
+                return bundledJdkWindows;
+            default:
+                throw new IllegalArgumentException("unknown platform [" + platform + "]");
+        }
     }
 
     public static String getBundledJdkVendor() {
@@ -37,7 +47,9 @@ public class VersionProperties {
 
     private static final String elasticsearch;
     private static final String lucene;
-    private static final String bundledJdk;
+    private static final String bundledJdkDarwin;
+    private static final String bundledJdkLinux;
+    private static final String bundledJdkWindows;
     private static final String bundledJdkVendor;
     private static final Map<String, String> versions = new HashMap<String, String>();
 
@@ -46,7 +58,10 @@ public class VersionProperties {
         elasticsearch = props.getProperty("elasticsearch");
         lucene = props.getProperty("lucene");
         bundledJdkVendor = props.getProperty("bundled_jdk_vendor");
-        bundledJdk = props.getProperty("bundled_jdk");
+        final String bundledJdk = props.getProperty("bundled_jdk");
+        bundledJdkDarwin = props.getProperty("bundled_jdk_darwin", bundledJdk);
+        bundledJdkLinux = props.getProperty("bundled_jdk_linux", bundledJdk);
+        bundledJdkWindows = props.getProperty("bundled_jdk_windows", bundledJdk);
 
         for (String property : props.stringPropertyNames()) {
             versions.put(property, props.getProperty(property));

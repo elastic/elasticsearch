@@ -1,0 +1,121 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+                fielddata: true
+              long:
+                type: long
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"text": "foo", "long": 1, "class": 1}'
+          - '{"index": {"_id": "2"}}'
+          - '{"text": "foo", "long": 1, "class": 1}'
+          - '{"index": {"_id": "3"}}'
+          - '{"text": "bar", "long": 0, "class": 0}'
+          - '{"index": {"_id": "4"}}'
+          - '{"text": "bar", "long": 0, "class": 0}'
+          - '{"index": {"_id": "5"}}'
+          - '{"text": ["foo", "bar"], "long": [1, 0], "class": 1}'
+          - '{"index": {"_id": "6"}}'
+          - '{"text": ["foo", "bar"], "long": [1, 0], "class": 0}'
+          - '{"index": {"_id": "7"}}'
+          - '{"text": "bar", "long": 0, "class": 0}'
+
+---
+"test custom heuristic on significant_text":
+  - do:
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            class:
+              terms:
+                field: class
+                order: { _key: asc }
+              aggs:
+                sig:
+                  significant_text:
+                    field: text
+                    simple: {}
+                    min_doc_count: 1
+
+  - match: { aggregations.class.buckets.0.key: 0 }
+  - match: { aggregations.class.buckets.0.sig.buckets.0.key: bar }
+  - match: { aggregations.class.buckets.0.sig.buckets.0.score: 2.0 }
+  - match: { aggregations.class.buckets.0.sig.buckets.1.key: foo }
+  - match: { aggregations.class.buckets.0.sig.buckets.1.score: 1.0 }
+  - match: { aggregations.class.buckets.1.key: 1 }
+  - match: { aggregations.class.buckets.1.sig.buckets.0.key: foo }
+  - match: { aggregations.class.buckets.1.sig.buckets.0.score: 2.0 }
+  - match: { aggregations.class.buckets.1.sig.buckets.1.key: bar }
+  - match: { aggregations.class.buckets.1.sig.buckets.1.score: 1.0 }
+
+---
+"test custom heuristic on text significant_terms":
+  - do:
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            class:
+              terms:
+                field: class
+                order: { _key: asc }
+              aggs:
+                sig:
+                  significant_terms:
+                    field: text
+                    simple: {}
+                    min_doc_count: 1
+
+  - match: { aggregations.class.buckets.0.key: 0 }
+  - match: { aggregations.class.buckets.0.sig.buckets.0.key: bar }
+  - match: { aggregations.class.buckets.0.sig.buckets.0.score: 2.0 }
+  - match: { aggregations.class.buckets.0.sig.buckets.1.key: foo }
+  - match: { aggregations.class.buckets.0.sig.buckets.1.score: 1.0 }
+  - match: { aggregations.class.buckets.1.key: 1 }
+  - match: { aggregations.class.buckets.1.sig.buckets.0.key: foo }
+  - match: { aggregations.class.buckets.1.sig.buckets.0.score: 2.0 }
+  - match: { aggregations.class.buckets.1.sig.buckets.1.key: bar }
+  - match: { aggregations.class.buckets.1.sig.buckets.1.score: 1.0 }
+
+---
+"test custom heuristic on long significant_terms":
+  - do:
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            class:
+              terms:
+                field: class
+                order: { _key: asc }
+              aggs:
+                sig:
+                  significant_terms:
+                    field: long
+                    simple: {}
+                    min_doc_count: 1
+
+  - match: { aggregations.class.buckets.0.key: 0 }
+  - match: { aggregations.class.buckets.0.sig.buckets.0.key: 0 }
+  - match: { aggregations.class.buckets.0.sig.buckets.0.score: 2.0 }
+  - match: { aggregations.class.buckets.0.sig.buckets.1.key: 1 }
+  - match: { aggregations.class.buckets.0.sig.buckets.1.score: 1.0 }
+  - match: { aggregations.class.buckets.1.key: 1 }
+  - match: { aggregations.class.buckets.1.sig.buckets.0.key: 1 }
+  - match: { aggregations.class.buckets.1.sig.buckets.0.score: 2.0 }
+  - match: { aggregations.class.buckets.1.sig.buckets.1.key: 0 }
+  - match: { aggregations.class.buckets.1.sig.buckets.1.score: 1.0 }

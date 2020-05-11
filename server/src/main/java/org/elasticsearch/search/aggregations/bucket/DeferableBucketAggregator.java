@@ -24,7 +24,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -33,12 +32,15 @@ import java.util.List;
 import java.util.Map;
 
 public abstract class DeferableBucketAggregator extends BucketsAggregator {
-
+    /**
+     * Wrapper that records collections. Non-null if any aggregations have
+     * been deferred.
+     */
     private DeferringBucketCollector recordingWrapper;
 
     protected DeferableBucketAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metaData);
+            Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, metadata);
     }
 
     @Override
@@ -82,13 +84,9 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
     /**
      * This method should be overridden by subclasses that want to defer
      * calculation of a child aggregation until a first pass is complete and a
-     * set of buckets has been pruned. Deferring collection will require the
-     * recording of all doc/bucketIds from the first pass and then the sub class
-     * should call {@link #runDeferredCollections(long...)} for the selected set
-     * of buckets that survive the pruning.
+     * set of buckets has been pruned.
      *
-     * @param aggregator
-     *            the child aggregator
+     * @param aggregator the child aggregator
      * @return true if the aggregator should be deferred until a first pass at
      *         collection has completed
      */
@@ -96,12 +94,10 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
         return false;
     }
 
-    protected final void runDeferredCollections(long... bucketOrds) throws IOException {
-        // Being lenient here - ignore calls where there are no deferred
-        // collections to playback
+    @Override
+    protected void beforeBuildingBuckets(long[] ordsToCollect) throws IOException {
         if (recordingWrapper != null) {
-            recordingWrapper.replay(bucketOrds);
+            recordingWrapper.prepareSelectedBuckets(ordsToCollect);
         }
     }
-
 }

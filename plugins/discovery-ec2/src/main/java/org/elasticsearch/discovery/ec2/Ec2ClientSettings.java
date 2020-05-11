@@ -135,11 +135,13 @@ final class Ec2ClientSettings {
                 return null;
             } else {
                 if (key.length() == 0) {
-                    deprecationLogger.deprecated("Setting [{}] is set but [{}] is not, which will be unsupported in future",
+                    deprecationLogger.deprecatedAndMaybeLog("ec2_invalid_settings",
+                        "Setting [{}] is set but [{}] is not, which will be unsupported in future",
                         SECRET_KEY_SETTING.getKey(), ACCESS_KEY_SETTING.getKey());
                 }
                 if (secret.length() == 0) {
-                    deprecationLogger.deprecated("Setting [{}] is set but [{}] is not, which will be unsupported in future",
+                    deprecationLogger.deprecatedAndMaybeLog("ec2_invalid_settings",
+                       "Setting [{}] is set but [{}] is not, which will be unsupported in future",
                         ACCESS_KEY_SETTING.getKey(), SECRET_KEY_SETTING.getKey());
                 }
 

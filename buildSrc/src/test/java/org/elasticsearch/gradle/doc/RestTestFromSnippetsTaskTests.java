@@ -23,8 +23,10 @@ public class RestTestFromSnippetsTaskTests extends GradleUnitTestCase {
     }
 
     public void testMultipleBlockQuotes() {
-        assertEquals("\"foo\": \"bort baz\", \"bar\": \"other\"",
-            replaceBlockQuote("\"foo\": \"\"\"bort baz\"\"\", \"bar\": \"\"\"other\"\"\""));
+        assertEquals(
+            "\"foo\": \"bort baz\", \"bar\": \"other\"",
+            replaceBlockQuote("\"foo\": \"\"\"bort baz\"\"\", \"bar\": \"\"\"other\"\"\"")
+        );
     }
 
     public void testEscapingInBlockQuote() {

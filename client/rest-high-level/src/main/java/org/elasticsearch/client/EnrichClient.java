@@ -36,7 +36,7 @@ import java.util.Collections;
  * A wrapper for the {@link RestHighLevelClient} that provides methods for
  * accessing the Elastic enrich related methods
  * <p>
- * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-processor.html#enrich-policy-apis">
+ * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-apis.html">
  * X-Pack Enrich Policy APIs on elastic.co</a> for more information.
  */
 public final class EnrichClient {
@@ -50,7 +50,7 @@ public final class EnrichClient {
     /**
      * Executes the put policy api, which stores an enrich policy.
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-policy-apis.html#put-policy-api">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-enrich-policy-api.html">
      * the docs</a> for more.
      *
      * @param request the {@link PutPolicyRequest}
@@ -71,7 +71,7 @@ public final class EnrichClient {
     /**
      * Asynchronously executes the put policy api, which stores an enrich policy.
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/enrich-policy-apis.html#put-policy-api">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-enrich-policy-api.html">
      * the docs</a> for more.
      *
      * @param request the {@link PutPolicyRequest}
@@ -95,7 +95,7 @@ public final class EnrichClient {
     /**
      * Executes the delete policy api, which deletes an enrich policy.
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-policy-apis.html#delete-policy-api">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-enrich-policy-api.html">
      * the docs</a> for more.
      *
      * @param request the {@link DeletePolicyRequest}
@@ -116,7 +116,7 @@ public final class EnrichClient {
     /**
      * Asynchronously executes the delete policy api, which deletes an enrich policy.
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-policy-apis.html#delete-policy-api">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-enrich-policy-api.html">
      * the docs</a> for more.
      *
      * @param request the {@link DeletePolicyRequest}
@@ -140,7 +140,7 @@ public final class EnrichClient {
     /**
      * Executes the get policy api, which retrieves an enrich policy.
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-policy-apis.html#get-policy-api">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-enrich-policy-api.html">
      * the docs</a> for more.
      *
      * @param request the {@link PutPolicyRequest}
@@ -161,7 +161,7 @@ public final class EnrichClient {
     /**
      * Asynchronously executes the get policy api, which retrieves an enrich policy.
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-policy-apis.html#get-policy-api">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-enrich-policy-api.html">
      * the docs</a> for more.
      *
      * @param request the {@link PutPolicyRequest}
@@ -185,7 +185,7 @@ public final class EnrichClient {
     /**
      * Executes the enrich stats api, which retrieves enrich related stats.
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-policy-apis.html#stats-api">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-stats-api.html">
      * the docs</a> for more.
      *
      * @param request the {@link StatsRequest}
@@ -206,7 +206,7 @@ public final class EnrichClient {
     /**
      * Asynchronously executes the enrich stats api, which retrieves enrich related stats.
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-policy-apis.html#stats-api">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-stats-api.html">
      * the docs</a> for more.
      *
      * @param request the {@link StatsRequest}
@@ -230,7 +230,7 @@ public final class EnrichClient {
     /**
      * Executes the execute policy api, which executes an enrich policy.
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-policy-apis.html#execute-policy">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/execute-enrich-policy-api.html">
      * the docs</a> for more.
      *
      * @param request the {@link ExecutePolicyRequest}
@@ -251,7 +251,7 @@ public final class EnrichClient {
     /**
      * Asynchronously executes the execute policy api, which executes an enrich policy.
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-policy-apis.html#execute-policy">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/execute-enrich-policy-api.html">
      * the docs</a> for more.
      *
      * @param request the {@link ExecutePolicyRequest}

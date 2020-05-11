@@ -25,11 +25,8 @@ import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,7 +35,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.Collections;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
@@ -83,8 +79,6 @@ public class RolloverResponseTests extends ESTestCase {
     }
 
     private static void toXContent(RolloverResponse response, XContentBuilder builder) throws IOException {
-        Params params = new ToXContent.MapParams(
-            Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "false"));
         org.elasticsearch.action.admin.indices.rollover.RolloverResponse serverResponse =
             new org.elasticsearch.action.admin.indices.rollover.RolloverResponse(
                 response.getOldIndex(),
@@ -95,6 +89,6 @@ public class RolloverResponseTests extends ESTestCase {
                 response.isAcknowledged(),
                 response.isShardsAcknowledged()
             );
-        serverResponse.toXContent(builder, params);
+        serverResponse.toXContent(builder, null);
     }
 }

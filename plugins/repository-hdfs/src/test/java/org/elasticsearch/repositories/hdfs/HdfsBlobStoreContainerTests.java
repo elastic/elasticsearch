@@ -28,13 +28,12 @@ import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.repositories.ESBlobStoreContainerTestCase;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
+import org.elasticsearch.test.ESTestCase;
 
 import javax.security.auth.Subject;
-import java.io.IOException;
+
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
@@ -45,17 +44,12 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Collections;
 
-import static org.elasticsearch.repositories.ESBlobStoreTestCase.randomBytes;
-import static org.elasticsearch.repositories.ESBlobStoreTestCase.readBlobFully;
-
+import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
+import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.readBlobFully;
+import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.writeBlob;
 
 @ThreadLeakFilters(filters = {HdfsClientThreadLeakFilter.class})
-public class HdfsBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
-
-    @Override
-    protected BlobStore newBlobStore() throws IOException {
-        return new HdfsBlobStore(createTestContext(), "temp", 1024, false);
-    }
+public class HdfsBlobStoreContainerTests extends ESTestCase {
 
     private FileContext createTestContext() {
         FileContext fileContext;

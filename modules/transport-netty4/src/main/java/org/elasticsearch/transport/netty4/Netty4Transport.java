@@ -16,12 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.transport.netty4;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.AdaptiveRecvByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -33,8 +31,6 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.socket.nio.NioChannelOption;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.AttributeKey;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -44,6 +40,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -56,9 +53,8 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.core.internal.net.NetUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.CopyBytesServerSocketChannel;
-import org.elasticsearch.transport.CopyBytesSocketChannel;
 import org.elasticsearch.transport.SharedGroupFactory;
+import org.elasticsearch.transport.NettyAllocator;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportSettings;
 
@@ -82,7 +78,7 @@ public class Netty4Transport extends TcpTransport {
 
     public static final Setting<Integer> WORKER_COUNT =
         new Setting<>("transport.netty.worker_count",
-            (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
+            (s) -> Integer.toString(EsExecutors.allocatedProcessors(s) * 2),
             (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"), Property.NodeScope);
 
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_SIZE = Setting.byteSizeSetting(
@@ -146,13 +142,9 @@ public class Netty4Transport extends TcpTransport {
         final Bootstrap bootstrap = new Bootstrap();
         bootstrap.group(sharedGroup.getLowLevelGroup());
 
-        // If direct buffer pooling is disabled, use the CopyBytesSocketChannel which will pool a single
-        // direct buffer per-event-loop thread which will be used for IO operations.
-        if (ByteBufAllocator.DEFAULT.isDirectBufferPooled()) {
-            bootstrap.channel(NioSocketChannel.class);
-        } else {
-            bootstrap.channel(CopyBytesSocketChannel.class);
-        }
+        // NettyAllocator will return the channel type designed to work with the configured allocator
+        bootstrap.channel(NettyAllocator.getChannelType());
+        bootstrap.option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator());
 
         bootstrap.option(ChannelOption.TCP_NODELAY, TransportSettings.TCP_NO_DELAY.get(settings));
         bootstrap.option(ChannelOption.SO_KEEPALIVE, TransportSettings.TCP_KEEP_ALIVE.get(settings));
@@ -210,14 +202,12 @@ public class Netty4Transport extends TcpTransport {
 
         serverBootstrap.group(sharedGroup.getLowLevelGroup());
 
-        // If direct buffer pooling is disabled, use the CopyBytesServerSocketChannel which will create child
-        // channels of type CopyBytesSocketChannel. CopyBytesSocketChannel pool a single direct buffer
-        // per-event-loop thread to be used for IO operations.
-        if (ByteBufAllocator.DEFAULT.isDirectBufferPooled()) {
-            serverBootstrap.channel(NioServerSocketChannel.class);
-        } else {
-            serverBootstrap.channel(CopyBytesServerSocketChannel.class);
-        }
+        // NettyAllocator will return the channel type designed to work with the configuredAllocator
+        serverBootstrap.channel(NettyAllocator.getServerChannelType());
+
+        // Set the allocators for both the server channel and the child channels created
+        serverBootstrap.option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator());
+        serverBootstrap.childOption(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator());
 
         serverBootstrap.childHandler(getServerChannelInitializer(name));
         serverBootstrap.handler(new ServerChannelExceptionHandler());
@@ -310,9 +300,11 @@ public class Netty4Transport extends TcpTransport {
     @Override
     @SuppressForbidden(reason = "debug")
     protected void stopInternal() {
-        sharedGroup.shutdown();
-        serverBootstraps.clear();
-        clientBootstrap = null;
+        Releasables.close(() -> {
+            if (sharedGroup != null) {
+                sharedGroup.shutdown();
+            }
+        }, serverBootstraps::clear, () -> clientBootstrap = null);
     }
 
     protected class ClientChannelInitializer extends ChannelInitializer<Channel> {
@@ -320,9 +312,8 @@ public class Netty4Transport extends TcpTransport {
         @Override
         protected void initChannel(Channel ch) throws Exception {
             ch.pipeline().addLast("logging", new ESLoggingHandler());
-            ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());
             // using a dot as a prefix means this cannot come from any settings parsed
-            ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this));
+            ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(pageCacheRecycler, Netty4Transport.this));
         }
 
         @Override
@@ -346,8 +337,7 @@ public class Netty4Transport extends TcpTransport {
             Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, true, name, ch.newSucceededFuture());
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
             ch.pipeline().addLast("logging", new ESLoggingHandler());
-            ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());
-            ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this));
+            ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(pageCacheRecycler, Netty4Transport.this));
             serverAcceptedChannel(nettyTcpChannel);
         }
 

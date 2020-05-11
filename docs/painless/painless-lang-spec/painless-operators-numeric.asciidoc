@@ -1204,7 +1204,7 @@ The following table illustrates the resultant bit from the xoring of two bits.
 
 [source,ANTLR4]
 ----
-bitwise_and: expression '^' expression;
+bitwise_xor: expression '^' expression;
 ----
 
 *Promotion*
@@ -1284,7 +1284,7 @@ The following table illustrates the resultant bit from the oring of two bits.
 
 [source,ANTLR4]
 ----
-bitwise_and: expression '|' expression;
+bitwise_or: expression '|' expression;
 ----
 
 *Promotion*

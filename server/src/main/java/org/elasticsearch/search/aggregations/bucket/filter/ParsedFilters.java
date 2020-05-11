@@ -60,7 +60,7 @@ public class ParsedFilters extends ParsedMultiBucketAggregation<ParsedFilters.Pa
         return bucketMap.get(key);
     }
 
-    private static ObjectParser<ParsedFilters, Void> PARSER =
+    private static final ObjectParser<ParsedFilters, Void> PARSER =
             new ObjectParser<>(ParsedFilters.class.getSimpleName(), true, ParsedFilters::new);
     static {
         declareMultiBucketAggregationFields(PARSER,

@@ -21,3 +21,9 @@ esplugin {
   description 'This module adds the support parent-child queries and aggregations'
   classname 'org.elasticsearch.join.ParentJoinPlugin'
 }
+
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'search' 
+  }
+}

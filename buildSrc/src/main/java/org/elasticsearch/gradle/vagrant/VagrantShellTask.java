@@ -78,13 +78,16 @@ public abstract class VagrantShellTask extends DefaultTask {
                 script.add("cd " + convertWindowsPath(getProject(), rootDir));
                 extension.getVmEnv().forEach((k, v) -> script.add("$Env:" + k + " = \"" + v + "\""));
                 script.addAll(getWindowsScript().stream().map(s -> "    " + s).collect(Collectors.toList()));
-                script.addAll(Arrays.asList(
-                    "    exit $LASTEXITCODE",
-                    "} catch {",
-                    // catch if we have a failure to even run the script at all above, equivalent to set -e, sort of
-                    "    echo $_.Exception.Message",
-                    "    exit 1",
-                    "}"));
+                script.addAll(
+                    Arrays.asList(
+                        "    exit $LASTEXITCODE",
+                        "} catch {",
+                        // catch if we have a failure to even run the script at all above, equivalent to set -e, sort of
+                        "    echo $_.Exception.Message",
+                        "    exit 1",
+                        "}"
+                    )
+                );
                 spec.setArgs("--elevated", "--command", String.join("\n", script));
                 spec.setProgressHandler(progressHandler);
             });
@@ -117,6 +120,5 @@ public abstract class VagrantShellTask extends DefaultTask {
             }
         }
     }
-
 
 }

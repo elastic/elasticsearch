@@ -288,7 +288,7 @@ public class UpdateRequestTests extends ESTestCase {
                 .endObject());
 
         XContentParseException ex = expectThrows(XContentParseException.class, () -> request.fromXContent(contentParser));
-        assertEquals("[1:2] [UpdateRequest] unknown field [unknown_field], parser not found", ex.getMessage());
+        assertEquals("[1:2] [UpdateRequest] unknown field [unknown_field]", ex.getMessage());
 
         UpdateRequest request2 = new UpdateRequest("test", "1");
         XContentParser unknownObject = createParser(XContentFactory.jsonBuilder()
@@ -299,7 +299,7 @@ public class UpdateRequestTests extends ESTestCase {
                     .endObject()
                 .endObject());
         ex = expectThrows(XContentParseException.class, () -> request2.fromXContent(unknownObject));
-        assertEquals("[1:76] [UpdateRequest] unknown field [params], parser not found", ex.getMessage());
+        assertEquals("[1:76] [UpdateRequest] unknown field [params]", ex.getMessage());
     }
 
     public void testFetchSourceParsing() throws Exception {

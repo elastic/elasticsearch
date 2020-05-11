@@ -1,5 +1,8 @@
 [[cluster-update-settings]]
-=== Cluster Update Settings
+=== Cluster update settings API
+++++
+<titleabbrev>Cluster update settings</titleabbrev>
+++++
 
 Updates cluster-wide settings. 
 

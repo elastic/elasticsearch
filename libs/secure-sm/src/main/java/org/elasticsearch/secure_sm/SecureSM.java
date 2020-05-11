@@ -46,16 +46,16 @@ import java.util.Objects;
  * <ul>
  *   <li>{@code modifyThread} and {@code modifyThreadGroup} are required for any thread access
  *       checks: with these permissions, access is granted as long as the thread group is
- *       the same or an ancestor ({@code sourceGroup.parentOf(targetGroup) == true}). 
+ *       the same or an ancestor ({@code sourceGroup.parentOf(targetGroup) == true}).
  *   <li>code without these permissions can do very little, except to interrupt itself. It may
  *       not even create new threads.
- *   <li>very special cases (like test runners) that have {@link ThreadPermission} can violate 
+ *   <li>very special cases (like test runners) that have {@link ThreadPermission} can violate
  *       threadgroup security rules.
  * </ul>
  * <p>
  * If java security debugging ({@code java.security.debug}) is enabled, and this SecurityManager
  * is installed, it will emit additional debugging information when threadgroup access checks fail.
- *  
+ *
  * @see SecurityManager#checkAccess(Thread)
  * @see SecurityManager#checkAccess(ThreadGroup)
  * @see <a href="http://cs.oswego.edu/pipermail/concurrency-interest/2009-August/006508.html">
@@ -105,8 +105,10 @@ public class SecureSM extends SecurityManager {
         "com\\.carrotsearch\\.ant\\.tasks\\.junit4\\.slave\\..*",
         // eclipse test runner
         "org\\.eclipse.jdt\\.internal\\.junit\\.runner\\..*",
-        // intellij test runner
-        "com\\.intellij\\.rt\\.execution\\.junit\\..*"
+        // intellij test runner (before IDEA version 2019.3)
+        "com\\.intellij\\.rt\\.execution\\.junit\\..*",
+        // intellij test runner (since IDEA version 2019.3)
+        "com\\.intellij\\.rt\\.junit\\..*"
     };
 
     // java.security.debug support
@@ -122,7 +124,7 @@ public class SecureSM extends SecurityManager {
             }
         }
     });
-    
+
     @Override
     @SuppressForbidden(reason = "java.security.debug messages go to standard error")
     public void checkAccess(Thread t) {
@@ -137,7 +139,7 @@ public class SecureSM extends SecurityManager {
             throw e;
         }
     }
-    
+
     @Override
     @SuppressForbidden(reason = "java.security.debug messages go to standard error")
     public void checkAccess(ThreadGroup g) {
@@ -157,7 +159,7 @@ public class SecureSM extends SecurityManager {
         System.err.println("access: caller group=" + caller);
         System.err.println("access: target group=" + target);
     }
-    
+
     // thread permission logic
 
     private static final Permission MODIFY_THREAD_PERMISSION = new RuntimePermission("modifyThread");
@@ -168,31 +170,31 @@ public class SecureSM extends SecurityManager {
 
         // first, check if we can modify threads at all.
         checkPermission(MODIFY_THREAD_PERMISSION);
-        
+
         // check the threadgroup, if its our thread group or an ancestor, its fine.
         final ThreadGroup source = Thread.currentThread().getThreadGroup();
         final ThreadGroup target = t.getThreadGroup();
-        
+
         if (target == null) {
             return;    // its a dead thread, do nothing.
         } else if (source.parentOf(target) == false) {
             checkPermission(MODIFY_ARBITRARY_THREAD_PERMISSION);
         }
     }
-    
+
     private static final Permission MODIFY_THREADGROUP_PERMISSION = new RuntimePermission("modifyThreadGroup");
     private static final Permission MODIFY_ARBITRARY_THREADGROUP_PERMISSION = new ThreadPermission("modifyArbitraryThreadGroup");
-    
+
     protected void checkThreadGroupAccess(ThreadGroup g) {
         Objects.requireNonNull(g);
 
         // first, check if we can modify thread groups at all.
         checkPermission(MODIFY_THREADGROUP_PERMISSION);
-        
+
         // check the threadgroup, if its our thread group or an ancestor, its fine.
         final ThreadGroup source = Thread.currentThread().getThreadGroup();
         final ThreadGroup target = g;
-        
+
         if (source == null) {
             return; // we are a dead thread, do nothing
         } else if (source.parentOf(target) == false) {
@@ -205,7 +207,7 @@ public class SecureSM extends SecurityManager {
     public void checkExit(int status) {
         innerCheckExit(status);
     }
-    
+
     /**
      * The "Uwe Schindler" algorithm.
      *
@@ -227,7 +229,7 @@ public class SecureSM extends SecurityManager {
                         exitMethodHit = className + '#' + methodName + '(' + status + ')';
                         continue;
                     }
-                    
+
                     if (exitMethodHit != null) {
                         if (classesThatCanExit == null) {
                             break;
@@ -240,7 +242,7 @@ public class SecureSM extends SecurityManager {
                         break;
                     }
                 }
-                
+
                 if (exitMethodHit == null) {
                     // should never happen, only if JVM hides stack trace - replace by generic:
                     exitMethodHit = "JVM exit method";
@@ -248,7 +250,7 @@ public class SecureSM extends SecurityManager {
                 throw new SecurityException(exitMethodHit + " calls are not allowed");
             }
         });
-        
+
         // we passed the stack check, delegate to super, so default policy can still deny permission:
         super.checkExit(status);
     }

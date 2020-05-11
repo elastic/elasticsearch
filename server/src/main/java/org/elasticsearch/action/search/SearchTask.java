@@ -25,17 +25,31 @@ import org.elasticsearch.tasks.TaskId;
 import java.util.Map;
 
 /**
- * Task storing information about a currently running search request.
+ * Task storing information about a currently running {@link SearchRequest}.
  */
 public class SearchTask extends CancellableTask {
+    private SearchProgressListener progressListener = SearchProgressListener.NOOP;
 
     public SearchTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         super(id, type, action, description, parentTaskId, headers);
+    }
+
+    /**
+     * Attach a {@link SearchProgressListener} to this task.
+     */
+    public final void setProgressListener(SearchProgressListener progressListener) {
+        this.progressListener = progressListener;
+    }
+
+    /**
+     * Return the {@link SearchProgressListener} attached to this task.
+     */
+    public final SearchProgressListener getProgressListener() {
+        return progressListener;
     }
 
     @Override
     public boolean shouldCancelChildrenOnCancellation() {
         return true;
     }
-
 }

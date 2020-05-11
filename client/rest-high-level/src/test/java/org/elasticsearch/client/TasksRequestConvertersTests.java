@@ -21,8 +21,8 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.client.tasks.CancelTasksRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -36,15 +36,20 @@ import static org.hamcrest.Matchers.nullValue;
 public class TasksRequestConvertersTests extends ESTestCase {
 
     public void testCancelTasks() {
-        CancelTasksRequest request = new CancelTasksRequest();
         Map<String, String> expectedParams = new HashMap<>();
-        TaskId taskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
-        TaskId parentTaskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
-        request.setTaskId(taskId);
-        request.setParentTaskId(parentTaskId);
+        org.elasticsearch.client.tasks.TaskId taskId =
+            new org.elasticsearch.client.tasks.TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
+        org.elasticsearch.client.tasks.TaskId parentTaskId =
+            new org.elasticsearch.client.tasks.TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
+        CancelTasksRequest.Builder builder = new CancelTasksRequest.Builder().withTaskId(taskId).withParentTaskId(parentTaskId);
         expectedParams.put("task_id", taskId.toString());
         expectedParams.put("parent_task_id", parentTaskId.toString());
-        Request httpRequest = TasksRequestConverters.cancelTasks(request);
+        if (randomBoolean()) {
+            boolean waitForCompletion = randomBoolean();
+            builder.withWaitForCompletion(waitForCompletion);
+            expectedParams.put("wait_for_completion", Boolean.toString(waitForCompletion));
+        }
+        Request httpRequest = TasksRequestConverters.cancelTasks(builder.build());
         assertThat(httpRequest, notNullValue());
         assertThat(httpRequest.getMethod(), equalTo(HttpPost.METHOD_NAME));
         assertThat(httpRequest.getEntity(), nullValue());

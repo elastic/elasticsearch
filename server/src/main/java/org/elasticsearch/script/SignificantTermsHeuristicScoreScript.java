@@ -32,7 +32,7 @@ public abstract class SignificantTermsHeuristicScoreScript {
 
     public abstract double execute(Map<String, Object> params);
 
-    public interface Factory {
+    public interface Factory extends ScriptFactory {
         SignificantTermsHeuristicScoreScript newInstance();
     }
 }

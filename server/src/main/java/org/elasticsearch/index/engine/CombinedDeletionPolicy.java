@@ -51,6 +51,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final LongSupplier globalCheckpointSupplier;
     private final ObjectIntHashMap<IndexCommit> snapshottedCommits; // Number of snapshots held against each commit point.
     private volatile IndexCommit safeCommit; // the most recent safe commit point - its max_seqno at most the persisted global checkpoint.
+    private volatile long maxSeqNoOfNextSafeCommit;
     private volatile IndexCommit lastCommit; // the most recent commit point
     private volatile SafeCommitInfo safeCommitInfo = SafeCommitInfo.EMPTY;
 
@@ -89,6 +90,11 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
                 }
             }
             updateRetentionPolicy();
+            if (keptPosition == commits.size() - 1) {
+                this.maxSeqNoOfNextSafeCommit = Long.MAX_VALUE;
+            } else {
+                this.maxSeqNoOfNextSafeCommit = Long.parseLong(commits.get(keptPosition + 1).getUserData().get(SequenceNumbers.MAX_SEQ_NO));
+            }
             safeCommit = this.safeCommit;
         }
 
@@ -115,16 +121,10 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert Thread.holdsLock(this);
         logger.debug("Safe commit [{}], last commit [{}]", commitDescription(safeCommit), commitDescription(lastCommit));
         assert safeCommit.isDeleted() == false : "The safe commit must not be deleted";
-        final long minRequiredGen = Long.parseLong(safeCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
         assert lastCommit.isDeleted() == false : "The last commit must not be deleted";
-        final long lastGen = Long.parseLong(lastCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
-
-        assert minRequiredGen <= lastGen : "minRequiredGen must not be greater than lastGen";
-        translogDeletionPolicy.setTranslogGenerationOfLastCommit(lastGen);
-        translogDeletionPolicy.setMinTranslogGenerationForRecovery(minRequiredGen);
-
-        softDeletesPolicy.setLocalCheckpointOfSafeCommit(
-            Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)));
+        final long localCheckpointOfSafeCommit = Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+        softDeletesPolicy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
+        translogDeletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
     }
 
     protected int getDocCountOfCommit(IndexCommit indexCommit) throws IOException {
@@ -217,16 +217,10 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     }
 
     /**
-     * Checks if the deletion policy can release some index commits with the latest global checkpoint.
+     * Checks if the deletion policy can delete some index commits with the latest global checkpoint.
      */
-    boolean hasUnreferencedCommits() throws IOException {
-        final IndexCommit lastCommit = this.lastCommit;
-        if (safeCommit != lastCommit) { // Race condition can happen but harmless
-            final long maxSeqNoFromLastCommit = Long.parseLong(lastCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
-            // We can clean up the current safe commit if the last commit is safe
-            return globalCheckpointSupplier.getAsLong() >= maxSeqNoFromLastCommit;
-        }
-        return false;
+    boolean hasUnreferencedCommits() {
+        return maxSeqNoOfNextSafeCommit <= globalCheckpointSupplier.getAsLong();
     }
 
     /**

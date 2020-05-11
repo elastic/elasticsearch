@@ -26,20 +26,22 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestUpdateAction extends BaseRestHandler {
 
-    public RestUpdateAction(RestController controller) {
-        controller.registerHandler(POST, "/{index}/_update/{id}", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(POST, "/{index}/_update/{id}"));
     }
 
     @Override
@@ -53,6 +55,7 @@ public class RestUpdateAction extends BaseRestHandler {
         updateRequest.routing(request.param("routing"));
         updateRequest.timeout(request.paramAsTime("timeout", updateRequest.timeout()));
         updateRequest.setRefreshPolicy(request.param("refresh"));
+        updateRequest.preferV2Templates(RestCreateIndexAction.preferV2Templates(request));
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {
             updateRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));

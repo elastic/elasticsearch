@@ -48,7 +48,7 @@ public class TermVectorsResponse {
         this.termVectorList = termVectorList;
     }
 
-    private static ConstructingObjectParser<TermVectorsResponse, Void> PARSER = new ConstructingObjectParser<>("term_vectors", true,
+    private static final ConstructingObjectParser<TermVectorsResponse, Void> PARSER = new ConstructingObjectParser<>("term_vectors", true,
         args -> {
             // as the response comes from server, we are sure that args[5] will be a list of TermVector
             @SuppressWarnings("unchecked") List<TermVector> termVectorList = (List<TermVector>) args[5];
@@ -133,7 +133,7 @@ public class TermVectorsResponse {
             && Objects.equals(id, other.id)
             && docVersion == other.docVersion
             && found == other.found
-            && tookInMillis == tookInMillis
+            && tookInMillis == other.tookInMillis
             && Objects.equals(termVectorList, other.termVectorList);
     }
 
@@ -145,7 +145,7 @@ public class TermVectorsResponse {
 
     public static final class TermVector {
 
-        private static ConstructingObjectParser<TermVector, String> PARSER = new ConstructingObjectParser<>("term_vector", true,
+        private static final ConstructingObjectParser<TermVector, String> PARSER = new ConstructingObjectParser<>("term_vector", true,
             (args, ctxFieldName)  -> {
                 // as the response comes from server, we are sure that args[1] will be a list of Term
                 @SuppressWarnings("unchecked") List<Term> terms = (List<Term>) args[1];
@@ -218,7 +218,7 @@ public class TermVectorsResponse {
         // Class containing a general field statistics for the field
         public static final class FieldStatistics {
 
-            private static ConstructingObjectParser<FieldStatistics, Void> PARSER = new ConstructingObjectParser<>(
+            private static final ConstructingObjectParser<FieldStatistics, Void> PARSER = new ConstructingObjectParser<>(
                 "field_statistics", true,
                 args  -> {
                     return new FieldStatistics((long) args[0], (int) args[1], (long) args[2]);
@@ -282,7 +282,7 @@ public class TermVectorsResponse {
 
 
         public static final class Term {
-            private static ConstructingObjectParser<Term, String> PARSER = new ConstructingObjectParser<>("token", true,
+            private static final ConstructingObjectParser<Term, String> PARSER = new ConstructingObjectParser<>("token", true,
                 (args, ctxTerm)  -> {
                     // as the response comes from server, we are sure that args[4] will be a list of Token
                     @SuppressWarnings("unchecked") List<Token> tokens = (List<Token>) args[4];
@@ -393,7 +393,7 @@ public class TermVectorsResponse {
 
         public static final class Token {
 
-            private static ConstructingObjectParser<Token, Void> PARSER = new ConstructingObjectParser<>("token", true,
+            private static final ConstructingObjectParser<Token, Void> PARSER = new ConstructingObjectParser<>("token", true,
                 args  -> {
                     return new Token((Integer) args[0], (Integer) args[1], (Integer) args[2], (String) args[3]);
                 });

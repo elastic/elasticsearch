@@ -10,7 +10,6 @@ setup:
   - match: { vectors.available: true }
   - match: { vectors.enabled: true }
   - match: { vectors.dense_vector_fields_count: 0 }
-  - match: { vectors.sparse_vector_fields_count: 0 }
   - match: { vectors.dense_vector_dims_avg_count: 0 }
 
   - do:
@@ -35,12 +34,9 @@ setup:
               my_dense_vector3:
                 type: dense_vector
                 dims: 20
-              my_sparse_vector1:
-                type: sparse_vector
 
   - do: {xpack.usage: {}}
   - match: { vectors.available: true }
   - match: { vectors.enabled: true }
   - match: { vectors.dense_vector_fields_count: 3 }
-  - match: { vectors.sparse_vector_fields_count: 1 }
   - match: { vectors.dense_vector_dims_avg_count: 20 }

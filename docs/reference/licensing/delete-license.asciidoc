@@ -17,7 +17,8 @@ This API enables you to delete licensing information.
 ==== Description
 
 When your license expires, {xpack} operates in a degraded mode.  For more
-information, see {stack-ov}/license-expiration.html[License Expiration].
+information, see
+{kibana-ref}/managing-licenses.html#license-expiration[License expiration].
 
 [float]
 ==== Authorization

@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -22,7 +22,7 @@ import java.io.InputStream;
 
 class BatchedRecordsIterator extends BatchedResultsIterator<AnomalyRecord> {
 
-    BatchedRecordsIterator(Client client, String jobId) {
+    BatchedRecordsIterator(OriginSettingClient client, String jobId) {
         super(client, jobId, AnomalyRecord.RESULT_TYPE_VALUE);
     }
 

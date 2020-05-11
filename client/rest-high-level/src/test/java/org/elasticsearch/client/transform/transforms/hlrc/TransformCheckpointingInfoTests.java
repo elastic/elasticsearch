@@ -19,40 +19,22 @@
 
 package org.elasticsearch.client.transform.transforms.hlrc;
 
-import org.elasticsearch.client.AbstractHlrcXContentTestCase;
+import org.elasticsearch.client.AbstractResponseTestCase;
+import org.elasticsearch.client.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.function.Predicate;
 
-public class TransformCheckpointingInfoTests extends AbstractHlrcXContentTestCase<
-        TransformCheckpointingInfo,
-        org.elasticsearch.client.transform.transforms.TransformCheckpointingInfo> {
+import static org.elasticsearch.client.transform.transforms.hlrc.TransformStatsTests.assertTransformCheckpointInfo;
 
-    public static TransformCheckpointingInfo fromHlrc(
-            org.elasticsearch.client.transform.transforms.TransformCheckpointingInfo instance) {
-        return new TransformCheckpointingInfo(
-            TransformCheckpointStatsTests.fromHlrc(instance.getLast()),
-            TransformCheckpointStatsTests.fromHlrc(instance.getNext()),
-            instance.getOperationsBehind(),
-            instance.getChangesLastDetectedAt());
-    }
+public class TransformCheckpointingInfoTests extends AbstractResponseTestCase<
+    org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo,
+        TransformCheckpointingInfo> {
 
-    @Override
-    public org.elasticsearch.client.transform.transforms.TransformCheckpointingInfo doHlrcParseInstance(XContentParser parser) {
-        return org.elasticsearch.client.transform.transforms.TransformCheckpointingInfo.fromXContent(parser);
-    }
-
-    @Override
-    public TransformCheckpointingInfo convertHlrcToInternal(
-            org.elasticsearch.client.transform.transforms.TransformCheckpointingInfo instance) {
-        return fromHlrc(instance);
-    }
-
-    public static TransformCheckpointingInfo randomTransformCheckpointingInfo() {
-        return new TransformCheckpointingInfo(
+    public static org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo randomTransformCheckpointingInfo() {
+        return new org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo(
             TransformCheckpointStatsTests.randomTransformCheckpointStats(),
             TransformCheckpointStatsTests.randomTransformCheckpointStats(),
             randomNonNegativeLong(),
@@ -60,22 +42,19 @@ public class TransformCheckpointingInfoTests extends AbstractHlrcXContentTestCas
     }
 
     @Override
-    protected TransformCheckpointingInfo createTestInstance() {
+    protected org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo
+    createServerTestInstance(XContentType xContentType) {
         return randomTransformCheckpointingInfo();
     }
 
     @Override
-    protected TransformCheckpointingInfo doParseInstance(XContentParser parser) throws IOException {
+    protected TransformCheckpointingInfo doParseToClientInstance(XContentParser parser) throws IOException {
         return TransformCheckpointingInfo.fromXContent(parser);
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return true;
-    }
-
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> field.contains("position");
+    protected void assertInstances(org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo serverTestInstance,
+                                   TransformCheckpointingInfo clientInstance) {
+        assertTransformCheckpointInfo(serverTestInstance, clientInstance);
     }
 }

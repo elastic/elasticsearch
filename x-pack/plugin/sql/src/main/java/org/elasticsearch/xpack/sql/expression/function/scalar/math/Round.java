@@ -5,10 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryOptionalMathProcessor.BinaryOptionalMathOperation;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.List;
 
@@ -18,7 +19,7 @@ import java.util.List;
  * count digits after the decimal point. If negative, it will round the number till that paramter count
  * digits before the decimal point, starting at the decimal point.
  */
-public class Round extends BinaryOptionalNumericFunction {
+public class Round extends BinaryOptionalNumericFunction implements OptionalArgument {
     
     public Round(Source source, Expression left, Expression right) {
         super(source, left, right);

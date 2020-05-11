@@ -89,28 +89,6 @@ public class WatcherDateTimeUtilsTests extends ESTestCase {
         assertThat(parsed.millis(), is(values.get(key).millis()));
     }
 
-    public void testParseTimeValueStringNegative() throws Exception {
-        int value = -1 * randomIntBetween(2, 200);
-        Map<String, TimeValue> values = new HashMap<>();
-        values.put(value + "s", TimeValue.timeValueSeconds(value));
-        values.put(value + "m", TimeValue.timeValueMinutes(value));
-        values.put(value + "h", TimeValue.timeValueHours(value));
-
-        String key = randomFrom(values.keySet().toArray(new String[values.size()]));
-
-        XContentParser parser = createParser(jsonBuilder().startObject().field("value", key).endObject());
-        parser.nextToken(); // start object
-        parser.nextToken(); // field name
-        parser.nextToken(); // value
-
-        try {
-            WatcherDateTimeUtils.parseTimeValue(parser, "test");
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), is("failed to parse time unit"));
-        }
-    }
-
     public void testParseTimeValueNull() throws Exception {
         XContentParser parser = createParser(jsonBuilder().startObject().nullField("value").endObject());
         parser.nextToken(); // start object

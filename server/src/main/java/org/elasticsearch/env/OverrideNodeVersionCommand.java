@@ -19,20 +19,18 @@
 package org.elasticsearch.env;
 
 import joptsimple.OptionParser;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import joptsimple.OptionSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 
 public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
-    private static final Logger logger = LogManager.getLogger(OverrideNodeVersionCommand.class);
-
     private static final String TOO_NEW_MESSAGE =
         DELIMITER +
             "\n" +
@@ -71,28 +69,27 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
     }
 
     @Override
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
+    protected void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException {
         final Path[] nodePaths = Arrays.stream(toNodePaths(dataPaths)).map(p -> p.path).toArray(Path[]::new);
-        final NodeMetaData nodeMetaData
-            = new NodeMetaData.NodeMetaDataStateFormat(true).loadLatestState(logger, namedXContentRegistry, nodePaths);
-        if (nodeMetaData == null) {
+        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePaths);
+        if (nodeMetadata == null) {
             throw new ElasticsearchException(NO_METADATA_MESSAGE);
         }
 
         try {
-            nodeMetaData.upgradeToCurrentVersion();
-            throw new ElasticsearchException("found [" + nodeMetaData + "] which is compatible with current version [" + Version.CURRENT
+            nodeMetadata.upgradeToCurrentVersion();
+            throw new ElasticsearchException("found [" + nodeMetadata + "] which is compatible with current version [" + Version.CURRENT
                 + "], so there is no need to override the version checks");
         } catch (IllegalStateException e) {
             // ok, means the version change is not supported
         }
 
-        confirm(terminal, (nodeMetaData.nodeVersion().before(Version.CURRENT) ? TOO_OLD_MESSAGE : TOO_NEW_MESSAGE)
-            .replace("V_OLD", nodeMetaData.nodeVersion().toString())
-            .replace("V_NEW", nodeMetaData.nodeVersion().toString())
+        confirm(terminal, (nodeMetadata.nodeVersion().before(Version.CURRENT) ? TOO_OLD_MESSAGE : TOO_NEW_MESSAGE)
+            .replace("V_OLD", nodeMetadata.nodeVersion().toString())
+            .replace("V_NEW", nodeMetadata.nodeVersion().toString())
             .replace("V_CUR", Version.CURRENT.toString()));
 
-        NodeMetaData.FORMAT.writeAndCleanup(new NodeMetaData(nodeMetaData.nodeId(), Version.CURRENT), nodePaths);
+        PersistedClusterStateService.overrideVersion(Version.CURRENT, dataPaths);
 
         terminal.println(SUCCESS_MESSAGE);
     }

@@ -1,7 +1,8 @@
 {
   "security.invalidate_api_key":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-invalidate-api-key.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-invalidate-api-key.html",
+      "description":"Invalidates one or more API keys."
     },
     "stability":"stable",
     "url":{

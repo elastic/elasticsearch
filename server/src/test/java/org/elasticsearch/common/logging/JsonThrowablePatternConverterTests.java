@@ -70,7 +70,7 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
 
         //confirms exception is correctly parsed
 
-        JsonLogLine jsonLogLine = JsonLogsStream.from(new BufferedReader(new StringReader(result)))
+        JsonLogLine jsonLogLine = JsonLogsStream.from(new BufferedReader(new StringReader(result)), JsonLogLine.ES_LOG_LINE)
                                                 .findFirst()
                                                 .orElseThrow(() -> new AssertionError("no logs parsed"));
 

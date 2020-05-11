@@ -37,29 +37,17 @@ suitable for writing beats output to {es}.
 
 --
 
-[[built-in-roles-transform-admin]] `transform_admin` :: 
-Grants `manage_transform` cluster privileges, which enable you to manage 
-{transforms}. This role also includes all 
-{kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
-
-[[built-in-roles-transform-user]] `transform_user` ::
-Grants `monitor_transform` cluster privileges, which enable you to use 
-{transforms}. This role also includes all
-{kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
-
 [[built-in-roles-data-frame-transforms-admin]] `data_frame_transforms_admin` ::
-(This role is deprecated, please use the 
-<<built-in-roles-transform-admin,`transform_admin`>> role instead.) Grants 
-`manage_data_frame_transforms` cluster privileges, which enable you to manage 
-{transforms}. This role also includes all
+Grants `manage_data_frame_transforms` cluster privileges, which enable you to
+manage {transforms}. This role also includes all
 {kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
+deprecated:[7.5.0,"Replaced by <<built-in-roles-transform-admin,`transform_admin`>>"].
 
 [[built-in-roles-data-frame-transforms-user]] `data_frame_transforms_user` ::
-(This role is deprecated, please use the 
-<<built-in-roles-transform-user,`transform_user`>> role instead.) Grants 
-`monitor_data_frame_transforms` cluster privileges, which enable you to use 
-{transforms}. This role also includes all
+Grants `monitor_data_frame_transforms` cluster privileges, which enable you to
+use {transforms}. This role also includes all
 {kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
+deprecated:[7.5.0,"Replaced by <<built-in-roles-transform-user,`transform_user`>>"].
 
 [[built-in-roles-enrich-user]] `enrich_user` ::
 Grants access to manage *all* enrich indices (`.enrich-*`) and *all* operations on
@@ -72,10 +60,12 @@ NOTE: This role does *not* provide the ability to create indices; those privileg
 must be defined in a separate role.
 
 [[built-in-roles-kibana-dashboard]] `kibana_dashboard_only_user` ::
-Grants access to the {kib} Dashboard and read-only permissions to Kibana.
-This role does not have access to editing tools in {kib}. For more
-information, see
-{kibana-ref}/xpack-dashboard-only-mode.html[{kib} Dashboard Only Mode].
+(This role is deprecated, please use 
+{kibana-ref}/kibana-privileges.html#kibana-feature-privileges[{kib} feature privileges]
+instead).
+Grants read-only access to the {kib} Dashboard in every 
+{kibana-ref}/xpack-spaces.html[space in {kib}].
+This role does not have access to editing tools in {kib}. 
 
 [[built-in-roles-kibana-system]] `kibana_system` ::
 Grants access necessary for the {kib} system user to read from and write to the
@@ -87,9 +77,15 @@ see {kibana-ref}/using-kibana-with-security.html[Configuring Security in {kib}].
 NOTE: This role should not be assigned to users as the granted permissions may
 change between releases.
 
+[[built-in-roles-kibana-admin]] `kibana_admin`::
+Grants access to all features in {kib}. For more information on {kib} authorization,
+see {kibana-ref}/xpack-security-authorization.html[Kibana authorization].
+
 [[built-in-roles-kibana-user]] `kibana_user`::
-Grants access to all features in {kib}. For more information on Kibana authorization,
-see {kibana-ref}/xpack-security-authorization.html[Kibana Authorization].
+(This role is deprecated, please use the
+<<built-in-roles-kibana-admin,`kibana_admin`>> role instead.)
+Grants access to all features in {kib}. For more information on {kib} authorization,
+see {kibana-ref}/xpack-security-authorization.html[Kibana authorization].
 
 [[built-in-roles-logstash-admin]] `logstash_admin` ::
 Grants access to the `.logstash*` indices for managing configurations.
@@ -110,24 +106,30 @@ suitable for use within a Logstash pipeline.
 --
 
 [[built-in-roles-ml-admin]] `machine_learning_admin`::
-Grants `manage_ml` cluster privileges, read access to `.ml-anomalies*`,
-`.ml-notifications*`, `.ml-state*`, `.ml-meta*` indices and write access to
-`.ml-annotations*` indices. This role also includes all
-{kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
+Provides all of the privileges of the `machine_learning_user` role plus the full
+use of the {ml} APIs. Grants `manage_ml` cluster privileges, read access to
+`.ml-anomalies*`, `.ml-notifications*`, `.ml-state*`, `.ml-meta*` indices and
+write access to `.ml-annotations*` indices. {ml-cap} administrators also need
+index privileges for source and destination indices and roles that grant
+access to {kib}.
+See {ml-docs}/setup.html#setup-privileges[{ml-cap} security privileges].
 
 [[built-in-roles-ml-user]] `machine_learning_user`::
 Grants the minimum privileges required to view {ml} configuration,
 status, and work with results. This role grants `monitor_ml` cluster privileges,
 read access to the `.ml-notifications` and `.ml-anomalies*` indices
 (which store {ml} results), and write access to `.ml-annotations*` indices.
-This role also includes all {kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
+{ml-cap} users also need index privileges for source and destination
+indices and roles that grant access to {kib}. See
+{ml-docs}/setup.html#setup-privileges[{ml-cap} security privileges].
 
 [[built-in-roles-monitoring-user]] `monitoring_user`::
 Grants the minimum privileges required for any user of {monitoring} other than those
 required to use {kib}. This role grants access to the monitoring indices and grants
 privileges necessary for reading basic cluster information. This role also includes
 all {kibana-ref}/kibana-privileges.html[Kibana privileges] for the {stack-monitor-features}.
-Monitoring users should also be assigned the `kibana_user` role.
+Monitoring users should also be assigned the `kibana_admin` role, or another role
+with {kibana-ref}/xpack-security-authorization.html[access to the {kib} instance].
 
 [[built-in-roles-remote-monitoring-agent]] `remote_monitoring_agent`::
 Grants the minimum privileges required to write data into the monitoring indices
@@ -140,9 +142,10 @@ Grants the minimum privileges required to collect monitoring data for the {stack
 [[built-in-roles-reporting-user]] `reporting_user`::
 Grants the specific privileges required for users of {reporting} other than those
 required to use {kib}. This role grants access to the reporting indices; each 
-user has access to only their own reports. Reporting users should also be 
-assigned the `kibana_user` role and a role that grants them access to the data 
-that will be used to generate reports.
+user has access to only their own reports.
+Reporting users should also be assigned additional roles that grant 
+{kibana-ref}/xpack-security-authorization.html[access to {kib}] as well as read
+access to the <<roles-indices-priv,indices>> that will be used to generate reports.
 
 [[built-in-roles-snapshot-user]] `snapshot_user`::
 Grants the necessary privileges to create snapshots of **all** the indices and
@@ -156,6 +159,16 @@ Grants full access to the cluster, including all indices and data. A user with
 the `superuser` role can also manage users and roles and
 <<run-as-privilege, impersonate>> any other user in the system. Due to the
 permissive nature of this role, take extra care when assigning it to a user.
+
+[[built-in-roles-transform-admin]] `transform_admin`:: 
+Grants `manage_transform` cluster privileges, which enable you to manage 
+{transforms}. This role also includes all 
+{kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
+
+[[built-in-roles-transform-user]] `transform_user`::
+Grants `monitor_transform` cluster privileges, which enable you to use 
+{transforms}. This role also includes all
+{kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
 
 [[built-in-roles-transport-client]] `transport_client`::
 Grants the privileges required to access the cluster through the Java Transport

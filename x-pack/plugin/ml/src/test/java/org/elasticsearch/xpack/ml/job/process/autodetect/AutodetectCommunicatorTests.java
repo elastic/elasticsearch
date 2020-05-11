@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -55,6 +54,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -64,15 +64,13 @@ import static org.mockito.Mockito.when;
 
 public class AutodetectCommunicatorTests extends ESTestCase {
 
-    private Environment environment;
     private AnalysisRegistry analysisRegistry;
     private StateStreamer stateStreamer;
 
     @Before
     public void setup() throws Exception {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        environment = TestEnvironment.newEnvironment(settings);
-        analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(environment);
+        analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(TestEnvironment.newEnvironment(settings));
         stateStreamer = mock(StateStreamer.class);
     }
 
@@ -235,11 +233,8 @@ public class AutodetectCommunicatorTests extends ESTestCase {
                                                                 AutodetectResultProcessor autodetectResultProcessor,
                                                                 BiConsumer<Exception, Boolean> finishHandler) throws IOException {
         DataCountsReporter dataCountsReporter = mock(DataCountsReporter.class);
-        doAnswer(invocation -> {
-            ((ActionListener<Boolean>) invocation.getArguments()[0]).onResponse(true);
-            return null;
-        }).when(dataCountsReporter).finishReporting(any());
-        return new AutodetectCommunicator(createJobDetails(), environment, autodetectProcess,
+        doNothing().when(dataCountsReporter).finishReporting();
+        return new AutodetectCommunicator(createJobDetails(), autodetectProcess,
                 stateStreamer, dataCountsReporter, autodetectResultProcessor, finishHandler,
                 new NamedXContentRegistry(Collections.emptyList()), executorService);
     }

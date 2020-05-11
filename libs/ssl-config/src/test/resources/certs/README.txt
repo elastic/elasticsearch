@@ -73,3 +73,13 @@ do
     keytool -keypasswd -keystore cert-all/certs.jks -alias $Cert -keypass p12-pass -new key-pass -storepass jks-pass
 done
 
+# 11. Create a mimic of the first CA ("ca1b") for testing certificates with the same name but different keys
+
+elasticsearch-certutil ca --pem --out ${PWD}/ca1-b.zip --days 9999 --ca-dn "CN=Test CA 1"
+unzip ca1-b.zip
+mv ca ca1-b
+
+# 12. Convert certifcate keys to pkcs8
+
+openssl pkcs8 -topk8 -inform PEM -in cert1/cert1.key -outform PEM -out cert1/cert1-pkcs8.key -nocrypt
+openssl pkcs8 -topk8 -inform PEM -in cert2/cert2.key -outform PEM -out cert2/cert2-pkcs8.key -passin pass:"c2-pass" -passout pass:"c2-pass"

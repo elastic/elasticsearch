@@ -81,11 +81,14 @@ public class SuggestionOptionTests extends ESTestCase {
     public void testToXContent() throws IOException {
         Option option = new PhraseSuggestion.Entry.Option(new Text("someText"), new Text("somethingHighlighted"), 1.3f, true);
         BytesReference xContent = toXContent(option, XContentType.JSON, randomBoolean());
-        assertEquals("{\"text\":\"someText\","
-                      + "\"highlighted\":\"somethingHighlighted\","
-                      + "\"score\":1.3,"
-                      + "\"collate_match\":true"
-                   + "}"
-                   , xContent.utf8ToString());
+        assertEquals(
+            ("{"
+                + "  \"text\": \"someText\","
+                + "  \"highlighted\": \"somethingHighlighted\","
+                + "  \"score\": 1.3,"
+                + "  \"collate_match\": true"
+                + "}").replaceAll("\\s+", ""),
+            xContent.utf8ToString()
+        );
     }
 }

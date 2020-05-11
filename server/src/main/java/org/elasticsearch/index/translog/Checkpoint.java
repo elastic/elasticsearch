@@ -106,6 +106,17 @@ final class Checkpoint {
         out.writeLong(trimmedAboveSeqNo);
     }
 
+    /**
+     * Returns the maximum sequence number of operations in this checkpoint after applying {@link #trimmedAboveSeqNo}.
+     */
+    long maxEffectiveSeqNo() {
+        if (trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            return maxSeqNo;
+        } else {
+            return Math.min(trimmedAboveSeqNo, maxSeqNo);
+        }
+    }
+
     static Checkpoint emptyTranslogCheckpoint(final long offset, final long generation, final long globalCheckpoint,
                                               long minTranslogGeneration) {
         final long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;

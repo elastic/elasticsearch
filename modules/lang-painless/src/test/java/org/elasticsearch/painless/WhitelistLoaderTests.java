@@ -31,6 +31,26 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class WhitelistLoaderTests extends ScriptTestCase {
+    public void testUnknownAnnotations() {
+        Map<String, WhitelistAnnotationParser> parsers = new HashMap<>(WhitelistAnnotationParser.BASE_ANNOTATION_PARSERS);
+
+        RuntimeException expected = expectThrows(RuntimeException.class, () -> {
+            WhitelistLoader.loadFromResourceFiles(Whitelist.class, parsers, "org.elasticsearch.painless.annotation.unknown");
+        });
+        assertEquals(
+            "invalid annotation: parser not found for [unknownAnnotation] [@unknownAnnotation]", expected.getCause().getMessage()
+        );
+        assertEquals(IllegalArgumentException.class, expected.getCause().getClass());
+
+        expected = expectThrows(RuntimeException.class, () -> {
+            WhitelistLoader.loadFromResourceFiles(Whitelist.class, parsers, "org.elasticsearch.painless.annotation.unknown_with_options");
+        });
+        assertEquals(
+            "invalid annotation: parser not found for [unknownAnootationWithMessage] [@unknownAnootationWithMessage[arg=\"arg value\"]]",
+            expected.getCause().getMessage()
+        );
+        assertEquals(IllegalArgumentException.class, expected.getCause().getClass());
+    }
 
     public void testAnnotations() {
         Map<String, WhitelistAnnotationParser> parsers = new HashMap<>(WhitelistAnnotationParser.BASE_ANNOTATION_PARSERS);

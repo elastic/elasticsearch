@@ -16,6 +16,7 @@ missing-dep-on-jarwrapper
 # we prefer to not make our config and log files world readable
 non-standard-file-perm etc/default/elasticsearch 0660 != 0644
 non-standard-dir-perm etc/elasticsearch/ 2750 != 0755
+non-standard-dir-perm etc/elasticsearch/jvm.options.d/ 2750 != 0755
 non-standard-file-perm etc/elasticsearch/*
 non-standard-dir-perm var/lib/elasticsearch/ 2750 != 0755
 non-standard-dir-perm var/log/elasticsearch/ 2750 != 0755

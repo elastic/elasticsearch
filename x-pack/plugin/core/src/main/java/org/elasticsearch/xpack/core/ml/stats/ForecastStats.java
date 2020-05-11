@@ -83,6 +83,30 @@ public class ForecastStats implements ToXContentObject, Writeable {
         return this;
     }
 
+    public long getTotal() {
+        return total;
+    }
+
+    public long getForecastedJobs() {
+        return forecastedJobs;
+    }
+
+    public StatsAccumulator getMemoryStats() {
+        return memoryStats;
+    }
+
+    public StatsAccumulator getRecordStats() {
+        return recordStats;
+    }
+
+    public StatsAccumulator getRuntimeStats() {
+        return runtimeStats;
+    }
+
+    public CountAccumulator getStatusCounts() {
+        return statusCounts;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

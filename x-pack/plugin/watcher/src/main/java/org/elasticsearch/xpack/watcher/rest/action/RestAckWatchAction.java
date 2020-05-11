@@ -6,13 +6,10 @@
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -23,6 +20,8 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchReques
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 
+import java.util.List;
+
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -31,22 +30,13 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 public class RestAckWatchAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestAckWatchAction.class));
-
-    public RestAckWatchAction(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, "/_watcher/watch/{id}/_ack", this,
-            POST, "/_xpack/watcher/watch/{id}/_ack", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            PUT, "/_watcher/watch/{id}/_ack", this,
-            PUT, "/_xpack/watcher/watch/{id}/_ack", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            POST, "/_watcher/watch/{id}/_ack/{actions}", this,
-            POST, "/_xpack/watcher/watch/{id}/_ack/{actions}", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            PUT, "/_watcher/watch/{id}/_ack/{actions}", this,
-            PUT, "/_xpack/watcher/watch/{id}/_ack/{actions}", deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(POST, "/_watcher/watch/{id}/_ack"),
+            new Route(PUT, "/_watcher/watch/{id}/_ack"),
+            new Route(POST, "/_watcher/watch/{id}/_ack/{actions}"),
+            new Route(PUT, "/_watcher/watch/{id}/_ack/{actions}"));
     }
 
     @Override

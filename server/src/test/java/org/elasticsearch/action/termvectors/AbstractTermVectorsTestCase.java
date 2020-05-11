@@ -45,8 +45,8 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -127,7 +127,6 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
         public final String[] fieldContent;
         public String index = "test";
         public String alias = "alias";
-        public String type = "type1";
 
         public TestDoc(String id, TestFieldSetting[] fieldSettings, String[] fieldContent) {
             this.id = id;
@@ -149,7 +148,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
         @Override
         public String toString() {
 
-            StringBuilder sb = new StringBuilder("index:").append(index).append(" type:").append(type).append(" id:").append(id);
+            StringBuilder sb = new StringBuilder("index:").append(index).append(" id:").append(id);
             for (int i = 0; i < fieldSettings.length; i++) {
                 TestFieldSetting f = fieldSettings[i];
                 sb.append("\n").append("Field: ").append(f).append("\n  content:").append(fieldContent[i]);
@@ -201,7 +200,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
 
     protected void createIndexBasedOnFieldSettings(String index, String alias, TestFieldSetting[] fieldSettings) throws IOException {
         XContentBuilder mappingBuilder = jsonBuilder();
-        mappingBuilder.startObject().startObject("type1").startObject("properties");
+        mappingBuilder.startObject().startObject("_doc").startObject("properties");
         for (TestFieldSetting field : fieldSettings) {
             field.addToMappings(mappingBuilder);
         }
@@ -210,7 +209,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
                 .put(indexSettings())
                 .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
                 .putList("index.analysis.analyzer.tv_test.filter", "lowercase");
-        assertAcked(prepareCreate(index).addMapping("type1", mappingBuilder).setSettings(settings).addAlias(new Alias(alias)));
+        assertAcked(prepareCreate(index).setMapping(mappingBuilder).setSettings(settings).addAlias(new Alias(alias)));
     }
 
     /**
@@ -236,7 +235,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
             }
             final String id = routingKeyForShard(index, i);
             TestDoc doc = new TestDoc(id, fieldSettings, contentArray.clone());
-            index(doc.index, doc.type, doc.id, docSource);
+            index(doc.index, doc.id, docSource);
             testDocs[i] = doc;
         }
 
@@ -309,7 +308,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
         }
         PerFieldAnalyzerWrapper wrapper = new PerFieldAnalyzerWrapper(new StandardAnalyzer(CharArraySet.EMPTY_SET), mapping);
 
-        Directory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         IndexWriterConfig conf = new IndexWriterConfig(wrapper);
 
         conf.setOpenMode(IndexWriterConfig.OpenMode.CREATE);

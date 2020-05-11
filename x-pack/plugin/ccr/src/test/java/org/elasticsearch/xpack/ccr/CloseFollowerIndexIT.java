@@ -12,12 +12,11 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
@@ -29,7 +28,6 @@ import java.security.PrivilegedAction;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -67,7 +65,7 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
     }
 
     public void testCloseAndReopenFollowerIndex() throws Exception {
-        final String leaderIndexSettings = getIndexSettings(1, 1, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        final String leaderIndexSettings = getIndexSettings(1, 1);
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderYellow("index1");
 
@@ -90,7 +88,7 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
         for (int i = 0; i < numThreads; i++) {
             threads[i] = new Thread(() -> {
                 while (isRunning.get()) {
-                    leaderClient().prepareIndex("index1", "doc").setSource("{}", XContentType.JSON).get();
+                    leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON).get();
                 }
             });
             threads[i].start();
@@ -104,8 +102,8 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
         assertThat(response.isAcknowledged(), is(true));
 
         ClusterState clusterState = followerClient().admin().cluster().prepareState().get().getState();
-        assertThat(clusterState.metaData().index("index2").getState(), is(IndexMetaData.State.CLOSE));
-        assertThat(clusterState.getBlocks().hasIndexBlock("index2", MetaDataIndexStateService.INDEX_CLOSED_BLOCK), is(true));
+        assertThat(clusterState.metadata().index("index2").getState(), is(IndexMetadata.State.CLOSE));
+        assertThat(clusterState.getBlocks().hasIndexBlock("index2", MetadataIndexStateService.INDEX_CLOSED_BLOCK), is(true));
         assertThat(followerClient().admin().cluster().prepareHealth("index2").get().getStatus(), equalTo(ClusterHealthStatus.RED));
 
         isRunning.set(false);
@@ -116,8 +114,8 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
         assertAcked(followerClient().admin().indices().open(new OpenIndexRequest("index2")).get());
 
         clusterState = followerClient().admin().cluster().prepareState().get().getState();
-        assertThat(clusterState.metaData().index("index2").getState(), is(IndexMetaData.State.OPEN));
-        assertThat(clusterState.getBlocks().hasIndexBlockWithId("index2", MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID), is(false));
+        assertThat(clusterState.metadata().index("index2").getState(), is(IndexMetadata.State.OPEN));
+        assertThat(clusterState.getBlocks().hasIndexBlockWithId("index2", MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID), is(false));
         ensureFollowerGreen("index2");
 
         refresh(leaderClient(), "index1");

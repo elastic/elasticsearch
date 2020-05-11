@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.rest.action.oidc;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -14,6 +16,7 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 public abstract class OpenIdConnectBaseRestHandler extends SecurityBaseRestHandler {
+    private static final Logger logger = LogManager.getLogger();
 
     private static final String OIDC_REALM_TYPE = OpenIdConnectRealmSettings.TYPE;
 
@@ -30,7 +33,7 @@ public abstract class OpenIdConnectBaseRestHandler extends SecurityBaseRestHandl
         Exception failedFeature = super.checkFeatureAvailable(request);
         if (failedFeature != null) {
             return failedFeature;
-        } else if (Realms.isRealmTypeAvailable(licenseState.allowedRealmType(), OIDC_REALM_TYPE)) {
+        } else if (Realms.isRealmTypeAvailable(licenseState, OIDC_REALM_TYPE)) {
             return null;
         } else {
             logger.info("The '{}' realm is not available under the current license", OIDC_REALM_TYPE);

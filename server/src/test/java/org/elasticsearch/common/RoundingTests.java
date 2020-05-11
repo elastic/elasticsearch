@@ -129,8 +129,8 @@ public class RoundingTests extends ESTestCase {
         Rounding tzRounding = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH)
             .timeZone(ZoneOffset.ofHours(timezoneOffset)).build();
         assertThat(tzRounding.round(0), equalTo(0L - TimeValue.timeValueHours(24 + timezoneOffset).millis()));
-        assertThat(tzRounding.nextRoundingValue(0L - TimeValue.timeValueHours(24 + timezoneOffset).millis()), equalTo(0L - TimeValue
-            .timeValueHours(timezoneOffset).millis()));
+        assertThat(tzRounding.nextRoundingValue(0L - TimeValue.timeValueHours(24 + timezoneOffset).millis()), equalTo(TimeValue
+            .timeValueHours(-timezoneOffset).millis()));
 
         ZoneId tz = ZoneId.of("-08:00");
         tzRounding = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).timeZone(tz).build();
@@ -195,6 +195,26 @@ public class RoundingTests extends ESTestCase {
         assertThat(tzRounding_chg.round(time("2014-11-02T06:01:01", chg)), isDate(time("2014-11-02T06:00:00", chg), chg));
     }
 
+    public void testOffsetRounding() {
+        long twoHours = TimeUnit.HOURS.toMillis(2);
+        long oneDay = TimeUnit.DAYS.toMillis(1);
+        Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).offset(twoHours).build();
+        assertThat(rounding.round(0), equalTo(-oneDay + twoHours));
+        assertThat(rounding.round(twoHours), equalTo(twoHours));
+        assertThat(rounding.nextRoundingValue(-oneDay), equalTo(-oneDay + twoHours));
+        assertThat(rounding.nextRoundingValue(0), equalTo(twoHours));
+        assertThat(rounding.withoutOffset().round(0), equalTo(0L));
+        assertThat(rounding.withoutOffset().nextRoundingValue(0), equalTo(oneDay));
+
+        rounding = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).offset(-twoHours).build();
+        assertThat(rounding.round(0), equalTo(-twoHours));
+        assertThat(rounding.round(oneDay - twoHours), equalTo(oneDay - twoHours));
+        assertThat(rounding.nextRoundingValue(-oneDay), equalTo(-twoHours));
+        assertThat(rounding.nextRoundingValue(0), equalTo(oneDay - twoHours));
+        assertThat(rounding.withoutOffset().round(0), equalTo(0L));
+        assertThat(rounding.withoutOffset().nextRoundingValue(0), equalTo(oneDay));
+    }
+
     /**
      * Randomized test on TimeUnitRounding. Test uses random
      * {@link DateTimeUnit} and {@link ZoneId} and often (50% of the time)
@@ -206,19 +226,23 @@ public class RoundingTests extends ESTestCase {
      * described in
      * {@link #assertInterval(long, long, long, Rounding, ZoneId)}
      */
-    public void testRoundingRandom() {
+    public void testRandomTimeUnitRounding() {
         for (int i = 0; i < 1000; ++i) {
             Rounding.DateTimeUnit unit = randomFrom(Rounding.DateTimeUnit.values());
             ZoneId tz = randomZone();
             Rounding rounding = new Rounding.TimeUnitRounding(unit, tz);
-            long date = Math.abs(randomLong() % (2 * (long) 10e11)); // 1970-01-01T00:00:00Z - 2033-05-18T05:33:20.000+02:00
+            long[] bounds = randomDateBounds();
+            Rounding.Prepared prepared = rounding.prepare(bounds[0], bounds[1]);
+
+            // Check that rounding is internally consistent and consistent with nextRoundingValue
+            long date = dateBetween(bounds[0], bounds[1]);
             long unitMillis = unit.getField().getBaseUnit().getDuration().toMillis();
             // FIXME this was copy pasted from the other impl and not used. breaks the nasty date actually gets assigned
             if (randomBoolean()) {
                 nastyDate(date, tz, unitMillis);
             }
-            final long roundedDate = rounding.round(date);
-            final long nextRoundingValue = rounding.nextRoundingValue(roundedDate);
+            final long roundedDate = prepared.round(date);
+            final long nextRoundingValue = prepared.nextRoundingValue(roundedDate);
 
             assertInterval(roundedDate, date, nextRoundingValue, rounding, tz);
 
@@ -230,6 +254,26 @@ public class RoundingTests extends ESTestCase {
                 if (offsetRounded == offsetNextValue) {
                     assertThat("unit interval width not as expected for [" + unit + "], [" + tz + "] at "
                         + Instant.ofEpochMilli(roundedDate), nextRoundingValue - roundedDate, equalTo(unitMillis));
+                }
+            }
+
+            // Round a whole bunch of dates and make sure they line up with the known good java time implementation
+            Rounding.Prepared javaTimeRounding = rounding.prepareJavaTime();
+            for (int d = 0; d < 1000; d++) {
+                date = dateBetween(bounds[0], bounds[1]);
+                long javaRounded = javaTimeRounding.round(date);
+                long esRounded = prepared.round(date);
+                if (javaRounded != esRounded) {
+                    fail("Expected [" + rounding + "] to round [" + Instant.ofEpochMilli(date) + "] to ["
+                            + Instant.ofEpochMilli(javaRounded) + "] but instead rounded to [" + Instant.ofEpochMilli(esRounded) + "]");
+                }
+                long javaNextRoundingValue = javaTimeRounding.nextRoundingValue(date);
+                long esNextRoundingValue = prepared.nextRoundingValue(date);
+                if (javaNextRoundingValue != esNextRoundingValue) {
+                    fail("Expected [" + rounding + "] to round [" + Instant.ofEpochMilli(date) + "] to ["
+                            + Instant.ofEpochMilli(esRounded) + "] and nextRoundingValue to be ["
+                            + Instant.ofEpochMilli(javaNextRoundingValue) + "] but instead was to ["
+                            + Instant.ofEpochMilli(esNextRoundingValue) + "]");
                 }
             }
         }
@@ -341,28 +385,58 @@ public class RoundingTests extends ESTestCase {
         assertThat(rounding.round(time("2016-03-28T13:00:00+02:00")), isDate(time("2016-03-28T12:00:00+02:00"), tz));
     }
 
-    /**
-     * randomized test on {@link org.elasticsearch.common.Rounding.TimeIntervalRounding} with random interval and time zone offsets
-     */
-    public void testIntervalRoundingRandom() {
+    public void testRandomTimeIntervalRounding() {
         for (int i = 0; i < 1000; i++) {
+            int unitCount = randomIntBetween(1, 365);
             TimeUnit unit = randomFrom(TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS);
-            long interval = unit.toMillis(randomIntBetween(1, 365));
+            long interval = unit.toMillis(unitCount);
             ZoneId tz = randomZone();
             Rounding rounding = new Rounding.TimeIntervalRounding(interval, tz);
-            long mainDate = Math.abs(randomLong() % (2 * (long) 10e11)); // 1970-01-01T00:00:00Z - 2033-05-18T05:33:20.000+02:00
+            long mainDate = randomDate();
             if (randomBoolean()) {
                 mainDate = nastyDate(mainDate, tz, interval);
             }
+            long min = mainDate - 2 * interval;
+            long max = mainDate + 2 * interval;
+
+            /*
+             * Prepare a rounding with one extra interval of range because
+             * in the tests far below we call round(round(min)). The first
+             * round might spit out a time below the min if min is near a
+             * daylight savings time transition. So we request an extra big
+             * range just in case.
+             */
+            Rounding.Prepared prepared = rounding.prepare(min - interval, max);
+
+            // Round a whole bunch of dates and make sure they line up with the known good java time implementation
+            Rounding.Prepared javaTimeRounding = rounding.prepareJavaTime();
+            for (int d = 0; d < 1000; d++) {
+                long date = dateBetween(min, max);
+                long javaRounded = javaTimeRounding.round(date);
+                long esRounded = prepared.round(date);
+                if (javaRounded != esRounded) {
+                    fail("Expected [" + unitCount + " " + unit + " in " + tz + "] to round [" + Instant.ofEpochMilli(date) + "] to ["
+                            + Instant.ofEpochMilli(javaRounded) + "] but instead rounded to [" + Instant.ofEpochMilli(esRounded) + "]");
+                }
+                long javaNextRoundingValue = javaTimeRounding.nextRoundingValue(date);
+                long esNextRoundingValue = prepared.nextRoundingValue(date);
+                if (javaNextRoundingValue != esNextRoundingValue) {
+                    fail("Expected [" + unitCount + " " + unit + " in " + tz + "] to round [" + Instant.ofEpochMilli(date) + "] to ["
+                            + Instant.ofEpochMilli(esRounded) + "] and nextRoundingValue to be ["
+                            + Instant.ofEpochMilli(javaNextRoundingValue) + "] but instead was to ["
+                            + Instant.ofEpochMilli(esNextRoundingValue) + "]");
+                }
+            }
+
             // check two intervals around date
             long previousRoundedValue = Long.MIN_VALUE;
-            for (long date = mainDate - 2 * interval; date < mainDate + 2 * interval; date += interval / 2) {
+            for (long date = min; date < max; date += interval / 2) {
                 try {
                     final long roundedDate = rounding.round(date);
-                    final long nextRoundingValue = rounding.nextRoundingValue(roundedDate);
-                    assertThat("Rounding should be idempotent", roundedDate, equalTo(rounding.round(roundedDate)));
+                    final long nextRoundingValue = prepared.nextRoundingValue(roundedDate);
+                    assertThat("Rounding should be idempotent", roundedDate, equalTo(prepared.round(roundedDate)));
                     assertThat("Rounded value smaller or equal than unrounded", roundedDate, lessThanOrEqualTo(date));
-                    assertThat("Values smaller than rounded value should round further down", rounding.round(roundedDate - 1),
+                    assertThat("Values smaller than rounded value should round further down", prepared.round(roundedDate - 1),
                         lessThan(roundedDate));
                     assertThat("Rounding should be >= previous rounding value", roundedDate, greaterThanOrEqualTo(previousRoundedValue));
 
@@ -683,6 +757,80 @@ public class RoundingTests extends ESTestCase {
         assertInterval(midnightAfterTransition, nextMidnight, rounding, 24 * 60, tz);
     }
 
+    public void testBeforeOverlapLarge() {
+        // Moncton has a perfectly normal hour long Daylight Savings time.
+        ZoneId tz = ZoneId.of("America/Moncton");
+        Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).timeZone(tz).build();
+        assertThat(rounding.round(time("2003-10-26T03:43:35.079Z")), isDate(time("2003-10-26T03:00:00Z"), tz));
+    }
+
+    public void testBeforeOverlapSmall() {
+        /*
+         * Lord Howe is fun because Daylight Savings time is only 30 minutes
+         * so we round HOUR_OF_DAY differently.
+         */
+        ZoneId tz = ZoneId.of("Australia/Lord_Howe");
+        Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).timeZone(tz).build();
+        assertThat(rounding.round(time("2018-03-31T15:25:15.148Z")), isDate(time("2018-03-31T14:00:00Z"), tz));
+    }
+
+    public void testQuarterOfYear() {
+        /*
+         * If we're not careful with how we look up local time offsets we can
+         * end up not loading the offsets far enough back to round this time
+         * to QUARTER_OF_YEAR properly.
+         */
+        ZoneId tz = ZoneId.of("Asia/Baghdad");
+        Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.QUARTER_OF_YEAR).timeZone(tz).build();
+        assertThat(rounding.round(time("2006-12-31T13:21:44.308Z")), isDate(time("2006-09-30T20:00:00Z"), tz));
+    }
+
+    public void testPrepareLongRangeRoundsToMidnight() {
+        ZoneId tz = ZoneId.of("America/New_York");
+        long min = time("01980-01-01T00:00:00Z");
+        long max = time("10000-01-01T00:00:00Z");
+        Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.QUARTER_OF_YEAR).timeZone(tz).build();
+        assertThat(rounding.round(time("2006-12-31T13:21:44.308Z")), isDate(time("2006-10-01T04:00:00Z"), tz));
+        assertThat(rounding.round(time("9000-12-31T13:21:44.308Z")), isDate(time("9000-10-01T04:00:00Z"), tz));
+
+        Rounding.Prepared prepared = rounding.prepare(min, max);
+        assertThat(prepared.round(time("2006-12-31T13:21:44.308Z")), isDate(time("2006-10-01T04:00:00Z"), tz));
+        assertThat(prepared.round(time("9000-12-31T13:21:44.308Z")), isDate(time("9000-10-01T04:00:00Z"), tz));
+    }
+
+    public void testPrepareLongRangeRoundsNotToMidnight() {
+        ZoneId tz = ZoneId.of("Australia/Lord_Howe");
+        long min = time("01980-01-01T00:00:00Z");
+        long max = time("10000-01-01T00:00:00Z");
+        Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).timeZone(tz).build();
+        assertThat(rounding.round(time("2018-03-31T15:25:15.148Z")), isDate(time("2018-03-31T14:00:00Z"), tz));
+        assertThat(rounding.round(time("9000-03-31T15:25:15.148Z")), isDate(time("9000-03-31T15:00:00Z"), tz));
+
+        Rounding.Prepared prepared = rounding.prepare(min, max);
+        assertThat(prepared.round(time("2018-03-31T15:25:15.148Z")), isDate(time("2018-03-31T14:00:00Z"), tz));
+        assertThat(prepared.round(time("9000-03-31T15:25:15.148Z")), isDate(time("9000-03-31T15:00:00Z"), tz));
+    }
+
+    /**
+     * Example of when we round past when local clocks were wound forward.
+     */
+    public void testIntervalBeforeGap() {
+        ZoneId tz = ZoneId.of("Africa/Cairo");
+        Rounding rounding = Rounding.builder(TimeValue.timeValueDays(257)).timeZone(tz).build();
+        assertThat(rounding.round(time("1969-07-08T09:00:14.599Z")), isDate(time("1969-04-18T22:00:00Z"), tz));
+    }
+
+    /**
+     * Example of when we round past when local clocks were wound backwards,
+     * <strong>and</strong> then past the time they were wound forwards before
+     * that. So, we jumped back a long, long way.
+     */
+    public void testIntervalTwoTransitions() {
+        ZoneId tz = ZoneId.of("America/Detroit");
+        Rounding rounding = Rounding.builder(TimeValue.timeValueDays(279)).timeZone(tz).build();
+        assertThat(rounding.round(time("1982-11-10T02:51:22.662Z")), isDate(time("1982-03-23T05:00:00Z"), tz));
+    }
+
     private void assertInterval(long rounded, long nextRoundingValue, Rounding rounding, int minutes,
                                 ZoneId tz) {
         assertInterval(rounded, dateBetween(rounded, nextRoundingValue), nextRoundingValue, rounding, tz);
@@ -698,9 +846,9 @@ public class RoundingTests extends ESTestCase {
      * @param rounding the rounding instance
      */
     private void assertInterval(long rounded, long unrounded, long nextRoundingValue, Rounding rounding, ZoneId tz) {
-        assertThat("rounding should be idempotent ", rounding.round(rounded), isDate(rounded, tz));
-        assertThat("rounded value smaller or equal than unrounded" + rounding, rounded, lessThanOrEqualTo(unrounded));
-        assertThat("values less than rounded should round further down" + rounding, rounding.round(rounded - 1), lessThan(rounded));
+        assertThat("rounding should be idempotent", rounding.round(rounded), isDate(rounded, tz));
+        assertThat("rounded value smaller or equal than unrounded", rounded, lessThanOrEqualTo(unrounded));
+        assertThat("values less than rounded should round further down", rounding.round(rounded - 1), lessThan(rounded));
         assertThat("nextRounding value should be a rounded date", rounding.round(nextRoundingValue), isDate(nextRoundingValue, tz));
         assertThat("values above nextRounding should round down there", rounding.round(nextRoundingValue + 1),
             isDate(nextRoundingValue, tz));
@@ -742,6 +890,18 @@ public class RoundingTests extends ESTestCase {
         return true;
     }
 
+    private static long randomDate() {
+        return Math.abs(randomLong() % (2 * (long) 10e11)); // 1970-01-01T00:00:00Z - 2033-05-18T05:33:20.000+02:00
+    }
+
+    private static long[] randomDateBounds() {
+        long b1 = randomDate();
+        long b2 = randomValueOtherThan(b1, RoundingTests::randomDate);
+        if (b1 < b2) {
+            return new long[] {b1, b2};
+        }
+        return new long[] {b2, b1};
+    }
     private static long dateBetween(long lower, long upper) {
         long dateBetween = randomLongBetween(lower, upper - 1);
         assert lower <= dateBetween && dateBetween < upper;

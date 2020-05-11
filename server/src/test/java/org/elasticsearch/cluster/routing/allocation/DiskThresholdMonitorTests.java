@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -27,15 +30,19 @@ import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -44,6 +51,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -53,22 +61,22 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
     public void testMarkFloodStageIndicesReadOnly() {
         AllocationService allocation = createAllocationService(Settings.builder()
             .put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
-        MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)
                 .put("index.routing.allocation.require._id", "node2")).numberOfShards(1).numberOfReplicas(0))
-            .put(IndexMetaData.builder("test_1").settings(settings(Version.CURRENT)
+            .put(IndexMetadata.builder("test_1").settings(settings(Version.CURRENT)
                 .put("index.routing.allocation.require._id", "node1")).numberOfShards(1).numberOfReplicas(0))
-            .put(IndexMetaData.builder("test_2").settings(settings(Version.CURRENT)
+            .put(IndexMetadata.builder("test_2").settings(settings(Version.CURRENT)
                 .put("index.routing.allocation.require._id", "node1")).numberOfShards(1).numberOfReplicas(0))
             .build();
         RoutingTable routingTable = RoutingTable.builder()
-            .addAsNew(metaData.index("test"))
-            .addAsNew(metaData.index("test_1"))
-            .addAsNew(metaData.index("test_2"))
+            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.index("test_1"))
+            .addAsNew(metadata.index("test_2"))
             .build();
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
             ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .metaData(metaData).routingTable(routingTable)
+                .metadata(metadata).routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build(), allocation);
         AtomicBoolean reroute = new AtomicBoolean(false);
         AtomicReference<Set<String>> indices = new AtomicReference<>();
@@ -104,17 +112,17 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         monitor.onNewInfo(new ClusterInfo(builder.build(), null, null, null));
         assertTrue(reroute.get());
         assertEquals(new HashSet<>(Arrays.asList("test_1", "test_2")), indices.get());
-        IndexMetaData indexMetaData = IndexMetaData.builder(clusterState.metaData().index("test_2")).settings(Settings.builder()
-            .put(clusterState.metaData()
+        IndexMetadata indexMetadata = IndexMetadata.builder(clusterState.metadata().index("test_2")).settings(Settings.builder()
+            .put(clusterState.metadata()
             .index("test_2").getSettings())
-            .put(IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true)).build();
+            .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true)).build();
 
         // now we mark one index as read-only and assert that we don't mark it as such again
-        final ClusterState anotherFinalClusterState = ClusterState.builder(clusterState).metaData(MetaData.builder(clusterState.metaData())
-            .put(clusterState.metaData().index("test"), false)
-            .put(clusterState.metaData().index("test_1"), false)
-            .put(indexMetaData, true).build())
-            .blocks(ClusterBlocks.builder().addBlocks(indexMetaData).build()).build();
+        final ClusterState anotherFinalClusterState = ClusterState.builder(clusterState).metadata(Metadata.builder(clusterState.metadata())
+            .put(clusterState.metadata().index("test"), false)
+            .put(clusterState.metadata().index("test_1"), false)
+            .put(indexMetadata, true).build())
+            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata).build()).build();
         assertTrue(anotherFinalClusterState.blocks().indexBlocked(ClusterBlockLevel.WRITE, "test_2"));
 
         monitor = new DiskThresholdMonitor(Settings.EMPTY, () -> anotherFinalClusterState,
@@ -146,7 +154,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         final ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
         AtomicLong currentTime = new AtomicLong();
-        AtomicReference<ActionListener<Void>> listenerReference = new AtomicReference<>();
+        AtomicReference<ActionListener<ClusterState>> listenerReference = new AtomicReference<>();
         DiskThresholdMonitor monitor = new DiskThresholdMonitor(Settings.EMPTY, () -> clusterState,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null, currentTime::get,
             (reason, priority, listener) -> {
@@ -180,7 +188,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         currentTime.addAndGet(randomLongBetween(0, 120000));
         monitor.onNewInfo(new ClusterInfo(oneDiskAboveWatermark, null, null, null));
         assertNotNull(listenerReference.get());
-        listenerReference.getAndSet(null).onResponse(null);
+        listenerReference.getAndSet(null).onResponse(clusterState);
 
         if (randomBoolean()) {
             // should not re-route again within the reroute interval
@@ -195,7 +203,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).millis() + 1, 120000));
         monitor.onNewInfo(new ClusterInfo(oneDiskAboveWatermark, null, null, null));
         assertNotNull(listenerReference.get());
-        final ActionListener<Void> rerouteListener1 = listenerReference.getAndSet(null);
+        final ActionListener<ClusterState> rerouteListener1 = listenerReference.getAndSet(null);
 
         // should not re-route again before reroute has completed
         currentTime.addAndGet(randomLongBetween(0, 120000));
@@ -203,7 +211,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertNull(listenerReference.get());
 
         // complete reroute
-        rerouteListener1.onResponse(null);
+        rerouteListener1.onResponse(clusterState);
 
         if (randomBoolean()) {
             // should not re-route again within the reroute interval
@@ -231,17 +239,17 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         AtomicReference<Set<String>> indicesToRelease = new AtomicReference<>();
         AllocationService allocation = createAllocationService(Settings.builder()
             .put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
-        MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder("test_1").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
-            .put(IndexMetaData.builder("test_2").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test_1").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test_2").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
             .build();
         RoutingTable routingTable = RoutingTable.builder()
-            .addAsNew(metaData.index("test_1"))
-            .addAsNew(metaData.index("test_2"))
+            .addAsNew(metadata.index("test_1"))
+            .addAsNew(metadata.index("test_2"))
             .build();
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
             ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .metaData(metaData).routingTable(routingTable)
+                .metadata(metadata).routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build(), allocation);
         assertThat(clusterState.getRoutingTable().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(8));
 
@@ -250,7 +258,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             (reason, priority, listener) -> {
                 assertNotNull(listener);
                 assertThat(priority, equalTo(Priority.HIGH));
-                listener.onResponse(null);
+                listener.onResponse(clusterState);
             }) {
             @Override
             protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
@@ -272,14 +280,14 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertNull(indicesToRelease.get());
 
         // Change cluster state so that "test_2" index is blocked (read only)
-        IndexMetaData indexMetaData = IndexMetaData.builder(clusterState.metaData().index("test_2")).settings(Settings.builder()
-            .put(clusterState.metaData()
+        IndexMetadata indexMetadata = IndexMetadata.builder(clusterState.metadata().index("test_2")).settings(Settings.builder()
+            .put(clusterState.metadata()
                 .index("test_2").getSettings())
-            .put(IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true)).build();
+            .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true)).build();
 
-        ClusterState clusterStateWithBlocks = ClusterState.builder(clusterState).metaData(MetaData.builder(clusterState.metaData())
-            .put(indexMetaData, true).build())
-            .blocks(ClusterBlocks.builder().addBlocks(indexMetaData).build()).build();
+        ClusterState clusterStateWithBlocks = ClusterState.builder(clusterState).metadata(Metadata.builder(clusterState.metadata())
+            .put(indexMetadata, true).build())
+            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata).build()).build();
 
         assertTrue(clusterStateWithBlocks.blocks().indexBlocked(ClusterBlockLevel.WRITE, "test_2"));
         monitor = new DiskThresholdMonitor(Settings.EMPTY, () -> clusterStateWithBlocks,
@@ -287,7 +295,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             (reason, priority, listener) -> {
                 assertNotNull(listener);
                 assertThat(priority, equalTo(Priority.HIGH));
-                listener.onResponse(null);
+                listener.onResponse(clusterStateWithBlocks);
             }) {
             @Override
             protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
@@ -364,5 +372,202 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         monitor.onNewInfo(new ClusterInfo(builder.build(), null, null, null));
         assertThat(indicesToMarkReadOnly.get(), contains("test_1"));
         assertNull(indicesToRelease.get());
+    }
+
+    @TestLogging(value="org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor:INFO", reason="testing INFO/WARN logging")
+    public void testDiskMonitorLogging() throws IllegalAccessException {
+        final ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
+        final AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(clusterState);
+        final AtomicBoolean advanceTime = new AtomicBoolean(randomBoolean());
+
+        final LongSupplier timeSupplier = new LongSupplier() {
+            long time;
+
+            @Override
+            public long getAsLong() {
+                if (advanceTime.get()) {
+                    time += DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).getMillis() + 1;
+                }
+                logger.info("time: [{}]", time);
+                return time;
+            }
+        };
+
+        final AtomicLong relocatingShardSizeRef = new AtomicLong();
+
+        DiskThresholdMonitor monitor = new DiskThresholdMonitor(Settings.EMPTY, clusterStateRef::get,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null, timeSupplier,
+            (reason, priority, listener) -> listener.onResponse(clusterStateRef.get())) {
+            @Override
+            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener, boolean readOnly) {
+                listener.onResponse(null);
+            }
+
+            @Override
+            long sizeOfRelocatingShards(RoutingNode routingNode, DiskUsage diskUsage, ClusterInfo info, ClusterState reroutedClusterState) {
+                return relocatingShardSizeRef.get();
+            }
+        };
+
+        final ImmutableOpenMap.Builder<String, DiskUsage> allDisksOkBuilder;
+        allDisksOkBuilder = ImmutableOpenMap.builder();
+        allDisksOkBuilder.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(15, 100)));
+        final ImmutableOpenMap<String, DiskUsage> allDisksOk = allDisksOkBuilder.build();
+
+        final ImmutableOpenMap.Builder<String, DiskUsage> aboveLowWatermarkBuilder = ImmutableOpenMap.builder();
+        aboveLowWatermarkBuilder.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(10, 14)));
+        final ImmutableOpenMap<String, DiskUsage> aboveLowWatermark = aboveLowWatermarkBuilder.build();
+
+        final ImmutableOpenMap.Builder<String, DiskUsage> aboveHighWatermarkBuilder = ImmutableOpenMap.builder();
+        aboveHighWatermarkBuilder.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(5, 9)));
+        final ImmutableOpenMap<String, DiskUsage> aboveHighWatermark = aboveHighWatermarkBuilder.build();
+
+        final ImmutableOpenMap.Builder<String, DiskUsage> aboveFloodStageWatermarkBuilder = ImmutableOpenMap.builder();
+        aboveFloodStageWatermarkBuilder.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(0, 4)));
+        final ImmutableOpenMap<String, DiskUsage> aboveFloodStageWatermark = aboveFloodStageWatermarkBuilder.build();
+
+        assertNoLogging(monitor, allDisksOk);
+
+        assertSingleInfoMessage(monitor, aboveLowWatermark,
+            "low disk watermark [85%] exceeded on * replicas will not be assigned to this node");
+
+        advanceTime.set(false); // will do one reroute and emit warnings, but subsequent reroutes and associated messages are delayed
+        assertSingleWarningMessage(monitor, aboveHighWatermark,
+            "high disk watermark [90%] exceeded on * shards will be relocated away from this node* " +
+                "the node is expected to continue to exceed the high disk watermark when these relocations are complete");
+
+        advanceTime.set(true);
+        assertRepeatedWarningMessages(monitor, aboveHighWatermark,
+            "high disk watermark [90%] exceeded on * shards will be relocated away from this node* " +
+                "the node is expected to continue to exceed the high disk watermark when these relocations are complete");
+
+        advanceTime.set(randomBoolean());
+        assertRepeatedWarningMessages(monitor, aboveFloodStageWatermark,
+            "flood stage disk watermark [95%] exceeded on * all indices on this node will be marked read-only");
+
+        relocatingShardSizeRef.set(-5L);
+        advanceTime.set(true);
+        assertSingleInfoMessage(monitor, aboveHighWatermark,
+            "high disk watermark [90%] exceeded on * shards will be relocated away from this node* " +
+                "the node is expected to be below the high disk watermark when these relocations are complete");
+
+        relocatingShardSizeRef.set(0L);
+        timeSupplier.getAsLong(); // advance time long enough to do another reroute
+        advanceTime.set(false); // will do one reroute and emit warnings, but subsequent reroutes and associated messages are delayed
+        assertSingleWarningMessage(monitor, aboveHighWatermark,
+            "high disk watermark [90%] exceeded on * shards will be relocated away from this node* " +
+                "the node is expected to continue to exceed the high disk watermark when these relocations are complete");
+
+        advanceTime.set(true);
+        assertRepeatedWarningMessages(monitor, aboveHighWatermark,
+            "high disk watermark [90%] exceeded on * shards will be relocated away from this node* " +
+                "the node is expected to continue to exceed the high disk watermark when these relocations are complete");
+
+        advanceTime.set(randomBoolean());
+        assertSingleInfoMessage(monitor, aboveLowWatermark,
+            "high disk watermark [90%] no longer exceeded on * but low disk watermark [85%] is still exceeded");
+
+        advanceTime.set(true); // only log about dropping below the low disk watermark on a reroute
+        assertSingleInfoMessage(monitor, allDisksOk,
+            "low disk watermark [85%] no longer exceeded on *");
+
+        advanceTime.set(randomBoolean());
+        assertRepeatedWarningMessages(monitor, aboveFloodStageWatermark,
+            "flood stage disk watermark [95%] exceeded on * all indices on this node will be marked read-only");
+
+        assertSingleInfoMessage(monitor, allDisksOk,
+            "low disk watermark [85%] no longer exceeded on *");
+
+        advanceTime.set(true);
+        assertRepeatedWarningMessages(monitor, aboveHighWatermark,
+            "high disk watermark [90%] exceeded on * shards will be relocated away from this node* " +
+                "the node is expected to continue to exceed the high disk watermark when these relocations are complete");
+
+        assertSingleInfoMessage(monitor, allDisksOk,
+            "low disk watermark [85%] no longer exceeded on *");
+
+        assertRepeatedWarningMessages(monitor, aboveFloodStageWatermark,
+            "flood stage disk watermark [95%] exceeded on * all indices on this node will be marked read-only");
+
+        assertSingleInfoMessage(monitor, aboveLowWatermark,
+            "high disk watermark [90%] no longer exceeded on * but low disk watermark [85%] is still exceeded");
+
+    }
+
+    private void assertNoLogging(DiskThresholdMonitor monitor,
+                                 ImmutableOpenMap<String, DiskUsage> diskUsages) throws IllegalAccessException {
+        MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        mockAppender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+            "any INFO message",
+            DiskThresholdMonitor.class.getCanonicalName(),
+            Level.INFO,
+            "*"));
+        mockAppender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+            "any WARN message",
+            DiskThresholdMonitor.class.getCanonicalName(),
+            Level.WARN,
+            "*"));
+
+        Logger diskThresholdMonitorLogger = LogManager.getLogger(DiskThresholdMonitor.class);
+        Loggers.addAppender(diskThresholdMonitorLogger, mockAppender);
+
+        for (int i = between(1, 3); i >= 0; i--) {
+            monitor.onNewInfo(new ClusterInfo(diskUsages, null, null, null));
+        }
+
+        mockAppender.assertAllExpectationsMatched();
+        Loggers.removeAppender(diskThresholdMonitorLogger, mockAppender);
+        mockAppender.stop();
+    }
+
+    private void assertRepeatedWarningMessages(DiskThresholdMonitor monitor,
+                                               ImmutableOpenMap<String, DiskUsage> diskUsages,
+                                               String message) throws IllegalAccessException {
+        for (int i = between(1, 3); i >= 0; i--) {
+            assertLogging(monitor, diskUsages, Level.WARN, message);
+        }
+    }
+
+    private void assertSingleWarningMessage(DiskThresholdMonitor monitor,
+                                            ImmutableOpenMap<String, DiskUsage> diskUsages,
+                                            String message) throws IllegalAccessException {
+        assertLogging(monitor, diskUsages, Level.WARN, message);
+        assertNoLogging(monitor, diskUsages);
+    }
+
+    private void assertSingleInfoMessage(DiskThresholdMonitor monitor,
+                                         ImmutableOpenMap<String, DiskUsage> diskUsages,
+                                         String message) throws IllegalAccessException {
+        assertLogging(monitor, diskUsages, Level.INFO, message);
+        assertNoLogging(monitor, diskUsages);
+    }
+
+    private void assertLogging(DiskThresholdMonitor monitor,
+                               ImmutableOpenMap<String, DiskUsage> diskUsages,
+                               Level level,
+                               String message) throws IllegalAccessException {
+        MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
+            "expected message",
+            DiskThresholdMonitor.class.getCanonicalName(),
+            level,
+            message));
+        mockAppender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+            "any message of another level",
+            DiskThresholdMonitor.class.getCanonicalName(),
+            level == Level.INFO ? Level.WARN : Level.INFO,
+            "*"));
+
+        Logger diskThresholdMonitorLogger = LogManager.getLogger(DiskThresholdMonitor.class);
+        Loggers.addAppender(diskThresholdMonitorLogger, mockAppender);
+
+        monitor.onNewInfo(new ClusterInfo(diskUsages, null, null, null));
+
+        mockAppender.assertAllExpectationsMatched();
+        Loggers.removeAppender(diskThresholdMonitorLogger, mockAppender);
+        mockAppender.stop();
     }
 }

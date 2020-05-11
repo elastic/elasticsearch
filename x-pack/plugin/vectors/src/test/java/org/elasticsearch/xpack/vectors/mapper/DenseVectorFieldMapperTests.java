@@ -11,7 +11,7 @@ import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -61,7 +61,7 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject());
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> parser.parse("_doc", new CompressedXContent(mapping)));
-        assertEquals(e.getMessage(), "The number of dimensions for field [my-dense-vector] should be in the range [1, 1024]");
+        assertEquals(e.getMessage(), "The number of dimensions for field [my-dense-vector] should be in the range [1, 2048]");
     }
 
     public void testDefaults() throws Exception {
@@ -110,7 +110,7 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
     public void testAddDocumentsToIndexBefore_V_7_5_0() throws Exception {
         Version indexVersion = Version.V_7_4_0;
         IndexService indexService = createIndex("test-index7_4",
-            Settings.builder().put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion).build());
+            Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion).build());
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
             .startObject()

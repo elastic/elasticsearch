@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -128,11 +127,8 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
                 transformTimeAndWrite(record, inputFieldCount);
             }
 
-            // This function can throw
-            dataCountsReporter.finishReporting(ActionListener.wrap(
-                    response -> handler.accept(dataCountsReporter.incrementalStats(), null),
-                    e -> handler.accept(null, e)
-            ));
+            dataCountsReporter.finishReporting();
+            handler.accept(dataCountsReporter.incrementalStats(), null);
         }
     }
 

@@ -51,7 +51,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
     public void testThatHistoryIsWrittenWithChainedInput() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject().startObject("inner").field("date", "2015-06-06").endObject()
                 .endObject();
-        index("foo", "bar", "1", xContentBuilder);
+        index("foo", "1", xContentBuilder);
         refresh();
 
         WatchSourceBuilder builder = watchBuilder()
@@ -102,9 +102,8 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         assertHitCount(searchResponse, 1);
 
         // as fields with dots are allowed in 5.0 again, the mapping must be checked in addition
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*")
-            .addTypes(SINGLE_MAPPING_NAME).get();
-        byte[] bytes = response.getMappings().values().iterator().next().value.get(SINGLE_MAPPING_NAME).source().uncompressed();
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").get();
+        byte[] bytes = response.getMappings().values().iterator().next().value.source().uncompressed();
         XContentSource source = new XContentSource(new BytesArray(bytes), XContentType.JSON);
         // lets make sure the body fields are disabled
         if (useChained) {
@@ -143,9 +142,8 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         assertHitCount(searchResponse, 1);
 
         // as fields with dots are allowed in 5.0 again, the mapping must be checked in addition
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*")
-            .addTypes(SINGLE_MAPPING_NAME).get();
-        byte[] bytes = response.getMappings().values().iterator().next().value.get(SINGLE_MAPPING_NAME).source().uncompressed();
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").get();
+        byte[] bytes = response.getMappings().values().iterator().next().value.source().uncompressed();
         XContentSource source = new XContentSource(new BytesArray(bytes), XContentType.JSON);
 
         // lets make sure the body fields are disabled
@@ -201,9 +199,8 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         assertThat(lastExecutionSuccesful, is(actionStatus.lastExecution().successful()));
 
         // also ensure that the status field is disabled in the watch history
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*")
-            .addTypes(SINGLE_MAPPING_NAME).get();
-        byte[] bytes = response.getMappings().values().iterator().next().value.get(SINGLE_MAPPING_NAME).source().uncompressed();
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").get();
+        byte[] bytes = response.getMappings().values().iterator().next().value.source().uncompressed();
         XContentSource mappingSource = new XContentSource(new BytesArray(bytes), XContentType.JSON);
         assertThat(mappingSource.getValue(SINGLE_MAPPING_NAME + ".properties.status.enabled"), is(false));
         assertThat(mappingSource.getValue(SINGLE_MAPPING_NAME + ".properties.status.properties.status"), is(nullValue()));

@@ -5,14 +5,13 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.core.ilm.SwapAliasesAndDeleteSourceIndexStep.deleteSourceIndexAndTransferAliases;
 
 /**
  * Following shrinking an index and deleting the original index, this step creates an alias with the same name as the original index which
@@ -32,27 +31,12 @@ public class ShrinkSetAliasStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    public void performDuringNoSnapshot(IndexMetaData indexMetaData, ClusterState currentState, Listener listener) {
+    public void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentState, Listener listener) {
         // get source index
-        String index = indexMetaData.getIndex().getName();
+        String index = indexMetadata.getIndex().getName();
         // get target shrink index
         String targetIndexName = shrunkIndexPrefix + index;
-        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest()
-            .addAliasAction(IndicesAliasesRequest.AliasActions.removeIndex().index(index))
-            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(targetIndexName).alias(index));
-        // copy over other aliases from original index
-        indexMetaData.getAliases().values().spliterator().forEachRemaining(aliasMetaDataObjectCursor -> {
-            AliasMetaData aliasMetaDataToAdd = aliasMetaDataObjectCursor.value;
-            // inherit all alias properties except `is_write_index`
-            aliasesRequest.addAliasAction(IndicesAliasesRequest.AliasActions.add()
-                .index(targetIndexName).alias(aliasMetaDataToAdd.alias())
-                .indexRouting(aliasMetaDataToAdd.indexRouting())
-                .searchRouting(aliasMetaDataToAdd.searchRouting())
-                .filter(aliasMetaDataToAdd.filter() == null ? null : aliasMetaDataToAdd.filter().string())
-                .writeIndex(null));
-        });
-        getClient().admin().indices().aliases(aliasesRequest, ActionListener.wrap(response ->
-            listener.onResponse(true), listener::onFailure));
+        deleteSourceIndexAndTransferAliases(getClient(), indexMetadata, getMasterTimeout(currentState), targetIndexName, listener);
     }
 
     @Override

@@ -2,6 +2,20 @@
 "Test enrich crud apis":
 
   - do:
+      indices.create:
+        index: bar
+        body:
+          mappings:
+            properties:
+              baz:
+                type: keyword
+              a:
+                type: keyword
+              b:
+                type: keyword
+  - is_true: acknowledged
+
+  - do:
       enrich.put_policy:
         name: policy-crud
         body:

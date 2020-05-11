@@ -15,7 +15,7 @@ a nested object field that falls outside the `nested` aggregation's nested struc
 For example, lets say we have an index for a ticket system with issues and comments. The comments are inlined into
 the issue documents as nested documents. The mapping could look like:
 
-[source,console]
+[source,console,id=reversed-nested-aggregation-example]
 --------------------------------------------------
 PUT /issues
 {

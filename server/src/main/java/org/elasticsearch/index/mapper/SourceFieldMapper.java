@@ -22,9 +22,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -140,7 +140,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+        public MetadataFieldMapper getDefault(ParserContext context) {
             final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
             return new SourceFieldMapper(indexSettings);
         }
@@ -225,35 +225,45 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         BytesReference originalSource = context.sourceToParse().source();
-        BytesReference source = originalSource;
-        if (enabled && fieldType().stored() && source != null) {
+        XContentType contentType = context.sourceToParse().getXContentType();
+        final BytesReference adaptedSource = applyFilters(originalSource, contentType);
+
+        if (adaptedSource != null) {
+            final BytesRef ref = adaptedSource.toBytesRef();
+            context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
+        }
+
+        if (originalSource != null && adaptedSource != originalSource) {
+            // if we omitted source or modified it we add the _recovery_source to ensure we have it for ops based recovery
+            BytesRef ref = originalSource.toBytesRef();
+            context.doc().add(new StoredField(RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));
+            context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
+        }
+    }
+
+    @Nullable
+    public BytesReference applyFilters(@Nullable BytesReference originalSource, @Nullable XContentType contentType) throws IOException {
+        if (enabled && fieldType().stored() && originalSource != null) {
             // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
             if (filter != null) {
                 // we don't update the context source if we filter, we want to keep it as is...
                 Tuple<XContentType, Map<String, Object>> mapTuple =
-                    XContentHelper.convertToMap(source, true, context.sourceToParse().getXContentType());
+                    XContentHelper.convertToMap(originalSource, true, contentType);
                 Map<String, Object> filteredSource = filter.apply(mapTuple.v2());
                 BytesStreamOutput bStream = new BytesStreamOutput();
-                XContentType contentType = mapTuple.v1();
-                XContentBuilder builder = XContentFactory.contentBuilder(contentType, bStream).map(filteredSource);
+                XContentType actualContentType = mapTuple.v1();
+                XContentBuilder builder = XContentFactory.contentBuilder(actualContentType, bStream).map(filteredSource);
                 builder.close();
-                source = bStream.bytes();
+                return bStream.bytes();
+            } else {
+                return originalSource;
             }
-            BytesRef ref = source.toBytesRef();
-            fields.add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
         } else {
-            source = null;
+            return null;
         }
-
-        if (originalSource != null && source != originalSource && context.indexSettings().isSoftDeleteEnabled()) {
-            // if we omitted source or modified it we add the _recovery_source to ensure we have it for ops based recovery
-            BytesRef ref = originalSource.toBytesRef();
-            fields.add(new StoredField(RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));
-            fields.add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
-        }
-     }
+    }
 
     @Override
     protected String contentType() {

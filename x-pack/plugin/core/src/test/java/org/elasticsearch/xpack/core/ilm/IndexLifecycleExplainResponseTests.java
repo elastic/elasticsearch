@@ -47,14 +47,18 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
         boolean stepNull = randomBoolean();
         return IndexLifecycleExplainResponse.newManagedIndexResponse(randomAlphaOfLength(10),
             randomAlphaOfLength(10),
-            randomBoolean() ? null : randomNonNegativeLong(),
+            randomBoolean() ? null : randomLongBetween(0, System.currentTimeMillis()),
             stepNull ? null : randomAlphaOfLength(10),
             stepNull ? null : randomAlphaOfLength(10),
             stepNull ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : randomAlphaOfLength(10),
+            stepNull ? null : randomBoolean(),
+            stepNull ? null : randomInt(10),
             stepNull ? null : randomNonNegativeLong(),
             stepNull ? null : randomNonNegativeLong(),
             stepNull ? null : randomNonNegativeLong(),
+            stepNull ? null : randomAlphaOfLength(10),
+            stepNull ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
             randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo(""));
     }
@@ -69,9 +73,13 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
                 (numNull == 2) ? null : randomAlphaOfLength(10),
                 (numNull == 3) ? null : randomAlphaOfLength(10),
                 randomBoolean() ? null : randomAlphaOfLength(10),
+                randomBoolean() ? null : randomBoolean(),
+                randomBoolean() ? null : randomInt(10),
                 randomBoolean() ? null : randomNonNegativeLong(),
                 randomBoolean() ? null : randomNonNegativeLong(),
                 randomBoolean() ? null : randomNonNegativeLong(),
+                randomBoolean() ? null : randomAlphaOfLength(10),
+                randomBoolean() ? null : randomAlphaOfLength(10),
                 randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
                 randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo("")));
         assertThat(exception.getMessage(), startsWith("managed index response must have complete step details"));
@@ -106,15 +114,19 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
         String action = instance.getAction();
         String step = instance.getStep();
         String failedStep = instance.getFailedStep();
+        Boolean isAutoRetryableError = instance.isAutoRetryableError();
+        Integer failedStepRetryCount = instance.getFailedStepRetryCount();
         Long policyTime = instance.getLifecycleDate();
         Long phaseTime = instance.getPhaseTime();
         Long actionTime = instance.getActionTime();
         Long stepTime = instance.getStepTime();
+        String repositoryName = instance.getRepositoryName();
+        String snapshotName = instance.getSnapshotName();
         boolean managed = instance.managedByILM();
         BytesReference stepInfo = instance.getStepInfo();
         PhaseExecutionInfo phaseExecutionInfo = instance.getPhaseExecutionInfo();
         if (managed) {
-            switch (between(0, 10)) {
+            switch (between(0, 13)) {
             case 0:
                 index = index + randomAlphaOfLengthBetween(1, 5);
                 break;
@@ -162,11 +174,22 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
                 break;
             case 10:
                 return IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index);
+            case 11:
+                isAutoRetryableError = true;
+                failedStepRetryCount = randomValueOtherThan(failedStepRetryCount, () -> randomInt(10));
+                break;
+            case 12:
+                repositoryName = randomValueOtherThan(repositoryName, () -> randomAlphaOfLengthBetween(5, 10));
+                break;
+            case 13:
+                snapshotName = randomValueOtherThan(snapshotName, () -> randomAlphaOfLengthBetween(5, 10));
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
             }
             return IndexLifecycleExplainResponse.newManagedIndexResponse(index, policy, policyTime, phase, action, step, failedStep,
-                    phaseTime, actionTime, stepTime, stepInfo, phaseExecutionInfo);
+                isAutoRetryableError, failedStepRetryCount, phaseTime, actionTime, stepTime, repositoryName, snapshotName, stepInfo,
+                phaseExecutionInfo);
         } else {
             switch (between(0, 1)) {
             case 0:

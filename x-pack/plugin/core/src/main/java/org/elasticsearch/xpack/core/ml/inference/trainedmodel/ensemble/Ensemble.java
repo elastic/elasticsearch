@@ -5,14 +5,27 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.RawInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NullInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
@@ -20,14 +33,24 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalDouble;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.classificationLabel;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.decodeFeatureImportances;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.transformFeatureImportance;
 
 public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrainedModel {
 
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Ensemble.class);
     // TODO should we have regression/classification sub-classes that accept the builder?
     public static final ParseField NAME = new ParseField("ensemble");
     public static final ParseField FEATURE_NAMES = new ParseField("feature_names");
@@ -35,6 +58,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     public static final ParseField AGGREGATE_OUTPUT  = new ParseField("aggregate_output");
     public static final ParseField TARGET_TYPE = new ParseField("target_type");
     public static final ParseField CLASSIFICATION_LABELS = new ParseField("classification_labels");
+    public static final ParseField CLASSIFICATION_WEIGHTS = new ParseField("classification_weights");
 
     private static final ObjectParser<Ensemble.Builder, Void> LENIENT_PARSER = createParser(true);
     private static final ObjectParser<Ensemble.Builder, Void> STRICT_PARSER = createParser(false);
@@ -51,14 +75,14 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
                     p.namedObject(StrictlyParsedTrainedModel.class, n, null),
             (ensembleBuilder) -> ensembleBuilder.setModelsAreOrdered(true),
             TRAINED_MODELS);
-        parser.declareNamedObjects(Ensemble.Builder::setOutputAggregatorFromParser,
+        parser.declareNamedObject(Ensemble.Builder::setOutputAggregator,
             (p, c, n) ->
                 lenient ? p.namedObject(LenientlyParsedOutputAggregator.class, n, null) :
                     p.namedObject(StrictlyParsedOutputAggregator.class, n, null),
-            (ensembleBuilder) -> {/*Noop as it could be an array or object, it just has to be a one*/},
             AGGREGATE_OUTPUT);
         parser.declareString(Ensemble.Builder::setTargetType, TARGET_TYPE);
         parser.declareStringArray(Ensemble.Builder::setClassificationLabels, CLASSIFICATION_LABELS);
+        parser.declareDoubleArray(Ensemble.Builder::setClassificationWeights, CLASSIFICATION_WEIGHTS);
         return parser;
     }
 
@@ -75,17 +99,22 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     private final OutputAggregator outputAggregator;
     private final TargetType targetType;
     private final List<String> classificationLabels;
+    private final double[] classificationWeights;
 
     Ensemble(List<String> featureNames,
              List<TrainedModel> models,
              OutputAggregator outputAggregator,
              TargetType targetType,
-             @Nullable List<String> classificationLabels) {
+             @Nullable List<String> classificationLabels,
+             @Nullable double[] classificationWeights) {
         this.featureNames = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(featureNames, FEATURE_NAMES));
         this.models = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(models, TRAINED_MODELS));
         this.outputAggregator = ExceptionsHelper.requireNonNull(outputAggregator, AGGREGATE_OUTPUT);
         this.targetType = ExceptionsHelper.requireNonNull(targetType, TARGET_TYPE);
         this.classificationLabels = classificationLabels == null ? null : Collections.unmodifiableList(classificationLabels);
+        this.classificationWeights = classificationWeights == null ?
+            null :
+            Arrays.copyOf(classificationWeights, classificationWeights.length);
     }
 
     public Ensemble(StreamInput in) throws IOException {
@@ -98,22 +127,36 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         } else {
             this.classificationLabels = null;
         }
+        if (in.readBoolean()) {
+            this.classificationWeights = in.readDoubleArray();
+        } else {
+            this.classificationWeights = null;
+        }
     }
 
     @Override
-    public List<String> getFeatureNames() {
-        return featureNames;
-    }
-
-    @Override
-    public double infer(Map<String, Object> fields) {
-        List<Double> processedInferences = inferAndProcess(fields);
-        return outputAggregator.aggregate(processedInferences);
-    }
-
-    @Override
-    public double infer(List<Double> fields) {
-        throw new UnsupportedOperationException("Ensemble requires map containing field names and values");
+    public InferenceResults infer(Map<String, Object> fields, InferenceConfig config, Map<String, String> featureDecoderMap) {
+        if (config.isTargetTypeSupported(targetType) == false) {
+            throw ExceptionsHelper.badRequestException(
+                "Cannot infer using configuration for [{}] when model target_type is [{}]", config.getName(), targetType.toString());
+        }
+        double[][] inferenceResults = new double[this.models.size()][];
+        List<Map<String, double[]>> featureInfluence = new ArrayList<>();
+        int i = 0;
+        NullInferenceConfig subModelInferenceConfig = new NullInferenceConfig(config.requestingImportance());
+        for (TrainedModel model : models) {
+            InferenceResults result = model.infer(fields, subModelInferenceConfig, Collections.emptyMap());
+            assert result instanceof RawInferenceResults;
+            RawInferenceResults inferenceResult = (RawInferenceResults) result;
+            inferenceResults[i++] = inferenceResult.getValue();
+            if (config.requestingImportance()) {
+                featureInfluence.add(inferenceResult.getFeatureImportance());
+            }
+        }
+        double[] processed = outputAggregator.processValues(inferenceResults);
+        return buildResults(processed,
+            decodeFeatureImportances(featureDecoderMap, mergeFeatureImportances(featureInfluence)),
+            config);
     }
 
     @Override
@@ -121,28 +164,38 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         return targetType;
     }
 
-    @Override
-    public List<Double> classificationProbability(Map<String, Object> fields) {
-        if ((targetType == TargetType.CLASSIFICATION) == false) {
-            throw new UnsupportedOperationException(
-                "Cannot determine classification probability with target_type [" + targetType.toString() + "]");
+    private InferenceResults buildResults(double[] processedInferences,
+                                          Map<String, double[]> featureInfluence,
+                                          InferenceConfig config) {
+        // Indicates that the config is useless and the caller just wants the raw value
+        if (config instanceof NullInferenceConfig) {
+            return new RawInferenceResults(
+                new double[] {outputAggregator.aggregate(processedInferences)},
+                featureInfluence);
         }
-        return inferAndProcess(fields);
-    }
-
-    @Override
-    public List<Double> classificationProbability(List<Double> fields) {
-        throw new UnsupportedOperationException("Ensemble requires map containing field names and values");
-    }
-
-    @Override
-    public List<String> classificationLabels() {
-        return classificationLabels;
-    }
-
-    private List<Double> inferAndProcess(Map<String, Object> fields) {
-        List<Double> modelInferences = models.stream().map(m -> m.infer(fields)).collect(Collectors.toList());
-        return outputAggregator.processValues(modelInferences);
+        switch(targetType) {
+            case REGRESSION:
+                return new RegressionInferenceResults(outputAggregator.aggregate(processedInferences),
+                    config,
+                    transformFeatureImportance(featureInfluence, null));
+            case CLASSIFICATION:
+                ClassificationConfig classificationConfig = (ClassificationConfig) config;
+                assert classificationWeights == null || processedInferences.length == classificationWeights.length;
+                // Adjust the probabilities according to the thresholds
+                Tuple<Integer, List<ClassificationInferenceResults.TopClassEntry>> topClasses = InferenceHelpers.topClasses(
+                    processedInferences,
+                    classificationLabels,
+                    classificationWeights,
+                    classificationConfig.getNumTopClasses(),
+                    classificationConfig.getPredictionFieldType());
+                return new ClassificationInferenceResults((double)topClasses.v1(),
+                    classificationLabel(topClasses.v1(), classificationLabels),
+                    topClasses.v2(),
+                    transformFeatureImportance(featureInfluence, classificationLabels),
+                    config);
+            default:
+                throw new UnsupportedOperationException("unsupported target_type [" + targetType + "] for inference on ensemble model");
+        }
     }
 
     @Override
@@ -160,6 +213,10 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         if (classificationLabels != null) {
             out.writeStringCollection(classificationLabels);
         }
+        out.writeBoolean(classificationWeights != null);
+        if (classificationWeights != null) {
+            out.writeDoubleArray(classificationWeights);
+        }
     }
 
     @Override
@@ -170,7 +227,9 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(FEATURE_NAMES.getPreferredName(), featureNames);
+        if (featureNames.isEmpty() == false) {
+            builder.field(FEATURE_NAMES.getPreferredName(), featureNames);
+        }
         NamedXContentObjectHelper.writeNamedObjects(builder, params, true, TRAINED_MODELS.getPreferredName(), models);
         NamedXContentObjectHelper.writeNamedObjects(builder,
             params,
@@ -180,6 +239,9 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         builder.field(TARGET_TYPE.getPreferredName(), targetType.toString());
         if (classificationLabels != null) {
             builder.field(CLASSIFICATION_LABELS.getPreferredName(), classificationLabels);
+        }
+        if (classificationWeights != null) {
+            builder.field(CLASSIFICATION_WEIGHTS.getPreferredName(), classificationWeights);
         }
         builder.endObject();
         return builder;
@@ -194,16 +256,33 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
             && Objects.equals(models, that.models)
             && Objects.equals(targetType, that.targetType)
             && Objects.equals(classificationLabels, that.classificationLabels)
-            && Objects.equals(outputAggregator, that.outputAggregator);
+            && Objects.equals(outputAggregator, that.outputAggregator)
+            && Arrays.equals(classificationWeights, that.classificationWeights);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(featureNames, models, outputAggregator, targetType, classificationLabels);
+        return Objects.hash(featureNames,
+            models,
+            outputAggregator,
+            targetType,
+            classificationLabels,
+            Arrays.hashCode(classificationWeights));
     }
 
     @Override
     public void validate() {
+        if (this.models.isEmpty()) {
+            throw ExceptionsHelper.badRequestException("[{}] must not be empty", TRAINED_MODELS.getPreferredName());
+        }
+
+        if (outputAggregator.compatibleWith(targetType) == false) {
+            throw ExceptionsHelper.badRequestException(
+                "aggregate_output [{}] is not compatible with target_type [{}]",
+                this.targetType,
+                outputAggregator.getName()
+            );
+        }
         if (outputAggregator.expectedValueSize() != null &&
             outputAggregator.expectedValueSize() != models.size()) {
             throw ExceptionsHelper.badRequestException(
@@ -212,15 +291,82 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
                 outputAggregator.expectedValueSize(),
                 models.size());
         }
-        if ((this.targetType == TargetType.CLASSIFICATION) != (this.classificationLabels != null)) {
+        if ((this.classificationLabels != null || this.classificationWeights != null) && (this.targetType != TargetType.CLASSIFICATION)) {
             throw ExceptionsHelper.badRequestException(
-                "[target_type] should be [classification] if [classification_labels] is provided, and vice versa");
+                "[target_type] should be [classification] if [classification_labels] or [classification_weights] are provided");
+        }
+        if (classificationWeights != null &&
+            classificationLabels != null &&
+            classificationWeights.length != classificationLabels.size()) {
+            throw ExceptionsHelper.badRequestException(
+                "[classification_weights] and [classification_labels] should be the same length if both are provided"
+            );
         }
         this.models.forEach(TrainedModel::validate);
     }
 
+    @Override
+    public long estimatedNumOperations() {
+        OptionalDouble avg = models.stream().mapToLong(TrainedModel::estimatedNumOperations).average();
+        assert avg.isPresent() : "unexpected null when calculating number of operations";
+        // Average operations for each model and the operations required for processing and aggregating with the outputAggregator
+        return (long)Math.ceil(avg.getAsDouble()) + 2 * (models.size() - 1);
+    }
+
+    @Override
+    public boolean supportsFeatureImportance() {
+        return models.stream().allMatch(TrainedModel::supportsFeatureImportance);
+    }
+
+    Map<String, double[]> featureImportance(Map<String, Object> fields) {
+        return featureImportance(fields, Collections.emptyMap());
+    }
+
+    @Override
+    public Map<String, double[]> featureImportance(Map<String, Object> fields, Map<String, String> featureDecoder) {
+        Map<String, double[]> collapsed = mergeFeatureImportances(models.stream()
+            .map(trainedModel -> trainedModel.featureImportance(fields, Collections.emptyMap()))
+            .collect(Collectors.toList()));
+        return decodeFeatureImportances(featureDecoder, collapsed);
+    }
+
+    private static Map<String, double[]> mergeFeatureImportances(List<Map<String, double[]>> featureImportances) {
+        return featureImportances.stream()
+            .collect(HashMap::new,
+                (a, b) -> b.forEach((k, v) -> a.merge(k, v, InferenceHelpers::sumDoubleArrays)),
+                Map::putAll);
+    }
+
     public static Builder builder() {
         return new Builder();
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long size = SHALLOW_SIZE;
+        size += RamUsageEstimator.sizeOfCollection(featureNames);
+        size += RamUsageEstimator.sizeOfCollection(classificationLabels);
+        size += RamUsageEstimator.sizeOfCollection(models);
+        if (classificationWeights != null) {
+            size += RamUsageEstimator.sizeOf(classificationWeights);
+        }
+        size += outputAggregator.ramBytesUsed();
+        return size;
+    }
+
+    @Override
+    public Collection<Accountable> getChildResources() {
+        List<Accountable> accountables = new ArrayList<>(models.size() + 1);
+        for (TrainedModel model : models) {
+            accountables.add(Accountables.namedAccountable(model.getName(), model));
+        }
+        accountables.add(Accountables.namedAccountable(outputAggregator.getName(), outputAggregator));
+        return Collections.unmodifiableCollection(accountables);
+    }
+
+    @Override
+    public Version getMinimalCompatibilityVersion() {
+        return models.stream().map(TrainedModel::getMinimalCompatibilityVersion).max(Version::compareTo).orElse(Version.V_7_6_0);
     }
 
     public static class Builder {
@@ -229,10 +375,12 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         private OutputAggregator outputAggregator = new WeightedSum();
         private TargetType targetType = TargetType.REGRESSION;
         private List<String> classificationLabels;
+        private double[] classificationWeights;
         private boolean modelsAreOrdered;
 
-        private Builder (boolean modelsAreOrdered) {
+        private Builder(boolean modelsAreOrdered) {
             this.modelsAreOrdered = modelsAreOrdered;
+            this.featureNames = Collections.emptyList();
         }
 
         private static Builder builderForParser() {
@@ -268,12 +416,9 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
             return this;
         }
 
-        private void setOutputAggregatorFromParser(List<OutputAggregator> outputAggregators) {
-            if (outputAggregators.size() != 1) {
-                throw ExceptionsHelper.badRequestException("[{}] must have exactly one aggregator defined.",
-                    AGGREGATE_OUTPUT.getPreferredName());
-            }
-            this.setOutputAggregator(outputAggregators.get(0));
+        public Builder setClassificationWeights(List<Double> classificationWeights) {
+            this.classificationWeights = classificationWeights.stream().mapToDouble(Double::doubleValue).toArray();
+            return this;
         }
 
         private void setTargetType(String targetType) {
@@ -290,7 +435,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
             if (modelsAreOrdered == false && trainedModels != null && trainedModels.size() > 1) {
                 throw ExceptionsHelper.badRequestException("[trained_models] needs to be an array of objects");
             }
-            return new Ensemble(featureNames, trainedModels, outputAggregator, targetType, classificationLabels);
+            return new Ensemble(featureNames, trainedModels, outputAggregator, targetType, classificationLabels, classificationWeights);
         }
     }
 }

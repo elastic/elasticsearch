@@ -16,6 +16,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -24,12 +25,12 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -116,6 +117,12 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             return;
         }
 
+        // This registry requires to run on a master node.
+        // If not a master node, exit.
+        if (requiresMasterNode() && state.nodes().isLocalNodeElectedMaster() == false) {
+            return;
+        }
+
         // if this node is newer than the master node, we probably need to add the template, which might be newer than the
         // template the master node has, so we need potentially add new templates despite being not the master node
         DiscoveryNode localNode = event.state().getNodes().getLocalNode();
@@ -127,19 +134,39 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         }
     }
 
+    /**
+     * Whether the registry should only apply changes when running on the master node.
+     * This is useful for plugins where certain actions are performed on master nodes
+     * and the templates should match the respective version.
+     */
+    protected boolean requiresMasterNode() {
+        return false;
+    }
+
     private void addTemplatesIfMissing(ClusterState state) {
         final List<IndexTemplateConfig> indexTemplates = getTemplateConfigs();
-        for (IndexTemplateConfig template : indexTemplates) {
-            final String templateName = template.getTemplateName();
+        for (IndexTemplateConfig newTemplate : indexTemplates) {
+            final String templateName = newTemplate.getTemplateName();
             final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
             if (creationCheck.compareAndSet(false, true)) {
-                if (!state.metaData().getTemplates().containsKey(templateName)) {
+                IndexTemplateMetadata currentTemplate = state.metadata().getTemplates().get(templateName);
+                if (Objects.isNull(currentTemplate)) {
                     logger.debug("adding index template [{}] for [{}], because it doesn't exist", templateName, getOrigin());
-                    putTemplate(template, creationCheck);
+                    putTemplate(newTemplate, creationCheck);
+                } else if (Objects.isNull(currentTemplate.getVersion()) || newTemplate.getVersion() > currentTemplate.getVersion()) {
+                    // IndexTemplateConfig now enforces templates contain a `version` property, so if the template doesn't have one we can
+                    // safely assume it's an old version of the template.
+                    logger.info("upgrading index template [{}] for [{}] from version [{}] to version [{}]",
+                        templateName, getOrigin(), currentTemplate.getVersion(), newTemplate.getVersion());
+                    putTemplate(newTemplate, creationCheck);
                 } else {
                     creationCheck.set(false);
-                    logger.trace("not adding index template [{}] for [{}], because it already exists", templateName, getOrigin());
+                    logger.trace("not adding index template [{}] for [{}], because it already exists at version [{}]",
+                        templateName, getOrigin(), currentTemplate.getVersion());
                 }
+            } else {
+                logger.trace("skipping the creation of index template [{}] for [{}], because its creation is in progress",
+                    templateName, getOrigin());
             }
         }
     }
@@ -172,29 +199,26 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     }
 
     private void addIndexLifecyclePoliciesIfMissing(ClusterState state) {
-        boolean ilmSupported = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(settings);
 
-        if (ilmSupported) {
-            Optional<IndexLifecycleMetadata> maybeMeta = Optional.ofNullable(state.metaData().custom(IndexLifecycleMetadata.TYPE));
-            List<LifecyclePolicy> policies = getPolicyConfigs().stream()
-                .map(policyConfig -> policyConfig.load(xContentRegistry))
-                .collect(Collectors.toList());
+        Optional<IndexLifecycleMetadata> maybeMeta = Optional.ofNullable(state.metadata().custom(IndexLifecycleMetadata.TYPE));
+        List<LifecyclePolicy> policies = getPolicyConfigs().stream()
+            .map(policyConfig -> policyConfig.load(xContentRegistry))
+            .collect(Collectors.toList());
 
-            for (LifecyclePolicy policy : policies) {
-                final AtomicBoolean creationCheck = policyCreationsInProgress.computeIfAbsent(policy.getName(),
-                    key -> new AtomicBoolean(false));
-                if (creationCheck.compareAndSet(false, true)) {
-                    final boolean policyNeedsToBeCreated = maybeMeta
-                        .flatMap(ilmMeta -> Optional.ofNullable(ilmMeta.getPolicies().get(policy.getName())))
-                        .isPresent() == false;
-                    if (policyNeedsToBeCreated) {
-                        logger.debug("adding lifecycle policy [{}] for [{}], because it doesn't exist", policy.getName(), getOrigin());
-                        putPolicy(policy, creationCheck);
-                    } else {
-                        logger.trace("not adding lifecycle policy [{}] for [{}], because it already exists",
-                            policy.getName(), getOrigin());
-                        creationCheck.set(false);
-                    }
+        for (LifecyclePolicy policy : policies) {
+            final AtomicBoolean creationCheck = policyCreationsInProgress.computeIfAbsent(policy.getName(),
+                key -> new AtomicBoolean(false));
+            if (creationCheck.compareAndSet(false, true)) {
+                final boolean policyNeedsToBeCreated = maybeMeta
+                    .flatMap(ilmMeta -> Optional.ofNullable(ilmMeta.getPolicies().get(policy.getName())))
+                    .isPresent() == false;
+                if (policyNeedsToBeCreated) {
+                    logger.debug("adding lifecycle policy [{}] for [{}], because it doesn't exist", policy.getName(), getOrigin());
+                    putPolicy(policy, creationCheck);
+                } else {
+                    logger.trace("not adding lifecycle policy [{}] for [{}], because it already exists",
+                        policy.getName(), getOrigin());
+                    creationCheck.set(false);
                 }
             }
         }

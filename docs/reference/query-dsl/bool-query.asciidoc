@@ -60,6 +60,19 @@ POST _search
 }
 --------------------------------------------------
 
+[[bool-min-should-match]]
+==== Using `minimum_should_match`
+
+You can use the `minimum_should_match` parameter to specify the number or
+percentage of `should` clauses returned documents _must_ match.
+
+If the `bool` query includes at least one `should` clause and no `must` or
+`filter` clauses, the default value is `1`.
+Otherwise, the default value is `0`.
+
+For other valid values, see the
+<<query-dsl-minimum-should-match, `minimum_should_match` parameter>>.
+
 [[score-bool-filter]]
 ==== Scoring with `bool.filter`
 

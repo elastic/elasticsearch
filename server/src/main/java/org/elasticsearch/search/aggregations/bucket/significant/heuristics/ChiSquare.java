@@ -22,12 +22,18 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 public class ChiSquare extends NXYSignificanceHeuristic {
     public static final String NAME = "chi_square";
+    public static final ConstructingObjectParser<ChiSquare, Void> PARSER = new ConstructingObjectParser<>(
+        NAME, buildFromParsedArgs(ChiSquare::new));
+    static {
+        NXYSignificanceHeuristic.declareParseFields(PARSER);
+    }
 
     public ChiSquare(boolean includeNegatives, boolean backgroundIsSuperset) {
         super(includeNegatives, backgroundIsSuperset);
@@ -84,15 +90,7 @@ public class ChiSquare extends NXYSignificanceHeuristic {
         return builder;
     }
 
-    public static final SignificanceHeuristicParser PARSER = new NXYParser() {
-        @Override
-        protected SignificanceHeuristic newHeuristic(boolean includeNegatives, boolean backgroundIsSuperset) {
-            return new ChiSquare(includeNegatives, backgroundIsSuperset);
-        }
-    };
-
     public static class ChiSquareBuilder extends NXYSignificanceHeuristic.NXYBuilder {
-
         public ChiSquareBuilder(boolean includeNegatives, boolean backgroundIsSuperset) {
             super(includeNegatives, backgroundIsSuperset);
         }

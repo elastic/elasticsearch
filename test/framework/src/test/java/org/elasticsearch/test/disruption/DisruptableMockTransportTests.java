@@ -31,6 +31,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -412,22 +413,25 @@ public class DisruptableMockTransportTests extends ESTestCase {
         service1.disconnectFromNode(node2);
 
         disconnectedLinks.add(Tuple.tuple(node1, node2));
-        assertThat(expectThrows(ConnectTransportException.class, () -> service1.connectToNode(node2)).getMessage(),
+        assertThat(expectThrows(ConnectTransportException.class,
+            () -> AbstractSimpleTransportTestCase.connectToNode(service1, node2)).getMessage(),
             endsWith("is [DISCONNECTED] not [CONNECTED]"));
         disconnectedLinks.clear();
 
         blackholedLinks.add(Tuple.tuple(node1, node2));
-        assertThat(expectThrows(ConnectTransportException.class, () -> service1.connectToNode(node2)).getMessage(),
+        assertThat(expectThrows(ConnectTransportException.class,
+            () -> AbstractSimpleTransportTestCase.connectToNode(service1, node2)).getMessage(),
             endsWith("is [BLACK_HOLE] not [CONNECTED]"));
         blackholedLinks.clear();
 
         blackholedRequestLinks.add(Tuple.tuple(node1, node2));
-        assertThat(expectThrows(ConnectTransportException.class, () -> service1.connectToNode(node2)).getMessage(),
+        assertThat(expectThrows(ConnectTransportException.class,
+            () -> AbstractSimpleTransportTestCase.connectToNode(service1, node2)).getMessage(),
             endsWith("is [BLACK_HOLE_REQUESTS_ONLY] not [CONNECTED]"));
         blackholedRequestLinks.clear();
 
         final DiscoveryNode node3 = new DiscoveryNode("node3", buildNewFakeTransportAddress(), Version.CURRENT);
-        assertThat(expectThrows(ConnectTransportException.class, () -> service1.connectToNode(node3)).getMessage(),
-            endsWith("does not exist"));
+        assertThat(expectThrows(ConnectTransportException.class,
+            () -> AbstractSimpleTransportTestCase.connectToNode(service1, node3)).getMessage(), endsWith("does not exist"));
     }
 }

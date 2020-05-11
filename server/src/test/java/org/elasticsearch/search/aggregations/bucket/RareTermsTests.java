@@ -33,7 +33,7 @@ public class RareTermsTests extends BaseAggregationTestCase<RareTermsAggregation
     @Override
     protected RareTermsAggregationBuilder createTestAggregatorBuilder() {
         String name = randomAlphaOfLengthBetween(3, 20);
-        RareTermsAggregationBuilder factory = new RareTermsAggregationBuilder(name, null);
+        RareTermsAggregationBuilder factory = new RareTermsAggregationBuilder(name);
         String field = randomAlphaOfLengthBetween(3, 20);
         randomFieldOrScript(factory, field);
         if (randomBoolean()) {

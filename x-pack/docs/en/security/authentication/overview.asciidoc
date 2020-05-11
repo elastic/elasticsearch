@@ -16,9 +16,9 @@ integrate with external user management systems such as LDAP and Active
 Directory.
 
 The {stack-security-features} provide built-in realms such as `native`,`ldap`,
-`active_directory`, `pki`, `file`, and `saml`. If none of the built-in realms
-meet your needs, you can also build your own custom realm and plug it into the
-{stack}. 
+`active_directory`, `pki`, `file`, `saml`, and `oidc`. If none of the built-in
+realms meet your needs, you can also build your own custom realm and plug it
+into the {stack}. 
 
 When {security-features} are enabled, depending on the realms you've configured,
 you must attach your user credentials to the requests sent to {es}. For example,

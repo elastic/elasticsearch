@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.vectors;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -18,13 +19,15 @@ import java.util.Objects;
 public class VectorsFeatureSetUsage extends XPackFeatureSet.Usage {
 
     private final int numDenseVectorFields;
-    private final int numSparseVectorFields;
     private final int avgDenseVectorDims;
 
     public VectorsFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
         numDenseVectorFields = input.readVInt();
-        numSparseVectorFields = input.readVInt();
+        // Older versions recorded the number of sparse vector fields.
+        if (input.getVersion().before(Version.V_8_0_0)) {
+            input.readVInt();
+        }
         avgDenseVectorDims = input.readVInt();
     }
 
@@ -32,15 +35,21 @@ public class VectorsFeatureSetUsage extends XPackFeatureSet.Usage {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(numDenseVectorFields);
-        out.writeVInt(numSparseVectorFields);
+        // Older versions recorded the number of sparse vector fields.
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeVInt(0);
+        }
         out.writeVInt(avgDenseVectorDims);
     }
 
-    public VectorsFeatureSetUsage(boolean available, boolean enabled, int numDenseVectorFields, int numSparseVectorFields,
-            int avgDenseVectorDims) {
-        super(XPackField.VECTORS, available, enabled);
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_3_0;
+    }
+
+    public VectorsFeatureSetUsage(boolean available, int numDenseVectorFields, int avgDenseVectorDims) {
+        super(XPackField.VECTORS, available, true);
         this.numDenseVectorFields = numDenseVectorFields;
-        this.numSparseVectorFields = numSparseVectorFields;
         this.avgDenseVectorDims = avgDenseVectorDims;
     }
 
@@ -49,23 +58,20 @@ public class VectorsFeatureSetUsage extends XPackFeatureSet.Usage {
     protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
         super.innerXContent(builder, params);
         builder.field("dense_vector_fields_count", numDenseVectorFields);
-        builder.field("sparse_vector_fields_count", numSparseVectorFields);
         builder.field("dense_vector_dims_avg_count", avgDenseVectorDims);
     }
 
     public int numDenseVectorFields() {
         return numDenseVectorFields;
     }
-    public int numSparseVectorFields() {
-        return numSparseVectorFields;
-    }
+
     public int avgDenseVectorDims() {
         return avgDenseVectorDims;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(available, enabled, numDenseVectorFields, numSparseVectorFields, avgDenseVectorDims);
+        return Objects.hash(available, enabled, numDenseVectorFields, avgDenseVectorDims);
     }
 
     @Override
@@ -73,6 +79,6 @@ public class VectorsFeatureSetUsage extends XPackFeatureSet.Usage {
         if (obj instanceof VectorsFeatureSetUsage == false) return false;
         VectorsFeatureSetUsage other = (VectorsFeatureSetUsage) obj;
         return available == other.available && enabled == other.enabled && numDenseVectorFields == other.numDenseVectorFields
-            && numSparseVectorFields == other.numSparseVectorFields && avgDenseVectorDims == other.avgDenseVectorDims;
+            && avgDenseVectorDims == other.avgDenseVectorDims;
     }
 }

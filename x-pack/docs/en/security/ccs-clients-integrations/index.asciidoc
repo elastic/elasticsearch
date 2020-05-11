@@ -37,6 +37,4 @@ include::http.asciidoc[]
 
 include::hadoop.asciidoc[]
 
-include::beats.asciidoc[]
-
 include::monitoring.asciidoc[]

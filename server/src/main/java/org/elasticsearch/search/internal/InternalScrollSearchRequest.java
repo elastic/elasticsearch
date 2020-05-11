@@ -20,7 +20,7 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.Scroll;
@@ -33,33 +33,33 @@ import java.util.Map;
 
 public class InternalScrollSearchRequest extends TransportRequest {
 
-    private long id;
+    private SearchContextId contextId;
 
     private Scroll scroll;
 
     public InternalScrollSearchRequest() {
     }
 
-    public InternalScrollSearchRequest(SearchScrollRequest request, long id) {
-        this.id = id;
+    public InternalScrollSearchRequest(SearchScrollRequest request, SearchContextId contextId) {
+        this.contextId = contextId;
         this.scroll = request.scroll();
     }
 
     public InternalScrollSearchRequest(StreamInput in) throws IOException {
         super(in);
-        id = in.readLong();
+        contextId = new SearchContextId(in);
         scroll = in.readOptionalWriteable(Scroll::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeLong(id);
+        contextId.writeTo(out);
         out.writeOptionalWriteable(scroll);
     }
 
-    public long id() {
-        return id;
+    public SearchContextId contextId() {
+        return contextId;
     }
 
     public Scroll scroll() {
@@ -73,12 +73,12 @@ public class InternalScrollSearchRequest extends TransportRequest {
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new SearchTask(id, type, action, getDescription(), parentTaskId, headers);
+        return new SearchShardTask(id, type, action, getDescription(), parentTaskId, headers);
     }
 
     @Override
     public String getDescription() {
-        return "id[" + id + "], scroll[" + scroll + "]";
+        return "id[" + contextId.getId() + "], scroll[" + scroll + "]";
     }
 
 }

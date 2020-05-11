@@ -6,9 +6,9 @@
 
 package org.elasticsearch.xpack.sql.execution.search;
 
+import org.elasticsearch.xpack.ql.type.Schema;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
-import org.elasticsearch.xpack.sql.type.Schema;
 
 class SchemaDelegatingRowSet implements SchemaRowSet {
 

@@ -1,0 +1,48 @@
+[role="xpack"]
+[[idp-saml-delete-sp]]
+=== Remove a SAML service provider
+++++
+<titleabbrev>Remove a SAML service provider</titleabbrev>
+++++
+Removes a SAML service provider definition from this identity provider.
+
+[[idp-saml-delete-sp-request]]
+==== {api-request-title}
+
+`DELETE /_idp/saml/sp/{sp_entity_id}`
+
+[[idp-saml-delete-sp-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have a role that grants the `cluster:admin/idp/saml/sp/delete` privilege.
+
+[[idp-saml-delete-desc]]
+==== {api-description-title}
+
+This API removes a service provider from the identity provider by deleting the underlying document that stores
+the service provider definition.
+
+[[idp-saml-delete-sp-path-params]]
+==== {api-path-parms-title}
+
+`sp_entity_id::
+(string) The SAML entity Id of the service provider to be removed. In case the entity Id is a URL, it should be urlencoded.
+
+[[idp-saml-delete-sp-params]]
+==== {api-query-parms-title}
+
+`refresh`::
+(Optional, string) One of `true`, `false`, or `wait_for`.
+These values have the same meaning as in the <<docs-refresh, Index API>>,
+but the default value for this API is `false`.
+
+[[idp-saml-delete-example]]
+==== {api-examples-title}
+
+The following example deletes a service provider definition from the identity provider
+
+[source, console]
+--------------------------------------------------------------------
+DELETE /_idp/saml/sp/https%3A%2F%2Fsome.sp.org%2F
+--------------------------------------------------------------------
+// TEST[skip:Do not enable identity provider for the docs cluster, at least not yet]

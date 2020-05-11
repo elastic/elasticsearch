@@ -56,7 +56,7 @@ public class ThrottlingAndHeaderWarningLogger {
      */
     void throttleLogAndAddWarning(final String key, ESLogMessage message) {
         String messagePattern = message.getMessagePattern();
-        List<Object> arguments = message.getArguments();
+        Object[] arguments = message.getArguments();
         HeaderWarning.addWarning(messagePattern, arguments);
         throttlingLogger.throttleLog(key, message);
     }

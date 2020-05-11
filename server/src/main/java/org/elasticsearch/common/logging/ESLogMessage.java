@@ -112,8 +112,8 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
             .collect(Collectors.joining(", ")) + "]";
     }
 
-    public List<Object> getArguments() {
-        return arguments;
+    public Object[] getArguments() {
+        return arguments.toArray();
     }
 
     public String getMessagePattern() {

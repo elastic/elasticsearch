@@ -27,7 +27,6 @@ import nebula.plugin.info.InfoBrokerPlugin
 import org.apache.commons.io.IOUtils
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
-import org.elasticsearch.gradle.info.JavaHome
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.PrecommitTasks
@@ -55,13 +54,11 @@ import org.gradle.api.artifacts.repositories.IvyPatternRepositoryLayout
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository
 import org.gradle.api.credentials.HttpHeaderCredentials
 import org.gradle.api.execution.TaskActionListener
-import org.gradle.api.execution.TaskExecutionGraph
 import org.gradle.api.file.CopySpec
 import org.gradle.api.plugins.BasePlugin
 import org.gradle.api.plugins.BasePluginConvention
 import org.gradle.api.plugins.ExtraPropertiesExtension
 import org.gradle.api.plugins.JavaPlugin
-import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
@@ -70,16 +67,13 @@ import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.bundling.Jar
-import org.gradle.api.tasks.compile.GroovyCompile
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.api.tasks.javadoc.Javadoc
 import org.gradle.api.tasks.testing.Test
-import org.gradle.api.tasks.testing.logging.TestLoggingContainer
 import org.gradle.authentication.http.HttpHeaderAuthentication
 import org.gradle.external.javadoc.CoreJavadocOptions
 import org.gradle.internal.jvm.Jvm
 import org.gradle.language.base.plugins.LifecycleBasePlugin
-import org.gradle.process.CommandLineArgumentProvider
 import org.gradle.util.GradleVersion
 
 import java.nio.charset.StandardCharsets
@@ -306,7 +300,7 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             project.tasks.withType(GenerateMavenPom).configureEach({ GenerateMavenPom pomTask ->
-                pomTask.destination = "${project.buildDir}/distributions/${project.convention.getPlugin(BasePluginConvention).archivesBaseName}-${project.version}.pom"
+                pomTask.destination = { "${project.buildDir}/distributions/${project.convention.getPlugin(BasePluginConvention).archivesBaseName}-${project.version}.pom" }
             } as Action<GenerateMavenPom>)
 
             PublishingExtension publishing = project.extensions.getByType(PublishingExtension)
@@ -319,7 +313,7 @@ class BuildPlugin implements Plugin<Project> {
                 // Here we manually add any project dependencies in the "shadow" configuration to our generated POM
                 publication.pom.withXml(this.&addScmInfo)
                 publication.pom.withXml { xml ->
-                    Node root = xml.asNode();
+                    Node root = xml.asNode()
                     root.appendNode('name', project.name)
                     root.appendNode('description', project.description)
                     Node dependenciesNode = (root.get('dependencies') as NodeList).get(0) as Node
@@ -334,6 +328,11 @@ class BuildPlugin implements Plugin<Project> {
                     }
                 }
                 generatePomTask.configure({ Task t -> t.dependsOn = ['generatePomFileForShadowPublication'] } as Action<Task>)
+
+                // have to defer this until archivesBaseName is set
+                project.afterEvaluate {
+                    publication.artifactId = project.convention.getPlugin(BasePluginConvention).archivesBaseName
+                }
             }
         }
 
@@ -342,6 +341,11 @@ class BuildPlugin implements Plugin<Project> {
             PublishingExtension publishing = project.extensions.getByType(PublishingExtension)
             MavenPublication nebulaPublication = (MavenPublication) publishing.publications.getByName('nebula')
             nebulaPublication.pom.withXml(this.&addScmInfo)
+
+            // have to defer this until archivesBaseName is set
+            project.afterEvaluate {
+                nebulaPublication.artifactId = project.convention.getPlugin(BasePluginConvention).archivesBaseName
+            }
         }
     }
 

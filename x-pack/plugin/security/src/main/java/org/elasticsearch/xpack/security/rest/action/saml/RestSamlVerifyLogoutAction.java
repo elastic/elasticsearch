@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlVerifyLogoutRequest
 import org.elasticsearch.xpack.core.security.action.saml.SamlVerifyLogoutResponse;
 
 import java.io.IOException;
-import java.util.Base64;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -85,9 +84,9 @@ public class RestSamlVerifyLogoutAction extends SamlBaseRestHandler{
             final RestSamlVerifyLogoutAction.Input input = PARSER.parse(parser, null);
             logger.trace("SAML LogoutResponse: [{}...] [{}]", Strings.cleanTruncate(input.content, 128), input.ids);
             return channel -> {
-                final byte[] bytes = decodeBase64(input.content);
                 final SamlVerifyLogoutRequestBuilder requestBuilder =
-                    new SamlVerifyLogoutRequestBuilder(client).saml(bytes).validRequestIds(input.ids).authenticatingRealm(input.realm);
+                    new SamlVerifyLogoutRequestBuilder(client)
+                        .content(input.content).validRequestIds(input.ids).authenticatingRealm(input.realm);
                 requestBuilder.execute(new RestBuilderListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(SamlVerifyLogoutResponse response, XContentBuilder builder) throws Exception {
@@ -97,16 +96,6 @@ public class RestSamlVerifyLogoutAction extends SamlBaseRestHandler{
                     }
                 });
             };
-        }
-    }
-
-    private byte[] decodeBase64(String content) {
-        content = content.replaceAll("\\s+", "");
-        try {
-            return Base64.getDecoder().decode(content);
-        } catch (IllegalArgumentException e) {
-            logger.info("Failed to decode base64 string [{}] - {}", content, e.toString());
-            throw e;
         }
     }
 }

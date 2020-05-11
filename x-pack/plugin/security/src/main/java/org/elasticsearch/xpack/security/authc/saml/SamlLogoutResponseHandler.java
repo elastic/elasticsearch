@@ -24,14 +24,27 @@ public class SamlLogoutResponseHandler extends SamlResponseHandler {
         super(clock, idp, sp, maxSkew);
     }
 
-    public void handle(byte[] payload, Collection<String> allowedSamlRequestIds) {
-        final Element root = parseSamlMessage(payload);
+    public void handle(String content, Collection<String> allowedSamlRequestIds) {
+        final ParsedQueryString parsed = parseQueryStringAndValidateSignature(content, "SAMLResponse");
+        final Element root;
+        if (parsed.hasSignature) {
+            logger.info("Content is signed at URL level. Proceed as HTTP-Redirect binding");
+            root = parseSamlMessage(inflate(decodeBase64(parsed.samlMessage)));
+        } else {
+            logger.info("Content is not signed at URL level. Proceed as HTTP-POST binding");
+            root = parseSamlMessage(decodeBase64(parsed.samlMessage));
+        }
+
         if (LOGOUT_RESPONSE_TAG_NAME.equals(root.getLocalName()) && SAML_NAMESPACE.equals(root.getNamespaceURI())) {
             final LogoutResponse logoutResponse = buildXmlObject(root, LogoutResponse.class);
             if (logoutResponse == null) {
                 throw samlException("Cannot convert element {} into LogoutResponse object", root);
             }
-            if (logoutResponse.isSigned()) {
+            if (logoutResponse.getSignature() == null) {
+                if (parsed.hasSignature == false) {
+                    throw samlException("LogoutResponse is not signed for HTTP-Post binding");
+                }
+            } else {
                 validateSignature(logoutResponse.getSignature());
             }
             checkInResponseTo(logoutResponse, allowedSamlRequestIds);

@@ -53,7 +53,7 @@ public final class TransportSamlVerifyLogoutAction extends HandledTransportActio
 
         final SamlLogoutResponseHandler logoutResponseHandler = samlRealm.getLogoutResponseHandler();
         try {
-            logoutResponseHandler.handle(request.getSaml(), request.getValidRequestIds());
+            logoutResponseHandler.handle(request.getContent(), request.getValidRequestIds());
             listener.onResponse(new SamlVerifyLogoutResponse());
         } catch (Exception e) {
             listener.onFailure(e);

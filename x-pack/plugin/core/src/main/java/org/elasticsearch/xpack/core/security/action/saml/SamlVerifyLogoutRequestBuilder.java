@@ -20,8 +20,8 @@ public final class SamlVerifyLogoutRequestBuilder
         super(client, SamlVerifyLogoutAction.INSTANCE, new SamlVerifyLogoutRequest());
     }
 
-    public SamlVerifyLogoutRequestBuilder saml(byte[] saml) {
-        request.setSaml(saml);
+    public SamlVerifyLogoutRequestBuilder content(String content) {
+        request.setContent(content);
         return this;
     }
 

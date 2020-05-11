@@ -18,7 +18,7 @@ import java.util.List;
  */
 public final class SamlVerifyLogoutRequest extends ActionRequest {
 
-    private byte[] saml;
+    private String content;
     private List<String> validRequestIds;
     @Nullable
     private String realm;
@@ -37,12 +37,12 @@ public final class SamlVerifyLogoutRequest extends ActionRequest {
         return null;
     }
 
-    public byte[] getSaml() {
-        return saml;
+    public String getContent() {
+        return content;
     }
 
-    public void setSaml(byte[] saml) {
-        this.saml = saml;
+    public void setContent(String content) {
+        this.content = content;
     }
 
     public List<String> getValidRequestIds() {

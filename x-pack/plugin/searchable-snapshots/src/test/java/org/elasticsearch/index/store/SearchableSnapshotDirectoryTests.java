@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.index.store;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -14,6 +15,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -47,6 +49,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -59,6 +62,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.index.store.checksum.ChecksumBlobContainerIndexInput;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -98,8 +102,10 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class SearchableSnapshotDirectoryTests extends ESTestCase {
@@ -308,6 +314,108 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         });
     }
 
+    public void testChecksumBlobContainerIndexInput() throws Exception {
+        testDirectories(
+            randomBoolean(),
+            false, // no prewarming in this test because we want to ensure that files are accessed on purpose
+            (directory, snapshotDirectory) -> {
+                for (String fileName : randomSubsetOf(Arrays.asList(snapshotDirectory.listAll()))) {
+                    final long checksum;
+                    try (IndexInput input = directory.openInput(fileName, Store.READONCE_CHECKSUM)) {
+                        checksum = CodecUtil.checksumEntireFile(input);
+                    }
+
+                    final long snapshotChecksum;
+                    try (IndexInput input = snapshotDirectory.openInput(fileName, Store.READONCE_CHECKSUM)) {
+                        snapshotChecksum = CodecUtil.retrieveChecksum(input);
+                        assertThat(
+                            input,
+                            "si".equals(IndexFileNames.getExtension(fileName)) || fileName.startsWith(IndexFileNames.SEGMENTS)
+                                ? instanceOf(ByteArrayIndexInput.class)
+                                : instanceOf(ChecksumBlobContainerIndexInput.class)
+                        );
+                    }
+
+                    assertThat(
+                        "Expected checksum [" + checksum + "] but got [" + snapshotChecksum + ']',
+                        snapshotChecksum,
+                        equalTo(checksum)
+                    );
+                    assertThat(
+                        "File [" + fileName + "] should have been read from heap",
+                        snapshotDirectory.getStats(fileName),
+                        nullValue()
+                    );
+                }
+            }
+        );
+    }
+
+    public void testMetadataSnapshotsDoesNotAccessFilesOnDisk() throws Exception {
+        final ShardId shardId = new ShardId("_name", "_id", 0);
+        final IndexSettings indexSettings = newIndexSettings();
+
+        // sometimes load store's MetadataSnapshot using an IndexCommit
+        final boolean useIndexCommit = randomBoolean();
+        logger.info("--> loading Store.MetadataSnapshot using index commit is [{}]", useIndexCommit);
+        final CheckedFunction<Store, Store.MetadataSnapshot, IOException> loader = store -> {
+            if (useIndexCommit) {
+                return store.getMetadata(Lucene.getIndexCommit(Lucene.readSegmentInfos(store.directory()), store.directory()));
+            } else {
+                return store.getMetadata(null, true);
+            }
+        };
+
+        testDirectories(
+            randomBoolean(),
+            false, // no prewarming in this test because we want to ensure that files are accessed on purpose
+            ((directory, snapshotDirectory) -> {
+                final Store.MetadataSnapshot metadata;
+                try (Store store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId))) {
+                    metadata = loader.apply(store);
+                    assertNotNull(metadata);
+                }
+
+                final Store.MetadataSnapshot snapshotMetadata;
+                try (Store store = new Store(shardId, indexSettings, snapshotDirectory, new DummyShardLock(shardId))) {
+                    assertTrue("No files should have been read yet", snapshotDirectory.getStats().isEmpty());
+                    snapshotMetadata = store.getMetadata(null);
+                    assertTrue("No files should have been read to compute MetadataSnapshot", snapshotDirectory.getStats().isEmpty());
+                    assertNotNull(snapshotMetadata);
+                }
+
+                final Store.RecoveryDiff diff = randomBoolean()
+                    ? metadata.recoveryDiff(snapshotMetadata)
+                    : snapshotMetadata.recoveryDiff(metadata);
+
+                assertThat(
+                    "List of different files should be empty but got [" + metadata.asMap() + "] and [" + snapshotMetadata.asMap() + ']',
+                    diff.different.isEmpty(),
+                    is(true)
+                );
+                assertThat(
+                    "List of missing files should be empty but got [" + metadata.asMap() + "] and [" + snapshotMetadata.asMap() + ']',
+                    diff.missing.isEmpty(),
+                    is(true)
+                );
+                assertThat(
+                    "List of files should be identical [" + metadata.asMap() + "] and [" + snapshotMetadata.asMap() + ']',
+                    diff.identical.size(),
+                    equalTo(metadata.size())
+                );
+                assertThat("Number of files should be identical", snapshotMetadata.size(), equalTo(metadata.size()));
+
+                for (StoreFileMetadata storeFileMetadata : metadata) {
+                    final StoreFileMetadata snapshotFileMetadata = snapshotMetadata.get(storeFileMetadata.name());
+                    assertTrue(
+                        storeFileMetadata + " should be identical but got [" + snapshotFileMetadata + ']',
+                        storeFileMetadata.isSame(snapshotFileMetadata)
+                    );
+                }
+            })
+        );
+    }
+
     /**
      * This method :
      * - sets up a default {@link Directory} and index random documents
@@ -315,14 +423,16 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
      * - creates a {@link SearchableSnapshotDirectory} instance based on the snapshotted files
      * - consumes the default and the searchable snapshot directories using the {@link CheckedBiConsumer}.
      */
-    private void testDirectories(final CheckedBiConsumer<Directory, Directory, Exception> consumer) throws Exception {
-        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
-            "_index",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
-                .put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
-                .build()
-        );
+    private void testDirectories(final CheckedBiConsumer<Directory, SearchableSnapshotDirectory, Exception> consumer) throws Exception {
+        testDirectories(randomBoolean(), randomBoolean(), consumer);
+    }
+
+    private void testDirectories(
+        final boolean enableCache,
+        final boolean prewarmCache,
+        final CheckedBiConsumer<Directory, SearchableSnapshotDirectory, Exception> consumer
+    ) throws Exception {
+        final IndexSettings indexSettings = newIndexSettings();
         final ShardId shardId = new ShardId(indexSettings.getIndex(), randomIntBetween(0, 10));
         final List<Releasable> releasables = new ArrayList<>();
 
@@ -442,8 +552,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                         indexId,
                         shardId,
                         Settings.builder()
-                            .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), randomBoolean())
-                            .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), randomBoolean())
+                            .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), enableCache)
+                            .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), prewarmCache)
                             .build(),
                         () -> 0L,
                         cacheService,
@@ -605,5 +715,15 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         }
         assertThat("Number of files (" + files.size() + ") mismatch, got : " + files.keySet(), files.size(), matchNumberOfFiles);
         assertThat("Sum of file sizes mismatch, got: " + files, files.values().stream().mapToLong(Long::longValue).sum(), matchSizeOfFiles);
+    }
+
+    private static IndexSettings newIndexSettings() {
+        return IndexSettingsModule.newIndexSettings(
+            "_index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
+                .put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
+                .build()
+        );
     }
 }

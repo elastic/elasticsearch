@@ -152,9 +152,24 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     }
 
     /**
-     * Build an aggregation for data that has been collected into {@code bucket}.
+     * Build the results of this aggregation.
+     * @param owningBucketOrds the ordinals of the buckets that we want to
+     *        collect from this aggregation
+     * @return the results for each ordinal, in the same order as the array
+     *         of ordinals
      */
-    public abstract InternalAggregation buildAggregation(long bucket) throws IOException;
+    public abstract InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException;
+
+    /**
+     * Build the result of this aggregation if it is at the "top level"
+     * of the aggregation tree. If, instead, it is a sub-aggregation of
+     * another aggregation then the aggregation that contains it will call
+     * {@link #buildAggregations(long[])}.
+     */
+    public final InternalAggregation buildTopLevel() throws IOException {
+        assert parent() == null;
+        return buildAggregations(new long[] {0})[0];
+    }
 
     /**
      * Build an empty aggregation.

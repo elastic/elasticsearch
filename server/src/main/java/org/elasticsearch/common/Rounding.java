@@ -439,7 +439,7 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public Prepared prepareForUnknown() {
-            LocalTimeOffset offset = LocalTimeOffset.lookupFixedOffset(timeZone);
+            LocalTimeOffset offset = LocalTimeOffset.fixedOffset(timeZone);
             if (offset != null) {
                 if (unitRoundsToMidnight) {
                     return new FixedToMidnightRounding(offset);
@@ -555,7 +555,7 @@ public abstract class Rounding implements Writeable {
             @Override
             public long beforeGap(long localMillis, Gap gap) {
                 return gap.previous().localToUtc(localMillis, this);
-            };
+            }
 
             @Override
             public long inOverlap(long localMillis, Overlap overlap) {
@@ -565,7 +565,7 @@ public abstract class Rounding implements Writeable {
             @Override
             public long beforeOverlap(long localMillis, Overlap overlap) {
                 return overlap.previous().localToUtc(localMillis, this);
-            };
+            }
         }
 
         private class NotToMidnightRounding extends AbstractNotToMidnightRounding implements LocalTimeOffset.Strategy {
@@ -739,21 +739,15 @@ public abstract class Rounding implements Writeable {
 
     static class TimeIntervalRounding extends Rounding {
         static final byte ID = 2;
-        /** Since, there is no offset of -1 ms, it is safe to use -1 for non-fixed timezones */
-        private static final long TZ_OFFSET_NON_FIXED = -1;
 
         private final long interval;
         private final ZoneId timeZone;
-        /** For fixed offset timezones, this is the offset in milliseconds, otherwise TZ_OFFSET_NON_FIXED */
-        private final long fixedOffsetMillis;
 
         TimeIntervalRounding(long interval, ZoneId timeZone) {
             if (interval < 1)
                 throw new IllegalArgumentException("Zero or negative time interval not supported");
             this.interval = interval;
             this.timeZone = timeZone;
-            this.fixedOffsetMillis = timeZone.getRules().isFixedOffset() ?
-                timeZone.getRules().getOffset(Instant.EPOCH).getTotalSeconds() * 1000 : TZ_OFFSET_NON_FIXED;
         }
 
         TimeIntervalRounding(StreamInput in) throws IOException {
@@ -773,88 +767,32 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public Prepared prepare(long minUtcMillis, long maxUtcMillis) {
-            return prepareForUnknown();
+            long minLookup = minUtcMillis - interval;
+            long maxLookup = maxUtcMillis;
+
+            LocalTimeOffset.Lookup lookup = LocalTimeOffset.lookup(timeZone, minLookup, maxLookup);
+            if (lookup == null) {
+                return prepareJavaTime();
+            }
+            LocalTimeOffset fixedOffset = lookup.fixedInRange(minLookup, maxLookup);
+            if (fixedOffset != null) {
+                return new FixedRounding(fixedOffset);
+            }
+            return new VariableRounding(lookup);
         }
 
         @Override
         public Prepared prepareForUnknown() {
+            LocalTimeOffset offset = LocalTimeOffset.fixedOffset(timeZone);
+            if (offset != null) {
+                return new FixedRounding(offset);
+            }
             return prepareJavaTime();
         }
 
         @Override
         Prepared prepareJavaTime() {
-            return new Prepared() {
-                @Override
-                public long round(long utcMillis) {
-                    if (fixedOffsetMillis != TZ_OFFSET_NON_FIXED) {
-                        // This works as long as the tz offset doesn't change. It is worth getting this case out of the way first,
-                        // as the calculations for fixing things near to offset changes are a little expensive and unnecessary
-                        // in the common case of working with fixed offset timezones (such as UTC).
-                        long localMillis = utcMillis + fixedOffsetMillis;
-                        return (roundKey(localMillis, interval) * interval) - fixedOffsetMillis;
-                    }
-                    final Instant utcInstant = Instant.ofEpochMilli(utcMillis);
-                    final LocalDateTime rawLocalDateTime = LocalDateTime.ofInstant(utcInstant, timeZone);
-
-                    // a millisecond value with the same local time, in UTC, as `utcMillis` has in `timeZone`
-                    final long localMillis = utcMillis + timeZone.getRules().getOffset(utcInstant).getTotalSeconds() * 1000;
-                    assert localMillis == rawLocalDateTime.toInstant(ZoneOffset.UTC).toEpochMilli();
-
-                    final long roundedMillis = roundKey(localMillis, interval) * interval;
-                    final LocalDateTime roundedLocalDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(roundedMillis), ZoneOffset.UTC);
-
-                    // Now work out what roundedLocalDateTime actually means
-                    final List<ZoneOffset> currentOffsets = timeZone.getRules().getValidOffsets(roundedLocalDateTime);
-                    if (currentOffsets.isEmpty() == false) {
-                        // There is at least one instant with the desired local time. In general the desired result is
-                        // the latest rounded time that's no later than the input time, but this could involve rounding across
-                        // a timezone transition, which may yield the wrong result
-                        final ZoneOffsetTransition previousTransition = timeZone.getRules().previousTransition(utcInstant.plusMillis(1));
-                        for (int offsetIndex = currentOffsets.size() - 1; 0 <= offsetIndex; offsetIndex--) {
-                            final OffsetDateTime offsetTime = roundedLocalDateTime.atOffset(currentOffsets.get(offsetIndex));
-                            final Instant offsetInstant = offsetTime.toInstant();
-                            if (previousTransition != null && offsetInstant.isBefore(previousTransition.getInstant())) {
-                                /*
-                                 * Rounding down across the transition can yield the
-                                 * wrong result. It's best to return to the transition
-                                 * time and round that down.
-                                 */
-                                return round(previousTransition.getInstant().toEpochMilli() - 1);
-                            }
-
-                            if (utcInstant.isBefore(offsetTime.toInstant()) == false) {
-                                return offsetInstant.toEpochMilli();
-                            }
-                        }
-
-                        final OffsetDateTime offsetTime = roundedLocalDateTime.atOffset(currentOffsets.get(0));
-                        final Instant offsetInstant = offsetTime.toInstant();
-                        assert false : this + " failed to round " + utcMillis + " down: " + offsetInstant + " is the earliest possible";
-                        return offsetInstant.toEpochMilli(); // TODO or throw something?
-                    } else {
-                        // The desired time isn't valid because within a gap, so just return the gap time.
-                        ZoneOffsetTransition zoneOffsetTransition = timeZone.getRules().getTransition(roundedLocalDateTime);
-                        return zoneOffsetTransition.getInstant().toEpochMilli();
-                    }
-                }
-
-                @Override
-                public long nextRoundingValue(long time) {
-                    int offsetSeconds = timeZone.getRules().getOffset(Instant.ofEpochMilli(time)).getTotalSeconds();
-                    long millis = time + interval + offsetSeconds * 1000;
-                    return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC)
-                        .withZoneSameLocal(timeZone)
-                        .toInstant().toEpochMilli();
-                }
-
-                private long roundKey(long value, long interval) {
-                    if (value < 0) {
-                        return (value - interval + 1) / interval;
-                    } else {
-                        return value / interval;
-                    }
-                }
-            };
+            return new JavaTimeRounding();
         }
 
         @Override
@@ -887,6 +825,160 @@ public abstract class Rounding implements Writeable {
         @Override
         public String toString() {
             return "Rounding[" + interval + " in " + timeZone + "]";
+        }
+
+        private long roundKey(long value, long interval) {
+            if (value < 0) {
+                return (value - interval + 1) / interval;
+            } else {
+                return value / interval;
+            }
+        }
+
+        /**
+         * Rounds to down inside of a time zone with an "effectively fixed"
+         * time zone. A time zone can be "effectively fixed" if:
+         * <ul>
+         * <li>It is UTC</li>
+         * <li>It is a fixed offset from UTC at all times (UTC-5, America/Phoenix)</li>
+         * <li>It is fixed over the entire range of dates that will be rounded</li>
+         * </ul>
+         */
+        private class FixedRounding implements Prepared {
+            private final LocalTimeOffset offset;
+
+            FixedRounding(LocalTimeOffset offset) {
+                this.offset = offset;
+            }
+
+            @Override
+            public long round(long utcMillis) {
+                return offset.localToUtcInThisOffset(roundKey(offset.utcToLocalTime(utcMillis), interval) * interval);
+            }
+
+            @Override
+            public long nextRoundingValue(long utcMillis) {
+                // TODO this is used in date range's collect so we should optimize it too
+                return new JavaTimeRounding().nextRoundingValue(utcMillis);
+            }
+        }
+
+        /**
+         * Rounds down inside of any time zone, even if it is not
+         * "effectively fixed". See {@link FixedRounding} for a description of
+         * "effectively fixed".
+         */
+        private class VariableRounding implements Prepared, LocalTimeOffset.Strategy {
+            private final LocalTimeOffset.Lookup lookup;
+
+            VariableRounding(LocalTimeOffset.Lookup lookup) {
+                this.lookup = lookup;
+            }
+
+            @Override
+            public long round(long utcMillis) {
+                LocalTimeOffset offset = lookup.lookup(utcMillis);
+                return offset.localToUtc(roundKey(offset.utcToLocalTime(utcMillis), interval) * interval, this);
+            }
+
+            @Override
+            public long nextRoundingValue(long utcMillis) {
+                // TODO this is used in date range's collect so we should optimize it too
+                return new JavaTimeRounding().nextRoundingValue(utcMillis);
+            }
+
+            @Override
+            public long inGap(long localMillis, Gap gap) {
+                return gap.startUtcMillis();
+            }
+
+            @Override
+            public long beforeGap(long localMillis, Gap gap) {
+                return gap.previous().localToUtc(localMillis, this);
+            }
+
+            @Override
+            public long inOverlap(long localMillis, Overlap overlap) {
+                // Convert the overlap at this offset because that'll produce the largest result.
+                return overlap.localToUtcInThisOffset(localMillis);
+            }
+
+            @Override
+            public long beforeOverlap(long localMillis, Overlap overlap) {
+                return overlap.previous().localToUtc(roundKey(overlap.firstNonOverlappingLocalTime() - 1, interval) * interval, this);
+            }
+        }
+
+        /**
+         * Rounds down inside of any time zone using {@link LocalDateTime}
+         * directly. It'll be slower than {@link VariableRounding} and much
+         * slower than {@link FixedRounding}. We use it when we don' have an
+         * "effectively fixed" time zone and we can't get a
+         * {@link LocalTimeOffset.Lookup}. We might not be able to get one
+         * because:
+         * <ul>
+         * <li>We don't know how to look up the minimum and maximum dates we
+         * are going to round.</li>
+         * <li>We expect to round over thousands and thousands of years worth
+         * of dates with the same {@link Prepared} instance.</li>
+         * </ul>
+         */
+        private class JavaTimeRounding implements Prepared {
+            @Override
+            public long round(long utcMillis) {
+                final Instant utcInstant = Instant.ofEpochMilli(utcMillis);
+                final LocalDateTime rawLocalDateTime = LocalDateTime.ofInstant(utcInstant, timeZone);
+
+                // a millisecond value with the same local time, in UTC, as `utcMillis` has in `timeZone`
+                final long localMillis = utcMillis + timeZone.getRules().getOffset(utcInstant).getTotalSeconds() * 1000;
+                assert localMillis == rawLocalDateTime.toInstant(ZoneOffset.UTC).toEpochMilli();
+
+                final long roundedMillis = roundKey(localMillis, interval) * interval;
+                final LocalDateTime roundedLocalDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(roundedMillis), ZoneOffset.UTC);
+
+                // Now work out what roundedLocalDateTime actually means
+                final List<ZoneOffset> currentOffsets = timeZone.getRules().getValidOffsets(roundedLocalDateTime);
+                if (currentOffsets.isEmpty() == false) {
+                    // There is at least one instant with the desired local time. In general the desired result is
+                    // the latest rounded time that's no later than the input time, but this could involve rounding across
+                    // a timezone transition, which may yield the wrong result
+                    final ZoneOffsetTransition previousTransition = timeZone.getRules().previousTransition(utcInstant.plusMillis(1));
+                    for (int offsetIndex = currentOffsets.size() - 1; 0 <= offsetIndex; offsetIndex--) {
+                        final OffsetDateTime offsetTime = roundedLocalDateTime.atOffset(currentOffsets.get(offsetIndex));
+                        final Instant offsetInstant = offsetTime.toInstant();
+                        if (previousTransition != null && offsetInstant.isBefore(previousTransition.getInstant())) {
+                            /*
+                             * Rounding down across the transition can yield the
+                             * wrong result. It's best to return to the transition
+                             * time and round that down.
+                             */
+                            return round(previousTransition.getInstant().toEpochMilli() - 1);
+                        }
+
+                        if (utcInstant.isBefore(offsetTime.toInstant()) == false) {
+                            return offsetInstant.toEpochMilli();
+                        }
+                    }
+
+                    final OffsetDateTime offsetTime = roundedLocalDateTime.atOffset(currentOffsets.get(0));
+                    final Instant offsetInstant = offsetTime.toInstant();
+                    assert false : this + " failed to round " + utcMillis + " down: " + offsetInstant + " is the earliest possible";
+                    return offsetInstant.toEpochMilli(); // TODO or throw something?
+                } else {
+                    // The desired time isn't valid because within a gap, so just return the start of the gap
+                    ZoneOffsetTransition zoneOffsetTransition = timeZone.getRules().getTransition(roundedLocalDateTime);
+                    return zoneOffsetTransition.getInstant().toEpochMilli();
+                }
+            }
+
+            @Override
+            public long nextRoundingValue(long time) {
+                int offsetSeconds = timeZone.getRules().getOffset(Instant.ofEpochMilli(time)).getTotalSeconds();
+                long millis = time + interval + offsetSeconds * 1000;
+                return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC)
+                    .withZoneSameLocal(timeZone)
+                    .toInstant().toEpochMilli();
+            }
         }
     }
 

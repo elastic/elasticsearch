@@ -23,7 +23,7 @@ tasks.register('internalClusterTestNoSecurityManager') {
   include noSecurityManagerITClasses
   systemProperty 'tests.security.manager', 'false'
 }
-check.dependsOn 'internalClusterTestNoSecurity'
+check.dependsOn 'internalClusterTestNoSecurityManager'
 
 tasks.named('internalClusterTest').configure {
   exclude noSecurityManagerITClasses

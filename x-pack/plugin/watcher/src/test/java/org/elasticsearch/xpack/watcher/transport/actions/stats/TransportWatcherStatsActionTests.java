@@ -31,6 +31,7 @@ import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.is;
@@ -58,7 +59,7 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
 
         WatcherLifeCycleService watcherLifeCycleService = mock(WatcherLifeCycleService.class);
-        when(watcherLifeCycleService.getState()).thenReturn(WatcherState.STARTED);
+        when(watcherLifeCycleService.getState()).thenReturn(() -> WatcherState.STARTED);
 
         ExecutionService executionService = mock(ExecutionService.class);
         when(executionService.executionThreadPoolQueueSize()).thenReturn(100L);

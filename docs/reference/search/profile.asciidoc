@@ -826,7 +826,7 @@ This yields the following aggregation profile output:
                   "collect_count" : 4,
                 },
                 "debug": {
-                  "wrapped_in_multi_bucket_aggregator": true
+                  "total_buckets": 4
                 }
               }
             ]

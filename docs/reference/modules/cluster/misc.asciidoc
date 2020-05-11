@@ -129,7 +129,7 @@ PUT /_cluster/settings
 ===== Persistent tasks allocation
 
 Plugins can create a kind of tasks called persistent tasks. Those tasks are
-usually long-live tasks and are stored in the cluster state, allowing the
+usually long-lived tasks and are stored in the cluster state, allowing the
 tasks to be revived after a full cluster restart.
 
 Every time a persistent task is created, the master node takes care of

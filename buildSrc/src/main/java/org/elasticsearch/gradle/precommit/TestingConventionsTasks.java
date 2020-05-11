@@ -80,7 +80,7 @@ public class TestingConventionsTasks extends DefaultTask {
         return getProject().getTasks()
             .withType(Test.class)
             .stream()
-            .filter(t -> tasks == null || tasks.contains(t.getName()))
+            .filter(t -> t.getName().equals("test"))//tasks == null || tasks.contains(t.getName()))
             .filter(Task::getEnabled)
             .collect(Collectors.toMap(Task::getPath, task -> task.getCandidateClassFiles().getFiles()));
     }

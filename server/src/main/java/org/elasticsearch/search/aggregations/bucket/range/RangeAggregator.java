@@ -67,6 +67,15 @@ public class RangeAggregator extends BucketsAggregator {
         protected final double to;
         protected final String toAsStr;
 
+        /**
+         * Build the range. Generally callers should prefer
+         * {@link Range#Range(String, Double, Double)} or
+         * {@link Range#Range(String, String, String))}. If you
+         * <strong>must</strong> call this know that consumers prefer
+         * {@code from} and {@code to} parameters if they are non-null
+         * and finite. Otherwise they parse from {@code fromrStr} and
+         * {@code toStr}. 
+         */
         public Range(String key, Double from, String fromAsStr, Double to, String toAsStr) {
             this.key = key;
             this.from = from == null ? Double.NEGATIVE_INFINITY : from;

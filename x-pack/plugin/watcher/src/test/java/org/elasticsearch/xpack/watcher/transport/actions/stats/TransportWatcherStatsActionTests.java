@@ -31,7 +31,6 @@ import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.is;

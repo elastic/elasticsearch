@@ -84,16 +84,15 @@ public class ProfilingAggregator extends Aggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long bucket) throws IOException {
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         Timer timer = profileBreakdown.getTimer(AggregationTimingType.BUILD_AGGREGATION);
         timer.start();
-        InternalAggregation result;
         try {
-            result = delegate.buildAggregation(bucket);
+            return delegate.buildAggregations(owningBucketOrds);
         } finally {
             timer.stop();
+            delegate.collectDebugInfo(profileBreakdown::addDebugInfo);
         }
-        return result;
     }
 
     @Override
@@ -122,8 +121,6 @@ public class ProfilingAggregator extends Aggregator {
     @Override
     public void postCollection() throws IOException {
         delegate.postCollection();
-        // TODO move profile collection into buildAggregations once #55873 is in
-        delegate.collectDebugInfo(profileBreakdown::addDebugInfo);
     }
 
     @Override

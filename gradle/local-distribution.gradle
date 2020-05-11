@@ -35,7 +35,10 @@ elasticsearch_distributions {
   }
 }
 
-tasks.register('installLocalDistribution', Copy) {
+tasks.register('localDistro', Sync) {
   from(elasticsearch_distributions.local.extracted)
   into("build/distribution/local")
+  doLast {
+    logger.quiet("Elasticsearch distribution installed to ${destinationDir}.")
+  }
 }

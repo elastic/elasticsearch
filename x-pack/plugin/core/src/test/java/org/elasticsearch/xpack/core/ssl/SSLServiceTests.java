@@ -90,14 +90,19 @@ public class SSLServiceTests extends ESTestCase {
 
     @Before
     public void setup() throws Exception {
-        // Randomise the keystore type (jks/PKCS#12)
-        if (randomBoolean()) {
-            testnodeStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
-            // The default is to use JKS. Randomly test with explicit and with the default value.
-            testnodeStoreType = "jks";
-        } else {
+        // Randomise the keystore type (jks/PKCS#12) when possible
+        if (inFipsJvm()) {
             testnodeStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.p12");
             testnodeStoreType = randomBoolean() ? "PKCS12" : null;
+        } else {
+            if (randomBoolean()) {
+                testnodeStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
+                // The default is to use JKS. Randomly test with explicit and with the default value.
+                testnodeStoreType = "jks";
+            } else {
+                testnodeStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.p12");
+                testnodeStoreType = randomBoolean() ? "PKCS12" : null;
+            }
         }
         logger.info("Using [{}] key/truststore [{}]", testnodeStoreType, testnodeStore);
         testnodeCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
@@ -820,6 +825,8 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     public void testWrapTrustManagerWhenDiagnosticsEnabled() {
+        assumeFalse("We override the setting with a sysprop",
+            Boolean.parseBoolean(System.getProperty("es.disable.diagnostic.trust.manager", "false")));
         final Settings.Builder builder = Settings.builder();
         if (randomBoolean()) { // randomly select between default, and explicit enabled
             builder.put("xpack.security.ssl.diagnose.trust", true);
@@ -841,7 +848,7 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(sslService.wrapWithDiagnostics(baseTrustManager, sslConfiguration), sameInstance(baseTrustManager));
     }
 
-    public void testDontWrapTrustManagerByDefaultWhenInFips(){
+    public void testDontWrapTrustManagerByDefaultWhenInFips() {
         final Settings.Builder builder = Settings.builder();
         builder.put("xpack.security.fips_mode.enabled", true);
         final SSLService sslService = new SSLService(builder.build(), env);
@@ -850,7 +857,9 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(sslService.wrapWithDiagnostics(baseTrustManager, sslConfiguration), sameInstance(baseTrustManager));
     }
 
-    public void testWrapTrustManagerWhenInFipsAndExplicitlyConfigured(){
+    public void testWrapTrustManagerWhenInFipsAndExplicitlyConfigured() {
+        assumeFalse("We override the setting with a sysprop",
+            Boolean.parseBoolean(System.getProperty("es.disable.diagnostic.trust.manager", "false")));
         final Settings.Builder builder = Settings.builder();
         builder.put("xpack.security.fips_mode.enabled", true);
         builder.put("xpack.security.ssl.diagnose.trust", true);

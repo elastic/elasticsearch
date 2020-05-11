@@ -829,7 +829,12 @@ public class SSLService {
     }
 
     private boolean shouldEnableDiagnoseTrust() {
-        if (XPackSettings.FIPS_MODE_ENABLED.get(settings) && DIAGNOSE_TRUST_EXCEPTIONS_SETTING.exists(settings) == false ) {
+        // We disable the DiagnosticTrustManager in tests in Java 8 in FIPS 140 mode, as we're not allowed to wrap X509TrustManager
+        final boolean explicitlyDisable = Boolean.parseBoolean(System.getProperty("es.disable.diagnostic.trust.manager", "false"));
+        if (explicitlyDisable) {
+            logger.info("diagnostic messages for SSL/TLS trust failures are explicitly disabled.");
+            return false;
+        } else if (XPackSettings.FIPS_MODE_ENABLED.get(settings) && DIAGNOSE_TRUST_EXCEPTIONS_SETTING.exists(settings) == false) {
             logger.info("diagnostic messages for SSL/TLS trust failures are not enabled in FIPS 140 mode by default.");
             return false;
         } else {

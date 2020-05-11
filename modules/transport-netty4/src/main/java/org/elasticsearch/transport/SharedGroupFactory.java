@@ -21,9 +21,7 @@ package org.elasticsearch.transport;
 
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.util.concurrent.DefaultPromise;
 import io.netty.util.concurrent.Future;
-import io.netty.util.concurrent.GlobalEventExecutor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
@@ -139,12 +137,6 @@ public final class SharedGroupFactory {
             if (isOpen.compareAndSet(true, false)) {
                 refCountedGroup.decRef();
             }
-        }
-
-        private static Future<?> getSuccessPromise() {
-            DefaultPromise<?> promise = new DefaultPromise<>(GlobalEventExecutor.INSTANCE);
-            promise.setSuccess(null);
-            return promise;
         }
     }
 }

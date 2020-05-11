@@ -49,7 +49,7 @@ public final class SharedGroupFactory {
     private final int workerCount;
     private final int httpWorkerCount;
 
-    private RefCountedGroup refCountedGroup;
+    private RefCountedGroup genericGroup;
     private SharedGroup dedicatedHttpGroup;
 
     public SharedGroupFactory(Settings settings) {
@@ -84,15 +84,14 @@ public final class SharedGroupFactory {
     }
 
     private SharedGroup getGenericGroup() {
-        if (refCountedGroup == null) {
+        if (genericGroup == null) {
             EventLoopGroup eventLoopGroup = new NioEventLoopGroup(workerCount,
                 daemonThreadFactory(settings, TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX));
-            this.refCountedGroup = new RefCountedGroup(eventLoopGroup);
-            return new SharedGroup(refCountedGroup);
+            this.genericGroup = new RefCountedGroup(eventLoopGroup);
         } else {
-            refCountedGroup.incRef();
-            return new SharedGroup(refCountedGroup);
+            genericGroup.incRef();
         }
+        return new SharedGroup(genericGroup);
     }
 
     private static class RefCountedGroup extends AbstractRefCounted {

@@ -37,9 +37,13 @@ public final class SharedGroupFactoryTests extends ESTestCase {
             httpGroup.shutdown();
             assertFalse(httpGroup.getLowLevelGroup().isShuttingDown());
             assertFalse(transportGroup.getLowLevelGroup().isShuttingDown());
+            assertFalse(transportGroup.getLowLevelGroup().isTerminated());
+            assertFalse(transportGroup.getLowLevelGroup().terminationFuture().isDone());
             transportGroup.shutdown();
             assertTrue(httpGroup.getLowLevelGroup().isShuttingDown());
             assertTrue(transportGroup.getLowLevelGroup().isShuttingDown());
+            assertTrue(transportGroup.getLowLevelGroup().isTerminated());
+            assertTrue(transportGroup.getLowLevelGroup().terminationFuture().isDone());
         }
     }
 
@@ -56,9 +60,15 @@ public final class SharedGroupFactoryTests extends ESTestCase {
         } finally {
             httpGroup.shutdown();
             assertTrue(httpGroup.getLowLevelGroup().isShuttingDown());
+            assertTrue(httpGroup.getLowLevelGroup().isTerminated());
+            assertTrue(httpGroup.getLowLevelGroup().terminationFuture().isDone());
             assertFalse(transportGroup.getLowLevelGroup().isShuttingDown());
+            assertFalse(transportGroup.getLowLevelGroup().isTerminated());
+            assertFalse(transportGroup.getLowLevelGroup().terminationFuture().isDone());
             transportGroup.shutdown();
             assertTrue(transportGroup.getLowLevelGroup().isShuttingDown());
+            assertTrue(transportGroup.getLowLevelGroup().isTerminated());
+            assertTrue(transportGroup.getLowLevelGroup().terminationFuture().isDone());
         }
     }
 }

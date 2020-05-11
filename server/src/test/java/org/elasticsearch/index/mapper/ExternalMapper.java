@@ -34,6 +34,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
@@ -180,8 +181,9 @@ public class ExternalMapper extends FieldMapper {
         // Let's add a Dummy Point
         Double lat = 42.0;
         Double lng = 51.0;
-        GeoPoint point = new GeoPoint(lat, lng);
-        pointMapper.parse(context.createExternalValueContext(point));
+        ArrayList<GeoPoint> points = new ArrayList<>();
+        points.add(new GeoPoint(lat, lng));
+        pointMapper.parse(context.createExternalValueContext(points));
 
         // Let's add a Dummy Shape
         if (shapeMapper instanceof GeoShapeFieldMapper) {

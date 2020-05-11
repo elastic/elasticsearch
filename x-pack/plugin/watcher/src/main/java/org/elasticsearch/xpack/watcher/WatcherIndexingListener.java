@@ -124,7 +124,8 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
                 }
 
                 boolean shouldBeTriggered = shardAllocationConfiguration.shouldBeTriggered(watch.id());
-                if (shouldBeTriggered && EnumSet.of(WatcherState.STOPPING, WatcherState.STOPPED).contains(watcherState.get()) == false) {
+                WatcherState currentState = watcherState.get();
+                if (shouldBeTriggered && EnumSet.of(WatcherState.STOPPING, WatcherState.STOPPED).contains(currentState) == false) {
                     if (watch.status().state().isActive() ) {
                         logger.debug("adding watch [{}] to trigger service", watch.id());
                         triggerService.add(watch);
@@ -133,7 +134,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
                         triggerService.remove(watch.id());
                     }
                 } else {
-                    logger.debug("watch [{}] should not be triggered", watch.id());
+                    logger.debug("watch [{}] should not be triggered. watcher state [{}]", watch.id(), currentState);
                 }
             } catch (IOException e) {
                 throw new ElasticsearchParseException("Could not parse watch with id [{}]", e, operation.id());

@@ -70,7 +70,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `results`::
 (object)
-Contains resulting statistics for cleanup operations.
+Contains statistics for cleanup operations.
 +
 .Properties of `results`
 [%collapsible%open]
@@ -113,5 +113,4 @@ The API returns the following response:
 ----
 DELETE /_snapshot/my_repository
 ----
-// TEARDOWN
 ////

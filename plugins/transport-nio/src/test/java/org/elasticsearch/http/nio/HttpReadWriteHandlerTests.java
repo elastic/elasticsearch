@@ -116,7 +116,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         ByteBuf buf = requestEncoder.encode(httpRequest);
         int slicePoint = randomInt(buf.writerIndex() - 1);
         ByteBuf slicedBuf = buf.retainedSlice(0, slicePoint);
-        ByteBuf slicedBuf2 = buf.retainedSlice(slicePoint, buf.writerIndex());
+        ByteBuf slicedBuf2 = buf.retainedSlice(slicePoint, buf.writerIndex() - slicePoint);
         try {
             handler.consumeReads(toChannelBuffer(slicedBuf));
 

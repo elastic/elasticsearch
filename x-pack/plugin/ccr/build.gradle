@@ -17,9 +17,9 @@ integTest.enabled = false
 // Integration Test classes that cannot run with the security manager
 String[] noSecurityManagerITClasses = ["**/CloseFollowerIndexIT.class"]
 
-tasks.register('internalClusterTestNoSecurityManager') {
+tasks.register('internalClusterTestNoSecurityManager', Test) {
   testClassesDirs = sourceSets.internalClusterTest.output.classesDirs
-  classpath = sourceSets.runtimeClasspath
+  classpath = sourceSets.internalClusterTest.runtimeClasspath
   include noSecurityManagerITClasses
   systemProperty 'tests.security.manager', 'false'
 }

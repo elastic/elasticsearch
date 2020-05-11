@@ -325,19 +325,12 @@ public class RangeAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        consumeBucketsAndMaybeBreak(ranges.length);
-        List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = new ArrayList<>(ranges.length);
-        for (int i = 0; i < ranges.length; i++) {
-            Range range = ranges[i];
-            final long bucketOrd = subBucketOrdinal(owningBucketOrdinal, i);
-            org.elasticsearch.search.aggregations.bucket.range.Range.Bucket bucket =
-                    rangeFactory.createBucket(range.key, range.from, range.to, bucketDocCount(bucketOrd),
-                            bucketAggregations(bucketOrd), keyed, format);
-            buckets.add(bucket);
-        }
-        // value source can be null in the case of unmapped fields
-        return rangeFactory.create(name, buckets, format, keyed, metadata());
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        return buildAggregationsForFixedBucketCount(owningBucketOrds, ranges.length,
+            (offsetInOwningOrd, docCount, subAggregationResults) -> {
+                Range range = ranges[offsetInOwningOrd];
+                return rangeFactory.createBucket(range.key, range.from, range.to, docCount, subAggregationResults, keyed, format);
+            }, buckets -> rangeFactory.create(name, buckets, format, keyed, metadata()));
     }
 
     @Override

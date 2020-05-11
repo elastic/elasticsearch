@@ -66,8 +66,6 @@ public class TestingConventionsTasks extends DefaultTask {
 
     private final NamedDomainObjectContainer<TestingConventionRule> naming;
 
-    private List<String> tasks = null;
-
     public TestingConventionsTasks() {
         setDescription("Tests various testing conventions");
         // Run only after everything is compiled
@@ -80,7 +78,8 @@ public class TestingConventionsTasks extends DefaultTask {
         return getProject().getTasks()
             .withType(Test.class)
             .stream()
-            .filter(t -> t.getName().equals("test"))//tasks == null || tasks.contains(t.getName()))
+            // hardcoded to the old test and integTest runner tasks
+            .filter(t -> t.getName().equals("test") || t.getName().endsWith("Runner"))
             .filter(Task::getEnabled)
             .collect(Collectors.toMap(Task::getPath, task -> task.getCandidateClassFiles().getFiles()));
     }
@@ -113,10 +112,6 @@ public class TestingConventionsTasks extends DefaultTask {
 
     public void naming(Closure<TestingConventionRule> action) {
         naming.configure(action);
-    }
-
-    public void setTasks(String... tasks) {
-        this.tasks = Arrays.asList(tasks);
     }
 
     @Input

@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.TotalBucketCardinality;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -70,7 +71,7 @@ class DateHistogramAggregator extends BucketsAggregator {
             DocValueFormat formatter, SearchContext aggregationContext,
             Aggregator parent, Map<String, Object> metadata) throws IOException {
 
-        super(name, factories, aggregationContext, parent, metadata);
+        super(name, factories, aggregationContext, parent, TotalBucketCardinality.MANY, metadata);
         this.rounding = rounding;
         this.preparedRounding = preparedRounding;
         this.order = order;

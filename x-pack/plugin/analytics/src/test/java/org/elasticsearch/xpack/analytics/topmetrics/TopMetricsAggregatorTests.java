@@ -50,6 +50,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.TotalBucketCardinality;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
@@ -363,7 +364,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                         new MultiBucketConsumer(Integer.MAX_VALUE, breaker.getBreaker(CircuitBreaker.REQUEST)), breaker, doubleFields());
                 TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
                 Aggregator aggregator = builder.build(searchContext.getQueryShardContext(), null)
-                    .create(searchContext, null, true);
+                    .create(searchContext, null, TotalBucketCardinality.ONE);
                 aggregator.preCollection();
                 assertThat(indexReader.leaves(), hasSize(1));
                 LeafBucketCollector leaf = aggregator.getLeafCollector(indexReader.leaves().get(0));

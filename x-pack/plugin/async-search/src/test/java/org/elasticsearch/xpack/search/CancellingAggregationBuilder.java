@@ -18,6 +18,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.TotalBucketCardinality;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -83,7 +84,7 @@ public class CancellingAggregationBuilder extends AbstractAggregationBuilder<Can
             @Override
             protected Aggregator createInternal(SearchContext searchContext,
                                                 Aggregator parent,
-                                                boolean collectsFromSingleBucket,
+                                                TotalBucketCardinality parentCardinality,
                                                 Map<String, Object> metadata) throws IOException {
                 while (searchContext.isCancelled() == false) {
                     try {
@@ -92,7 +93,7 @@ public class CancellingAggregationBuilder extends AbstractAggregationBuilder<Can
                         throw new IOException(e);
                     }
                 }
-                return factory.create(searchContext, parent, collectsFromSingleBucket);
+                return factory.create(searchContext, parent, parentCardinality);
             }
         };
     }

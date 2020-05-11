@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.TotalBucketCardinality;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.metrics.GeoGridAggregatorSupplier;
@@ -74,10 +75,10 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
     }
 
     @Override
-    protected Aggregator doCreateInternal(final ValuesSource valuesSource,
+    protected Aggregator createMapped(final ValuesSource valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
-                                            boolean collectsFromSingleBucket,
+                                            TotalBucketCardinality parentCardinality,
                                             Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
             .getAggregator(config.valueSourceType(), GeoHashGridAggregationBuilder.NAME);
@@ -85,7 +86,7 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
             throw new AggregationExecutionException("Registry miss-match - expected "
                 + GeoGridAggregatorSupplier.class.getName() + ", found [" + aggregatorSupplier.getClass().toString() + "]");
         }
-        if (collectsFromSingleBucket == false) {
+        if (parentCardinality == TotalBucketCardinality.MANY) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
         return ((GeoGridAggregatorSupplier) aggregatorSupplier).build(name, factories, valuesSource, precision, geoBoundingBox,

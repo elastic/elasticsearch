@@ -173,16 +173,14 @@ public class AggregatorFactories {
     /**
      * Create all aggregators so that they can be consumed with multiple
      * buckets.
+     * @param parentCardinality rough count of the number of buckets that
+     *        the parent will collect
      */
-    public Aggregator[] createSubAggregators(SearchContext searchContext, Aggregator parent) throws IOException {
+    public Aggregator[] createSubAggregators(SearchContext searchContext, Aggregator parent, TotalBucketCardinality parentCardinality)
+                throws IOException {
         Aggregator[] aggregators = new Aggregator[countAggregators()];
         for (int i = 0; i < factories.length; ++i) {
-            // TODO: sometimes even sub aggregations always get called with bucket 0, eg. if
-            // you have a terms agg under a top-level filter agg. We should have a way to
-            // propagate the fact that only bucket 0 will be collected with single-bucket
-            // aggs
-            final boolean collectsFromSingleBucket = false;
-            Aggregator factory = factories[i].create(searchContext, parent, collectsFromSingleBucket);
+            Aggregator factory = factories[i].create(searchContext, parent, parentCardinality);
             Profilers profilers = factory.context().getProfilers();
             if (profilers != null) {
                 factory = new ProfilingAggregator(factory, profilers.getAggregationProfiler());
@@ -196,9 +194,12 @@ public class AggregatorFactories {
         // These aggregators are going to be used with a single bucket ordinal, no need to wrap the PER_BUCKET ones
         Aggregator[] aggregators = new Aggregator[factories.length];
         for (int i = 0; i < factories.length; i++) {
-            // top-level aggs only get called with bucket 0
-            final boolean collectsFromSingleBucket = true;
-            Aggregator factory = factories[i].create(searchContext, null, collectsFromSingleBucket);
+            /*
+             * Top level aggs are only collected a single time which "feels"
+             * like having a parent with a single bucket. So we pass "ONE"
+             * for the parent cardinality.  
+             */
+            Aggregator factory = factories[i].create(searchContext, null, TotalBucketCardinality.ONE);
             Profilers profilers = factory.context().getProfilers();
             if (profilers != null) {
                 factory = new ProfilingAggregator(factory, profilers.getAggregationProfiler());

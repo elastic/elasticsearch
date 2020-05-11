@@ -29,6 +29,7 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.TotalBucketCardinality;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -65,7 +66,7 @@ public class NumericHistogramAggregator extends BucketsAggregator {
                                @Nullable ValuesSource.Numeric valuesSource, DocValueFormat formatter,
                                SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
 
-        super(name, factories, context, parent, metadata);
+        super(name, factories, context, parent, TotalBucketCardinality.MANY, metadata);
         if (interval <= 0) {
             throw new IllegalArgumentException("interval must be positive, got: " + interval);
         }

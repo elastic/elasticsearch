@@ -18,6 +18,7 @@ import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.TotalBucketCardinality;
 import org.elasticsearch.search.aggregations.support.MultiValuesSource;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -65,11 +66,11 @@ class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
+    protected Aggregator createMapped(SearchContext searchContext,
                                           Map<String, ValuesSourceConfig> configs,
                                           DocValueFormat format,
                                           Aggregator parent,
-                                          boolean collectsFromSingleBucket,
+                                          TotalBucketCardinality parentCardinality,
                                           Map<String, Object> metadata) throws IOException {
         MultiValuesSource.NumericMultiValuesSource numericMultiVS
             = new MultiValuesSource.NumericMultiValuesSource(configs, queryShardContext);

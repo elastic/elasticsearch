@@ -47,7 +47,7 @@ public class TestAggregatorFactory extends AggregatorFactory {
     }
 
     @Override
-    protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
+    protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, TotalBucketCardinality parentCardinality,
                                         Map metadata) throws IOException {
         return aggregator;
     }

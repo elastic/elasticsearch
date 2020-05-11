@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.TotalBucketCardinality;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -77,7 +78,7 @@ public class SignificantTextAggregator extends BucketsAggregator {
             SignificanceHeuristic significanceHeuristic, SignificantTextAggregatorFactory termsAggFactory,
             String fieldName, String [] sourceFieldNames, boolean filterDuplicateText,
             Map<String, Object> metadata) throws IOException {
-        super(name, factories, context, parent, metadata);
+        super(name, factories, context, parent, TotalBucketCardinality.MANY, metadata);
         this.bucketCountThresholds = bucketCountThresholds;
         this.includeExclude = includeExclude;
         this.significanceHeuristic = significanceHeuristic;

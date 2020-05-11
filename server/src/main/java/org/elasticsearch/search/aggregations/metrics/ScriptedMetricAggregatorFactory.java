@@ -27,6 +27,7 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.TotalBucketCardinality;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -70,9 +71,9 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
     @Override
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
-                                        boolean collectsFromSingleBucket,
+                                        TotalBucketCardinality parentCardinality,
                                         Map<String, Object> metadata) throws IOException {
-        if (collectsFromSingleBucket == false) {
+        if (parentCardinality == TotalBucketCardinality.MANY) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
         Map<String, Object> aggParams = this.aggParams;

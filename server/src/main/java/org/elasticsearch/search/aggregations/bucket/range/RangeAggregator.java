@@ -32,6 +32,7 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.TotalBucketCardinality;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -226,9 +227,9 @@ public class RangeAggregator extends BucketsAggregator {
 
     public RangeAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
             InternalRange.Factory rangeFactory, Range[] ranges, boolean keyed, SearchContext context,
-            Aggregator parent, Map<String, Object> metadata) throws IOException {
+            Aggregator parent, TotalBucketCardinality parentCardinality, Map<String, Object> metadata) throws IOException {
 
-        super(name, factories, context, parent, metadata);
+        super(name, factories, context, parent, parentCardinality.forKnownBucketAggregator(ranges.length), metadata);
         assert valuesSource != null;
         this.valuesSource = valuesSource;
         this.format = format;

@@ -127,7 +127,7 @@ public abstract class AggregatorFactory {
                         aggregators = bigArrays.grow(aggregators, bucket + 1);
                         Aggregator aggregator = aggregators.get(bucket);
                         if (aggregator == null) {
-                            aggregator = factory.create(context(), parent, true);
+                            aggregator = factory.create(context(), parent, TotalBucketCardinality.ONE);
                             aggregator.preCollection();
                             aggregators.set(bucket, aggregator);
                         }
@@ -213,28 +213,20 @@ public abstract class AggregatorFactory {
 
     protected abstract Aggregator createInternal(SearchContext searchContext,
                                                     Aggregator parent,
-                                                    boolean collectsFromSingleBucket,
+                                                    TotalBucketCardinality parentCardinality,
                                                     Map<String, Object> metadata) throws IOException;
 
     /**
-     * Creates the aggregator
+     * Creates the aggregator.
      *
-     *
-     * @param searchContext
-     *            The search context
-     * @param parent
-     *            The parent aggregator (if this is a top level factory, the
-     *            parent will be {@code null})
-     * @param collectsFromSingleBucket
-     *            If true then the created aggregator will only be collected
-     *            with {@code 0} as a bucket ordinal. Some factories can take
-     *            advantage of this in order to return more optimized
-     *            implementations.
-     *
-     * @return The created aggregator
+     * @param parent The parent aggregator (if this is a top level factory, the
+     *               parent will be {@code null})
+     * @param parentCardinality Rough measure of the number of buckets the
+     *                          parent will collect
      */
-    public final Aggregator create(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
-        return createInternal(searchContext, parent, collectsFromSingleBucket, this.metadata);
+    public final Aggregator create(SearchContext searchContext,
+            Aggregator parent, TotalBucketCardinality parentCardinality) throws IOException {
+        return createInternal(searchContext, parent, parentCardinality, this.metadata);
     }
 
     public AggregatorFactory getParent() {
@@ -250,7 +242,7 @@ public abstract class AggregatorFactory {
     @Deprecated
     protected static Aggregator asMultiBucketAggregator(final AggregatorFactory factory, final SearchContext searchContext,
             final Aggregator parent) throws IOException {
-        final Aggregator first = factory.create(searchContext, parent, true);
+        final Aggregator first = factory.create(searchContext, parent, TotalBucketCardinality.ONE);
         final BigArrays bigArrays = searchContext.bigArrays();
         return new MultiBucketAggregatorWrapper(bigArrays, searchContext, parent, factory, first);
     }

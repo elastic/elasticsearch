@@ -24,6 +24,7 @@ import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.TotalBucketCardinality;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -47,8 +48,9 @@ public class FilterAggregator extends BucketsAggregator implements SingleBucketA
                             AggregatorFactories factories,
                             SearchContext context,
                             Aggregator parent,
+                            TotalBucketCardinality parentCardinality,
                             Map<String, Object> metadata) throws IOException {
-        super(name, factories, context, parent, metadata);
+        super(name, factories, context, parent, parentCardinality, metadata);
         this.filter = filter;
     }
 

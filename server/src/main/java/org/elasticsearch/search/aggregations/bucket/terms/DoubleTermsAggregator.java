@@ -25,6 +25,7 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.TotalBucketCardinality;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms.Bucket;
@@ -42,9 +43,9 @@ public class DoubleTermsAggregator extends LongTermsAggregator {
     DoubleTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
             BucketOrder order, BucketCountThresholds bucketCountThresholds, SearchContext aggregationContext, Aggregator parent,
             SubAggCollectionMode collectionMode, boolean showTermDocCountError, IncludeExclude.LongFilter longFilter,
-            boolean collectsFromSingleBucket, Map<String, Object> metadata) throws IOException {
+            TotalBucketCardinality parentCardinality, Map<String, Object> metadata) throws IOException {
         super(name, factories, valuesSource, format, order, bucketCountThresholds, aggregationContext, parent, collectionMode,
-                showTermDocCountError, longFilter, collectsFromSingleBucket, metadata);
+                showTermDocCountError, longFilter, parentCardinality, metadata);
     }
 
     @Override

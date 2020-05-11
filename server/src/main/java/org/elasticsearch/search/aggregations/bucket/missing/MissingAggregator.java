@@ -22,6 +22,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.DocValueBits;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.TotalBucketCardinality;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -43,8 +44,9 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
             ValuesSource valuesSource,
             SearchContext aggregationContext,
             Aggregator parent,
+            TotalBucketCardinality parentCardinality,
             Map<String, Object> metadata) throws IOException {
-        super(name, factories, aggregationContext, parent, metadata);
+        super(name, factories, aggregationContext, parent, parentCardinality, metadata);
         this.valuesSource = valuesSource;
     }
 

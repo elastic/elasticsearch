@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.TotalBucketCardinality;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -45,7 +46,7 @@ public abstract class ArrayValuesSourceAggregatorFactory
     @Override
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
-                                        boolean collectsFromSingleBucket,
+                                        TotalBucketCardinality parentCardinality,
                                         Map<String, Object> metadata) throws IOException {
         HashMap<String, ValuesSource> valuesSources = new HashMap<>();
 
@@ -58,17 +59,26 @@ public abstract class ArrayValuesSourceAggregatorFactory
         if (valuesSources.isEmpty()) {
             return createUnmapped(searchContext, parent, metadata);
         }
-        return doCreateInternal(valuesSources, searchContext, parent, collectsFromSingleBucket, metadata);
+        return createMapped(valuesSources, searchContext, parent, parentCardinality, metadata);
     }
 
+    /**
+     * Create the {@linkplain Aggregator} for a field that isn't mapped.
+     */
     protected abstract Aggregator createUnmapped(SearchContext searchContext,
                                                     Aggregator parent,
                                                     Map<String, Object> metadata) throws IOException;
 
-    protected abstract Aggregator doCreateInternal(Map<String, ValuesSource> valuesSources,
+    /**
+     * Create the {@linkplain Aggregator} for a mapped field.
+     * 
+     * @param parentCardinality rough count of the number of buckets the
+     *        parent will ask this aggregator to collect
+     */
+    protected abstract Aggregator createMapped(Map<String, ValuesSource> valuesSources,
                                                     SearchContext searchContext,
                                                     Aggregator parent,
-                                                    boolean collectsFromSingleBucket,
+                                                    TotalBucketCardinality parentCardinality,
                                                     Map<String, Object> metadata) throws IOException;
 
 }

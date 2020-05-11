@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.TotalBucketCardinality;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -52,14 +53,14 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
     protected MissingAggregator createUnmapped(SearchContext searchContext,
                                                 Aggregator parent,
                                                 Map<String, Object> metadata) throws IOException {
-        return new MissingAggregator(name, factories, null, searchContext, parent, metadata);
+        return new MissingAggregator(name, factories, null, searchContext, parent, TotalBucketCardinality.NONE, metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
+    protected Aggregator createMapped(ValuesSource valuesSource,
                                                     SearchContext searchContext,
                                                     Aggregator parent,
-                                                    boolean collectsFromSingleBucket,
+                                                    TotalBucketCardinality parentCardinality,
                                                     Map<String, Object> metadata) throws IOException {
         final AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
             .getAggregator(config.valueSourceType(), MissingAggregationBuilder.NAME);
@@ -69,7 +70,7 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
 
         return ((MissingAggregatorSupplier) aggregatorSupplier)
-            .build(name, factories, valuesSource, searchContext, parent, metadata);
+            .build(name, factories, valuesSource, searchContext, parent, parentCardinality, metadata);
     }
 
 }

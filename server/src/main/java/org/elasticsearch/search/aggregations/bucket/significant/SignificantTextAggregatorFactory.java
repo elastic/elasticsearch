@@ -38,6 +38,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.TotalBucketCardinality;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
@@ -170,9 +171,9 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory
     }
 
     @Override
-    protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
+    protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, TotalBucketCardinality parentCardinality,
                                         Map<String, Object> metadata) throws IOException {
-        if (collectsFromSingleBucket == false) {
+        if (parentCardinality == TotalBucketCardinality.MANY) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
 

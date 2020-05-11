@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.TotalBucketCardinality;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
@@ -72,7 +73,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                                     ValuesSource.Bytes.WithOrdinals valuesSource,
                                     long maxOrd,
                                     Map<String, Object> metadata) throws IOException {
-        super(name, factories, context, parent, metadata);
+        super(name, factories, context, parent, TotalBucketCardinality.ONE, metadata);
 
         if (maxOrd > Integer.MAX_VALUE) {
             throw new IllegalStateException("the number of parent [" + maxOrd + "] + is greater than the allowed limit " +

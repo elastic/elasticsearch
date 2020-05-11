@@ -27,6 +27,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.TotalBucketCardinality;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregator.KeyedFilter;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -59,7 +60,7 @@ public class AdjacencyMatrixAggregatorFactory extends AggregatorFactory {
     @Override
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
-                                        boolean collectsFromSingleBucket,
+                                        TotalBucketCardinality parentCardinality,
                                         Map<String, Object> metadata) throws IOException {
         return new AdjacencyMatrixAggregator(name, factories, separator, keys, weights, searchContext, parent, metadata);
     }

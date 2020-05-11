@@ -50,6 +50,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -59,6 +60,8 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.xcontent.ContextParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -100,8 +103,10 @@ import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -132,7 +137,9 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -183,7 +190,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
     // Make this @Before instead of @BeforeClass so it can call the non-static getSearchPlugins method
     @Before
     public void initValuesSourceRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, this.getSearchPlugins());
+        List<SearchPlugin> plugins = new ArrayList<>(getSearchPlugins());
+        plugins.add(new ParentCardinalityPlugin());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, plugins);
         valuesSourceRegistry = searchModule.getValuesSourceRegistry();
     }
 
@@ -236,7 +245,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         A aggregator = (A) aggregationBuilder
             .rewrite(searchContext.getQueryShardContext())
             .build(searchContext.getQueryShardContext(), null)
-            .create(searchContext, null, true);
+            .create(searchContext, null, TotalBucketCardinality.ONE);
         return aggregator;
     }
 
@@ -868,5 +877,124 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private void cleanupReleasables() {
         Releasables.close(releasables);
         releasables.clear();
+    }
+
+    public static AggregationBuilder parentCardinalities(String name) {
+        return new ParentCardinalityAggregationBuilder(name);
+    }
+
+    private static class ParentCardinalityAggregationBuilder
+            extends AbstractAggregationBuilder<ParentCardinalityAggregationBuilder> {
+
+        ParentCardinalityAggregationBuilder(String name) {
+            super(name);
+        }
+
+        @Override
+        protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subfactoriesBuilder)
+                throws IOException {
+            return new AggregatorFactory(name, queryShardContext, parent, subfactoriesBuilder, metadata) {
+                @Override
+                protected Aggregator createInternal(
+                    SearchContext searchContext,
+                    Aggregator parent,
+                    TotalBucketCardinality parentCardinality,
+                    Map<String, Object> metadata
+                ) throws IOException {
+                    return new MetricsAggregator(name, searchContext, parent, metadata) {
+                        @Override
+                        protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+                            return LeafBucketCollector.NO_OP_COLLECTOR;
+                        }
+
+                        @Override
+                        public InternalAggregation buildAggregation(long owningBucketOrd) throws IOException {
+                            return new InternalParentCardinality(name, parentCardinality, metadata);
+                        }
+
+                        @Override
+                        public InternalAggregation buildEmptyAggregation() {
+                            // TODO Auto-generated method stub
+                            return null;
+                        }
+                    };
+                }
+            };
+        }
+
+        @Override
+        protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder;
+        }
+
+        @Override
+        public BucketCardinality bucketCardinality() {
+            return BucketCardinality.ONE;
+        }
+
+        @Override
+        public String getType() {
+            return "parent_cardinality";
+        }
+
+        @Override
+        protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+
+        }
+    }
+
+    public static class InternalParentCardinality extends InternalAggregation {
+        private final TotalBucketCardinality cardinality;
+
+        protected InternalParentCardinality(String name, TotalBucketCardinality cardinality, Map<String, Object> metadata) {
+            super(name, metadata);
+            this.cardinality = cardinality;
+        }
+
+        public TotalBucketCardinality cardinality() {
+            return cardinality;
+        }
+
+        @Override
+        public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+            aggregations.forEach(ia -> {
+                assertThat(((InternalParentCardinality) ia).cardinality, equalTo(cardinality));
+            });
+            return new InternalParentCardinality(name, cardinality, metadata);
+        }
+
+        @Override
+        public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            return builder.array("cardinalities", cardinality);
+        }
+
+        @Override
+        public Object getProperty(List<String> path) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String getWriteableName() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    private static class ParentCardinalityPlugin implements SearchPlugin {
+        @Override
+        public List<AggregationSpec> getAggregations() {
+            return singletonList(new AggregationSpec("parent_cardinality", in -> null,
+                (ContextParser<String, ParentCardinalityAggregationBuilder>) (p, c) -> null));
+        }
     }
 }

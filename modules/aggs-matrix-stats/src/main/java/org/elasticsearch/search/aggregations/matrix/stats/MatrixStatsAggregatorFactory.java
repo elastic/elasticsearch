@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.TotalBucketCardinality;
 import org.elasticsearch.search.aggregations.support.ArrayValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -57,10 +58,10 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
     }
 
     @Override
-    protected Aggregator doCreateInternal(Map<String, ValuesSource> valuesSources,
+    protected Aggregator createMapped(Map<String, ValuesSource> valuesSources,
                                             SearchContext searchContext,
                                             Aggregator parent,
-                                            boolean collectsFromSingleBucket,
+                                            TotalBucketCardinality parentCardinality,
                                             Map<String, Object> metadata) throws IOException {
         Map<String, ValuesSource.Numeric> typedValuesSources = new HashMap<>(valuesSources.size());
         for (Map.Entry<String, ValuesSource> entry : valuesSources.entrySet()) {

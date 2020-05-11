@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.TotalBucketCardinality;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -40,23 +41,32 @@ public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
     }
 
     @Override
-    public Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
+    public Aggregator createInternal(SearchContext searchContext, Aggregator parent, TotalBucketCardinality parentCardinality,
                                      Map<String, Object> metadata) throws IOException {
         ValuesSource vs = config.toValuesSource();
         if (vs == null) {
             return createUnmapped(searchContext, parent, metadata);
         }
-        return doCreateInternal(vs, searchContext, parent, collectsFromSingleBucket, metadata);
+        return createMapped(vs, searchContext, parent, parentCardinality, metadata);
     }
 
+    /**
+     * Create the {@linkplain Aggregator} for a field that isn't mapped.
+     */
     protected abstract Aggregator createUnmapped(SearchContext searchContext,
                                                  Aggregator parent,
                                                  Map<String, Object> metadata) throws IOException;
 
-    protected abstract Aggregator doCreateInternal(ValuesSource valuesSource,
+    /**
+     * Create the {@linkplain Aggregator} for a mapped field.
+     * 
+     * @param parentCardinality rough count of the number of buckets the
+     *        parent will ask this aggregator to collect.
+     */
+    protected abstract Aggregator createMapped(ValuesSource valuesSource,
                                                    SearchContext searchContext,
                                                    Aggregator parent,
-                                                   boolean collectsFromSingleBucket,
+                                                   TotalBucketCardinality parentCardinality,
                                                    Map<String, Object> metadata) throws IOException;
 
     @Override

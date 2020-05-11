@@ -24,6 +24,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.TotalBucketCardinality;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -46,17 +47,26 @@ public abstract class MultiValuesSourceAggregatorFactory extends AggregatorFacto
     @Override
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
-                                        boolean collectsFromSingleBucket,
+                                        TotalBucketCardinality parentCardinality,
                                         Map<String, Object> metadata) throws IOException {
-        return doCreateInternal(searchContext, configs, format, parent, collectsFromSingleBucket, metadata);
+        return createMapped(searchContext, configs, format, parent, parentCardinality, metadata);
     }
 
+    /**
+     * Create the {@linkplain Aggregator} for a field that isn't mapped.
+     */
     protected abstract Aggregator createUnmapped(SearchContext searchContext,
                                                     Aggregator parent,
                                                     Map<String, Object> metadata) throws IOException;
 
-    protected abstract Aggregator doCreateInternal(SearchContext searchContext, Map<String, ValuesSourceConfig> configs,
-                                                   DocValueFormat format, Aggregator parent, boolean collectsFromSingleBucket,
+    /**
+     * Create the {@linkplain Aggregator} for a mapped field.
+     * 
+     * @param parentCardinality rough count of the number of buckets the
+     *        parent will ask this aggregator to collect
+     */
+    protected abstract Aggregator createMapped(SearchContext searchContext, Map<String, ValuesSourceConfig> configs,
+                                                   DocValueFormat format, Aggregator parent, TotalBucketCardinality parentCardinality,
                                                    Map<String, Object> metadata) throws IOException;
 
 }

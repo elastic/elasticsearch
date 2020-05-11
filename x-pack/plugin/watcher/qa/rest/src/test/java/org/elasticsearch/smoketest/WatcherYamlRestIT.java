@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.smoketest;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.xpack.watcher.WatcherYamlSuiteTestCase;
 

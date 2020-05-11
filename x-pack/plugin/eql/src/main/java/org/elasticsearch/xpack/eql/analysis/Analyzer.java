@@ -22,10 +22,9 @@ import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.*;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.eql.analysis.AnalysisUtils.resolveAgainstList;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {

@@ -171,8 +171,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
                     fieldName, CONTENT_TYPE);
             }
             DEPRECATION_LOGGER.deprecate("geo_mapper_field_parameter",
-                "Field parameter [{}] is deprecated and will be removed in a future version.", fieldName)
-                .log();
+                "Field parameter [{}] is deprecated and will be removed in a future version.", fieldName);
         }
     }
 

@@ -116,8 +116,7 @@ final class SimilarityProviders {
                         "please use another model.");
                 } else {
                     deprecationLogger.deprecate(basicModel + "_similarity_model_replaced", "Basic model [" + basicModel +
-                                    "] isn't supported anymore and has arbitrarily been replaced with [" + replacement + "].")
-                        .log();
+                                    "] isn't supported anymore and has arbitrarily been replaced with [" + replacement + "].");
                     model = BASIC_MODELS.get(replacement);
                     assert model != null;
                 }
@@ -148,8 +147,7 @@ final class SimilarityProviders {
                         "] isn't supported anymore, please use another effect.");
                 } else {
                     deprecationLogger.deprecate(afterEffect + "_after_effect_replaced", "After effect [" + afterEffect +
-                                    "] isn't supported anymore and has arbitrarily been replaced with [" + replacement + "].")
-                        .log();
+                                    "] isn't supported anymore and has arbitrarily been replaced with [" + replacement + "].");
                     effect = AFTER_EFFECTS.get(replacement);
                     assert effect != null;
                 }
@@ -239,8 +237,7 @@ final class SimilarityProviders {
                 throw new IllegalArgumentException("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             } else {
                 deprecationLogger.deprecate("unknown_similarity_setting",
-                    "Unknown settings for similarity of type [" + type + "]: " + unknownSettings)
-                    .log();
+                    "Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             }
         }
     }

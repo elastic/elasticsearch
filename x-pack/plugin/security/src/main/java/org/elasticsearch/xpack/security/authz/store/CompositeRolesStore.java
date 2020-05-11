@@ -187,8 +187,7 @@ public class CompositeRolesStore {
                 String reason = Objects.toString(
                     rd.getMetadata().get(MetadataUtils.DEPRECATED_REASON_METADATA_KEY), "Please check the documentation");
                 deprecationLogger.deprecate("deprecated_role-" + rd.getName(), "The role [" + rd.getName() +
-                            "] is deprecated and will be removed in a future version of Elasticsearch. " + reason)
-                    .log();
+                            "] is deprecated and will be removed in a future version of Elasticsearch. " + reason);
             });
     }
 

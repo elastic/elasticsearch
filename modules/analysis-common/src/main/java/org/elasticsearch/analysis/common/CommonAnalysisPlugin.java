@@ -256,8 +256,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                     } else {
                         deprecationLogger.deprecate("edgeNGram_deprecation",
                             "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
-                             + "Please change the filter name to [edge_ngram] instead.")
-                            .log();
+                             + "Please change the filter name to [edge_ngram] instead.");
                     }
                     return super.create(tokenStream);
                 }
@@ -294,8 +293,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                     } else {
                         deprecationLogger.deprecate("nGram_deprecation",
                             "The [nGram] token filter name is deprecated and will be removed in a future version. "
-                            + "Please change the filter name to [ngram] instead.")
-                            .log();
+                            + "Please change the filter name to [ngram] instead.");
                     }
                     return super.create(tokenStream);
                 }
@@ -351,8 +349,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
             } else if (indexSettings.getIndexVersionCreated().onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
                 deprecationLogger.deprecate("nGram_tokenizer_deprecation",
                     "The [nGram] tokenizer name is deprecated and will be removed in a future version. "
-                    + "Please change the tokenizer name to [ngram] instead.")
-                    .log();
+                        + "Please change the tokenizer name to [ngram] instead.");
             }
             return new NGramTokenizerFactory(indexSettings, environment, name, settings);
         });
@@ -364,8 +361,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
             } else if (indexSettings.getIndexVersionCreated().onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
                 deprecationLogger.deprecate("edgeNGram_tokenizer_deprecation",
                     "The [edgeNGram] tokenizer name is deprecated and will be removed in a future version. "
-                    + "Please change the tokenizer name to [edge_ngram] instead.")
-                    .log();
+                        + "Please change the tokenizer name to [edge_ngram] instead.");
             }
             return new EdgeNGramTokenizerFactory(indexSettings, environment, name, settings);
         });
@@ -558,8 +554,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
             } else if (version.onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
                 deprecationLogger.deprecate("nGram_tokenizer_deprecation",
                     "The [nGram] tokenizer name is deprecated and will be removed in a future version. "
-                    + "Please change the tokenizer name to [ngram] instead.")
-                    .log();
+                        + "Please change the tokenizer name to [ngram] instead.");
             }
             return new NGramTokenizer();
         }));
@@ -570,8 +565,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
             } else if (version.onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
                 deprecationLogger.deprecate("edgeNGram_tokenizer_deprecation",
                     "The [edgeNGram] tokenizer name is deprecated and will be removed in a future version. "
-                    + "Please change the tokenizer name to [edge_ngram] instead.")
-                    .log();
+                        + "Please change the tokenizer name to [edge_ngram] instead.");
             }
             if (version.onOrAfter(Version.V_7_3_0)) {
                 return new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);

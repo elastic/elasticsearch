@@ -300,7 +300,6 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
             "Role [" + roleName + "] contains index privileges covering the [" + aliasName
                 + "] alias but which do not cover some of the indices that it points to [" + indexNames + "]. Granting privileges over an"
                 + " alias and hence granting privileges over all the indices that the alias points to is deprecated and will be removed"
-                + " in a future version of Elasticsearch. Instead define permissions exclusively on index names or index name patterns.")
-            .log();
+                + " in a future version of Elasticsearch. Instead define permissions exclusively on index names or index name patterns.");
     }
 }

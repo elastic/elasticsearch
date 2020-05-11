@@ -277,8 +277,7 @@ public class TypeParsers {
                         "was encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated " +
                         "and is not supported for indices created in 8.0 and later. To migrate the mappings, all instances of [fields] " +
                         "that occur within a [fields] block should be removed from the mappings, either by flattening the chained " +
-                        "[fields] blocks into a single level, or switching to [copy_to] if appropriate.")
-                        .log();
+                        "[fields] blocks into a single level, or switching to [copy_to] if appropriate.");
                 } else {
                     throw new IllegalArgumentException("Encountered a multi-field [" + name + "] which itself contains a multi-field. " +
                         "Defining chained multi-fields is not supported.");

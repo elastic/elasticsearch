@@ -127,8 +127,7 @@ public final class AnalysisModule {
             public TokenFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
                 if (indexSettings.getIndexVersionCreated().before(Version.V_7_0_0)) {
                     deprecationLogger.deprecate("standard_deprecation",
-                        "The [standard] token filter name is deprecated and will be removed in a future version.")
-                        .log();
+                        "The [standard] token filter name is deprecated and will be removed in a future version.");
                 } else {
                     throw new IllegalArgumentException("The [standard] token filter has been removed.");
                 }
@@ -186,8 +185,7 @@ public final class AnalysisModule {
             PreConfiguredTokenFilter.elasticsearchVersion("standard", true, (reader, version) -> {
                 if (version.before(Version.V_7_0_0)) {
                     deprecationLogger.deprecate("standard_deprecation",
-                        "The [standard] token filter is deprecated and will be removed in a future version.")
-                        .log();
+                        "The [standard] token filter is deprecated and will be removed in a future version.");
                 } else {
                     throw new IllegalArgumentException("The [standard] token filter has been removed.");
                 }

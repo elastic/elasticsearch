@@ -201,8 +201,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 return true;
             } else if (fieldName.equals("include_in_all")) {
                 deprecationLogger.deprecate("include_in_all",
-                    "[include_in_all] is deprecated, the _all field have been removed in this version")
-                    .log();
+                    "[include_in_all] is deprecated, the _all field have been removed in this version");
                 return true;
             }
             return false;

@@ -53,8 +53,7 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
             } else {
                 deprecationLogger.deprecate("excessive_shingle_diff",
                     "Deprecated big difference between maxShingleSize and minShingleSize" +
-                            " in Shingle TokenFilter, expected difference must be less than or equal to: [" + maxAllowedShingleDiff + "]")
-                    .log();
+                            " in Shingle TokenFilter, expected difference must be less than or equal to: [" + maxAllowedShingleDiff + "]");
             }
         }
 
@@ -79,8 +78,7 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
         }
         else {
             DEPRECATION_LOGGER.deprecate("synonym_tokenfilters", "Token filter " + name()
-                    + "] will not be usable to parse synonym after v7.0")
-                .log();
+                    + "] will not be usable to parse synonym after v7.0");
         }
         return this;
 

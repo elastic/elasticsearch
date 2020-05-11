@@ -525,8 +525,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             if (userSearchFilter.contains("{0}")) {
                 new DeprecationLogger(logger).deprecate("ldap_settings", "The use of the account name variable {0} in the setting ["
                     + RealmSettings.getFullSettingKey(config, ActiveDirectorySessionFactorySettings.AD_UPN_USER_SEARCH_FILTER_SETTING)
-                    + "] has been deprecated and will be removed in a future version!")
-                    .log();
+                    + "] has been deprecated and will be removed in a future version!");
             }
         }
 

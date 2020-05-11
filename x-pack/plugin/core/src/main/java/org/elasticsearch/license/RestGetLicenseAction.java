@@ -60,8 +60,7 @@ public class RestGetLicenseAction extends BaseRestHandler {
         if (request.hasParam("accept_enterprise")) {
             deprecationLogger.deprecate("get_license_accept_enterprise",
                 "Including [accept_enterprise] in get license requests is deprecated." +
-                        " The parameter will be removed in the next major version")
-                .log();
+                        " The parameter will be removed in the next major version");
             if (request.paramAsBoolean("accept_enterprise", true) == false) {
                 throw new IllegalArgumentException("The [accept_enterprise] parameters may not be false");
             }

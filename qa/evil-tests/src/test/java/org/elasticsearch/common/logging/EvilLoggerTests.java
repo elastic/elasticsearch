@@ -127,8 +127,7 @@ public class EvilLoggerTests extends ESTestCase {
                 }
                 for (int j = 0; j < iterations; j++) {
                     for (final Integer id : ids) {
-                        deprecationLogger.deprecate(Integer.toString(id), "This is a maybe logged deprecation message" + id)
-                            .log();
+                        deprecationLogger.deprecate(Integer.toString(id), "This is a maybe logged deprecation message" + id);
                     }
                 }
 
@@ -200,20 +199,17 @@ public class EvilLoggerTests extends ESTestCase {
         final int iterations = randomIntBetween(1, 16);
 
         for (int i = 0; i < iterations; i++) {
-            deprecationLogger.deprecate("key", "This is a maybe logged deprecation message")
-                .log();
+            deprecationLogger.deprecate("key", "This is a maybe logged deprecation message");
             assertWarnings("This is a maybe logged deprecation message");
         }
         for (int k = 0; k < 128; k++) {
             for (int i = 0; i < iterations; i++) {
-                deprecationLogger.deprecate("key" + k, "This is a maybe logged deprecation message" + k)
-                    .log();
+                deprecationLogger.deprecate("key" + k, "This is a maybe logged deprecation message" + k);
                 assertWarnings("This is a maybe logged deprecation message" + k);
             }
         }
         for (int i = 0; i < iterations; i++) {
-            deprecationLogger.deprecate("key", "This is a maybe logged deprecation message")
-                .log();
+            deprecationLogger.deprecate("key", "This is a maybe logged deprecation message");
             assertWarnings("This is a maybe logged deprecation message");
         }
 

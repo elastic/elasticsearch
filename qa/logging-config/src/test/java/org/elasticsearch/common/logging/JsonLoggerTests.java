@@ -343,10 +343,8 @@ public class JsonLoggerTests extends ESTestCase {
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader(Task.X_OPAQUE_ID, "ID1");
             DeprecationLogger.setThreadContext(threadContext);
-            deprecationLogger.deprecate("key", "message1")
-                .log();
-            deprecationLogger.deprecate("key", "message2")
-                .log();
+            deprecationLogger.deprecate("key", "message1");
+            deprecationLogger.deprecate("key", "message2");
             assertWarnings("message1", "message2");
 
             final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
@@ -377,10 +375,8 @@ public class JsonLoggerTests extends ESTestCase {
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader(Task.X_OPAQUE_ID, "ID2");
             DeprecationLogger.setThreadContext(threadContext);
-            deprecationLogger.deprecate("key", "message1")
-                .log();
-            deprecationLogger.deprecate("key", "message2")
-                .log();
+            deprecationLogger.deprecate("key", "message1");
+            deprecationLogger.deprecate("key", "message2");
             assertWarnings("message1", "message2");
 
             final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),

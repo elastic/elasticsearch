@@ -238,8 +238,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
                     DeprecationLoggerHolder.deprecationLogger
                         .deprecate("fractional_byte_values",
                          "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [{}] found for setting [{}]",
-                         initialInput, settingName)
-                        .log();
+                         initialInput, settingName);
                     return new ByteSizeValue((long) (doubleValue * unit.toBytes(1)));
                 } catch (final NumberFormatException ignored) {
                     throw new ElasticsearchParseException("failed to parse [{}]", e, initialInput);

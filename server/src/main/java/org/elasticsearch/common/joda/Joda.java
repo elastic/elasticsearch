@@ -270,18 +270,15 @@ public class Joda {
     private static void maybeLogJodaDeprecation(String input) {
         if (input.contains("CC")) {
             deprecationLogger.deprecate("joda-century-of-era-format",
-                "Use of 'C' (century-of-era) is deprecated and will not be supported in the next major version of Elasticsearch.")
-                .log();
+                "Use of 'C' (century-of-era) is deprecated and will not be supported in the next major version of Elasticsearch.");
         }
         if (input.contains("YY")) {
             deprecationLogger.deprecate("joda-year-of-era-format", "Use of 'Y' (year-of-era) will change to 'y' in the" +
-                    " next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier.")
-                .log();
+                    " next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier.");
         }
         if (input.contains("xx")) {
             deprecationLogger.deprecate("joda-week-based-year-format", "Use of 'x' (week-based-year) will change" +
-                    " to 'Y' in the next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier.")
-                .log();
+                " to 'Y' in the next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier.");
         }
     }
 
@@ -379,13 +376,11 @@ public class Joda {
                 // check for deprecations, but after it has parsed correctly so invalid values aren't counted as deprecated
                 if (millis < 0) {
                     deprecationLogger.deprecate("epoch-negative", "Use of negative values" +
-                        " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.")
-                        .log();
+                        " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
                 }
                 if (scientificNotation.matcher(text).find()) {
                     deprecationLogger.deprecate("epoch-scientific-notation", "Use of scientific notation" +
-                        " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.")
-                        .log();
+                        " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
                 }
                 DateTime dt = new DateTime(millis, DateTimeZone.UTC);
                 bucket.saveField(DateTimeFieldType.year(), dt.getYear());

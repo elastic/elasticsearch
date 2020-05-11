@@ -87,8 +87,7 @@ public class MockDeprecatedAggregationBuilder extends ValuesSourceAggregationBui
     }
 
     public static MockDeprecatedAggregationBuilder fromXContent(XContentParser p) {
-        deprecationLogger.deprecate("deprecated_mock", DEPRECATION_MESSAGE)
-            .log();
+        deprecationLogger.deprecate("deprecated_mock", DEPRECATION_MESSAGE);
         return new MockDeprecatedAggregationBuilder();
     }
 }

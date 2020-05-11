@@ -158,8 +158,7 @@ public final class DomainSplitFunction {
         // NOTE: we don't check SpecialPermission because this will be called (indirectly) from scripts
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             deprecationLogger.deprecate("domainSplit",
-                "Method [domainSplit] taking params is deprecated. Remove the params argument.")
-                .log();
+                "Method [domainSplit] taking params is deprecated. Remove the params argument.");
             return null;
         });
         return domainSplit(host);

@@ -389,8 +389,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 return GLOBAL_ORDINALS;
             } else if ("global_ordinals_hash".equals(value)) {
                 deprecationLogger.deprecate("global_ordinals_hash",
-                    "global_ordinals_hash is deprecated. Please use [global_ordinals] instead.")
-                    .log();
+                    "global_ordinals_hash is deprecated. Please use [global_ordinals] instead.");
                 return GLOBAL_ORDINALS;
             } else if ("map".equals(value)) {
                 return MAP;

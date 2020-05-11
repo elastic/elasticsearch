@@ -68,18 +68,12 @@ public class DeprecationLogger {
 
     public class DeprecationLoggerBuilder {
 
-        private String deprecationKey;
-        private ESLogMessage deprecationMessage;
-
         public DeprecationLoggerBuilder withDeprecation(String key, String msg, Object[] params) {
-            this.deprecationKey = key;
             String opaqueId = HeaderWarning.getXOpaqueId();
-            this.deprecationMessage = DeprecatedMessage.of(opaqueId, msg, params);
+            ESLogMessage deprecationMessage = DeprecatedMessage.of(opaqueId, msg, params);
+            deprecationLogger.throttleLogAndAddWarning(key, deprecationMessage);
             return this;
         }
 
-        public void log() {
-            deprecationLogger.throttleLogAndAddWarning(deprecationKey, deprecationMessage);
-        }
     }
 }

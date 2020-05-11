@@ -327,19 +327,14 @@ public class MetadataCreateIndexService {
             // Check to see if a v2 template matched
             final String v2Template = MetadataIndexTemplateService.findV2Template(currentState.metadata(),
                 request.index(), isHiddenFromRequest == null ? false : isHiddenFromRequest);
-            final boolean preferV2Templates = resolvePreferV2Templates(request);
 
-            if (v2Template != null && preferV2Templates) {
+            if (v2Template != null) {
                 // If a v2 template was found, it takes precedence over all v1 templates, so create
                 // the index using that template and the request's specified settings
                 return applyCreateIndexRequestWithV2Template(currentState, request, silent, v2Template, metadataTransformer);
             } else {
-                if (v2Template != null) {
-                    logger.debug("ignoring matching index template [{}] as [prefer_v2_templates] is set to false", v2Template);
-                }
-                // A v2 template wasn't found (or is not preferred), check the v1 templates, in the
-                // event no templates are found creation still works using the request's specified
-                // index settings
+                // A v2 template wasn't found, check the v1 templates, in the event no templates are
+                // found creation still works using the request's specified index settings
                 final List<IndexTemplateMetadata> v1Templates = MetadataIndexTemplateService.findV1Templates(currentState.metadata(),
                     request.index(), isHiddenFromRequest);
 
@@ -352,11 +347,6 @@ public class MetadataCreateIndexService {
                 return applyCreateIndexRequestWithV1Templates(currentState, request, silent, v1Templates, metadataTransformer);
             }
         }
-    }
-
-    private static boolean resolvePreferV2Templates(CreateIndexClusterStateUpdateRequest request) {
-        return request.preferV2Templates() == null ?
-            IndexMetadata.PREFER_V2_TEMPLATES_SETTING.get(request.settings()) : request.preferV2Templates();
     }
 
     public ClusterState applyCreateIndexRequest(ClusterState currentState, CreateIndexClusterStateUpdateRequest request,
@@ -428,8 +418,7 @@ public class MetadataCreateIndexService {
     private IndexMetadata buildAndValidateTemporaryIndexMetadata(final ClusterState currentState,
                                                                  final Settings aggregatedIndexSettings,
                                                                  final CreateIndexClusterStateUpdateRequest request,
-                                                                 final int routingNumShards,
-                                                                 final boolean preferV2Templates) {
+                                                                 final int routingNumShards) {
 
         final boolean isHiddenAfterTemplates = IndexMetadata.INDEX_HIDDEN_SETTING.get(aggregatedIndexSettings);
         validateDotIndex(request.index(), currentState, isHiddenAfterTemplates);
@@ -437,12 +426,6 @@ public class MetadataCreateIndexService {
         // remove the setting it's temporary and is only relevant once we create the index
         final Settings.Builder settingsBuilder = Settings.builder().put(aggregatedIndexSettings);
         settingsBuilder.remove(IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey());
-        // This setting was added in 7.8, so we can only add it if all nodes are 7.8+, otherwise
-        // the nodes can throw an error about "unknown setting [index.prefer_v2_templates]" when
-        // they go to create the index
-        if (currentState.nodes().mastersFirstStream().allMatch(dn -> dn.getVersion().onOrAfter(Version.V_7_8_0))) {
-            settingsBuilder.put(IndexMetadata.PREFER_V2_TEMPLATES_SETTING.getKey(), preferV2Templates);
-        }
         final Settings indexSettings = settingsBuilder.build();
 
         final IndexMetadata.Builder tmpImdBuilder = IndexMetadata.builder(request.index());
@@ -482,8 +465,7 @@ public class MetadataCreateIndexService {
             aggregateIndexSettings(currentState, request, MetadataIndexTemplateService.resolveSettings(templates), mappings,
                 null, settings, indexScopedSettings);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
-        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards,
-            resolvePreferV2Templates(request));
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
         return applyCreateIndexWithTemporaryService(currentState, request, silent, null, tmpImd, mappings,
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(),
@@ -517,8 +499,7 @@ public class MetadataCreateIndexService {
                 MetadataIndexTemplateService.resolveSettings(currentState.metadata(), templateName),
                 mappings, null, settings, indexScopedSettings);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
-        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards,
-            resolvePreferV2Templates(request));
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
         return applyCreateIndexWithTemporaryService(currentState, request, silent, null, tmpImd, mappings,
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(),
@@ -559,8 +540,7 @@ public class MetadataCreateIndexService {
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request, Settings.EMPTY, mappings, sourceMetadata, settings, indexScopedSettings);
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetadata);
-        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards,
-            IndexMetadata.PREFER_V2_TEMPLATES_SETTING.get(sourceMetadata.getSettings()));
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
         return applyCreateIndexWithTemporaryService(currentState, request, silent, sourceMetadata, tmpImd, mappings,
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(), Collections.emptyList(),

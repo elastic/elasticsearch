@@ -317,12 +317,6 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
     }
 
     private static long testMillis(long randomMillis, int i) {
-        long millis = randomMillis;
-        if (i == 1) {
-            millis -= 1;
-        } else if (i == 3) {
-            millis += 1;
-        }
-        return millis;
+        return randomMillis - 2 + i;
     }
 }

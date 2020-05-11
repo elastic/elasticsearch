@@ -49,7 +49,9 @@ Triggers roll over after the specified maximum primary shard index storage size 
 
 `max_docs`::
 (Optional, integer)
-Triggers roll over after the specified maximum number of documents in the index is reached.
+Triggers roll over after the specified maximum number of documents is reached.
+Documents added since the last refresh are not included in the document count.
+The document count does *not* include documents in replica shards.
 
 `max_age`::
 (Optional,  <<time-units, time units>>)  

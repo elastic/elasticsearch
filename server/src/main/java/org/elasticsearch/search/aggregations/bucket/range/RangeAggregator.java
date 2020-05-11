@@ -70,7 +70,7 @@ public class RangeAggregator extends BucketsAggregator {
         /**
          * Build the range. Generally callers should prefer
          * {@link Range#Range(String, Double, Double)} or
-         * {@link Range#Range(String, String, String))}. If you
+         * {@link Range#Range(String, String, String)}. If you
          * <strong>must</strong> call this know that consumers prefer
          * {@code from} and {@code to} parameters if they are non-null
          * and finite. Otherwise they parse from {@code fromrStr} and

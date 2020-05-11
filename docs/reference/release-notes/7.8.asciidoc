@@ -40,7 +40,7 @@ Infra/Core::
 * Deprecate node local storage setting {pull}54374[#54374]
 
 Infra/Plugins::
-* Add xpack setting deprecations to deprecation API [OPEN] {pull}56290[#56290] (issue: {issue}54745[#54745])
+* Add xpack setting deprecations to deprecation API {pull}56290[#56290] (issue: {issue}54745[#54745])
 * Make xpack.monitoring.enabled setting a no-op {pull}55617[#55617] (issues: {issue}54745[#54745], {issue}54816[#54816], {issue}55416[#55416], {issue}55461[#55461], {issue}55592[#55592])
 * Make xpack.ilm.enabled setting a no-op {pull}55592[#55592] (issues: {issue}54745[#54745], {issue}54816[#54816], {issue}55416[#55416])
 * Deprecated xpack "enable" settings should be no-ops {pull}55416[#55416] (issues: {issue}54745[#54745], {issue}54816[#54816])
@@ -244,6 +244,9 @@ Aggregations::
 Allocation::
 * Fix Broken ExistingStoreRecoverySource Deserialization {pull}55657[#55657] (issue: {issue}55513[#55513])
 
+Authentication::
+* Expose idp.metadata.http.refresh for SAML realm [OPEN] {pull}56354[#56354]
+
 Authorization::
 * Resolve anonymous roles and deduplicate roles during authentication {pull}53453[#53453] (issues: {issue}31589[#31589], {issue}47195[#47195])
 
@@ -255,6 +258,9 @@ CCR::
 
 Cluster Coordination::
 * Fix the problem of recovering twice when perform a full cluster restart(#55564) {pull}55780[#55780] (issue: {issue}55564[#55564])
+
+Discovery-Plugins::
+* Hide c.a.a.p.i.BasicProfileConfigFileLoader noise {pull}56346[#56346] (issues: {issue}20313[#20313], {issue}56333[#56333])
 
 Engine::
 * Ensure no circular reference in translog tragic exception {pull}55959[#55959] (issue: {issue}55893[#55893])
@@ -269,6 +275,7 @@ Features/ILM+SLM::
 * ILM stop step execution if writeIndex is false {pull}54805[#54805]
 
 Features/Indices APIs::
+* Fix simulating index templates without specified index {pull}56295[#56295] (issues: {issue}53101[#53101], {issue}56255[#56255])
 * Validate non-negative priorities for V2 index templates {pull}56139[#56139] (issue: {issue}53101[#53101])
 * Fix NPE in MetadataIndexTemplateService#findV2Template {pull}54945[#54945]
 * Fix creating filtered alias using now in a date_nanos range query failed {pull}54785[#54785] (issue: {issue}54315[#54315])
@@ -282,6 +289,7 @@ Features/Monitoring::
 * Ensure that the monitoring export exceptions are logged. {pull}56237[#56237]
 
 Infra/Core::
+* Prevent unexpected native controller output hanging the process [OPEN] {pull}56491[#56491] (issue: {issue}56366[#56366])
 * Make feature usage version aware {pull}55246[#55246] (issues: {issue}44589[#44589], {issue}55248[#55248])
 * Add generic Set support to streams {pull}54769[#54769] (issue: {issue}54708[#54708])
 * Avoid StackOverflowError if write circular reference exception {pull}54147[#54147] (issue: {issue}53589[#53589])
@@ -289,6 +297,7 @@ Infra/Core::
 * Disallow negative TimeValues {pull}53913[#53913] (issue: {issue}54041[#54041])
 
 Machine Learning::
+* Use non-zero timeout when force stopping DF analytics {pull}56423[#56423]
 * Fixing file structure finder multiline merge max for delimited formats {pull}56023[#56023]
 * Reduce InferenceProcessor.Factory log spam by not parsing pipelines {pull}56020[#56020] (issue: {issue}55985[#55985])
 * Validate at least one feature is available for DF analytics {pull}55876[#55876] (issue: {issue}55593[#55593])

@@ -1004,12 +1004,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         // Write Global Metadata
         executor.execute(ActionRunnable.run(allMetaListener,
-            () -> globalMetadataFormat.write(clusterMetadata, blobContainer(), snapshotId.getUUID(), false)));
+            () -> globalMetadataFormat.write(clusterMetadata, blobContainer(), snapshotId.getUUID())));
 
         // write the index metadata for each index in the snapshot
         for (IndexId index : indices) {
             executor.execute(ActionRunnable.run(allMetaListener, () ->
-                indexMetadataFormat.write(clusterMetadata.index(index.getName()), indexContainer(index), snapshotId.getUUID(), false)));
+                indexMetadataFormat.write(clusterMetadata.index(index.getName()), indexContainer(index), snapshotId.getUUID())));
         }
 
         executor.execute(ActionRunnable.supply(allMetaListener, () -> {
@@ -1017,7 +1017,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 indices.stream().map(IndexId::getName).collect(Collectors.toList()),
                 startTime, failure, threadPool.absoluteTimeInMillis(), totalShards, shardFailures,
                 includeGlobalState, userMetadata);
-            snapshotFormat.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), false);
+            snapshotFormat.write(snapshotInfo, blobContainer(), snapshotId.getUUID());
             return snapshotInfo;
         }));
     }
@@ -1762,7 +1762,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                 logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
                 try {
-                    indexShardSnapshotFormat.write(snapshot, shardContainer, snapshotId.getUUID(), false);
+                    indexShardSnapshotFormat.write(snapshot, shardContainer, snapshotId.getUUID());
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
                 }
@@ -2153,7 +2153,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final String partName = fileInfo.partName(i);
                 logger.trace(() ->
                         new ParameterizedMessage("[{}] Writing [{}] to [{}]", metadata.name(), partName, shardContainer.path()));
-                shardContainer.writeBlob(partName, inputStream, partBytes, true);
+                shardContainer.writeBlob(partName, inputStream, partBytes, false);
             }
             Store.verify(indexInput);
             snapshotStatus.addProcessedFile(fileInfo.length());

@@ -117,8 +117,8 @@ public class BlobStoreFormatTests extends ESTestCase {
             xContentRegistry(), true);
 
         // Write blobs in different formats
-        checksumSMILE.write(new BlobObj("checksum smile"), blobContainer, "check-smile", true);
-        checksumSMILECompressed.write(new BlobObj("checksum smile compressed"), blobContainer, "check-smile-comp", true);
+        checksumSMILE.write(new BlobObj("checksum smile"), blobContainer, "check-smile");
+        checksumSMILECompressed.write(new BlobObj("checksum smile compressed"), blobContainer, "check-smile-comp");
 
         // Assert that all checksum blobs can be read by all formats
         assertEquals(checksumSMILE.read(blobContainer, "check-smile").getText(), "checksum smile");
@@ -137,8 +137,8 @@ public class BlobStoreFormatTests extends ESTestCase {
         ChecksumBlobStoreFormat<BlobObj> checksumFormatComp = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
             xContentRegistry(), true);
         BlobObj blobObj = new BlobObj(veryRedundantText.toString());
-        checksumFormatComp.write(blobObj, blobContainer, "blob-comp", true);
-        checksumFormat.write(blobObj, blobContainer, "blob-not-comp", true);
+        checksumFormatComp.write(blobObj, blobContainer, "blob-comp");
+        checksumFormat.write(blobObj, blobContainer, "blob-not-comp");
         Map<String, BlobMetadata> blobs = blobContainer.listBlobsByPrefix("blob-");
         assertEquals(blobs.size(), 2);
         assertThat(blobs.get("blob-not-comp").length(), greaterThan(blobs.get("blob-comp").length()));
@@ -151,7 +151,7 @@ public class BlobStoreFormatTests extends ESTestCase {
         BlobObj blobObj = new BlobObj(testString);
         ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
             xContentRegistry(), randomBoolean());
-        checksumFormat.write(blobObj, blobContainer, "test-path", true);
+        checksumFormat.write(blobObj, blobContainer, "test-path");
         assertEquals(checksumFormat.read(blobContainer, "test-path").getText(), testString);
         randomCorruption(blobContainer, "test-path");
         try {

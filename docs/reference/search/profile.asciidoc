@@ -794,6 +794,9 @@ This yields the following aggregation profile output:
               "reduce_count" : 0,
               "collect" : 91456,
               "collect_count" : 4
+            },
+            "debug": {
+              "total_buckets": 4
             }
           },
           {

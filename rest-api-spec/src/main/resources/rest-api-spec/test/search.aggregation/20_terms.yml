@@ -780,8 +780,8 @@ setup:
             n_terms:
               terms:
                 field: number
-  - match: { aggregations.str_terms.buckets.0.key: 3 }
-  - match: { aggregations.str_terms.buckets.1.key: 1 }
+  - match: { aggregations.n_terms.buckets.0.key: 1 }
+  - match: { aggregations.n_terms.buckets.1.key: 3 }
   - match: { profile.shards.0.aggregations.0.type: LongTermsAggregator }
   - match: { profile.shards.0.aggregations.0.description: n_terms }
   - match: { profile.shards.0.aggregations.0.breakdown.collect_count: 4 }

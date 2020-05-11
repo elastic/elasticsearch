@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Da
 
 public class DateTimeParsePipeTests extends AbstractNodeTestCase<DateTimeParsePipe, Pipe> {
     
-    public static DateTimeParsePipe randomBinaryStringNumericPipe() {
+    public static DateTimeParsePipe randomDateTimeParsePipe() {
         List<Pipe> functions = new ArrayList<>();
         functions.add(new DateTimeParse(            
                 randomSource(),
@@ -47,11 +47,11 @@ public class DateTimeParsePipeTests extends AbstractNodeTestCase<DateTimeParsePi
 
     @Override
     protected DateTimeParsePipe randomInstance() {
-        return randomBinaryStringNumericPipe();
+        return randomDateTimeParsePipe();
     }
 
     private Expression randomDateTimeParsePipeExpression() {
-        return randomBinaryStringNumericPipe().expression();
+        return randomDateTimeParsePipe().expression();
     }
 
     @Override

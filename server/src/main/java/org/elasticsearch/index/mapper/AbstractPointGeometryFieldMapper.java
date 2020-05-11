@@ -35,9 +35,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-/** Base class for GeoPointFieldMappers */
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
+/** Base class for for spatial fields that only support indexing points */
 public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extends AbstractGeometryFieldMapper<Parsed, Processed> {
 
     public static class Names extends AbstractGeometryFieldMapper.Names {

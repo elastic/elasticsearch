@@ -61,7 +61,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     }
 
     /**
-     * Interface representing an preprocessor in geo-shape indexing pipeline
+     * Interface representing an preprocessor in geometry indexing pipeline
      */
     public interface Indexer<Parsed, Processed> {
         Processed prepareForIndexing(Parsed geometry);
@@ -70,7 +70,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     }
 
     /**
-     * interface representing parser in geo shape indexing pipeline
+     * interface representing parser in geometry indexing pipeline
      */
     public interface Parser<Parsed> {
         Parsed parse(XContentParser parser, AbstractGeometryFieldMapper mapper) throws IOException, ParseException;

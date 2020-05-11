@@ -24,8 +24,6 @@ import org.apache.logging.log4j.message.Message;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.SuppressLoggerChecks;
 
-import java.util.List;
-
 /**
  * This class wraps both <code>HeaderWarningLogger</code> and <code>ThrottlingLogger</code>
  * which is a common use case across Elasticsearch

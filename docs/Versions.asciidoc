@@ -77,7 +77,7 @@ include::{asciidoc-dir}/../../shared/attributes.asciidoc[]
 ///////
 APM does not build n.x documentation. Links from .x branches should point to master instead
 ///////
-ifeval::[{source_branch} == 7.x]
+ifeval::["{source_branch}"=="7.x"]
 :apm-server-ref:       {apm-server-ref-m}
 :apm-overview-ref-v:   {apm-overview-ref-m}
 endif::[]

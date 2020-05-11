@@ -817,6 +817,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
      * that stopped wrapping itself in {@link AggregatorFactory#asMultiBucketAggregator}
      * so this tests that nested works properly inside of it.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/56529")
     public void testNestedUnderLongTerms() throws IOException {
         int numProducts = scaledRandomIntBetween(1, 100);
         int numResellers = scaledRandomIntBetween(1, 100);

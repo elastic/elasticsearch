@@ -167,8 +167,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     protected void reestablishRecovery(final StartRecoveryRequest request, final String reason, TimeValue retryAfter) {
         final long recoveryId = request.recoveryId();
         logger.trace("will try to reestablish recovery with id [{}] in [{}] (reason [{}])", recoveryId, retryAfter, reason);
-
-        // TODO: implement with RetryableAction
         threadPool.schedule(new RecoveryRunner(recoveryId, request), retryAfter, ThreadPool.Names.GENERIC);
     }
 

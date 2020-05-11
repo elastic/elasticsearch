@@ -723,6 +723,11 @@ See <<ilm-actions>>.
 
 See <<ilm-index-lifecycle>>.
 
+[role="exclude",id="modules-gateway-dangling-indices"]
+=== Dangling indices
+
+See <<dangling-indices>>.
+
 [role="exclude",id="_timing"]
 === Timing
 

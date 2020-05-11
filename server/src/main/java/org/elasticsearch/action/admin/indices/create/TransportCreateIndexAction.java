@@ -88,7 +88,6 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .settings(request.settings()).mappings(request.mappings())
                 .aliases(request.aliases())
-                .preferV2Templates(request.preferV2Templates())
                 .waitForActiveShards(request.waitForActiveShards());
 
         createIndexService.createIndex(updateRequest, ActionListener.map(listener, response ->

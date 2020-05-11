@@ -152,7 +152,7 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
 
     @Override
     public void setTime(int parameterIndex, Time x) throws SQLException {
-        setObject(parameterIndex, x, Types.TIMESTAMP);
+        setObject(parameterIndex, x, Types.TIME);
     }
 
     @Override
@@ -260,15 +260,15 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
         if (cal == null) {
-            setObject(parameterIndex, x, Types.TIMESTAMP);
+            setObject(parameterIndex, x, Types.TIME);
             return;
         }
         if (x == null) {
-            setNull(parameterIndex, Types.TIMESTAMP);
+            setNull(parameterIndex, Types.TIME);
             return;
         }
         // converting to UTC since this is what ES is storing internally
-        setObject(parameterIndex, new Time(TypeConverter.convertFromCalendarToUTC(x.getTime(), cal)), Types.TIMESTAMP);
+        setObject(parameterIndex, new Time(TypeConverter.convertFromCalendarToUTC(x.getTime(), cal)), Types.TIME);
     }
 
     @Override
@@ -375,7 +375,7 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
                 || x instanceof Time
                 || x instanceof java.util.Date)
         {
-            if (dataType == EsType.DATETIME) {
+            if (dataType == EsType.DATETIME || dataType == EsType.TIME) {
                 // converting to {@code java.util.Date} because this is the type supported by {@code XContentBuilder} for serialization
                 java.util.Date dateToSet;
                 if (x instanceof Timestamp) {
@@ -384,7 +384,7 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
                     dateToSet = ((Calendar) x).getTime();
                 } else if (x instanceof Date) {
                     dateToSet = new java.util.Date(((Date) x).getTime());
-                } else if (x instanceof LocalDateTime){
+                } else if (x instanceof LocalDateTime) {
                     LocalDateTime ldt = (LocalDateTime) x;
                     dateToSet = new java.util.Date(ldt.toInstant(UTC).toEpochMilli());
                 } else if (x instanceof Time) {

@@ -126,7 +126,7 @@ PUT /_cluster/settings
 
 
 [[persistent-tasks-allocation]]
-===== Persistent tasks allocations
+===== Persistent tasks allocation
 
 Plugins can create a kind of tasks called persistent tasks. Those tasks are
 usually long-live tasks and are stored in the cluster state, allowing the

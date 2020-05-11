@@ -3,7 +3,7 @@
 
 The following _dynamic_ settings may be used to control shard allocation and recovery:
 
-[[cluster.routing.allocation.enable]]
+[[cluster-routing-allocation-enable]]
 `cluster.routing.allocation.enable`::
 +
 --

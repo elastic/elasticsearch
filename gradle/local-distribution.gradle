@@ -18,8 +18,8 @@
  */
 
 /**
- * This script sets up a local distribution including.
- * To install a local distribution run `installLocalDistribution`.
+ * This script sets up a local distribution.
+ * To install a local distribution run `localDistro`.
  * The local distribution will be installed to
  * build/distributions/local
  * */

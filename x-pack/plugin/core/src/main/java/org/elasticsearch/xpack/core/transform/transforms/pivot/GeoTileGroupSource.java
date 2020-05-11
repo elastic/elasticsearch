@@ -37,7 +37,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * A geotile_grid aggregation source for group_by
  */
 public class GeoTileGroupSource extends SingleGroupSource {
-    private static final String NAME = "data_frame_geo_tile_group";
+    private static final String NAME = "transform_geo_tile_group";
 
     private static final ParseField PRECISION = new ParseField("precision");
     private static final ConstructingObjectParser<GeoTileGroupSource, Void> STRICT_PARSER = createParser(false);
@@ -90,6 +90,14 @@ public class GeoTileGroupSource extends SingleGroupSource {
         super.writeTo(out);
         out.writeOptionalVInt(precision);
         out.writeOptionalWriteable(geoBoundingBox);
+    }
+
+    public Integer getPrecision() {
+        return precision;
+    }
+
+    public GeoBoundingBox getGeoBoundingBox() {
+        return geoBoundingBox;
     }
 
     public static GeoTileGroupSource fromXContent(final XContentParser parser, boolean lenient) {

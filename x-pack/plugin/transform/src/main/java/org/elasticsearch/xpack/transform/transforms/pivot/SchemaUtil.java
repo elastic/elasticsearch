@@ -76,10 +76,7 @@ public final class SchemaUtil {
         config.getGroupConfig()
             .getGroups()
             .forEach((destinationFieldName, group) -> {
-                fieldNamesForGrouping.put(destinationFieldName, group.getField());
-                if (group.getMappingType() != null) {
-                    fieldTypesForGrouping.put(destinationFieldName, group.getMappingType());
-                }
+                fieldNamesForGrouping.put(destinationFieldName, group.getMappingType() == null ? group.getField() : group.getMappingType());
             });
 
 

@@ -74,7 +74,7 @@ import java.util.zip.InflaterInputStream;
 import static org.elasticsearch.xpack.security.authc.saml.SamlUtils.samlException;
 import static org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport.getUnmarshallerFactory;
 
-public class SamlRequestHandler {
+public class SamlObjectHandler {
 
     protected static final String SAML_NAMESPACE = "urn:oasis:names:tc:SAML:2.0:protocol";
 
@@ -102,7 +102,7 @@ public class SamlRequestHandler {
     private final TimeValue maxSkew;
     private final UnmarshallerFactory unmarshallerFactory;
 
-    public SamlRequestHandler(Clock clock, IdpConfiguration idp, SpConfiguration sp, TimeValue maxSkew) {
+    public SamlObjectHandler(Clock clock, IdpConfiguration idp, SpConfiguration sp, TimeValue maxSkew) {
         this.clock = clock;
         this.idp = idp;
         this.sp = sp;

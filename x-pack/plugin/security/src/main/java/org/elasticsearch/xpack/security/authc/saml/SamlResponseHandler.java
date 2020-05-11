@@ -19,7 +19,7 @@ import java.util.Collection;
 
 import static org.elasticsearch.xpack.security.authc.saml.SamlUtils.samlException;
 
-public class SamlResponseHandler extends SamlRequestHandler {
+public class SamlResponseHandler extends SamlObjectHandler {
     public SamlResponseHandler(Clock clock, IdpConfiguration idp, SpConfiguration sp, TimeValue maxSkew) {
         super(clock, idp, sp, maxSkew);
     }

@@ -5,29 +5,16 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
-import java.util.zip.Inflater;
-import java.util.zip.InflaterInputStream;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.core.internal.io.Streams;
-import org.elasticsearch.rest.RestUtils;
 import org.opensaml.saml.common.SAMLObject;
 import org.opensaml.saml.saml2.core.EncryptedID;
 import org.opensaml.saml.saml2.core.LogoutRequest;
 import org.opensaml.saml.saml2.core.NameID;
-import org.opensaml.xmlsec.crypto.XMLSigningUtil;
 import org.opensaml.xmlsec.encryption.support.DecryptionException;
 import org.opensaml.xmlsec.signature.Signature;
 import org.w3c.dom.Element;
@@ -37,7 +24,7 @@ import static org.elasticsearch.xpack.security.authc.saml.SamlUtils.samlExceptio
 /**
  * Processes a LogoutRequest for an IdP-initiated logout.
  */
-public class SamlLogoutRequestHandler extends SamlRequestHandler {
+public class SamlLogoutRequestHandler extends SamlObjectHandler {
 
     private static final String REQUEST_TAG_NAME = "LogoutRequest";
 

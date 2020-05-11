@@ -84,7 +84,7 @@ setting `cluster.remote.connect` is removed.
 *Impact* +
 Use the `node.remote_cluster_client` setting. Discontinue use of the
 `cluster.remote.connect` setting. Specifying the `cluster.remote.connect`
-setting is specified in `elasticsearch.yml` will result in an error on startup.
+setting in `elasticsearch.yml` will result in an error on startup.
 ====
 
 .The `node.local_storage` setting has been removed.

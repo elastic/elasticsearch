@@ -198,7 +198,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         return u.withUnresolvedMessage("Reference [" + u.qualifiedName()
                 + "] is ambiguous (to disambiguate use quotes or qualifiers); matches any of " +
                  matches.stream()
-                 .map(a -> (a.qualifier() != null ? "\"" + a.qualifier() + "\".\"" + a.name() + "\"" : a.name()))
+                 .map(a -> (a.qualifier() != null ? "\"" + a.qualifier() + "\"." : "") + "\"" + a.name() + "\"")
                  .sorted()
                  .collect(toList())
                 );

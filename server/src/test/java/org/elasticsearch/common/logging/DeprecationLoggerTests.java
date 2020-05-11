@@ -84,7 +84,7 @@ public class DeprecationLoggerTests extends ESTestCase {
             }, noPermissionsAcc);
             assertThat("supplier called", supplierCalled.get(), is(true));
 
-            assertWarnings("foo");
+            assertWarnings("foo bar");
         } finally {
             LogManager.setFactory(originalFactory);
         }

@@ -70,14 +70,14 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `results`::
 (object)
-Contains result statistics for the cleanup operations.
+Contains resulting statistics for cleanup operations.
 +
 .Properties of `results`
 [%collapsible%open]
 ====
 `deleted_bytes`::
 (integer)
-Number of bytes freed by the cleanup operations.
+Number of bytes freed by cleanup operations.
 
 `deleted_blobs`::
 (integer)

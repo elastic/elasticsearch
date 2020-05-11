@@ -61,6 +61,8 @@ include::settings/ilm-settings.asciidoc[]
 
 include::settings/license-settings.asciidoc[]
 
+include::modules/gateway.asciidoc[]
+
 include::setup/logging-config.asciidoc[]
 
 include::settings/ml-settings.asciidoc[]

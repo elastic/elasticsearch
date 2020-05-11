@@ -396,7 +396,7 @@ public class ActionModule extends AbstractModule {
     private static final Logger logger = LogManager.getLogger(ActionModule.class);
 
     private final boolean transportClient;
-    private static final boolean DATASTREAMS_FEATURE_ENABLED;
+    public static final boolean DATASTREAMS_FEATURE_ENABLED;
 
     static {
         final String property = System.getProperty("es.datastreams_feature_enabled");

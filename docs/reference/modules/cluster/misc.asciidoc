@@ -50,7 +50,7 @@ Replicas count towards this limit, but closed indexes do not. An index with 5
 primary shards and 2 replicas will be counted as 15 shards. Any closed index
 is counted as 0, no matter how many shards and replicas it contains.
 
-The limit defaults to 1,000 shards per data node, and can be dynamically
+The limit defaults to 1,000 shards per data node, this includes open indices with unassigned primary or replica shards, and can be dynamically
 adjusted using the following property:
 
 `cluster.max_shards_per_node`::

@@ -154,14 +154,19 @@ public class TaskManager implements ClusterStateApplier {
         } else {
             unregisterChildNode = () -> {};
         }
-        Task task = register(type, action.actionName, request);
+        final Task task;
+        try {
+            task = register(type, action.actionName, request);
+        } catch (TaskCancelledException e) {
+            unregisterChildNode.close();
+            throw e;
+        }
         // NOTE: ActionListener cannot infer Response, see https://bugs.openjdk.java.net/browse/JDK-8203195
         action.execute(task, request, new ActionListener<Response>() {
             @Override
             public void onResponse(Response response) {
                 try {
-                    unregisterChildNode.close();
-                    unregister(task);
+                    Releasables.close(unregisterChildNode, () -> unregister(task));
                 } finally {
                     onResponse.accept(task, response);
                 }
@@ -246,9 +251,13 @@ public class TaskManager implements ClusterStateApplier {
     private Releasable registerChildNode(long taskId, DiscoveryNode node, String clusterAlias) {
         final CancellableTaskHolder holder = cancellableTasks.get(taskId);
         if (holder != null) {
+            logger.trace("register child node [{}] cluster [{}]task [{}]", node, clusterAlias, taskId);
             final DiscoveryNodeAndClusterAlias key = new DiscoveryNodeAndClusterAlias(node, clusterAlias);
             holder.registerChildNode(key);
-            return Releasables.releaseOnce(() -> holder.unregisterChildNode(key));
+            return Releasables.releaseOnce(() -> {
+                logger.trace("unregister child node [{}] cluster [{}]task [{}]", node, clusterAlias, taskId);
+                holder.unregisterChildNode(key);
+            });
         }
         return () -> {};
     }

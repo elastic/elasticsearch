@@ -119,12 +119,19 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     }
 
     void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
+        final TaskId taskId = task.taskInfo(clusterService.localNode().getId(), false).getTaskId();
         if (task.shouldCancelChildrenOnCancellation()) {
+            logger.trace("cancelling task [{}] and its descendants", taskId);
             StepListener<Void> completedListener = new StepListener<>();
             GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(ActionListener.map(completedListener, r -> null), 3);
-            Map<String, List<DiscoveryNode>> childConnections =
-                taskManager.startBanOnChildrenNodes(task.getId(), () -> groupedListener.onResponse(null));
-            taskManager.cancel(task, reason, () -> groupedListener.onResponse(null));
+            Map<String, List<DiscoveryNode>> childConnections = taskManager.startBanOnChildrenNodes(task.getId(), () -> {
+                logger.trace("child tasks of parent [{}] are completed", taskId);
+                groupedListener.onResponse(null);
+            });
+            taskManager.cancel(task, reason, () -> {
+                logger.trace("task [{}] is cancelled", taskId);
+                groupedListener.onResponse(null);
+            });
 
             StepListener<Void> banOnNodesListener = new StepListener<>();
             setBanOnNodes(reason, waitForCompletion, task, childConnections, banOnNodesListener);
@@ -143,7 +150,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
                 banOnNodesListener.whenComplete(r -> listener.onResponse(null), listener::onFailure);
             }
         } else {
-            logger.trace("task {} doesn't have any children that should be cancelled", task.getId());
+            logger.trace("task [{}] doesn't have any children that should be cancelled", taskId);
             if (waitForCompletion) {
                 taskManager.cancel(task, reason, () -> listener.onResponse(null));
             } else {
@@ -159,6 +166,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             listener.onResponse(null);
             return;
         }
+        final TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
         logger.trace("cancelling task {} on child nodes {}", task.getId(), childConnections);
         int groupSize = childConnections.values().stream().mapToInt(List::size).sum();
         GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(ActionListener.map(listener, r -> null), groupSize);

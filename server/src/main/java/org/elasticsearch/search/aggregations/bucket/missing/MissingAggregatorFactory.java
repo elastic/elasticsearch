@@ -33,25 +33,13 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(
-            MissingAggregationBuilder.NAME,
-            List.of(
-                CoreValuesSourceType.NUMERIC,
-                CoreValuesSourceType.BYTES,
-                CoreValuesSourceType.GEOPOINT,
-                CoreValuesSourceType.RANGE,
-                CoreValuesSourceType.IP,
-                CoreValuesSourceType.BOOLEAN,
-                CoreValuesSourceType.DATE
-            ),
-            (MissingAggregatorSupplier) MissingAggregator::new
-        );
+        builder.register(MissingAggregationBuilder.NAME, CoreValuesSourceType.ALL_CORE,
+            (MissingAggregatorSupplier) MissingAggregator::new);
     }
 
     public MissingAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,

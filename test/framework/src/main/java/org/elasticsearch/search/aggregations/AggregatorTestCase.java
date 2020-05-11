@@ -101,6 +101,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -424,9 +425,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         searcher.search(query, a);
         a.postCollection();
         @SuppressWarnings("unchecked")
-        A internalAgg = (A) a.buildAggregation(0L);
-        InternalAggregationTestCase.assertMultiBucketConsumer(internalAgg, bucketConsumer);
-        return internalAgg;
+        A result = (A) a.buildTopLevel();
+        InternalAggregationTestCase.assertMultiBucketConsumer(result, bucketConsumer);
+        return result;
     }
 
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(IndexSearcher searcher,
@@ -494,12 +495,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
             a.preCollection();
             subSearcher.search(weight, a);
             a.postCollection();
-            InternalAggregation agg = a.buildAggregation(0L);
+            InternalAggregation agg = a.buildTopLevel(); 
             aggs.add(agg);
             InternalAggregationTestCase.assertMultiBucketConsumer(agg, shardBucketConsumer);
         }
         if (aggs.isEmpty()) {
-            return null;
+            return (A) root.buildEmptyAggregation();
         } else {
             if (randomBoolean() && aggs.size() > 1) {
                 // sometimes do an incremental reduce
@@ -539,23 +540,32 @@ public abstract class AggregatorTestCase extends ESTestCase {
         InternalAggregationTestCase.assertMultiBucketConsumer(agg, bucketConsumer);
     }
 
-    protected <T extends AggregationBuilder,
-               V extends InternalAggregation> void testCase(T aggregationBuilder, Query query,
-                                                            CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                                                            Consumer<V> verify, MappedFieldType fieldType) throws IOException {
+    protected <T extends AggregationBuilder, V extends InternalAggregation> void testCase(
+            T aggregationBuilder,
+            Query query,
+            CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+            Consumer<V> verify,
+            MappedFieldType... fieldTypes) throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
             buildIndex.accept(indexWriter);
             indexWriter.close();
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (IndexReader indexReader = wrapDirectoryReader(DirectoryReader.open(directory))) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
+                V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldTypes);
                 verify.accept(agg);
-
             }
         }
+    }
+
+    /**
+     * Override to wrap the {@linkplain DirectoryReader} for aggs like
+     * {@link NestedAggregationBuilder}.
+     */
+    protected IndexReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
+        return reader;
     }
 
     private static class ShardSearcher extends IndexSearcher {
@@ -576,7 +586,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
-    protected static DirectoryReader wrap(DirectoryReader directoryReader) throws IOException {
+    protected static DirectoryReader wrapInMockESDirectoryReader(DirectoryReader directoryReader) throws IOException {
         return ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(new Index("_index", "_na_"), 0));
     }
 

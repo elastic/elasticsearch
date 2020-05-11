@@ -994,7 +994,6 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             + transformIndex
             + "\"},"
             + " \"pivot\": {"
-            + "   \"max_page_search_size\": 10,"
             + "   \"group_by\": {"
             + "     \"user.id\": {\"terms\": { \"field\": \"user_id\" }},"
             + "     \"business.id\": {\"terms\": { \"field\": \"business_id\" }},"
@@ -1007,7 +1006,10 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             + "     \"user.avg_rating\": {"
             + "       \"avg\": {"
             + "         \"field\": \"stars\""
-            + " } } } }"
+            + " } } } },"
+            + " \"settings\": {"
+            + "   \"max_page_search_size\": 10"
+            + " }"
             + "}";
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));

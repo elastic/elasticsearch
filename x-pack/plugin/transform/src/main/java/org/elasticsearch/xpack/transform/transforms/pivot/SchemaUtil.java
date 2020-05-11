@@ -76,10 +76,11 @@ public final class SchemaUtil {
         config.getGroupConfig()
             .getGroups()
             .forEach((destinationFieldName, group) -> {
+                // We will always need the field name for the grouping to create the mapping
+                fieldNamesForGrouping.put(destinationFieldName, group.getField());
+                // Sometimes the group config will supply a desired mapping as well
                 if (group.getMappingType() != null) {
                     fieldTypesForGrouping.put(destinationFieldName, group.getMappingType());
-                } else {
-                    fieldNamesForGrouping.put(destinationFieldName, group.getField());
                 }
             });
 

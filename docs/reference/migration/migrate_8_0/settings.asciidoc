@@ -18,6 +18,11 @@ provided automatic upgrading of these settings to their `cluster.remote`
 counterparts. In 8.0.0, these settings have been removed. Elasticsearch will
 refuse to start if you have these settings in your configuration or cluster
 state.
+
+*Impact* +
+Use the replacement `cluster.remote` settings. Discontinue use of the
+`search.remote.*` settings. Specifying these settings in `elasticsearch.yml`
+will result in an error on startup.
 ====
 
 [[remove-pidfile]]
@@ -28,6 +33,11 @@ state.
 To ensure that all settings are in a proper namespace, the `pidfile` setting was
 previously deprecated in version 7.4.0 of Elasticsearch, and is removed in
 version 8.0.0. Instead, use `node.pidfile`.
+
+*Impact* +
+Use the `node.pidfile` setting. Discontinue use of the `pidfile` setting.
+Specifying the `pidfile` setting in `elasticsearch.yml` will result in an error
+on startup.
 ====
 
 [[remove-processors]]
@@ -38,6 +48,11 @@ version 8.0.0. Instead, use `node.pidfile`.
 To ensure that all settings are in a proper namespace, the `processors` setting
 was previously deprecated in version 7.4.0 of Elasticsearch, and is removed in
 version 8.0.0. Instead, use `node.processors`.
+
+*Impact* +
+Use the `node.processors` setting. Discontinue use of the `processors` setting.
+Specifying the `processors` setting in `elasticsearch.yml` will result in an
+error on startup.
 ====
 
 .The `node.processors` setting can no longer exceed the available number of processors.
@@ -50,6 +65,12 @@ processors. As this leads to more context switches and more threads but without
 an increase in the number of physical CPUs on which to schedule these additional
 threads, the `node.processors` setting is now bounded by the number of available
 processors.
+
+*Impact* +
+If specified, ensure the value of `node.processors` setting does not exceed the
+number of available processors. Setting the `node.processors` value greater than
+the number of available processors in `elasticsearch.yml` will result in an
+error on startup.
 ====
 
 .The `cluster.remote.connect` setting has been removed.
@@ -59,6 +80,11 @@ processors.
 In Elasticsearch 7.7.0, the setting `cluster.remote.connect` was deprecated in
 favor of setting `node.remote_cluster_client`. In Elasticsearch 8.0.0, the
 setting `cluster.remote.connect` is removed.
+
+*Impact* +
+Use the `node.remote_cluster_client` setting. Discontinue use of the
+`cluster.remote.connect` setting. Specifying the `cluster.remote.connect`
+setting in `elasticsearch.yml` will result in an error on startup.
 ====
 
 .The `node.local_storage` setting has been removed.
@@ -68,6 +94,10 @@ setting `cluster.remote.connect` is removed.
 In Elasticsearch 7.8.0, the setting `node.local_storage` was deprecated and
 beginning in Elasticsearch 8.0.0 all nodes will require local storage. Therefore,
 the `node.local_storage` setting has been removed.
+
+*Impact* +
+Discontinue use of the `node.local_storage` setting. Specifying this setting in
+`elasticsearch.yml` will result in an error on startup.
 ====
 
 .The `auth.password` setting for HTTP monitoring has been removed.
@@ -78,6 +108,13 @@ In Elasticsearch 7.7.0, the setting `xpack.monitoring.exporters.<exporterName>.a
 was deprecated in favor of setting `xpack.monitoring.exporters.<exporterName>.auth.secure_password`.
 In Elasticsearch 8.0.0, the setting `xpack.monitoring.exporters.<exporterName>.auth.password` is
 removed.
+
+*Impact* +
+Use the `xpack.monitoring.exporters.<exporterName>.auth.secure_password`
+setting. Discontinue use of the
+`xpack.monitoring.exporters.<exporterName>.auth.password` setting. Specifying
+the `xpack.monitoring.exporters.<exporterName>.auth.password` setting in
+`elasticsearch.yml` will result in an error on startup.
 ====
 
 .Settings used to disable basic license features have been removed.
@@ -102,6 +139,10 @@ These basic license features are now always enabled for the {default-dist}.
 If you have disabled ILM so that you can use another tool to manage Watcher
 indices, the newly introduced `xpack.watcher.use_ilm_index_management` setting
 may be set to false.
+
+*Impact* +
+Discontinue use of the removed settings. Specifying these settings in
+`elasticsearch.yml` will result in an error on startup.
 ====
 
 .The `prefer_v2_templates` parameter now defaults to `true` for several document and index APIs.
@@ -116,4 +157,8 @@ will continue to be applied if no V2 index template matches the newly created in
 The `?prefer_v2_templates` parameter is supported on the <<indices-create-index,Create Index>>,
 <<docs-index_,Index>>, <<docs-bulk,Bulk>>, <<docs-update,Update>>, and
 <<indices-rollover-index,Rollover>> APIs.
+
+*Impact* +
+Update your workflow and applications to assume a default value of `true` for
+the `prefer_v2_templates` query parameter.
 ====

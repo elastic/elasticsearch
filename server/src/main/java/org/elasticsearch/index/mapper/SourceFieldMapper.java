@@ -31,6 +31,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -192,7 +193,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         this.enabled = enabled;
         this.includes = includes;
         this.excludes = excludes;
-        final boolean filtered = (includes != null && includes.length > 0) || (excludes != null && excludes.length > 0);
+        final boolean filtered = CollectionUtils.isEmpty(includes) == false || CollectionUtils.isEmpty(excludes) == false;
         this.filter = enabled && filtered && fieldType().stored() ? XContentMapValues.filter(includes, excludes) : null;
         this.complete = enabled && includes == null && excludes == null;
     }

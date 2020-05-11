@@ -1028,6 +1028,10 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
     @Override
     public Collection<Class<? extends AutoscalingDeciderService<? extends AutoscalingDecider>>> deciders() {
         logger.info("In ML deciders");
-        return List.of(MlAutoscalingDeciderService.class);
+        if (enabled) {
+            return List.of(MlAutoscalingDeciderService.class);
+        } else {
+            return List.of();
+        }
     }
 }

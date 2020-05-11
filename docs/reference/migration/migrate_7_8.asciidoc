@@ -92,6 +92,35 @@ To avoid deprecation warnings, discontinue use of the `node.local_storage`
 setting.
 ====
 
+[[deprecate-basic-license-feature-enabled]]
+
+.Several {xpack} settings no longer have any effect and are deprecated. 
+
+[%collapsible]
+====
+*Details* +
+Basic {xpack} license features are always enabled for the {default-dist} 
+and the following settings no longer have any effect: 
+
+* `xpack.enrich.enabled`
+* `xpack.flattened.enabled`
+* `xpack.ilm.enabled`
+* `xpack.monitoring.enabled`
+* `xpack.rollup.enabled`
+* `xpack.slm.enabled`
+* `xpack.sql.enabled`
+* `xpack.transform.enabled`
+* `xpack.vectors.enabled`
+
+Previously, they could be set to `false` to disable the feature's APIs in a cluster.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of these settings.
+If you have disabled ILM so that you can use another tool to manage Watcher
+indices, the newly introduced `xpack.watcher.use_ilm_index_management` setting
+may be set to false.
+====
+
 [float]
 [[builtin-users-changes]]
 ==== Changes to built-in users

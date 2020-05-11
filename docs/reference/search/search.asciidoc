@@ -73,8 +73,16 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 Defaults to `open`.
 
 `explain`::
-  (Optional, boolean) If `true`, returns detailed information about score
-  computation as part of a hit. Defaults to `false`.
+(Optional, boolean) If `true`, returns detailed information about score
+computation as part of a hit. Defaults to `false`.
++
+--
+[IMPORTANT]
+====
+You can also specify this value using the `explain` request body parameter. If
+both parameters are specified, only the query parameter is used.
+====
+--
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=from]
 +
@@ -124,7 +132,7 @@ testing.
 
 [IMPORTANT]
 ====
-The `q` parameter overrides the <<search-api-request-body-query,`query`>>
+The `q` parameter overrides the <<request-body-search-query,`query`>>
 parameter in the request body. If both parameters are specified, documents
 matching the `query` request body parameter are not returned.
 ====
@@ -146,8 +154,17 @@ level settings.
 include::{docdir}/rest-api/common-parms.asciidoc[tag=search_type]
 
 `seq_no_primary_term`::
-  (Optional, boolean) If `true`, returns sequence number and primary term of the
-  last modification of each hit.
++
+--
+(Optional, boolean) If `true`, returns sequence number and primary term of the
+last modification of each hit. See <<optimistic-concurrency-control>>.
+
+[IMPORTANT]
+====
+You can also specify this value using the `seq_no_primary_term` request body
+parameter. If both parameters are specified, only the query parameter is used.
+====
+--
 
 `size`::
 (Optional, integer) Defines the number of hits to return. Defaults to `10`.
@@ -230,12 +247,34 @@ include the total number of hits matching the query.
   by their respective types in the response. Defaults to `true`.
 
 `version`::
-  (Optional, boolean)
-  If `true`, returns document version as part of a hit. Defaults to `false.
++
+--
+(Optional, boolean)
+If `true`, returns document version as part of a hit. Defaults to `false`.
+
+[IMPORTANT]
+====
+You can also specify this value using the `version` request body parameter. If
+both parameters are specified, only the query parameter is used.
+====
+--
 
 
 [[search-search-api-request-body]]
 ==== {api-request-body-title}
+
+[[request-body-search-explain]]
+`explain`::
+(Optional, boolean) If `true`, returns detailed information about score
+computation as part of a hit. Defaults to `false`.
++
+--
+[IMPORTANT]
+====
+You can also specify this value using the `explain` request body parameter. If
+both parameters are specified, only the query parameter is used.
+====
+--
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=from]
 +
@@ -247,10 +286,24 @@ parameters are specified, only the query parameter is used.
 ====
 --
 
-[[search-api-request-body-query]]
+[[request-body-search-query]]
 `query`::
-  (Optional, <<query-dsl,query object>>) Defines the search definition using the
-  <<query-dsl,Query DSL>>.
+(Optional, <<query-dsl,query object>>) Defines the search definition using the
+<<query-dsl,Query DSL>>.
+
+[[request-body-search-seq-no-primary-term]]
+`seq_no_primary_term`::
++
+--
+(Optional, boolean) If `true`, returns sequence number and primary term of the
+last modification of each hit. See <<optimistic-concurrency-control>>.
+
+[IMPORTANT]
+====
+You can also specify this value using the `seq_no_primary_term` query parameter.
+If both parameters are specified, only the query parameter is used.
+====
+--
 
 `size`:: 
 (Optional, integer) The number of hits to return. Defaults to `10`.
@@ -288,6 +341,21 @@ You can also specify this value using the `timeout` query parameter. If both
 parameters are specified, only the query parameter is used.
 ====
 --
+
+[[request-body-search-version]]
+`version`::
++
+--
+(Optional, boolean)
+If `true`, returns document version as part of a hit. Defaults to `false`.
+
+[IMPORTANT]
+====
+You can also specify this value using the `version` query parameter. If both
+parameters are specified, only the query parameter is used.
+====
+--
+
 
 [role="child_attributes"]
 [[search-api-response-body]]

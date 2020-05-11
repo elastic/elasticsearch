@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBu
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoGridBucket;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
@@ -93,7 +94,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return List.of(GeoShapeValuesSourceType.instance());
+        return List.of(GeoShapeValuesSourceType.instance(), CoreValuesSourceType.GEOPOINT);
     }
 
     @Override

@@ -118,6 +118,9 @@ public final class BulkRequestParser {
         int line = 0;
         int from = 0;
         byte marker = xContent.streamSeparator();
+        // Bulk requests can contain a lot of repeated strings for the index, pipeline and routing parameters. This map is used to
+        // deduplicate duplicate strings parsed for these parameters. While it does not prevent instantiating the duplicate strings, it
+        // reduces their lifetime to the lifetime of this parse call instead of the lifetime of the full bulk request.
         final Map<String, String> stringDeduplicator = new HashMap<>();
         while (true) {
             int nextMarker = findNextMarker(marker, from, data);

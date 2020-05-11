@@ -434,6 +434,7 @@ CCR::
 
 CRUD::
 * Force execution of finish shard bulk request {pull}51957[#51957] (issue: {issue}51904[#51904])
+* Block too many concurrent mapping updates {pull}51038[#51038] (issue: {issue}50670[#50670])
 * Return 429 status code when there's a read_only cluster block {pull}50166[#50166] (issue: {issue}49393[#49393])
 
 Cluster Coordination::

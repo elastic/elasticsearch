@@ -484,8 +484,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING,
             FsHealthService.ENABLED_SETTING,
             FsHealthService.REFRESH_INTERVAL_SETTING,
-            FsHealthService.HEALTHY_TIMEOUT_SETTING,
-            FsHealthService.UNHEALTHY_TIMEOUT_SETTING,
             FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING);
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();

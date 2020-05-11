@@ -1430,5 +1430,4 @@ public abstract class ESTestCase extends LuceneTestCase {
             throw new AssertionError();
         }
     }
-
 }

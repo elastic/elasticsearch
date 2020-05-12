@@ -164,7 +164,4 @@ testClusters.integTest {
   extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
 }
 
-validateRestSpec {
-  ignore 'ml.validate.json'
-  ignore 'ml.validate_detector.json'
-}
+

@@ -39,8 +39,7 @@ class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(ValueCountAggregationBuilder.NAME, CoreValuesSourceType.ALL_CORE,
-            (MetricAggregatorSupplier) (name, valuesSource, format, context, parent, metadata) ->
-                new ValueCountAggregator(name, valuesSource, context, parent, metadata));
+            (ValueCountAggregatorSupplier) ValueCountAggregator::new);
     }
 
     ValueCountAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
@@ -64,11 +63,11 @@ class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             ValueCountAggregationBuilder.NAME);
-        if (aggregatorSupplier instanceof MetricAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected MetricAggregatorSupplier, found [" +
+        if (aggregatorSupplier instanceof ValueCountAggregatorSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected ValueCountAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((MetricAggregatorSupplier) aggregatorSupplier)
-            .build(name, valuesSource, config.format(), searchContext, parent, metadata);
+        return ((ValueCountAggregatorSupplier) aggregatorSupplier)
+            .build(name, valuesSource, searchContext, parent, metadata);
     }
 }

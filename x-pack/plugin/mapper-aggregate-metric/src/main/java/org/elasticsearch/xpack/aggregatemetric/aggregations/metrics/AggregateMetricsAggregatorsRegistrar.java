@@ -12,6 +12,7 @@ import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinMaxAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ValueCountAggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSource;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSourceType;
@@ -91,19 +92,13 @@ public class AggregateMetricsAggregatorsRegistrar {
         builder.register(
             ValueCountAggregationBuilder.NAME,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
-            (MetricAggregatorSupplier) (
+            (ValueCountAggregatorSupplier) (name, valuesSource, context, parent, metadata) -> new AggregateMetricBackedValueCountAggregator(
                 name,
-                valuesSource,
-                formatter,
+                (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
                 context,
                 parent,
-                metadata) -> new AggregateMetricBackedValueCountAggregator(
-                    name,
-                    (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
-                    context,
-                    parent,
-                    metadata
-                )
+                metadata
+            )
         );
     }
 }

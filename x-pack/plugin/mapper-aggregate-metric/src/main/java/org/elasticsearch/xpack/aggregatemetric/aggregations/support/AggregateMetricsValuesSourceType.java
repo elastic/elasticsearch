@@ -53,6 +53,11 @@ public enum AggregateMetricsValuesSourceType implements ValuesSourceType {
         }
     };
 
+    @Override
+    public String typeName() {
+        return value();
+    }
+
     public static ValuesSourceType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
     }

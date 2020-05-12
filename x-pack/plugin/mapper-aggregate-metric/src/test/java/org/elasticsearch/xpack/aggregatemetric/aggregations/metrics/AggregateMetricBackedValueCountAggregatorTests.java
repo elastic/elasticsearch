@@ -60,7 +60,6 @@ public class AggregateMetricBackedValueCountAggregatorTests extends AggregatorTe
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55824")
     public void testNoDocs() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
             // Intentionally not writing any docs

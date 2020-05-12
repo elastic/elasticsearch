@@ -5,14 +5,19 @@
  */
 package org.elasticsearch.xpack.aggregatemetric.aggregations.support;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.fielddata.DocValueBits;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.xpack.aggregatemetric.fielddata.IndexAggregateDoubleMetricFieldData;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 public class AggregateMetricsValuesSource {
     public abstract static class AggregateDoubleMetric extends org.elasticsearch.search.aggregations.support.ValuesSource {
@@ -41,6 +46,11 @@ public class AggregateMetricsValuesSource {
                         return values.advanceExact(doc);
                     }
                 };
+            }
+
+            @Override
+            public Function<Rounding, Rounding.Prepared> roundingPreparer(IndexReader reader) throws IOException {
+                throw new AggregationExecutionException("Can't round an [" + AggregateDoubleMetricFieldMapper.CONTENT_TYPE + "]");
             }
 
             public SortedNumericDoubleValues getAggregateMetricValues(LeafReaderContext context, Metric metric) throws IOException {

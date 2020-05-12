@@ -660,7 +660,10 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
                 )
             )
         );
-        assertThat(e.getCause().getMessage(), containsString("45.43 cannot be converted to Integer without data loss"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("failed to parse field [metric.value_count] of type [integer] in document with id '1'.")
+        );
     }
 
     /**

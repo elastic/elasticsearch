@@ -55,6 +55,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -217,12 +218,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                     )
                 );
             Explicit<Metric> defaultMetric = defaultMetric(context);
-
             AggregateDoubleMetricFieldType metricFieldType = (AggregateDoubleMetricFieldType) fieldType;
             metricFieldType.setMetricFields(metricFields);
-
-            Explicit<Metric> defaultMetric = defaultMetric(context);
-            metricFieldType.setDefaultMetric(defaultMetric.value());
 
             return new AggregateDoubleMetricFieldMapper(
                 name,
@@ -567,7 +564,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         context.path().add(simpleName());
         XContentParser.Token token;
         XContentSubParser subParser = null;
-        List<IndexableField> metricSubfields = new ArrayList<>();
         EnumSet<Metric> metricsParsed = EnumSet.noneOf(Metric.class);
         try {
             token = context.parser().currentToken();
@@ -579,7 +575,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             subParser = new XContentSubParser(context.parser());
             token = subParser.nextToken();
             while (token != XContentParser.Token.END_OBJECT) {
-                // should be an object subfield with name a metric name
+                // should be an object sub-field with name a metric name
                 ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser::getTokenLocation);
                 String fieldName = subParser.currentName();
                 Metric metric = Metric.valueOf(fieldName);
@@ -606,14 +602,13 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                     );
                 }
                 // Delegate parsing the field to a numeric field mapper
-                delegateFieldMapper.parseCreateField(context, metricSubfields);
+                delegateFieldMapper.parse(context);
 
                 // Ensure a value_count metric does not have a negative value
                 if (Metric.value_count == metric) {
-                    // Instead of iterating over the metricSubfields list, we already know that the current subfield
-                    // has been appended to the end of the list. To save time we look directly at the end of the list.
-                    int lastFieldPosition = metricSubfields.size() - 1;
-                    Number n = metricSubfields.get(lastFieldPosition).numericValue();
+                    // context.doc().getField() method iterates over all fields in the document.
+                    // Making the following call slow down. Maybe we can think something smarter.
+                    Number n = context.doc().getField(delegateFieldMapper.name()).numericValue();
                     if (n.intValue() < 0) {
                         throw new IllegalArgumentException(
                             "Aggregate metric [" + metric.name() + "] of field [" + fieldType.name() + "] cannot be a negative number"
@@ -630,7 +625,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                     "Aggregate metric field [" + fieldType.name() + "] must contain all metrics " + metrics.value().toString()
                 );
             }
-            fields.addAll(metricSubfields);
         } catch (Exception e) {
             if (ignoreMalformed.value()) {
                 if (subParser != null) {
@@ -638,7 +632,22 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                     subParser.close();
                 }
                 // If ignoreMalformed == true, clear all parsed fields
-                context.addIgnoredField(fieldType().name());
+                Set<String> ignoreFieldNames = new HashSet<>(metricFieldMappers.size());
+                for (NumberFieldMapper m : metricFieldMappers.values()) {
+                    context.addIgnoredField(m.fieldType().name());
+                    ignoreFieldNames.add(m.fieldType().name());
+                }
+                // Parsing a metric sub-field is delegated to the delegate field mapper by calling method
+                // delegateFieldMapper.parse(context). Unfortunately, this method adds the parsed sub-field
+                // to the document automatically. So, at this point we must undo this by removing all metric
+                // sub-fields from the document. To do so, we iterate over the document fields and remove
+                // the ones whose names match.
+                for (Iterator<IndexableField> iter = context.doc().getFields().iterator(); iter.hasNext();) {
+                    IndexableField field = iter.next();
+                    if (ignoreFieldNames.contains(field.name())) {
+                        iter.remove();
+                    }
+                }
             } else {
                 // Rethrow exception as is. It is going to be caught and nested in a MapperParsingException
                 // by its FieldMapper.MappedFieldType#parse()
@@ -657,14 +666,22 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         if (other.metrics.explicit()) {
-            if (this.metrics.value() != null &&
-                metrics.value().isEmpty() == false &&
-                (metrics.value().containsAll(other.metrics.value()) == false ||
-                    other.metrics.value().containsAll(metrics.value()) == false)) {
-                    throw new IllegalArgumentException("[" + fieldType().name() + "] with field mapper ["
-                        + fieldType().typeName() + "] " + "cannot be merged with " + "["
-                        + other.fieldType().typeName() + "] because they contain separate metrics");
-                }
+            if (this.metrics.value() != null
+                && metrics.value().isEmpty() == false
+                && (metrics.value().containsAll(other.metrics.value()) == false
+                    || other.metrics.value().containsAll(metrics.value()) == false)) {
+                throw new IllegalArgumentException(
+                    "["
+                        + fieldType().name()
+                        + "] with field mapper ["
+                        + fieldType().typeName()
+                        + "] "
+                        + "cannot be merged with "
+                        + "["
+                        + other.fieldType().typeName()
+                        + "] because they contain separate metrics"
+                );
+            }
             this.metrics = other.metrics;
         }
 

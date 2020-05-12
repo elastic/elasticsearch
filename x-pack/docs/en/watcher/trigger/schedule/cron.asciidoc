@@ -1,13 +1,14 @@
 [[schedule-cron]]
 ==== Cron schedule
 
-A <<trigger-schedule, `schedule`>> trigger that enables you to use a
-<<cron-expressions, cron expression>> to specify when you
-want the scheduler to start the watch execution.
+Defines a <<trigger-schedule, `schedule`>> using a <<cron-expressions, cron expression>> 
+that specifiues when to execute a watch.
 
-WARNING:  While cron` triggers are super powerful, we recommend using one of
-the other schedule types if you can, as they are much more
-straightforward to configure.
+TIP:  While cron expressions are powerful, a regularly occurring schedule 
+is easier to configure with the other schedule types. 
+If you must use a cron schedule, make sure you verify it with 
+<<elasticsearch-croneval, `elasticsearch-croneval`>> . 
+
 
 ===== Configure a cron schedule with one time
 

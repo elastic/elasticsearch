@@ -1,19 +1,18 @@
 [[cron-expressions]]
 === Cron expressions
 
-{es} uses the cron parser from the http://www.quartz-scheduler.org[Quartz Job Scheduler]. For more
-information about writing Quartz cron expressions, see the
-http://www.quartz-scheduler.org/documentation/quartz-2.2.x/tutorials/tutorial-lesson-06.html[Quartz CronTrigger Tutorial].
-
-All schedule times are in coordinated universal time (UTC); other timezones are
-not supported.
-
 A cron expression is a string of the following form:
 
 [source,txt]
 ------------------------------
     <seconds> <minutes> <hours> <day_of_month> <month> <day_of_week> [year]
 ------------------------------
+
+{es} uses the cron parser from the http://www.quartz-scheduler.org[Quartz Job Scheduler]. 
+For more information about writing Quartz cron expressions, see the
+http://www.quartz-scheduler.org/documentation/quartz-2.2.x/tutorials/tutorial-lesson-06.html[Quartz CronTrigger Tutorial].
+
+All schedule times are in coordinated universal time (UTC); other timezones are not supported.
 
 TIP: You can use the <<elasticsearch-croneval>> command line tool to validate your cron expressions.
 

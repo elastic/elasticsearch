@@ -158,7 +158,7 @@ startsWithFunctionSimple-caseSensitive
 process where startsWith(user_name, 'A')
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
-{"prefix":{"user_name":{"value":"A","boost":1.0}}}],"boost":1.0}}
+{"prefix":{"user_name":{"value":"A","boost":1.0}}}],"adjust_pure_negative":true,"boost":1.0}}
 ;
 
 startsWithFunctionWithCondition-caseSensitive
@@ -166,7 +166,7 @@ process where startsWith(user_name, 'A') or startsWith(user_name, 'B')
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
 {"bool":{"should":[{"prefix":{"user_name":{"value":"A","boost":1.0}}},
-{"prefix":{"user_name":{"value":"B","boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
+{"prefix":{"user_name":{"value":"B","boost":1.0}}}],"adjust_pure_negative":true,"boost":1.0}}]
 ;
 
 stringContains

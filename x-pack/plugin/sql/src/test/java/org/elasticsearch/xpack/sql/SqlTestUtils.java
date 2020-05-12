@@ -53,7 +53,7 @@ public final class SqlTestUtils {
 
     public static SqlConfiguration randomConfiguration() {
         return new SqlConfiguration(randomZone(),
-				randomIntBetween(0,  1000),
+                randomIntBetween(0,  1000),
                 new TimeValue(randomNonNegativeLong()),
                 new TimeValue(randomNonNegativeLong()),
                 null,

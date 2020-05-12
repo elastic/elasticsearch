@@ -26,7 +26,7 @@ jdks {
   }
 }
 
-task.register("getLinuxJdk") {
+tasks.register("getLinuxJdk") {
   dependsOn jdks.linux
   doLast {
     println "JDK HOME: " + jdks.linux

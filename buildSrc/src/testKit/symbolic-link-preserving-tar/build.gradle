@@ -43,7 +43,7 @@ tasks.register("buildGZipTar", SymbolicLinkPreservingTar) { SymbolicLinkPreservi
   }
 }
 
-tasks.register(buildTar(type: SymbolicLinkPreservingTar) { SymbolicLinkPreservingTar tar ->
+tasks.register("buildTar", SymbolicLinkPreservingTar) { SymbolicLinkPreservingTar tar ->
   tar.archiveExtension = 'tar'
   tar.preserveFileTimestamps = preserveFileTimestamps
   from fileTree(source)

@@ -42,7 +42,7 @@ clean.enabled = false
   }
 }
 
-task.register("jarhellJdk", Jar) {
+tasks.register("jarhellJdk", Jar) {
   destinationDir = file("${buildDir}/testrepo/org/other/gradle/jarhellJdk/0.0.1/")
   archiveFileName = "jarhellJdk-0.0.1.jar"
   from sourceSets.main.output

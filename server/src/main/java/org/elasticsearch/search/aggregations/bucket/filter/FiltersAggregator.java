@@ -163,23 +163,15 @@ public class FiltersAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        consumeBucketsAndMaybeBreak(keys.length + (showOtherBucket ? 1 : 0));
-        List<InternalFilters.InternalBucket> buckets = new ArrayList<>(keys.length);
-        for (int i = 0; i < keys.length; i++) {
-            long bucketOrd = bucketOrd(owningBucketOrdinal, i);
-            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(keys[i], bucketDocCount(bucketOrd),
-                    bucketAggregations(bucketOrd), keyed);
-            buckets.add(bucket);
-        }
-        // other bucket
-        if (showOtherBucket) {
-            long bucketOrd = bucketOrd(owningBucketOrdinal, keys.length);
-            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(otherBucketKey, bucketDocCount(bucketOrd),
-                    bucketAggregations(bucketOrd), keyed);
-            buckets.add(bucket);
-        }
-        return new InternalFilters(name, buckets, keyed, metadata());
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        return buildAggregationsForFixedBucketCount(owningBucketOrds, keys.length + (showOtherBucket ? 1 : 0),
+            (offsetInOwningOrd, docCount, subAggregationResults) -> {
+                if (offsetInOwningOrd < keys.length) {
+                    return new InternalFilters.InternalBucket(keys[offsetInOwningOrd], docCount,
+                            subAggregationResults, keyed);
+                }
+                return new InternalFilters.InternalBucket(otherBucketKey, docCount, subAggregationResults, keyed);
+            }, buckets -> new InternalFilters(name, buckets, keyed, metadata())); 
     }
 
     @Override

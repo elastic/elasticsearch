@@ -91,8 +91,9 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalReverseNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), metadata());
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
+            new InternalReverseNested(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
     }
 
     @Override

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -15,6 +16,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -68,10 +70,20 @@ public final class SchemaUtil {
         Map<String, String> aggregationTypes = new HashMap<>();
         // collects the fieldnames and target fieldnames used for grouping
         Map<String, String> fieldNamesForGrouping = new HashMap<>();
+        // collects the target mapping types used for grouping
+        Map<String, String> fieldTypesForGrouping = new HashMap<>();
 
         config.getGroupConfig()
             .getGroups()
-            .forEach((destinationFieldName, group) -> { fieldNamesForGrouping.put(destinationFieldName, group.getField()); });
+            .forEach((destinationFieldName, group) -> {
+                // We will always need the field name for the grouping to create the mapping
+                fieldNamesForGrouping.put(destinationFieldName, group.getField());
+                // Sometimes the group config will supply a desired mapping as well
+                if (group.getMappingType() != null) {
+                    fieldTypesForGrouping.put(destinationFieldName, group.getMappingType());
+                }
+            });
+
 
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
             Tuple<Map<String, String>, Map<String, String>> inputAndOutputTypes = Aggregations.getAggregationInputAndOutputTypes(agg);
@@ -95,7 +107,13 @@ public final class SchemaUtil {
             allFieldNames.values().toArray(new String[0]),
             ActionListener.wrap(
                 sourceMappings -> listener.onResponse(
-                    resolveMappings(aggregationSourceFieldNames, aggregationTypes, fieldNamesForGrouping, sourceMappings)
+                    resolveMappings(
+                        aggregationSourceFieldNames,
+                        aggregationTypes,
+                        fieldNamesForGrouping,
+                        fieldTypesForGrouping,
+                        sourceMappings
+                    )
                 ),
                 listener::onFailure
             )
@@ -131,6 +149,7 @@ public final class SchemaUtil {
         Map<String, String> aggregationSourceFieldNames,
         Map<String, String> aggregationTypes,
         Map<String, String> fieldNamesForGrouping,
+        Map<String, String> fieldTypesForGrouping,
         Map<String, String> sourceMappings
     ) {
         Map<String, String> targetMapping = new HashMap<>();
@@ -140,25 +159,34 @@ public final class SchemaUtil {
             String sourceMapping = sourceFieldName == null ? null : sourceMappings.get(sourceFieldName);
             String destinationMapping = Aggregations.resolveTargetMapping(aggregationName, sourceMapping);
 
-            logger.debug("Deduced mapping for: [{}], agg type [{}] to [{}]", targetFieldName, aggregationName, destinationMapping);
+            logger.debug(() -> new ParameterizedMessage(
+                "Deduced mapping for: [{}], agg type [{}] to [{}]",
+                targetFieldName,
+                aggregationName,
+                destinationMapping
+            ));
 
             if (Aggregations.isDynamicMapping(destinationMapping)) {
-                logger.debug("Dynamic target mapping set for field [{}] and aggregation [{}]", targetFieldName, aggregationName);
+                logger.debug(() -> new ParameterizedMessage(
+                    "Dynamic target mapping set for field [{}] and aggregation [{}]",
+                    targetFieldName,
+                    aggregationName
+                ));
             } else if (destinationMapping != null) {
                 targetMapping.put(targetFieldName, destinationMapping);
             } else {
-                logger.warn("Failed to deduce mapping for [" + targetFieldName + "], fall back to dynamic mapping.");
+                logger.warn("Failed to deduce mapping for [{}], fall back to dynamic mapping.", targetFieldName);
             }
         });
 
         fieldNamesForGrouping.forEach((targetFieldName, sourceFieldName) -> {
-            String destinationMapping = sourceMappings.get(sourceFieldName);
-            logger.debug("Deduced mapping for: [{}] to [{}]", targetFieldName, destinationMapping);
+            String destinationMapping = fieldTypesForGrouping.computeIfAbsent(targetFieldName, (s) -> sourceMappings.get(sourceFieldName));
+            logger.debug(() -> new ParameterizedMessage("Deduced mapping for: [{}] to [{}]", targetFieldName, destinationMapping));
             if (destinationMapping != null) {
                 targetMapping.put(targetFieldName, destinationMapping);
             } else {
-                logger.warn("Failed to deduce mapping for [" + targetFieldName + "], fall back to keyword.");
-                targetMapping.put(targetFieldName, "keyword");
+                logger.warn("Failed to deduce mapping for [{}], fall back to keyword.", targetFieldName);
+                targetMapping.put(targetFieldName, KeywordFieldMapper.CONTENT_TYPE);
             }
         });
 
@@ -196,7 +224,7 @@ public final class SchemaUtil {
                     // TODO: overwrites types, requires resolve if
                     // types are mixed
                     capabilitiesMap.forEach((name, capability) -> {
-                        logger.trace("Extracted type for [{}] : [{}]", fieldName, capability.getType());
+                        logger.trace(() -> new ParameterizedMessage("Extracted type for [{}] : [{}]", fieldName, capability.getType()));
                         extractedTypes.put(fieldName, capability.getType());
                     });
                 }

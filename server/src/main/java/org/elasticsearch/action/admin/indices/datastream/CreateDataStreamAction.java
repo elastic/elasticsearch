@@ -81,30 +81,14 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         }
 
         public Request(StreamInput in) throws IOException {
-            // TODO: replace if/else clauses with super(in); after backporting:
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                setParentTask(TaskId.readFromStream(in));
-                masterNodeTimeout(in.readTimeValue());
-                timeout(in.readTimeValue());
-            } else {
-                setParentTask(TaskId.readFromStream(in));
-                masterNodeTimeout(in.readTimeValue());
-            }
+            super(in);
             this.name = in.readString();
             this.timestampFieldName = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            // TODO: replace if/else clauses with super.writeTo(out); after backporting:
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                getParentTask().writeTo(out);
-                out.writeTimeValue(masterNodeTimeout());
-                out.writeTimeValue(timeout());
-            } else {
-                getParentTask().writeTo(out);
-                out.writeTimeValue(masterNodeTimeout());
-            }
+            super.writeTo(out);
             out.writeString(name);
             out.writeString(timestampFieldName);
         }

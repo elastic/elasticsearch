@@ -19,14 +19,13 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.geometry.Point;
@@ -34,9 +33,9 @@ import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
@@ -178,8 +177,9 @@ public class ExternalMapper extends FieldMapper {
         // Let's add a Dummy Point
         Double lat = 42.0;
         Double lng = 51.0;
-        GeoPoint point = new GeoPoint(lat, lng);
-        pointMapper.parse(context.createExternalValueContext(point));
+        ArrayList<GeoPoint> points = new ArrayList<>();
+        points.add(new GeoPoint(lat, lng));
+        pointMapper.parse(context.createExternalValueContext(points));
 
         // Let's add a Dummy Shape
         if (shapeMapper instanceof GeoShapeFieldMapper) {
@@ -198,7 +198,7 @@ public class ExternalMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         throw new UnsupportedOperationException();
     }
 

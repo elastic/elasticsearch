@@ -1,6 +1,6 @@
 [float]
 [[breaking_80_ilm_changes]]
-=== Index Lifecycle Management changes
+=== {ilm-cap} changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -9,16 +9,35 @@
 
 // end::notable-breaking-changes[]
 
-[float]
 [[ilm-poll-interval-limit]]
-==== `indices.lifecycle.poll_interval` must be greater than 1 second
-
+.The `indices.lifecycle.poll_interval` setting must be greater than `1s`.
+[%collapsible]
+====
+*Details* +
 The setting `indices.lifecycle.poll_interval`, if set too low, can cause
-excessive load on a cluster. This setting must now be set to 1 second or higher.
+excessive load on a cluster. This setting must now be set to `1s` (one second)
+or greater.
 
-[float]
+*Impact* +
+Update the `indices.lifecycle.poll_interval` setting to a value of `1s` or
+greater using `elasticsearch.yml` or the
+{ref}/cluster-update-settings.html[cluster update settings API].
+
+Setting `indices.lifecycle.poll_interval` to less than `1s` in
+`elasticsearch.yml` will result in an error on startup.
+{ref}/cluster-update-settings.html[Cluster update settings API] requests that
+set `indices.lifecycle.poll_interval` to less than `1s` will return an error.
+====
+
 [[ilm-hlrc-rename]]
-==== `indexlifecycle` packages renamed to `ilm`
-
+.The `indexlifecycle` package has been renamed `ilm` in the Java High Level REST Client.
+[%collapsible]
+====
+*Details* +
 In the high level REST client, the `indexlifecycle` package has been
-renamed to `ilm` to match the package rename inside the Elasticsearch code.
+renamed to `ilm` to match the package rename inside the {es} code.
+
+*Impact* +
+Update your workflow and applications to use the `ilm` package in place of
+`indexlifecycle`.
+====

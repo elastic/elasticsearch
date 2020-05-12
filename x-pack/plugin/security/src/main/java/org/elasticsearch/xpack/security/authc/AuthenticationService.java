@@ -49,11 +49,14 @@ import org.elasticsearch.xpack.security.authc.support.RealmUserLookup;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -462,11 +465,15 @@ public class AuthenticationService {
                                 // the user was not authenticated, call this so we can audit the correct event
                                 request.realmAuthenticationFailed(authenticationToken, realm.name());
                                 if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
-                                    logger.info("Authentication of [{}] was terminated by realm [{}] - {}",
-                                        authenticationToken.principal(), realm.name(), result.getMessage());
-                                    Exception e = (result.getException() != null) ? result.getException()
-                                        : Exceptions.authenticationError(result.getMessage());
-                                    userListener.onFailure(e);
+                                    if (result.getException() != null) {
+                                        logger.info(new ParameterizedMessage(
+                                                "Authentication of [{}] was terminated by realm [{}] - {}",
+                                                authenticationToken.principal(), realm.name(), result.getMessage()), result.getException());
+                                    } else {
+                                        logger.info("Authentication of [{}] was terminated by realm [{}] - {}",
+                                                authenticationToken.principal(), realm.name(), result.getMessage());
+                                    }
+                                    userListener.onFailure(result.getException());
                                 } else {
                                     if (result.getMessage() != null) {
                                         messages.put(realm, new Tuple<>(result.getMessage(), result.getException()));
@@ -488,7 +495,13 @@ public class AuthenticationService {
                 final IteratingActionListener<User, Realm> authenticatingListener =
                     new IteratingActionListener<>(ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(
                         (user) -> consumeUser(user, messages),
-                        (e) -> listener.onFailure(request.exceptionProcessingRequest(e, token))), threadContext),
+                        (e) -> {
+                            if (e != null) {
+                                listener.onFailure(request.exceptionProcessingRequest(e, token));
+                            } else {
+                                listener.onFailure(request.authenticationFailed(token));
+                            }
+                        }), threadContext),
                         realmAuthenticatingConsumer, realmsList, threadContext);
                 try {
                     authenticatingListener.run();
@@ -656,7 +669,8 @@ public class AuthenticationService {
                 logger.debug("user [{}] is disabled. failing authentication", finalUser);
                 listener.onFailure(request.authenticationFailed(authenticationToken));
             } else {
-                final Authentication finalAuth = new Authentication(finalUser, authenticatedBy, lookedupBy);
+                final Authentication finalAuth = new Authentication(
+                    maybeConsolidateRolesForUser(finalUser), authenticatedBy, lookedupBy);
                 writeAuthToContext(finalAuth);
             }
         }
@@ -688,6 +702,33 @@ public class AuthenticationService {
 
         private void authenticateToken(AuthenticationToken token) {
             this.consumeToken(token);
+        }
+
+        private User maybeConsolidateRolesForUser(User user) {
+            if (User.isInternal(user)) {
+                return user;
+            } else if (isAnonymousUserEnabled && anonymousUser.equals(user) == false) {
+                if (anonymousUser.roles().length == 0) {
+                    throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
+                }
+                User userWithMergedRoles = user.withRoles(mergeRoles(user.roles(), anonymousUser.roles()));
+                if (user.isRunAs()) {
+                    final User authUserWithMergedRoles = user.authenticatedUser().withRoles(
+                        mergeRoles(user.authenticatedUser().roles(), anonymousUser.roles()));
+                    userWithMergedRoles = new User(userWithMergedRoles, authUserWithMergedRoles);
+                }
+                return userWithMergedRoles;
+            } else {
+                return user;
+            }
+        }
+
+        private String[] mergeRoles(String[] existingRoles, String[] otherRoles) {
+            Set<String> roles = new LinkedHashSet<>(Arrays.asList(existingRoles));
+            if (otherRoles != null) {
+                Collections.addAll(roles, otherRoles);
+            }
+            return roles.toArray(new String[0]);
         }
     }
 

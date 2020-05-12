@@ -185,6 +185,47 @@ Divides the value to the left of the operator by the value to the right.
 Divides the value to the left of the operator by the value to the right. Returns only the remainder.
 ====
 
+[[eql-divide-operator-float-rounding]]
+[WARNING]
+====
+If both the dividend and divisor are integers, the divide (`\`) operation
+_rounds down_ any returned floating point numbers to the nearest integer.
+
+EQL queries in {es} should account for this rounding. To avoid rounding, convert
+either the dividend or divisor to a float.
+
+[%collapsible]
+.**Example**
+=====
+The `process.args_count` field is a <<number,`long`>> integer field containing a
+count of process arguments.
+
+A user might expect the following EQL query to only match events with a
+`process.args_count` value of `4`. 
+
+[source,eql]
+----
+process where ( 4 / process.args_count ) == 1
+----
+
+However, the EQL query matches events with a `process.args_count` value of `3`
+or `4`.
+
+For events with a `process.args_count` value of `3`, the divide operation
+returns a float of `1.333...`, which is rounded down to `1`.
+
+To match only events with a `process.args_count` value of `4`, convert
+either the dividend or divisor to a float.
+
+The following EQL query changes the integer `4` to the equivalent float `4.0`.
+
+[source,eql]
+----
+process where ( 4.0 / process.args_count ) == 1
+----
+=====
+====
+
 [discrete]
 [[eql-syntax-strings]]
 ==== Strings

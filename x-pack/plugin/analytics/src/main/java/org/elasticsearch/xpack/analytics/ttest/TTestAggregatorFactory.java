@@ -26,6 +26,8 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.analytics.ttest.TTestAggregationBuilder.A_FIELD;
+
 class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory {
 
     private final TTestType testType;
@@ -117,5 +119,10 @@ class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory {
             }
         }
         return null;
+    }
+
+    @Override
+    public String getStatsSubtype() {
+        return configs.get(A_FIELD.getPreferredName()).valueSourceType().typeName();
     }
 }

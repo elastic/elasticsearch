@@ -44,6 +44,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         STRING_STATS,
         TOP_METRICS,
         T_TEST,
+        MOVING_PERCENTILES,
         NORMALIZE;
     }
 

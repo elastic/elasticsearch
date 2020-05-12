@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MultiMatchQueryPredicate;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.ql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.MultiMatchQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.PrefixQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.RangeQuery;
@@ -374,6 +376,16 @@ public final class ExpressionTranslators {
         }
 
         public static Query doTranslate(ScalarFunction f, TranslatorHandler handler) {
+            if (f instanceof StartsWith) {
+                StartsWith sw = (StartsWith) f;
+                if (sw.isCaseSensitive() && sw.field() instanceof FieldAttribute && sw.pattern().foldable()) {
+                    String targetFieldName = handler.nameOf(((FieldAttribute) sw.field()).exactAttribute());
+                    String pattern = (String) sw.pattern().fold();
+
+                    return new PrefixQuery(f.source(), targetFieldName, pattern);
+                }
+            }
+
             return handler.wrapFunctionQuery(f, f, new ScriptQuery(f.source(), f.asScript()));
         }
     }

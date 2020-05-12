@@ -11,12 +11,14 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
+import org.junit.Assume;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
@@ -68,18 +70,14 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
                         throw new IllegalArgumentException("Duplicate test name '" + line + "' at line " + lineNumber
                                 + " (previously seen at line " + previousName + ")");
                     }
-                }
-
-                else if (query == null) {
+                } else if (query == null) {
                     sb.append(line);
                     if (line.endsWith(";")) {
                         sb.setLength(sb.length() - 1);
                         query = sb.toString();
                         sb.setLength(0);
                     }
-                }
-
-                else {
+                } else {
                     boolean done = false;
                     if (line.endsWith(";")) {
                         line = line.substring(0, line.length() - 1);
@@ -89,7 +87,6 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
                     if (line.equals("null") == false) {
                         expectations.add(line);
                     }
-
                     if (done) {
                         // Add and zero out for the next spec
                         addSpec(arr, name, query, expectations.isEmpty() ? null : expectations.toArray());
@@ -114,6 +111,11 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
     }
 
     public void test() {
+        // skip tests that do not make sense from case sensitivity point of view
+        boolean isCaseSensitiveValidTest = name.toLowerCase(Locale.ROOT).endsWith("-casesensitive") && configuration.isCaseSensitive() 
+            || name.toLowerCase(Locale.ROOT).endsWith("-caseinsensitive") && configuration.isCaseSensitive() == false;
+        Assume.assumeTrue(isCaseSensitiveValidTest);
+
         PhysicalPlan p = plan(query);
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;

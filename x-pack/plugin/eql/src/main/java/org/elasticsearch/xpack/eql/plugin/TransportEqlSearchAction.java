@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.eql.parser.ParserParams;
-import org.elasticsearch.xpack.eql.session.Configuration;
+import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.Results;
 
 import java.time.ZoneId;
@@ -69,8 +69,8 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             .fieldTimestamp(request.timestampField())
             .implicitJoinKey(request.implicitJoinKeyField());
 
-        Configuration cfg = new Configuration(request.indices(), zoneId, username, clusterName, filter, timeout, request.fetchSize(),
-                includeFrozen, clientId, new TaskId(nodeId, task.getId()), task::isCancelled);
+        EqlConfiguration cfg = new EqlConfiguration(request.indices(), zoneId, username, clusterName, filter, timeout, request.fetchSize(),
+                includeFrozen, request.isCaseSensitive(), clientId, new TaskId(nodeId, task.getId()), task::isCancelled);
         planExecutor.eql(cfg, request.query(), params, wrap(r -> listener.onResponse(createResponse(r)), listener::onFailure));
     }
 

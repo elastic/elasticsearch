@@ -30,6 +30,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.eql.EqlTestUtils.TEST_CFG;
+
 public class OptimizerTests extends ESTestCase {
 
 
@@ -47,7 +49,7 @@ public class OptimizerTests extends ESTestCase {
 
     private LogicalPlan accept(IndexResolution resolution, String eql) {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
-        Analyzer analyzer = new Analyzer(new EqlFunctionRegistry(), new Verifier());
+        Analyzer analyzer = new Analyzer(TEST_CFG, new EqlFunctionRegistry(), new Verifier());
         Optimizer optimizer = new Optimizer();
         return optimizer.optimize(analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql), resolution)));
     }

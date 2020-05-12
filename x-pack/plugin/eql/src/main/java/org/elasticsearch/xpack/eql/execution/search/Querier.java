@@ -19,7 +19,7 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
-import org.elasticsearch.xpack.eql.session.Configuration;
+import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.eql.session.Results;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -33,7 +33,7 @@ public class Querier {
 
     private static final Logger log = LogManager.getLogger(Querier.class);
 
-    private final Configuration cfg;
+    private final EqlConfiguration cfg;
     private final Client client;
     private final TimeValue keepAlive;
     private final QueryBuilder filter;

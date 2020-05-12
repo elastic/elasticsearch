@@ -77,7 +77,8 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "{{field1}}");
         String processorTag = randomAlphaOfLength(10);
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, null, config));
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+            () -> factory.create(null, processorTag, null, config));
         assertThat(exception.getMessage(), equalTo("java.lang.RuntimeException: could not compile script"));
         assertThat(exception.getMetadata("es.processor_tag").get(0), equalTo(processorTag));
     }

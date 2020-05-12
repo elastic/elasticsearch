@@ -89,8 +89,8 @@ public final class CsvProcessor extends AbstractProcessor {
 
     public static final class Factory implements org.elasticsearch.ingest.Processor.Factory {
         @Override
-        public CsvProcessor create(Map<String, org.elasticsearch.ingest.Processor.Factory> registry, String processorTag, String description,
-                                   Map<String, Object> config) {
+        public CsvProcessor create(Map<String, org.elasticsearch.ingest.Processor.Factory> registry, String processorTag,
+                                   String description, Map<String, Object> config) {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String quote = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "quote", "\"");
             if (quote.length() != 1) {

@@ -29,11 +29,12 @@ public abstract class AbstractProcessor implements Processor {
     protected final String tag;
     protected final String description;
 
-    //TODO: remove the description to see what fails .. fix them , then maybe add it back
     protected AbstractProcessor(String tag, String description){
         this.tag = tag;
         this.description = description;
     }
+
+    //TODO: remove this and what fails .. fix them , then maybe add it back but deprecrate to keep breaking java minimal
     protected AbstractProcessor(String tag) {
         this(tag, null);
     }

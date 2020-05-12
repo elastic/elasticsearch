@@ -31,8 +31,8 @@ public class PipelineProcessor extends AbstractProcessor {
     private final TemplateScript.Factory pipelineTemplate;
     private final IngestService ingestService;
 
-    PipelineProcessor(String tag, TemplateScript.Factory pipelineTemplate, IngestService ingestService) {
-        super(tag);
+    PipelineProcessor(String tag, String description, TemplateScript.Factory pipelineTemplate, IngestService ingestService) {
+        super(tag, description);
         this.pipelineTemplate = pipelineTemplate;
         this.ingestService = ingestService;
     }
@@ -81,7 +81,7 @@ public class PipelineProcessor extends AbstractProcessor {
             Map<String, Object> config) throws Exception {
             TemplateScript.Factory pipelineTemplate =
                 ConfigurationUtils.readTemplateProperty(TYPE, processorTag, config, "name", ingestService.getScriptService());
-            return new PipelineProcessor(processorTag, pipelineTemplate, ingestService);
+            return new PipelineProcessor(processorTag, description, pipelineTemplate, ingestService);
         }
     }
 }

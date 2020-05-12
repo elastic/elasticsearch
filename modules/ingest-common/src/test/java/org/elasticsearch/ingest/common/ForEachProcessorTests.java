@@ -203,7 +203,7 @@ public class ForEachProcessorTests extends ESTestCase {
 
         ForEachProcessor processor = new ForEachProcessor(
                 "_tag", "values", new CompoundProcessor(false,
-                Collections.singletonList(new UppercaseProcessor("_tag_upper", "_ingest._value", false, "_ingest._value")),
+                Collections.singletonList(new UppercaseProcessor("_tag_upper", null, "_ingest._value", false, "_ingest._value")),
                 Collections.singletonList(new AppendProcessor("_tag", template, (model) -> (Collections.singletonList("added"))))
         ), false);
         processor.execute(ingestDocument, (result, e) -> {});

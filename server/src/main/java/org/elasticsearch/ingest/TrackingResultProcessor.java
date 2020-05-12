@@ -19,12 +19,9 @@
 
 package org.elasticsearch.ingest;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ingest.SimulateProcessorResult;
-import org.elasticsearch.common.collect.Tuple;
 
-import java.lang.ref.Reference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -49,13 +46,17 @@ public final class TrackingResultProcessor implements Processor {
 
     @Override
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
-        if (conditionalProcessor != null ) {
+        final String tag = actualProcessor.getTag();
+        final String description = actualProcessor.getDescription();
+        final String conditional = conditionalProcessor == null ? null : conditionalProcessor.getConditional();
+        if (conditionalProcessor != null) {
             if (conditionalProcessor.evaluate(ingestDocument) == false) {
+                //no execute
+                processorResultList.add(new SimulateProcessorResult(tag, description, conditional, false, null));
                 handler.accept(ingestDocument, null);
                 return;
             }
         }
-
         if (actualProcessor instanceof PipelineProcessor) {
             PipelineProcessor pipelineProcessor = ((PipelineProcessor) actualProcessor);
             Pipeline pipeline = pipelineProcessor.getPipeline(ingestDocument);
@@ -68,10 +69,11 @@ public final class TrackingResultProcessor implements Processor {
                     //else do nothing, let the tracking processors throw the exception while recording the path up to the failure
                     if (elasticsearchException.getCause() instanceof IllegalStateException) {
                         if (ignoreFailure) {
-                            processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getTag(), pipelineProcessor.getDescription(), null, true,
-                                new IngestDocument(ingestDocument), e));
+                            processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getTag(),
+                                pipelineProcessor.getDescription(), null, true, new IngestDocument(ingestDocument), e));
                         } else {
-                            processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getTag(), pipelineProcessor.getDescription(), null, e));
+                            processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getTag(),
+                                pipelineProcessor.getDescription(), null, true, null, e));
                         }
                         handler.accept(null, elasticsearchException);
                     }
@@ -80,31 +82,34 @@ public final class TrackingResultProcessor implements Processor {
                     CompoundProcessor verbosePipelineProcessor = decorate(pipeline.getCompoundProcessor(), null, processorResultList);
                     Pipeline verbosePipeline = new Pipeline(pipeline.getId(), pipeline.getDescription(), pipeline.getVersion(),
                         verbosePipelineProcessor);
+                    //pipeline processor
+                    processorResultList.add(new SimulateProcessorResult(tag, description, conditional, true, null));
                     ingestDocument.executePipeline(verbosePipeline, handler);
                 }
             });
             return;
         }
 
-
-        final SetOnce<String> conditional = new SetOnce<>();
-                processorResultList.add(new SimulateProcessorResult(actualProcessor.getTag(), actualProcessor.getDescription(), conditionalProcessor.getConditional(), false));
-            } else{
-                conditional.set(conditionalProcessor.getConditional());
         actualProcessor.execute(ingestDocument, (result, e) -> {
             if (e != null) {
                 if (ignoreFailure) {
-                    processorResultList.add(new SimulateProcessorResult(processor.getTag(), new IngestDocument(ingestDocument), e));
+                    //failure - ignore
+                    processorResultList.add(new SimulateProcessorResult(tag, description, conditional, true,
+                        new IngestDocument(ingestDocument), e));
                 } else {
-                    processorResultList.add(new SimulateProcessorResult(processor.getTag(), e));
+                    //failure - don't ignore
+                    processorResultList.add(new SimulateProcessorResult(tag, description, conditional, true, null, e));
                 }
                 handler.accept(null, e);
             } else {
                 if (result != null) {
-                    processorResultList.add(new SimulateProcessorResult(processor.getTag(), new IngestDocument(ingestDocument)));
+                    //success
+                    processorResultList.add(new SimulateProcessorResult(tag, description, conditional, true,
+                        new IngestDocument(ingestDocument)));
                     handler.accept(result, null);
                 } else {
-                    processorResultList.add(new SimulateProcessorResult(processor.getTag()));
+                    //drop
+                    processorResultList.add(new SimulateProcessorResult(tag, description, conditional, true, null));
                     handler.accept(null, null);
                 }
             }

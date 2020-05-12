@@ -102,7 +102,8 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         );
     }
 
-    public SimulateProcessorResult(String processorTag, String description, String conditional, boolean executed, IngestDocument ingestDocument, Exception failure) {
+    public SimulateProcessorResult(String processorTag, String description, String conditional, boolean executed,
+                                   IngestDocument ingestDocument, Exception failure) {
         this.processorTag = processorTag;
         this.description = description;
         this.ingestDocument = (ingestDocument == null) ? null : new WriteableIngestDocument(ingestDocument);
@@ -111,21 +112,10 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         this.executed = executed;
     }
 
-    public SimulateProcessorResult(String processorTag, String description, String conditional, IngestDocument ingestDocument) {
-        this(processorTag, description, conditional, true, ingestDocument, null);
+    public SimulateProcessorResult(String processorTag, String description, String conditional, boolean executed,
+                                   IngestDocument ingestDocument) {
+        this(processorTag, description, conditional, executed, ingestDocument, null);
     }
-
-    public SimulateProcessorResult(String processorTag, String description, String conditional, Exception failure) {
-        this(processorTag, description, conditional, true, null, failure);
-    }
-    public SimulateProcessorResult(String processorTag, String description, String conditional, boolean executed) {
-        this(processorTag, description, conditional, executed, null, null);
-    }
-
-    public SimulateProcessorResult(String processorTag, String description, String conditional) {
-        this(processorTag, description, conditional, true, null, null);
-    }
-
 
     /**
      * Read from a stream.

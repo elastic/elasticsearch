@@ -39,8 +39,8 @@ abstract class AbstractStringProcessor<T> extends AbstractProcessor {
     private final boolean ignoreMissing;
     private final String targetField;
 
-    AbstractStringProcessor(String tag, String field, boolean ignoreMissing, String targetField) {
-        super(tag);
+    AbstractStringProcessor(String tag, String description, String field, boolean ignoreMissing, String targetField) {
+        super(tag, description);
         this.field = field;
         this.ignoreMissing = ignoreMissing;
         this.targetField = targetField;
@@ -111,10 +111,10 @@ abstract class AbstractStringProcessor<T> extends AbstractProcessor {
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(processorType, tag, config, "ignore_missing", false);
             String targetField = ConfigurationUtils.readStringProperty(processorType, tag, config, "target_field", field);
 
-            return newProcessor(tag, config, field, ignoreMissing, targetField);
+            return newProcessor(tag, description, config, field, ignoreMissing, targetField);
         }
 
-        protected abstract AbstractStringProcessor<?> newProcessor(String processorTag, Map<String, Object> config, String field,
-                                                                   boolean ignoreMissing, String targetField);
+        protected abstract AbstractStringProcessor<?> newProcessor(String processorTag, String description, Map<String, Object> config,
+                                                                   String field, boolean ignoreMissing, String targetField);
     }
 }

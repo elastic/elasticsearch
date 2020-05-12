@@ -238,7 +238,7 @@ public class PipelineProcessorTests extends ESTestCase {
             });
             if (i < (numPipelines - 1)) {
                 TemplateScript.Factory pipelineName = new TestTemplateService.MockTemplateScript.Factory(Integer.toString(i + 1));
-                processors.add(new PipelineProcessor(null, pipelineName, ingestService));
+                processors.add(new PipelineProcessor(null, null, pipelineName, ingestService));
             }
 
 

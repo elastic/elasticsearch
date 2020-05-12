@@ -74,12 +74,14 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
         if (isSuccessful) {
             IngestDocument ingestDocument = createRandomIngestDoc();
             if (isIgnoredException) {
-                simulateProcessorResult = new SimulateProcessorResult(processorTag, null, null, true, ingestDocument, new IllegalArgumentException("test"));
+                simulateProcessorResult = new SimulateProcessorResult(processorTag, null, null, true, ingestDocument,
+                    new IllegalArgumentException("test"));
             } else {
-                simulateProcessorResult = new SimulateProcessorResult(processorTag, null, null, ingestDocument);
+                simulateProcessorResult = new SimulateProcessorResult(processorTag, null, null, true, ingestDocument);
             }
         } else {
-            simulateProcessorResult = new SimulateProcessorResult(processorTag, null, null, new IllegalArgumentException("test"));
+            simulateProcessorResult = new SimulateProcessorResult(processorTag, null, null, true, null,
+                new IllegalArgumentException("test"));
         }
         return simulateProcessorResult;
     }

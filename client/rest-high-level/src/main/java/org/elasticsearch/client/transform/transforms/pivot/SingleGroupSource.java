@@ -36,7 +36,8 @@ public abstract class SingleGroupSource implements ToXContentObject {
     public enum Type {
         TERMS,
         HISTOGRAM,
-        DATE_HISTOGRAM;
+        DATE_HISTOGRAM,
+        GEOTILE_GRID;
 
         public String value() {
             return name().toLowerCase(Locale.ROOT);

@@ -27,6 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
@@ -203,7 +204,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
         }
 
         public boolean hasFailures() {
-            return failures != null && failures.length > 0;
+            return CollectionUtils.isEmpty(failures) == false;
         }
 
         public int getId() {

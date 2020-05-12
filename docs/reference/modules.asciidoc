@@ -25,19 +25,9 @@ The modules in this section are:
 <<modules-cluster,Shard allocation and cluster-level routing>>::
 
     Settings to control where, when, and how shards are allocated to nodes.
-
-<<modules-gateway,Gateway>>::
-
-    How many nodes need to join the cluster before recovery can start.
-
-<<modules-indices,Indices>>::
-
-    Global index-related settings.
 --
 
 
 include::modules/discovery.asciidoc[]
 
 include::modules/cluster.asciidoc[]
-
-include::modules/gateway.asciidoc[]

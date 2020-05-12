@@ -29,7 +29,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
-import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -55,7 +54,6 @@ public class RestUpdateAction extends BaseRestHandler {
         updateRequest.routing(request.param("routing"));
         updateRequest.timeout(request.paramAsTime("timeout", updateRequest.timeout()));
         updateRequest.setRefreshPolicy(request.param("refresh"));
-        updateRequest.preferV2Templates(RestCreateIndexAction.preferV2Templates(request));
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {
             updateRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));

@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
+import org.elasticsearch.xpack.analytics.movingPercentiles.MovingPercentilesPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.stringstats.InternalStringStats;
 import org.elasticsearch.xpack.analytics.stringstats.StringStatsAggregationBuilder;
 import org.elasticsearch.xpack.analytics.topmetrics.InternalTopMetrics;
@@ -52,6 +53,7 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -71,13 +73,18 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public List<PipelineAggregationSpec> getPipelineAggregations() {
-        return singletonList(
-            new PipelineAggregationSpec(
-                CumulativeCardinalityPipelineAggregationBuilder.NAME,
-                CumulativeCardinalityPipelineAggregationBuilder::new,
-                usage.track(AnalyticsStatsAction.Item.CUMULATIVE_CARDINALITY,
-                        checkLicense(CumulativeCardinalityPipelineAggregationBuilder.PARSER)))
-        );
+        List<PipelineAggregationSpec> pipelineAggs = new ArrayList<>();
+        pipelineAggs.add(new PipelineAggregationSpec(
+            CumulativeCardinalityPipelineAggregationBuilder.NAME,
+            CumulativeCardinalityPipelineAggregationBuilder::new,
+            usage.track(AnalyticsStatsAction.Item.CUMULATIVE_CARDINALITY,
+                checkLicense(CumulativeCardinalityPipelineAggregationBuilder.PARSER))));
+        pipelineAggs.add(new PipelineAggregationSpec(
+            MovingPercentilesPipelineAggregationBuilder.NAME,
+            MovingPercentilesPipelineAggregationBuilder::new,
+            usage.track(AnalyticsStatsAction.Item.MOVING_PERCENTILES,
+                checkLicense(MovingPercentilesPipelineAggregationBuilder.PARSER))));
+        return pipelineAggs;
     }
 
     @Override

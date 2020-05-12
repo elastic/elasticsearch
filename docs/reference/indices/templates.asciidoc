@@ -9,11 +9,9 @@ replaced by V2 templates. For information about V2 templates, see <<indices-temp
 
 [NOTE]
 ====
-In {es} 7.8 the `prefer_v2_templates` querystring parameter was introduced to the index, update,
-bulk, and create index APIs to allow configuring whether to favor V2 or V1 index templates. In 7.x
-the default value for this parameter is `false` meaning that the V1 index templates take precedence.
-In 8.x the default value for the parameter is `true` meaning that <<indices-templates,V2 index
-templates>> take precedence (V1 templates may still match if no V2 template matches).
+In {es} 7.8 V2 templates were introduced. When a V2 index template matches a given index it always
+takes precedence over a V1 template. If no V2 index template matches, a V1 template may still match
+and be applied.
 ====
 
 Creates or updates an index template.

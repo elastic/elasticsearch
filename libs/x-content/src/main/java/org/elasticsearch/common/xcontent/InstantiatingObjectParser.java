@@ -20,12 +20,9 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.ParseField;
-import org.yaml.snakeyaml.util.ArrayUtils;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -67,11 +64,6 @@ import java.util.function.Consumer;
 public class InstantiatingObjectParser<Value, Context>
     implements BiFunction<XContentParser, Context, Value>, ContextParser<Context, Value> {
 
-    public static <Value, Context> Builder<Value, Context> builder(String name, boolean ignoreUnknownFields,
-                                                                   Class<Value> valueClass, Object... constructorArgs) {
-        return new Builder<>(name, ignoreUnknownFields, valueClass, constructorArgs);
-    }
-
     public static <Value, Context> Builder<Value, Context> builder(String name, boolean ignoreUnknownFields, Class<Value> valueClass) {
         return new Builder<>(name, ignoreUnknownFields, valueClass);
     }
@@ -88,8 +80,6 @@ public class InstantiatingObjectParser<Value, Context>
 
         private Constructor<Value> constructor;
 
-        private final Object[] constructorArgs;
-
         public Builder(String name, Class<Value> valueClass) {
             this(name, false, valueClass);
         }
@@ -97,19 +87,12 @@ public class InstantiatingObjectParser<Value, Context>
         public Builder(String name, boolean ignoreUnknownFields, Class<Value> valueClass) {
             this.constructingObjectParser = new ConstructingObjectParser<>(name, ignoreUnknownFields, this::build);
             this.valueClass = valueClass;
-            this.constructorArgs = new Object[] {};
-        }
-
-        public Builder(String name, boolean ignoreUnknownFields, Class<Value> valueClass, Object... constructorArgs) {
-            this.constructingObjectParser = new ConstructingObjectParser<>(name, ignoreUnknownFields, this::build);
-            this.valueClass = valueClass;
-            this.constructorArgs = constructorArgs;
         }
 
         @SuppressWarnings("unchecked")
         public InstantiatingObjectParser<Value, Context> build() {
             Constructor<?> constructor = null;
-            int neededArguments = constructingObjectParser.getNumberOfFields() + constructorArgs.length;
+            int neededArguments = constructingObjectParser.getNumberOfFields();
             // Try to find an annotated constructor
             for (Constructor<?> c : valueClass.getConstructors()) {
                 if (c.getAnnotation(ParserConstructor.class) != null) {
@@ -189,14 +172,8 @@ public class InstantiatingObjectParser<Value, Context>
                 throw new IllegalArgumentException("InstantiatingObjectParser for type " + valueClass.getName() + " has to be finalized " +
                     "before the first use");
             }
-            Object[] allArgs = args;
-            if (constructorArgs.length > 0) {
-                allArgs = new Object[args.length + constructorArgs.length];
-                System.arraycopy(constructorArgs, 0, allArgs, 0, constructorArgs.length);
-                System.arraycopy(args, 0, allArgs, constructorArgs.length, args.length);
-            }
             try {
-                return constructor.newInstance(allArgs);
+                return constructor.newInstance(args);
             } catch (Exception ex) {
                 throw new IllegalArgumentException("Cannot instantiate an object of " + valueClass.getName(), ex);
             }

@@ -49,6 +49,14 @@ public class CIDRMatch extends ScalarFunction {
         this.addresses = addresses == null ? emptyList() : addresses;
     }
 
+    public Expression field() {
+        return field;
+    }
+
+    public List<Expression> addresses() {
+        return addresses;
+    }
+
     @Override
     protected TypeResolution resolveType() {
         if (!childrenResolved()) {

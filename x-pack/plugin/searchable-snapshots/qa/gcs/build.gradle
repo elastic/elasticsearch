@@ -61,10 +61,6 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
   serviceAccountFile = new File(gcsServiceAccount)
 }
 
-def encodedCredentials = {
-  Base64.encoder.encodeToString(Files.readAllBytes(serviceAccountFile.toPath()))
-}
-
 /** A service account file that points to the Google Cloud Storage service emulated by the fixture **/
 task createServiceAccountFile() {
   doLast {

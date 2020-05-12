@@ -1,6 +1,7 @@
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'x-pack-ccr'
   description 'Elasticsearch Expanded Pack Plugin - CCR'
@@ -16,27 +17,17 @@ integTest.enabled = false
 // Integration Test classes that cannot run with the security manager
 String[] noSecurityManagerITClasses = ["**/CloseFollowerIndexIT.class"]
 
-task internalClusterTestNoSecurityManager(type: Test) {
-  description = 'Java fantasy integration tests with no security manager'
-
+tasks.register('internalClusterTestNoSecurityManager', Test) {
+  testClassesDirs = sourceSets.internalClusterTest.output.classesDirs
+  classpath = sourceSets.internalClusterTest.runtimeClasspath
   include noSecurityManagerITClasses
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
   systemProperty 'tests.security.manager', 'false'
 }
+check.dependsOn 'internalClusterTestNoSecurityManager'
 
-// Instead we create a separate task to run the
-// tests based on ESIntegTestCase
-task internalClusterTest(type: Test) {
-  description = 'Java fantasy integration tests'
-  dependsOn internalClusterTestNoSecurityManager
-  mustRunAfter test
-
-  include '**/*IT.class'
+tasks.named('internalClusterTest').configure {
   exclude noSecurityManagerITClasses
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }
-
-check.dependsOn internalClusterTest
 
 // add all sub-projects of the qa sub-project
 gradle.projectsEvaluated {

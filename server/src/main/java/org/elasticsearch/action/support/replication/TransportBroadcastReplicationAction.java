@@ -137,7 +137,7 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
     }
 
     protected boolean shouldIncludeDataStreams() {
-        return false;
+        return true;
     }
 
     protected abstract ShardResponse newShardResponse();

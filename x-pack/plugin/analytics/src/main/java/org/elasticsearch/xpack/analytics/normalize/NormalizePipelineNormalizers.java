@@ -124,7 +124,7 @@ class NormalizePipelineNormalizers {
             double max = Double.MIN_VALUE;
 
             for (double value : values) {
-                if (Double.isNaN(value)) {
+                if (Double.isNaN(value) == false) {
                     count += 1;
                     min = Math.min(value, min);
                     max = Math.max(value, max);

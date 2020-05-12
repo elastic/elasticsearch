@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.analytics.normalize;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.InstantiatingObjectParser;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
@@ -35,17 +35,17 @@ import static org.elasticsearch.xpack.analytics.normalize.NormalizePipelineNorma
 
 public class NormalizePipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<NormalizePipelineAggregationBuilder> {
     public static final String NAME = "normalize";
-    public static final InstantiatingObjectParser<NormalizePipelineAggregationBuilder, String> PARSER;
     static final ParseField NORMALIZER_FIELD = new ParseField("normalizer");
 
+    @SuppressWarnings("unchecked")
+    public static final ConstructingObjectParser<NormalizePipelineAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
+        NAME, false, (args, name) -> new NormalizePipelineAggregationBuilder(name, (String) args[0],
+        (String) args[1], (List<String>) args[2]));
 
     static {
-        InstantiatingObjectParser.Builder<NormalizePipelineAggregationBuilder, String> parser = InstantiatingObjectParser.builder(
-            NAME, false, NormalizePipelineAggregationBuilder.class, NAME);
-        parser.declareString(optionalConstructorArg(), FORMAT);
-        parser.declareString(constructorArg(), NORMALIZER_FIELD);
-        parser.declareStringArray(constructorArg(), BUCKETS_PATH_FIELD);
-        PARSER = parser.build();
+        PARSER.declareString(optionalConstructorArg(), FORMAT);
+        PARSER.declareString(constructorArg(), NORMALIZER_FIELD);
+        PARSER.declareStringArray(constructorArg(), BUCKETS_PATH_FIELD);
     }
 
     static final Map<String, Function<double[], DoubleUnaryOperator>> NAME_MAP = Map.of(

@@ -58,7 +58,8 @@ public class NormalizePipelineAggregator extends PipelineAggregator {
 
             final double normalizedBucketValue;
 
-            // Only account for finite values
+            // Only account for valid values. infite-valued buckets were converted to NaNs by
+            // the time they reach here.
             if (Double.isNaN(values[i])) {
                 normalizedBucketValue = Double.NaN;
             } else {

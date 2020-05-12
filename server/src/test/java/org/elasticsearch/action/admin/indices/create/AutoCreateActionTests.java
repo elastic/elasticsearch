@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateV2.DataStreamTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.List;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -37,9 +37,10 @@ public class AutoCreateActionTests extends ESTestCase {
         {
             Metadata.Builder mdBuilder = new Metadata.Builder();
             DataStreamTemplate dataStreamTemplate = new DataStreamTemplate("@timestamp");
-            mdBuilder.put("1", new IndexTemplateV2(List.of("legacy-logs-*"), null, null, 10L, null, null, null));
-            mdBuilder.put("2", new IndexTemplateV2(List.of("logs-*"), null, null, 20L, null, null, dataStreamTemplate));
-            mdBuilder.put("3", new IndexTemplateV2(List.of("logs-foobar"), null, null, 30L, null, null, dataStreamTemplate));
+            mdBuilder.put("1", new IndexTemplateV2(Collections.singletonList("legacy-logs-*"), null, null, 10L, null, null, null));
+            mdBuilder.put("2", new IndexTemplateV2(Collections.singletonList("logs-*"), null, null, 20L, null, null, dataStreamTemplate));
+            mdBuilder.put("3",
+                new IndexTemplateV2(Collections.singletonList("logs-foobar"), null, null, 30L, null, null, dataStreamTemplate));
             metadata = mdBuilder.build();
         }
 

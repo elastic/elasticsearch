@@ -56,7 +56,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -226,7 +225,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         PutIndexTemplateV2Action.Request createTemplateRequest = new PutIndexTemplateV2Action.Request("logs-foo");
         createTemplateRequest.indexTemplate(
             new IndexTemplateV2(
-                List.of("logs-foo*"),
+                Collections.singletonList("logs-foo*"),
                 new Template(settings, null, null),
                 null, null, null, null,
                 new IndexTemplateV2.DataStreamTemplate("@timestamp"))
@@ -283,7 +282,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
 
         PutIndexTemplateRequest v1Request = new PutIndexTemplateRequest("logs-foo");
-        v1Request.patterns(List.of("logs-foo*"));
+        v1Request.patterns(Collections.singletonList("logs-foo*"));
         v1Request.settings(settings);
         v1Request.order(Integer.MAX_VALUE); // in order to avoid number_of_replicas being overwritten by random_template
         client().admin().indices().putTemplate(v1Request).actionGet();

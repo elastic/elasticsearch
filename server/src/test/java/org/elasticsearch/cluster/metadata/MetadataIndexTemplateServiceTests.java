@@ -612,9 +612,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         ComponentTemplate ct = ComponentTemplateTests.randomInstance();
         state = service.addComponentTemplate(state, true, "ct", ct);
-        IndexTemplateV2 it = new IndexTemplateV2(Collections.singletonList("i*"), null, Collections.singletonList("ct"), null, 1L, null, null);
+        IndexTemplateV2 it =
+            new IndexTemplateV2(Collections.singletonList("i*"), null, Collections.singletonList("ct"), null, 1L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
-        IndexTemplateV2 it2 = new IndexTemplateV2(Collections.singletonList("in*"), null, Collections.singletonList("ct"), 10L, 2L, null, null);
+        IndexTemplateV2 it2 =
+            new IndexTemplateV2(Collections.singletonList("in*"), null, Collections.singletonList("ct"), 10L, 2L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template2", it2);
 
         String result = MetadataIndexTemplateService.findV2Template(state.metadata(), "index", randomBoolean());
@@ -629,9 +631,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         ComponentTemplate ct = ComponentTemplateTests.randomInstance();
         state = service.addComponentTemplate(state, true, "ct", ct);
-        IndexTemplateV2 it = new IndexTemplateV2(Collections.singletonList("i*"), null, Collections.singletonList("ct"), 0L, 1L, null, null);
+        IndexTemplateV2 it =
+            new IndexTemplateV2(Collections.singletonList("i*"), null, Collections.singletonList("ct"), 0L, 1L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
-        IndexTemplateV2 it2 = new IndexTemplateV2(Collections.singletonList("*"), null, Collections.singletonList("ct"), 10L, 2L, null, null);
+        IndexTemplateV2 it2 =
+            new IndexTemplateV2(Collections.singletonList("*"), null, Collections.singletonList("ct"), 10L, 2L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template2", it2);
 
         String result = MetadataIndexTemplateService.findV2Template(state.metadata(), "index", true);

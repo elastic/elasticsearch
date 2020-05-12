@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.datastream;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -35,17 +34,13 @@ import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.List;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Objects;
 
 public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
@@ -83,30 +78,13 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         }
 
         public Request(StreamInput in) throws IOException {
-            // TODO: replace if/else clauses with super(in); after backporting:
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                setParentTask(TaskId.readFromStream(in));
-                masterNodeTimeout(in.readTimeValue());
-                timeout(in.readTimeValue());
-            } else {
-                setParentTask(TaskId.readFromStream(in));
-                masterNodeTimeout(in.readTimeValue());
-            }
+            super(in);
             this.name = in.readString();
             this.timestampFieldName = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            // TODO: replace if/else clauses with super.writeTo(out); after backporting:
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                getParentTask().writeTo(out);
-                out.writeTimeValue(masterNodeTimeout());
-                out.writeTimeValue(timeout());
-            } else {
-                getParentTask().writeTo(out);
-                out.writeTimeValue(masterNodeTimeout());
-            }
             super.writeTo(out);
             out.writeString(name);
             out.writeString(timestampFieldName);

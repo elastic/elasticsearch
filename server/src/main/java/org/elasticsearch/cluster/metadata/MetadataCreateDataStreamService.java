@@ -35,7 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.List;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -78,7 +78,7 @@ public class MetadataCreateDataStreamService {
             finalListener::onFailure
         );
         clusterService.submitStateUpdateTask("create-data-stream [" + request.name + "]",
-            new AckedClusterStateUpdateTask<>(Priority.HIGH, request, listener) {
+            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.HIGH, request, listener) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
@@ -140,7 +140,7 @@ public class MetadataCreateDataStreamService {
         assert firstBackingIndex != null;
 
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(
-            new DataStream(request.name, request.timestampFieldName, List.of(firstBackingIndex.getIndex())));
+            new DataStream(request.name, request.timestampFieldName, Collections.singletonList(firstBackingIndex.getIndex())));
         logger.info("adding data stream [{}]", request.name);
         return ClusterState.builder(currentState).metadata(builder).build();
     }

@@ -27,8 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.List;
-import java.util.Map;
+import java.util.Collections;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
 import static org.hamcrest.Matchers.containsString;
@@ -59,9 +58,9 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = "my-data-stream";
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).build();
-        DataStream existingDataStream = new DataStream(dataStreamName, "timestamp", List.of(idx.getIndex()));
+        DataStream existingDataStream = new DataStream(dataStreamName, "timestamp", Collections.singletonList(idx.getIndex()));
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().dataStreams(Map.of(dataStreamName, existingDataStream)).build()).build();
+            .metadata(Metadata.builder().dataStreams(Collections.singletonMap(dataStreamName, existingDataStream)).build()).build();
         CreateDataStreamClusterStateUpdateRequest req =
             new CreateDataStreamClusterStateUpdateRequest(dataStreamName, "@timestamp", TimeValue.ZERO, TimeValue.ZERO);
 

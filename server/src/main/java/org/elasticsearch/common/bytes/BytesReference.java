@@ -99,7 +99,7 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
                 references[i] = fromByteBuffer(buffers[i]);
             }
 
-            return new CompositeBytesReference(references);
+            return CompositeBytesReference.of(references);
         }
     }
 

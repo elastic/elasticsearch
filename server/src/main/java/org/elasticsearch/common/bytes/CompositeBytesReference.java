@@ -52,7 +52,7 @@ public final class CompositeBytesReference extends AbstractBytesReference {
         }
     }
 
-    CompositeBytesReference(BytesReference... references) {
+    private CompositeBytesReference(BytesReference... references) {
         assert references.length > 1
                 : "Should not build composite reference from less than two references but received [" + references.length + "]";
         this.references = Objects.requireNonNull(references, "references must not be null");

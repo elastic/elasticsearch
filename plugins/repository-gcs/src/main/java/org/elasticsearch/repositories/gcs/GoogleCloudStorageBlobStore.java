@@ -411,4 +411,14 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         assert s != null;
         return keyPath + s;
     }
+
+    @Override
+    public Map<String, Long> stats() {
+        try {
+            return storageService.stats(clientName).toMap();
+        } catch (IOException e) {
+            logger.error(() -> new ParameterizedMessage("unable to get GCS usage stats for client [{}]", clientName), e);
+            return Collections.emptyMap();
+        }
+    }
 }

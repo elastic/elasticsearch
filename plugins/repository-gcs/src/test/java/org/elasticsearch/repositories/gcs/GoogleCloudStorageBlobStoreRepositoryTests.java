@@ -38,6 +38,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -49,6 +50,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.threeten.bp.Duration;
 
 import java.io.IOException;
@@ -65,6 +67,10 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BU
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CLIENT_NAME;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
+// Need to set up a new cluster for each test because GCS client is shared across tests and then
+// the operations tracking won't match with the operations tracked on the Mock HTTP server since
+// the handlers for those are recreated for each test.
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
     @Override
@@ -89,7 +95,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
         return Map.of(
-            "/", new GoogleCloudStorageBlobStoreHttpHandler("bucket"),
+            "/", new GoogleCloudStorageStatsCollectorHttpHandler(new GoogleCloudStorageBlobStoreHttpHandler("bucket")),
             "/token", new FakeOAuth2HttpHandler()
         );
     }
@@ -279,6 +285,26 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             // Batch requests are not retried so we don't want to fail them
             // The batched request are supposed to be retried (not tested here)
             return exchange.getRequestURI().toString().startsWith("/batch/") == false;
+        }
+    }
+
+    /**
+     * HTTP handler that keeps track of requests performed against GCP.
+     */
+    @SuppressForbidden(reason = "this tests uses a HttpServer to emulate an GCS endpoint")
+    private static class GoogleCloudStorageStatsCollectorHttpHandler extends HttpStatsCollectorHandler {
+
+        public GoogleCloudStorageStatsCollectorHttpHandler(final HttpHandler delegate) {
+            super(delegate);
+        }
+
+        @Override
+        public void maybeTrack(final String request) {
+            if (Regex.simpleMatch("GET /storage/v1/b/*/o*", request)) {
+                trackRequest("LIST");
+            } else if (Regex.simpleMatch("GET /download/storage/v1/b/*", request)) {
+                trackRequest("GET");
+            }
         }
     }
 }

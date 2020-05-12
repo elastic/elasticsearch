@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateV2Action;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateV2Action;
 import org.elasticsearch.action.index.IndexRequest;
@@ -58,6 +59,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -273,8 +276,8 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         assertThat(getIndexResponse.getIndices(), hasItemInArray("logs-barfoo2"));
         assertThat(getIndexResponse.getIndices(), hasItemInArray("logs-barfoo3"));
 
-        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request("*");
-        client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();
+        DeleteIndexTemplateV2Action.Request deleteTemplateRequest = new DeleteIndexTemplateV2Action.Request("*");
+        client().execute(DeleteIndexTemplateV2Action.INSTANCE, deleteTemplateRequest).actionGet();
     }
 
     public void testAutoCreateV1TemplateNoDataStream() {
@@ -283,6 +286,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         PutIndexTemplateRequest v1Request = new PutIndexTemplateRequest("logs-foo");
         v1Request.patterns(List.of("logs-foo*"));
         v1Request.settings(settings);
+        v1Request.order(Integer.MAX_VALUE); // in order to avoid number_of_replicas being overwritten by random_template
         client().admin().indices().putTemplate(v1Request).actionGet();
 
         BulkRequest bulkRequest = new BulkRequest();

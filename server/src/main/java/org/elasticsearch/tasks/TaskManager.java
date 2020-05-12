@@ -611,7 +611,7 @@ public class TaskManager implements ClusterStateApplier {
     public Releasable startTrackingCancellableChannelTask(TcpChannel channel, CancellableTask task) {
         assert cancellableTasks.containsKey(task.getId()) : "task [" + task.getId() + "] is not registered yet";
         final ChannelPendingTaskTracker tracker = channelPendingTaskTrackers.computeIfAbsent(channel, k -> new ChannelPendingTaskTracker());
-        tracker.pendingTasks.add(task);
+        tracker.addTask(task);
         if (tracker.registered.compareAndSet(false, true)) {
             channel.addCloseListener(ActionListener.wrap(
                 r -> {
@@ -626,7 +626,7 @@ public class TaskManager implements ClusterStateApplier {
                     assert false : new AssertionError("must not be here", e);
                 }));
         }
-        return () -> tracker.pendingTasks.remove(task);
+        return () -> tracker.removeTask(task);
     }
 
     /**
@@ -640,5 +640,15 @@ public class TaskManager implements ClusterStateApplier {
     private static class ChannelPendingTaskTracker {
         final AtomicBoolean registered = new AtomicBoolean();
         final Set<CancellableTask> pendingTasks = ConcurrentCollections.newConcurrentSet();
+
+        void addTask(CancellableTask task) {
+            final boolean added = pendingTasks.add(task);
+            assert added : "task " + task.getId() + " is on the pending list already";
+        }
+
+        void removeTask(CancellableTask task) {
+            final boolean removed = pendingTasks.remove(task);
+            assert removed : "task " + task.getId() + " is not in the pending list";
+        }
     }
 }

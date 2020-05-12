@@ -19,9 +19,10 @@ to reproduce locally
 **Applicable branches**:
 
 **Failure history**:
+<!--
 Link to build stats and possible indication of when this started failing and how often it fails
 <https://build-stats.elastic.co/app/kibana>
-
+-->
 **Failure excerpt**:
 
 

@@ -16,7 +16,7 @@ import java.util.List;
 /**
  * Sum all values of a field in matching documents.
  */
-public class Sum extends NumericAggregate implements EnclosedAgg {
+public class Sum extends FoldableNumericAggregate implements EnclosedAgg {
 
     public Sum(Source source, Expression field) {
         super(source, field);

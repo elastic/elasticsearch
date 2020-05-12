@@ -21,7 +21,7 @@ import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isNumeri
 /**
  * Find the maximum value in matching documents.
  */
-public class Max extends NumericAggregate implements EnclosedAgg {
+public class Max extends FoldableNumericAggregate implements EnclosedAgg {
 
     public Max(Source source, Expression field) {
         super(source, field);

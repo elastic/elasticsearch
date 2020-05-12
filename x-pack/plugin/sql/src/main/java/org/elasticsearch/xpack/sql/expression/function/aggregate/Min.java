@@ -21,7 +21,7 @@ import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isNumeri
 /**
  * Find the minimum value in matched documents.
  */
-public class Min extends NumericAggregate implements EnclosedAgg {
+public class Min extends FoldableNumericAggregate implements EnclosedAgg {
 
     public Min(Source source, Expression field) {
         super(source, field);

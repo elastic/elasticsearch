@@ -76,13 +76,6 @@ public class TestingConventionsTasks extends DefaultTask {
         return getProject().getTasks()
             .withType(Test.class)
             .stream()
-            // hardcoded to the old test task names, this will change as they are converted to individual source sets
-            .filter(
-                t -> t.getName().equals("test")
-                    || t.getPath().startsWith(":qa")
-                    || t.getPath().startsWith(":x-pack:qa")
-                    || t.getName().endsWith("Runner")
-            )
             .filter(Task::getEnabled)
             .collect(Collectors.toMap(Task::getPath, task -> task.getCandidateClassFiles().getFiles()));
     }
@@ -166,8 +159,10 @@ public class TestingConventionsTasks extends DefaultTask {
 
             final Map<String, Set<File>> classFilesPerTask = getClassFilesPerEnabledTask();
 
+            final Set<File> testSourceSetFiles = Util.getJavaTestSourceSet(getProject()).get().getRuntimeClasspath().getFiles();
             final Map<String, Set<Class<?>>> testClassesPerTask = classFilesPerTask.entrySet()
                 .stream()
+                .filter(entry -> testSourceSetFiles.containsAll(entry.getValue()))
                 .collect(
                     Collectors.toMap(
                         Map.Entry::getKey,

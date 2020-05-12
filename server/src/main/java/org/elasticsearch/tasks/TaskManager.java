@@ -643,7 +643,7 @@ public class TaskManager implements ClusterStateApplier {
 
         void addTask(CancellableTask task) {
             final boolean added = pendingTasks.add(task);
-            assert added : "task " + task.getId() + " is on the pending list already";
+            assert added : "task " + task.getId() + " is in the pending list already";
         }
 
         void removeTask(CancellableTask task) {

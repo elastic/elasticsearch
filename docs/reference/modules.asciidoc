@@ -21,13 +21,7 @@ The modules in this section are:
 <<modules-discovery,Discovery and cluster formation>>::
 
     How nodes discover each other, elect a master and form a cluster.
-
-<<modules-cluster,Shard allocation and cluster-level routing>>::
-
-    Settings to control where, when, and how shards are allocated to nodes.
 --
 
 
 include::modules/discovery.asciidoc[]
-
-include::modules/cluster.asciidoc[]

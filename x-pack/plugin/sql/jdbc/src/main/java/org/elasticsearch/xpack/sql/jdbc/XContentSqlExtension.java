@@ -22,7 +22,9 @@ public class XContentSqlExtension implements XContentBuilderExtension {
 
     @Override
     public Map<Class<?>, XContentBuilder.Writer> getXContentWriters() {
-        return Map.of(Date.class, (b, v) -> b.value(((Date) v).getTime()));
+        Map<Class<?>, XContentBuilder.Writer> map = new HashMap<>();
+        map.put(Date.class, (b, v) -> b.value(((Date) v).getTime()));
+        return map;
     }
 
     @Override
@@ -32,6 +34,8 @@ public class XContentSqlExtension implements XContentBuilderExtension {
 
     @Override
     public Map<Class<?>, Function<Object, Object>> getDateTransformers() {
-        return Map.of(Date.class, d -> ((Date) d).getTime());
+        Map<Class<?>, Function<Object, Object>> map = new HashMap<>();
+        map.put(Date.class, d -> ((Date) d).getTime());
+        return map;
     }
 }

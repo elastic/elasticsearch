@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.eql.execution.search.extractor.FieldHitExtractor;
 import org.elasticsearch.xpack.eql.querydsl.container.ComputedRef;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.eql.querydsl.container.SearchHitFieldRef;
-import org.elasticsearch.xpack.eql.session.Configuration;
+import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.Results;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
@@ -43,12 +43,12 @@ class SearchAfterListener implements ActionListener<SearchResponse> {
     private final ActionListener<Results> listener;
 
     private final Client client;
-    private final Configuration cfg;
+    private final EqlConfiguration cfg;
     private final List<Attribute> output;
     private final QueryContainer container;
     private final SearchRequest request;
 
-    SearchAfterListener(ActionListener<Results> listener, Client client, Configuration cfg, List<Attribute> output,
+    SearchAfterListener(ActionListener<Results> listener, Client client, EqlConfiguration cfg, List<Attribute> output,
                                QueryContainer container, SearchRequest request) {
 
         this.listener = listener;

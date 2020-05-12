@@ -104,7 +104,7 @@ the document that matched the query.
 [[run-request-body-search]]
 === Run a request body search
 
-You can use the search API's <<search-api-request-body-query,`query` request
+You can use the search API's <<request-body-search-query,`query` request
 body parameter>> to provide a query as a JSON object, written in
 <<query-dsl,Query DSL>>.
 

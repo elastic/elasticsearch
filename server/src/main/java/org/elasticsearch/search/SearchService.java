@@ -700,6 +700,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             readerContext = null;
             return finalReaderContext;
         } finally {
+            if (readerContext != null) {
+                removeReaderContext(readerContext.id().getId());
+            }
             Releasables.close(reader, readerContext, decreaseScrollContexts);
         }
     }
@@ -714,22 +717,25 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final IndexShard shard = indexService.getShard(shardId.id());
         final SearchOperationListener searchOperationListener = shard.getSearchOperationListener();
         shard.awaitShardSearchActive(ignored -> {
-            Releasable releasable = null;
+            Engine.SearcherSupplier searcherSupplier = null;
+            ReaderContext readerContext = null;
             try {
-                final Engine.SearcherSupplier reader = shard.acquireSearcherSupplier();
-                releasable = reader;
-                final ReaderContext readerContext = new ReaderContext(
-                    idGenerator.incrementAndGet(), shard, reader, keepAlive.millis(), false);
-                releasable = readerContext;
+                searcherSupplier = shard.acquireSearcherSupplier();
+                readerContext = new ReaderContext(
+                    idGenerator.incrementAndGet(), shard, searcherSupplier, keepAlive.millis(), false);
+                final ReaderContext finalReaderContext = readerContext;
+                searcherSupplier = null; // transfer ownership to reader context
                 searchOperationListener.onNewReaderContext(readerContext);
-                readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(readerContext));
+                readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(finalReaderContext));
                 putReaderContext(readerContext);
-                releasable = null;
-                listener.onResponse(readerContext.id());
+                readerContext = null;
+                listener.onResponse(finalReaderContext.id());
             } catch (Exception exc) {
+                if (readerContext != null) {
+                    removeReaderContext(readerContext.id().getId());
+                }
+                Releasables.closeWhileHandlingException(searcherSupplier, readerContext);
                 listener.onFailure(exc);
-            } finally {
-                Releasables.close(releasable);
             }
         });
     }

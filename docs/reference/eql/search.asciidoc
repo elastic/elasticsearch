@@ -3,7 +3,7 @@
 [[eql-search]]
 == Run an EQL search
 
-experimental::[]
+dev::[]
 
 To start using EQL in {es}, first ensure your event data meets
 <<eql-requirements,EQL requirements>>. You can then use the <<eql-search-api,EQL

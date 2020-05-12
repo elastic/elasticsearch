@@ -6,6 +6,8 @@
 <titleabbrev>Get autoscaling decision</titleabbrev>
 ++++
 
+dev::[]
+
 Get autoscaling decision.
 
 [[autoscaling-get-autoscaling-decision-request]]

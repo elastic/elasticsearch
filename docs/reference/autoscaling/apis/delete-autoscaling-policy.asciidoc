@@ -6,6 +6,8 @@
 <titleabbrev>Delete autoscaling policy</titleabbrev>
 ++++
 
+dev::[]
+
 Delete autoscaling policy.
 
 [[autoscaling-delete-autoscaling-policy-request]]

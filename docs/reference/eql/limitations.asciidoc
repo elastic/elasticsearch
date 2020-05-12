@@ -6,7 +6,7 @@
 <titleabbrev>Limitations</titleabbrev>
 ++++
 
-experimental::[]
+dev::[]
 
 [discrete]
 [[eql-nested-fields]]

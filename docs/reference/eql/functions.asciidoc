@@ -4,7 +4,7 @@
 <titleabbrev>Function reference</titleabbrev>
 ++++
 
-experimental::[]
+dev::[]
 
 {es} supports the following EQL functions:
 

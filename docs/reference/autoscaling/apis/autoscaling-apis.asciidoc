@@ -3,6 +3,8 @@
 [[autoscaling-apis]]
 == Autoscaling APIs
 
+dev::[]
+
 You can use the following APIs to perform autoscaling operations.
 
 [float]

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BaseSurrogateFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -19,10 +20,11 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 
@@ -37,22 +39,13 @@ public class Match extends BaseSurrogateFunction {
     private final List<Expression> patterns;
 
     public Match(Source source, Expression field, List<Expression> patterns) {
-        this(source, ensurePatternsOnTheRight(field, patterns));
+        this(source, CollectionUtils.combine(singletonList(field), patterns));
     }
 
     private Match(Source source, List<Expression> children) {
         super(source, children);
         this.field = children().get(0);
         this.patterns = children().subList(1, children().size());
-    }
-
-    private static List<Expression> ensurePatternsOnTheRight(Expression field, List<Expression> patterns) {
-        Expression e = patterns.get(patterns.size() - 1);
-        if (field.foldable() && e.foldable() == false) {
-            return CollectionUtils.combine(Arrays.asList(e, field), patterns.subList(0, patterns.size() - 1));
-        } else {
-            return CollectionUtils.combine(singletonList(field), patterns);
-        }
     }
 
     @Override
@@ -79,29 +72,39 @@ public class Match extends BaseSurrogateFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isStringAndExact(field, sourceText(), ParamOrdinal.FIRST);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-
-        int index = 1;
-        for (Expression regex : patterns) {
+        TypeResolution resolution;
+        int index = 0;
+        List<Integer> nonFoldables = new ArrayList<>(2);
+        for (Expression e : children()) {
             // Currently we have limited enum for ordinal numbers
             // So just using default here for error messaging
-            resolution = isStringAndExact(regex, sourceText(), ParamOrdinal.fromIndex(index));
+            ParamOrdinal paramOrd = ParamOrdinal.fromIndex(index);
+            resolution = isStringAndExact(e, sourceText(), paramOrd);
             if (resolution.unresolved()) {
                 return resolution;
             }
-
-            resolution = isFoldable(regex, sourceText(), ParamOrdinal.fromIndex(index));
+            resolution = isFoldable(e, sourceText(), paramOrd);
             if (resolution.unresolved()) {
-                break;
+                nonFoldables.add(index);
             }
-
             index++;
         }
 
-        return resolution;
+        if (nonFoldables.size() == 2) {
+            StringBuilder sb = new StringBuilder(format(null, "only one argument of [{}] must be non-constant but multiple found: ",
+                sourceText()));
+            for (Integer i : nonFoldables) {
+                ParamOrdinal pOrd = ParamOrdinal.fromIndex(i);
+                sb.append(format(null, "{}argument: [{}]",
+                    pOrd == ParamOrdinal.DEFAULT ? "" : pOrd.name().toLowerCase(Locale.ROOT) + " ",
+                    Expressions.name(children().get(i))));
+                sb.append(", ");
+            }
+            sb.delete(sb.length() - 2, sb.length());
+            return new TypeResolution(sb.toString());
+        }
+
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override

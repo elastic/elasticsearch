@@ -83,9 +83,21 @@ process where match(command_line, '.*?net[1]?  localgroup.*?', '.*? myappserver.
 '''
 
 [[queries]]
+expected_event_ids  = [50, 97, 98]
+query = '''
+process where match('.*?net[1]?  localgroup.*?', command_line,'.*? myappserver.py .*?')
+'''
+
+[[queries]]
 expected_event_ids  = [50, 98]
 query = '''
 process where match(substring(command_line, 5), '.*?net[1]?  localgroup.*?', '.*? myappserver.py .*?')
+'''
+
+[[queries]]
+expected_event_ids  = [50, 98]
+query = '''
+process where match('.*?net[1]?  localgroup.*?', '.*? myappserver.py .*?', substring(command_line, 5, 50))
 '''
 
 [[queries]]

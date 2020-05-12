@@ -145,8 +145,17 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
             () -> plan("process where match(process_name, parent_process_name)"));
         String msg = e.getMessage();
         assertEquals("Found 1 problem\n" +
-            "line 1:15: second argument of [match(process_name, parent_process_name)] " +
-            "must be a constant, received [parent_process_name]", msg);
+            "line 1:15: only one argument of [match(process_name, parent_process_name)] must be non-constant but multiple found: " +
+            "first argument: [process_name], second argument: [parent_process_name]", msg);
+    }
+
+    public void testMatchWithTwoArgsNonString() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where match('abc', process_name, 'foo', 'bar', parent_process_name, 'def')"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\n" +
+            "line 1:15: only one argument of [match('abc', process_name, 'foo', 'bar', parent_process_name, 'def')] must be non-constant " +
+            "but multiple found: second argument: [process_name], fifth argument: [parent_process_name]", msg);
     }
 
     public void testMatchWithNonRegex() {

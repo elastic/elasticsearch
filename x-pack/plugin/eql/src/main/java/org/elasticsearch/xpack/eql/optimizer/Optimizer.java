@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.eql.optimizer;
 
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.Match;
 import org.elasticsearch.xpack.eql.util.StringUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
@@ -30,7 +31,9 @@ import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 public class Optimizer extends RuleExecutor<LogicalPlan> {
 
@@ -41,6 +44,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
         Batch substitutions = new Batch("Operator Replacement", Limiter.ONCE,
+                new MatchLiteralsOnTheRight(),
                 new ReplaceSurrogateFunction());
                 
         Batch operators = new Batch("Operator Optimization",
@@ -118,6 +122,33 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }
                 }
 
+                return e;
+            });
+        }
+    }
+
+    private static class MatchLiteralsOnTheRight extends OptimizerRule<Filter> {
+
+        @Override
+        protected LogicalPlan rule(Filter filter) {
+            return filter.transformExpressionsUp(e -> {
+                if (e instanceof Match) {
+                    Match m = (Match) e;
+                    if (m.children().get(0).foldable()) {
+                        int size = m.children().size();
+                        List<Expression> newChildren = new ArrayList<>(size);
+                        Expression field = null;
+                        for (Expression c : m.children()) {
+                            if (c.foldable() == false) {
+                                field = c;
+                            } else {
+                                newChildren.add(c);
+                            }
+                        }
+                        newChildren.add(0, field);
+                        return m.replaceChildren(newChildren);
+                    }
+                }
                 return e;
             });
         }

@@ -6,11 +6,8 @@
 
 package org.elasticsearch.xpack.eql.analysis;
 
-import org.elasticsearch.xpack.eql.expression.function.scalar.string.Match;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.Function;
@@ -41,8 +38,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
         Batch resolution = new Batch("Resolution",
                 new ResolveRefs(),
-                new ResolveFunctions(),
-                new MatchLiteralsOnTheRight());
+                new ResolveFunctions());
 
         return singletonList(resolution);
     }
@@ -119,26 +115,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     FunctionDefinition def = functionRegistry.resolveFunction(functionName);
                     Function f = uf.buildResolved(null, def);
                     return f;
-                }
-                return e;
-            });
-        }
-    }
-
-    private class MatchLiteralsOnTheRight extends AnalyzerRule<LogicalPlan> {
-
-        @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
-            return plan.transformExpressionsUp(e -> {
-                if (e instanceof Match) {
-                    Match m = (Match) e;
-                    int size = m.children().size();
-                    if ((m.children().get(size - 1) instanceof Literal) == false) {
-                        List<Expression> newChildren = new ArrayList<>(m.children().size());
-                        newChildren.add(m.children().get(size - 1));
-                        newChildren.addAll(m.children().subList(0, size - 1));
-                        return m.replaceChildren(newChildren);
-                    }
                 }
                 return e;
             });

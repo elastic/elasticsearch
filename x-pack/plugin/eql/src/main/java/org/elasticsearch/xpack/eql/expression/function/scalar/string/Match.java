@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
@@ -36,9 +37,22 @@ public class Match extends BaseSurrogateFunction {
     private final List<Expression> patterns;
 
     public Match(Source source, Expression field, List<Expression> patterns) {
-        super(source, CollectionUtils.combine(singletonList(field), patterns));
-        this.field = field;
-        this.patterns = patterns;
+        this(source, ensurePatternsOnTheRight(field, patterns));
+    }
+
+    private Match(Source source, List<Expression> children) {
+        super(source, children);
+        this.field = children().get(0);
+        this.patterns = children().subList(1, children().size());
+    }
+
+    private static List<Expression> ensurePatternsOnTheRight(Expression field, List<Expression> patterns) {
+        Expression e = patterns.get(patterns.size() - 1);
+        if (field.foldable() && e.foldable() == false) {
+            return CollectionUtils.combine(Arrays.asList(e, field), patterns.subList(0, patterns.size() - 1));
+        } else {
+            return CollectionUtils.combine(singletonList(field), patterns);
+        }
     }
 
     @Override
@@ -51,7 +65,7 @@ public class Match extends BaseSurrogateFunction {
         if (newChildren.size() < 2) {
             throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
         }
-        return new Match(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()));
+        return new Match(source(), newChildren);
     }
 
     @Override

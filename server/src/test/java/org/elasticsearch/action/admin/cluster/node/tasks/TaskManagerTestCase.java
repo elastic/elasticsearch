@@ -93,8 +93,11 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
     @After
     public final void shutdownTestNodes() throws Exception {
-        for (TestNode testNode : testNodes) {
-            testNode.close();
+        if (testNodes != null) {
+            for (TestNode testNode : testNodes) {
+                testNode.close();
+            }
+            testNodes = null;
         }
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         threadPool = null;

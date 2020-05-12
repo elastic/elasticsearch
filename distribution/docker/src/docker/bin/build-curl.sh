@@ -1,15 +1,21 @@
 #!/bin/sh
 
-# Originally from: https://github.com/dtschan/curl-static/blob/ab8ccc3ff140af860065c04b1e9bcd20bbe2c2d2/build.sh
-# License: https://github.com/dtschan/curl-static/blob/ab8ccc3ff1/LICENSE
+# This script is based upon the following URL, but it has been modified so that
+# Docker is run externally to this script.
+#
+# https://github.com/dtschan/curl-static/blob/ab8ccc3ff140af860065c04b1e9bcd20bbe2c2d2/build.sh
+#
+# For license and copyright information, see:
+#
+# https://github.com/dtschan/curl-static/blob/ab8ccc3ff1/LICENSE
 
 # This script must run in an Alpine Linux environment
 
 set -e
 
-VERSION=LATEST
-# If you prefer a specific version you can set it specifically
-# VERSION=7.66.0
+VERSION=7.70.0
+# If you prefer to just build the latest version, use the following line:
+# VERSION=LATEST
 GPG_KEY_URL="https://daniel.haxx.se/mykey.asc"
 GPG_KEY_PATH="/work/curl-gpg.pub"
 

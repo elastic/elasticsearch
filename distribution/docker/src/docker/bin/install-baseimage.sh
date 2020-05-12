@@ -7,6 +7,9 @@
 # 
 # https://github.com/moby/moby/blob/master/contrib/mkimage-yum.sh
 
+declare -r BUSYBOX_VERSION="1.31.0"
+declare -r TINI_VERSION="0.19.0"
+
 set -e
 
 usage() {
@@ -49,21 +52,24 @@ mknod -m 666 "$target"/dev/urandom c 1 9
 mknod -m 666 "$target"/dev/zero c 1 5
 
 # Install files. We attempt to install a headless Java distro, and exclude a
-# number of unnecessary dependencies. In so doing, we also filter out Java itself,
-# but since Elasticsearch ships its own JDK, with its own libs, that isn't a problem
-# and in fact is what we want.
+# number of unnecessary dependencies. In so doing, we also filter out Java
+# itself, but since Elasticsearch ships its own JDK, with its own libs, that
+# isn't a problem and in fact is what we want.
 #
 # Note that we also skip coreutils, as it pulls in all kinds of stuff that
 # we don't want.
 #
-# Note that I haven't yet verified that these dependencies are, in fact, unnecessary.
+# Note that I haven't yet verified that these dependencies are, in fact,
+# unnecessary.
 #
 # We also include some utilities that we ship with the image.
 #
-#   * `nc` is useful for checking network issues
-#   * `zip` and `unzip` are for working with bundles
-#   * `pigz` is used for compressing large heaps dumps, and is considerably faster than `gzip` for this task.
-#   * `tini` is a tiny but valid init for containers. This is used to cleanly control how ES and any child processes are shut down.
+#   * `nc` is useful for checking network issues.
+#   * `zip` for working with bundles (BusyBox, below, gives us `unzip`)
+#   * `pigz` is used for compressing large heaps dumps, and is considerably
+#     faster than `gzip` for this task.
+#   * `tini` is a tiny but valid init for containers. This is used to cleanly
+#     control how ES and any child processes are shut down.
 #
 yum --installroot="$target" --releasever=/ --setopt=tsflags=nodocs \
   --setopt=group_package_types=mandatory -y  \
@@ -72,11 +78,11 @@ yum --installroot="$target" --releasever=/ --setopt=tsflags=nodocs \
   --skip-broken \
   install \
     java-latest-openjdk-headless \
-    bash nc zip upzip pigz
+    bash nc zip pigz
 
 ARCH="$(basename $platform)"
-curl --retry 10 -L -o "$target"/bin/tini-static-$ARCH           "https://github.com/krallin/tini/releases/download/v0.19.0/tini-static-$ARCH"
-curl --retry 10 -L -o "$target"/bin/tini-static-$ARCH.sha256sum "https://github.com/krallin/tini/releases/download/v0.19.0/tini-static-$ARCH.sha256sum"
+curl --retry 10 -L -o "$target"/bin/tini-static-$ARCH           "https://github.com/krallin/tini/releases/download/v${TINI_VERSION}/tini-static-$ARCH"
+curl --retry 10 -L -o "$target"/bin/tini-static-$ARCH.sha256sum "https://github.com/krallin/tini/releases/download/v${TINI_VERSION}/tini-static-$ARCH.sha256sum"
 (cd "$target/bin" && sha256sum -c tini-static-$ARCH.sha256sum)
 rm "$target"/bin/tini-static-$ARCH.sha256sum
 mv "$target"/bin/tini-static-$ARCH "$target"/bin/tini
@@ -84,9 +90,9 @@ chmod +x "$target"/bin/tini
 
 # Use busybox instead of installing more RPMs, which can pull in all kinds of
 # stuff we don't want. There's no RPM for busybox available for CentOS.
-BUSYBOX_URL="https://busybox.net/downloads/binaries/1.31.0-i686-uclibc/busybox"
+BUSYBOX_URL="https://busybox.net/downloads/binaries/${BUSYBOX_VERSION}-i686-uclibc/busybox"
 if [[ "$platform" == "linux/arm64" ]]; then
-  BUSYBOX_URL="https://www.busybox.net/downloads/binaries/1.31.0-defconfig-multiarch-musl/busybox-armv8l"
+  BUSYBOX_URL="https://www.busybox.net/downloads/binaries/${BUSYBOX_VERSION}-defconfig-multiarch-musl/busybox-armv8l"
 fi
 curl --retry 10 -L -o "$target"/bin/busybox "$BUSYBOX_URL"
 chmod +x "$target"/bin/busybox
@@ -104,7 +110,7 @@ cp /curl "$target"/usr/bin/curl
 # Curl needs files under here. More importantly, we change Elasticsearch's
 # bundled JDK to use /etc/pki/ca-trust/extracted/java/cacerts instead of
 # the bundled cacerts.
-tar cf - /etc/pki | (cd "$target" && tar xf -)
+mkdir -p "$target"/etc && cp -a /etc/pki "$target"/etc/
 
 yum --installroot="$target" -y clean all
 

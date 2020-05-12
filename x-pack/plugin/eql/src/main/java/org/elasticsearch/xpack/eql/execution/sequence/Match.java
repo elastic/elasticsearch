@@ -10,6 +10,9 @@ import org.elasticsearch.search.SearchHit;
 
 import java.util.Objects;
 
+/**
+ * A match within a sequence, holding the result and occurrance time.
+ */
 class Match {
 
     private final long timestamp;

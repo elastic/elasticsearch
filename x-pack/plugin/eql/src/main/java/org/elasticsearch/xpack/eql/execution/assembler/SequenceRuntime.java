@@ -21,6 +21,9 @@ import java.util.List;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 
+/**
+ * Executable tracking sequences at runtime.
+ */
 class SequenceRuntime implements Executable {
 
     private final List<Criterion> criteria;

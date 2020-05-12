@@ -18,6 +18,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.eql.EqlSearchRequest;
 import org.elasticsearch.client.eql.EqlSearchResponse;
+import org.elasticsearch.client.eql.EqlSearchResponse.Hits;
+import org.elasticsearch.client.eql.EqlSearchResponse.Sequence;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
@@ -181,7 +183,16 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
     }
 
     protected void assertResponse(EqlSearchResponse response) {
-        assertSearchHits(response.hits().events());
+        Hits hits = response.hits();
+        if (hits.events() != null) {
+            assertSearchHits(hits.events());
+        }
+        else if (hits.sequences() != null) {
+            assertSequences(hits.sequences());
+        }
+        else {
+            fail("No events or sequences found");
+        }
     }
 
     protected EqlSearchResponse runQuery(String index, String query) throws Exception {
@@ -205,6 +216,13 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
     protected void assertSearchHits(List<SearchHit> events) {
         assertNotNull(events);
         assertArrayEquals("unexpected result for spec: [" + spec.toString() + "]", spec.expectedEventIds(), extractIds(events));
+    }
+
+    protected void assertSequences(List<Sequence> sequences) {
+        List<SearchHit> events = sequences.stream()
+                .flatMap(s -> s.events().stream())
+                .collect(toList());
+        assertSearchHits(events);
     }
 
     private RestHighLevelClient highLevelClient() {

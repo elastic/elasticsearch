@@ -19,7 +19,8 @@ import java.util.Objects;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 /**
- * Instance of a sequence. Defined by its key and stage.
+ * Holder class representing the instance of a sequence. Used at runtime by the engine to track sequences.
+ * Defined by its key and stage.
  * This class is NOT immutable (to optimize memory) which means its associations need to be managed.
  */
 public class Sequence {

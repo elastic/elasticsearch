@@ -13,7 +13,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 /**
- * Class holding and managing all in-flight sequences.
+ * State machine that holds and manages all in-flight sequences.
  */
 public class SequenceStateMachine {
 

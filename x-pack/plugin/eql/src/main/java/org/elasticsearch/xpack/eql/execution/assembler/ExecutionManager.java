@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.listener.RuntimeUtils;
 import org.elasticsearch.xpack.eql.execution.payload.Payload;
 import org.elasticsearch.xpack.eql.execution.payload.SearchResponsePayload;
-import org.elasticsearch.xpack.eql.execution.search.Querier;
 import org.elasticsearch.xpack.eql.execution.search.SourceGenerator;
 import org.elasticsearch.xpack.eql.execution.search.extractor.FieldHitExtractor;
 import org.elasticsearch.xpack.eql.execution.search.extractor.TimestampFieldHitExtractor;
@@ -44,7 +43,7 @@ import static org.elasticsearch.xpack.eql.execution.listener.RuntimeUtils.prepar
 
 public class ExecutionManager implements QueryClient {
 
-    private static final Logger log = LogManager.getLogger(Querier.class);
+    private static final Logger log = LogManager.getLogger(ExecutionManager.class);
 
     private final Configuration cfg;
     private final Client client;

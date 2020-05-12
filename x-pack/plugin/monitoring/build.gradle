@@ -26,6 +26,7 @@ dependencies {
 
 compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
+compileInternalClusterTestJava.options.compilerArgs << "-Xlint:-rawtypes"
 
 configurations {
   testArtifacts.extendsFrom testRuntime

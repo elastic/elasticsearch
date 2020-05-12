@@ -245,10 +245,25 @@ public class FieldAttributeTests extends ESTestCase {
         EsIndex index = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(index);
         analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
-        VerificationException ex = expectThrows(VerificationException.class,
-            () -> plan("SELECT gender AS g, sum(salary) AS g FROM test GROUP BY g"));
+
+//        VerificationException ex = expectThrows(VerificationException.class,
+//            () -> plan("SELECT gender AS g, sum(salary) AS g FROM test GROUP BY g"));
+//        assertEquals(
+//            "Found 1 problem\nline 1:57: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); " +
+//                "matches any of [\"g\", \"g\"]",
+//            ex.getMessage());
+
+        var ex = expectThrows(VerificationException.class,
+            () -> plan("SELECT gender AS g, max(salary) AS g, min(salary) AS g FROM test GROUP BY g"));
         assertEquals(
-            "Found 1 problem\nline 1:57: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); " +
+            "Found 1 problem\nline 1:75: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); " +
+                "matches any of [\"g\", \"g\", \"g\"]",
+            ex.getMessage());
+
+        ex = expectThrows(VerificationException.class,
+            () -> plan("SELECT gender AS g, last_name AS g, sum(salary) AS s FROM test GROUP BY g"));
+        assertEquals(
+            "Found 1 problem\nline 1:73: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); " +
                 "matches any of [\"g\", \"g\"]",
             ex.getMessage());
     }

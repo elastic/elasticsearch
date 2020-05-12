@@ -25,6 +25,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
@@ -80,10 +81,10 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
     }
 
     @Override
-    public SignificantStringTerms buildAggregation(long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0;
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0;
         if (valueCount == 0) { // no context in this reader
-            return buildEmptyAggregation();
+            return new InternalAggregation[] {buildEmptyAggregation()};
         }
 
         final int size;
@@ -143,23 +144,20 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
         }
 
         final SignificantStringTerms.Bucket[] list = new SignificantStringTerms.Bucket[ordered.size()];
-        final long[] survivingBucketOrds = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; i--) {
-            final SignificantStringTerms.Bucket bucket = ordered.pop();
-            survivingBucketOrds[i] = bucket.bucketOrd;
-            list[i] = bucket;
+            list[i] = ordered.pop();
+            /*
+             * The terms are owned by the BytesRefHash which will close after
+             * we're finished building the aggregation so we need to pull a copy.
+             */
+            list[i].termBytes = BytesRef.deepCopyOf(list[i].termBytes);
         }
+        buildSubAggsForBuckets(list, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
 
-        runDeferredCollections(survivingBucketOrds);
-
-        for (SignificantStringTerms.Bucket bucket : list) {
-            // the terms are owned by the BytesRefHash, we need to pull a copy since the BytesRef hash data may be recycled at some point
-            bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
-            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
-        }
-
-        return new SignificantStringTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                metadata(), format, subsetSize, supersetSize, significanceHeuristic, Arrays.asList(list));
+        return new InternalAggregation[] {
+            new SignificantStringTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
+                metadata(), format, subsetSize, supersetSize, significanceHeuristic, Arrays.asList(list))
+        };
     }
 
     @Override

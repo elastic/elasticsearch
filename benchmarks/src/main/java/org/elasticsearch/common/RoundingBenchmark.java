@@ -20,6 +20,8 @@
 package org.elasticsearch.common;
 
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -60,8 +62,8 @@ public class RoundingBenchmark {
     @Param({ "UTC", "America/New_York" })
     public String zone;
 
-    @Param({ "MONTH_OF_YEAR", "HOUR_OF_DAY" })
-    public String timeUnit;
+    @Param({ "calendar year", "calendar hour", "10d", "5d", "1h" })
+    public String interval;
 
     @Param({ "1", "10000", "1000000", "100000000" })
     public int count;
@@ -86,7 +88,15 @@ public class RoundingBenchmark {
             dates[i] = date;
             date += diff;
         }
-        Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.valueOf(timeUnit)).timeZone(ZoneId.of(zone)).build();
+        Rounding.Builder roundingBuilder;
+        if (interval.startsWith("calendar ")) {
+            roundingBuilder = Rounding.builder(
+                DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.substring("calendar ".length()))
+            );
+        } else {
+            roundingBuilder = Rounding.builder(TimeValue.parseTimeValue(interval, "interval"));
+        }
+        Rounding rounding = roundingBuilder.timeZone(ZoneId.of(zone)).build();
         switch (rounder) {
             case "java time":
                 rounderBuilder = rounding::prepareJavaTime;

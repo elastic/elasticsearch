@@ -25,6 +25,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
@@ -106,8 +107,8 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
     abstract InternalGeoGridBucket newEmptyBucket();
 
     @Override
-    public InternalGeoGrid buildAggregation(long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0;
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0;
         final int size = (int) Math.min(bucketOrds.size(), shardSize);
         consumeBucketsAndMaybeBreak(size);
 
@@ -128,11 +129,10 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
 
         final InternalGeoGridBucket[] list = new InternalGeoGridBucket[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
-            final InternalGeoGridBucket bucket = ordered.pop();
-            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
-            list[i] = bucket;
+            list[i] = ordered.pop();
         }
-        return buildAggregation(name, requiredSize, Arrays.asList(list), metadata());
+        buildSubAggsForBuckets(list, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
+        return new InternalAggregation[] {buildAggregation(name, requiredSize, Arrays.asList(list), metadata())};
     }
 
     @Override

@@ -960,10 +960,23 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         Long randomLongDate = randomNonNegativeLong();
         indexSimpleDocumentWithTrueValues(randomLongDate);
 
-        doWithQuery(SELECT_ALL_FIELDS, (results) -> {
+        /*
+         * Create simple timezones (in the form of Z/GMT+/-x so that timezones offsets differences between Java versions (the one
+         * server runs on and the one the test runs on) will not skew the tests' results.
+         * -18/+18 is the maximum range of offsets accepted by ZoneOffset, even if in reality this range is more like [-12, +14].
+         */
+        int hoursOffset = randomIntBetween(0, 18);
+        int subHours = hoursOffset != 18 ? randomFrom(0, 15, 30, 45) : 0;
+        int plusMinus = randomBoolean() ? 1 : -1;
+        int totalSeconds = (hoursOffset * 3600 + subHours * 60) * plusMinus;
+
+        ZoneOffset randomFixedZone = ZoneOffset.ofTotalSeconds(totalSeconds);
+        String zoneString = (hoursOffset == 0 && subHours == 0) ? "Z" : "GMT" + randomFixedZone.getId();
+
+        doWithQueryAndTimezone(SELECT_ALL_FIELDS, zoneString, (results) -> {
             results.next();
 
-            java.sql.Time expectedTime = asTime(randomLongDate, getZoneFromOffset(randomLongDate));
+            java.sql.Time expectedTime = asTime(randomLongDate, ZoneId.of(zoneString));
 
             assertEquals(expectedTime, results.getTime("test_date"));
             assertEquals(expectedTime, results.getTime(9));

@@ -10,6 +10,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
@@ -31,8 +32,10 @@ import java.sql.Time;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.jar.JarInputStream;
@@ -240,5 +243,19 @@ final class JdbcTestUtils {
     static Time asTime(long millis, ZoneId zoneId) {
         return new Time(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), zoneId)
                 .toLocalTime().atDate(JdbcTestUtils.EPOCH).atZone(zoneId).toInstant().toEpochMilli());
+    }
+
+    static long convertFromCalendarToUTC(long value, Calendar cal) {
+        if (cal == null) {
+            return value;
+        }
+        Calendar c = (Calendar) cal.clone();
+        c.setTimeInMillis(value);
+
+        ZonedDateTime convertedDateTime = ZonedDateTime
+            .ofInstant(c.toInstant(), c.getTimeZone().toZoneId())
+            .withZoneSameLocal(ZoneOffset.UTC);
+
+        return convertedDateTime.toInstant().toEpochMilli();
     }
 }

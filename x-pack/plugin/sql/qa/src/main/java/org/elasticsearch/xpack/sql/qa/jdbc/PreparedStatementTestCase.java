@@ -23,8 +23,6 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.Calendar;
 import java.util.Locale;
 import java.util.StringJoiner;
@@ -32,6 +30,7 @@ import java.util.StringJoiner;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.UTC;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asDate;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asTime;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.convertFromCalendarToUTC;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -118,18 +117,9 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
         }
     }
 
-    public void testDateTime() throws IOException, SQLException {
-        String mapping = "\"properties\":{\"id\":{\"type\":\"integer\"},\"birth_date\":{\"type\":\"date\"}}";
-        createIndex("emps", Settings.EMPTY, mapping);
+    public void testDatetime() throws IOException, SQLException {
         long randomMillis = randomNonNegativeLong();
-        for (int i = 1; i <= 3; i++) {
-            int id = 1000 + i;
-            long testMillis = testMillis(randomMillis, i);
-            index("emps", "" + i, builder -> {
-                builder.field("id", id);
-                builder.field("birth_date", testMillis);
-            });
-        }
+        setupIndexForDateTimeTests(randomMillis);
 
         try (Connection connection = esJdbc()) {
             try (PreparedStatement statement = connection.prepareStatement("SELECT id, birth_date FROM emps WHERE birth_date = ?")) {
@@ -142,6 +132,14 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
                     assertFalse(results.next());
                 }
             }
+        }
+    }
+
+    public void testDate() throws IOException, SQLException {
+        long randomMillis = randomNonNegativeLong();
+        setupIndexForDateTimeTests(randomMillis);
+
+        try (Connection connection = esJdbc()) {
             try (PreparedStatement statement = connection.prepareStatement("SELECT id, birth_date FROM emps WHERE birth_date::date = ?")) {
                 statement.setDate(1, new Date(asDate(randomMillis, UTC).getTime()));
                 try (ResultSet results = statement.executeQuery()) {
@@ -153,6 +151,14 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
                     assertFalse(results.next());
                 }
             }
+        }
+    }
+
+    public void testTime() throws IOException, SQLException {
+        long randomMillis = randomNonNegativeLong();
+        setupIndexForDateTimeTests(randomMillis);
+
+        try (Connection connection = esJdbc()) {
             try (PreparedStatement statement = connection.prepareStatement("SELECT id, birth_date FROM emps WHERE birth_date::time = ?")) {
                 Time time = JdbcTestUtils.asTime(randomMillis, UTC);
                 statement.setObject(1, time);
@@ -176,7 +182,7 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
         }
     }
 
-    public void testUnsupportedParameterUse() throws IOException, SQLException {
+    public void testUnsupportedParameterUse() throws Exception {
         index("library", builder -> {
             builder.field("name", "Don Quixote");
             builder.field("page_count", 1072);
@@ -194,7 +200,7 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
         }
     }
 
-    public void testTooMayParameters() throws IOException, SQLException {
+    public void testTooMayParameters() throws Exception {
         index("library", builder -> {
             builder.field("name", "Don Quixote");
             builder.field("page_count", 1072);
@@ -213,7 +219,7 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
         }
     }
 
-    public void testStringEscaping() throws SQLException {
+    public void testStringEscaping() throws Exception {
         try (Connection connection = esJdbc()) {
             try (PreparedStatement statement = connection.prepareStatement(
                     "SELECT ?, ?, ?, ?")) {
@@ -238,7 +244,7 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
         }
     }
 
-    public void testCommentsHandling() throws SQLException {
+    public void testCommentsHandling() throws Exception {
         try (Connection connection = esJdbc()) {
             try (PreparedStatement statement = connection.prepareStatement(
                     "SELECT ?, /* ?, */ ? -- ?")) {
@@ -257,7 +263,7 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
         }
     }
 
-    public void testSingleParameterMultipleTypes() throws SQLException {
+    public void testSingleParameterMultipleTypes() throws Exception {
         String stringVal = randomAlphaOfLength(randomIntBetween(0, 1000));
         int intVal = randomInt();
         long longVal = randomLong();
@@ -292,7 +298,7 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
         }
     }
 
-    private Tuple<Integer, Object> execute(PreparedStatement statement) throws SQLException {
+    private Tuple<Integer, Object> execute(PreparedStatement statement) throws Exception {
         try (ResultSet results = statement.executeQuery()) {
             ResultSetMetaData resultSetMetaData = results.getMetaData();
             assertTrue(results.next());
@@ -302,21 +308,20 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
         }
     }
 
-    private static long convertFromCalendarToUTC(long value, Calendar cal) {
-        if (cal == null) {
-            return value;
-        }
-        Calendar c = (Calendar) cal.clone();
-        c.setTimeInMillis(value);
-
-        ZonedDateTime convertedDateTime = ZonedDateTime
-            .ofInstant(c.toInstant(), c.getTimeZone().toZoneId())
-            .withZoneSameLocal(ZoneOffset.UTC);
-
-        return convertedDateTime.toInstant().toEpochMilli();
-    }
-
     private static long testMillis(long randomMillis, int i) {
         return randomMillis - 2 + i;
+    }
+
+    private static void setupIndexForDateTimeTests(long randomMillis) throws IOException {
+        String mapping = "\"properties\":{\"id\":{\"type\":\"integer\"},\"birth_date\":{\"type\":\"date\"}}";
+        createIndex("emps", Settings.EMPTY, mapping);
+        for (int i = 1; i <= 3; i++) {
+            int id = 1000 + i;
+            long testMillis = testMillis(randomMillis, i);
+            index("emps", "" + i, builder -> {
+                builder.field("id", id);
+                builder.field("birth_date", testMillis);
+            });
+        }
     }
 }

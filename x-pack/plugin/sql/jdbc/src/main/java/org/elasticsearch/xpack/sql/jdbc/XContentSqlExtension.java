@@ -15,9 +15,8 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
- * SPI extensions for Elasticsearch-specific classes (like the Lucene or Joda
- * dependency classes) that need to be encoded by {@link XContentBuilder} in a
- * specific way.
+ * Extension for SQL's JDBC specific classes that need to be
+ * encoded by {@link XContentBuilder} in a specific way.
  */
 public class XContentSqlExtension implements XContentBuilderExtension {
 

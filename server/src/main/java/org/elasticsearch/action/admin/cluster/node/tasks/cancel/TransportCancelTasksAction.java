@@ -284,7 +284,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             transportService.getThreadPool().generic().execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
-
+                    logger.warn("failed to cancel tasks on channel closed", e);
                 }
 
                 @Override

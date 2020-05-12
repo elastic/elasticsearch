@@ -32,6 +32,7 @@ import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
+import org.hamcrest.Matcher;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -50,6 +51,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -178,12 +180,14 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
                 e.getMessage(),
                 containsString("initial heap size [" + initialHeapSize.get() + "] " +
                         "not equal to maximum heap size [" + maxHeapSize.get() + "]"));
+        final String memoryLockingMessage = "and prevents memory locking from locking the entire heap";
+        final Matcher<String> memoryLockingMatcher;
         if (isMemoryLocked) {
-            assertThat(
-                e.getMessage(),
-                containsString("and prevents memory locking from locking the entire heap")
-            );
+            memoryLockingMatcher = containsString(memoryLockingMessage);
+        } else {
+            memoryLockingMatcher = not(containsString(memoryLockingMessage));
         }
+        assertThat(e.getMessage(), memoryLockingMatcher);
 
         initialHeapSize.set(maxHeapSize.get());
 

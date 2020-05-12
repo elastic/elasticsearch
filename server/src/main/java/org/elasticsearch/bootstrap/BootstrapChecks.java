@@ -231,14 +231,14 @@ final class BootstrapChecks {
                     message = String.format(
                         Locale.ROOT,
                         "initial heap size [%d] not equal to maximum heap size [%d]; " +
-                            "this can cause resize pauses",
+                            "this can cause resize pauses and prevents memory locking from locking the entire heap",
                         getInitialHeapSize(),
                         getMaxHeapSize());
                 } else {
                     message = String.format(
                         Locale.ROOT,
                         "initial heap size [%d] not equal to maximum heap size [%d]; " +
-                            "this can cause resize pauses and prevents memory locking from locking the entire heap",
+                            "this can cause resize pauses",
                         getInitialHeapSize(),
                         getMaxHeapSize());
                 }

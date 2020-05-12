@@ -294,7 +294,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     @SuppressForbidden(reason = "this tests uses a HttpServer to emulate an GCS endpoint")
     private static class GoogleCloudStorageStatsCollectorHttpHandler extends HttpStatsCollectorHandler {
 
-        public GoogleCloudStorageStatsCollectorHttpHandler(final HttpHandler delegate) {
+        GoogleCloudStorageStatsCollectorHttpHandler(final HttpHandler delegate) {
             super(delegate);
         }
 

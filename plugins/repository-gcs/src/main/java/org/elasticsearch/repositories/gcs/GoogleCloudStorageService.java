@@ -54,7 +54,8 @@ public class GoogleCloudStorageService {
      * Dictionary of client instances. Client instances are built lazily from the
      * latest settings.
      */
-    private final AtomicReference<Map<String, LazyInitializable<StorageService, IOException>>> clientsCache = new AtomicReference<>(emptyMap());
+    private final AtomicReference<Map<String, LazyInitializable<StorageService, IOException>>> clientsCache =
+        new AtomicReference<>(emptyMap());
 
     /**
      * Refreshes the client settings and clears the client cache. Subsequent calls to

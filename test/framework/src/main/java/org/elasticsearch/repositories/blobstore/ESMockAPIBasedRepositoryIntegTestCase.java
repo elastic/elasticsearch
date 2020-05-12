@@ -230,7 +230,13 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
                 return 0L;
             }).sum();
 
-        assertEquals(String.format("SDK sent %d %s calls and handler measured %d %s calls", sdkCalls, requestTye, mockCalls, requestTye), mockCalls, sdkCalls);
+        String assertionErrorMsg = String.format("SDK sent %d [%s] calls and handler measured %d [%s] calls",
+            sdkCalls,
+            requestTye,
+            mockCalls,
+            requestTye);
+
+        assertEquals(assertionErrorMsg, mockCalls, sdkCalls);
     }
 
     protected static String httpServerUrl() {
@@ -324,6 +330,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
      *
      * Implementors should keep track of the desired requests on {@link #maybeTrack(String)}.
      */
+    @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")
     public abstract static class HttpStatsCollectorHandler implements DelegatingHttpHandler {
 
         private final HttpHandler delegate;
@@ -364,7 +371,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
          *
          * @param request the request to be tracked if it matches the criteria
          */
-        protected abstract void maybeTrack(final String request);
+        protected abstract void maybeTrack(String request);
     }
 
     /**

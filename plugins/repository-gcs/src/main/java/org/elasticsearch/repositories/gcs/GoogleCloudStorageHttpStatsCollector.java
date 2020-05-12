@@ -72,7 +72,7 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
      *
      * The requests that match the previous criteria are tracked using the {@code statsTracker} function.
      */
-    private final static class HttpRequestTracker {
+    private static final class HttpRequestTracker {
         private final String method;
         private final Pattern pathPattern;
         private final Consumer<GoogleCloudStorageOperationsStats> statsTracker;

@@ -1,8 +1,10 @@
 ---
 "Verify data stream resolvability for xpack apis":
   - skip:
-      version: " - 7.99.99"
-      reason: skip untill backported
+      version: "all"
+      reason: bug url https://github.com/elastic/elasticsearch/issues/56531
+      #version: " - 7.99.99"
+      #reason: skip untill backported
 
   - do:
       indices.create_data_stream:

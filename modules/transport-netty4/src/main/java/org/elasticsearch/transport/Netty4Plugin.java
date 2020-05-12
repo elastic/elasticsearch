@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
@@ -47,6 +48,8 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
 
     public static final String NETTY_TRANSPORT_NAME = "netty4";
     public static final String NETTY_HTTP_TRANSPORT_NAME = "netty4";
+
+    private final SetOnce<SharedGroupFactory> groupFactory = new SetOnce<>();
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -77,7 +80,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
                                                           CircuitBreakerService circuitBreakerService,
                                                           NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
         return Collections.singletonMap(NETTY_TRANSPORT_NAME, () -> new Netty4Transport(settings, Version.CURRENT, threadPool,
-            networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService));
+            networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, getSharedGroupFactory(settings)));
     }
 
     @Override
@@ -90,6 +93,17 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
                                                                         ClusterSettings clusterSettings) {
         return Collections.singletonMap(NETTY_HTTP_TRANSPORT_NAME,
             () -> new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher,
-                clusterSettings));
+                clusterSettings, getSharedGroupFactory(settings)));
+    }
+
+    private SharedGroupFactory getSharedGroupFactory(Settings settings) {
+        SharedGroupFactory groupFactory = this.groupFactory.get();
+        if (groupFactory != null) {
+            assert groupFactory.getSettings().equals(settings) : "Different settings than originally provided";
+            return groupFactory;
+        } else {
+            this.groupFactory.set(new SharedGroupFactory(settings));
+            return this.groupFactory.get();
+        }
     }
 }

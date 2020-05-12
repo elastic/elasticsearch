@@ -138,7 +138,8 @@ Maximum age of the index.
 `max_docs`::
 (Optional, integer)
 Maximum number of documents in the index.
-This number does *not* include documents in replica shards.
+Documents added since the last refresh are not included in the document count.
+The document count does *not* include documents in replica shards.
 
 `max_size`::
 (Optional, <<byte-units, byte units>>)

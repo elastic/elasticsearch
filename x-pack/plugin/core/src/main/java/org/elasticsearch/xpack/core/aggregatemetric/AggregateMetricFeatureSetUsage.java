@@ -45,4 +45,9 @@ public class AggregateMetricFeatureSetUsage extends XPackFeatureSet.Usage {
     public int hashCode() {
         return Objects.hash(available, enabled);
     }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_8_0_0;
+    }
 }

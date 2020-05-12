@@ -22,6 +22,8 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.F
 import org.elasticsearch.index.store.cache.TestUtils;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.IOException;
@@ -34,6 +36,7 @@ import static org.elasticsearch.index.store.cache.TestUtils.assertCounter;
 import static org.elasticsearch.index.store.cache.TestUtils.createCacheService;
 import static org.elasticsearch.index.store.cache.TestUtils.singleBlobContainer;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -517,7 +520,10 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
     private static void executeTestCase(final TriConsumer<String, byte[], SearchableSnapshotDirectory> test) {
         executeTestCase(
             createCacheService(random()),
-            Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), randomBoolean()).build(),
+            Settings.builder()
+                .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), randomBoolean())
+                .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
+                .build(),
             test
         );
     }
@@ -551,7 +557,10 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
     ) {
         executeTestCase(
             new CacheService(cacheSize, cacheRangeSize),
-            Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true).build(),
+            Settings.builder()
+                .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
+                .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
+                .build(),
             test
         );
     }
@@ -570,6 +579,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         final ShardId shardId = new ShardId("_name", "_uuid", 0);
         final AtomicLong fakeClock = new AtomicLong();
         final LongSupplier statsCurrentTimeNanos = () -> fakeClock.addAndGet(FAKE_CLOCK_ADVANCE_NANOS);
+        final ThreadPool threadPool = new TestThreadPool(getTestClass().getSimpleName());
 
         final Long seekingThreshold = randomBoolean() ? randomLongBetween(1L, fileContent.length) : null;
 
@@ -590,7 +600,8 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                 indexSettings,
                 statsCurrentTimeNanos,
                 cacheService,
-                createTempDir()
+                createTempDir(),
+                threadPool
             ) {
                 @Override
                 protected IndexInputStats createIndexInputStats(long fileLength) {
@@ -610,6 +621,8 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
             assertThat("BlobContainer should be loaded", directory.blobContainer(), notNullValue());
 
             test.apply(fileName, fileContent, directory);
+        } finally {
+            terminate(threadPool);
         }
     }
 }

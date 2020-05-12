@@ -1326,6 +1326,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 .setMaxTrees(10)
                 .setFeatureBagFraction(0.5)
                 .setNumTopFeatureImportanceValues(3)
+                .setLossFunction(org.elasticsearch.client.ml.dataframe.Regression.LossFunction.MSLE)
+                .setLossFunctionParameter(1.0)
                 .build())
             .setDescription("this is a regression")
             .build();
@@ -1532,7 +1534,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(progress.size(), equalTo(4));
         assertThat(progress.get(0), equalTo(new PhaseProgress("reindexing", 0)));
         assertThat(progress.get(1), equalTo(new PhaseProgress("loading_data", 0)));
-        assertThat(progress.get(2), equalTo(new PhaseProgress("analyzing", 0)));
+        assertThat(progress.get(2), equalTo(new PhaseProgress("computing_outliers", 0)));
         assertThat(progress.get(3), equalTo(new PhaseProgress("writing_results", 0)));
         assertThat(stats.getMemoryUsage().getPeakUsageBytes(), equalTo(0L));
         assertThat(stats.getDataCounts(), equalTo(new DataCounts(0, 0, 0)));
@@ -2517,10 +2519,12 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setFunction("count")
             .setDetectorDescription(randomAlphaOfLength(10))
             .build();
-        AnalysisConfig.Builder configBuilder = new AnalysisConfig.Builder(Arrays.asList(detector));
+        AnalysisConfig.Builder configBuilder = new AnalysisConfig.Builder(Collections.singletonList(detector));
         //should not be random, see:https://github.com/elastic/ml-cpp/issues/208
         configBuilder.setBucketSpan(new TimeValue(1, TimeUnit.HOURS));
         builder.setAnalysisConfig(configBuilder);
+        builder.setModelSnapshotRetentionDays(1L);
+        builder.setDailyModelSnapshotRetentionAfterDays(1L);
 
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeFormat(DataDescription.EPOCH_MS);

@@ -118,7 +118,7 @@ dependencies {
   compile 'org.apache.rat:apache-rat:0.11'
   compile "org.elasticsearch:jna:4.5.1"
   compile 'com.github.jengelman.gradle.plugins:shadow:5.1.0'
-  compile 'de.thetaphi:forbiddenapis:2.7'
+  compile 'de.thetaphi:forbiddenapis:3.0'
   compile 'com.avast.gradle:gradle-docker-compose-plugin:0.8.12'
   compile 'org.apache.maven:maven-model:3.6.2'
   compile 'com.networknt:json-schema-validator:1.0.36'

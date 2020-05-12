@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.Matchers.is;
@@ -56,7 +57,7 @@ public class PutIndexTemplateV2RequestTests extends AbstractWireSerializingTestC
 
     public void testPutGlobalTemplatesCannotHaveHiddenIndexSetting() {
         Template template = new Template(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build(), null, null);
-        IndexTemplateV2 globalTemplate = new IndexTemplateV2(List.of("*"), template, null, null, null, null);
+        IndexTemplateV2 globalTemplate = new IndexTemplateV2(List.of("*"), template, null, null, null, null, null);
 
         PutIndexTemplateV2Action.Request request = new PutIndexTemplateV2Action.Request("test");
         request.indexTemplate(globalTemplate);
@@ -78,5 +79,16 @@ public class PutIndexTemplateV2RequestTests extends AbstractWireSerializingTestC
         assertThat(validationErrors.size(), is(1));
         String error = validationErrors.get(0);
         assertThat(error, is("an index template is required"));
+    }
+
+    public void testValidationOfPriority() {
+        PutIndexTemplateV2Action.Request req = new PutIndexTemplateV2Action.Request("test");
+        req.indexTemplate(new IndexTemplateV2(Arrays.asList("foo", "bar"), null, null, -5L, null, null, null));
+        ActionRequestValidationException validationException = req.validate();
+        assertThat(validationException, is(notNullValue()));
+        List<String> validationErrors = validationException.validationErrors();
+        assertThat(validationErrors.size(), is(1));
+        String error = validationErrors.get(0);
+        assertThat(error, is("index template priority must be >= 0"));
     }
 }

@@ -25,10 +25,14 @@ import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TransformPivotRestIT extends TransformRestTestCase {
 
@@ -928,6 +932,70 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String[] latlon = actualString.split(",");
         assertEquals((4 + 10), Double.valueOf(latlon[0]), 0.000001);
         assertEquals((4 + 15), Double.valueOf(latlon[1]), 0.000001);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPivotWithGeotileGroupBy() throws Exception {
+        String transformId = "geotile_grid_group_by";
+        String transformIndex = "geotile_grid_pivot_reviews";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+
+        String config = "{"
+            + " \"source\": {\"index\":\""
+            + REVIEWS_INDEX_NAME
+            + "\"},"
+            + " \"dest\": {\"index\":\""
+            + transformIndex
+            + "\"},";
+
+        config += " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"tile\": {"
+            + "       \"geotile_grid\": {"
+            + "         \"field\": \"location\","
+            + "         \"precision\": 12"
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } },"
+            + "     \"boundary\": {"
+            + "       \"geo_bounds\": {\"field\": \"location\"}"
+            + " } } }"
+            + "}";
+
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(transformIndex));
+
+        // we expect 27 documents as there are that many tiles at this zoom
+        Map<String, Object> indexStats = getAsMap(transformIndex + "/_stats");
+        assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+
+        // Verify that the format is sane for the geo grid
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?size=1");
+        Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
+        assertThat(actual, is(not(nullValue())));
+        Map<String, Object> actualObj = (Map<String, Object>) ((List<?>) XContentMapValues.extractValue(
+            "hits.hits._source.tile",
+            searchResult
+        )).get(0);
+        assertThat(actualObj.get("type"), equalTo("BBOX"));
+        List<List<Double>> coordinates = (List<List<Double>>) actualObj.get("coordinates");
+        assertThat(coordinates, is(not(nullValue())));
+        assertThat(coordinates, hasSize(2));
+        assertThat(coordinates.get(0), hasSize(2));
+        assertThat(coordinates.get(1), hasSize(2));
     }
 
     public void testPivotWithWeightedAvgAgg() throws Exception {

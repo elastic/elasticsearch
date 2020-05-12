@@ -90,7 +90,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     private final Map<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> shardSnapshots = new HashMap<>();
 
     // A map of snapshots to the shardIds that we already reported to the master as failed
-    private final TransportRequestDeduplicator<SnapshotsService.UpdateIndexShardSnapshotStatusRequest> remoteFailedRequestDeduplicator =
+    private final TransportRequestDeduplicator<UpdateIndexShardSnapshotStatusRequest> remoteFailedRequestDeduplicator =
         new TransportRequestDeduplicator<>();
 
     public SnapshotShardsService(Settings settings, ClusterService clusterService, RepositoriesService repositoriesService,
@@ -405,10 +405,10 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             new ShardSnapshotStatus(clusterService.localNode().getId(), ShardState.FAILED, failure, null));
     }
 
-    /** Updates the shard snapshot status by sending a {@link SnapshotsService.UpdateIndexShardSnapshotStatusRequest} to the master node */
+    /** Updates the shard snapshot status by sending a {@link UpdateIndexShardSnapshotStatusRequest} to the master node */
     private void sendSnapshotShardUpdate(final Snapshot snapshot, final ShardId shardId, final ShardSnapshotStatus status) {
         remoteFailedRequestDeduplicator.executeOnce(
-            new SnapshotsService.UpdateIndexShardSnapshotStatusRequest(snapshot, shardId, status),
+            new UpdateIndexShardSnapshotStatusRequest(snapshot, shardId, status),
             new ActionListener<>() {
                 @Override
                 public void onResponse(Void aVoid) {
@@ -423,14 +423,14 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             },
             (req, reqListener) -> transportService.sendRequest(transportService.getLocalNode(),
                     SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME, req,
-                new TransportResponseHandler<SnapshotsService.UpdateIndexShardSnapshotStatusResponse>() {
+                new TransportResponseHandler<UpdateIndexShardSnapshotStatusResponse>() {
                     @Override
-                    public SnapshotsService.UpdateIndexShardSnapshotStatusResponse read(StreamInput in) throws IOException {
-                        return new SnapshotsService.UpdateIndexShardSnapshotStatusResponse(in);
+                    public UpdateIndexShardSnapshotStatusResponse read(StreamInput in) throws IOException {
+                        return new UpdateIndexShardSnapshotStatusResponse(in);
                     }
 
                     @Override
-                    public void handleResponse(SnapshotsService.UpdateIndexShardSnapshotStatusResponse response) {
+                    public void handleResponse(UpdateIndexShardSnapshotStatusResponse response) {
                         reqListener.onResponse(null);
                     }
 

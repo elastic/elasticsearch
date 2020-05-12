@@ -79,7 +79,7 @@ public class TestingConventionsTasks extends DefaultTask {
             .withType(Test.class)
             .stream()
             // hardcoded to the old test and integTest runner tasks
-            .filter(t -> t.getName().equals("test") || t.getName().endsWith("Runner"))
+            .filter(t -> t.getName().equals("test") || t.getName().endsWith("ClusterTest") || t.getName().endsWith("Runner"))
             .filter(Task::getEnabled)
             .collect(Collectors.toMap(Task::getPath, task -> task.getCandidateClassFiles().getFiles()));
     }

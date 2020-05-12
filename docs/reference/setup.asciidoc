@@ -53,6 +53,8 @@ include::modules/cluster.asciidoc[]
 
 include::settings/ccr-settings.asciidoc[]
 
+include::modules/discovery/discovery-settings.asciidoc[]
+
 include::modules/indices/fielddata.asciidoc[]
 
 include::modules/http.asciidoc[]
@@ -108,6 +110,8 @@ include::setup/bootstrap-checks-xes.asciidoc[]
 include::setup/starting.asciidoc[]
 
 include::setup/stopping.asciidoc[]
+
+include::modules/discovery.asciidoc[]
 
 include::setup/add-nodes.asciidoc[]
 

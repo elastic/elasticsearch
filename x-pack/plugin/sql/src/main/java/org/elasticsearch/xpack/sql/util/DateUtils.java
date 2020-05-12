@@ -70,7 +70,7 @@ public final class DateUtils {
             .optionalEnd()
             .toFormatter().withZone(UTC);
 
-    private static final DateFormatter UTC_DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(UTC);
+    private static final DateFormatter UTC_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time").withZone(UTC);
     private static final int DEFAULT_PRECISION_FOR_CURRENT_FUNCTIONS = 3;
 
     private DateUtils() {}

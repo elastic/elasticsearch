@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.sql.proto.Mode;
 import java.time.ZoneId;
 
 // Typed object holding properties for a given query
-public class Configuration extends org.elasticsearch.xpack.ql.session.Configuration {
+public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configuration {
     
     private final int pageSize;
     private final TimeValue requestTimeout;
@@ -26,7 +26,7 @@ public class Configuration extends org.elasticsearch.xpack.ql.session.Configurat
     @Nullable
     private QueryBuilder filter;
 
-    public Configuration(ZoneId zi, int pageSize, TimeValue requestTimeout, TimeValue pageTimeout, QueryBuilder filter,
+    public SqlConfiguration(ZoneId zi, int pageSize, TimeValue requestTimeout, TimeValue pageTimeout, QueryBuilder filter,
                          Mode mode, String clientId,
                          String username, String clusterName,
                          boolean multiValueFieldLeniency,

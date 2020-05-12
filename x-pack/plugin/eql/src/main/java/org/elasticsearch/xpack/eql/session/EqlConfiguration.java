@@ -15,7 +15,7 @@ import org.elasticsearch.tasks.TaskId;
 import java.time.ZoneId;
 import java.util.function.Supplier;
 
-public class Configuration extends org.elasticsearch.xpack.ql.session.Configuration {
+public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configuration {
 
     private final String[] indices;
     private final TimeValue requestTimeout;
@@ -24,12 +24,14 @@ public class Configuration extends org.elasticsearch.xpack.ql.session.Configurat
     private final boolean includeFrozenIndices;
     private final Supplier<Boolean> isCancelled;
     private final TaskId taskId;
+    private final boolean isCaseSensitive;
 
     @Nullable
     private final QueryBuilder filter;
 
-    public Configuration(String[] indices, ZoneId zi, String username, String clusterName, QueryBuilder filter, TimeValue requestTimeout,
-                         int size, boolean includeFrozen, String clientId, TaskId taskId, Supplier<Boolean> isCancelled) {
+    public EqlConfiguration(String[] indices, ZoneId zi, String username, String clusterName, QueryBuilder filter, TimeValue requestTimeout,
+                         int size, boolean includeFrozen, boolean isCaseSensitive, String clientId, TaskId taskId,
+                         Supplier<Boolean> isCancelled) {
 
         super(zi, username, clusterName);
 
@@ -39,6 +41,7 @@ public class Configuration extends org.elasticsearch.xpack.ql.session.Configurat
         this.size = size;
         this.clientId = clientId;
         this.includeFrozenIndices = includeFrozen;
+        this.isCaseSensitive = isCaseSensitive;
         this.taskId = taskId;
         this.isCancelled = isCancelled;
     }
@@ -69,6 +72,10 @@ public class Configuration extends org.elasticsearch.xpack.ql.session.Configurat
 
     public boolean includeFrozen() {
         return includeFrozenIndices;
+    }
+
+    public boolean isCaseSensitive() {
+        return isCaseSensitive;
     }
 
     public boolean isCancelled() {

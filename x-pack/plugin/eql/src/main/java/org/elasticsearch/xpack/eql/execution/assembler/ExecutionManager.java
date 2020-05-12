@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.plan.physical.SequenceExec;
 import org.elasticsearch.xpack.eql.querydsl.container.FieldExtractorRegistry;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
-import org.elasticsearch.xpack.eql.session.Configuration;
+import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -45,7 +45,7 @@ public class ExecutionManager implements QueryClient {
 
     private static final Logger log = LogManager.getLogger(ExecutionManager.class);
 
-    private final Configuration cfg;
+    private final EqlConfiguration cfg;
     private final Client client;
     private final TimeValue keepAlive;
     private final String indices;

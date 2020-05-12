@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.extractor.FieldHitExtractor;
 import org.elasticsearch.xpack.eql.querydsl.container.ComputedRef;
 import org.elasticsearch.xpack.eql.querydsl.container.SearchHitFieldRef;
-import org.elasticsearch.xpack.eql.session.Configuration;
+import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
@@ -51,7 +51,7 @@ public class RuntimeUtils {
                 response.getSuccessfulShards(), response.getTotalShards(), response.getTook(), response.isTimedOut());
     }
 
-    public static List<HitExtractor> createExtractor(List<FieldExtraction> fields, Configuration cfg) {
+    public static List<HitExtractor> createExtractor(List<FieldExtraction> fields, EqlConfiguration cfg) {
         List<HitExtractor> extractors = new ArrayList<>(fields.size());
 
         for (FieldExtraction fe : fields) {
@@ -60,7 +60,7 @@ public class RuntimeUtils {
         return extractors;
     }
     
-    public static HitExtractor createExtractor(FieldExtraction ref, Configuration cfg) {
+    public static HitExtractor createExtractor(FieldExtraction ref, EqlConfiguration cfg) {
         if (ref instanceof SearchHitFieldRef) {
             SearchHitFieldRef f = (SearchHitFieldRef) ref;
             return new FieldHitExtractor(f.name(), f.fullFieldName(), f.getDataType(), cfg.zoneId(), f.useDocValue(), f.hitName(), false);

@@ -145,6 +145,7 @@ REPLACE          |SCALAR
 RIGHT            |SCALAR         
 RTRIM            |SCALAR         
 SPACE            |SCALAR         
+STARTS_WITH      |SCALAR
 SUBSTRING        |SCALAR         
 UCASE            |SCALAR
 CAST             |SCALAR

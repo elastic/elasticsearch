@@ -14,7 +14,7 @@ you can specify the policy directly when you create it.
 
 IMPORTANT: When you enable {ilm} for {beats} or the {ls} {es} output plugin, 
 the necessary policies and configuration changes are applied automatically. 
-You can modify the default policies, but do not need to explicitly configure a policy or
+You can modify the default policies, but you do not need to explicitly configure a policy or
 bootstrap an initial index.
 
 

@@ -25,31 +25,9 @@ The modules in this section are:
 <<modules-cluster,Shard allocation and cluster-level routing>>::
 
     Settings to control where, when, and how shards are allocated to nodes.
-
-<<modules-gateway,Gateway>>::
-
-    How many nodes need to join the cluster before recovery can start.
-
-<<modules-http,HTTP>>::
-
-    Settings to control the HTTP REST interface.
-
-<<modules-indices,Indices>>::
-
-    Global index-related settings.
-
-<<modules-node,Node client>>::
-
-    A Java node client joins the cluster, but doesn't hold data or act as a master node.
 --
 
 
 include::modules/discovery.asciidoc[]
 
 include::modules/cluster.asciidoc[]
-
-include::modules/gateway.asciidoc[]
-
-include::modules/http.asciidoc[]
-
-include::modules/node.asciidoc[]

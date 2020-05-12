@@ -180,7 +180,6 @@ testingConventions {
       baseClass "org.elasticsearch.test.ESSingleNodeTestCase"
     }
   }
-  tasks = ['test']
 }
 
 task generateModulesList {

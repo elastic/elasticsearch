@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/machine-learning/current/ml-jobs.html",
       "description":"Validates an anomaly detection job."
     },
-    "stability":"private",
+    "stability":"stable",
     "url":{
       "paths":[
         {

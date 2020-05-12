@@ -11,6 +11,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderExtension;
 
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 

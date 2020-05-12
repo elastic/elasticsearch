@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -241,12 +240,13 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         );
 
         final String clonedIndexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        assertAcked(client().admin().indices().prepareResizeIndex(restoredIndexName, clonedIndexName)
-            .setResizeType(ResizeType.CLONE)
-            .setSettings(Settings.builder()
-                .putNull(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
-                .build()
-            ));
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareResizeIndex(restoredIndexName, clonedIndexName)
+                .setResizeType(ResizeType.CLONE)
+                .setSettings(Settings.builder().putNull(IndexModule.INDEX_STORE_TYPE_SETTING.getKey()).build())
+        );
         ensureGreen(clonedIndexName);
         assertRecovered(clonedIndexName, originalAllHits, originalBarHits, false);
 
@@ -429,8 +429,9 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertRecovered(indexName, originalAllHits, originalBarHits, true);
     }
 
-    private void assertRecovered(String indexName, TotalHits originalAllHits, TotalHits originalBarHits,
-                                 boolean checkRecoveryStats) throws Exception {
+    private void assertRecovered(String indexName, TotalHits originalAllHits, TotalHits originalBarHits, boolean checkRecoveryStats)
+        throws Exception {
+
         final Thread[] threads = new Thread[between(1, 5)];
         final AtomicArray<TotalHits> allHits = new AtomicArray<>(threads.length);
         final AtomicArray<TotalHits> barHits = new AtomicArray<>(threads.length);
@@ -466,8 +467,11 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
                 for (RecoveryState recoveryState : recoveryStates) {
                     logger.info("Checking {}[{}]", recoveryState.getShardId(), recoveryState.getPrimary() ? "p" : "r");
-                    assertThat(Strings.toString(recoveryState), // we make a new commit so we write a new `segments_n` file
-                        recoveryState.getIndex().recoveredFileCount(), lessThanOrEqualTo(1));
+                    assertThat(
+                        Strings.toString(recoveryState), // we make a new commit so we write a new `segments_n` file
+                        recoveryState.getIndex().recoveredFileCount(),
+                        lessThanOrEqualTo(1)
+                    );
                 }
             }
         }

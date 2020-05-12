@@ -445,8 +445,13 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             || SNAPSHOT_SNAPSHOT_NAME_SETTING.exists(indexSettings.getSettings()) == false
             || SNAPSHOT_SNAPSHOT_ID_SETTING.exists(indexSettings.getSettings()) == false) {
 
-            throw new IllegalArgumentException("directly setting [" + INDEX_STORE_TYPE_SETTING.getKey() + "] to ["
-                + SNAPSHOT_DIRECTORY_FACTORY_KEY + "] is not permitted; use the mount snapshot API instead");
+            throw new IllegalArgumentException(
+                "directly setting ["
+                    + INDEX_STORE_TYPE_SETTING.getKey()
+                    + "] to ["
+                    + SNAPSHOT_DIRECTORY_FACTORY_KEY
+                    + "] is not permitted; use the mount snapshot API instead"
+            );
         }
 
         final Repository repository = repositories.repository(SNAPSHOT_REPOSITORY_SETTING.get(indexSettings.getSettings()));

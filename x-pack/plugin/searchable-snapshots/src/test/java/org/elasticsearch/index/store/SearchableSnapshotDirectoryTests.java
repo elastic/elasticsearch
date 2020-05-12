@@ -692,7 +692,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             SNAPSHOT_REPOSITORY_SETTING,
             SNAPSHOT_INDEX_ID_SETTING,
             SNAPSHOT_SNAPSHOT_NAME_SETTING,
-            SNAPSHOT_SNAPSHOT_ID_SETTING);
+            SNAPSHOT_SNAPSHOT_ID_SETTING
+        );
 
         for (int i = 0; i < requiredSettings.size(); i++) {
             final Settings.Builder settings = Settings.builder()
@@ -705,8 +706,10 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 }
             }
             final IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("test").settings(settings).build(), Settings.EMPTY);
-            expectThrows(IllegalArgumentException.class, () ->
-                SearchableSnapshotDirectory.create(null, null, indexSettings, null, null, null));
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> SearchableSnapshotDirectory.create(null, null, indexSettings, null, null, null)
+            );
         }
     }
 

@@ -90,5 +90,16 @@ testClusters.integTest {
       { "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=${-> azureAddress()}" }, IGNORE_VALUE
     String firstPartOfSeed = BuildParams.testSeed.tokenize(':').get(0)
     setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), System.getProperty('ignore.tests.seed') == null ? DEFAULT : IGNORE_VALUE
+
+    gradle.taskGraph.whenReady {
+      if (it.hasTask(azureThirdPartyTests)) {
+        throw new IllegalStateException("Tried to run third party tests but not all of the necessary environment variables " +
+          "'azure_storage_account', 'azure_storage_key', 'azure_storage_container' are set.")
+      }
+    }
   }
+}
+
+task azureThirdPartyTests {
+  dependsOn check
 }

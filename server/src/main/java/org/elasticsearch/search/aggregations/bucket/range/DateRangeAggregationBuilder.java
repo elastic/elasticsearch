@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -50,12 +49,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
             for (RangeAggregator.Range range : ranges) {
                 agg.addRange(range);
             }
-        }, (p, c) -> DateRangeAggregationBuilder.parseRange(p), RangeAggregator.RANGES_FIELD);
-    }
-
-
-    private static RangeAggregator.Range parseRange(XContentParser parser) throws IOException {
-        return RangeAggregator.Range.fromXContent(parser);
+        }, (p, c) -> RangeAggregator.Range.PARSER.parse(p, null), RangeAggregator.RANGES_FIELD);
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {

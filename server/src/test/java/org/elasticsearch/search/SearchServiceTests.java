@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -47,6 +47,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -126,7 +127,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(FailOnRewriteQueryPlugin.class, CustomScriptPlugin.class,
-            ReaderWrapperCountPlugin.class, InternalOrPrivateSettingsPlugin.class);
+            ReaderWrapperCountPlugin.class, InternalOrPrivateSettingsPlugin.class, MockSearchService.TestPlugin.class);
     }
 
     public static class ReaderWrapperCountPlugin extends Plugin {
@@ -323,6 +324,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         service.executeFetchPhase(req, new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()), listener);
                         listener.get();
                         if (useScroll) {
+                            // have to free context since this test does not remove the index from IndicesService.
                             service.freeReaderContext(searchPhaseResult.getContextId());
                         }
                     } catch (ExecutionException ex) {
@@ -342,6 +344,53 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             thread.join();
             semaphore.acquire(Integer.MAX_VALUE);
         }
+
+        assertEquals(0, service.getActiveContexts());
+
+        SearchStats.Stats totalStats = indexShard.searchStats().getTotal();
+        assertEquals(0, totalStats.getQueryCurrent());
+        assertEquals(0, totalStats.getScrollCurrent());
+        assertEquals(0, totalStats.getFetchCurrent());
+    }
+
+    public void testSearchWhileIndexDeletedDoesNotLeakSearchContext() throws ExecutionException, InterruptedException {
+        createIndex("index");
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        IndexShard indexShard = indexService.getShard(0);
+
+        MockSearchService service = (MockSearchService) getInstanceFromNode(SearchService.class);
+        service.setOnPutContext(
+            context -> {
+                if (context.indexShard() == indexShard) {
+                    assertAcked(client().admin().indices().prepareDelete("index"));
+                }
+            }
+        );
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        SearchRequest scrollSearchRequest = new SearchRequest().allowPartialSearchResults(true)
+            .scroll(new Scroll(TimeValue.timeValueMinutes(1)));
+
+        // the scrolls are not explicitly freed, but should all be gone when the test finished.
+        // for completeness, we also randomly test the regular search path.
+        final boolean useScroll = randomBoolean();
+        PlainActionFuture<SearchPhaseResult> result = new PlainActionFuture<>();
+        service.executeQueryPhase(
+            new ShardSearchRequest(OriginalIndices.NONE, useScroll ? scrollSearchRequest : searchRequest,
+                new ShardId(resolveIndex("index"), 0), 1,
+                new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null),
+            randomBoolean(), new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()), result);
+
+        try {
+            result.get();
+        } catch (Exception e) {
+            // ok
+        }
+
+        expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex().setIndices("index").get());
 
         assertEquals(0, service.getActiveContexts());
 
@@ -519,6 +568,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 SearchService.MAX_OPEN_SCROLL_CONTEXT.get(Settings.EMPTY) + "]. " +
                 "This limit can be set by changing the [search.max_open_scroll_context] setting.",
             ex.getMessage());
+
+        service.freeAllScrollContexts();
     }
 
     public void testOpenScrollContextsConcurrently() throws Exception {

@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
-import org.elasticsearch.xpack.sql.session.Configuration;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
@@ -31,12 +31,12 @@ public final class SqlTestUtils {
 
     private SqlTestUtils() {}
 
-    public static final Configuration TEST_CFG = new Configuration(DateUtils.UTC, Protocol.FETCH_SIZE,
+    public static final SqlConfiguration TEST_CFG = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE,
             Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, Mode.PLAIN,
             null, null, null, false, false);
 
-    public static Configuration randomConfiguration() {
-        return new Configuration(randomZone(),
+    public static SqlConfiguration randomConfiguration() {
+        return new SqlConfiguration(randomZone(),
                 randomIntBetween(0,  1000),
                 new TimeValue(randomNonNegativeLong()),
                 new TimeValue(randomNonNegativeLong()),
@@ -49,8 +49,8 @@ public final class SqlTestUtils {
                 randomBoolean());
     }
 
-    public static Configuration randomConfiguration(ZoneId providedZoneId) {
-        return new Configuration(providedZoneId,
+    public static SqlConfiguration randomConfiguration(ZoneId providedZoneId) {
+        return new SqlConfiguration(providedZoneId,
                 randomIntBetween(0,  1000),
                 new TimeValue(randomNonNegativeLong()),
                 new TimeValue(randomNonNegativeLong()),

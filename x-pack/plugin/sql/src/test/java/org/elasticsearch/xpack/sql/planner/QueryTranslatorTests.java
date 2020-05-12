@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.ql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.GeoDistanceQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.PrefixQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.RegexQuery;
@@ -668,6 +669,66 @@ public class QueryTranslatorTests extends ESTestCase {
                 scriptTemplate.toString());
         assertEquals("[{v=keyword}, {v=^.*foo.*$}, {v=1}, {v=keyword}, {v=.*bar.*}, {v=2}, {v=3}]",
                 scriptTemplate.params().toString());
+    }
+
+    public void testStartsWithUsesPrefixQuery() {
+        LogicalPlan p = plan("SELECT keyword FROM test WHERE STARTS_WITH(keyword, 'x') OR STARTS_WITH(keyword, 'y')");
+        
+        assertTrue(p instanceof Project);
+        assertTrue(p.children().get(0) instanceof Filter);
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+
+        QueryTranslation translation = translate(condition);
+        assertTrue(translation.query instanceof BoolQuery);
+        BoolQuery bq = (BoolQuery) translation.query;
+        
+        assertFalse(bq.isAnd());
+        assertTrue(bq.left() instanceof PrefixQuery);
+        assertTrue(bq.right() instanceof PrefixQuery);
+
+        PrefixQuery pqr = (PrefixQuery) bq.right();
+        assertEquals("keyword", pqr.field());
+        assertEquals("y", pqr.query());
+        
+        PrefixQuery pql = (PrefixQuery) bq.left();
+        assertEquals("keyword", pql.field());
+        assertEquals("x", pql.query());
+    }
+
+    public void testStartsWithUsesPrefixQueryAndScript() {
+        LogicalPlan p = plan("SELECT keyword FROM test WHERE STARTS_WITH(keyword, 'x') AND STARTS_WITH(keyword, 'xy') "
+            + "AND STARTS_WITH(LCASE(keyword), 'xyz')");
+        
+        assertTrue(p instanceof Project);
+        assertTrue(p.children().get(0) instanceof Filter);
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+
+        QueryTranslation translation = translate(condition);
+        assertTrue(translation.query instanceof BoolQuery);
+        BoolQuery bq = (BoolQuery) translation.query;
+        
+        assertTrue(bq.isAnd());
+        assertTrue(bq.left() instanceof BoolQuery);
+        assertTrue(bq.right() instanceof ScriptQuery);
+
+        BoolQuery bbq = (BoolQuery) bq.left();
+        assertTrue(bbq.isAnd());
+        PrefixQuery pqr = (PrefixQuery) bbq.right();
+        assertEquals("keyword", pqr.field());
+        assertEquals("xy", pqr.query());
+        
+        PrefixQuery pql = (PrefixQuery) bbq.left();
+        assertEquals("keyword", pql.field());
+        assertEquals("x", pql.query());
+
+        ScriptQuery sq = (ScriptQuery) bq.right();
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.startsWith("
+                + "InternalSqlScriptUtils.lcase(InternalQlScriptUtils.docValue(doc,params.v0)), "
+                + "params.v1, params.v2))",
+            sq.script().toString());
+        assertEquals("[{v=keyword}, {v=xyz}, {v=true}]", sq.script().params().toString());
     }
 
     public void testTranslateNotExpression_WhereClause_Painless() {

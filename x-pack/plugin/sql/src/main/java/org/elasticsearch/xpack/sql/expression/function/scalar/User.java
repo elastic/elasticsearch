@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-public class User extends ConfigurationFunction {
+public class User extends SqlConfigurationFunction {
 
     public User(Source source, Configuration configuration) {
         super(source, configuration, DataTypes.KEYWORD);

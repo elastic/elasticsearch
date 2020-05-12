@@ -164,7 +164,7 @@ public class InboundPipeline implements Releasable {
                 ++index;
             }
             final Releasable releasable = () -> Releasables.closeWhileHandlingException(bytesReferences);
-            return new ReleasableBytesReference(new CompositeBytesReference(bytesReferences), releasable);
+            return new ReleasableBytesReference(CompositeBytesReference.of(bytesReferences), releasable);
         }
     }
 

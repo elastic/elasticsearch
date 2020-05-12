@@ -493,3 +493,13 @@ See <<ilm-actions>>.
 === {ilm-init} policy definition
 
 See <<ilm-index-lifecycle>>.
+
+[role="exclude",id="search-uri-request"]
+=== URI search
+
+See <<search-search>>.
+
+[role="exclude",id="modules-gateway-dangling-indices"]
+=== Dangling indices
+
+See <<modules-gateway-dangling-indices>>.

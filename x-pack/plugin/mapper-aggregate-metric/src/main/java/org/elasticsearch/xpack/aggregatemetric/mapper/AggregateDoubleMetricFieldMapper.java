@@ -216,6 +216,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         () -> new EnumMap<>(Metric.class)
                     )
                 );
+            Explicit<Metric> defaultMetric = defaultMetric(context);
 
             AggregateDoubleMetricFieldType metricFieldType = (AggregateDoubleMetricFieldType) fieldType;
             metricFieldType.setMetricFields(metricFields);
@@ -558,7 +559,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         if (context.externalValueSet()) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] can't be used in multi-fields");
         }

@@ -225,6 +225,10 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         new AsyncAction(task, request, listener).start();
     }
 
+    protected boolean shouldIncludeDataStreams() {
+        return true;
+    }
+
     protected class AsyncAction {
         private final Task task;
         private final Request request;
@@ -249,7 +253,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 throw globalBlockException;
             }
 
-            String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
+            String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request, shouldIncludeDataStreams());
             ClusterBlockException requestBlockException = checkRequestBlock(clusterState, request, concreteIndices);
             if (requestBlockException != null) {
                 throw requestBlockException;

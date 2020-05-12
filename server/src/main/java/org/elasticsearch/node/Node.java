@@ -50,6 +50,7 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
@@ -147,6 +148,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
@@ -465,6 +467,9 @@ public class Node implements Closeable {
                     systemIndexDescriptors,
                     forbidPrivateIndexSettings);
 
+            final MetadataCreateDataStreamService metadataCreateDataStreamService =
+                new MetadataCreateDataStreamService(threadPool, clusterService, metadataCreateIndexService);
+
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
@@ -566,6 +571,7 @@ public class Node implements Closeable {
                     b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                     b.bind(IngestService.class).toInstance(ingestService);
                     b.bind(UsageService.class).toInstance(usageService);
+                    b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
                     b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
                     b.bind(MetadataUpgrader.class).toInstance(metadataUpgrader);
                     b.bind(MetaStateService.class).toInstance(metaStateService);
@@ -573,6 +579,7 @@ public class Node implements Closeable {
                     b.bind(IndicesService.class).toInstance(indicesService);
                     b.bind(AliasValidator.class).toInstance(aliasValidator);
                     b.bind(MetadataCreateIndexService.class).toInstance(metadataCreateIndexService);
+                    b.bind(MetadataCreateDataStreamService.class).toInstance(metadataCreateDataStreamService);
                     b.bind(SearchService.class).toInstance(searchService);
                     b.bind(SearchTransportService.class).toInstance(searchTransportService);
                     b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(
@@ -589,7 +596,7 @@ public class Node implements Closeable {
                         RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
                         processRecoverySettings(settingsModule.getClusterSettings(), recoverySettings);
                         b.bind(PeerRecoverySourceService.class).toInstance(new PeerRecoverySourceService(transportService,
-                                indicesService, recoverySettings, bigArrays));
+                                indicesService, recoverySettings));
                         b.bind(PeerRecoveryTargetService.class).toInstance(new PeerRecoveryTargetService(threadPool,
                                 transportService, recoverySettings, clusterService));
                     }

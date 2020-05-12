@@ -34,7 +34,6 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
 
     public  InternalSum(String name, double sum, DocValueFormat formatter, Map<String, Object> metadata) {
         super(name, metadata);
-
         this.sum = sum;
         this.format = formatter;
     }

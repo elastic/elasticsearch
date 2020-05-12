@@ -85,6 +85,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -329,30 +330,26 @@ public class MetadataCreateIndexService {
             // Check to see if a v2 template matched
             final String v2Template = MetadataIndexTemplateService.findV2Template(currentState.metadata(),
                 request.index(), isHiddenFromRequest == null ? false : isHiddenFromRequest);
-            final boolean preferV2Templates = resolvePreferV2Templates(request);
 
-            if (v2Template != null && preferV2Templates) {
+            if (v2Template != null) {
                 // If a v2 template was found, it takes precedence over all v1 templates, so create
                 // the index using that template and the request's specified settings
                 return applyCreateIndexRequestWithV2Template(currentState, request, silent, v2Template, metadataTransformer);
             } else {
-                if (v2Template != null) {
-                    logger.debug("ignoring matching index template [{}] as [prefer_v2_templates] is set to false", v2Template);
-                }
-                // A v2 template wasn't found (or is not preferred), check the v1 templates, in the
-                // event no templates are found creation still works using the request's specified
-                // index settings
+                // A v2 template wasn't found, check the v1 templates, in the event no templates are
+                // found creation still works using the request's specified index settings
                 final List<IndexTemplateMetadata> v1Templates = MetadataIndexTemplateService.findV1Templates(currentState.metadata(),
                     request.index(), isHiddenFromRequest);
+
+                if (v1Templates.size() > 1) {
+                    deprecationLogger.deprecatedAndMaybeLog("index_template_multiple_match", "index [{}] matches multiple v1 templates " +
+                        "[{}], v2 index templates will only match a single index template", request.index(),
+                        v1Templates.stream().map(IndexTemplateMetadata::name).sorted().collect(Collectors.joining(", ")));
+                }
 
                 return applyCreateIndexRequestWithV1Templates(currentState, request, silent, v1Templates, metadataTransformer);
             }
         }
-    }
-
-    private static boolean resolvePreferV2Templates(CreateIndexClusterStateUpdateRequest request) {
-        return request.preferV2Templates() == null ?
-            IndexMetadata.PREFER_V2_TEMPLATES_SETTING.get(request.settings()) : request.preferV2Templates();
     }
 
     public ClusterState applyCreateIndexRequest(ClusterState currentState, CreateIndexClusterStateUpdateRequest request,
@@ -423,8 +420,7 @@ public class MetadataCreateIndexService {
     private IndexMetadata buildAndValidateTemporaryIndexMetadata(final ClusterState currentState,
                                                                  final Settings aggregatedIndexSettings,
                                                                  final CreateIndexClusterStateUpdateRequest request,
-                                                                 final int routingNumShards,
-                                                                 final boolean preferV2Templates) {
+                                                                 final int routingNumShards) {
 
         final boolean isHiddenAfterTemplates = IndexMetadata.INDEX_HIDDEN_SETTING.get(aggregatedIndexSettings);
         validateDotIndex(request.index(), currentState, isHiddenAfterTemplates);
@@ -432,7 +428,6 @@ public class MetadataCreateIndexService {
         // remove the setting it's temporary and is only relevant once we create the index
         final Settings.Builder settingsBuilder = Settings.builder().put(aggregatedIndexSettings);
         settingsBuilder.remove(IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey());
-        settingsBuilder.put(IndexMetadata.PREFER_V2_TEMPLATES_SETTING.getKey(), preferV2Templates);
         final Settings indexSettings = settingsBuilder.build();
 
         final IndexMetadata.Builder tmpImdBuilder = IndexMetadata.builder(request.index());
@@ -463,8 +458,7 @@ public class MetadataCreateIndexService {
             aggregateIndexSettings(currentState, request, MetadataIndexTemplateService.resolveSettings(templates), mappings,
                 null, settings, indexScopedSettings);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
-        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards,
-            resolvePreferV2Templates(request));
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
         return applyCreateIndexWithTemporaryService(currentState, request, silent, null, tmpImd, mappings,
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(),
@@ -490,8 +484,7 @@ public class MetadataCreateIndexService {
                 MetadataIndexTemplateService.resolveSettings(currentState.metadata(), templateName),
                 mappings, null, settings, indexScopedSettings);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
-        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards,
-            resolvePreferV2Templates(request));
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
         return applyCreateIndexWithTemporaryService(currentState, request, silent, null, tmpImd, mappings,
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(),
@@ -502,10 +495,10 @@ public class MetadataCreateIndexService {
             Collections.singletonList(templateName), metadataTransformer);
     }
 
-    static Map<String, Object> resolveV2Mappings(final String requestMappings,
-                                                 final ClusterState currentState,
-                                                 final String templateName,
-                                                 final NamedXContentRegistry xContentRegistry) throws Exception {
+    public static Map<String, Object> resolveV2Mappings(final String requestMappings,
+                                                        final ClusterState currentState,
+                                                        final String templateName,
+                                                        final NamedXContentRegistry xContentRegistry) throws Exception {
         final Map<String, Object> mappings = Collections.unmodifiableMap(parseV2Mappings(requestMappings,
             MetadataIndexTemplateService.resolveMappings(currentState, templateName), xContentRegistry));
         return mappings;
@@ -524,8 +517,7 @@ public class MetadataCreateIndexService {
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request, Settings.EMPTY, mappings, sourceMetadata, settings, indexScopedSettings);
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetadata);
-        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards,
-            IndexMetadata.PREFER_V2_TEMPLATES_SETTING.get(sourceMetadata.getSettings()));
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
         return applyCreateIndexWithTemporaryService(currentState, request, silent, sourceMetadata, tmpImd, mappings,
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(), Collections.emptyList(),
@@ -573,7 +565,7 @@ public class MetadataCreateIndexService {
                 nonProperties = innerTemplateNonProperties;
 
                 if (maybeProperties != null) {
-                    properties.putAll(maybeProperties);
+                    properties = mergeIgnoringDots(properties, maybeProperties);
                 }
             }
         }
@@ -587,13 +579,34 @@ public class MetadataCreateIndexService {
             nonProperties = innerRequestNonProperties;
 
             if (maybeRequestProperties != null) {
-                properties.putAll(maybeRequestProperties);
+                properties = mergeIgnoringDots(properties, maybeRequestProperties);
             }
         }
 
         Map<String, Object> finalMappings = new HashMap<>(nonProperties);
         finalMappings.put("properties", properties);
         return Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, finalMappings);
+    }
+
+    /**
+     * Add the objects in the second map to the first, where the keys in the {@code second} map have
+     * higher predecence and overwrite the keys in the {@code first} map. In the event of a key with
+     * a dot in it (ie, "foo.bar"), the keys are treated as only the prefix counting towards
+     * equality. If the {@code second} map has a key such as "foo", all keys starting from "foo." in
+     * the {@code first} map are discarded.
+     */
+    static Map<String, Object> mergeIgnoringDots(Map<String, Object> first, Map<String, Object> second) {
+        Objects.requireNonNull(first, "merging requires two non-null maps but the first map was null");
+        Objects.requireNonNull(second, "merging requires two non-null maps but the second map was null");
+        Map<String, Object> results = new HashMap<>(first);
+        Set<String> prefixes = second.keySet().stream().map(MetadataCreateIndexService::prefix).collect(Collectors.toSet());
+        results.keySet().removeIf(k -> prefixes.contains(prefix(k)));
+        results.putAll(second);
+        return results;
+    }
+
+    private static String prefix(String s) {
+        return s.split("\\.", 2)[0];
     }
 
     /**
@@ -735,9 +748,10 @@ public class MetadataCreateIndexService {
      * @return the list of resolved aliases, with the explicitly provided aliases occurring first (having a higher priority) followed by
      * the ones inherited from the templates
      */
-    static List<AliasMetadata> resolveAndValidateAliases(String index, Set<Alias> aliases, List<Map<String, AliasMetadata>> templateAliases,
-                                                         Metadata metadata, AliasValidator aliasValidator,
-                                                         NamedXContentRegistry xContentRegistry, QueryShardContext queryShardContext) {
+    public static List<AliasMetadata> resolveAndValidateAliases(String index, Set<Alias> aliases,
+                                                                List<Map<String, AliasMetadata>> templateAliases, Metadata metadata,
+                                                                AliasValidator aliasValidator, NamedXContentRegistry xContentRegistry,
+                                                                QueryShardContext queryShardContext) {
         List<AliasMetadata> resolvedAliases = new ArrayList<>();
         for (Alias alias : aliases) {
             aliasValidator.validateAlias(alias, index, metadata);
@@ -952,7 +966,7 @@ public class MetadataCreateIndexService {
         for (final String key : settings.keySet()) {
             final Setting<?> setting = indexScopedSettings.get(key);
             if (setting == null) {
-                assert indexScopedSettings.isPrivateSetting(key);
+                assert indexScopedSettings.isPrivateSetting(key) : "expected [" + key + "] to be private but it was not";
             } else if (setting.isPrivateIndex()) {
                 validationErrors.add("private index setting [" + key + "] can not be set explicitly");
             }

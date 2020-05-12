@@ -106,7 +106,7 @@ Minimum number of snapshots to retain, even if the snapshots have expired.
 ====
 
 `schedule`::
-(Required, <<schedule-cron,Cron scheduler configuration>>)
+(Required, <<cron-expressions,Cron syntax>>)
 Periodic or absolute schedule at which the policy creates snapshots and deletes 
 expired snapshots. Schedule changes to existing policies are applied immediately.
 

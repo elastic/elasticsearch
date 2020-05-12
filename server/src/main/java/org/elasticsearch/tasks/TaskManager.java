@@ -44,6 +44,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpChannel;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,8 +57,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -91,6 +95,8 @@ public class TaskManager implements ClusterStateApplier {
     private DiscoveryNodes lastDiscoveryNodes = DiscoveryNodes.EMPTY_NODES;
 
     private final ByteSizeValue maxHeaderSize;
+    private final Map<TcpChannel, ChannelPendingTaskTracker> channelPendingTaskTrackers = ConcurrentCollections.newConcurrentMap();
+    private final List<Consumer<Set<CancellableTask>>> onChannelCloseListeners = new CopyOnWriteArrayList<>();
 
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         this.threadPool = threadPool;
@@ -442,17 +448,6 @@ public class TaskManager implements ClusterStateApplier {
                     }
                 }
             }
-            // Cancel cancellable tasks for the nodes that are gone
-            for (Map.Entry<Long, CancellableTaskHolder> taskEntry : cancellableTasks.entrySet()) {
-                CancellableTaskHolder holder = taskEntry.getValue();
-                CancellableTask task = holder.getTask();
-                TaskId parentTaskId = task.getParentTaskId();
-                if (parentTaskId.isSet() && lastDiscoveryNodes.nodeExists(parentTaskId.getNodeId()) == false) {
-                    if (task.cancelOnParentLeaving()) {
-                        holder.cancel("Coordinating node [" + parentTaskId.getNodeId() + "] left the cluster");
-                    }
-                }
-            }
         }
     }
 
@@ -607,4 +602,41 @@ public class TaskManager implements ClusterStateApplier {
         }
     }
 
+    /**
+     * Start tracking a cancellable task with its tcp channel, so if the channel gets closed we can get a set of
+     * pending tasks associated that channel and cancel them as these results won't be retrieved by the parent task.
+     *
+     * @return a releasable that should be called when this pending task is completed
+     */
+    public Releasable startTrackingCancellableChannelTask(TcpChannel channel, CancellableTask task) {
+        assert cancellableTasks.containsKey(task.getId()) : "task [" + task.getId() + "] is not registered yet";
+        final ChannelPendingTaskTracker tracker = channelPendingTaskTrackers.computeIfAbsent(channel, k -> new ChannelPendingTaskTracker());
+        tracker.pendingTasks.add(task);
+        if (tracker.registered.compareAndSet(false, true)) {
+            channel.addCloseListener(ActionListener.wrap(
+                r -> {
+                    final Set<CancellableTask> pendingTasks = Collections.unmodifiableSet(tracker.pendingTasks);
+                    for (Consumer<Set<CancellableTask>> listener : onChannelCloseListeners) {
+                        listener.accept(pendingTasks);
+                    }
+                },
+                e -> {
+                    assert false : new AssertionError("must not be here", e);
+                }));
+        }
+        return () -> tracker.pendingTasks.remove(task);
+    }
+
+    /**
+     * Register a callback which will be called when a transport channel is closed and there're some pending orphaned
+     * tasks associate with that transport channel.
+     */
+    public void registerOrphanedTasksOnChannelCloseListener(Consumer<Set<CancellableTask>> listener) {
+        onChannelCloseListeners.add(listener);
+    }
+
+    private static class ChannelPendingTaskTracker {
+        final AtomicBoolean registered = new AtomicBoolean();
+        final Set<CancellableTask> pendingTasks = ConcurrentCollections.newConcurrentSet();
+    }
 }

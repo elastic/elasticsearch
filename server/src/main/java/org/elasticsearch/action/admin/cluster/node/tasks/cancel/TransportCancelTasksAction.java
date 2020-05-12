@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -52,6 +53,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -70,6 +72,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             CancelTasksRequest::new, CancelTasksResponse::new, TaskInfo::new, ThreadPool.Names.MANAGEMENT);
         transportService.registerRequestHandler(BAN_PARENT_ACTION_NAME, ThreadPool.Names.SAME, BanParentTaskRequest::new,
             new BanParentRequestHandler());
+        taskManager.registerOrphanedTasksOnChannelCloseListener(this::cancelOrphanedTasks);
     }
 
     @Override
@@ -276,4 +279,23 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         }
     }
 
+    void cancelOrphanedTasks(Set<CancellableTask> orphanedTasks) {
+        if (orphanedTasks.isEmpty() == false) {
+            transportService.getThreadPool().generic().execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+
+                }
+
+                @Override
+                protected void doRun() {
+                    for (Task task : orphanedTasks) {
+                        cancelTaskAndDescendants((CancellableTask) task, "channel is closed", false, ActionListener.wrap(() -> {}));
+                    }
+                }
+            });
+        }
+    }
+
 }
+

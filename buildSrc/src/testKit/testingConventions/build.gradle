@@ -28,7 +28,7 @@ allprojects {
 }
 
 project(':empty_test_task') {
-  task emptyTest(type: Test) {
+  task.register("emptyTest", Test) {
 
   }
 }

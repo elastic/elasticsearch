@@ -270,6 +270,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             for (String repository : repositories) {
                 client.admin().cluster()
                     .prepareGetSnapshots(repository)
+                    .setIgnoreUnavailable(true)
                     .execute(ActionListener.wrap(resp -> {
                             final Set<SnapshotState> retainableStates =
                                 new HashSet<>(Arrays.asList(SnapshotState.SUCCESS, SnapshotState.FAILED, SnapshotState.PARTIAL));

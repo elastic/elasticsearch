@@ -503,3 +503,28 @@ See <<search-search>>.
 === Dangling indices
 
 See <<modules-gateway-dangling-indices>>.
+
+[role="exclude",id="shards-allocation"]
+=== Cluster-level shard allocation
+
+See <<cluster-shard-allocation-settings>>.
+
+[role="exclude",id="disk-allocator"]
+=== Disk-based shard allocation
+
+See <<disk-based-shard-allocation>>.
+
+[role="exclude",id="allocation-awareness"]
+=== Shard allocation awareness
+
+See <<shard-allocation-awareness>>.
+
+[role="exclude",id="allocation-filtering"]
+=== Cluster-level shard allocation filtering
+
+See <<cluster-shard-allocation-filtering>>.
+
+[role="exclude",id="misc-cluster"]
+=== Miscellaneous cluster settings
+
+See <<misc-cluster-settings>>.

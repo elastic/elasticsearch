@@ -95,11 +95,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         if (ctx.until != null) {
             until = visitJoinTerm(ctx.until, parentJoinKeys);
         } else {
-            // no until declared means no results
-            // create a dummy keyed filter
-            String notUsed = "<not-used>";
-            Attribute tsField = new FieldAttribute(source, notUsed, new UnsupportedEsField(notUsed, notUsed));
-            until = new KeyedFilter(source, new LocalRelation(source, new EmptyExecutable(emptyList())), emptyList(), tsField);
+            until = defaultUntil(source);
         }
 
         int numberOfKeys = -1;
@@ -125,6 +121,14 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         return new Join(source, queries, until, fieldTimestamp());
     }
 
+    private KeyedFilter defaultUntil(Source source) {
+        // no until declared means no results
+        // create a dummy keyed filter
+        String notUsed = "<not-used>";
+        Attribute tsField = new FieldAttribute(source, notUsed, new UnsupportedEsField(notUsed, notUsed));
+        return new KeyedFilter(source, new LocalRelation(source, new EmptyExecutable(emptyList())), emptyList(), tsField);
+    }
+
     public KeyedFilter visitJoinTerm(JoinTermContext ctx, List<Attribute> joinKeys) {
         List<Attribute> keys = CollectionUtils.combine(joinKeys, visitJoinKeys(ctx.by));
         LogicalPlan eventQuery = visitEventFilter(ctx.subquery().eventFilter());
@@ -148,11 +152,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         if (ctx.until != null) {
             until = visitSequenceTerm(ctx.until, parentJoinKeys);
         } else {
-            // no until declared means no results
-            // create a dummy keyed filter
-            String notUsed = "<not-used>";
-            Attribute tsField = new FieldAttribute(source, notUsed, new UnsupportedEsField(notUsed, notUsed));
-            until = new KeyedFilter(source, new LocalRelation(source, new EmptyExecutable(emptyList())), emptyList(), tsField);
+            until = defaultUntil(source);
         }
 
         int numberOfKeys = -1;

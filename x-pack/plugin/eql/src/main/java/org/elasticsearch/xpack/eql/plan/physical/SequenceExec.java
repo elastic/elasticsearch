@@ -100,6 +100,5 @@ public class SequenceExec extends PhysicalPlan {
         return Objects.equals(timestamp, other.timestamp)
                 && Objects.equals(children(), other.children())
                 && Objects.equals(keys, other.keys);
-                
     }
 }

@@ -62,6 +62,7 @@ public class Sequence {
     }
 
     public long timestamp(int stage) {
+        // stages not initialized yet return an out-of-band value to have no impact on the interval range
         if (stage > currentStage) {
             return Long.MAX_VALUE;
         }

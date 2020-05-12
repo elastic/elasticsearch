@@ -18,7 +18,7 @@ public class SequenceFrame {
 
     // NB: since the size varies significantly, use a LinkedList
     // Considering the order it might make sense to use a B-Tree+ for faster lookups which should work well with
-    // timestamp compression (which is known for the group
+    // timestamp compression (whose range is known for the current frame).
     private final List<Sequence> sequences = new LinkedList<>();
 
     // time frame being/end

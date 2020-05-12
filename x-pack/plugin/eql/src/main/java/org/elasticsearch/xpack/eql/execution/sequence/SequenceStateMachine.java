@@ -61,7 +61,8 @@ public class SequenceStateMachine {
         frame.add(sequence);
     }
 
-    /** Match the given hit (based on key and timestamp) with any potential sequence from the previous
+    /**
+     * Match the given hit (based on key and timestamp) with any potential sequence from the previous
      * given stage. If that's the case, update the sequence and the rest of the references.
      */
     public boolean match(int stage, SequenceKey key, long timestamp, SearchHit hit) {

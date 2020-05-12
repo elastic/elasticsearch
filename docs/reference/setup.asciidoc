@@ -49,6 +49,8 @@ include::settings/audit-settings.asciidoc[]
 
 include::modules/indices/circuit_breaker.asciidoc[]
 
+include::modules/cluster.asciidoc[]
+
 include::settings/ccr-settings.asciidoc[]
 
 include::modules/indices/fielddata.asciidoc[]

@@ -8,9 +8,17 @@
 
 // end::notable-breaking-changes[]
 
-[float]
-==== Removal of old network settings
-
+.The `network.tcp.connect_timeout` setting has been removed.
+[%collapsible]
+====
+*Details* +
 The `network.tcp.connect_timeout` setting was deprecated in 7.x and has been removed in 8.0. This setting
-was a fallback setting for `transport.connect_timeout`. To change the default connection timeout for client
-connections `transport.connect_timeout` should be modified.
+was a fallback setting for `transport.connect_timeout`.
+
+*Impact* +
+Use the `transport.connect_timeout` setting to change the default connection
+timeout for client connections. Discontinue use of the
+`network.tcp.connect_timeout` setting. Specifying the
+`network.tcp.connect_timeout` setting in `elasticsearch.yml` will result in an
+error on startup.
+====

@@ -36,11 +36,11 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.EmptyBucketInfo;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -132,27 +132,25 @@ public class RangeHistogramAggregator extends BucketsAggregator {
         };
     }
 
-    // TODO: buildAggregation and buildEmptyAggregation are literally just copied out of NumericHistogramAggregator.  We could refactor
+    // TODO: buildAggregations and buildEmptyAggregation are literally just copied out of NumericHistogramAggregator.  We could refactor
     // this to an abstract super class, if we wanted to.  Might be overkill.
     @Override
-    public InternalAggregation buildAggregation(long bucket) throws IOException {
-        assert bucket == 0;
-        consumeBucketsAndMaybeBreak((int) bucketOrds.size());
-        List<InternalHistogram.Bucket> buckets = new ArrayList<>((int) bucketOrds.size());
-        for (long i = 0; i < bucketOrds.size(); i++) {
-            double roundKey = Double.longBitsToDouble(bucketOrds.get(i));
-            double key = roundKey * interval + offset;
-            buckets.add(new InternalHistogram.Bucket(key, bucketDocCount(i), keyed, formatter, bucketAggregations(i)));
-        }
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        return buildAggregationsForVariableBuckets(owningBucketOrds, bucketOrds,
+            (bucketValue, docCount, subAggregationResults) -> {
+                double roundKey = Double.longBitsToDouble(bucketValue);
+                double key = roundKey * interval + offset;
+                return new InternalHistogram.Bucket(key, docCount, keyed, formatter, subAggregationResults);
+            }, buckets -> {
+                // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
+                CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
 
-        // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
-        CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
-
-        InternalHistogram.EmptyBucketInfo emptyBucketInfo = null;
-        if (minDocCount == 0) {
-            emptyBucketInfo = new InternalHistogram.EmptyBucketInfo(interval, offset, minBound, maxBound, buildEmptySubAggregations());
-        }
-        return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, metadata());
+                EmptyBucketInfo emptyBucketInfo = null;
+                if (minDocCount == 0) {
+                    emptyBucketInfo = new EmptyBucketInfo(interval, offset, minBound, maxBound, buildEmptySubAggregations());
+                }
+                return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, metadata());
+            });
     }
 
     @Override

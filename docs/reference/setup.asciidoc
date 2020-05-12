@@ -53,6 +53,8 @@ include::settings/ccr-settings.asciidoc[]
 
 include::modules/indices/fielddata.asciidoc[]
 
+include::modules/http.asciidoc[]
+
 include::settings/ilm-settings.asciidoc[]
 
 include::modules/indices/recovery.asciidoc[]
@@ -61,11 +63,15 @@ include::modules/indices/indexing_buffer.asciidoc[]
 
 include::settings/license-settings.asciidoc[]
 
+include::modules/gateway.asciidoc[]
+
 include::setup/logging-config.asciidoc[]
 
 include::settings/ml-settings.asciidoc[]
 
 include::settings/monitoring-settings.asciidoc[]
+
+include::modules/node.asciidoc[]
 
 include::modules/network.asciidoc[]
 

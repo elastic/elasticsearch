@@ -476,6 +476,115 @@ AlejandRo      |1
 ;
 
 
+startsWithInline1
+SELECT STARTS_WITH('Elasticsearch', 'Elastic') stwith;
+
+  stwith:b   
+---------------
+true
+;
+
+startsWithInline2
+SELECT STARTS_WITH('Elasticsearch', 'elastic') stwith;
+
+  stwith:b   
+---------------
+false
+;
+
+selectStartsWith_WithThreeConditions
+SELECT "first_name" FROM "test_emp" WHERE STARTS_WITH("first_name", 'A') OR STARTS_WITH("first_name", 'Br') OR STARTS_WITH(LCASE("first_name"), LCASE('X')) ORDER BY "first_name" DESC;
+
+  first_name:s   
+---------------
+Xinglin        
+Brendon        
+Breannda       
+Arumugam       
+Anoosh         
+Anneke         
+Amabile        
+Alejandro      
+;
+
+selectStartsWith_WithGroupByAndOrderBy
+SELECT STARTS_WITH("first_name", 'A') st, COUNT(*) count FROM "test_emp" WHERE st IS NOT NULL GROUP BY 1 ORDER BY 1;
+
+      st:b       |     count:l     
+-----------------+---------------
+false            |85             
+true             |5              
+;
+
+selectStartsWithIsNull
+SELECT STARTS_WITH("first_name", 'A') IS NULL stwith, first_name FROM test_emp ORDER BY stwith DESC LIMIT 15;
+
+   stwith:b    |  first_name:s   
+---------------+---------------
+true           |null           
+true           |null           
+true           |null           
+true           |null           
+true           |null           
+true           |null           
+true           |null           
+true           |null           
+true           |null           
+true           |null           
+false          |Georgi         
+false          |Bezalel        
+false          |Parto          
+false          |Chirstian      
+false          |Kyoichi        
+;
+
+selectStartsWith_WithWhereAndGroupBy
+SELECT STARTS_WITH("first_name", 'A') st, COUNT(*) count FROM "test_emp" WHERE st IS NOT NULL GROUP BY STARTS_WITH("first_name", 'A');
+
+      st:b       |     count:l     
+-----------------+---------------
+false            |85             
+true             |5              
+;
+
+selectStartsWith_WithWhereAndGroupByAndOrderBy
+SELECT MAX("salary") s, STARTS_WITH("first_name", 'A') st, MIN("salary") a FROM "test_emp" WHERE st IS NOT NULL GROUP BY STARTS_WITH("first_name", 'A') ORDER BY st;
+
+       s:i     |      st:b       |       a:i       
+---------------+-----------------+---------------
+74999          |false            |25324        
+66817          |true             |38645        
+;
+
+selectComplexStartsWith_WithWhereAndNestedFunction
+SELECT MAX("salary") max, CONCAT(CASE WHEN STARTS_WITH(LCASE("first_name"), 'a') THEN 'elasticsearch' ELSE 'search' END, '@elastic') concat_st, STARTS_WITH(LCASE("first_name"), 'a') st, MIN("salary") min, COUNT(*) count FROM test_emp WHERE STARTS_WITH(LCASE("first_name"), 'a') IS NOT NULL GROUP BY STARTS_WITH(LCASE("first_name"), 'a');
+
+     max:i     |      concat_st:s      |      st:b       |      min:i    |     count:l     
+---------------+-----------------------+-----------------+---------------+---------------
+74999          |search@elastic         |false            |25324          |85             
+66817          |elasticsearch@elastic  |true             |38645          |5              
+;
+
+selectStartsWith_WithTwoColumns
+SELECT "first_name", "last_name", "gender" FROM "test_emp" WHERE STARTS_WITH("first_name", "gender") OR STARTS_WITH("last_name", "gender") ORDER BY "gender";
+
+ first_name:s  |  last_name:s  |   gender:s     
+---------------+---------------+---------------
+Sudharsan      |Flasterstein   |F              
+Kyoichi        |Maliniak       |M              
+Mayuko         |Warwick        |M              
+null           |Merlo          |M              
+null           |Makrucki       |M              
+Moss           |Shanbhogue     |M              
+Mayumi         |Schueller      |M              
+Berhard        |McFarlin       |M              
+Shir           |McClurg        |M              
+Mona           |Azuma          |M              
+Kenroku        |Malabarba      |M              
+Hilari         |Morton         |M              
+Jayson         |Mandell        |M              
+;
+
 checkColumnNameWithNestedArithmeticFunctionCallsOnTableColumn
 SELECT CHAR(emp_no % 10000) AS c FROM "test_emp" WHERE emp_no > 10064 ORDER BY emp_no LIMIT 1;
 

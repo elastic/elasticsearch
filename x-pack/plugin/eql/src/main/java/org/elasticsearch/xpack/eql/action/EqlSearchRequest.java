@@ -48,6 +48,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     private int fetchSize = FETCH_SIZE;
     private SearchAfterBuilder searchAfterBuilder;
     private String query;
+    private boolean isCaseSensitive = false;
 
     static final String KEY_FILTER = "filter";
     static final String KEY_TIMESTAMP_FIELD = "timestamp_field";
@@ -56,6 +57,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     static final String KEY_SIZE = "size";
     static final String KEY_SEARCH_AFTER = "search_after";
     static final String KEY_QUERY = "query";
+    static final String KEY_CASE_SENSITIVE = "case_sensitive";
 
     static final ParseField FILTER = new ParseField(KEY_FILTER);
     static final ParseField TIMESTAMP_FIELD = new ParseField(KEY_TIMESTAMP_FIELD);
@@ -64,6 +66,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     static final ParseField SIZE = new ParseField(KEY_SIZE);
     static final ParseField SEARCH_AFTER = new ParseField(KEY_SEARCH_AFTER);
     static final ParseField QUERY = new ParseField(KEY_QUERY);
+    static final ParseField CASE_SENSITIVE = new ParseField(KEY_CASE_SENSITIVE);
 
     private static final ObjectParser<EqlSearchRequest, Void> PARSER = objectParser(EqlSearchRequest::new);
 
@@ -82,6 +85,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         fetchSize = in.readVInt();
         searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
         query = in.readString();
+        isCaseSensitive = in.readBoolean();
     }
 
     @Override
@@ -143,6 +147,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         }
 
         builder.field(KEY_QUERY, query);
+        builder.field(KEY_CASE_SENSITIVE, isCaseSensitive);
 
         return builder;
     }
@@ -162,6 +167,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         parser.declareField(EqlSearchRequest::setSearchAfter, SearchAfterBuilder::fromXContent, SEARCH_AFTER,
             ObjectParser.ValueType.OBJECT_ARRAY);
         parser.declareString(EqlSearchRequest::query, QUERY);
+        parser.declareBoolean(EqlSearchRequest::isCaseSensitive, CASE_SENSITIVE);
         return parser;
     }
 
@@ -230,6 +236,13 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
+    public boolean isCaseSensitive() { return this.isCaseSensitive; }
+
+    public EqlSearchRequest isCaseSensitive(boolean isCaseSensitive) {
+        this.isCaseSensitive = isCaseSensitive;
+        return this;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -242,6 +255,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         out.writeVInt(fetchSize);
         out.writeOptionalWriteable(searchAfterBuilder);
         out.writeString(query);
+        out.writeBoolean(isCaseSensitive);
     }
 
     @Override
@@ -261,7 +275,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
                 Objects.equals(eventCategoryField, that.eventCategoryField) &&
                 Objects.equals(implicitJoinKeyField, that.implicitJoinKeyField) &&
                 Objects.equals(searchAfterBuilder, that.searchAfterBuilder) &&
-                Objects.equals(query, that.query);
+                Objects.equals(query, that.query) &&
+                Objects.equals(isCaseSensitive, that.isCaseSensitive);
     }
 
     @Override
@@ -274,7 +289,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             timestampField, eventCategoryField,
             implicitJoinKeyField,
             searchAfterBuilder,
-            query);
+            query,
+            isCaseSensitive);
     }
 
     @Override

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.session.Configuration;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -26,10 +27,12 @@ import static org.elasticsearch.xpack.eql.analysis.AnalysisUtils.resolveAgainstL
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
 
+    private final Configuration configuration;
     private final FunctionRegistry functionRegistry;
     private final Verifier verifier;
 
-    public Analyzer(FunctionRegistry functionRegistry, Verifier verifier) {
+    public Analyzer(Configuration configuration, FunctionRegistry functionRegistry, Verifier verifier) {
+        this.configuration = configuration;
         this.functionRegistry = functionRegistry;
         this.verifier = verifier;
     }
@@ -113,7 +116,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         return uf.missing(functionName, functionRegistry.listFunctions());
                     }
                     FunctionDefinition def = functionRegistry.resolveFunction(functionName);
-                    Function f = uf.buildResolved(null, def);
+                    Function f = uf.buildResolved(configuration, def);
                     return f;
                 }
                 return e;

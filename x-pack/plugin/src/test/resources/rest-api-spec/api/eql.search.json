@@ -22,7 +22,22 @@
         }
       ]
     },
-    "params":{},
+    "params":{
+      "wait_for_completion_timeout":{
+        "type":"time",
+        "description":"Specify the time that the request should block waiting for the final response"
+      },
+      "keep_on_completion":{
+        "type":"boolean",
+        "description":"Control whether the response should be stored in the cluster if it completed within the provided [wait_for_completion] time (default: false)",
+        "default":false
+      },
+      "keep_alive": {
+        "type": "time",
+        "description": "Update the time interval in which the results (partial or final) for this search will be available",
+        "default": "5d"
+      }
+    },
     "body":{
       "description":"Eql request body. Use the `query` to limit the query scope.",
       "required":true

@@ -8,17 +8,22 @@ package org.elasticsearch.xpack.eql.action;
 
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.AsyncTask;
 
 import java.util.Map;
-import java.util.function.Supplier;
 
-public class EqlSearchTask extends CancellableTask {
-    private final Supplier<String> descriptionSupplier;
+public class EqlSearchTask extends CancellableTask implements AsyncTask {
+    private final String description;
+    private final AsyncExecutionId asyncExecutionId;
+    private final Map<String, String> originHeaders;
 
-    public EqlSearchTask(long id, String type, String action, Supplier<String> descriptionSupplier, TaskId parentTaskId,
-                         Map<String, String> headers) {
+    public EqlSearchTask(long id, String type, String action, String description, TaskId parentTaskId,
+                         Map<String, String> headers, Map<String, String> originHeaders, AsyncExecutionId asyncExecutionId) {
         super(id, type, action, null, parentTaskId, headers);
-        this.descriptionSupplier = descriptionSupplier;
+        this.description = description;
+        this.asyncExecutionId = asyncExecutionId;
+        this.originHeaders = originHeaders;
     }
 
     @Override
@@ -28,6 +33,16 @@ public class EqlSearchTask extends CancellableTask {
 
     @Override
     public String getDescription() {
-        return descriptionSupplier.get();
+        return description;
+    }
+
+    @Override
+    public Map<String, String> getOriginHeaders() {
+        return originHeaders;
+    }
+
+    @Override
+    public AsyncExecutionId getExecutionId() {
+        return asyncExecutionId;
     }
 }

@@ -57,7 +57,12 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<org.elastic
         if (randomBoolean()) {
             hits = new org.elasticsearch.xpack.eql.action.EqlSearchResponse.Hits(randomEvents(), null, null, totalHits);
         }
-        return new org.elasticsearch.xpack.eql.action.EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
+        if (randomBoolean()) {
+            return new org.elasticsearch.xpack.eql.action.EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
+        } else {
+            return new org.elasticsearch.xpack.eql.action.EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(),
+                randomAlphaOfLength(10), randomBoolean(), randomBoolean());
+        }
     }
 
     public static org.elasticsearch.xpack.eql.action.EqlSearchResponse createRandomSequencesResponse(TotalHits totalHits) {
@@ -77,7 +82,12 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<org.elastic
         if (randomBoolean()) {
             hits = new org.elasticsearch.xpack.eql.action.EqlSearchResponse.Hits(null, seq, null, totalHits);
         }
-        return new org.elasticsearch.xpack.eql.action.EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
+        if (randomBoolean()) {
+            return new org.elasticsearch.xpack.eql.action.EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
+        } else {
+            return new org.elasticsearch.xpack.eql.action.EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(),
+                randomAlphaOfLength(10), randomBoolean(), randomBoolean());
+        }
     }
 
     public static org.elasticsearch.xpack.eql.action.EqlSearchResponse createRandomCountResponse(TotalHits totalHits) {
@@ -97,7 +107,12 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<org.elastic
         if (randomBoolean()) {
             hits = new org.elasticsearch.xpack.eql.action.EqlSearchResponse.Hits(null, null, cn, totalHits);
         }
-        return new org.elasticsearch.xpack.eql.action.EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
+        if (randomBoolean()) {
+            return new org.elasticsearch.xpack.eql.action.EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
+        } else {
+            return new org.elasticsearch.xpack.eql.action.EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(),
+                randomAlphaOfLength(10), randomBoolean(), randomBoolean());
+        }
     }
 
     public static org.elasticsearch.xpack.eql.action.EqlSearchResponse createRandomInstance(TotalHits totalHits) {

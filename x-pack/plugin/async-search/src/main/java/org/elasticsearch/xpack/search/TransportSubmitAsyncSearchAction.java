@@ -97,7 +97,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                 // creates the fallback response if the node crashes/restarts in the middle of the request
                                 // TODO: store intermediate results ?
                                 AsyncSearchResponse initialResp = searchResponse.clone(searchResponse.getId());
-                                store.storeInitialResponse(docId, searchTask.getOriginHeaders(), initialResp,
+                                store.createResponse(docId, searchTask.getOriginHeaders(), initialResp,
                                     new ActionListener<>() {
                                         @Override
                                         public void onResponse(IndexResponse r) {
@@ -191,7 +191,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         }
 
         try {
-            store.storeFinalResponse(searchTask.getExecutionId().getDocId(), threadContext.getResponseHeaders(),response,
+            store.updateResponse(searchTask.getExecutionId().getDocId(), threadContext.getResponseHeaders(),response,
                 ActionListener.wrap(resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
                                     exc -> {
                                         Throwable cause = ExceptionsHelper.unwrapCause(exc);

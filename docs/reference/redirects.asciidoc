@@ -528,3 +528,47 @@ See <<cluster-shard-allocation-filtering>>.
 === Miscellaneous cluster settings
 
 See <<misc-cluster-settings>>.
+
+[role="exclude",id="modules"]
+=== Modules
+
+This page has been removed.
+
+For circuit breaker settings, see <<circuit-breaker>>.
+
+For cluster-level shard allocation and routing settings, see <<modules-cluster>>.
+
+For information about discovery and cluster formation, see <<modules-discovery-settings>>.
+
+For field data cache settings, see <<modules-fielddata>>.
+
+For HTTP settings, see <<modules-http>>.
+
+For index recovery settings, see <<recovery>>.
+
+For indexing buffer settings, see <<indexing-buffer>>.
+
+For information about the transport layer, see <<modules-transport>>.
+
+For information about thread pools, see <<modules-threadpool>>.
+
+For local gateway settings, see <<modules-gateway>>.
+
+For network settings, see <<modules-network>>.
+
+For information about node types and settings, see <<modules-node>>.
+
+For node query cache settings, see <<query-cache>>.
+
+For information about plugins, see <<modules-plugins>>.
+
+For information about remote clusters, see <<modules-remote-clusters>>.
+
+For search settings, see <<search-settings>>.
+
+For shard request cache settings, see <<shard-request-cache>>.
+
+[role="exclude",id="modules-discovery-adding-removing-nodes"]
+=== Adding and removing nodes
+
+See <<add-elasticsearch-nodes>>.

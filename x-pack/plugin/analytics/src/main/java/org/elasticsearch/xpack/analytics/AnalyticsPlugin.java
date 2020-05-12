@@ -35,8 +35,8 @@ import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsAggregato
 import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
-import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregator;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
+import org.elasticsearch.xpack.analytics.movingPercentiles.MovingPercentilesPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.stringstats.InternalStringStats;
 import org.elasticsearch.xpack.analytics.stringstats.StringStatsAggregationBuilder;
 import org.elasticsearch.xpack.analytics.topmetrics.InternalTopMetrics;
@@ -73,14 +73,18 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public List<PipelineAggregationSpec> getPipelineAggregations() {
-        return singletonList(
-            new PipelineAggregationSpec(
-                CumulativeCardinalityPipelineAggregationBuilder.NAME,
-                CumulativeCardinalityPipelineAggregationBuilder::new,
-                CumulativeCardinalityPipelineAggregator::new,
-                usage.track(AnalyticsStatsAction.Item.CUMULATIVE_CARDINALITY,
-                        checkLicense(CumulativeCardinalityPipelineAggregationBuilder.PARSER)))
-        );
+        List<PipelineAggregationSpec> pipelineAggs = new ArrayList<>();
+        pipelineAggs.add(new PipelineAggregationSpec(
+            CumulativeCardinalityPipelineAggregationBuilder.NAME,
+            CumulativeCardinalityPipelineAggregationBuilder::new,
+            usage.track(AnalyticsStatsAction.Item.CUMULATIVE_CARDINALITY,
+                checkLicense(CumulativeCardinalityPipelineAggregationBuilder.PARSER))));
+        pipelineAggs.add(new PipelineAggregationSpec(
+            MovingPercentilesPipelineAggregationBuilder.NAME,
+            MovingPercentilesPipelineAggregationBuilder::new,
+            usage.track(AnalyticsStatsAction.Item.MOVING_PERCENTILES,
+                checkLicense(MovingPercentilesPipelineAggregationBuilder.PARSER))));
+        return pipelineAggs;
     }
 
     @Override
@@ -153,9 +157,9 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-            ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
-            Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-            IndexNameExpressionResolver indexNameExpressionResolver, Supplier<RepositoriesService> repositoriesServiceSupplier) {
+                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
+                                               Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver indexNameExpressionResolver, Supplier<RepositoriesService> repositoriesServiceSupplier) {
         return singletonList(usage);
     }
 

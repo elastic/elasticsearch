@@ -534,39 +534,28 @@ See <<misc-cluster-settings>>.
 
 This page has been removed.
 
-For circuit breaker settings, see <<circuit-breaker>>.
+See <<settings,Configuring Elasticsearch>> for settings information:
 
-For cluster-level shard allocation and routing settings, see <<modules-cluster>>.
+* <<circuit-breaker>>
+* <<modules-cluster>>
+* <<modules-fielddata>>
+* <<modules-http>>
+* <<recovery>>
+* <<indexing-buffer>>
+* <<modules-gateway>>
+* <<modules-network>>
+* <<query-cache>>
+* <<search-settings>>
+* <<shard-request-cache>>
 
-For information about discovery and cluster formation, see <<modules-discovery-settings>>.
+For other information, see:
 
-For field data cache settings, see <<modules-fielddata>>.
-
-For HTTP settings, see <<modules-http>>.
-
-For index recovery settings, see <<recovery>>.
-
-For indexing buffer settings, see <<indexing-buffer>>.
-
-For information about the transport layer, see <<modules-transport>>.
-
-For information about thread pools, see <<modules-threadpool>>.
-
-For local gateway settings, see <<modules-gateway>>.
-
-For network settings, see <<modules-network>>.
-
-For information about node types and settings, see <<modules-node>>.
-
-For node query cache settings, see <<query-cache>>.
-
-For information about plugins, see <<modules-plugins>>.
-
-For information about remote clusters, see <<modules-remote-clusters>>.
-
-For search settings, see <<search-settings>>.
-
-For shard request cache settings, see <<shard-request-cache>>.
+* <<modules-discovery-settings>>
+* <<modules-transport>>
+* <<modules-threadpool>>
+* <<modules-node>>
+* <<modules-plugins>>
+* <<modules-remote-clusters>>
 
 [role="exclude",id="modules-discovery-adding-removing-nodes"]
 === Adding and removing nodes

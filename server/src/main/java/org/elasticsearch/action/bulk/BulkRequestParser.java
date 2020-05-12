@@ -40,7 +40,10 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 
@@ -139,6 +142,10 @@ public final class BulkRequestParser {
         int from = 0;
         byte marker = xContent.streamSeparator();
         boolean typesDeprecationLogged = false;
+        // Bulk requests can contain a lot of repeated strings for the index, pipeline and routing parameters. This map is used to
+        // deduplicate duplicate strings parsed for these parameters. While it does not prevent instantiating the duplicate strings, it
+        // reduces their lifetime to the lifetime of this parse call instead of the lifetime of the full bulk request.
+        final Map<String, String> stringDeduplicator = new HashMap<>();
         while (true) {
             int nextMarker = findNextMarker(marker, from, data);
             if (nextMarker == -1) {
@@ -198,17 +205,17 @@ public final class BulkRequestParser {
                                 if (!allowExplicitIndex) {
                                     throw new IllegalArgumentException("explicit index in bulk is not allowed");
                                 }
-                                index = parser.text();
+                                index = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                             } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {   
                                 if (warnOnTypeUsage && typesDeprecationLogged == false) {
                                     deprecationLogger.deprecatedAndMaybeLog("bulk_with_types", RestBulkAction.TYPES_DEPRECATION_MESSAGE);
                                     typesDeprecationLogged = true;
                                 }
-                                type = parser.text();
+                                type = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                             } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                                 id = parser.text();
                             } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
-                                routing = parser.text();
+                                routing = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                             } else if (OP_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                                 opType = parser.text();
                             } else if (VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -222,7 +229,7 @@ public final class BulkRequestParser {
                             } else if (RETRY_ON_CONFLICT.match(currentFieldName, parser.getDeprecationHandler())) {
                                 retryOnConflict = parser.intValue();
                             } else if (PIPELINE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                pipeline = parser.text();
+                                pipeline = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                             } else if (SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
                                 fetchSourceContext = FetchSourceContext.fromXContent(parser);
                             } else {

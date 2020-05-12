@@ -99,8 +99,8 @@ public class StartsWithFunctionPipeTests extends AbstractNodeTestCase<StartsWith
     @Override
     protected StartsWithFunctionPipe mutate(StartsWithFunctionPipe instance) {
         List<Function<StartsWithFunctionPipe, StartsWithFunctionPipe>> randoms = new ArrayList<>();
-        for(int i = 1; i < 4; i++) {
-            for(BitSet comb : new Combinations(3, i)) {
+        for (int i = 1; i < 4; i++) {
+            for (BitSet comb : new Combinations(3, i)) {
                 randoms.add(f -> new StartsWithFunctionPipe(f.source(),
                         f.expression(),
                         comb.get(0) ? pipe(((Expression) randomValueOtherThan(f.field(),

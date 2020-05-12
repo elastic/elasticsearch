@@ -538,6 +538,7 @@ See <<settings,Configuring Elasticsearch>> for settings information:
 
 * <<circuit-breaker>>
 * <<modules-cluster>>
+* <<modules-discovery-settings>>
 * <<modules-fielddata>>
 * <<modules-http>>
 * <<recovery>>
@@ -550,7 +551,6 @@ See <<settings,Configuring Elasticsearch>> for settings information:
 
 For other information, see:
 
-* <<modules-discovery-settings>>
 * <<modules-transport>>
 * <<modules-threadpool>>
 * <<modules-node>>

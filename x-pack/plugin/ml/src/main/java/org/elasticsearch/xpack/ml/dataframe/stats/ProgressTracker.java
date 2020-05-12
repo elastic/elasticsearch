@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.stats;
 
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 
 import java.util.ArrayList;
@@ -54,7 +53,7 @@ public class ProgressTracker {
     }
 
     public void updateReindexingProgress(int progressPercent) {
-        progressPercentPerPhase.put(REINDEXING, progressPercent);
+        updatePhase(REINDEXING, progressPercent);
     }
 
     public int getReindexingProgressPercent() {
@@ -62,11 +61,15 @@ public class ProgressTracker {
     }
 
     public void updateLoadingDataProgress(int progressPercent) {
-        progressPercentPerPhase.put(LOADING_DATA, progressPercent);
+        updatePhase(LOADING_DATA, progressPercent);
+    }
+
+    public int getLoadingDataProgressPercent() {
+        return progressPercentPerPhase.get(LOADING_DATA);
     }
 
     public void updateWritingResultsProgress(int progressPercent) {
-        progressPercentPerPhase.put(WRITING_RESULTS, progressPercent);
+        updatePhase(WRITING_RESULTS, progressPercent);
     }
 
     public int getWritingResultsProgressPercent() {
@@ -74,10 +77,11 @@ public class ProgressTracker {
     }
 
     public void updatePhase(PhaseProgress phase) {
-        Integer newValue = progressPercentPerPhase.computeIfPresent(phase.getPhase(), (k, v) -> phase.getProgressPercent());
-        if (newValue == null) {
-            throw ExceptionsHelper.serverError("unknown progress phase [" + phase.getPhase() + "]");
-        }
+        updatePhase(phase.getPhase(), phase.getProgressPercent());
+    }
+
+    private void updatePhase(String phase, int progress) {
+        progressPercentPerPhase.computeIfPresent(phase, (k, v) -> Math.max(v, progress));
     }
 
     public List<PhaseProgress> report() {

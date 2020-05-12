@@ -37,6 +37,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -835,7 +836,7 @@ public class HttpExporter extends Exporter {
 
     @Override
     public void openBulk(final ActionListener<ExportBulk> listener) {
-        final boolean canUseClusterAlerts = config.licenseState().isMonitoringClusterAlertsAllowed();
+        final boolean canUseClusterAlerts = config.licenseState().isAllowed(Feature.MONITORING_CLUSTER_ALERTS);
 
         // if this changes between updates, then we need to add OR remove the watches
         if (clusterAlertsAllowed.compareAndSet(!canUseClusterAlerts, canUseClusterAlerts)) {

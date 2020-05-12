@@ -1799,14 +1799,24 @@ SELECT SPACE(3);
 // end::stringSpace
 ;
 
-stringStartsWith
-// tag::stringStartsWith
+stringStartsWithTrue
+// tag::stringStartsWithTrue
 SELECT STARTS_WITH('Elasticsearch', 'Elastic');
 
 STARTS_WITH('Elasticsearch', 'Elastic')
 --------------------------------
 true    
-// end::stringStartsWith
+// end::stringStartsWithTrue
+;
+
+stringStartsWithFalse
+// tag::stringStartsWithFalse
+SELECT STARTS_WITH('Elasticsearch', 'ELASTIC');
+
+STARTS_WITH('Elasticsearch', 'ELASTIC')
+--------------------------------
+false   
+// end::stringStartsWithFalse
 ;
 
 stringSubString

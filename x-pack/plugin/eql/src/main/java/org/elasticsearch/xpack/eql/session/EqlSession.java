@@ -38,13 +38,13 @@ public class EqlSession {
     private final Planner planner;
 
     public EqlSession(Client client, EqlConfiguration cfg, IndexResolver indexResolver, PreAnalyzer preAnalyzer,
-            FunctionRegistry functionRegistry, Optimizer optimizer, Planner planner, PlanExecutor planExecutor) {
+            FunctionRegistry functionRegistry, Verifier verifier, Optimizer optimizer, Planner planner, PlanExecutor planExecutor) {
 
         this.client = new ParentTaskAssigningClient(client, cfg.getTaskId());
         this.configuration = cfg;
         this.indexResolver = indexResolver;
         this.preAnalyzer = preAnalyzer;
-        this.analyzer = new Analyzer(cfg, functionRegistry, new Verifier());
+        this.analyzer = new Analyzer(cfg, functionRegistry, verifier);
         this.optimizer = optimizer;
         this.planner = planner;
     }

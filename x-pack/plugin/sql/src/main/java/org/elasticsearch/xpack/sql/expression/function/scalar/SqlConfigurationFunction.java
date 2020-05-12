@@ -19,11 +19,11 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 
-public abstract class NoArgumentsConfigurationFunction extends ConfigurationFunction {
+public abstract class SqlConfigurationFunction extends ConfigurationFunction {
 
     private final DataType dataType;
 
-    protected NoArgumentsConfigurationFunction(Source source, Configuration configuration, DataType dataType) {
+    protected SqlConfigurationFunction(Source source, Configuration configuration, DataType dataType) {
         super(source, emptyList(), configuration);
         this.dataType = dataType;
     }
@@ -63,6 +63,6 @@ public abstract class NoArgumentsConfigurationFunction extends ConfigurationFunc
 
     @Override
     public boolean equals(Object obj) {
-        return super.equals(obj) && Objects.equals(fold(), ((NoArgumentsConfigurationFunction) obj).fold());
+        return super.equals(obj) && Objects.equals(fold(), ((SqlConfigurationFunction) obj).fold());
     }
 }

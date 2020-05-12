@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
+import org.elasticsearch.xpack.eql.analysis.Verifier;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.eql.optimizer.Optimizer;
 import org.elasticsearch.xpack.eql.parser.ParserParams;
@@ -31,6 +32,7 @@ public class PlanExecutor {
     private final FunctionRegistry functionRegistry;
 
     private final PreAnalyzer preAnalyzer;
+    private final Verifier verifier;
     private final Optimizer optimizer;
     private final Planner planner;
 
@@ -47,12 +49,13 @@ public class PlanExecutor {
         this.metrics = new Metrics();
 
         this.preAnalyzer = new PreAnalyzer();
+        this.verifier = new Verifier();
         this.optimizer = new Optimizer();
         this.planner = new Planner();
     }
 
     private EqlSession newSession(EqlConfiguration cfg) {
-        return new EqlSession(client, cfg, indexResolver, preAnalyzer, functionRegistry, optimizer, planner, this);
+        return new EqlSession(client, cfg, indexResolver, preAnalyzer, functionRegistry, verifier, optimizer, planner, this);
     }
 
     public void eql(EqlConfiguration cfg, String eql, ParserParams parserParams, ActionListener<Results> listener) {

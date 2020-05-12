@@ -8,11 +8,13 @@ package org.elasticsearch.xpack.ql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.ql.TestUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.Combinations;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
@@ -97,21 +99,18 @@ public class StartsWithFunctionPipeTests extends AbstractNodeTestCase<StartsWith
     @Override
     protected StartsWithFunctionPipe mutate(StartsWithFunctionPipe instance) {
         List<Function<StartsWithFunctionPipe, StartsWithFunctionPipe>> randoms = new ArrayList<>();
-        randoms.add(f -> new StartsWithFunctionPipe(f.source(),
-                f.expression(),
-                pipe(((Expression) randomValueOtherThan(f.field(), () -> randomStringLiteral()))),
-                f.pattern(),
-                f.isCaseSensitive()));
-        randoms.add(f -> new StartsWithFunctionPipe(f.source(),
-                f.expression(),
-                f.field(),
-                pipe(((Expression) randomValueOtherThan(f.pattern(), () -> randomStringLiteral()))),
-                f.isCaseSensitive()));
-        randoms.add(f -> new StartsWithFunctionPipe(f.source(),
-                f.expression(),
-                pipe(((Expression) randomValueOtherThan(f.field(), () -> randomStringLiteral()))),
-                pipe(((Expression) randomValueOtherThan(f.pattern(), () -> randomStringLiteral()))),
-                f.isCaseSensitive()));
+        for(int i = 1; i < 4; i++) {
+            for(BitSet comb : new Combinations(3, i)) {
+                randoms.add(f -> new StartsWithFunctionPipe(f.source(),
+                        f.expression(),
+                        comb.get(0) ? pipe(((Expression) randomValueOtherThan(f.field(),
+                                () -> randomStringLiteral()))) : f.field(),
+                        comb.get(1) ? pipe(((Expression) randomValueOtherThan(f.pattern(),
+                                () -> randomStringLiteral()))) : f.pattern(),
+                        comb.get(2) ? randomValueOtherThan(f.isCaseSensitive(),
+                                () -> randomBoolean()) : f.isCaseSensitive()));
+            }
+        }
         
         return randomFrom(randoms).apply(instance);
     }

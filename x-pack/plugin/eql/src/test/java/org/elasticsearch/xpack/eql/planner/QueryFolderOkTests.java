@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
+import org.junit.Assume;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -111,10 +112,10 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
 
     public void test() {
         // skip tests that do not make sense from case sensitivity point of view
-        if (name.toLowerCase(Locale.ROOT).endsWith("-casesensitive") && configuration.isCaseSensitive() == false 
-            || name.toLowerCase(Locale.ROOT).endsWith("-caseinsensitive") && configuration.isCaseSensitive()) {
-            return;
-        }
+        boolean isCaseSensitiveValidTest = name.toLowerCase(Locale.ROOT).endsWith("-casesensitive") && configuration.isCaseSensitive() 
+            || name.toLowerCase(Locale.ROOT).endsWith("-caseinsensitive") && configuration.isCaseSensitive() == false;
+        Assume.assumeTrue(isCaseSensitiveValidTest);
+
         PhysicalPlan p = plan(query);
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;

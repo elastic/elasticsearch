@@ -231,15 +231,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         );
         client().execute(PutIndexTemplateV2Action.INSTANCE, createTemplateRequest).actionGet();
 
-        Boolean preferV2Templates = randomBoolean() ? null : true;
-        if (randomBoolean()) {
-            PutIndexTemplateRequest v1Request = new PutIndexTemplateRequest("logs-foo");
-            v1Request.patterns(List.of("logs-foo*"));
-            v1Request.settings(settings);
-            client().admin().indices().putTemplate(v1Request).actionGet();
-        }
-
-        BulkRequest bulkRequest = new BulkRequest().preferV2Templates(preferV2Templates);
+        BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{}", XContentType.JSON));
         bulkRequest.add(new IndexRequest("logs-foobaz").opType(CREATE).source("{}", XContentType.JSON));
         bulkRequest.add(new IndexRequest("logs-barbaz").opType(CREATE).source("{}", XContentType.JSON));
@@ -247,7 +239,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
         assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
 
-        bulkRequest = new BulkRequest().preferV2Templates(preferV2Templates);
+        bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{}", XContentType.JSON));
         bulkRequest.add(new IndexRequest("logs-foobaz2").opType(CREATE).source("{}", XContentType.JSON));
         bulkRequest.add(new IndexRequest("logs-barbaz").opType(CREATE).source("{}", XContentType.JSON));
@@ -255,7 +247,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         bulkResponse = client().bulk(bulkRequest).actionGet();
         assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
 
-        bulkRequest = new BulkRequest().preferV2Templates(preferV2Templates);
+        bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{}", XContentType.JSON));
         bulkRequest.add(new IndexRequest("logs-foobaz2").opType(CREATE).source("{}", XContentType.JSON));
         bulkRequest.add(new IndexRequest("logs-foobaz3").opType(CREATE).source("{}", XContentType.JSON));
@@ -285,25 +277,15 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();
     }
 
-    public void testAutoCreatePreferV2TemplatesFalseNoDataStream() {
+    public void testAutoCreateV1TemplateNoDataStream() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
-
-        PutIndexTemplateV2Action.Request createTemplateRequest = new PutIndexTemplateV2Action.Request("logs-foo");
-        createTemplateRequest.indexTemplate(
-            new IndexTemplateV2(
-                List.of("logs-foo*"),
-                new Template(settings, null, null),
-                null, null, null, null,
-                new IndexTemplateV2.DataStreamTemplate("@timestamp"))
-        );
-        client().execute(PutIndexTemplateV2Action.INSTANCE, createTemplateRequest).actionGet();
 
         PutIndexTemplateRequest v1Request = new PutIndexTemplateRequest("logs-foo");
         v1Request.patterns(List.of("logs-foo*"));
         v1Request.settings(settings);
         client().admin().indices().putTemplate(v1Request).actionGet();
 
-        BulkRequest bulkRequest = new BulkRequest().preferV2Templates(false);
+        BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{}", XContentType.JSON));
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
         assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));

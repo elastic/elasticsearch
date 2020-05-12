@@ -62,12 +62,6 @@ public class AutoCreateActionTests extends ESTestCase {
         request = new CreateIndexRequest("my-index");
         result = AutoCreateAction.resolveAutoCreateDataStream(request, metadata);
         assertThat(result, nullValue());
-
-        // no prefer v2 templates
-        request = new CreateIndexRequest("logs-foobar");
-        request.preferV2Templates(false);
-        result  = AutoCreateAction.resolveAutoCreateDataStream(request, metadata);
-        assertThat(result, nullValue());
     }
 
 }

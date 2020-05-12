@@ -29,20 +29,18 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateV2;
 import org.elasticsearch.cluster.metadata.IndexTemplateV2.DataStreamTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
-import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataSteamClusterStateUpdateRequest;
+import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -127,7 +125,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     DataStreamTemplate dataStreamTemplate = resolveAutoCreateDataStream(request, currentState.metadata());
                     if (dataStreamTemplate != null) {
-                        CreateDataSteamClusterStateUpdateRequest createRequest = new CreateDataSteamClusterStateUpdateRequest(
+                        CreateDataStreamClusterStateUpdateRequest createRequest = new CreateDataStreamClusterStateUpdateRequest(
                             request.index(), dataStreamTemplate.getTimestampField(), request.masterNodeTimeout(), request.timeout());
                         ClusterState clusterState =  metadataCreateDataStreamService.createDataStream(createRequest, currentState);
                         indexNameRef.set(clusterState.metadata().dataStreams().get(request.index()).getIndices().get(0).getName());
@@ -137,8 +135,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         indexNameRef.set(indexName);
                         CreateIndexClusterStateUpdateRequest updateRequest =
                             new CreateIndexClusterStateUpdateRequest(request.cause(), indexName, request.index())
-                                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                                .preferV2Templates(request.preferV2Templates());
+                                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
                         return createIndexService.applyCreateIndexRequest(currentState, updateRequest, false);
                     }
                 }
@@ -152,10 +149,6 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
     }
 
     static DataStreamTemplate resolveAutoCreateDataStream(CreateIndexRequest request, Metadata metadata) {
-        if (resolvePreferV2Templates(request) == false) {
-            return null;
-        }
-
         String v2Template = MetadataIndexTemplateService.findV2Template(metadata, request.index(), false);
         if (v2Template != null) {
             IndexTemplateV2 indexTemplateV2 = metadata.templatesV2().get(v2Template);
@@ -165,14 +158,6 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         }
 
         return null;
-    }
-
-    private static boolean resolvePreferV2Templates(CreateIndexRequest request) {
-        // Check whether v2 templates should be used:
-        // 1) If prefer_v2_templates=true is specified in the request
-        // 2) Otherwise based on the index.prefer_v2_templates default is true
-        return request.preferV2Templates() == null ?
-            IndexMetadata.PREFER_V2_TEMPLATES_SETTING.get(Settings.EMPTY) : request.preferV2Templates();
     }
 
 }

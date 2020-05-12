@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
-import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataSteamClusterStateUpdateRequest;
+import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -131,7 +131,7 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         @Override
         protected void masterOperation(Task task, Request request, ClusterState state,
                                        ActionListener<AcknowledgedResponse> listener) throws Exception {
-            CreateDataSteamClusterStateUpdateRequest updateRequest =  new CreateDataSteamClusterStateUpdateRequest(
+            CreateDataStreamClusterStateUpdateRequest updateRequest =  new CreateDataStreamClusterStateUpdateRequest(
                 request.name,
                 request.timestampFieldName,
                 request.masterNodeTimeout(),

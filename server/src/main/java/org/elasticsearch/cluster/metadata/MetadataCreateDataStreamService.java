@@ -55,14 +55,14 @@ public class MetadataCreateDataStreamService {
         this.metadataCreateIndexService = metadataCreateIndexService;
     }
 
-    public void createDataStream(CreateDataSteamClusterStateUpdateRequest request,
+    public void createDataStream(CreateDataStreamClusterStateUpdateRequest request,
                                  ActionListener<AcknowledgedResponse> finalListener) {
         AtomicReference<String> firstBackingIndexRef = new AtomicReference<>();
         ActionListener<ClusterStateUpdateResponse> listener = ActionListener.wrap(
             response -> {
                 if (response.isAcknowledged()) {
                     String firstBackingIndexName = firstBackingIndexRef.get();
-                    assert finalListener != null;
+                    assert firstBackingIndexName != null;
                     activeShardsObserver.waitForActiveShards(
                         new String[]{firstBackingIndexName},
                         ActiveShardCount.DEFAULT,
@@ -94,19 +94,19 @@ public class MetadataCreateDataStreamService {
             });
     }
 
-    public ClusterState createDataStream(CreateDataSteamClusterStateUpdateRequest request, ClusterState current) throws Exception {
+    public ClusterState createDataStream(CreateDataStreamClusterStateUpdateRequest request, ClusterState current) throws Exception {
         return createDataStream(metadataCreateIndexService, current, request);
     }
 
-    public static final class CreateDataSteamClusterStateUpdateRequest extends ClusterStateUpdateRequest {
+    public static final class CreateDataStreamClusterStateUpdateRequest extends ClusterStateUpdateRequest {
 
         private final String name;
         private final String timestampFieldName;
 
-        public CreateDataSteamClusterStateUpdateRequest(String name,
-                                                        String timestampFieldName,
-                                                        TimeValue masterNodeTimeout,
-                                                        TimeValue timeout) {
+        public CreateDataStreamClusterStateUpdateRequest(String name,
+                                                         String timestampFieldName,
+                                                         TimeValue masterNodeTimeout,
+                                                         TimeValue timeout) {
             this.name = name;
             this.timestampFieldName = timestampFieldName;
             masterNodeTimeout(masterNodeTimeout);
@@ -116,7 +116,7 @@ public class MetadataCreateDataStreamService {
 
     static ClusterState createDataStream(MetadataCreateIndexService metadataCreateIndexService,
                                          ClusterState currentState,
-                                         CreateDataSteamClusterStateUpdateRequest request) throws Exception {
+                                         CreateDataStreamClusterStateUpdateRequest request) throws Exception {
         if (currentState.metadata().dataStreams().containsKey(request.name)) {
             throw new IllegalArgumentException("data_stream [" + request.name + "] already exists");
         }

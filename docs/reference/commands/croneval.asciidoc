@@ -19,7 +19,7 @@ bin/elasticsearch-croneval <expression>
 === Description
 
 This command enables you to verify that your
-cron expressions are valid for use with the
+cron expressions are valid for use with
 {es} and produce the expected results.
 
 This command is provided in the `$ES_HOME/bin` directory.

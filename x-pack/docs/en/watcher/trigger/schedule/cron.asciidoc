@@ -61,9 +61,9 @@ minute during the weekend:
 in the `$ES_HOME/bin` directory that you can use to check that your cron expressions 
 are valid and produce the expected results.
 
-To validate a cron expression, pass it in as a parameter to	`elasticsearch-croneval`:	
+To validate a cron expression, pass it in as a parameter to `elasticsearch-croneval`:	
 
-[source,bash]	
---------------------------------------------------	
+[source,bash]
+--------------------------------------------------
 bin/elasticsearch-croneval "0 0/1 * * * ?"
 --------------------------------------------------	

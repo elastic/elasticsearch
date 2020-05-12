@@ -29,7 +29,7 @@ if (!s3AccessKey && !s3SecretKey && !s3Bucket && !s3BasePath) {
   s3AccessKey = 'access_key'
   s3SecretKey = 'secret_key'
   s3Bucket = 'bucket'
-  s3BasePath = 'base_path'
+  s3BasePath = null
   useFixture = true
 
 } else if (!s3AccessKey || !s3SecretKey || !s3Bucket || !s3BasePath) {
@@ -45,7 +45,7 @@ integTest {
   dependsOn repositoryPlugin.bundlePlugin
   runner {
     systemProperty 'test.s3.bucket', s3Bucket
-    systemProperty 'test.s3.base_path', s3BasePath + "_searchable_snapshots_tests"
+    systemProperty 'test.s3.base_path', s3BasePath ? s3BasePath + "_searchable_snapshots_tests" : 'base_path'
   }
 }
 

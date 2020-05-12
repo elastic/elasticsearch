@@ -168,7 +168,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     SniffConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
                             String proxyAddress, Settings settings, int maxNumRemoteConnections, Predicate<DiscoveryNode> nodePredicate,
                             List<String> configuredSeedNodes, List<Supplier<DiscoveryNode>> seedNodes) {
-        super(clusterAlias, transportService, connectionManager, settings);
+        super(logger, clusterAlias, transportService, connectionManager, settings);
         this.proxyAddress = proxyAddress;
         this.maxNumRemoteConnections = maxNumRemoteConnections;
         this.nodePredicate = nodePredicate;

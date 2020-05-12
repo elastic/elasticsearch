@@ -119,7 +119,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     ProxyConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
                             Settings settings, int maxNumConnections, String configuredAddress, Supplier<TransportAddress> address,
                             String configuredServerName) {
-        super(clusterAlias, transportService, connectionManager, settings);
+        super(logger, clusterAlias, transportService, connectionManager, settings);
         this.maxNumConnections = maxNumConnections;
         this.configuredAddress = configuredAddress;
         this.configuredServerName = configuredServerName;

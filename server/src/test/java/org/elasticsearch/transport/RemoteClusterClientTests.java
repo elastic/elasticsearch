@@ -109,7 +109,8 @@ public class RemoteClusterClientTests extends ESTestCase {
                     ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().execute().get();
                     assertNotNull(clusterStateResponse);
                     assertEquals("foo_bar_cluster", clusterStateResponse.getState().getClusterName().value());
-                    assertTrue(remoteClusterService.isRemoteNodeConnected("test", remoteNode));
+                    assertTrue(remoteClusterConnection.isNodeConnected(remoteNode));
+                    assertBusy(remoteClusterConnection::assertNoRunningConnections);
                 }
             }
         }

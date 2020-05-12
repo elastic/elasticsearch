@@ -667,13 +667,6 @@ Defines how to group the data. More than one grouping can be defined
 --
 end::pivot-group-by[]
 
-tag::pivot-max-page-search-size[]
-Defines the initial page size to use for the composite aggregation for each
-checkpoint. If circuit breaker exceptions occur, the page size is dynamically
-adjusted to a lower value. The minimum value is `10` and the maximum is `10,000`.
-The default value is `500`.
-end::pivot-max-page-search-size[]
-
 tag::positions[]
 `positions`::
 (Optional, boolean) If `true`, the response includes term positions.
@@ -918,6 +911,25 @@ tag::sync-time-delay[]
 The time delay between the current time and the latest input data time. The
 default value is `60s`.
 end::sync-time-delay[]
+
+tag::transform-settings[]
+Defines the settings of the {transform}.
+end::transform-settings[]
+
+tag::transform-settings-docs-per-second[]
+Set `docs-per-second` to throttle the rate transform is issuing search and
+index requests. Throttling slows down search requests by adding a wait time
+between searches. For the number of docs, the number of input documents is taken.
+Throttling can be disabled by setting it to `null`.
+The default is no throttling, value `null`.
+end::transform-settings-docs-per-second[]
+
+tag::transform-settings-max-page-search-size[]
+Defines the initial page size to use for the composite aggregation for each
+checkpoint. If circuit breaker exceptions occur, the page size is dynamically
+adjusted to a lower value. The minimum value is `10` and the maximum is `10,000`.
+The default value is `500`.
+end::transform-settings-max-page-search-size[]
 
 tag::target-index[]
 `<target-index>`::

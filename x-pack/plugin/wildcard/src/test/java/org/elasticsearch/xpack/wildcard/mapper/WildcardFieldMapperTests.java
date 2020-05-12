@@ -296,7 +296,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
     
     public void testRegexAcceleration() throws IOException, ParseException {
         // All these expressions should rewrite to a match all with no verification step required at all
-        String superfastRegexes[]= { ".*",  "...*..", "(foo|bar|.*)"};
+        String superfastRegexes[]= { ".*",  "...*..", "(foo|bar|.*)", "@"};
         for (String regex : superfastRegexes) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 20000, null, MOCK_QSC);
             assertTrue(wildcardFieldQuery instanceof DocValuesFieldExistsQuery);
@@ -551,7 +551,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         
         // Modify the middle...
         String replacementPart = randomValue.substring(substitutionPoint, substitutionPoint+substitutionLength);
-        int mutation = randomIntBetween(0, 10);
+        int mutation = randomIntBetween(0, 11);
         switch (mutation) {
         case 0:
             // OR with random alpha of same length
@@ -599,6 +599,10 @@ public class WildcardFieldMapperTests extends ESTestCase {
         case 10:
             // Make whole part repeatable 0 or more times
             result.append("(" + replacementPart +")?");
+            break;
+        case 11:
+            // all but ... syntax
+            result.append("@&~(doesnotexist.+)");
             break;
         default:
             break;

@@ -149,7 +149,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(operation.id()).thenReturn(randomAlphaOfLength(10));
         when(operation.source()).thenReturn(BytesArray.EMPTY);
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
-        List<Engine.Result.Type> types = new ArrayList<>(List.of(Engine.Result.Type.values()));
+        List<Engine.Result.Type> types = new ArrayList<>(Arrays.asList(Engine.Result.Type.values()));
         types.remove(Engine.Result.Type.FAILURE);
         when(result.getResultType()).thenReturn(randomFrom(types));
 

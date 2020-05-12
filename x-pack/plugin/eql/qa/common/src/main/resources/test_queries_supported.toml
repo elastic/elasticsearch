@@ -23,6 +23,12 @@ network where cidrMatch(source_address, "10.6.48.157/8") == true
 [[queries]]
 expected_event_ids = [75304, 75305]
 query = '''
+network where string(cidrMatch(source_address, "10.6.48.157/8")) == "true"
+'''
+
+[[queries]]
+expected_event_ids = [75304, 75305]
+query = '''
 network where true == cidrMatch(source_address, "10.6.48.157/8")
 '''
 

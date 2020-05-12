@@ -148,4 +148,8 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
         return null;
     }
 
+    @Override
+    protected boolean shouldIncludeDataStreams() {
+        return false;
+    }
 }

@@ -1,6 +1,6 @@
 [float]
 [[breaking_80_ilm_changes]]
-=== Index Lifecycle Management changes
+=== {ilm-cap} changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide

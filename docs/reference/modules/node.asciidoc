@@ -1,5 +1,5 @@
 [[modules-node]]
-== Node
+=== Node
 
 Any time that you start an instance of Elasticsearch, you are starting a _node_.
 A collection of connected nodes is called a <<modules-cluster,cluster>>. If you
@@ -80,9 +80,8 @@ phase.
 
 ===============================================
 
-[float]
 [[master-node]]
-=== Master-eligible node
+==== Master-eligible node
 
 The master node is responsible for lightweight cluster-wide actions such as
 creating or deleting an index, tracking which nodes are part of the cluster,
@@ -97,9 +96,8 @@ IMPORTANT: Master nodes must have access to the `data/` directory (just like
 `data` nodes) as this is where the cluster state is persisted between node
 restarts.
 
-[float]
 [[dedicated-master-node]]
-==== Dedicated master-eligible node
+===== Dedicated master-eligible node
 
 It is important for the health of the cluster that the elected master node has
 the resources it needs to fulfill its responsibilities. If the elected master
@@ -150,9 +148,8 @@ node.remote_cluster_client: false <4>
 <3> Disable the `node.ingest` role (enabled by default).
 <4> Disable remote cluster connections (enabled by default).
 
-[float]
 [[voting-only-node]]
-==== Voting-only master-eligible node
+===== Voting-only master-eligible node
 
 A voting-only master-eligible node is a node that participates in
 <<modules-discovery,master elections>> but which will not act as the cluster's
@@ -217,9 +214,8 @@ node.remote_cluster_client: false <8>
 <7> Disable the `node.transform` role.
 <8> Disable remote cluster connections (enabled by default).
 
-[float]
 [[data-node]]
-=== Data node
+==== Data node
 
 Data nodes hold the shards that contain the documents you have indexed. Data
 nodes handle data related operations like CRUD, search, and aggregations.
@@ -261,9 +257,8 @@ node.remote_cluster_client: false <4>
 <3> Disable the `node.ingest` role (enabled by default).
 <4> Disable remote cluster connections (enabled by default).
 
-[float]
 [[node-ingest-node]]
-=== Ingest node
+==== Ingest node
 
 Ingest nodes can execute pre-processing pipelines, composed of one or more
 ingest processors. Depending on the type of operations performed by the ingest
@@ -304,9 +299,8 @@ node.remote_cluster_client: false <4>
 <3> The `node.ingest` role is enabled by default.
 <4> Disable remote cluster connections (enabled by default).
 
-[float]
 [[coordinating-only-node]]
-=== Coordinating only node
+==== Coordinating only node
 
 If you take away the ability to be able to handle master duties, to hold data,
 and pre-process documents, then you are left with a _coordinating_ node that
@@ -361,9 +355,8 @@ node.remote_cluster_client: false <4>
 <3> Disable the `node.ingest` role (enabled by default).
 <4> Disable remote cluster connections (enabled by default).
 
-[float]
 [[ml-node]]
-=== [xpack]#Machine learning node#
+==== [xpack]#Machine learning node#
 
 The {ml-features} provide {ml} nodes, which run jobs and handle {ml} API
 requests. If `xpack.ml.enabled` is set to `true` and `node.ml` is set to `false`,
@@ -398,9 +391,8 @@ node.remote_cluster_client: false <8>
 <7> Disable the `node.transform` role.
 <8> Disable remote cluster connections (enabled by default).
 
-[discrete]
 [[transform-node]]
-=== [xpack]#{transform-cap} node#
+==== [xpack]#{transform-cap} node#
 
 {transform-cap} nodes run {transforms} and handle {transform} API requests.
 
@@ -429,9 +421,8 @@ node.remote_cluster_client: false <7>
 <6> Enable the `node.transform` role.
 <7> Disable remote cluster connections.
 
-[float]
 [[change-node-role]]
-=== Changing the role of a node
+==== Changing the role of a node
 
 Each data node maintains the following data on disk:
 
@@ -472,12 +463,11 @@ If it is not possible to follow these extra steps then you may be able to use
 the <<node-tool-repurpose,`elasticsearch-node repurpose`>> tool to delete any
 excess data that prevents a node from starting.
 
-[float]
-== Node data path settings
+[discrete]
+=== Node data path settings
 
-[float]
 [[data-path]]
-=== `path.data`
+==== `path.data`
 
 Every data and master-eligible node requires access to a data directory where
 shards and index and cluster metadata will be stored. The `path.data` defaults
@@ -501,10 +491,13 @@ should be configured to locate the data directory outside the {es} home
 directory, so that the home directory can be deleted without deleting your data!
 The RPM and Debian distributions do this for you already.
 
+[discrete]
+[[other-node-settings]]
+=== Other node settings
 
-[float]
-== Other node settings
+More node settings can be found in <<settings>> and <<important-settings>>,
+including:
 
-More node settings can be found in <<modules,Modules>>.  Of particular note are
-the <<cluster.name,`cluster.name`>>, the <<node.name,`node.name`>> and the
-<<modules-network,network settings>>.
+* <<cluster.name,`cluster.name`>>
+* <<node.name,`node.name`>>
+* <<modules-network,network settings>>

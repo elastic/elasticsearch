@@ -149,8 +149,10 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         final int max = randomIntBetween(initial + 1, Integer.MAX_VALUE);
         final AtomicLong initialHeapSize = new AtomicLong(initial);
         final AtomicLong maxHeapSize = new AtomicLong(max);
+        final boolean isMemoryLocked = randomBoolean();
 
         final BootstrapChecks.HeapSizeCheck check = new BootstrapChecks.HeapSizeCheck() {
+
             @Override
             long getInitialHeapSize() {
                 return initialHeapSize.get();
@@ -160,6 +162,12 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             long getMaxHeapSize() {
                 return maxHeapSize.get();
             }
+
+            @Override
+            boolean isMemoryLocked() {
+                return isMemoryLocked;
+            }
+
         };
 
         final NodeValidationException e =
@@ -170,6 +178,12 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
                 e.getMessage(),
                 containsString("initial heap size [" + initialHeapSize.get() + "] " +
                         "not equal to maximum heap size [" + maxHeapSize.get() + "]"));
+        if (isMemoryLocked) {
+            assertThat(
+                e.getMessage(),
+                containsString("and prevents memory locking from locking the entire heap")
+            );
+        }
 
         initialHeapSize.set(maxHeapSize.get());
 

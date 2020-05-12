@@ -656,21 +656,14 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         if (other.metrics.explicit()) {
-            if (this.metrics.value() != null
-                && metrics.value().isEmpty() == false
-                && metrics.value().containsAll(other.metrics.value()) == false) {
-                throw new IllegalArgumentException(
-                    "["
-                        + fieldType().name()
-                        + "] with field mapper ["
-                        + fieldType().typeName()
-                        + "] "
-                        + "cannot be merged with "
-                        + "["
-                        + other.fieldType().typeName()
-                        + "] because they contain separate metrics"
-                );
-            }
+            if (this.metrics.value() != null &&
+                metrics.value().isEmpty() == false &&
+                (metrics.value().containsAll(other.metrics.value()) == false ||
+                    other.metrics.value().containsAll(metrics.value()) == false)) {
+                    throw new IllegalArgumentException("[" + fieldType().name() + "] with field mapper ["
+                        + fieldType().typeName() + "] " + "cannot be merged with " + "["
+                        + other.fieldType().typeName() + "] because they contain separate metrics");
+                }
             this.metrics = other.metrics;
         }
 

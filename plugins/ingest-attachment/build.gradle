@@ -106,3 +106,4 @@ if (BuildParams.inFipsJvm) {
   integTest.enabled = false
   testingConventions.enabled = false
 }
+supported_protocols

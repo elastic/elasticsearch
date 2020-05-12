@@ -110,12 +110,12 @@ public final class TaskHeartbeatService extends AbstractLifecycleComponent imple
     @Override
     protected void doStop() {
         sendHeartbeatTask.close();
-        updateHeartbeatsTask.cancel();
+        updateHeartbeatsTask.close();
     }
 
     @Override
     protected void doClose() {
-
+        doStop();
     }
 
     public void addApplier(TaskHeartbeatApplier applier) {

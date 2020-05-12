@@ -245,7 +245,7 @@ Allocation::
 * Fix Broken ExistingStoreRecoverySource Deserialization {pull}55657[#55657] (issue: {issue}55513[#55513])
 
 Authentication::
-* Expose idp.metadata.http.refresh for SAML realm [OPEN] {pull}56354[#56354]
+* Expose idp.metadata.http.refresh for SAML realm {pull}56354[#56354]
 
 Authorization::
 * Resolve anonymous roles and deduplicate roles during authentication {pull}53453[#53453] (issues: {issue}31589[#31589], {issue}47195[#47195])

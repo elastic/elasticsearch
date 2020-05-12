@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.datastream;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -79,14 +81,30 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         }
 
         public Request(StreamInput in) throws IOException {
-            super(in);
+            // TODO: replace if/else clauses with super(in); after backporting:
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                timeout(in.readTimeValue());
+                masterNodeTimeout(in.readTimeValue());
+                setParentTask(TaskId.readFromStream(in));
+            } else {
+                masterNodeTimeout(in.readTimeValue());
+                setParentTask(TaskId.readFromStream(in));
+            }
             this.name = in.readString();
             this.timestampFieldName = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
+            // TODO: replace if/else clauses with super.writeTo(out); after backporting:
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeTimeValue(timeout());
+                out.writeTimeValue(masterNodeTimeout());
+                getParentTask().writeTo(out);
+            } else {
+                out.writeTimeValue(masterNodeTimeout());
+                getParentTask().writeTo(out);
+            }
             out.writeString(name);
             out.writeString(timestampFieldName);
         }

@@ -38,9 +38,10 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
-import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -48,15 +49,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
-import static java.nio.file.StandardOpenOption.APPEND;
-import static java.nio.file.StandardOpenOption.CREATE;
-import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
-import static java.nio.file.StandardOpenOption.WRITE;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -361,7 +354,7 @@ public class FileRolesStoreTests extends ESTestCase {
             assertThat(descriptors, notNullValue());
             assertTrue(descriptors.isEmpty());
 
-            try (BufferedWriter writer = Files.newBufferedWriter(tmp, UTF_8, APPEND)) {
+            try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
                 writer.append("\n");
             }
 
@@ -374,7 +367,7 @@ public class FileRolesStoreTests extends ESTestCase {
             assertThat(descriptors, notNullValue());
             assertEquals(1, descriptors.size());
 
-            try (BufferedWriter writer = Files.newBufferedWriter(tmp, UTF_8, APPEND)) {
+            try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
                 writer.newLine();
                 writer.newLine();
                 writer.newLine();
@@ -409,11 +402,11 @@ public class FileRolesStoreTests extends ESTestCase {
             }, new XPackLicenseState(Settings.EMPTY), xContentRegistry());
 
             final Set<String> allRolesPreTruncate = store.getAllRoleNames();
-            replaceFileContent(tmp, sb -> {
-                sb.append("role5:").append(System.lineSeparator());
-                sb.append("  cluster:").append(System.lineSeparator());
-                sb.append("    - 'MONITOR'");
-            });
+            try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING)) {
+                writer.append("role5:").append(System.lineSeparator());
+                writer.append("  cluster:").append(System.lineSeparator());
+                writer.append("    - 'MONITOR'");
+            }
 
             truncateLatch.await();
             assertEquals(allRolesPreTruncate.size() - 1, truncatedFileRolesModified.size());
@@ -428,19 +421,23 @@ public class FileRolesStoreTests extends ESTestCase {
             final CountDownLatch modifyLatch = new CountDownLatch(1);
             store = new FileRolesStore(settings, env, watcherService, roleSet -> {
                 modifiedFileRolesModified.addAll(roleSet);
-                modifyLatch.countDown();
+                if (modifiedFileRolesModified.contains("role5_x")) {
+                    modifyLatch.countDown();
+                }
             }, new XPackLicenseState(Settings.EMPTY), xContentRegistry());
 
-            replaceFileContent(tmp,  sb -> {
-                sb.append("role5:").append(System.lineSeparator());
-                sb.append("  cluster:").append(System.lineSeparator());
-                sb.append("    - 'ALL'");
-            });
+            // Use a different role name so that when the countdown latch is triggered,
+            // we are sure it is triggered by the new file content instead of the initial truncation
+            try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING)) {
+                writer.append("role5_x:").append(System.lineSeparator());
+                writer.append("  cluster:").append(System.lineSeparator());
+                writer.append("    - 'ALL'");
+            }
 
-            modifyLatch.await();
-            assertEquals(1, modifiedFileRolesModified.size());
-            assertTrue(modifiedFileRolesModified.contains("role5"));
-            descriptors = store.roleDescriptors(Collections.singleton("role5"));
+            modifyLatch.await(5, TimeUnit.SECONDS);
+            assertEquals(2, modifiedFileRolesModified.size());
+            assertTrue(modifiedFileRolesModified.contains("role5_x"));
+            descriptors = store.roleDescriptors(Collections.singleton("role5_x"));
             assertThat(descriptors, notNullValue());
             assertEquals(1, descriptors.size());
         } finally {
@@ -453,7 +450,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
     public void testThatEmptyFileDoesNotResultInLoop() throws Exception {
         Path file = createTempFile();
-        Files.write(file, Collections.singletonList("#"), UTF_8);
+        Files.write(file, Collections.singletonList("#"), StandardCharsets.UTF_8);
         Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(file, logger, Settings.EMPTY, new XPackLicenseState(Settings.EMPTY),
             xContentRegistry());
         assertThat(roles.keySet(), is(empty()));
@@ -550,7 +547,6 @@ public class FileRolesStoreTests extends ESTestCase {
     }
 
     // test that we can read a role where field permissions are stored in 2.x format (fields:...)
-
     public void testBWCFieldPermissions() throws IOException {
         Path path = getDataPath("roles2xformat.yml");
         byte[] bytes = Files.readAllBytes(path);
@@ -561,18 +557,4 @@ public class FileRolesStoreTests extends ESTestCase {
         assertNull(indicesPrivileges.getDeniedFields());
     }
 
-    // Replace the file content atomically to prevent FileWatcher from reading incomplete/empty file
-    private void replaceFileContent(Path target, Consumer<StringBuilder> consumer) throws IOException {
-        final Path tempFile = createTempFile(null, null);
-        final StringBuilder sb = new StringBuilder();
-        consumer.accept(sb);
-        try (BufferedWriter writer = Files.newBufferedWriter(tempFile, UTF_8, CREATE, TRUNCATE_EXISTING, WRITE)) {
-            writer.write(sb.toString());
-        }
-        try {
-            Files.move(tempFile, target, REPLACE_EXISTING, ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException e) {
-            Files.move(tempFile, target, REPLACE_EXISTING);
-        }
-    }
 }

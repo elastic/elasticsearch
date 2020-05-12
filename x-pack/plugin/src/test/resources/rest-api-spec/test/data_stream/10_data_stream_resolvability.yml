@@ -1,7 +1,7 @@
 ---
 "Verify data stream resolvability for xpack apis":
   - skip:
-      version: " - 7.99.99"
+      version: " - 7.8.99"
       reason: skip untill backported
 
   - do:

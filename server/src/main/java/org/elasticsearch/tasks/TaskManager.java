@@ -615,6 +615,8 @@ public class TaskManager implements ClusterStateApplier {
         if (tracker.registered.compareAndSet(false, true)) {
             channel.addCloseListener(ActionListener.wrap(
                 r -> {
+                    final ChannelPendingTaskTracker removedTracker = channelPendingTaskTrackers.remove(channel);
+                    assert removedTracker == tracker;
                     final Set<CancellableTask> pendingTasks = Collections.unmodifiableSet(tracker.pendingTasks);
                     for (Consumer<Set<CancellableTask>> listener : onChannelCloseListeners) {
                         listener.accept(pendingTasks);

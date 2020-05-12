@@ -72,4 +72,7 @@ If your {transform} must process a lot of historic data, it has high resource
 usage initially--particularly during the first checkpoint.
 
 For better performance, make sure that your search aggregations and queries are 
-optimized and that your {transform} is processing only necessary data.
+optimized and that your {transform} is processing only necessary data. You can
+also throttle the rate at which {transforms} perform search and index requests
+by setting `docs_per_second` when you <<put-transform,create>> or
+<<update-transform,update>> your {transform}.

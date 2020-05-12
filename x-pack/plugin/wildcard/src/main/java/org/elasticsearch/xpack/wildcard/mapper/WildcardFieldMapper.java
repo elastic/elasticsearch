@@ -399,9 +399,16 @@ public class WildcardFieldMapper extends FieldMapper {
             }
             if (approxQuery instanceof TermQuery) {
                 TermQuery tq = (TermQuery) approxQuery;
+               
+                //Remove simple terms that are only string beginnings or ends.
+                String s = tq.getTerm().text();
+                if (s.equals(WildcardFieldMapper.TOKEN_START_STRING) || s.equals(WildcardFieldMapper.TOKEN_END_STRING)) {
+                    return new MatchAllButRequireVerificationQuery();
+                }
+                
                 // Break term into tokens
                 Set<String> tokens = new LinkedHashSet<>();
-                getNgramTokens(tokens, tq.getTerm().text());
+                getNgramTokens(tokens, s);
                 BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
                 for (String string : tokens) {
                     addClause(string, rewritten, Occur.MUST);

@@ -35,7 +35,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.xpack.wildcard.mapper.WildcardFieldMapper.WildcardFieldType;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -217,9 +216,8 @@ public class ApproximateRegExp {
                         result = wrapper.build();
                     }
                 } else {
-                    // TODO match all was a nice assumption here for optimising .* but breaks 
-                    // for (a){0,3} which isn't a logical match all but empty string or up to 3 a's. 
-//                    result = new MatchAllDocsQuery();
+                    // Expressions like (a){0,3} match empty string or up to 3 a's.
+                    // No lucene query equivalent for this.
                     result = new MatchAllButRequireVerificationQuery();
                 }
                 break;
@@ -257,14 +255,14 @@ public class ApproximateRegExp {
                 sequence.append(tq.getTerm().text());
             } else {
                 if (sequence.length() > 0) {
-                    addTerm(bAnd, sequence.toString());
+                    bAnd.add(new TermQuery(new Term("", sequence.toString())), Occur.MUST);
                     sequence = new StringBuilder();
                 }
                 bAnd.add(query, Occur.MUST);                    
             }
         }
         if (sequence.length() > 0) {
-            addTerm(bAnd, sequence.toString());
+            bAnd.add(new TermQuery(new Term("", sequence.toString())), Occur.MUST);
         }
         BooleanQuery combined = bAnd.build();
         if (combined.clauses().size() > 0) {
@@ -272,17 +270,6 @@ public class ApproximateRegExp {
         }
         // There's something in the regex we couldn't represent as a query - resort to a match all with verification 
         return new MatchAllButRequireVerificationQuery();
-    }
-    
-    private static void addTerm(BooleanQuery.Builder builder, String s) {
-        // A regex like "...." can still produce TermQuery tokens for the null chars
-        // surrounding the input string. These are junk when not appended to any concrete
-        // characters. They mess up downstream simplification of Boolean logic which assumes
-        // all MUST Term queries are required and valid. We strip them here. 
-        if (s.equals(WildcardFieldMapper.TOKEN_START_STRING) == false && 
-            s.equals(WildcardFieldMapper.TOKEN_END_STRING) == false) {
-            builder.add(new TermQuery(new Term("", s)), Occur.MUST);
-        }
     }
 
     private Query createUnionQuery(StringNormalizer normalizer) {
@@ -293,13 +280,8 @@ public class ApproximateRegExp {
         BooleanQuery.Builder bOr = new BooleanQuery.Builder();
         HashSet<Query> uniqueClauses = new HashSet<>();
         for (Query query : queries) {
-            if (WildcardFieldType.isMatchAll(query)) {
-                // Any MatchAll in an OR list is rewritten to a MatchAllQuery
-                return query;
-            } else {
-                if (uniqueClauses.add(query)) {
-                    bOr.add(query, Occur.SHOULD);
-                }
+            if (uniqueClauses.add(query)) {
+                bOr.add(query, Occur.SHOULD);
             }
         }
         if (uniqueClauses.size() > 0) {

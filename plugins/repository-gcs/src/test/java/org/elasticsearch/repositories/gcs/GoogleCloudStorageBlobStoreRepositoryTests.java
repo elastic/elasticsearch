@@ -50,7 +50,6 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.threeten.bp.Duration;
 
 import java.io.IOException;
@@ -67,10 +66,6 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BU
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CLIENT_NAME;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
-// Need to set up a new cluster for each test because GCS client is shared across tests and then
-// the operations tracking won't match with the operations tracked on the Mock HTTP server since
-// the handlers for those are recreated for each test.
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
     @Override
@@ -230,7 +225,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 metadata -> new GoogleCloudStorageRepository(metadata, registry, this.storageService, clusterService) {
                     @Override
                     protected GoogleCloudStorageBlobStore createBlobStore() {
-                        return new GoogleCloudStorageBlobStore("bucket", "test", storageService) {
+                        return new GoogleCloudStorageBlobStore("bucket", "test", metadata.name(), storageService) {
                             @Override
                             long getLargeBlobThresholdInBytes() {
                                 return ByteSizeUnit.MB.toBytes(1);

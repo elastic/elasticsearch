@@ -99,7 +99,7 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
          * @return {@code true} if the http request was tracked, {@code false} otherwise.
          */
         private boolean track(final HttpRequest httpRequest, final GoogleCloudStorageOperationsStats stats) {
-            if (!matchesCriteria(httpRequest))
+            if (matchesCriteria(httpRequest) == false)
                 return false;
 
             statsTracker.accept(stats);

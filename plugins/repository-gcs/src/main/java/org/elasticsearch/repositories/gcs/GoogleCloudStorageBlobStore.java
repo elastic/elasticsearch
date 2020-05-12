@@ -98,11 +98,17 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     private final String bucketName;
     private final String clientName;
+    private final String repositoryName;
     private final GoogleCloudStorageService storageService;
+    private final GoogleCloudStorageOperationsStats stats = new GoogleCloudStorageOperationsStats();
 
-    GoogleCloudStorageBlobStore(String bucketName, String clientName, GoogleCloudStorageService storageService) {
+    GoogleCloudStorageBlobStore(String bucketName,
+                                String clientName,
+                                String repositoryName,
+                                GoogleCloudStorageService storageService) {
         this.bucketName = bucketName;
         this.clientName = clientName;
+        this.repositoryName = repositoryName;
         this.storageService = storageService;
         if (doesBucketExist(bucketName) == false) {
             throw new BlobStoreException("Bucket [" + bucketName + "] does not exist");
@@ -110,7 +116,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     private Storage client() throws IOException {
-        return storageService.client(clientName);
+        return storageService.client(clientName, repositoryName, stats);
     }
 
     @Override
@@ -414,11 +420,6 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     @Override
     public Map<String, Long> stats() {
-        try {
-            return storageService.stats(clientName).toMap();
-        } catch (IOException e) {
-            logger.error(() -> new ParameterizedMessage("unable to get GCS usage stats for client [{}]", clientName), e);
-            return Collections.emptyMap();
-        }
+        return stats.toMap();
     }
 }

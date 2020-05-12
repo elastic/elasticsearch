@@ -94,7 +94,7 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
         } else if (bufferCount == 1) {
             return fromByteBuffer(buffers[0]);
         } else {
-            BytesReference[] references = new ByteBufferReference[bufferCount];
+            BytesReference[] references = new BytesReference[bufferCount];
             for (int i = 0; i < bufferCount; ++i) {
                 references[i] = fromByteBuffer(buffers[i]);
             }

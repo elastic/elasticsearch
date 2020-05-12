@@ -83,8 +83,7 @@ To set up the watch:
     "search": {
       "request": {
         "indices": [
-          "<logstash-{now-1h}-*>", <1>
-          "<logstash-{now}-*>"
+          "logstash" <1>
         ],
         "body": {
           "size": 0,
@@ -146,9 +145,13 @@ To set up the watch:
   },
 -------------------------------------------------
 // NOTCONSOLE
-<1> These index pattens use <<date-math,Date Math>> expressions to match {ls}
-indices that contain the meetup data. The second pattern is needed in case the
-previous hour crosses days.
+<1> `logstash` is the default <<indices-add-alias,index alias>> for the {ls}
+indices containing the meetup data. By default, the {ls}
+<<index-lifecycle-management,{ilm} ({ilm-init})>> policy rolls this alias to a
+new index when the index size reaches 50GB or becomes 30 days old. For more
+information, see
+{logstash-ref}/plugins-outputs-elasticsearch.html#plugins-outputs-elasticsearch-ilm[{ilm-init}
+defaults in Logstash].
 <2> Find all of the RSVPs with `Open Source` as a topic.
 <3> Group the RSVPs by city.
 <4> Consolidate multiple RSVPs for the same event.
@@ -209,8 +212,7 @@ PUT _watcher/watch/meetup
     "search": {
       "request": {
         "indices": [
-          "<logstash-{now-1h}-*>",
-          "<logstash-{now}-*>"
+          "logstash"
         ],
         "body": {
           "size": 0,

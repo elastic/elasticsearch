@@ -185,8 +185,6 @@ GET /_analyze
 }
 --------------------------------------------------
 
-deprecated[5.0.0, Use `filter`/`char_filter` instead of `filters`/`char_filters` and `token_filters` has been removed]
-
 Custom tokenizers, token filters, and character filters can be specified in the request body as follows:
 
 [source,console]

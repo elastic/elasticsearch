@@ -23,14 +23,6 @@ apply plugin: 'nebula.maven-base-publish'
 group = 'org.elasticsearch.plugin'
 archivesBaseName = 'elasticsearch-scripting-painless-spi'
 
-publishing {
-  publications {
-    nebula {
-      artifactId = archivesBaseName
-    }
-  }
-}
-
 dependencies {
   compile project(":server")
 }

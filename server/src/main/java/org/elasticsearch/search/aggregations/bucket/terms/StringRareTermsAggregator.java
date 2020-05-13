@@ -143,19 +143,13 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0;
-
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0;
         List<StringRareTerms.Bucket> buckets = buildSketch();
-        runDeferredCollections(buckets.stream().mapToLong(b -> b.bucketOrd).toArray());
-
-        // Finalize the buckets
-        for (StringRareTerms.Bucket bucket : buckets) {
-            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
-        }
+        buildSubAggsForBuckets(buckets, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
 
         CollectionUtil.introSort(buckets, ORDER.comparator());
-        return new StringRareTerms(name, ORDER, metadata(), format, buckets, maxDocCount, filter);
+        return new InternalAggregation[] {new StringRareTerms(name, ORDER, metadata(), format, buckets, maxDocCount, filter)};
     }
 
     @Override

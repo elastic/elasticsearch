@@ -62,6 +62,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.xpack.core.ssl.SSLService.inSunJsseInFipsMode;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -825,8 +826,7 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     public void testWrapTrustManagerWhenDiagnosticsEnabled() {
-        assumeFalse("We override the setting with a sysprop",
-            Boolean.parseBoolean(System.getProperty("es.disable.diagnostic.trust.manager", "false")));
+        assumeFalse("We explicitly disable diagnostic trust manager in SunJSSE in FIPS mode ", inSunJsseInFipsMode());
         final Settings.Builder builder = Settings.builder();
         if (randomBoolean()) { // randomly select between default, and explicit enabled
             builder.put("xpack.security.ssl.diagnose.trust", true);
@@ -858,8 +858,7 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     public void testWrapTrustManagerWhenInFipsAndExplicitlyConfigured() {
-        assumeFalse("We override the setting with a sysprop",
-            Boolean.parseBoolean(System.getProperty("es.disable.diagnostic.trust.manager", "false")));
+        assumeFalse("We explicitly disable diagnostic trust manager in SunJSSE in FIPS mode ", inSunJsseInFipsMode());
         final Settings.Builder builder = Settings.builder();
         builder.put("xpack.security.fips_mode.enabled", true);
         builder.put("xpack.security.ssl.diagnose.trust", true);

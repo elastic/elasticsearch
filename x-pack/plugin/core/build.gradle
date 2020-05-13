@@ -6,6 +6,7 @@ import java.nio.file.Paths
 
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 archivesBaseName = 'x-pack-core'
 
@@ -148,8 +149,3 @@ thirdPartyAudit.ignoreMissingClasses(
 // so we disable integ tests
 integTest.enabled = false
 
-// There are some integ tests that don't require a cluster, we still want to run those
-task internalClusterTest(type: Test) {
-  include "**/*IT.class"
-}
-check.dependsOn internalClusterTest

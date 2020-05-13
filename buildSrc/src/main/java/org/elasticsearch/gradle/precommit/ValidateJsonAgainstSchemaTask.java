@@ -29,10 +29,8 @@ import com.networknt.schema.ValidationMessage;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.UncheckedIOException;
 import org.gradle.api.file.FileCollection;
-import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.work.ChangeType;
@@ -42,9 +40,9 @@ import org.gradle.work.InputChanges;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.Arrays;
+import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -57,7 +55,6 @@ import java.util.stream.StreamSupport;
 public class ValidateJsonAgainstSchemaTask extends DefaultTask {
 
     private final ObjectMapper mapper = new ObjectMapper();
-    private Set<String> ignore = new HashSet<>();
     private File jsonSchema;
     private FileCollection inputFiles;
 
@@ -80,16 +77,6 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
         this.jsonSchema = jsonSchema;
     }
 
-    @Input
-    @Optional
-    public Set<String> getIgnore() {
-        return ignore;
-    }
-
-    public void ignore(String... ignore) {
-        this.ignore.addAll(Arrays.asList(ignore));
-    }
-
     @OutputFile
     public File getReport() {
         return new File(getProject().getBuildDir(), "reports/validateJson.txt");
@@ -108,9 +95,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
             .filter(f -> f.getChangeType() != ChangeType.REMOVED)
             .forEach(fileChange -> {
                 File file = fileChange.getFile();
-                if (ignore.contains(file.getName())) {
-                    getLogger().debug("Ignoring file [{}] due to configuration", file.getName());
-                } else if (file.isDirectory() == false) {
+                if (file.isDirectory() == false) {
                     // validate all files and hold on to errors for a complete report if there are failures
                     getLogger().debug("Validating JSON [{}]", file.getName());
                     try {
@@ -122,9 +107,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
                 }
             });
         if (errors.isEmpty()) {
-            try (PrintWriter printWriter = new PrintWriter(getReport())) {
-                printWriter.println("Success! No validation errors found.");
-            }
+            Files.writeString(getReport().toPath(), "Success! No validation errors found.", StandardOpenOption.CREATE);
         } else {
             try (PrintWriter printWriter = new PrintWriter(getReport())) {
                 printWriter.printf("Schema: %s%n", jsonSchemaOnDisk);

@@ -679,6 +679,12 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             .indices()
             .prepareUpdateSettings("test")
             .setSettings(Settings.builder().putNull(IndexMetadata.SETTING_NUMBER_OF_REPLICAS)));
+
+        final GetSettingsResponse response = client().admin().indices().prepareGetSettings("test").get();
+
+        // we removed the setting but it should still have an explicit value since index metadata requires this
+        assertTrue(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(response.getIndexToSettings().get("test")));
+        assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(response.getIndexToSettings().get("test")), equalTo(1));
     }
 
 }

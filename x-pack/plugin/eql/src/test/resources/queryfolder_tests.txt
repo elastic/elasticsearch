@@ -257,6 +257,12 @@ process where match(command_line, "^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\
 "regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"
 ;
 
+numberFunctionSingleArgument
+process where number(process_name) == 1;
+InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)
+"params":{"v0":"process_name","v1":null,"v2":1}
+;
+
 matchFunctionScalar
 process where match(substring(command_line, 5), "^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
 ;
@@ -264,6 +270,30 @@ process where match(substring(command_line, 5), "^.*?net.exe", "net\\.exe", "C:\
 InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
 "params":{"v0":"command_line","v1":5,"v2":null,"v3":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"}}
 ;
+
+
+numberFunctionTwoFieldArguments
+process where number(process_name, pid) != null;
+InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0),InternalQlScriptUtils.docValue(doc,params.v1))))",
+"params":{"v0":"process_name","v1":"pid"}
+;
+
+numberFunctionTwoArguments
+process where number(process_name, 16) != null;
+InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)
+"params":{"v0":"process_name","v1":16}
+;
+
+numberFunctionFoldedComparison
+process where serial_event_id == number("-32.5");
+{"term":{"serial_event_id":{"value":-32.5,
+;
+
+numberFunctionFoldedHexComparison
+process where serial_event_id == number("0x32", 16);
+{"term":{"serial_event_id":{"value":50,
+;
+
 
 wildcardFunctionSingleArgument
 process where wildcard(process_path, "*\\red_ttp\\wininit.*")

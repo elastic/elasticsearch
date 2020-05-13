@@ -175,7 +175,7 @@ The number of documents as reported by Lucene. This excludes deleted documents
 and counts any <<nested,nested documents>> separately from their parents. It
 also excludes documents which were indexed recently and do not yet belong to a
 segment.
-end::segment-docs-count[]
+end::docs-count[]
 
 tag::docs-deleted[]
 The number of deleted documents as reported by Lucene, which may be higher or

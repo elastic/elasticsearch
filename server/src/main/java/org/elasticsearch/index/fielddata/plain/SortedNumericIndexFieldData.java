@@ -35,16 +35,22 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
@@ -53,21 +59,58 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.function.LongUnaryOperator;
 
 /**
  * FieldData backed by {@link LeafReader#getSortedNumericDocValues(String)}
  * @see DocValuesType#SORTED_NUMERIC
  */
-public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData implements IndexNumericFieldData {
-    private final NumericType numericType;
+public class SortedNumericIndexFieldData implements IndexNumericFieldData {
+    public static class Builder implements IndexFieldData.Builder {
 
-    public SortedNumericDVIndexFieldData(Index index, String fieldNames, NumericType numericType) {
-        super(index, fieldNames);
-        if (numericType == null) {
-            throw new IllegalArgumentException("numericType must be non-null");
+        private final NumericType numericType;
+
+        public Builder(NumericType numericType) {
+            this.numericType = numericType;
         }
-        this.numericType = numericType;
+
+        @Override
+        public SortedNumericIndexFieldData build(
+            IndexSettings indexSettings,
+            MappedFieldType fieldType,
+            IndexFieldDataCache cache,
+            CircuitBreakerService breakerService,
+            MapperService mapperService
+        ) {
+            final String fieldName = fieldType.name();
+            return new SortedNumericIndexFieldData(indexSettings.getIndex(), fieldName, numericType);
+        }
+    }
+
+    private final NumericType numericType;
+    protected final Index index;
+    protected final String fieldName;
+
+    public SortedNumericIndexFieldData(Index index, String fieldName, NumericType numericType) {
+        this.index = index;
+        this.fieldName = fieldName;
+        this.numericType = Objects.requireNonNull(numericType);
+    }
+
+    @Override
+    public final String getFieldName() {
+        return fieldName;
+    }
+
+    @Override
+    public final void clear() {
+        // can't do
+    }
+
+    @Override
+    public final Index index() {
+        return index;
     }
 
     /**

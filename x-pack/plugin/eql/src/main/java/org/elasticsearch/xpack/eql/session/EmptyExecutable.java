@@ -6,10 +6,13 @@
 package org.elasticsearch.xpack.eql.session;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 
 import java.util.List;
 import java.util.Objects;
+
+import static java.util.Collections.emptyList;
 
 public class EmptyExecutable implements Executable {
 
@@ -26,7 +29,7 @@ public class EmptyExecutable implements Executable {
 
     @Override
     public void execute(EqlSession session, ActionListener<Results> listener) {
-        listener.onResponse(Results.EMPTY);
+        listener.onResponse(Results.fromHits(TimeValue.ZERO, emptyList()));
     }
 
     @Override

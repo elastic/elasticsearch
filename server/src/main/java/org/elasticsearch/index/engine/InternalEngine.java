@@ -2702,30 +2702,9 @@ public class InternalEngine extends Engine {
             super(d, conf);
         }
         @Override
-        public long updateDocument(Term term, Iterable<? extends IndexableField> doc) throws IOException {
-            assert softDeleteEnabled == false : "Call #updateDocument but soft-deletes is enabled";
-            return super.updateDocument(term, doc);
-        }
-        @Override
-        public long updateDocuments(Term delTerm, Iterable<? extends Iterable<? extends IndexableField>> docs) throws IOException {
-            assert softDeleteEnabled == false : "Call #updateDocuments but soft-deletes is enabled";
-            return super.updateDocuments(delTerm, docs);
-        }
-        @Override
         public long deleteDocuments(Term... terms) throws IOException {
             assert softDeleteEnabled == false : "Call #deleteDocuments but soft-deletes is enabled";
             return super.deleteDocuments(terms);
-        }
-        @Override
-        public long softUpdateDocument(Term term, Iterable<? extends IndexableField> doc, Field... softDeletes) throws IOException {
-            assert softDeleteEnabled : "Call #softUpdateDocument but soft-deletes is disabled";
-            return super.softUpdateDocument(term, doc, softDeletes);
-        }
-        @Override
-        public long softUpdateDocuments(Term term, Iterable<? extends Iterable<? extends IndexableField>> docs,
-                                        Field... softDeletes) throws IOException {
-            assert softDeleteEnabled : "Call #softUpdateDocuments but soft-deletes is disabled";
-            return super.softUpdateDocuments(term, docs, softDeletes);
         }
         @Override
         public long tryDeleteDocument(IndexReader readerIn, int docID) {

@@ -227,7 +227,7 @@ public class RangeAggregator extends BucketsAggregator {
             InternalRange.Factory rangeFactory, Range[] ranges, boolean keyed, SearchContext context,
             Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata) throws IOException {
 
-        super(name, factories, context, parent, cardinality.forKnownBucketAggregator(ranges.length), metadata);
+        super(name, factories, context, parent, cardinality.multiply(ranges.length), metadata);
         assert valuesSource != null;
         this.valuesSource = valuesSource;
         this.format = format;

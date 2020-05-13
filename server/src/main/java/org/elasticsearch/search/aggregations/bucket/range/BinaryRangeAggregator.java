@@ -80,7 +80,7 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
             ValuesSource valuesSource, DocValueFormat format,
             List<Range> ranges, boolean keyed, SearchContext context,
             Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata) throws IOException {
-        super(name, factories, context, parent, cardinality.forKnownBucketAggregator(ranges.size()), metadata);
+        super(name, factories, context, parent, cardinality.multiply(ranges.size()), metadata);
         this.valuesSource = (ValuesSource.Bytes) valuesSource;
         this.format = format;
         this.keyed = keyed;

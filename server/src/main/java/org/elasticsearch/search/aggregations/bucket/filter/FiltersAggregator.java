@@ -125,8 +125,7 @@ public class FiltersAggregator extends BucketsAggregator {
     public FiltersAggregator(String name, AggregatorFactories factories, String[] keys, Supplier<Weight[]> filters, boolean keyed,
             String otherBucketKey, SearchContext context, Aggregator parent, CardinalityUpperBound cardinality,
             Map<String, Object> metadata) throws IOException {
-        super(name, factories, context, parent,
-            cardinality.forKnownBucketAggregator(keys.length + (otherBucketKey == null ? 0 : 1)), metadata);
+        super(name, factories, context, parent, cardinality.multiply(keys.length + (otherBucketKey == null ? 0 : 1)), metadata);
         this.keyed = keyed;
         this.keys = keys;
         this.filters = filters;

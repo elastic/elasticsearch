@@ -35,7 +35,7 @@ public enum CardinalityUpperBound {
      */
     NONE {
         @Override
-        public CardinalityUpperBound forKnownBucketAggregator(int bucketCount) {
+        public CardinalityUpperBound multiply(int bucketCount) {
             return NONE;
         }
     },
@@ -49,7 +49,7 @@ public enum CardinalityUpperBound {
      */
     ONE {
         @Override
-        public CardinalityUpperBound forKnownBucketAggregator(int bucketCount) {
+        public CardinalityUpperBound multiply(int bucketCount) {
             switch (bucketCount) {
                 case 0:
                     return NONE;
@@ -68,7 +68,10 @@ public enum CardinalityUpperBound {
      */
     MANY {
         @Override
-        public CardinalityUpperBound forKnownBucketAggregator(int bucketCount) {
+        public CardinalityUpperBound multiply(int bucketCount) {
+            if (bucketCount == 0) {
+                return NONE;
+            }
             return MANY;
         }
     };
@@ -80,5 +83,5 @@ public enum CardinalityUpperBound {
      * @param bucketCount the number of buckets that this {@link Aggregator}
      *   will collect per owning ordinal
      */
-    public abstract CardinalityUpperBound forKnownBucketAggregator(int bucketCount);
+    public abstract CardinalityUpperBound multiply(int bucketCount);
 }

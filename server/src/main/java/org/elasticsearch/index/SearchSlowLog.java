@@ -57,7 +57,7 @@ public final class SearchSlowLog implements SearchOperationListener {
     private final Logger queryLogger;
     private final Logger fetchLogger;
 
-    private static final String INDEX_SEARCH_SLOWLOG_PREFIX = "index.search.slowlog";
+    static final String INDEX_SEARCH_SLOWLOG_PREFIX = "index.search.slowlog";
     public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING =
         Setting.timeSetting(INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.query.warn", TimeValue.timeValueNanos(-1),
             TimeValue.timeValueMillis(-1), Property.Dynamic, Property.IndexScope);
@@ -87,11 +87,14 @@ public final class SearchSlowLog implements SearchOperationListener {
             Property.IndexScope);
 
     private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
+    private SlowLogLevel level;
 
     public SearchSlowLog(IndexSettings indexSettings) {
 
         this.queryLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query." + indexSettings.getUUID());
         this.fetchLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch." + indexSettings.getUUID());
+        Loggers.setLevel(this.fetchLogger, SlowLogLevel.TRACE.name());
+        Loggers.setLevel(this.queryLogger, SlowLogLevel.TRACE.name());
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING,
             this::setQueryWarnThreshold);
@@ -124,19 +127,18 @@ public final class SearchSlowLog implements SearchOperationListener {
     }
 
     private void setLevel(SlowLogLevel level) {
-        Loggers.setLevel(queryLogger, level.name());
-        Loggers.setLevel(fetchLogger, level.name());
+        this.level = level;
     }
 
     @Override
     public void onQueryPhase(SearchContext context, long tookInNanos) {
-        if (queryWarnThreshold >= 0 && tookInNanos > queryWarnThreshold) {
+        if (queryWarnThreshold >= 0 && tookInNanos > queryWarnThreshold && level.isLevelEnabledFor(SlowLogLevel.WARN)) {
             queryLogger.warn(new SearchSlowLogMessage(context, tookInNanos));
-        } else if (queryInfoThreshold >= 0 && tookInNanos > queryInfoThreshold) {
+        } else if (queryInfoThreshold >= 0 && tookInNanos > queryInfoThreshold && level.isLevelEnabledFor(SlowLogLevel.INFO)) {
             queryLogger.info(new SearchSlowLogMessage(context, tookInNanos));
-        } else if (queryDebugThreshold >= 0 && tookInNanos > queryDebugThreshold) {
+        } else if (queryDebugThreshold >= 0 && tookInNanos > queryDebugThreshold && level.isLevelEnabledFor(SlowLogLevel.DEBUG)) {
             queryLogger.debug(new SearchSlowLogMessage(context, tookInNanos));
-        } else if (queryTraceThreshold >= 0 && tookInNanos > queryTraceThreshold) {
+        } else if (queryTraceThreshold >= 0 && tookInNanos > queryTraceThreshold && level.isLevelEnabledFor(SlowLogLevel.TRACE)) {
             queryLogger.trace(new SearchSlowLogMessage(context, tookInNanos));
         }
     }
@@ -303,7 +305,6 @@ public final class SearchSlowLog implements SearchOperationListener {
     }
 
     SlowLogLevel getLevel() {
-        assert queryLogger.getLevel().equals(fetchLogger.getLevel());
-        return SlowLogLevel.parse(queryLogger.getLevel().name());
+        return level;
     }
 }

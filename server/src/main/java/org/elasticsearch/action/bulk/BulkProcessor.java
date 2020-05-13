@@ -37,6 +37,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -369,7 +371,7 @@ public class BulkProcessor implements Closeable {
     private void internalAdd(DocWriteRequest<?> request) {
         //bulkRequest and instance swapping is not threadsafe, so execute the mutations under a lock.
         //once the bulk request is ready to be shipped swap the instance reference unlock and send the local reference to the handler.
-        Tuple<BulkRequest, Long> bulkRequestToExecute = null;
+        final Tuple<BulkRequest, Long> bulkRequestToExecute;
         lock.lock();
         try {
             ensureOpen();
@@ -379,8 +381,10 @@ public class BulkProcessor implements Closeable {
             lock.unlock();
         }
         //execute sending the local reference outside the lock to allow handler to control the concurrency via it's configuration.
+        //run this in a Async manner in order to release the add call as quick as possible
         if (bulkRequestToExecute != null) {
-            execute(bulkRequestToExecute.v1(), bulkRequestToExecute.v2());
+            new Thread(() -> execute(bulkRequestToExecute.v1(), bulkRequestToExecute.v2())
+            ).start();
         }
     }
 
@@ -389,7 +393,7 @@ public class BulkProcessor implements Closeable {
      */
     public BulkProcessor add(BytesReference data, @Nullable String defaultIndex,
                              @Nullable String defaultPipeline, XContentType xContentType) throws Exception {
-        Tuple<BulkRequest, Long> bulkRequestToExecute = null;
+        final Tuple<BulkRequest, Long> bulkRequestToExecute;
         lock.lock();
         try {
             ensureOpen();
@@ -400,8 +404,10 @@ public class BulkProcessor implements Closeable {
             lock.unlock();
         }
 
+        //run this in a Async manner in order to release the add call as quick as possible
         if (bulkRequestToExecute != null) {
-            execute(bulkRequestToExecute.v1(), bulkRequestToExecute.v2());
+            new Thread(() -> execute(bulkRequestToExecute.v1(), bulkRequestToExecute.v2())
+            ).start();
         }
         return this;
     }

@@ -20,6 +20,8 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.MockSynonymAnalyzer;
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.AutomatonQuery;
@@ -30,6 +32,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -797,6 +800,26 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             }
         }
     }
+
+    public void testToQueryDateWithTimeZone() throws Exception {
+        QueryStringQueryBuilder qsq = queryStringQuery(DATE_FIELD_NAME + ":1970-01-01");
+        QueryShardContext context = createShardContext();
+        Query query = qsq.toQuery(context);
+        assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
+        long lower = 0; // 1970-01-01T00:00:00.999 UTC
+        long upper = 86399999;  // 1970-01-01T23:59:59.999 UTC
+        assertEquals(calculateExpectedDateQuery(lower, upper), query);
+        int msPerHour = 3600000;
+        assertEquals(calculateExpectedDateQuery(lower - msPerHour, upper - msPerHour), qsq.timeZone("+01:00").toQuery(context));
+        assertEquals(calculateExpectedDateQuery(lower + msPerHour, upper + msPerHour), qsq.timeZone("-01:00").toQuery(context));
+    }
+
+    private IndexOrDocValuesQuery calculateExpectedDateQuery(long lower, long upper) {
+        Query query = LongPoint.newRangeQuery(DATE_FIELD_NAME, lower, upper);
+        Query dv = SortedNumericDocValuesField.newSlowRangeQuery(DATE_FIELD_NAME, lower, upper);
+        return new IndexOrDocValuesQuery(query, dv);
+    }
+
     public void testFuzzyNumeric() throws Exception {
         QueryStringQueryBuilder query = queryStringQuery("12~1.0").defaultField(INT_FIELD_NAME);
         QueryShardContext context = createShardContext();

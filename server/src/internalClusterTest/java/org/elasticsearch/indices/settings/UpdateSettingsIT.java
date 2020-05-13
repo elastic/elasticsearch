@@ -646,4 +646,28 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
     }
 
+    /*
+     * Test that we are able to set the setting index.number_of_replicas to the default.
+     */
+    public void testDefaultNumberOfReplicas() {
+        if (randomBoolean()) {
+            assertAcked(client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(1, 8))));
+        } else {
+            assertAcked(client().admin().indices().prepareCreate("test"));
+        }
+
+        /*
+         * Previous versions of Elasticsearch would throw an exception that the number of replicas had to have a value, and could not be
+         * null. In the update settings logic, we ensure this by providing an explicit default value if the setting is set to null.
+         */
+        assertAcked(client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().putNull(IndexMetadata.SETTING_NUMBER_OF_REPLICAS)));
+
+    }
+
 }

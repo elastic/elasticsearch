@@ -374,7 +374,7 @@ The following EQL query matches this series of ordered events:
 [source,eql]
 ----
 sequence
-  [ file where file.name == "*.exe" ]
+  [ file where file.extension == "exe" ]
   [ process where true ]
 ----
 ====

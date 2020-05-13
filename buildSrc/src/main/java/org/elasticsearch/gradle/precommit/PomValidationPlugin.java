@@ -34,7 +34,7 @@ public class PomValidationPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getPlugins().withType(MavenPublishPlugin.class).whenPluginAdded(p -> {
+        project.getPluginManager().withPlugin("maven-publish", p -> {
             PublishingExtension publishing = project.getExtensions().getByType(PublishingExtension.class);
             publishing.getPublications().all(publication -> {
                 String publicationName = Util.capitalize(publication.getName());

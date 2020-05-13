@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -76,6 +76,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * We keep around a list of plugins and modules
      */
     private final List<Tuple<PluginInfo, Plugin>> plugins;
+    /**
+     * The reverse plugins list is used for loading components, this ensures that the extending plug loads their components before the
+     * extensible plugins
+     */
+    private final List<Plugin> reversePlugins;
     private final PluginsAndModules info;
 
     public static final Setting<List<String>> MANDATORY_SETTING =
@@ -161,6 +166,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
         this.info = new PluginsAndModules(pluginsList, modulesList);
         this.plugins = Collections.unmodifiableList(pluginsLoaded);
+        List<Plugin> reversePlugins = pluginsLoaded.stream().map(Tuple::v2).collect(Collectors.toCollection(ArrayList::new));
+        Collections.reverse(reversePlugins);
+        this.reversePlugins = Collections.unmodifiableList(reversePlugins);
 
         // Checking expected plugins
         List<String> mandatoryPlugins = MANDATORY_SETTING.get(settings);
@@ -516,6 +524,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
         Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), loader);
         Plugin plugin = loadPlugin(pluginClass, settings, configPath);
+        for (String extendedPluginName : bundle.plugin.getExtendedPlugins()) {
+            // note: already asserted above that extended plugins are loaded and extensible
+            ExtensiblePlugin.class.cast(loaded.get(extendedPluginName)).extensionPlugin(plugin);
+        }
         loaded.put(name, plugin);
         return plugin;
     }
@@ -589,7 +601,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     @SuppressWarnings("unchecked")
     public <T> List<T> filterPlugins(Class<T> type) {
-        return plugins.stream().filter(x -> type.isAssignableFrom(x.v2().getClass()))
-            .map(p -> ((T)p.v2())).collect(Collectors.toList());
+        return reversePlugins.stream().filter(x -> type.isAssignableFrom(x.getClass()))
+            .map(p -> ((T)p)).collect(Collectors.toList());
     }
 }

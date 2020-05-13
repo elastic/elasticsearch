@@ -50,7 +50,9 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Container class for autoscaling functionality.
@@ -172,6 +174,13 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensionPlugin
     public <O> void extend(Extender extender) {
         extender.extend(AutoscalingPlugin.class).addLazySet(new TypeLiteral<>() {
         }, AutoscalingPlugin::deciders);
+    }
+
+    @Override
+    public Collection<Object> createExtensionComponents(PluginRegistry registry) {
+        Set<Class<? extends AutoscalingDeciderService<? extends AutoscalingDecider>>> deciderServices
+            = registry.getPlugins(AutoscalingPlugin.class).stream().flatMap(p -> p.deciders().stream()).collect(Collectors.toSet());
+        return null;
     }
 
     @Override

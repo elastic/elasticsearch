@@ -469,7 +469,16 @@ public class Node implements Closeable {
                     systemIndexDescriptors,
                     forbidPrivateIndexSettings);
 
-            pluginsService.filterPlugins(ExtensionPlugin.class).forEach(
+            final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
+            Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
+                .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
+                                                 scriptService, xContentRegistry, environment, nodeEnvironment,
+                                                 namedWriteableRegistry, clusterModule.getIndexNameExpressionResolver(),
+                                                 repositoriesServiceReference::get).stream())
+                .collect(Collectors.toList());
+
+            pluginComponents = Stream.concat(pluginComponents.stream(), pluginsService.filterPlugins(ExtensionPlugin.class)
+                .forEach(
                 p -> p.extend(new ExtensionPlugin.Extender() {
                     @Override
                     public <P> ExtensionPlugin.Extension<P> extend(Class<P> pluginType) {
@@ -489,14 +498,6 @@ public class Node implements Closeable {
                     }
                 })
             );
-
-            final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
-            Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
-                .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
-                                                 scriptService, xContentRegistry, environment, nodeEnvironment,
-                                                 namedWriteableRegistry, clusterModule.getIndexNameExpressionResolver(),
-                                                 repositoriesServiceReference::get).stream())
-                .collect(Collectors.toList());
 
             ActionModule actionModule = new ActionModule(settings, clusterModule.getIndexNameExpressionResolver(),
                 settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),

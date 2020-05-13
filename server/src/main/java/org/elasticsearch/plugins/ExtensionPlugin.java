@@ -22,6 +22,7 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.common.inject.TypeLiteral;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.function.Function;
 
 public interface ExtensionPlugin {
@@ -37,4 +38,9 @@ public interface ExtensionPlugin {
     }
 
     <O> void extend(Extender extender);
+
+    interface PluginRegistry {
+        public <T> List<T> getPlugins(Class<T> type);
+    }
+    Collection<Object> createExtensionComponents(PluginRegistry registry);
 }

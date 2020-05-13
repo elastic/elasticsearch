@@ -10,7 +10,6 @@ and change the number of replicas.
 The allocate action is not allowed in the hot phase. 
 The initial allocation for the index must be done manually or via 
 <</indices-templates, index templates>>.
-{ilm-init} doesn't handle index allocation during the hot phase.
 
 You can configure this action to modify both the allocation rules and number of replicas, 
 only the allocation rules, or only the number of replicas. 

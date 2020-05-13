@@ -29,7 +29,7 @@ public class S3ServiceTests extends ESTestCase {
         final S3Service s3Service = new S3Service();
         final Settings settings = Settings.builder().put("endpoint", "http://first").build();
         final RepositoryMetadata metadata1 = new RepositoryMetadata("first", "s3", settings);
-        final RepositoryMetadata metadata2 = new RepositoryMetadata("first", "s3", settings);
+        final RepositoryMetadata metadata2 = new RepositoryMetadata("second", "s3", settings);
         final S3ClientSettings clientSettings = s3Service.settings(metadata2);
         final S3ClientSettings otherClientSettings = s3Service.settings(metadata2);
         assertSame(clientSettings, otherClientSettings);

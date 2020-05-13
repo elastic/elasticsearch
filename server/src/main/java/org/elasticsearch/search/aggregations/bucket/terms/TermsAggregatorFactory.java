@@ -36,6 +36,7 @@ import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
+import org.elasticsearch.search.aggregations.bucket.terms.NumericTermsAggregator.ResultStrategy;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -48,6 +49,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(TermsAggregatorFactory.class));
@@ -162,7 +164,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         + "include/exclude clauses used to filter numeric fields");
                 }
 
-                IncludeExclude.LongFilter longFilter = null;
                 if (subAggCollectMode == null) {
                     // TODO can we remove concept of AggregatorFactories.EMPTY?
                     if (factories != AggregatorFactories.EMPTY) {
@@ -171,20 +172,23 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         subAggCollectMode = SubAggCollectionMode.DEPTH_FIRST;
                     }
                 }
-                if (((ValuesSource.Numeric) valuesSource).isFloatingPoint()) {
+
+                ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) valuesSource; 
+                IncludeExclude.LongFilter longFilter = null;
+                Function<NumericTermsAggregator, ResultStrategy<?, ?>> resultStrategy;
+                if (numericValuesSource.isFloatingPoint()) {
                     if (includeExclude != null) {
                         longFilter = includeExclude.convertToDoubleFilter();
                     }
-                    return new DoubleTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, format, order,
-                        bucketCountThresholds, context, parent, subAggCollectMode, showTermDocCountError, longFilter,
-                        collectsFromSingleBucket, metadata);
+                    resultStrategy = agg -> agg.new DoubleTermsResults(showTermDocCountError);
+                } else {
+                    if (includeExclude != null) {
+                        longFilter = includeExclude.convertToLongFilter(format);
+                    }
+                    resultStrategy = agg -> agg.new LongTermsResults(showTermDocCountError);
                 }
-                if (includeExclude != null) {
-                    longFilter = includeExclude.convertToLongFilter(format);
-                }
-                return new LongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, format, order,
-                    bucketCountThresholds, context, parent, subAggCollectMode, showTermDocCountError, longFilter,
-                    collectsFromSingleBucket, metadata);
+                return new NumericTermsAggregator(name, factories, resultStrategy, numericValuesSource, format, order,
+                    bucketCountThresholds, context, parent, subAggCollectMode, longFilter, collectsFromSingleBucket, metadata);
             }
 
             @Override

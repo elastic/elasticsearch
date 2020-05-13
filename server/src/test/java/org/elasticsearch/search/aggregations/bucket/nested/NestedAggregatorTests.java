@@ -64,7 +64,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.LongTermsAggregator;
+import org.elasticsearch.search.aggregations.bucket.terms.NumericTermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -813,7 +813,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
     }
 
     /**
-     * {@link LongTermsAggregator} is the first complex bucking aggregation
+     * {@link NumericTermsAggregator} is the first complex bucking aggregation
      * that stopped wrapping itself in {@link AggregatorFactory#asMultiBucketAggregator}
      * so this tests that nested works properly inside of it.
      */

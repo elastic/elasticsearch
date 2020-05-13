@@ -243,7 +243,7 @@ cidrMatchFunctionTwoWithOr
 process where cidrMatch(source_address, "10.0.0.0/8") or cidrMatch(source_address, "192.168.0.0/16")
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process"
-{"terms":{"source_address":["10.0.0.0/8"],"boost":1.0}},{"terms":{"source_address":["192.168.0.0/16"]
+{"bool":{"should":[{"terms":{"source_address":["10.0.0.0/8"],"boost":1.0}},{"terms":{"source_address":["192.168.0.0/16"],"boost":1.0}}
 ;
 
 cidrMatchFunctionThree

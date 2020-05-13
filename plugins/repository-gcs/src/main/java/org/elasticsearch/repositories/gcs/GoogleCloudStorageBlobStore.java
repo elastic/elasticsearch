@@ -125,7 +125,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
+        storageService.close();
     }
 
     /**

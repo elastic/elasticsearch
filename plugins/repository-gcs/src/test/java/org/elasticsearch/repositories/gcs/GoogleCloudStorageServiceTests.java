@@ -142,7 +142,6 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             assertThat(repo1Client, is(not(theInstance(repo2Client))));
             assertThat(repo1Client, is(theInstance(repo1ClientSecondInstance)));
         }
-
     }
 
     private byte[] serviceAccountFileContent(String projectId) throws Exception {

@@ -21,10 +21,8 @@ package org.elasticsearch.repositories.gcs;
 
 import com.google.api.client.googleapis.GoogleUtils;
 import com.google.api.client.http.HttpRequestInitializer;
-import com.google.api.client.http.HttpResponseInterceptor;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
-import com.google.auth.http.HttpTransportFactory;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.ServiceOptions;
 import com.google.cloud.http.HttpTransportOptions;
@@ -38,13 +36,14 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Maps;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 
-public class GoogleCloudStorageService {
+public class GoogleCloudStorageService implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageService.class);
 
@@ -65,7 +64,11 @@ public class GoogleCloudStorageService {
      * @param clientsSettings the new settings used for building clients for subsequent requests
      */
     public synchronized void refreshAndClearCache(Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
+        releaseCachedClients();
         this.clientSettings = Maps.ofEntries(clientsSettings.entrySet());
+    }
+
+    private synchronized void releaseCachedClients() {
         this.clientCache = emptyMap();
     }
 
@@ -137,12 +140,23 @@ public class GoogleCloudStorageService {
 
         final GoogleCloudStorageHttpStatsCollector httpStatsCollector = new GoogleCloudStorageHttpStatsCollector(stats);
 
-        final HttpTransportOptions httpTransportOptions = HttpTransportWithResponseInterceptorOptions.builder()
+        final HttpTransportOptions httpTransportOptions = new HttpTransportOptions(HttpTransportOptions.newBuilder()
             .setConnectTimeout(toTimeout(clientSettings.getConnectTimeout()))
             .setReadTimeout(toTimeout(clientSettings.getReadTimeout()))
-            .setHttpTransportFactory(() -> httpTransport)
-            .setHttpResponseInterceptor(httpStatsCollector)
-            .build();
+            .setHttpTransportFactory(() -> httpTransport)) {
+
+            @Override
+            public HttpRequestInitializer getHttpRequestInitializer(ServiceOptions<?, ?> serviceOptions) {
+                HttpRequestInitializer requestInitializer = super.getHttpRequestInitializer(serviceOptions);
+
+                return (httpRequest) -> {
+                    if (requestInitializer != null)
+                        requestInitializer.initialize(httpRequest);
+
+                    httpRequest.setResponseInterceptor(httpStatsCollector);
+                };
+            }
+        };
 
         final StorageOptions storageOptions = createStorageOptions(clientSettings, httpTransportOptions);
         return storageOptions.getService();
@@ -200,97 +214,8 @@ public class GoogleCloudStorageService {
         return Math.toIntExact(timeout.getMillis());
     }
 
-    /**
-     * Custom HttpTransportOptions that allows injecting an {@link HttpResponseInterceptor}, this is not possible
-     * with the public API provided by the SDK.
-     */
-    private static class HttpTransportWithResponseInterceptorOptions extends HttpTransportOptions {
-
-        private final HttpResponseInterceptor httpResponseInterceptor;
-
-        private HttpTransportWithResponseInterceptorOptions(final HttpTransportOptions.Builder builder,
-                                                            final HttpResponseInterceptor httpResponseInterceptor) {
-            super(builder);
-            this.httpResponseInterceptor = httpResponseInterceptor;
-        }
-
-        private static Builder builder() {
-            return new Builder();
-        }
-
-        private static class Builder {
-
-            private HttpTransportFactory httpTransportFactory;
-            private int connectTimeout = -1;
-            private int readTimeout = -1;
-            private HttpResponseInterceptor httpResponseInterceptor;
-
-            private Builder() {}
-
-            private HttpTransportWithResponseInterceptorOptions build() {
-                HttpTransportOptions.Builder builder = HttpTransportOptions.newBuilder()
-                    .setHttpTransportFactory(httpTransportFactory)
-                    .setConnectTimeout(connectTimeout)
-                    .setReadTimeout(readTimeout);
-
-                return new HttpTransportWithResponseInterceptorOptions(builder, httpResponseInterceptor);
-            }
-
-            /**
-             * Sets the HTTP transport factory.
-             *
-             * @return the builder
-             */
-            private Builder setHttpTransportFactory(HttpTransportFactory httpTransportFactory) {
-                this.httpTransportFactory = httpTransportFactory;
-                return this;
-            }
-
-            /**
-             * Sets the timeout in milliseconds to establish a connection.
-             *
-             * @param connectTimeout connection timeout in milliseconds. 0 for an infinite timeout, a
-             *     negative number for the default value (20000).
-             * @return the builder
-             */
-            private Builder setConnectTimeout(int connectTimeout) {
-                this.connectTimeout = connectTimeout;
-                return this;
-            }
-
-            /**
-             * Sets the timeout in milliseconds to read data from an established connection.
-             *
-             * @param readTimeout read timeout in milliseconds. 0 for an infinite timeout, a negative number
-             *     for the default value (20000).
-             * @return the builder
-             */
-            private Builder setReadTimeout(int readTimeout) {
-                this.readTimeout = readTimeout;
-                return this;
-            }
-
-            /**
-             * Sets the {@link HttpResponseInterceptor} used to intercept http responses from the transport layer.
-             * @param httpResponseInterceptor the {@link HttpResponseInterceptor}.
-             * @return the builder
-             */
-            private Builder setHttpResponseInterceptor(HttpResponseInterceptor httpResponseInterceptor) {
-                this.httpResponseInterceptor = httpResponseInterceptor;
-                return this;
-            }
-        }
-
-        @Override
-        public HttpRequestInitializer getHttpRequestInitializer(ServiceOptions<?, ?> serviceOptions) {
-            HttpRequestInitializer requestInitializer = super.getHttpRequestInitializer(serviceOptions);
-
-            return (httpRequest) -> {
-                if (requestInitializer != null)
-                    requestInitializer.initialize(httpRequest);
-
-                httpRequest.setResponseInterceptor(httpResponseInterceptor);
-            };
-        }
+    @Override
+    public void close() throws IOException {
+        releaseCachedClients();
     }
 }

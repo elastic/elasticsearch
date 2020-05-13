@@ -1,8 +1,8 @@
 ---
 "Create data stream":
   - skip:
-      version: " - 7.99.99"
-      reason:  "enable in 7.8+ after backporting https://github.com/elastic/elasticsearch/pull/55342 (Add explicit generation attribute)"
+      version: " - 7.8.99"
+      reason:  "data streams only supported in 7.9+"
 
   - do:
       indices.create_data_stream:
@@ -62,8 +62,8 @@
 ---
 "Create data stream with invalid name":
   - skip:
-      version: " - 7.7.99"
-      reason: available only in 7.8+
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
 
   - do:
       catch: bad_request
@@ -78,8 +78,8 @@
 ---
 "Get data stream":
   - skip:
-      version: " - 7.99.99"
-      reason:  "enable in 7.8+ after backporting https://github.com/elastic/elasticsearch/pull/55342 (Add explicit generation attribute)"
+      version: " - 7.8.99"
+      reason:  "data streams only supported in 7.9+"
 
   - do:
       indices.create_data_stream:
@@ -147,8 +147,8 @@
 ---
 "Delete data stream with backing indices":
   - skip:
-      version: " - 7.99.99"
-      reason:  "enable in 7.8+ after backporting https://github.com/elastic/elasticsearch/pull/55342 (Add explicit generation attribute)"
+      version: " - 7.8.99"
+      reason:  "data streams only supported in 7.9+"
 
   - do:
       indices.create_data_stream:

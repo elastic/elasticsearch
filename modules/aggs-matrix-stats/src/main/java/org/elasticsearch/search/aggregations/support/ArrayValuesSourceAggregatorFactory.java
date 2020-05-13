@@ -63,14 +63,16 @@ public abstract class ArrayValuesSourceAggregatorFactory
     }
 
     /**
-     * Create the {@linkplain Aggregator} for a field that isn't mapped.
+     * Create the {@linkplain Aggregator} when none of the configured
+     * fields can be resolved to a {@link ValuesSource}.
      */
     protected abstract Aggregator createUnmapped(SearchContext searchContext,
                                                     Aggregator parent,
                                                     Map<String, Object> metadata) throws IOException;
 
     /**
-     * Create the {@linkplain Aggregator} for a mapped field.
+     * Create the {@linkplain Aggregator} when any of the configured
+     * fields can be resolved to a {@link ValuesSource}.
      * 
      * @param cardinality Upper bound of the number of {@code owningBucketOrd}s
      *                    that the {@link Aggregator} created by this method

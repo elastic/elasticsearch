@@ -53,14 +53,15 @@ public abstract class MultiValuesSourceAggregatorFactory extends AggregatorFacto
     }
 
     /**
-     * Create the {@linkplain Aggregator} for a field that isn't mapped.
+     * Create an aggregator that won't collect anything but will return an
+     * appropriate empty aggregation.
      */
     protected abstract Aggregator createUnmapped(SearchContext searchContext,
                                                     Aggregator parent,
                                                     Map<String, Object> metadata) throws IOException;
 
     /**
-     * Create the {@linkplain Aggregator} for a mapped field.
+     * Create the {@linkplain Aggregator}.
      * 
      * @param cardinality Upper bound of the number of {@code owningBucketOrd}s
      *                    that the {@link Aggregator} created by this method

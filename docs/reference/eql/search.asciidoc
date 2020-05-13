@@ -368,7 +368,7 @@ search and its results are deleted, even if it's still ongoing.
 GET /sec_logs/_eql/search
 {
   "keep_alive": "2d",
-  "wait_for_completion_timeout": 2s,
+  "wait_for_completion_timeout": "2s",
   "query": """
     process where process.name == "cmd.exe"
   """
@@ -400,7 +400,7 @@ the search completes within the `2s` (two-second) period set by the
 GET /sec_logs/_eql/search
 {
   "keep_on_completion": true,
-  "wait_for_completion_timeout": 2s,
+  "wait_for_completion_timeout": "2s",
   "query": """
     process where process.name == "cmd.exe"
   """

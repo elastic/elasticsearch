@@ -18,6 +18,8 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.autoscaling.Autoscaling;
+import org.elasticsearch.xpack.autoscaling.AutoscalingPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -64,7 +66,17 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
             @Override
             protected XPackLicenseState getLicenseState() { return thisVar.getLicenseState(); }
         });
+        plugins.add(new Autoscaling(settings) {
+            @Override
+            protected XPackLicenseState getLicenseState() {
+                return thisVar.getLicenseState();
+            }
+        });
+
         plugins.add(new MockedRollupPlugin());
+        filterPlugins(AutoscalingPlugin.class).stream().filter(p -> p instanceof Autoscaling == false)
+            .forEach(p -> filterPlugins(Autoscaling.class)
+                .forEach(autoscaling -> autoscaling.extensionPlugin((Plugin) p)));
     }
 
     /**

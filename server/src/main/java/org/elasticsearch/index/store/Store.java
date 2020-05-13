@@ -138,7 +138,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     /**
      * Specific {@link IOContext} used to verify Lucene files footer checksums.
-     * See {@link MetadataSnapshot#checksumFromLuceneFile(Directory, String, Map, Logger, Version, boolean)}
+     * See {@link MetadataSnapshot#checksumFromLuceneFile(Directory, String, Map, Logger, Version, boolean, BytesRef)}
      */
     public static final IOContext READONCE_CHECKSUM = new IOContext(IOContext.READONCE.context);
 
@@ -828,16 +828,22 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     if (version.onOrAfter(maxVersion)) {
                         maxVersion = version;
                     }
+
+                    final BytesRef segmentInfoId = StoreFileMetadata.toWriterUuid(info.info.getId());
+                    final BytesRef segmentCommitInfoId = StoreFileMetadata.toWriterUuid(info.getId());
+
                     for (String file : info.files()) {
                         checksumFromLuceneFile(directory, file, builder, logger, version,
-                            SEGMENT_INFO_EXTENSION.equals(IndexFileNames.getExtension(file)));
+                            SEGMENT_INFO_EXTENSION.equals(IndexFileNames.getExtension(file)),
+                            IndexFileNames.parseGeneration(file) == 0 ? segmentInfoId : segmentCommitInfoId);
                     }
                 }
                 if (maxVersion == null) {
                     maxVersion = org.elasticsearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion;
                 }
                 final String segmentsFile = segmentCommitInfos.getSegmentsFileName();
-                checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
+                checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true,
+                    StoreFileMetadata.toWriterUuid(segmentCommitInfos.getId()));
             } catch (CorruptIndexException | IndexNotFoundException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                 // we either know the index is corrupted or it's just not there
                 throw ex;
@@ -863,7 +869,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         private static void checksumFromLuceneFile(Directory directory, String file, Map<String, StoreFileMetadata> builder,
-                Logger logger, Version version, boolean readFileAsHash) throws IOException {
+                Logger logger, Version version, boolean readFileAsHash, BytesRef writerUuid) throws IOException {
             final String checksum;
             final BytesRefBuilder fileHash = new BytesRefBuilder();
             try (IndexInput in = directory.openInput(file, READONCE_CHECKSUM)) {
@@ -888,7 +894,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     logger.debug(() -> new ParameterizedMessage("Can retrieve checksum from file [{}]", file), ex);
                     throw ex;
                 }
-                builder.put(file, new StoreFileMetadata(file, length, checksum, version, fileHash.get()));
+                builder.put(file, new StoreFileMetadata(file, length, checksum, version, fileHash.get(), writerUuid));
             }
         }
 
@@ -928,8 +934,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          * <li>missing: files that exist in the source but not in the target</li>
          * </ul>
          * <p>
-         * Individual files are compared by name, length and checksum. The segment info ({@code *.si}) files and the segments file
-         * ({@code segments_N}) are also checked to be a byte-for-byte match.
+         * Individual files are compared by name, length, checksum and (if present) a UUID that was assigned when the file was originally
+         * written. The segment info ({@code *.si}) files and the segments file ({@code segments_N}) are also checked to be a byte-for-byte
+         * match.
          * <p>
          * Files are collected together into a group for each segment plus one group of "per-commit" ({@code segments_N}) files. Each
          * per-segment group is subdivided into a nongenerational group (most of them) and a generational group (e.g. {@code *.liv},

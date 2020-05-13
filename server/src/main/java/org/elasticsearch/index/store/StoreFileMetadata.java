@@ -20,8 +20,13 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -32,6 +37,9 @@ import java.text.ParseException;
 import java.util.Objects;
 
 public class StoreFileMetadata implements Writeable {
+
+    public static final BytesRef UNAVAILABLE_WRITER_UUID = new BytesRef();
+    private static final org.elasticsearch.Version WRITER_UUID_MIN_VERSION = org.elasticsearch.Version.V_8_0_0;
 
     private final String name;
 
@@ -44,16 +52,21 @@ public class StoreFileMetadata implements Writeable {
 
     private final BytesRef hash;
 
+    private final BytesRef writerUuid;
+
     public StoreFileMetadata(String name, long length, String checksum, Version writtenBy) {
-        this(name, length, checksum, writtenBy, null);
+        this(name, length, checksum, writtenBy, null, UNAVAILABLE_WRITER_UUID);
     }
 
-    public StoreFileMetadata(String name, long length, String checksum, Version writtenBy, BytesRef hash) {
+    public StoreFileMetadata(String name, long length, String checksum, Version writtenBy, BytesRef hash, BytesRef writerUuid) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.length = length;
         this.checksum = Objects.requireNonNull(checksum, "checksum must not be null");
         this.writtenBy = Objects.requireNonNull(writtenBy, "writtenBy must not be null");
         this.hash = hash == null ? new BytesRef() : hash;
+
+        assert writerUuid != null && (writerUuid.length > 0 || writerUuid == UNAVAILABLE_WRITER_UUID);
+        this.writerUuid = Objects.requireNonNull(writerUuid, "writerUuid must not be null");
     }
 
     /**
@@ -69,6 +82,12 @@ public class StoreFileMetadata implements Writeable {
             throw new AssertionError(e);
         }
         hash = in.readBytesRef();
+        if (in.getVersion().onOrAfter(WRITER_UUID_MIN_VERSION)) {
+            writerUuid = StoreFileMetadata.toWriterUuid(in.readBytesRef());
+        } else {
+            writerUuid = UNAVAILABLE_WRITER_UUID;
+        }
+
     }
 
     @Override
@@ -78,6 +97,9 @@ public class StoreFileMetadata implements Writeable {
         out.writeString(checksum);
         out.writeString(writtenBy.toString());
         out.writeBytesRef(hash);
+        if (out.getVersion().onOrAfter(WRITER_UUID_MIN_VERSION)) {
+            out.writeBytesRef(writerUuid);
+        }
     }
 
     /**
@@ -133,6 +155,16 @@ public class StoreFileMetadata implements Writeable {
             // we can't tell if either or is null so we return false in this case! this is why we don't use equals for this!
             return false;
         }
+        if (writerUuid.length > 0 && other.writerUuid.length > 0) {
+            // if the writer ID is missing on one of the files then we ignore this field and just rely on the checksum and hash, but if
+            // it's present on both files then it must be identical
+            if (writerUuid.equals(other.writerUuid) == false) {
+                return false;
+            } else {
+                assert name.equals(other.name) && length == other.length && checksum.equals(other.checksum) : this + " vs " + other;
+                assert hash.equals(other.hash) : this + " vs " + other + " with hashes " + hash + " vs " + other.hash;
+            }
+        }
         return length == other.length && checksum.equals(other.checksum) && hash.equals(other.hash);
     }
 
@@ -155,4 +187,41 @@ public class StoreFileMetadata implements Writeable {
     public BytesRef hash() {
         return hash;
     }
+
+    /**
+     * Returns the globally-unique ID that was assigned by the {@link IndexWriter} that originally wrote this file:
+     *
+     * - For `segments_N` files this is {@link SegmentInfos#getId()} which uniquely identifies the commit.
+     * - For non-generational segment files this is {@link SegmentInfo#getId()} which uniquely identifies the segment.
+     * - For generational segment files (i.e. updated docvalues, liv files etc) this is {@link SegmentCommitInfo#getId()}
+     *     which uniquely identifies the generation of the segment.
+     *
+     * This ID may be {@link StoreFileMetadata#UNAVAILABLE_WRITER_UUID} (i.e. zero-length) if unavilable, e.g.:
+     *
+     * - The file was written by a version of Lucene prior to {@link org.apache.lucene.util.Version#LUCENE_8_6_0}.
+     * - The metadata came from a version of Elasticsearch prior to {@link StoreFileMetadata#WRITER_UUID_MIN_VERSION}).
+     * - The file is not one of the files listed above.
+     *
+     */
+    public BytesRef writerUuid() {
+        return writerUuid;
+    }
+
+    static BytesRef toWriterUuid(BytesRef bytesRef) {
+        if (bytesRef.length == 0) {
+            return UNAVAILABLE_WRITER_UUID;
+        } else {
+            return bytesRef;
+        }
+    }
+
+    static BytesRef toWriterUuid(@Nullable byte[] id) {
+        if (id == null) {
+            return UNAVAILABLE_WRITER_UUID;
+        } else {
+            assert id.length > 0;
+            return new BytesRef(id);
+        }
+    }
+
 }

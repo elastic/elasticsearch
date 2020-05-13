@@ -45,13 +45,10 @@ public class FileInfoTests extends ESTestCase {
     public void testToFromXContent() throws IOException {
         final int iters = scaledRandomIntBetween(1, 10);
         for (int iter = 0; iter < iters; iter++) {
-            final BytesRef hash = new BytesRef(scaledRandomIntBetween(0, 1024 * 1024));
-            hash.length = hash.bytes.length;
-            for (int i = 0; i < hash.length; i++) {
-                hash.bytes[i] = randomByte();
-            }
+            final BytesRef hash = randomBytesRef(1024 * 1024);
+            final BytesRef writerUuid = randomBytesRef(20);
             StoreFileMetadata meta = new StoreFileMetadata("foobar", Math.abs(randomLong()), randomAlphaOfLengthBetween(1, 10),
-                Version.LATEST, hash);
+                Version.LATEST, hash, writerUuid);
             ByteSizeValue size = new ByteSizeValue(Math.abs(randomLong()));
             BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("_foobar", meta, size);
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
@@ -75,14 +72,18 @@ public class FileInfoTests extends ESTestCase {
         }
     }
 
+    private static BytesRef randomBytesRef(int maxSize) {
+        final BytesRef hash = new BytesRef(scaledRandomIntBetween(0, maxSize));
+        hash.length = hash.bytes.length;
+        for (int i = 0; i < hash.length; i++) {
+            hash.bytes[i] = randomByte();
+        }
+        return hash;
+    }
+
     public void testInvalidFieldsInFromXContent() throws IOException {
         final int iters = scaledRandomIntBetween(1, 10);
         for (int iter = 0; iter < iters; iter++) {
-            final BytesRef hash = new BytesRef(scaledRandomIntBetween(0, 1024 * 1024));
-            hash.length = hash.bytes.length;
-            for (int i = 0; i < hash.length; i++) {
-                hash.bytes[i] = randomByte();
-            }
             String name = "foobar";
             String physicalName = "_foobar";
             String failure = null;

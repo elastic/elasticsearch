@@ -649,7 +649,15 @@ public class UpdateSettingsIT extends ESIntegTestCase {
     /*
      * Test that we are able to set the setting index.number_of_replicas to the default.
      */
-    public void testDefaultNumberOfReplicas() {
+    public void testDefaultNumberOfReplicasOnOpenIndices() {
+        runTestDefaultNumberOfReplicasTest(false);
+    }
+
+    public void testDefaultNumberOfReplicasOnClosedIndices() {
+        runTestDefaultNumberOfReplicasTest(true);
+    }
+
+    private void runTestDefaultNumberOfReplicasTest(final boolean closeIndex) {
         if (randomBoolean()) {
             assertAcked(client().admin()
                 .indices()
@@ -657,6 +665,10 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(1, 8))));
         } else {
             assertAcked(client().admin().indices().prepareCreate("test"));
+        }
+
+        if (closeIndex) {
+            assertAcked(client().admin().indices().prepareClose("test"));
         }
 
         /*
@@ -667,7 +679,6 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             .indices()
             .prepareUpdateSettings("test")
             .setSettings(Settings.builder().putNull(IndexMetadata.SETTING_NUMBER_OF_REPLICAS)));
-
     }
 
 }

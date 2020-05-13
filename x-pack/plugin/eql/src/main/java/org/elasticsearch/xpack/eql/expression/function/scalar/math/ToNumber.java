@@ -83,7 +83,7 @@ public class ToNumber extends ScalarFunction implements OptionalArgument {
         ScriptTemplate valueScript = asScript(value);
         ScriptTemplate baseScript = asScript(base);
 
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s, %s)"),
+        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s,%s)"),
                 "number",
                 valueScript.template(),
                 baseScript.template()),

@@ -43,9 +43,8 @@ A lifecycle policy specifies the phases in the index lifecycle
 and the actions to perform in each phase. A lifecycle can have up to four phases:
 `hot`, `warm`, `cold`, and `delete`. 
 
-You can define and manage policies through the {kib} Management UI, 
-which invokes the {ilm-init} <<ilm-put-lifecycle, put policy>> API to create policies
-according to the options you specify.
+You can define and manage policies through {kib} Management or with the 
+<<ilm-put-lifecycle, put policy>> API.
 
 For example, you might define a `timeseries_policy` that has two phases:
  

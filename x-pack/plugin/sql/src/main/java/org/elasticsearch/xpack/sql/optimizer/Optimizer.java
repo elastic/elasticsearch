@@ -21,8 +21,6 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.InnerAggregate;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
@@ -98,8 +96,6 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.expression.Expressions.equalsAsAttribute;
-import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
-import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
 
@@ -1053,49 +1049,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class PruneFilters extends OptimizerRule<Filter> {
+    static class PruneFilters extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneFilters {
 
         @Override
-        protected LogicalPlan rule(Filter filter) {
-            Expression condition = filter.condition().transformUp(PruneFilters::foldBinaryLogic);
-
-            if (condition instanceof Literal) {
-                if (TRUE.equals(condition)) {
-                    return filter.child();
-                }
-                if (FALSE.equals(condition) || Expressions.isNull(condition)) {
-                    return new LocalRelation(filter.source(), new EmptyExecutable(filter.output()));
-                }
-            }
-
-            if (!condition.equals(filter.condition())) {
-                return new Filter(filter.source(), filter.child(), condition);
-            }
-            return filter;
-        }
-
-        private static Expression foldBinaryLogic(Expression expression) {
-            if (expression instanceof Or) {
-                Or or = (Or) expression;
-                boolean nullLeft = Expressions.isNull(or.left());
-                boolean nullRight = Expressions.isNull(or.right());
-                if (nullLeft && nullRight) {
-                    return new Literal(expression.source(), null, DataTypes.NULL);
-                }
-                if (nullLeft) {
-                    return or.right();
-                }
-                if (nullRight) {
-                    return or.left();
-                }
-            }
-            if (expression instanceof And) {
-                And and = (And) expression;
-                if (Expressions.isNull(and.left()) || Expressions.isNull(and.right())) {
-                    return new Literal(expression.source(), null, DataTypes.NULL);
-                }
-            }
-            return expression;
+        protected LogicalPlan nonMatchingFilter(Filter filter) {
+            return new LocalRelation(filter.source(), new EmptyExecutable(filter.output()));
         }
     }
 

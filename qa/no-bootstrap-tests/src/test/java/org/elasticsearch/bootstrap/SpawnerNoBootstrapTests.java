@@ -91,7 +91,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
                 "has.native.controller", "false");
 
         try (Spawner spawner = new Spawner()) {
-            spawner.spawnNativeControllers(environment);
+            spawner.spawnNativeControllers(environment, false);
             assertThat(spawner.getProcesses(), hasSize(0));
         }
     }
@@ -149,7 +149,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             "has.native.controller", "false");
 
         Spawner spawner = new Spawner();
-        spawner.spawnNativeControllers(environment);
+        spawner.spawnNativeControllers(environment, false);
 
         List<Process> processes = spawner.getProcesses();
 
@@ -196,7 +196,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         Spawner spawner = new Spawner();
         IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> spawner.spawnNativeControllers(environment));
+                () -> spawner.spawnNativeControllers(environment, false));
         assertThat(
                 e.getMessage(),
                 equalTo("module [test_plugin] does not have permission to fork native controller"));
@@ -217,10 +217,10 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         final Spawner spawner = new Spawner();
         if (Constants.MAC_OS_X) {
             // if the spawner were not skipping the Desktop Services Store files on macOS this would explode
-            spawner.spawnNativeControllers(environment);
+            spawner.spawnNativeControllers(environment, false);
         } else {
             // we do not ignore these files on non-macOS systems
-            final FileSystemException e = expectThrows(FileSystemException.class, () -> spawner.spawnNativeControllers(environment));
+            final FileSystemException e = expectThrows(FileSystemException.class, () -> spawner.spawnNativeControllers(environment, false));
             if (Constants.WINDOWS) {
                 assertThat(e, instanceOf(NoSuchFileException.class));
             } else {

@@ -69,10 +69,6 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             internal.setScroll(parseTimeValue(request.param("scroll"), "scroll"));
         }
 
-        if (request.hasParam("prefer_v2_templates")) {
-            internal.preferV2Templates(Boolean.parseBoolean(request.param("prefer_v2_templates")));
-        }
-
         return internal;
     }
 }

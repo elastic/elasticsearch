@@ -99,10 +99,6 @@
       "if_primary_term":{
         "type":"number",
         "description":"only perform the update operation if the last operation that has changed the document has the specified primary term"
-      },
-      "prefer_v2_templates": {
-        "type": "boolean",
-        "description": "favor V2 templates instead of V1 templates during automatic index creation"
       }
     },
     "body":{

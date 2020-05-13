@@ -58,7 +58,7 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
 
         WatcherLifeCycleService watcherLifeCycleService = mock(WatcherLifeCycleService.class);
-        when(watcherLifeCycleService.getState()).thenReturn(WatcherState.STARTED);
+        when(watcherLifeCycleService.getState()).thenReturn(() -> WatcherState.STARTED);
 
         ExecutionService executionService = mock(ExecutionService.class);
         when(executionService.executionThreadPoolQueueSize()).thenReturn(100L);

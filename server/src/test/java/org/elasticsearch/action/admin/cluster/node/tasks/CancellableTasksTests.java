@@ -413,7 +413,8 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             DiscoveryNode master = discoveryNodes[0];
             for (int i = 1; i < testNodes.length; i++) {
                 // Notify only nodes that should remain in the cluster
-                setState(testNodes[i].clusterService, ClusterStateCreationUtils.state(testNodes[i].discoveryNode(), master, discoveryNodes));
+                setState(testNodes[i].clusterService,
+                    ClusterStateCreationUtils.state(testNodes[i].discoveryNode(), master, discoveryNodes));
             }
             if (randomBoolean()) {
                 logger.info("--> Simulate issuing cancel request on the node that is about to leave the cluster");

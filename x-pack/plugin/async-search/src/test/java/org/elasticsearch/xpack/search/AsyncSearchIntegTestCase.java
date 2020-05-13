@@ -76,7 +76,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     }
 
     @Before
-    public void startMaitenanceService() {
+    public void startMaintenanceService() {
         for (AsyncSearchMaintenanceService service : internalCluster().getDataNodeInstances(AsyncSearchMaintenanceService.class)) {
             if (service.lifecycleState() == Lifecycle.State.STOPPED) {
                 // force the service to start again
@@ -88,7 +88,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     }
 
     @After
-    public void stopMaitenanceService() {
+    public void stopMaintenanceService() {
         for (AsyncSearchMaintenanceService service : internalCluster().getDataNodeInstances(AsyncSearchMaintenanceService.class)) {
             service.stop();
         }

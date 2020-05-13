@@ -207,7 +207,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 logger.trace("{} starting recovery from {}", startRequest.shardId(), startRequest.sourceNode());
             } else {
                 startRequest = preExistingRequest;
-                requestToSend = new ReestablishRecoveryRequest(recoveryId, startRequest.shardId());
+                requestToSend = new ReestablishRecoveryRequest(recoveryId, startRequest.shardId(), startRequest.targetAllocationId());
                 actionName = PeerRecoverySourceService.Actions.REESTABLISH_RECOVERY;
                 logger.trace("{} reestablishing recovery from {}", startRequest.shardId(), startRequest.sourceNode());
             }

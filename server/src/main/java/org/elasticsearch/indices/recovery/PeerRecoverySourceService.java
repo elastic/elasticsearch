@@ -261,7 +261,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             synchronized void reestablishRecovery(ReestablishRecoveryRequest request, ActionListener<RecoveryResponse> listener) {
                 RecoverySourceHandler handler = null;
                 for (RecoverySourceHandler existingHandler : recoveryHandlers) {
-                    if (existingHandler.getRequest().recoveryId() == request.recoveryId()) {
+                    if (existingHandler.getRequest().recoveryId() == request.recoveryId() &&
+                        existingHandler.getRequest().targetAllocationId().equals(request.targetAllocationId())) {
                         handler = existingHandler;
                         break;
                     }

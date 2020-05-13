@@ -72,7 +72,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final IndexShard indexShard;
     private final DiscoveryNode sourceNode;
     private final MultiFileWriter multiFileWriter;
-    private final RequestTracker requestTracker = new RequestTracker();
+    private final RecoveryRequestTracker requestTracker = new RecoveryRequestTracker();
     private final Store store;
     private final PeerRecoveryTargetService.RecoveryListener listener;
 

@@ -29,7 +29,7 @@ import java.util.Map;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 
-public class RequestTracker {
+public class RecoveryRequestTracker {
 
     private final Map<Long, ListenableFuture<Void>> ongoingRequests = new HashMap<>();
     private final LocalCheckpointTracker checkpointTracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
@@ -50,7 +50,7 @@ public class RequestTracker {
             future.addListener(new ActionListener<>() {
                 @Override
                 public void onResponse(Void v) {
-                    synchronized (RequestTracker.this) {
+                    synchronized (RecoveryRequestTracker.this) {
                         ongoingRequests.remove(requestSeqNo);
                     }
                     listener.onResponse(v);

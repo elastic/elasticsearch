@@ -105,7 +105,7 @@ specific index module:
     for the upper bound (e.g. `0-all`). Defaults to `false` (i.e. disabled).
     Note that the auto-expanded number of replicas only takes
     <<shard-allocation-filtering,allocation filtering>> rules into account, but ignores
-    any other allocation rules such as <<allocation-awareness,shard allocation awareness>>
+    any other allocation rules such as <<shard-allocation-awareness,shard allocation awareness>>
     and <<allocation-total-shards,total shards per node>>, and this can lead to the
     cluster health becoming `YELLOW` if the applicable rules prevent all the replicas
     from being allocated.
@@ -178,8 +178,8 @@ specific index module:
 `index.blocks.read_only_allow_delete`::
 
     Similar to `index.blocks.read_only` but also allows deleting the index to
-    free up resources. The <<disk-allocator,disk-based shard allocator>> may
-    add and remove this block automatically.
+    free up resources. The <<disk-based-shard-allocation,disk-based shard
+    allocator>> may add and remove this block automatically.
 
 `index.blocks.read`::
 

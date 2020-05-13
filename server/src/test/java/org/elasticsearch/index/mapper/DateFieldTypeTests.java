@@ -43,7 +43,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
@@ -299,7 +299,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
         IndexSettings indexSettings =  new IndexSettings(IndexMetadata.builder("foo").settings(settings).build(), settings);
-        SortedNumericDVIndexFieldData fieldData = new SortedNumericDVIndexFieldData(indexSettings.getIndex(), "my_date",
+        SortedNumericIndexFieldData fieldData = new SortedNumericIndexFieldData(indexSettings.getIndex(), "my_date",
             IndexNumericFieldData.NumericType.DATE_NANOSECONDS);
         // Read index and check the doc values
         DirectoryReader reader = DirectoryReader.open(w);

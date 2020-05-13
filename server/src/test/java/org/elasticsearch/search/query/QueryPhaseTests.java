@@ -105,6 +105,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -645,8 +646,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.fieldType(fieldNameLong)).thenReturn(fieldTypeLong);
         when(mapperService.fieldType(fieldNameDate)).thenReturn(fieldTypeDate);
-
-        final int numDocs = 7000;
+        // enough docs to have a tree with several leaf nodes
+        final int numDocs = 3500 * 20;
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(null));
         for (int i = 1; i <= numDocs; ++i) {
@@ -811,7 +812,11 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
     // assert score docs are in order and their number is as expected
     private void assertSortResults(TopDocs topDocs, long expectedNumDocs, boolean isDoubleSort) {
-        assertEquals(topDocs.totalHits.value, expectedNumDocs);
+        if (topDocs.totalHits.relation == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
+            assertThat(topDocs.totalHits.value, lessThanOrEqualTo(expectedNumDocs));
+        } else {
+            assertEquals(topDocs.totalHits.value, expectedNumDocs);
+        }
         long cur1, cur2;
         long prev1 = Long.MIN_VALUE;
         long prev2 = Long.MIN_VALUE;

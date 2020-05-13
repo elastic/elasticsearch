@@ -20,7 +20,6 @@
 
 package org.elasticsearch.transport;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -92,7 +91,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
 
         FakeConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
                                RemoteConnectionStrategy.ConnectionStrategy strategy) {
-            super(LogManager.getLogger(FakeConnectionStrategy.class), clusterAlias, transportService, connectionManager, Settings.EMPTY);
+            super(clusterAlias, transportService, connectionManager, Settings.EMPTY);
             this.strategy = strategy;
         }
 

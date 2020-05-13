@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -110,7 +111,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
     private final int maxPendingConnectionListeners;
 
-    private final Logger logger;
+    protected final Logger logger = LogManager.getLogger(getClass());
 
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Object mutex = new Object();
@@ -120,9 +121,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     protected final RemoteConnectionManager connectionManager;
     protected final String clusterAlias;
 
-    RemoteConnectionStrategy(Logger logger, String clusterAlias, TransportService transportService,
-                             RemoteConnectionManager connectionManager, Settings settings) {
-        this.logger = logger;
+    RemoteConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
+                             Settings settings) {
         this.clusterAlias = clusterAlias;
         this.transportService = transportService;
         this.connectionManager = connectionManager;

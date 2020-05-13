@@ -367,7 +367,7 @@ The following EQL query matches this series of ordered events:
 +
 --
 * An event category of `file`
-* A `file.name` that ends with `.exe`
+* A `file.extension` of `exe`
 --
 . Followed by an event with an event category of `process`
 

@@ -191,7 +191,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     @Before
     public void initValuesSourceRegistry() {
         List<SearchPlugin> plugins = new ArrayList<>(getSearchPlugins());
-        plugins.add(new ParentCardinalityPlugin());
+        plugins.add(new AggCardinalityPlugin());
         SearchModule searchModule = new SearchModule(Settings.EMPTY, plugins);
         valuesSourceRegistry = searchModule.getValuesSourceRegistry();
     }
@@ -889,7 +889,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * Request an aggregation that returns the {@link CardinalityUpperBound}
      * that was passed to its ctor.
      */
-    public static AggregationBuilder parentCardinalities(String name) {
+    public static AggregationBuilder aggCardinality(String name) {
         return new AggCardinalityAggregationBuilder(name);
     }
 
@@ -944,7 +944,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         @Override
         public String getType() {
-            return "parent_cardinality";
+            return "agg_cardinality";
         }
 
         @Override
@@ -981,7 +981,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         @Override
         public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-            return builder.array("cardinalities", cardinality);
+            return builder.array("cardinality", cardinality);
         }
 
         @Override
@@ -1000,10 +1000,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
-    private static class ParentCardinalityPlugin implements SearchPlugin {
+    private static class AggCardinalityPlugin implements SearchPlugin {
         @Override
         public List<AggregationSpec> getAggregations() {
-            return singletonList(new AggregationSpec("parent_cardinality", in -> null,
+            return singletonList(new AggregationSpec("agg_cardinality", in -> null,
                 (ContextParser<String, AggCardinalityAggregationBuilder>) (p, c) -> null));
         }
     }

@@ -196,9 +196,8 @@ public class AggregatorFactories {
         Aggregator[] aggregators = new Aggregator[factories.length];
         for (int i = 0; i < factories.length; i++) {
             /*
-             * Top level aggs are only collected a single time which "feels"
-             * like having a parent with a single bucket. So we pass "ONE"
-             * for the parent cardinality.  
+             * Top level aggs only collect from owningBucketOrd 0 which is
+             * *exactly* what CardinalityUpperBound.ONE *means*.  
              */
             Aggregator factory = factories[i].create(searchContext, null, CardinalityUpperBound.ONE);
             Profilers profilers = factory.context().getProfilers();

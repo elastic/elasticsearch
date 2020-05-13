@@ -279,11 +279,11 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("test")
             .field(NUMBER_FIELD_NAME)
             .addRange(0d, 10d)
-            .subAggregation(parentCardinalities("pc"));
+            .subAggregation(aggCardinality("c"));
 
         simpleTestCase(aggregationBuilder, new MatchAllDocsQuery(), range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
-            InternalAggCardinality pc = ranges.get(0).getAggregations().get("pc");
+            InternalAggCardinality pc = ranges.get(0).getAggregations().get("c");
             assertThat(pc.cardinality(), equalTo(CardinalityUpperBound.ONE));
         });
     }
@@ -293,13 +293,13 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             .field(NUMBER_FIELD_NAME)
             .addRange(0d, 10d)
             .addRange(10d, 100d)
-            .subAggregation(parentCardinalities("pc"));
+            .subAggregation(aggCardinality("c"));
 
         simpleTestCase(aggregationBuilder, new MatchAllDocsQuery(), range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
-            InternalAggCardinality pc = ranges.get(0).getAggregations().get("pc");
+            InternalAggCardinality pc = ranges.get(0).getAggregations().get("c");
             assertThat(pc.cardinality(), equalTo(CardinalityUpperBound.MANY));
-            pc = ranges.get(1).getAggregations().get("pc");
+            pc = ranges.get(1).getAggregations().get("c");
             assertThat(pc.cardinality(), equalTo(CardinalityUpperBound.MANY));
         });
     }

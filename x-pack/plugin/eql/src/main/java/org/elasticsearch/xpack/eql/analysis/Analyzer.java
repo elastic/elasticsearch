@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static java.util.Arrays.asList;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.eql.analysis.AnalysisUtils.resolveAgainstList;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
@@ -42,8 +42,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         Batch resolution = new Batch("Resolution",
                 new ResolveRefs(),
                 new ResolveFunctions());
-        
-        return asList(resolution);
+
+        return singletonList(resolution);
     }
 
     public LogicalPlan analyze(LogicalPlan plan) {

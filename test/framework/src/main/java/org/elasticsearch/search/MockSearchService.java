@@ -32,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 public class MockSearchService extends SearchService {
     /**
@@ -40,6 +41,8 @@ public class MockSearchService extends SearchService {
     public static class TestPlugin extends Plugin {}
 
     private static final Map<SearchContext, Throwable> ACTIVE_SEARCH_CONTEXTS = new ConcurrentHashMap<>();
+
+    private Consumer<SearchContext> onPutContext = context -> {};
 
     /** Throw an {@link AssertionError} if there are still in-flight contexts. */
     public static void assertNoInFlightContext() {
@@ -74,8 +77,9 @@ public class MockSearchService extends SearchService {
 
     @Override
     protected void putContext(SearchContext context) {
-        super.putContext(context);
+        onPutContext.accept(context);
         addActiveContext(context);
+        super.putContext(context);
     }
 
     @Override
@@ -85,5 +89,9 @@ public class MockSearchService extends SearchService {
             removeActiveContext(removed);
         }
         return removed;
+    }
+
+    public void setOnPutContext(Consumer<SearchContext> onPutContext) {
+        this.onPutContext = onPutContext;
     }
 }

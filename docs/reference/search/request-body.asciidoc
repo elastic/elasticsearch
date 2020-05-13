@@ -104,8 +104,6 @@ results.
 
 include::request/docvalue-fields.asciidoc[]
 
-include::request/explain.asciidoc[]
-
 include::request/collapse.asciidoc[]
 
 include::request/from-size.asciidoc[]
@@ -124,8 +122,6 @@ include::request/post-filter.asciidoc[]
 
 include::request/preference.asciidoc[]
 
-include::request/query.asciidoc[]
-
 include::request/rescore.asciidoc[]
 
 include::request/script-fields.asciidoc[]
@@ -136,8 +132,6 @@ include::request/search-after.asciidoc[]
 
 include::request/search-type.asciidoc[]
 
-include::request/seq-no.asciidoc[]
-
 include::request/sort.asciidoc[]
 
 include::request/source-filtering.asciidoc[]
@@ -145,5 +139,3 @@ include::request/source-filtering.asciidoc[]
 include::request/stored-fields.asciidoc[]
 
 include::request/track-total-hits.asciidoc[]
-
-include::request/version.asciidoc[]

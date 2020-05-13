@@ -6,8 +6,8 @@
 
 package org.elasticsearch.xpack.eql.expression.function;
 
-import org.elasticsearch.xpack.eql.expression.function.scalar.string.CIDRMatch;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Between;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.CIDRMatch;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.IndexOf;
@@ -50,15 +50,15 @@ public class EqlFunctionRegistry extends FunctionRegistry {
                 def(ToString.class, ToString::new, "string"),
                 def(StringContains.class, StringContains::new, "stringcontains"),
                 def(Substring.class, Substring::new, "substring"),
-                def(Wildcard.class, Wildcard::new, "wildcard"),
+                def(Wildcard.class, Wildcard::new, "wildcard")
             },
         // Arithmetic
             new FunctionDefinition[] {
-                    def(Add.class, Add::new, "add"),
-                    def(Div.class, Div::new, "divide"),
-                    def(Mod.class, Mod::new, "modulo"),
-                    def(Mul.class, Mul::new, "multiply"),
-                    def(Sub.class, Sub::new, "subtract"),
+                def(Add.class, Add::new, "add"),
+                def(Div.class, Div::new, "divide"),
+                def(Mod.class, Mod::new, "modulo"),
+                def(Mul.class, Mul::new, "multiply"),
+                def(Sub.class, Sub::new, "subtract")
             }
         };
     }

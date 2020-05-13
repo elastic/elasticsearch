@@ -180,7 +180,7 @@ elasticsearch.username: kibana_system
 [[builtin-roles-changes]]
 ==== Changes to built-in roles
 
-.The `kibana_user` role has been renamed to `kibana_admin`.
+.The `kibana_user` role has been renamed `kibana_admin`.
 [%collapsible]
 ====
 *Details* +

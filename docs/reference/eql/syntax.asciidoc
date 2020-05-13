@@ -414,7 +414,7 @@ prior one.
 [source,eql]
 ----
 sequence by user.name
-  [ file where file.name == "*.exe" ] by file.path
+  [ file where file.extension == "exe" ] by file.path
   [ process where true ] by process.path
 ----
 ====

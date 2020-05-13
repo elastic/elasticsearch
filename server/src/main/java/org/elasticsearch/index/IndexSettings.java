@@ -637,7 +637,7 @@ public final class IndexSettings {
     /**
      * Returns the number of replicas this index has.
      */
-    public int getNumberOfReplicas() { return settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, null); }
+    public int getNumberOfReplicas() { return IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings); }
 
     /**
      * Returns the node settings. The settings returned from {@link #getSettings()} are a merged version of the

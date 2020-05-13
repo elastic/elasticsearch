@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,7 +33,8 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
     public enum Type {
         TERMS(0),
         HISTOGRAM(1),
-        DATE_HISTOGRAM(2);
+        DATE_HISTOGRAM(2),
+        GEOTILE_GRID(3);
 
         private final byte id;
 
@@ -52,6 +54,8 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
                     return HISTOGRAM;
                 case 2:
                     return DATE_HISTOGRAM;
+                case 3:
+                    return GEOTILE_GRID;
                 default:
                     throw new IllegalArgumentException("unknown type");
             }
@@ -153,5 +157,23 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
+    }
+
+    /**
+     * @return The preferred mapping type if it exists. Is nullable.
+     */
+    @Nullable
+    public String getMappingType() {
+        return null;
+    }
+
+    /**
+     * This will transform a composite aggregation bucket key into the desired format for indexing.
+     *
+     * @param key The bucket key for this group source
+     * @return the transformed bucket key for indexing
+     */
+    public Object transformBucketKey(Object key) {
+        return key;
     }
 }

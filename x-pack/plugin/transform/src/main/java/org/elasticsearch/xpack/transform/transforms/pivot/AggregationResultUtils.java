@@ -81,10 +81,10 @@ public final class AggregationResultUtils {
             // - update documents
             IDGenerator idGen = new IDGenerator();
 
-            groups.getGroups().keySet().forEach(destinationFieldName -> {
+            groups.getGroups().forEach((destinationFieldName, singleGroupSource) -> {
                 Object value = bucket.getKey().get(destinationFieldName);
                 idGen.add(destinationFieldName, value);
-                updateDocument(document, destinationFieldName, value);
+                updateDocument(document, destinationFieldName, singleGroupSource.transformBucketKey(value));
             });
 
             List<String> aggNames = aggregationBuilders.stream().map(AggregationBuilder::getName).collect(Collectors.toList());

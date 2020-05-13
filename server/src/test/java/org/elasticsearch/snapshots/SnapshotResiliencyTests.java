@@ -1497,7 +1497,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         actionFilters, indexNameExpressionResolver
                     ));
                 final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings);
-                final BulkIndexingMemoryLimits indexingMemoryLimits = new BulkIndexingMemoryLimits(settings);
+                final BulkIndexingMemoryLimits indexingMemoryLimits = new BulkIndexingMemoryLimits(settings, clusterSettings);
                 mappingUpdatedAction.setClient(client);
                 actions.put(BulkAction.INSTANCE,
                     new TransportBulkAction(threadPool, transportService, clusterService,

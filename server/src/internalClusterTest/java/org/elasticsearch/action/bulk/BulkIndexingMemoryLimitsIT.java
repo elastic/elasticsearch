@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -47,7 +47,7 @@ public class BulkIndexingMemoryLimitsIT extends ESIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal))
             // Need at least two threads because we are going to block one
             .put("thread_pool.write.size", 2)
-            .put("indices.memory.queued_indexing_bytes.limit", "1KB")
+            .put("indices.indexing_bytes.limit", "1KB")
             .build();
     }
 

@@ -407,7 +407,7 @@ that:
 +
 --
 * An `event.category` of `process`
-* A `process.path` of `regsvr32`
+* A `process.path` that contains the substring `regsvr32`
 --
 
 These events must also share the same `agent.id` value.

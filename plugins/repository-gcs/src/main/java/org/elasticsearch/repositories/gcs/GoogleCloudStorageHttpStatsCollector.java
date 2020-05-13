@@ -25,6 +25,7 @@ import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpResponseInterceptor;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -38,15 +39,15 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
     private static final List<Function<String, HttpRequestTracker>> trackerFactories =
         List.of(
             (bucket) ->
-                HttpRequestTracker.get(format("/download/storage/v1/b/%s/o/.+", bucket),
+                HttpRequestTracker.get(format(Locale.ROOT, "/download/storage/v1/b/%s/o/.+", bucket),
                     GoogleCloudStorageOperationsStats::trackGetObjectOperation),
 
             (bucket) ->
-                HttpRequestTracker.get(format("/storage/v1/b/%s/o/.+", bucket),
+                HttpRequestTracker.get(format(Locale.ROOT, "/storage/v1/b/%s/o/.+", bucket),
                     GoogleCloudStorageOperationsStats::trackGetObjectOperation),
 
             (bucket) ->
-                HttpRequestTracker.get(format("/storage/v1/b/%s/o", bucket),
+                HttpRequestTracker.get(format(Locale.ROOT, "/storage/v1/b/%s/o", bucket),
                     GoogleCloudStorageOperationsStats::trackListObjectsOperation)
             );
 

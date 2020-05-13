@@ -30,7 +30,7 @@ final class GoogleCloudStorageOperationsStats {
 
     private final String bucketName;
 
-    public GoogleCloudStorageOperationsStats(String bucketName) {
+    GoogleCloudStorageOperationsStats(String bucketName) {
         this.bucketName = bucketName;
     }
 

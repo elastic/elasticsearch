@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.range;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.TotalBucketCardinality;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
@@ -41,6 +41,6 @@ public interface IpRangeAggregatorSupplier extends AggregatorSupplier {
                      boolean keyed,
                      SearchContext context,
                      Aggregator parent,
-                     TotalBucketCardinality parentCardinality,
+                     CardinalityUpperBound cardinality,
                      Map<String, Object> metadata) throws IOException;
 }

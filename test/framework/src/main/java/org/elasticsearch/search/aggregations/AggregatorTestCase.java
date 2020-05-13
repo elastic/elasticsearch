@@ -245,7 +245,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         A aggregator = (A) aggregationBuilder
             .rewrite(searchContext.getQueryShardContext())
             .build(searchContext.getQueryShardContext(), null)
-            .create(searchContext, null, TotalBucketCardinality.ONE);
+            .create(searchContext, null, CardinalityUpperBound.ONE);
         return aggregator;
     }
 
@@ -885,14 +885,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
         releasables.clear();
     }
 
+    /**
+     * Request an aggregation that returns the {@link CardinalityUpperBound}
+     * that was passed to its ctor.
+     */
     public static AggregationBuilder parentCardinalities(String name) {
-        return new ParentCardinalityAggregationBuilder(name);
+        return new AggCardinalityAggregationBuilder(name);
     }
 
-    private static class ParentCardinalityAggregationBuilder
-            extends AbstractAggregationBuilder<ParentCardinalityAggregationBuilder> {
+    private static class AggCardinalityAggregationBuilder
+            extends AbstractAggregationBuilder<AggCardinalityAggregationBuilder> {
 
-        ParentCardinalityAggregationBuilder(String name) {
+        AggCardinalityAggregationBuilder(String name) {
             super(name);
         }
 
@@ -904,7 +908,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 protected Aggregator createInternal(
                     SearchContext searchContext,
                     Aggregator parent,
-                    TotalBucketCardinality parentCardinality,
+                    CardinalityUpperBound cardinality,
                     Map<String, Object> metadata
                 ) throws IOException {
                     return new MetricsAggregator(name, searchContext, parent, metadata) {
@@ -915,7 +919,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
                         @Override
                         public InternalAggregation buildAggregation(long owningBucketOrd) throws IOException {
-                            return new InternalParentCardinality(name, parentCardinality, metadata);
+                            return new InternalAggCardinality(name, cardinality, metadata);
                         }
 
                         @Override
@@ -955,24 +959,24 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
-    public static class InternalParentCardinality extends InternalAggregation {
-        private final TotalBucketCardinality cardinality;
+    public static class InternalAggCardinality extends InternalAggregation {
+        private final CardinalityUpperBound cardinality;
 
-        protected InternalParentCardinality(String name, TotalBucketCardinality cardinality, Map<String, Object> metadata) {
+        protected InternalAggCardinality(String name, CardinalityUpperBound cardinality, Map<String, Object> metadata) {
             super(name, metadata);
             this.cardinality = cardinality;
         }
 
-        public TotalBucketCardinality cardinality() {
+        public CardinalityUpperBound cardinality() {
             return cardinality;
         }
 
         @Override
         public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
             aggregations.forEach(ia -> {
-                assertThat(((InternalParentCardinality) ia).cardinality, equalTo(cardinality));
+                assertThat(((InternalAggCardinality) ia).cardinality, equalTo(cardinality));
             });
-            return new InternalParentCardinality(name, cardinality, metadata);
+            return new InternalAggCardinality(name, cardinality, metadata);
         }
 
         @Override
@@ -1000,7 +1004,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         @Override
         public List<AggregationSpec> getAggregations() {
             return singletonList(new AggregationSpec("parent_cardinality", in -> null,
-                (ContextParser<String, ParentCardinalityAggregationBuilder>) (p, c) -> null));
+                (ContextParser<String, AggCardinalityAggregationBuilder>) (p, c) -> null));
         }
     }
 }

@@ -25,7 +25,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.TotalBucketCardinality;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
@@ -55,12 +55,12 @@ public class LongTermsAggregator extends TermsAggregator {
     public LongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
             BucketOrder order, BucketCountThresholds bucketCountThresholds, SearchContext aggregationContext, Aggregator parent,
             SubAggCollectionMode subAggCollectMode, boolean showTermDocCountError, IncludeExclude.LongFilter longFilter,
-            TotalBucketCardinality parentCardinality, Map<String, Object> metadata) throws IOException {
+            CardinalityUpperBound cardinality, Map<String, Object> metadata) throws IOException {
         super(name, factories, aggregationContext, parent, bucketCountThresholds, order, format, subAggCollectMode, metadata);
         this.valuesSource = valuesSource;
         this.showTermDocCountError = showTermDocCountError;
         this.longFilter = longFilter;
-        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), parentCardinality);
+        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
     }
 
     @Override

@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.TotalBucketCardinality;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
@@ -44,7 +44,7 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
     protected DeferableBucketAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
             Map<String, Object> metadata) throws IOException {
         // Assumes that we're collecting MANY buckets.
-        super(name, factories, context, parent, TotalBucketCardinality.MANY, metadata);
+        super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
     }
 
     @Override

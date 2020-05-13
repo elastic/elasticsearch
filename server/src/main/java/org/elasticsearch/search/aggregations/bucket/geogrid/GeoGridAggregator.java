@@ -25,7 +25,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.TotalBucketCardinality;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -53,7 +53,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
     GeoGridAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource,
                       int requiredSize, int shardSize, SearchContext aggregationContext,
                       Aggregator parent, Map<String, Object> metadata) throws IOException {
-        super(name, factories, aggregationContext, parent, TotalBucketCardinality.MANY, metadata);
+        super(name, factories, aggregationContext, parent, CardinalityUpperBound.MANY, metadata);
         this.valuesSource = valuesSource;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;

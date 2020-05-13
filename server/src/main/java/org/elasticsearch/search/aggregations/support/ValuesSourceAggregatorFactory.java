@@ -23,7 +23,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.TotalBucketCardinality;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -41,13 +41,13 @@ public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
     }
 
     @Override
-    public Aggregator createInternal(SearchContext searchContext, Aggregator parent, TotalBucketCardinality parentCardinality,
+    public Aggregator createInternal(SearchContext searchContext, Aggregator parent, CardinalityUpperBound cardinality,
                                      Map<String, Object> metadata) throws IOException {
         ValuesSource vs = config.toValuesSource();
         if (vs == null) {
             return createUnmapped(searchContext, parent, metadata);
         }
-        return createMapped(vs, searchContext, parent, parentCardinality, metadata);
+        return doCreateInternal(vs, searchContext, parent, cardinality, metadata);
     }
 
     /**
@@ -60,13 +60,14 @@ public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
     /**
      * Create the {@linkplain Aggregator} for a mapped field.
      * 
-     * @param parentCardinality rough count of the number of buckets the
-     *        parent will ask this aggregator to collect.
+     * @param cardinality Upper bound of the number of {@code owningBucketOrd}s
+     *                    that the {@link Aggregator} created by this method
+     *                    will be asked to collect.
      */
-    protected abstract Aggregator createMapped(ValuesSource valuesSource,
+    protected abstract Aggregator doCreateInternal(ValuesSource valuesSource,
                                                    SearchContext searchContext,
                                                    Aggregator parent,
-                                                   TotalBucketCardinality parentCardinality,
+                                                   CardinalityUpperBound cardinality,
                                                    Map<String, Object> metadata) throws IOException;
 
     @Override

@@ -30,7 +30,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.TotalBucketCardinality;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
@@ -91,9 +91,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     Aggregator parent,
                                     SubAggCollectionMode subAggCollectMode,
                                     boolean showTermDocCountError,
-                                    TotalBucketCardinality parentCardinality,
+                                    CardinalityUpperBound cardinality,
                                     Map<String, Object> metadata) throws IOException {
-                assert parentCardinality == TotalBucketCardinality.ONE;
+                assert cardinality == CardinalityUpperBound.ONE;
 
                 ExecutionMode execution = null;
                 if (executionHint != null) {
@@ -154,7 +154,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     Aggregator parent,
                                     SubAggCollectionMode subAggCollectMode,
                                     boolean showTermDocCountError,
-                                    TotalBucketCardinality parentCardinality,
+                                    CardinalityUpperBound cardinality,
                                     Map<String, Object> metadata) throws IOException {
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased())) {
@@ -178,14 +178,14 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     }
                     return new DoubleTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, format, order,
                         bucketCountThresholds, context, parent, subAggCollectMode, showTermDocCountError, longFilter,
-                        parentCardinality, metadata);
+                        cardinality, metadata);
                 }
                 if (includeExclude != null) {
                     longFilter = includeExclude.convertToLongFilter(format);
                 }
                 return new LongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, format, order,
                     bucketCountThresholds, context, parent, subAggCollectMode, showTermDocCountError, longFilter,
-                    parentCardinality, metadata);
+                    cardinality, metadata);
             }
 
             @Override
@@ -245,10 +245,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator createMapped(ValuesSource valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                           SearchContext searchContext,
                                           Aggregator parent,
-                                          TotalBucketCardinality parentCardinality,
+                                          CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             TermsAggregationBuilder.NAME);
@@ -258,7 +258,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
 
         TermsAggregatorSupplier termsAggregatorSupplier = (TermsAggregatorSupplier) aggregatorSupplier;
-        if (parentCardinality == TotalBucketCardinality.MANY && termsAggregatorSupplier.needsToCollectFromSingleBucket()) {
+        if (cardinality == CardinalityUpperBound.MANY && termsAggregatorSupplier.needsToCollectFromSingleBucket()) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
 
@@ -274,7 +274,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
         return termsAggregatorSupplier.build(name, factories, valuesSource, order, config.format(),
             bucketCountThresholds, includeExclude, executionHint, searchContext, parent, collectMode,
-            showTermDocCountError, parentCardinality, metadata);
+            showTermDocCountError, cardinality, metadata);
     }
 
     // return the SubAggCollectionMode that this aggregation should use based on the expected size

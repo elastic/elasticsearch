@@ -35,7 +35,7 @@ public abstract class NonCollectingAggregator extends AggregatorBase {
      */
     protected NonCollectingAggregator(String name, SearchContext context, Aggregator parent, AggregatorFactories subFactories,
             Map<String, Object> metadata) throws IOException {
-        super(name, subFactories, context, parent, TotalBucketCardinality.NONE, metadata);
+        super(name, subFactories, context, parent, CardinalityUpperBound.NONE, metadata);
     }
 
     /**

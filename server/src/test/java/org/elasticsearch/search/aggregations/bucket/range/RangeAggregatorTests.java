@@ -36,7 +36,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.TotalBucketCardinality;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
@@ -283,8 +283,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
         simpleTestCase(aggregationBuilder, new MatchAllDocsQuery(), range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
-            InternalParentCardinality pc = ranges.get(0).getAggregations().get("pc");
-            assertThat(pc.cardinality(), equalTo(TotalBucketCardinality.ONE));
+            InternalAggCardinality pc = ranges.get(0).getAggregations().get("pc");
+            assertThat(pc.cardinality(), equalTo(CardinalityUpperBound.ONE));
         });
     }
 
@@ -297,10 +297,10 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
         simpleTestCase(aggregationBuilder, new MatchAllDocsQuery(), range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
-            InternalParentCardinality pc = ranges.get(0).getAggregations().get("pc");
-            assertThat(pc.cardinality(), equalTo(TotalBucketCardinality.MANY));
+            InternalAggCardinality pc = ranges.get(0).getAggregations().get("pc");
+            assertThat(pc.cardinality(), equalTo(CardinalityUpperBound.MANY));
             pc = ranges.get(1).getAggregations().get("pc");
-            assertThat(pc.cardinality(), equalTo(TotalBucketCardinality.MANY));
+            assertThat(pc.cardinality(), equalTo(CardinalityUpperBound.MANY));
         });
     }
 

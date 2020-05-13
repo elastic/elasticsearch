@@ -32,7 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.TotalBucketCardinality;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -123,10 +123,10 @@ public class FiltersAggregator extends BucketsAggregator {
     private final int totalNumKeys;
 
     public FiltersAggregator(String name, AggregatorFactories factories, String[] keys, Supplier<Weight[]> filters, boolean keyed,
-            String otherBucketKey, SearchContext context, Aggregator parent, TotalBucketCardinality parentCardinality,
+            String otherBucketKey, SearchContext context, Aggregator parent, CardinalityUpperBound cardinality,
             Map<String, Object> metadata) throws IOException {
         super(name, factories, context, parent,
-            parentCardinality.forKnownBucketAggregator(keys.length + (otherBucketKey == null ? 0 : 1)), metadata);
+            cardinality.forKnownBucketAggregator(keys.length + (otherBucketKey == null ? 0 : 1)), metadata);
         this.keyed = keyed;
         this.keys = keys;
         this.filters = filters;

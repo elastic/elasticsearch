@@ -173,14 +173,15 @@ public class AggregatorFactories {
     /**
      * Create all aggregators so that they can be consumed with multiple
      * buckets.
-     * @param parentCardinality rough count of the number of buckets that
-     *        the parent will collect
+     * @param cardinality Upper bound of the number of {@code owningBucketOrd}s
+     *                    that {@link Aggregator}s created by this method will
+     *                    be asked to collect.
      */
-    public Aggregator[] createSubAggregators(SearchContext searchContext, Aggregator parent, TotalBucketCardinality parentCardinality)
+    public Aggregator[] createSubAggregators(SearchContext searchContext, Aggregator parent, CardinalityUpperBound cardinality)
                 throws IOException {
         Aggregator[] aggregators = new Aggregator[countAggregators()];
         for (int i = 0; i < factories.length; ++i) {
-            Aggregator factory = factories[i].create(searchContext, parent, parentCardinality);
+            Aggregator factory = factories[i].create(searchContext, parent, cardinality);
             Profilers profilers = factory.context().getProfilers();
             if (profilers != null) {
                 factory = new ProfilingAggregator(factory, profilers.getAggregationProfiler());
@@ -199,7 +200,7 @@ public class AggregatorFactories {
              * like having a parent with a single bucket. So we pass "ONE"
              * for the parent cardinality.  
              */
-            Aggregator factory = factories[i].create(searchContext, null, TotalBucketCardinality.ONE);
+            Aggregator factory = factories[i].create(searchContext, null, CardinalityUpperBound.ONE);
             Profilers profilers = factory.context().getProfilers();
             if (profilers != null) {
                 factory = new ProfilingAggregator(factory, profilers.getAggregationProfiler());

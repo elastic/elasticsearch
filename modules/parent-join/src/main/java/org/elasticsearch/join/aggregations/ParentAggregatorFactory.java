@@ -25,7 +25,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.TotalBucketCardinality;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -69,9 +69,9 @@ public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator createMapped(ValuesSource rawValuesSource,
+    protected Aggregator doCreateInternal(ValuesSource rawValuesSource,
                                           SearchContext searchContext, Aggregator children,
-                                          TotalBucketCardinality parentCardinality,
+                                          CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
 
         if (rawValuesSource instanceof WithOrdinals == false) {
@@ -80,11 +80,11 @@ public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
         WithOrdinals valuesSource = (WithOrdinals) rawValuesSource;
         long maxOrd = valuesSource.globalMaxOrd(searchContext.searcher());
-        if (parentCardinality != TotalBucketCardinality.MANY) {
+        if (cardinality == CardinalityUpperBound.MANY) {
+            return asMultiBucketAggregator(this, searchContext, children);
+        } else {
             return new ChildrenToParentAggregator(name, factories, searchContext, children, childFilter,
                 parentFilter, valuesSource, maxOrd, metadata);
-        } else {
-            return asMultiBucketAggregator(this, searchContext, children);
         }
     }
 

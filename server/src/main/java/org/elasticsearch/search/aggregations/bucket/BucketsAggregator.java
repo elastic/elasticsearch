@@ -26,7 +26,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.TotalBucketCardinality;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -53,7 +53,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
     private IntArray docCounts;
 
     public BucketsAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
-            TotalBucketCardinality bucketCardinality, Map<String, Object> metadata) throws IOException {
+            CardinalityUpperBound bucketCardinality, Map<String, Object> metadata) throws IOException {
         super(name, factories, context, parent, bucketCardinality, metadata);
         bigArrays = context.bigArrays();
         docCounts = bigArrays.newIntArray(1, true);

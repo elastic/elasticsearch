@@ -29,7 +29,7 @@ import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.TotalBucketCardinality;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -70,9 +70,9 @@ public class FilterAggregatorFactory extends AggregatorFactory {
     @Override
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
-                                        TotalBucketCardinality parentCardinality,
+                                        CardinalityUpperBound cardinality,
                                         Map<String, Object> metadata) throws IOException {
-        return new FilterAggregator(name, () -> this.getWeight(), factories, searchContext, parent, parentCardinality, metadata);
+        return new FilterAggregator(name, () -> this.getWeight(), factories, searchContext, parent, cardinality, metadata);
     }
 
 }

@@ -25,7 +25,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.search.aggregations.TotalBucketCardinality;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 
 /**
  * Maps long bucket keys to bucket ordinals.
@@ -34,9 +34,9 @@ public abstract class LongKeyedBucketOrds implements Releasable {
     /**
      * Build a {@link LongKeyedBucketOrds}.
      */
-    public static LongKeyedBucketOrds build(BigArrays bigArrays, TotalBucketCardinality parentCardinality) {
+    public static LongKeyedBucketOrds build(BigArrays bigArrays, CardinalityUpperBound cardinality) {
         // TODO nothing NONE?
-        return parentCardinality != TotalBucketCardinality.MANY ? new FromSingle(bigArrays) : new FromMany(bigArrays);
+        return cardinality != CardinalityUpperBound.MANY ? new FromSingle(bigArrays) : new FromMany(bigArrays);
     }
 
     private LongKeyedBucketOrds() {}

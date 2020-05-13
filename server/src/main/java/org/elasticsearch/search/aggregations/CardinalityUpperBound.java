@@ -20,38 +20,36 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregator;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 
 /**
- * Rough measure of how many buckets this {@link Aggregator} will collect
- * used to pick data structures used during collection. Just "none", "one",
- * and "many".
- * <p>
- * Unlike {@link AggregationBuilder.BucketCardinality} this is influenced
- * by the number of buckets that the parent aggregation collect.
+ * Upper bound of how many {@code owningBucketOrds} that an {@link Aggregator}
+ * will have to collect into. Just "none", "one", and "many".
  */
-public enum TotalBucketCardinality {
+public enum CardinalityUpperBound {
     /**
-     * {@link Aggregator}s with this cardinality won't collect any buckets.
-     * This could be because they are {@link MetricsAggregator}s which don't
-     * support buckets at all. Or they could be {@link BucketsAggregator}
-     * that are configured in such a way that they collect any buckets. 
+     * {@link Aggregator}s with this cardinality won't collect any data at
+     * all. For the most part this happens when an aggregation is inside of a
+     * {@link BucketsAggregator} that is pointing to an unmapped field. 
      */
     NONE {
         @Override
-        public TotalBucketCardinality forKnownBucketAggregator(int bucketCount) {
+        public CardinalityUpperBound forKnownBucketAggregator(int bucketCount) {
             return NONE;
         }
     },
 
     /**
-     * {@link Aggregator}s with this cardinality will collect only a single
-     * bucket. This will only be true for top level {@linkplain Aggregator}s
-     * and for descendants of aggregation
+     * {@link Aggregator}s with this cardinality will collect be collected
+     * once or zero times. This will only be true for top level {@linkplain Aggregator}s
+     * and for sub-aggregator's who's ancestors are all single-bucket
+     * aggregations like {@link FilterAggregator} or a {@link RangeAggregator}
+     * configured to collect only a single range.
      */
     ONE {
         @Override
-        public TotalBucketCardinality forKnownBucketAggregator(int bucketCount) {
+        public CardinalityUpperBound forKnownBucketAggregator(int bucketCount) {
             switch (bucketCount) {
                 case 0:
                     return NONE;
@@ -62,13 +60,15 @@ public enum TotalBucketCardinality {
             }
         }
     },
+
     /**
-     * {@link Aggregator}s with this cardinality will collect many buckets.
-     * Most {@link BucketsAggregator}s will have this cardinality.
+     * {@link Aggregator}s with this cardinality may be collected many times.
+     * Most sub-aggregators of {@link BucketsAggregator}s will have
+     * this cardinality.
      */
     MANY {
         @Override
-        public TotalBucketCardinality forKnownBucketAggregator(int bucketCount) {
+        public CardinalityUpperBound forKnownBucketAggregator(int bucketCount) {
             return MANY;
         }
     };
@@ -80,5 +80,5 @@ public enum TotalBucketCardinality {
      * @param bucketCount the number of buckets that this {@link Aggregator}
      *   will collect per owning ordinal
      */
-    public abstract TotalBucketCardinality forKnownBucketAggregator(int bucketCount);
+    public abstract CardinalityUpperBound forKnownBucketAggregator(int bucketCount);
 }

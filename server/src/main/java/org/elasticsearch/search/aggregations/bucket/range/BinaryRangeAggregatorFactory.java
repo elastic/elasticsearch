@@ -23,7 +23,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.TotalBucketCardinality;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -60,13 +60,13 @@ public class BinaryRangeAggregatorFactory extends ValuesSourceAggregatorFactory 
     protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent,
             Map<String, Object> metadata) throws IOException {
         return new BinaryRangeAggregator(name, factories, null, config.format(),
-                ranges, keyed, searchContext, parent, TotalBucketCardinality.NONE, metadata);
+                ranges, keyed, searchContext, parent, CardinalityUpperBound.NONE, metadata);
     }
 
     @Override
-    protected Aggregator createMapped(ValuesSource valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                           SearchContext searchContext, Aggregator parent,
-                                          TotalBucketCardinality parentCardinality,
+                                          CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             IpRangeAggregationBuilder.NAME);
@@ -76,7 +76,7 @@ public class BinaryRangeAggregatorFactory extends ValuesSourceAggregatorFactory 
                 aggregatorSupplier.getClass().toString() + "]");
         }
         return ((IpRangeAggregatorSupplier) aggregatorSupplier).build(name, factories, valuesSource, config.format(),
-                ranges, keyed, searchContext, parent, parentCardinality, metadata);
+                ranges, keyed, searchContext, parent, cardinality, metadata);
     }
 
 }

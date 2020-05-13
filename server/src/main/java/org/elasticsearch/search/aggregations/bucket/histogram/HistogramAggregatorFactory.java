@@ -25,7 +25,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.TotalBucketCardinality;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -113,12 +113,12 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     }
 
     @Override
-    protected Aggregator createMapped(ValuesSource valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
-                                            TotalBucketCardinality parentCardinality,
+                                            CardinalityUpperBound cardinality,
                                             Map<String, Object> metadata) throws IOException {
-        if (parentCardinality == TotalBucketCardinality.MANY) {
+        if (cardinality == CardinalityUpperBound.MANY) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
 

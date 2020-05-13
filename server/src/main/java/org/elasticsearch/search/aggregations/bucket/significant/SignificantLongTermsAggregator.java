@@ -24,7 +24,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.TotalBucketCardinality;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -50,7 +50,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
             IncludeExclude.LongFilter includeExclude, Map<String, Object> metadata) throws IOException {
 
         super(name, factories, valuesSource, format, null, bucketCountThresholds, context, parent,
-                SubAggCollectionMode.BREADTH_FIRST, false, includeExclude, TotalBucketCardinality.ONE, metadata);
+                SubAggCollectionMode.BREADTH_FIRST, false, includeExclude, CardinalityUpperBound.ONE, metadata);
         this.significanceHeuristic = significanceHeuristic;
         this.termsAggFactory = termsAggFactory;
     }

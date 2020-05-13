@@ -128,7 +128,7 @@ public abstract class AggregatorFactory {
                         aggregators = bigArrays.grow(aggregators, bucket + 1);
                         Aggregator aggregator = aggregators.get(bucket);
                         if (aggregator == null) {
-                            aggregator = factory.create(context(), parent, TotalBucketCardinality.ONE);
+                            aggregator = factory.create(context(), parent, CardinalityUpperBound.ONE);
                             aggregator.preCollection();
                             aggregators.set(bucket, aggregator);
                         }
@@ -226,7 +226,7 @@ public abstract class AggregatorFactory {
 
     protected abstract Aggregator createInternal(SearchContext searchContext,
                                                     Aggregator parent,
-                                                    TotalBucketCardinality parentCardinality,
+                                                    CardinalityUpperBound cardinality,
                                                     Map<String, Object> metadata) throws IOException;
 
     /**
@@ -234,12 +234,12 @@ public abstract class AggregatorFactory {
      *
      * @param parent The parent aggregator (if this is a top level factory, the
      *               parent will be {@code null})
-     * @param parentCardinality Rough measure of the number of buckets the
-     *                          parent will collect
+     * @param cardinality Upper bound of the number of {@code owningBucketOrd}s
+     *                    that the {@link Aggregator} created by this method
+     *                    will be asked to collect.
      */
-    public final Aggregator create(SearchContext searchContext,
-            Aggregator parent, TotalBucketCardinality parentCardinality) throws IOException {
-        return createInternal(searchContext, parent, parentCardinality, this.metadata);
+    public final Aggregator create(SearchContext searchContext, Aggregator parent, CardinalityUpperBound cardinality) throws IOException {
+        return createInternal(searchContext, parent, cardinality, this.metadata);
     }
 
     public AggregatorFactory getParent() {
@@ -255,7 +255,7 @@ public abstract class AggregatorFactory {
     @Deprecated
     protected static Aggregator asMultiBucketAggregator(final AggregatorFactory factory, final SearchContext searchContext,
             final Aggregator parent) throws IOException {
-        final Aggregator first = factory.create(searchContext, parent, TotalBucketCardinality.ONE);
+        final Aggregator first = factory.create(searchContext, parent, CardinalityUpperBound.ONE);
         final BigArrays bigArrays = searchContext.bigArrays();
         return new MultiBucketAggregatorWrapper(bigArrays, searchContext, parent, factory, first);
     }

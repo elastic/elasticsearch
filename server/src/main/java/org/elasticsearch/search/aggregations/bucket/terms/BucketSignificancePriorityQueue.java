@@ -17,22 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.example.customsigheuristic;
+package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.apache.lucene.util.PriorityQueue;
 
-import java.util.List;
+public class BucketSignificancePriorityQueue<B extends SignificantTerms.Bucket> extends PriorityQueue<B> {
 
-import static java.util.Collections.singletonList;
+    public BucketSignificancePriorityQueue(int size) {
+        super(size);
+    }
 
-/**
- * Plugin declaring a custom {@link SignificanceHeuristic}.
- */
-public class CustomSignificanceHeuristicPlugin extends Plugin implements SearchPlugin {
     @Override
-    public List<SignificanceHeuristicSpec<?>> getSignificanceHeuristics() {
-        return singletonList(new SignificanceHeuristicSpec<>(SimpleHeuristic.NAME, SimpleHeuristic::new, SimpleHeuristic.PARSER));
+    protected boolean lessThan(SignificantTerms.Bucket o1, SignificantTerms.Bucket o2) {
+        return o1.getSignificanceScore() < o2.getSignificanceScore();
     }
 }

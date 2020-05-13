@@ -132,13 +132,6 @@ public class MachineLearningTests extends ESTestCase {
     }
 
     private MachineLearning createMachineLearning(Settings settings) {
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
-
-        return new MachineLearning(settings, null){
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return licenseState;
-            }
-        };
+        return new MachineLearning(settings, null);
     }
 }

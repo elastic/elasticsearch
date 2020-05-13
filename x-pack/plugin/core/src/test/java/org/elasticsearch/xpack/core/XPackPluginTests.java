@@ -80,18 +80,7 @@ public class XPackPluginTests extends ESTestCase {
     }
 
     private XPackPlugin createXPackPlugin(Settings settings) throws Exception {
-        return new XPackPlugin(settings, null){
-
-            @Override
-            protected void setSslService(SSLService sslService) {
-                // disable
-            }
-
-            @Override
-            protected void setLicenseState(XPackLicenseState licenseState) {
-                // disable
-            }
-        };
+        return new XPackPlugin(settings, null);
     }
 
 }

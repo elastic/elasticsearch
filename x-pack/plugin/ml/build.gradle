@@ -6,7 +6,8 @@ esplugin {
   description 'Elasticsearch Expanded Pack Plugin - Machine Learning'
   classname 'org.elasticsearch.xpack.ml.MachineLearning'
   hasNativeController true
-  extendedPlugins = ['x-pack-core', 'lang-painless', 'x-pack-autoscaling']
+  // x-pack-autoscaling implicitly gives x-pack-core.
+  extendedPlugins = ['x-pack-autoscaling', 'lang-painless']
 }
 
 

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.idp;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -32,8 +34,9 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.XPackSharedPlugin;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import org.elasticsearch.xpack.idp.action.DeleteSamlServiceProviderAction;
 import org.elasticsearch.xpack.idp.action.PutSamlServiceProviderAction;
@@ -73,7 +76,7 @@ import java.util.function.Supplier;
  * This plugin provides the backend for an IdP built on top of Elasticsearch security features.
  * It is used internally within Elastic and is not intended for general use.
  */
-public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
+public class IdentityProviderPlugin extends Plugin implements ActionPlugin, XPackSharedPlugin {
 
     private static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("xpack.idp.enabled", false, Setting.Property.NodeScope);
 
@@ -81,18 +84,25 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
     private boolean enabled;
     private Settings settings;
 
+    private final SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
+
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
                                                IndexNameExpressionResolver indexNameExpressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier,
+                                               SSLService sslService,
+                                               LicenseService licenseService,
+                                               XPackLicenseState licenseState) {
         settings = environment.settings();
         enabled = ENABLED_SETTING.get(settings);
         if (enabled == false) {
             return List.of();
         }
+
+        this.licenseState.set(licenseState);
 
         SamlInit.initialize();
         final SamlServiceProviderIndex index = new SamlServiceProviderIndex(client, clusterService);
@@ -144,12 +154,13 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         if (enabled == false) {
             return List.of();
         }
+        assert licenseState.get() != null;
         return List.of(
-            new RestSamlInitiateSingleSignOnAction(getLicenseState()),
-            new RestSamlValidateAuthenticationRequestAction(getLicenseState()),
-            new RestSamlMetadataAction(getLicenseState()),
-            new RestPutSamlServiceProviderAction(getLicenseState()),
-            new RestDeleteSamlServiceProviderAction(getLicenseState())
+            new RestSamlInitiateSingleSignOnAction(licenseState.get()),
+            new RestSamlValidateAuthenticationRequestAction(licenseState.get()),
+            new RestSamlMetadataAction(licenseState.get()),
+            new RestPutSamlServiceProviderAction(licenseState.get()),
+            new RestDeleteSamlServiceProviderAction(licenseState.get())
         );
     }
 
@@ -166,9 +177,4 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.metadata_signing.", false).getAllSettings());
         return Collections.unmodifiableList(settings);
     }
-
-    protected XPackLicenseState getLicenseState() {
-        return XPackPlugin.getSharedLicenseState();
-    }
-
 }

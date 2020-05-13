@@ -16,13 +16,7 @@ public class LocalStateTransform extends LocalStateCompositeXPackPlugin {
     public LocalStateTransform(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
         @SuppressWarnings("resource")
-        LocalStateTransform thisVar = this;
 
-        plugins.add(new Transform(settings) {
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return thisVar.getLicenseState();
-            }
-        });
+        plugins.add(new Transform(settings));
     }
 }

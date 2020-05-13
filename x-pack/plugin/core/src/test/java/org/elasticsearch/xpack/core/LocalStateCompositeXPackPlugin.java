@@ -52,6 +52,7 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -106,37 +107,6 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
         super(settings, configPath);
     }
 
-    //Get around all the setOnce nonsense in the plugin
-    @Override
-    protected SSLService getSslService() {
-        return sslService;
-    }
-
-    @Override
-    protected void setSslService(SSLService sslService) {
-        this.sslService = sslService;
-    }
-
-    @Override
-    protected LicenseService getLicenseService() {
-        return licenseService;
-    }
-
-    @Override
-    protected void setLicenseService(LicenseService licenseService) {
-        this.licenseService = licenseService;
-    }
-
-    @Override
-    protected XPackLicenseState getLicenseState() {
-        return licenseState;
-    }
-
-    @Override
-    protected void setLicenseState(XPackLicenseState licenseState) {
-        this.licenseState = licenseState;
-    }
-
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
@@ -144,14 +114,22 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
                                                IndexNameExpressionResolver expressionResolver,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
+        for (int i = 0; i < plugins.size(); ++i) {
+            if (plugins.get(i) instanceof ExtensiblePlugin) {
+                ExtensiblePlugin extensiblePlugin = (ExtensiblePlugin) plugins.get(i);
+                plugins.subList(0, i).forEach(maybeExtension -> extensiblePlugin.extensionPlugin(maybeExtension));
+            }
+        }
+        plugins.forEach(maybeExtension -> extensionPlugin(maybeExtension));
         List<Object> components = new ArrayList<>();
-        components.addAll(super.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService,
-                xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, expressionResolver, repositoriesServiceSupplier));
-
         filterPlugins(Plugin.class).stream().forEach(p ->
             components.addAll(p.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService,
                     xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, expressionResolver, null))
         );
+
+        components.addAll(super.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService,
+            xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, expressionResolver, repositoriesServiceSupplier));
+
         return components;
     }
 

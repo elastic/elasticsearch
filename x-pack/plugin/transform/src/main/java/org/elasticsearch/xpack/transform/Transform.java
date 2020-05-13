@@ -167,10 +167,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         this.settings = settings;
     }
 
-    protected XPackLicenseState getLicenseState() {
-        return XPackPlugin.getSharedLicenseState();
-    }
-
     @Override
     public List<RestHandler> getRestHandlers(
         final Settings settings,

@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.session.Cursors;
@@ -27,7 +28,8 @@ public class SqlPluginTests extends ESTestCase {
     public void testSqlDisabledIsNoOp() {
         Settings settings = Settings.builder().put("xpack.sql.enabled", false).build();
         SqlPlugin plugin = new SqlPlugin(settings);
-        assertThat(plugin.createComponents(mock(Client.class), "cluster", new NamedWriteableRegistry(Cursors.getNamedWriteables())),
+        assertThat(plugin.createComponents(mock(Client.class), "cluster", new NamedWriteableRegistry(Cursors.getNamedWriteables()),
+            new XPackLicenseState(settings)),
             hasSize(3));
         assertThat(plugin.getActions(), hasSize(6));
         assertThat(

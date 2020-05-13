@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.analytics;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -47,10 +49,11 @@ import org.elasticsearch.xpack.analytics.ttest.TTestAggregationBuilder;
 import org.elasticsearch.xpack.analytics.ttest.TTestState;
 import org.elasticsearch.xpack.analytics.ttest.UnpairedTTestState;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.XPackSharedPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -62,12 +65,23 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 
-public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugin, MapperPlugin {
+public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugin, MapperPlugin, XPackSharedPlugin {
     private final AnalyticsUsage usage = new AnalyticsUsage();
+    private final SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
 
     public AnalyticsPlugin() { }
 
-    public static XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
+    @Override
+    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
+                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
+                                               NamedXContentRegistry xContentRegistry, Environment environment,
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver indexNameExpressionResolver,
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier,
+                                               SSLService sslService, LicenseService licenseService, XPackLicenseState licenseState) {
+        this.licenseState.set(licenseState);
+        return Collections.emptyList();
+    }
 
     @Override
     public List<PipelineAggregationSpec> getPipelineAggregations() {
@@ -154,9 +168,10 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
         );
     }
 
-    private static <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser) {
+    private <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser) {
         return (parser, name) -> {
-            if (getLicenseState().isAllowed(XPackLicenseState.Feature.ANALYTICS) == false) {
+            assert licenseState.get() != null;
+            if (licenseState.get().isAllowed(XPackLicenseState.Feature.ANALYTICS) == false) {
                 throw LicenseUtils.newComplianceException(XPackField.ANALYTICS);
             }
             return realParser.parse(parser, name);

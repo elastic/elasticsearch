@@ -18,24 +18,8 @@ public class LocalStateIdentityProviderPlugin extends LocalStateCompositeXPackPl
 
     public LocalStateIdentityProviderPlugin(Settings settings, Path configPath) throws Exception {
         super(settings, configPath);
-        LocalStateIdentityProviderPlugin thisVar = this;
-        plugins.add(new Security(settings, configPath) {
-            @Override
-            protected SSLService getSslService() {
-                return thisVar.getSslService();
-            }
+        plugins.add(new Security(settings, configPath));
 
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return thisVar.getLicenseState();
-            }
-        });
-
-        plugins.add(new IdentityProviderPlugin() {
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return thisVar.getLicenseState();
-            }
-        });
+        plugins.add(new IdentityProviderPlugin());
     }
 }

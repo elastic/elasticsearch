@@ -51,14 +51,7 @@ public class TransformTests extends ESTestCase {
     }
 
     private Transform createTransform(Settings settings) {
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
-
-        return new Transform(settings) {
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return licenseState;
-            }
-        };
+        return new Transform(settings);
     }
 
 }

@@ -50,34 +50,9 @@ public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
         super(settings, configPath);
         LocalStateMonitoring thisVar = this;
 
-        monitoring = new Monitoring(settings) {
-            @Override
-            protected SSLService getSslService() {
-                return thisVar.getSslService();
-            }
-
-            @Override
-            protected LicenseService getLicenseService() {
-                return thisVar.getLicenseService();
-            }
-
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return thisVar.getLicenseState();
-            }
-        };
+        monitoring = new Monitoring(settings);
         plugins.add(monitoring);
-        plugins.add(new Watcher(settings) {
-            @Override
-            protected SSLService getSslService() {
-                return thisVar.getSslService();
-            }
-
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return thisVar.getLicenseState();
-            }
-        });
+        plugins.add(new Watcher(settings));
         plugins.add(new IndexLifecycle(settings));
     }
 

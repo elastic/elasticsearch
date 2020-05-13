@@ -63,29 +63,8 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
     public LocalStateSecurity(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
         LocalStateSecurity thisVar = this;
-        plugins.add(new Monitoring(settings) {
-            @Override
-            protected SSLService getSslService() {
-                return thisVar.getSslService();
-            }
-
-            @Override
-            protected LicenseService getLicenseService() {
-                return thisVar.getLicenseService();
-            }
-
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return thisVar.getLicenseState();
-            }
-        });
-        plugins.add(new Security(settings, configPath) {
-            @Override
-            protected SSLService getSslService() { return thisVar.getSslService(); }
-
-            @Override
-            protected XPackLicenseState getLicenseState() { return thisVar.getLicenseState(); }
-        });
+        plugins.add(new Monitoring(settings));
+        plugins.add(new Security(settings, configPath));
     }
 
     @Override

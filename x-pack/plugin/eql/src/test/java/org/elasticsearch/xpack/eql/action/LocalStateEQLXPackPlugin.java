@@ -18,13 +18,7 @@ public class LocalStateEQLXPackPlugin extends LocalStateCompositeXPackPlugin {
 
     public LocalStateEQLXPackPlugin(final Settings settings, final Path configPath) {
         super(settings, configPath);
-        LocalStateEQLXPackPlugin thisVar = this;
-        plugins.add(new EqlPlugin(settings) {
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return thisVar.getLicenseState();
-            }
-        });
+        plugins.add(new EqlPlugin(settings));
         plugins.add(new QlPlugin());
     }
 

@@ -32,6 +32,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.XPackSharedPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
@@ -68,7 +69,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
-public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin {
+public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin, XPackSharedPlugin {
 
     /**
      * The ability to automatically cleanup ".watcher_history*" indices while also cleaning up Monitoring indices.
@@ -85,38 +86,36 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         this.settings = settings;
     }
 
-    // overridable by tests
-    protected SSLService getSslService() { return XPackPlugin.getSharedSslService(); }
-    protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
-    protected LicenseService getLicenseService() { return XPackPlugin.getSharedLicenseService(); }
-
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
                                                IndexNameExpressionResolver expressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier,
+                                               SSLService sslService,
+                                               LicenseService licenseService,
+                                               XPackLicenseState licenseState) {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        final CleanerService cleanerService = new CleanerService(settings, clusterSettings, threadPool, getLicenseState());
-        final SSLService dynamicSSLService = getSslService().createDynamicSSLService();
+        final CleanerService cleanerService = new CleanerService(settings, clusterSettings, threadPool, licenseState);
+        final SSLService dynamicSSLService = sslService.createDynamicSSLService();
 
         Map<String, Exporter.Factory> exporterFactories = new HashMap<>();
         exporterFactories.put(HttpExporter.TYPE, config -> new HttpExporter(config, dynamicSSLService, threadPool.getThreadContext()));
         exporterFactories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, cleanerService));
-        exporters = new Exporters(settings, exporterFactories, clusterService, getLicenseState(), threadPool.getThreadContext(),
+        exporters = new Exporters(settings, exporterFactories, clusterService, licenseState, threadPool.getThreadContext(),
             dynamicSSLService);
 
         Set<Collector> collectors = new HashSet<>();
-        collectors.add(new IndexStatsCollector(clusterService, getLicenseState(), client));
+        collectors.add(new IndexStatsCollector(clusterService, licenseState, client));
         collectors.add(
-            new ClusterStatsCollector(settings, clusterService, getLicenseState(), client, getLicenseService(), expressionResolver));
-        collectors.add(new ShardsCollector(clusterService, getLicenseState()));
-        collectors.add(new NodeStatsCollector(clusterService, getLicenseState(), client));
-        collectors.add(new IndexRecoveryCollector(clusterService, getLicenseState(), client));
-        collectors.add(new JobStatsCollector(settings, clusterService, getLicenseState(), client));
-        collectors.add(new StatsCollector(settings, clusterService, getLicenseState(), client));
-        collectors.add(new EnrichStatsCollector(clusterService, getLicenseState(), client));
+            new ClusterStatsCollector(settings, clusterService, licenseState, client, licenseService, expressionResolver));
+        collectors.add(new ShardsCollector(clusterService, licenseState));
+        collectors.add(new NodeStatsCollector(clusterService, licenseState, client));
+        collectors.add(new IndexRecoveryCollector(clusterService, licenseState, client));
+        collectors.add(new JobStatsCollector(settings, clusterService, licenseState, client));
+        collectors.add(new StatsCollector(settings, clusterService, licenseState, client));
+        collectors.add(new EnrichStatsCollector(clusterService, licenseState, client));
 
         final MonitoringService monitoringService = new MonitoringService(settings, clusterService, threadPool, collectors, exporters);
 

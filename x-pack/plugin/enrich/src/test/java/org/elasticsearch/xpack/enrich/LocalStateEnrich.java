@@ -28,12 +28,7 @@ public class LocalStateEnrich extends LocalStateCompositeXPackPlugin {
     public LocalStateEnrich(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
 
-        plugins.add(new EnrichPlugin(settings) {
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return LocalStateEnrich.this.getLicenseState();
-            }
-        });
+        plugins.add(new EnrichPlugin(settings));
     }
 
     public static class EnrichTransportXPackInfoAction extends TransportXPackInfoAction {

@@ -20,14 +20,7 @@ public class LocalStateAutoscaling extends LocalStateCompositeXPackPlugin implem
 
     public LocalStateAutoscaling(final Settings settings) {
         super(settings, null);
-        plugins.add(new Autoscaling(settings) {
-
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return LocalStateAutoscaling.this.getLicenseState();
-            }
-
-        });
+        plugins.add(new Autoscaling(settings));
     }
 
     @Override

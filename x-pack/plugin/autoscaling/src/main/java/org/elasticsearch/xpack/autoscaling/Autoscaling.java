@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -53,7 +52,6 @@ import org.elasticsearch.xpack.autoscaling.rest.RestDeleteAutoscalingPolicyHandl
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingDecisionHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestPutAutoscalingPolicyHandler;
-import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -183,17 +181,10 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
             )
         );
     }
-
-    protected XPackLicenseState getLicenseState() {
-        return XPackPlugin.getSharedLicenseState();
-    }
-
     @Override
     public void extensionPlugin(Plugin plugin) {
         if (plugin instanceof AutoscalingPlugin) {
             autoscalingPlugins.add((AutoscalingPlugin) plugin);
-        } else {
-            throw new IllegalArgumentException("received non autoscaling plugin: " + plugin);
         }
     }
 

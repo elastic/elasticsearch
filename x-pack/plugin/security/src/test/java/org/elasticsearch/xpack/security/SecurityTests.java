@@ -105,17 +105,7 @@ public class SecurityTests extends ESTestCase {
         Environment env = TestEnvironment.newEnvironment(settings);
         licenseState = new TestUtils.UpdatableLicenseState(settings);
         SSLService sslService = new SSLService(env);
-        security = new Security(settings, null, Arrays.asList(extensions)) {
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return licenseState;
-            }
-
-            @Override
-            protected SSLService getSslService() {
-                return sslService;
-            }
-        };
+        security = new Security(settings, null, Arrays.asList(extensions));
         ThreadPool threadPool = mock(ThreadPool.class);
         ClusterService clusterService = mock(ClusterService.class);
         settings = Security.additionalSettings(settings, true);
@@ -130,7 +120,7 @@ public class SecurityTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
         return security.createComponents(client, threadPool, clusterService, mock(ResourceWatcherService.class), mock(ScriptService.class),
-            xContentRegistry(), env, new IndexNameExpressionResolver());
+            xContentRegistry(), env, new IndexNameExpressionResolver(), sslService, licenseState);
     }
 
     private static <T> T findComponent(Class<T> type, Collection<Object> components) {

@@ -96,12 +96,7 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
                            .put(builder.apply(Settings.builder()).build())
                            .build();
         when(clusterService.getClusterSettings())
-                .thenReturn(new ClusterSettings(settings, Sets.newHashSet(new Monitoring(settings) {
-                    @Override
-                    protected XPackLicenseState getLicenseState() {
-                        return licenseState;
-                    }
-                }.getSettings())));
+                .thenReturn(new ClusterSettings(settings, Sets.newHashSet(new Monitoring(settings).getSettings())));
     }
 
     protected static DiscoveryNode localNode(final String uuid) {

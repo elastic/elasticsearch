@@ -42,6 +42,7 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.os.OsStats;
@@ -67,6 +68,7 @@ import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDeciderService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.XPackSharedPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -149,6 +151,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarAction;
@@ -342,7 +345,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 
 public class MachineLearning extends Plugin implements SystemIndexPlugin, AnalysisPlugin, IngestPlugin, PersistentTaskPlugin,
-    AutoscalingPlugin {
+    AutoscalingPlugin, XPackSharedPlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_ml/";
     public static final String PRE_V7_BASE_PATH = "/_xpack/ml/";
@@ -442,8 +445,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
         this.settings = settings;
         this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(settings);
     }
-
-    protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
     public static boolean isMlNode(DiscoveryNode node) {
         Map<String, String> nodeAttributes = node.getAttributes();
@@ -688,10 +689,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
         MlAutoUpdateService mlAutoUpdateService = new MlAutoUpdateService(threadPool,
             List.of(new DatafeedConfigAutoUpdater(datafeedConfigProvider, indexNameExpressionResolver)));
         clusterService.addListener(mlAutoUpdateService);
-        // this object registers as a license state listener, and is never removed, so there's no need to retain another reference to it
-        final InvalidLicenseEnforcer enforcer =
-                new InvalidLicenseEnforcer(getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);
-        enforcer.listenForLicenseStateChanges();
 
         // Perform node startup operations
         nativeStorageProvider.cleanupLocalTmpStorageInCaseOfUncleanShutdown();
@@ -725,6 +722,26 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
     }
 
     @Override
+    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
+                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
+                                               NamedXContentRegistry xContentRegistry, Environment environment,
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver indexNameExpressionResolver,
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier,
+                                               SSLService sslService,
+                                               LicenseService licenseService,
+                                               XPackLicenseState licenseState) {
+        if (enabled) {
+            // this object registers as a license state listener, and is never removed, so there's no need to retain another reference to it
+            final InvalidLicenseEnforcer enforcer =
+                new InvalidLicenseEnforcer(licenseState, threadPool, datafeedManager.get(), autodetectProcessManager.get());
+            enforcer.listenForLicenseStateChanges();
+        }
+
+        return Collections.emptyList();
+    }
+
+        @Override
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
                                                                        ThreadPool threadPool,
                                                                        Client client,

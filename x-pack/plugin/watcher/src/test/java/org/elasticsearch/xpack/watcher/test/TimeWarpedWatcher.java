@@ -43,16 +43,6 @@ public class TimeWarpedWatcher extends LocalStateCompositeXPackPlugin {
 
         plugins.add(new Watcher(settings) {
             @Override
-            protected SSLService getSslService() {
-                return thisVar.getSslService();
-            }
-
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return thisVar.getLicenseState();
-            }
-
-            @Override
             protected Clock getClock() {
                 return clock;
             }

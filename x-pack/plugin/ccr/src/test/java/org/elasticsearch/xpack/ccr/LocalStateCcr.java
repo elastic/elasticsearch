@@ -17,14 +17,9 @@ public class LocalStateCcr extends LocalStateCompositeXPackPlugin {
     public LocalStateCcr(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
 
-        plugins.add(new Ccr(settings, new CcrLicenseChecker(() -> true, () -> false)) {
-
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return LocalStateCcr.this.getLicenseState();
-            }
-
-        });
+        // not sure if this was so to ensure license is enabled always or if it was to circumvent the old license state overriding.
+//        plugins.add(new Ccr(settings, new CcrLicenseChecker(() -> true, () -> false)));
+        plugins.add(new Ccr(settings));
     }
 
 }

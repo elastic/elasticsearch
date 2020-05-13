@@ -18,17 +18,6 @@ public class LocalStateWatcher extends LocalStateCompositeXPackPlugin {
         super(settings, configPath);
         LocalStateWatcher thisVar = this;
 
-        plugins.add(new Watcher(settings) {
-            @Override
-            protected SSLService getSslService() {
-                return thisVar.getSslService();
-            }
-
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return thisVar.getLicenseState();
-            }
-
-        });
+        plugins.add(new Watcher(settings));
     }
 }

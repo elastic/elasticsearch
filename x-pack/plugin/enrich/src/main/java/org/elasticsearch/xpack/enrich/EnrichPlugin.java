@@ -136,10 +136,6 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         return Map.of(EnrichProcessorFactory.TYPE, factory);
     }
 
-    protected XPackLicenseState getLicenseState() {
-        return XPackPlugin.getSharedLicenseState();
-    }
-
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
             new ActionHandler<>(XPackInfoFeatureAction.ENRICH, EnrichInfoTransportAction.class),

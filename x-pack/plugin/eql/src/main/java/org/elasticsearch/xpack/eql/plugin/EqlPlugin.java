@@ -144,9 +144,4 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
         }
         return List.of();
     }
-
-    // overridable by tests
-    protected XPackLicenseState getLicenseState() {
-        return XPackPlugin.getSharedLicenseState();
-    }
 }

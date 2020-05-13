@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -31,8 +32,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.XPackSharedPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.sql.SqlInfoTransportAction;
 import org.elasticsearch.xpack.sql.SqlUsageTransportAction;
@@ -47,39 +50,10 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class SqlPlugin extends Plugin implements ActionPlugin {
-
-    private final SqlLicenseChecker sqlLicenseChecker = new SqlLicenseChecker(
-        (mode) -> {
-            XPackLicenseState licenseState = getLicenseState();
-            switch (mode) {
-                case JDBC:
-                    if (licenseState.isAllowed(XPackLicenseState.Feature.JDBC) == false) {
-                        throw LicenseUtils.newComplianceException("jdbc");
-                    }
-                    break;
-                case ODBC:
-                    if (licenseState.isAllowed(XPackLicenseState.Feature.ODBC) == false) {
-                        throw LicenseUtils.newComplianceException("odbc");
-                    }
-                    break;
-                case PLAIN:
-                case CLI:
-                    if (licenseState.isAllowed(XPackLicenseState.Feature.SQL) == false) {
-                        throw LicenseUtils.newComplianceException(XPackField.SQL);
-                    }
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unknown SQL mode " + mode);
-            }
-        }
-    );
+public class SqlPlugin extends Plugin implements ActionPlugin, XPackSharedPlugin {
 
     public SqlPlugin(Settings settings) {
     }
-
-    // overridable by tests
-    protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
@@ -87,15 +61,44 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
                                                IndexNameExpressionResolver expressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier,
+                                               SSLService sslService,
+                                               LicenseService licenseService,
+                                               XPackLicenseState licenseState) {
 
-        return createComponents(client, clusterService.getClusterName().value(), namedWriteableRegistry);
+        return createComponents(client, clusterService.getClusterName().value(), namedWriteableRegistry, licenseState);
     }
 
     /**
      * Create components used by the sql plugin.
      */
-    Collection<Object> createComponents(Client client, String clusterName, NamedWriteableRegistry namedWriteableRegistry) {
+    Collection<Object> createComponents(Client client, String clusterName, NamedWriteableRegistry namedWriteableRegistry,
+                                        XPackLicenseState licenseState) {
+        final SqlLicenseChecker sqlLicenseChecker = new SqlLicenseChecker(
+            (mode) -> {
+                switch (mode) {
+                    case JDBC:
+                        if (licenseState.isAllowed(XPackLicenseState.Feature.JDBC) == false) {
+                            throw LicenseUtils.newComplianceException("jdbc");
+                        }
+                        break;
+                    case ODBC:
+                        if (licenseState.isAllowed(XPackLicenseState.Feature.ODBC) == false) {
+                            throw LicenseUtils.newComplianceException("odbc");
+                        }
+                        break;
+                    case PLAIN:
+                    case CLI:
+                        if (licenseState.isAllowed(XPackLicenseState.Feature.SQL) == false) {
+                            throw LicenseUtils.newComplianceException(XPackField.SQL);
+                        }
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unknown SQL mode " + mode);
+                }
+            }
+        );
+
         IndexResolver indexResolver = new IndexResolver(client, clusterName, SqlDataTypeRegistry.INSTANCE);
         return Arrays.asList(sqlLicenseChecker, indexResolver, new PlanExecutor(client, indexResolver, namedWriteableRegistry));
     }

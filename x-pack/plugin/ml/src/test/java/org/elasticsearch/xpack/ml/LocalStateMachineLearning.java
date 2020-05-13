@@ -35,43 +35,11 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
 
     public LocalStateMachineLearning(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
-        LocalStateMachineLearning thisVar = this;
 
-        plugins.add(new MachineLearning(settings, configPath){
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return thisVar.getLicenseState();
-            }
-        });
-        plugins.add(new Monitoring(settings) {
-            @Override
-            protected SSLService getSslService() {
-                return thisVar.getSslService();
-            }
-
-            @Override
-            protected LicenseService getLicenseService() {
-                return thisVar.getLicenseService();
-            }
-
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return thisVar.getLicenseState();
-            }
-        });
-        plugins.add(new Security(settings, configPath) {
-            @Override
-            protected SSLService getSslService() { return thisVar.getSslService(); }
-
-            @Override
-            protected XPackLicenseState getLicenseState() { return thisVar.getLicenseState(); }
-        });
-        plugins.add(new Autoscaling(settings) {
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return thisVar.getLicenseState();
-            }
-        });
+        plugins.add(new MachineLearning(settings, configPath));
+        plugins.add(new Monitoring(settings));
+        plugins.add(new Security(settings, configPath));
+        plugins.add(new Autoscaling(settings));
 
         plugins.add(new MockedRollupPlugin());
         filterPlugins(AutoscalingPlugin.class).stream().filter(p -> p instanceof Autoscaling == false)

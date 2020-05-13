@@ -31,6 +31,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -91,6 +92,7 @@ import org.elasticsearch.xpack.ccr.rest.RestResumeAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.rest.RestResumeFollowAction;
 import org.elasticsearch.xpack.ccr.rest.RestUnfollowAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.XPackSharedPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -107,6 +109,7 @@ import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -124,7 +127,7 @@ import static org.elasticsearch.xpack.core.XPackSettings.CCR_ENABLED_SETTING;
 /**
  * Container class for CCR functionality.
  */
-public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, EnginePlugin, RepositoryPlugin {
+public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, EnginePlugin, RepositoryPlugin, XPackSharedPlugin {
 
     public static final String CCR_THREAD_POOL_NAME = "ccr";
     public static final String CCR_CUSTOM_METADATA_KEY = "ccr";
@@ -137,9 +140,9 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
     private final boolean enabled;
     private final Settings settings;
-    private final CcrLicenseChecker ccrLicenseChecker;
     private final SetOnce<CcrRestoreSourceService> restoreSourceService = new SetOnce<>();
     private final SetOnce<CcrSettings> ccrSettings = new SetOnce<>();
+    private final SetOnce<CcrLicenseChecker> ccrLicenseChecker = new SetOnce<>();
     private Client client;
 
     /**
@@ -149,45 +152,49 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
      */
     @SuppressWarnings("unused") // constructed reflectively by the plugin infrastructure
     public Ccr(final Settings settings) {
-        this(settings, new CcrLicenseChecker());
-    }
-
-    /**
-     * Construct an instance of the CCR container with the specified settings and license checker.
-     *
-     * @param settings          the settings
-     * @param ccrLicenseChecker the CCR license checker
-     */
-    Ccr(final Settings settings, final CcrLicenseChecker ccrLicenseChecker) {
         this.settings = settings;
         this.enabled = CCR_ENABLED_SETTING.get(settings);
-        this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
     }
+
+//    /**
+//     * Construct an instance of the CCR container with the specified settings and license checker.
+//     *
+//     * @param settings          the settings
+//     * @param ccrLicenseChecker the CCR license checker
+//     */
+//    Ccr(final Settings settings, final CcrLicenseChecker ccrLicenseChecker) {
+//        this(settings);
+//        this.ccrLicenseChecker.set(ccrLicenseChecker);
+//    }
 
     @Override
     public Collection<Object> createComponents(
-            final Client client,
-            final ClusterService clusterService,
-            final ThreadPool threadPool,
-            final ResourceWatcherService resourceWatcherService,
-            final ScriptService scriptService,
-            final NamedXContentRegistry xContentRegistry,
-            final Environment environment,
-            final NodeEnvironment nodeEnvironment,
-            final NamedWriteableRegistry namedWriteableRegistry,
-            final IndexNameExpressionResolver expressionResolver,
-            final Supplier<RepositoriesService> repositoriesServiceSupplier) {
+        final Client client,
+        final ClusterService clusterService,
+        final ThreadPool threadPool,
+        final ResourceWatcherService resourceWatcherService,
+        final ScriptService scriptService,
+        final NamedXContentRegistry xContentRegistry,
+        final Environment environment,
+        final NodeEnvironment nodeEnvironment,
+        final NamedWriteableRegistry namedWriteableRegistry,
+        final IndexNameExpressionResolver expressionResolver,
+        final Supplier<RepositoriesService> repositoriesServiceSupplier,
+        SSLService sslService,
+        LicenseService licenseService,
+        XPackLicenseState licenseState) {
         this.client = client;
         if (enabled == false) {
             return emptyList();
         }
 
+        ccrLicenseChecker.set(new CcrLicenseChecker(licenseState));
         CcrSettings ccrSettings = new CcrSettings(settings, clusterService.getClusterSettings());
         this.ccrSettings.set(ccrSettings);
         CcrRestoreSourceService restoreSourceService = new CcrRestoreSourceService(threadPool, ccrSettings);
         this.restoreSourceService.set(restoreSourceService);
         return Arrays.asList(
-            ccrLicenseChecker,
+            ccrLicenseChecker.get(),
             restoreSourceService,
             new CcrRepositoryManager(settings, clusterService, client),
             new ShardFollowTaskCleaner(clusterService, threadPool, client),
@@ -195,7 +202,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                 settings,
                 client,
                 clusterService,
-                ccrLicenseChecker,
+                ccrLicenseChecker.get(),
                 threadPool::relativeTimeInMillis,
                 threadPool::absoluteTimeInMillis,
                 threadPool.executor(Ccr.CCR_THREAD_POOL_NAME)));
@@ -345,8 +352,9 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     @Override
     public Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
                                                                    ClusterService clusterService) {
+        assert ccrLicenseChecker.get() != null;
         Repository.Factory repositoryFactory =
-            (metadata) -> new CcrRepository(metadata, client, ccrLicenseChecker, settings, ccrSettings.get(),
+            (metadata) -> new CcrRepository(metadata, client, ccrLicenseChecker.get(), settings, ccrSettings.get(),
                 clusterService.getClusterApplierService().threadPool());
         return Collections.singletonMap(CcrRepository.TYPE, repositoryFactory);
     }
@@ -357,8 +365,6 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             indexModule.addIndexEventListener(this.restoreSourceService.get());
         }
     }
-
-    protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
     @Override
     public Collection<RequestValidators.RequestValidator<PutMappingRequest>> mappingRequestValidators() {

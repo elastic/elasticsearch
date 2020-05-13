@@ -51,12 +51,7 @@ public class MonitoringServiceTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
 
-        final Monitoring monitoring = new Monitoring(settings) {
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return licenseState;
-            }
-        };
+        final Monitoring monitoring = new Monitoring(settings);
         clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(monitoring.getSettings()));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.state()).thenReturn(mock(ClusterState.class));

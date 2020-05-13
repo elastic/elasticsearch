@@ -42,6 +42,7 @@ import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
@@ -128,9 +129,8 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     //private final Environment env;
     protected final Licensing licensing;
     // These should not be directly accessed as they cannot be overridden in tests. Please use the getters so they can be overridden.
-    private static final SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
-    private static final SetOnce<SSLService> sslService = new SetOnce<>();
-    private static final SetOnce<LicenseService> licenseService = new SetOnce<>();
+
+    private final List<XPackSharedPlugin> sharedPlugins = new ArrayList<>();
 
     public XPackPlugin(
             final Settings settings,
@@ -140,8 +140,6 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         // We should only depend on the settings from the Environment object passed to createComponents
         this.settings = settings;
 
-        setLicenseState(new XPackLicenseState(settings));
-
         this.licensing = new Licensing(settings);
     }
 
@@ -149,23 +147,6 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     protected Clock getClock() {
         return Clock.systemUTC();
     }
-
-    protected SSLService getSslService() { return getSharedSslService(); }
-    protected LicenseService getLicenseService() { return getSharedLicenseService(); }
-    protected XPackLicenseState getLicenseState() { return getSharedLicenseState(); }
-    protected void setSslService(SSLService sslService) { XPackPlugin.sslService.set(sslService); }
-    protected void setLicenseService(LicenseService licenseService) { XPackPlugin.licenseService.set(licenseService); }
-    protected void setLicenseState(XPackLicenseState licenseState) { XPackPlugin.licenseState.set(licenseState); }
-
-    public static SSLService getSharedSslService() {
-        final SSLService ssl = XPackPlugin.sslService.get();
-        if (ssl == null) {
-            throw new IllegalStateException("SSL Service is not constructed yet");
-        }
-        return ssl;
-    }
-    public static LicenseService getSharedLicenseService() { return licenseService.get(); }
-    public static XPackLicenseState getSharedLicenseState() { return licenseState.get(); }
 
     /**
      * Checks if the cluster state allows this node to add x-pack metadata to the cluster state,
@@ -228,6 +209,13 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     }
 
     @Override
+    public void extensionPlugin(Plugin plugin) {
+        if (plugin instanceof XPackSharedPlugin) {
+            sharedPlugins.add((XPackSharedPlugin) plugin);
+        }
+    }
+
+    @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
@@ -236,15 +224,20 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
         List<Object> components = new ArrayList<>();
 
+        final XPackLicenseState licenseState = new XPackLicenseState(environment.settings());
         final SSLService sslService = createSSLService(environment, resourceWatcherService);
-        setLicenseService(new LicenseService(settings, clusterService, getClock(),
-                environment, resourceWatcherService, getLicenseState()));
+        LicenseService licenseService = new LicenseService(settings, clusterService, getClock(),
+                environment, resourceWatcherService, licenseState);
+
 
         // It is useful to override these as they are what guice is injecting into actions
         components.add(sslService);
-        components.add(getLicenseService());
-        components.add(getLicenseState());
+        components.add(licenseService);
+        components.add(licenseState);
 
+        sharedPlugins.stream().flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService,
+            xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, expressionResolver, repositoriesServiceSupplier,
+            sslService, licenseService, licenseState).stream()).forEach(components::add);
         return components;
     }
 
@@ -352,7 +345,6 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
             new SSLConfigurationReloader(environment, resourceWatcherService, sslConfigurations.values());
         final SSLService sslService = new SSLService(environment, sslConfigurations);
         reloader.setSSLService(sslService);
-        setSslService(sslService);
         return sslService;
     }
 }

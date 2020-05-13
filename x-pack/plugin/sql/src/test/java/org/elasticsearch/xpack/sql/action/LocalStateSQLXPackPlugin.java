@@ -16,12 +16,6 @@ public class LocalStateSQLXPackPlugin extends LocalStateCompositeXPackPlugin {
 
     public LocalStateSQLXPackPlugin(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
-        LocalStateSQLXPackPlugin thisVar = this;
-        plugins.add(new SqlPlugin(settings) {
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return thisVar.getLicenseState();
-            }
-        });
+        plugins.add(new SqlPlugin(settings));
     }
 }

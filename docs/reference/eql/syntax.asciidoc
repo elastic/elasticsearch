@@ -396,7 +396,7 @@ sequence by field_foo
 ====
 The following sequence uses the `by` keyword to constrain matching events to:
 
-* Events with same `user.name` value
+* Events with the same `user.name` value
 * `file` events with a `file.path` value equal to the following `process`
    event's `process.path` value.
 

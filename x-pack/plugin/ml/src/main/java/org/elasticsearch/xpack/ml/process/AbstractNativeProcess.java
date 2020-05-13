@@ -116,7 +116,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
             // Do not detect crash when the process is being closed or killed.
             return;
         }
-        if (processInStream.get() == null) {
+        if (processInStream() == null) {
             // Do not detect crash when the process has been closed automatically.
             // This is possible when the process does not have input pipe to hang on and closes right after writing its output.
             return;
@@ -176,8 +176,8 @@ public abstract class AbstractNativeProcess implements NativeProcess {
         try {
             processCloseInitiated = true;
             // closing its input causes the process to exit
-            if (processInStream.get() != null) {
-                processInStream.get().close();
+            if (processInStream() != null) {
+                processInStream().close();
             }
             // wait for the process to exit by waiting for end-of-file on the named pipe connected
             // to the state processor - it may take a long time for all the model state to be
@@ -222,8 +222,8 @@ public abstract class AbstractNativeProcess implements NativeProcess {
             LOGGER.warn("[{}] Failed to get PID of {} process to kill", jobId, getName());
         } finally {
             try {
-                if (processInStream.get() != null) {
-                    processInStream.get().close();
+                if (processInStream() != null) {
+                    processInStream().close();
                 }
             } catch (IOException e) {
                 // Ignore it - we're shutting down and the method itself has logged a warning
@@ -260,7 +260,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     @Override
     public boolean isProcessAlive() {
         // Sanity check: make sure the process hasn't terminated already
-        return !cppLogHandler().hasLogStreamEnded();
+        return cppLogHandler().hasLogStreamEnded() == false;
     }
 
     @Override
@@ -280,6 +280,11 @@ public abstract class AbstractNativeProcess implements NativeProcess {
 
     protected InputStream processOutStream() {
         return processOutStream.get();
+    }
+
+    @Nullable
+    private OutputStream processInStream() {
+        return processInStream.get();
     }
 
     @Nullable

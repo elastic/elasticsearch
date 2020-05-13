@@ -423,7 +423,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         final WatcherLifeCycleService watcherLifeCycleService =
                 new WatcherLifeCycleService(clusterService, watcherService);
 
-        listener = new WatcherIndexingListener(watchParser, getClock(), triggerService);
+        listener = new WatcherIndexingListener(watchParser, getClock(), triggerService, watcherLifeCycleService.getState());
         clusterService.addListener(listener);
 
         // note: clock is needed here until actions can be constructed directly instead of by guice

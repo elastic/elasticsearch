@@ -576,24 +576,34 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("some.string.typical", qsq.field());
     }
 
-    public void testLikeConstructsNotSupported() {
+    public void testLikeWithScalars() {
         LogicalPlan p = plan("SELECT LTRIM(keyword) lt FROM test WHERE LTRIM(keyword) like '%a%'");
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> translate(condition));
-        assertEquals("Scalar function [LTRIM(keyword)] not allowed (yet) as argument for LTRIM(keyword) like '%a%'", ex.getMessage());
+        QueryTranslation qt = translate(condition);
+        assertTrue(qt.query instanceof ScriptQuery);
+        ScriptQuery sc = (ScriptQuery) qt.query;
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.regex(" +
+                "InternalSqlScriptUtils.ltrim(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
+            sc.script().toString());
+        assertEquals("[{v=keyword}, {v=^.*a.*$}]", sc.script().params().toString());
     }
 
-    public void testRLikeConstructsNotSupported() {
+    public void testRLikeWithScalars() {
         LogicalPlan p = plan("SELECT LTRIM(keyword) lt FROM test WHERE LTRIM(keyword) RLIKE '.*a.*'");
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> translate(condition));
-        assertEquals("Scalar function [LTRIM(keyword)] not allowed (yet) as argument for LTRIM(keyword) RLIKE '.*a.*'", ex.getMessage());
+        QueryTranslation qt = translate(condition);
+        assertTrue(qt.query instanceof ScriptQuery);
+        ScriptQuery sc = (ScriptQuery) qt.query;
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.regex(" +
+                "InternalSqlScriptUtils.ltrim(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
+            sc.script().toString());
+        assertEquals("[{v=keyword}, {v=.*a.*}]", sc.script().params().toString());
     }
 
     public void testDifferentLikeAndNotLikePatterns() {

@@ -21,6 +21,7 @@ package org.elasticsearch.client.eql;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Validatable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,6 +45,11 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     private SearchAfterBuilder searchAfterBuilder;
     private String query;
 
+    // Async settings
+    private TimeValue waitForCompletionTimeout;
+    private boolean keepOnCompletion;
+    private TimeValue keepAlive;
+
     static final String KEY_FILTER = "filter";
     static final String KEY_TIMESTAMP_FIELD = "timestamp_field";
     static final String KEY_EVENT_CATEGORY_FIELD = "event_category_field";
@@ -51,6 +57,9 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     static final String KEY_SIZE = "size";
     static final String KEY_SEARCH_AFTER = "search_after";
     static final String KEY_QUERY = "query";
+    static final String KEY_WAIT_FOR_COMPLETION_TIMEOUT = "wait_for_completion_timeout";
+    static final String KEY_KEEP_ALIVE = "keep_alive";
+    static final String KEY_KEEP_ON_COMPLETION = "keep_on_completion";
 
     public EqlSearchRequest(String indices, String query) {
         indices(indices);
@@ -75,6 +84,13 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         }
 
         builder.field(KEY_QUERY, query);
+        if (waitForCompletionTimeout != null) {
+            builder.field(KEY_WAIT_FOR_COMPLETION_TIMEOUT, waitForCompletionTimeout);
+        }
+        if (keepAlive != null) {
+            builder.field(KEY_KEEP_ALIVE, keepAlive);
+        }
+        builder.field(KEY_KEEP_ON_COMPLETION, keepOnCompletion);
         builder.endObject();
         return builder;
     }
@@ -166,6 +182,32 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         return this;
     }
 
+    public TimeValue waitForCompletionTimeout() {
+        return waitForCompletionTimeout;
+    }
+
+    public EqlSearchRequest waitForCompletionTimeout(TimeValue waitForCompletionTimeout) {
+        this.waitForCompletionTimeout = waitForCompletionTimeout;
+        return this;
+    }
+
+    public Boolean keepOnCompletion() {
+        return keepOnCompletion;
+    }
+
+    public void keepOnCompletion(Boolean keepOnCompletion) {
+        this.keepOnCompletion = keepOnCompletion;
+    }
+
+    public TimeValue keepAlive() {
+        return keepAlive;
+    }
+
+    public EqlSearchRequest keepAlive(TimeValue keepAlive) {
+        this.keepAlive = keepAlive;
+        return this;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -183,7 +225,10 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
                 Objects.equals(eventCategoryField, that.eventCategoryField) &&
                 Objects.equals(implicitJoinKeyField, that.implicitJoinKeyField) &&
                 Objects.equals(searchAfterBuilder, that.searchAfterBuilder) &&
-                Objects.equals(query, that.query);
+                Objects.equals(query, that.query) &&
+                Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
+                Objects.equals(keepAlive, that.keepAlive) &&
+                Objects.equals(keepOnCompletion, that.keepOnCompletion);
     }
 
     @Override
@@ -197,7 +242,10 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             eventCategoryField,
             implicitJoinKeyField,
             searchAfterBuilder,
-            query);
+            query,
+            waitForCompletionTimeout,
+            keepAlive,
+            keepOnCompletion);
     }
 
     public String[] indices() {

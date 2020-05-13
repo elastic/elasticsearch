@@ -328,7 +328,9 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
         ]
       }
     ]
-  }
+  },
+  "is_partial": false,
+  "is_running": false
 }
 ----
 // TESTRESPONSE[s/"took": 6/"took": $body.took/]

@@ -46,6 +46,8 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public class EqlPlugin extends Plugin implements ActionPlugin {
+    // We are going to reuse the same index as normal async search until system indices are implemented
+    public static final String INDEX = ".async-search";
 
     private final boolean enabled;
 

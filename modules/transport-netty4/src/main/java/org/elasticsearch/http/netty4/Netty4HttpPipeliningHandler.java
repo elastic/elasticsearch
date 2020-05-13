@@ -37,7 +37,7 @@ import java.util.List;
 public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     private final Logger logger;
-    private final HttpPipeliningAggregator<HttpPipelinedResponse, ChannelPromise> aggregator;
+    private final HttpPipeliningAggregator<ChannelPromise> aggregator;
 
     /**
      * Construct a new pipelining handler; this handler should be used downstream of HTTP decoding/aggregation.

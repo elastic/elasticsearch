@@ -38,7 +38,7 @@ import java.util.List;
 public class NioHttpPipeliningHandler extends ChannelDuplexHandler {
 
     private final Logger logger;
-    private final HttpPipeliningAggregator<HttpPipelinedResponse, NettyListener> aggregator;
+    private final HttpPipeliningAggregator<NettyListener> aggregator;
 
     /**
      * Construct a new pipelining handler; this handler should be used downstream of HTTP decoding/aggregation.

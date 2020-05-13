@@ -363,6 +363,13 @@ public abstract class ESTestCase extends LuceneTestCase {
         return true;
     }
 
+    /**
+     * Whether or not we check after each test whether it has left search contexts behind.
+     */
+    protected boolean enableSearchContextAfterCheck() {
+        return true;
+    }
+
     @After
     public final void after() throws Exception {
         checkStaticState(false);
@@ -375,7 +382,9 @@ public abstract class ESTestCase extends LuceneTestCase {
             DeprecationLogger.removeThreadContext(threadContext);
             threadContext = null;
         }
-        ensureAllSearchContextsReleased();
+        if (enableSearchContextAfterCheck()) {
+            ensureAllSearchContextsReleased();
+        }
         ensureCheckIndexPassed();
         logger.info("{}after test", getTestParamsForLogging());
     }

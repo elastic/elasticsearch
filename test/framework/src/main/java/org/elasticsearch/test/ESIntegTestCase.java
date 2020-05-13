@@ -348,6 +348,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return false;
     }
 
+    @Override
+    protected boolean enableSearchContextAfterCheck() {
+        // We don't want to check the release of search contexts between tests if the cluster is shared.
+        // The release of search contexts is always checked at the end, when the cluster is cleared so
+        // we're just skipping this operation between tests.
+        return getCurrentClusterScope() == Scope.TEST;
+    }
+
     protected final void beforeInternal() throws Exception {
         final Scope currentClusterScope = getCurrentClusterScope();
         Callable<Void> setup = () -> {

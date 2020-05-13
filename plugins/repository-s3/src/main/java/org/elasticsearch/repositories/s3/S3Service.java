@@ -57,7 +57,7 @@ class S3Service implements Closeable {
      * Client settings derived from those in {@link #staticClientSettings} by combining them with settings
      * in the {@link RepositoryMetadata}.
      */
-    private volatile Map<S3ClientSettings, Map<Settings, S3ClientSettings>> derivedClientSettings = emptyMap();
+    private volatile Map<Settings, S3ClientSettings> derivedClientSettings = emptyMap();
 
     /**
      * Refreshes the settings for the AmazonS3 clients and clears the cache of
@@ -107,28 +107,16 @@ class S3Service implements Closeable {
      */
     S3ClientSettings settings(RepositoryMetadata repositoryMetadata) {
         final Settings settings = repositoryMetadata.settings();
+        final S3ClientSettings existing = derivedClientSettings.get(settings);
+        if (existing != null) {
+            return existing;
+        }
         final String clientName = S3Repository.CLIENT_NAME.get(settings);
         final S3ClientSettings staticSettings = staticClientSettings.get(clientName);
         if (staticSettings != null) {
-            {
-                final S3ClientSettings existing = derivedClientSettings.getOrDefault(staticSettings, emptyMap()).get(settings);
-                if (existing != null) {
-                    return existing;
-                }
-            }
             synchronized (this) {
-                final Map<Settings, S3ClientSettings> derivedSettings =
-                    derivedClientSettings.getOrDefault(staticSettings, emptyMap());
-                final S3ClientSettings existing = derivedSettings.get(settings);
-                if (existing != null) {
-                    return existing;
-                }
                 final S3ClientSettings newSettings = staticSettings.refine(settings);
-                derivedClientSettings =
-                        Maps.copyMapWithAddedOrReplacedEntry(
-                                derivedClientSettings,
-                                staticSettings,
-                                Maps.copyMapWithAddedEntry(derivedSettings, settings, newSettings));
+                derivedClientSettings = Maps.copyMapWithAddedOrReplacedEntry(derivedClientSettings, settings, newSettings);
                 return newSettings;
             }
         }

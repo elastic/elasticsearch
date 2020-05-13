@@ -18,9 +18,8 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.session.Configuration;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
+import java.util.LinkedHashSet;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.eql.analysis.AnalysisUtils.resolveAgainstList;
@@ -75,7 +74,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             return plan.transformExpressionsUp(e -> {
                 if (e instanceof UnresolvedAttribute) {
                     UnresolvedAttribute u = (UnresolvedAttribute) e;
-                    List<Attribute> childrenOutput = new ArrayList<>();
+                    Collection<Attribute> childrenOutput = new LinkedHashSet<>();
                     for (LogicalPlan child : plan.children()) {
                         childrenOutput.addAll(child.output());
                     }

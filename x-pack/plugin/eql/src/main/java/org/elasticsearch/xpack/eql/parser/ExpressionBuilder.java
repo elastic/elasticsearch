@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.eql.parser.EqlBaseParser.LogicalNotContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.PredicateContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ValueExpressionDefaultContext;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
@@ -73,8 +74,8 @@ public class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public List<Expression> visitJoinKeys(JoinKeysContext ctx) {
-        return ctx != null ? expressions(ctx.expression()) : emptyList();
+    public List<Attribute> visitJoinKeys(JoinKeysContext ctx) {
+        return ctx != null ? visitList(ctx.expression(), Attribute.class) : emptyList();
     }
 
     @Override
@@ -160,7 +161,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Expression visitDecimalLiteral(EqlBaseParser.DecimalLiteralContext ctx) {
+    public Literal visitDecimalLiteral(EqlBaseParser.DecimalLiteralContext ctx) {
         Source source = source(ctx);
         String text = ctx.getText();
 
@@ -172,7 +173,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Expression visitDereference(DereferenceContext ctx) {
+    public UnresolvedAttribute visitDereference(DereferenceContext ctx) {
         return new UnresolvedAttribute(source(ctx), visitQualifiedName(ctx.qualifiedName()));
     }
 

@@ -39,10 +39,29 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 
-public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData implements IndexFieldData<BytesBinaryDVLeafFieldData> {
+public class BytesBinaryIndexFieldData implements IndexFieldData<BytesBinaryDVLeafFieldData> {
 
-    public BytesBinaryDVIndexFieldData(Index index, String fieldName) {
-        super(index, fieldName);
+    protected final Index index;
+    protected final String fieldName;
+
+    public BytesBinaryIndexFieldData(Index index, String fieldName) {
+        this.index = index;
+        this.fieldName = fieldName;
+    }
+
+    @Override
+    public final String getFieldName() {
+        return fieldName;
+    }
+
+    @Override
+    public final void clear() {
+        // can't do
+    }
+
+    @Override
+    public final Index index() {
+        return index;
     }
 
     @Override
@@ -77,7 +96,7 @@ public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData impleme
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             // Ignore breaker
             final String fieldName = fieldType.name();
-            return new BytesBinaryDVIndexFieldData(indexSettings.getIndex(), fieldName);
+            return new BytesBinaryIndexFieldData(indexSettings.getIndex(), fieldName);
         }
 
     }

@@ -28,7 +28,7 @@ import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -112,7 +112,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                                 // by default nanoseconds are cut to milliseconds within aggregations
                                 // however for doc value fields we need the original nanosecond longs
                                 if (isNanosecond) {
-                                    longValues = ((SortedNumericDVIndexFieldData.NanoSecondFieldData) data).getLongValuesAsNanos();
+                                    longValues = ((SortedNumericIndexFieldData.NanoSecondFieldData) data).getLongValuesAsNanos();
                                 } else {
                                     longValues = ((LeafNumericFieldData) data).getLongValues();
                                 }

@@ -41,7 +41,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 
 import static org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -122,12 +121,10 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                             binaryValues = data.getBytesValues();
                         }
                     }
-                    if (hit.fieldsOrNull() == null) {
-                        hit.fields(new HashMap<>(2));
-                    }
-                    DocumentField hitField = hit.getFields().get(field);
+                    DocumentField hitField = hit.field(field);
                     if (hitField == null) {
-                        hitField = new DocumentField(field, new ArrayList<>(2));
+                        // docValues field is put under "fields" even if they are meta-data fields
+                        hitField = new DocumentField(field, new ArrayList<>(2), false);
                         hit.setField(field, hitField);
                     }
                     final List<Object> values = hitField.getValues();

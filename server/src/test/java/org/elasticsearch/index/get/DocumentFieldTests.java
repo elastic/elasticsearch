@@ -29,8 +29,11 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
@@ -47,7 +50,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 public class DocumentFieldTests extends ESTestCase {
 
     public void testToXContent() {
-        DocumentField documentField = new DocumentField("field", Arrays.asList("value1", "value2"));
+        DocumentField documentField = new DocumentField("field", Arrays.asList("value1", "value2"), randomBoolean());
         String output = Strings.toString(documentField);
         assertEquals("{\"field\":[\"value1\",\"value2\"]}", output);
     }
@@ -70,7 +73,7 @@ public class DocumentFieldTests extends ESTestCase {
             //we need to move to the next token, the start object one that we manually added is not expected
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-            parsedDocumentField = DocumentField.fromXContent(parser);
+            parsedDocumentField = DocumentField.fromXContent(parser, documentField.isMetadataField());
             assertEquals(XContentParser.Token.END_ARRAY, parser.currentToken());
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
@@ -81,13 +84,15 @@ public class DocumentFieldTests extends ESTestCase {
     }
 
     private static DocumentField copyDocumentField(DocumentField documentField) {
-        return new DocumentField(documentField.getName(), documentField.getValues());
+        return new DocumentField(documentField.getName(), documentField.getValues(), documentField.isMetadataField());
     }
 
     private static DocumentField mutateDocumentField(DocumentField documentField) {
         List<Supplier<DocumentField>> mutations = new ArrayList<>();
-        mutations.add(() -> new DocumentField(randomUnicodeOfCodepointLength(15), documentField.getValues()));
-        mutations.add(() -> new DocumentField(documentField.getName(), randomDocumentField(XContentType.JSON).v1().getValues()));
+        mutations.add(() -> new DocumentField(randomUnicodeOfCodepointLength(15),
+            documentField.getValues(), documentField.isMetadataField()));
+        mutations.add(() -> new DocumentField(documentField.getName(), randomDocumentField(XContentType.JSON).v1().getValues(),
+            documentField.isMetadataField()));
         final int index = randomFrom(0, 1);
         final DocumentField randomCandidate = mutations.get(index).get();
         if (!documentField.equals(randomCandidate)) {
@@ -103,8 +108,10 @@ public class DocumentFieldTests extends ESTestCase {
     public static Tuple<DocumentField, DocumentField> randomDocumentField(XContentType xContentType) {
         if (randomBoolean()) {
             String metaField = randomValueOtherThanMany(field -> field.equals(TypeFieldMapper.NAME)
-                    || field.equals(IndexFieldMapper.NAME) || field.equals(IdFieldMapper.NAME),
-                () -> randomFrom(MapperService.getAllMetaFields()));
+                    || field.equals(IndexFieldMapper.NAME) || field.equals(IdFieldMapper.NAME)
+                    || field.equals(VersionFieldMapper.NAME) || field.equals(SeqNoFieldMapper.NAME)
+                    || field.equals(SourceFieldMapper.NAME),
+            () -> randomFrom(IndicesModule.getBuiltInMetadataFields()));
             DocumentField documentField;
             if (metaField.equals(IgnoredFieldMapper.NAME)) {
                 int numValues = randomIntBetween(1, 3);
@@ -112,17 +119,17 @@ public class DocumentFieldTests extends ESTestCase {
                 for (int i = 0; i < numValues; i++) {
                     ignoredFields.add(randomAlphaOfLengthBetween(3, 10));
                 }
-                documentField = new DocumentField(metaField, ignoredFields);
+                documentField = new DocumentField(metaField, ignoredFields, true);
             } else {
                 //meta fields are single value only, besides _ignored
-                documentField = new DocumentField(metaField, Collections.singletonList(randomAlphaOfLengthBetween(3, 10)));
+                documentField = new DocumentField(metaField, Collections.singletonList(randomAlphaOfLengthBetween(3, 10)), true);
             }
             return Tuple.tuple(documentField, documentField);
         } else {
             String fieldName = randomAlphaOfLengthBetween(3, 10);
             Tuple<List<Object>, List<Object>> tuple = RandomObjects.randomStoredFieldValues(random(), xContentType);
-            DocumentField input = new DocumentField(fieldName, tuple.v1());
-            DocumentField expected = new DocumentField(fieldName, tuple.v2());
+            DocumentField input = new DocumentField(fieldName, tuple.v1(), false);
+            DocumentField expected = new DocumentField(fieldName, tuple.v2(), false);
             return Tuple.tuple(input, expected);
         }
     }

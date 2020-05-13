@@ -14,11 +14,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.script.ScriptService;
@@ -45,7 +45,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
 
     private static final Set<String> META_FIELDS;
     static {
-        final Set<String> metaFields = new HashSet<>(Arrays.asList(MapperService.getAllMetaFields()));
+        final Set<String> metaFields = new HashSet<>(IndicesModule.getBuiltInMetadataFields());
         metaFields.add(SourceFieldMapper.NAME);
         metaFields.add(FieldNamesFieldMapper.NAME);
         metaFields.add(SeqNoFieldMapper.NAME);

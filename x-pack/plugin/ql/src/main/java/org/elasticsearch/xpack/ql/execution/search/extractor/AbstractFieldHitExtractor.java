@@ -128,7 +128,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         } else {
             // if the field was ignored because it was malformed and ignore_malformed was turned on
             if (fullFieldName != null
-                    && hit.getFields().containsKey(IgnoredFieldMapper.NAME)
+                    && hit.field(IgnoredFieldMapper.NAME) != null
                     && isFromDocValuesOnly(dataType) == false
                     && dataType.isNumeric()) {
                 /*
@@ -140,7 +140,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
                  * data for the "text" sub-field. Also, the _ignored section of the response contains the full field
                  * name, thus the need to do the comparison with that and not only the field name.
                  */
-                if (hit.getFields().get(IgnoredFieldMapper.NAME).getValues().contains(fullFieldName)) {
+                if (hit.field(IgnoredFieldMapper.NAME).getValues().contains(fullFieldName)) {
                     return null;
                 }
             }
@@ -217,7 +217,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
                     || dataType == CONSTANT_KEYWORD // because a non-existent value is considered the constant value itself
                     || dataType == SCALED_FLOAT; // because of scaling_factor
     }
-    
+
     private static NumberType numberType(DataType dataType) {
         return NumberType.valueOf(dataType.esType().toUpperCase(Locale.ROOT));
     }

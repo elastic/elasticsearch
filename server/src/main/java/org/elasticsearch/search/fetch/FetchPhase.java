@@ -66,6 +66,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptyMap;
+
 
 /**
  * Fetch phase of a search request, used to fetch the actual top matching documents to be returned to the client, identified
@@ -205,17 +207,19 @@ public class FetchPhase implements SearchPhase {
                                       LeafReaderContext subReaderContext) {
         if (fieldsVisitor == null) {
             return new SearchHit(docId, null, null, null);
-
         }
-
         Map<String, DocumentField> searchFields = getSearchFields(context, fieldsVisitor, subDocId,
             storedToRequestedFields, subReaderContext);
-
-        Map<String, DocumentField> metaFields = new HashMap<>();
-        Map<String, DocumentField> documentFields = new HashMap<>();
-        SearchHit.splitFieldsByMetadata(searchFields, documentFields, metaFields);
-
-        SearchHit searchHit = new SearchHit(docId, fieldsVisitor.id(), documentFields, metaFields);
+        SearchHit searchHit;
+        if ((searchFields == null) || searchFields.size() == 0) {
+            searchHit = new SearchHit(docId, fieldsVisitor.id(), emptyMap(), emptyMap());
+        } else {
+            Map<String, DocumentField> metaFields = new HashMap<>();
+            Map<String, DocumentField> documentFields = new HashMap<>();
+            searchFields.forEach((fieldName, docField) ->
+                (docField.isMetadataField() ? metaFields : documentFields).put(fieldName, docField));
+            searchHit = new SearchHit(docId, fieldsVisitor.id(), documentFields, metaFields);
+        }
         // Set _source if requested.
         SourceLookup sourceLookup = context.lookup().source();
         sourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
@@ -244,10 +248,12 @@ public class FetchPhase implements SearchPhase {
 
             if (storedToRequestedFields.containsKey(storedField)) {
                 for (String requestedField : storedToRequestedFields.get(storedField)) {
-                    searchFields.put(requestedField, new DocumentField(requestedField, storedValues));
+                    searchFields.put(requestedField,
+                        new DocumentField(requestedField, storedValues, context.mapperService().isMetadataField(requestedField)));
                 }
             } else {
-                searchFields.put(storedField, new DocumentField(storedField, storedValues));
+                searchFields.put(storedField,
+                    new DocumentField(storedField, storedValues, context.mapperService().isMetadataField(storedField)));
             }
         }
         return searchFields;
@@ -342,12 +348,15 @@ public class FetchPhase implements SearchPhase {
             XContentType contentType = tuple.v1();
             context.lookup().source().setSourceContentType(contentType);
         }
-
-        Map<String, DocumentField> metaFields = new HashMap<>(),
-            documentFields = new HashMap<>();
-        SearchHit.splitFieldsByMetadata(searchFields, documentFields, metaFields);
-
-        return new SearchHit(nestedTopDocId, id, nestedIdentity, documentFields, metaFields);
+        if ((searchFields == null) || searchFields.size() == 0) {
+            return new SearchHit(nestedTopDocId, id, nestedIdentity, emptyMap(), emptyMap());
+        } else {
+            Map<String, DocumentField> metaFields = new HashMap<>();
+            Map<String, DocumentField> documentFields = new HashMap<>();
+            searchFields.forEach((fieldName, docField) ->
+                (docField.isMetadataField() ? metaFields : documentFields).put(fieldName, docField));
+            return new SearchHit(nestedTopDocId, id, nestedIdentity, documentFields, metaFields);
+        }
     }
 
     private SearchHit.NestedIdentity getInternalNestedIdentity(SearchContext context, int nestedSubDocId,

@@ -77,8 +77,8 @@ public class GetResultTests extends ESTestCase {
         {
             GetResult getResult = new GetResult("index", "id", 0, 1, 1, true, new BytesArray("{ \"field1\" : " +
                     "\"value1\", \"field2\":\"value2\"}"), singletonMap("field1", new DocumentField("field1",
-                    singletonList("value1"))), singletonMap("field1", new DocumentField("metafield",
-                            singletonList("metavalue"))));
+                    singletonList("value1"), false)), singletonMap("field1", new DocumentField("metafield",
+                            singletonList("metavalue"), true)));
             String output = Strings.toString(getResult);
             assertEquals("{\"_index\":\"index\",\"_id\":\"id\",\"_version\":1,\"_seq_no\":0,\"_primary_term\":1," +
                 "\"metafield\":\"metavalue\",\"found\":true,\"_source\":{ \"field1\" : \"value1\", \"field2\":\"value2\"}," +
@@ -121,8 +121,8 @@ public class GetResultTests extends ESTestCase {
 
     public void testToXContentEmbedded() throws IOException {
         Map<String, DocumentField> fields = new HashMap<>();
-        fields.put("foo", new DocumentField("foo", singletonList("bar")));
-        fields.put("baz", new DocumentField("baz", Arrays.asList("baz_0", "baz_1")));
+        fields.put("foo", new DocumentField("foo", singletonList("bar"), false));
+        fields.put("baz", new DocumentField("baz", Arrays.asList("baz_0", "baz_1"), false));
 
         GetResult getResult = new GetResult("index", "id", 0, 1, 2, true,
                 new BytesArray("{\"foo\":\"bar\",\"baz\":[\"baz_0\",\"baz_1\"]}"), fields, null);
@@ -204,11 +204,13 @@ public class GetResultTests extends ESTestCase {
         final long primaryTerm;
         final boolean exists;
         BytesReference source = null;
-        Map<String, DocumentField> fields = null;
-        Map<String, DocumentField> expectedFields = null;
-        Map<String, DocumentField> metaFields = null;
-        Map<String, DocumentField> expectedMetaFields = null;
-        if (frequently()) {
+        boolean isFrequently = frequently();
+        boolean hasFields = randomBoolean();
+        final Map<String, DocumentField> fields = isFrequently && hasFields ? new HashMap<>() : null;
+        final Map<String, DocumentField> expectedFields = isFrequently && hasFields ? new HashMap<>() : null;
+        final Map<String, DocumentField> metaFields = isFrequently && hasFields ? new HashMap<>() : null;
+        final Map<String, DocumentField> expectedMetaFields = isFrequently && hasFields ? new HashMap<>() : null;
+        if (isFrequently) {
             version = randomNonNegativeLong();
             seqNo = randomNonNegativeLong();
             primaryTerm = randomLongBetween(1, 100);
@@ -216,15 +218,12 @@ public class GetResultTests extends ESTestCase {
             if (frequently()) {
                 source = RandomObjects.randomSource(random());
             }
-            if (randomBoolean()) {
+            if (hasFields) {
                 Tuple<Map<String, DocumentField>, Map<String, DocumentField>> tuple = randomDocumentFields(xContentType);
-                fields = new HashMap<>();
-                metaFields = new HashMap<>();
-                GetResult.splitFieldsByMetadata(tuple.v1(), fields, metaFields);
-
-                expectedFields = new HashMap<>();
-                expectedMetaFields = new HashMap<>();
-                GetResult.splitFieldsByMetadata(tuple.v2(), expectedFields, expectedMetaFields);
+                tuple.v1().forEach((fieldName, docField) ->
+                    (docField.isMetadataField() ? metaFields : fields).put(fieldName, docField));
+                tuple.v2().forEach((fieldName, docField) ->
+                    (docField.isMetadataField() ? expectedMetaFields : expectedFields).put(fieldName, docField));
             }
         } else {
             seqNo = UNASSIGNED_SEQ_NO;

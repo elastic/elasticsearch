@@ -68,7 +68,7 @@ public class ExplainResponseTests extends AbstractSerializingTestCase<ExplainRes
             0, 1, randomNonNegativeLong(),
             true,
             RandomObjects.randomSource(random()),
-            singletonMap(fieldName, new DocumentField(fieldName, values)), null);
+            singletonMap(fieldName, new DocumentField(fieldName, values, false)), null);
         return new ExplainResponse(index, id, exist, explanation, getResult);
     }
 
@@ -84,7 +84,7 @@ public class ExplainResponseTests extends AbstractSerializingTestCase<ExplainRes
         Explanation explanation = Explanation.match(1.0f, "description", Collections.emptySet());
         GetResult getResult = new GetResult(null, null, 0, 1, -1, true, new BytesArray("{ \"field1\" : " +
             "\"value1\", \"field2\":\"value2\"}"), singletonMap("field1", new DocumentField("field1",
-            singletonList("value1"))), null);
+            singletonList("value1"), false)), null);
         ExplainResponse response = new ExplainResponse(index, id, exist, explanation, getResult);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);

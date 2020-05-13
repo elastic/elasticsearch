@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.document;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -46,8 +47,9 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsV
  */
 public class DocumentField implements Writeable, ToXContentFragment, Iterable<Object> {
 
-    private String name;
-    private List<Object> values;
+    private final String name;
+    private final List<Object> values;
+    private final boolean isMetaField; // if the field is a meta-data field
 
     public DocumentField(StreamInput in) throws IOException {
         name = in.readString();
@@ -56,11 +58,17 @@ public class DocumentField implements Writeable, ToXContentFragment, Iterable<Ob
         for (int i = 0; i < size; i++) {
             values.add(in.readGenericValue());
         }
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            isMetaField = in.readBoolean();
+        } else {
+            isMetaField = MapperService.isMetadataFieldSt(name); // TODO: remove in 9.0
+        }
     }
 
-    public DocumentField(String name, List<Object> values) {
+    public DocumentField(String name, List<Object> values, boolean isMetaField) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.values = Objects.requireNonNull(values, "values must not be null");
+        this.isMetaField = isMetaField;
     }
 
     /**
@@ -89,10 +97,10 @@ public class DocumentField implements Writeable, ToXContentFragment, Iterable<Ob
     }
 
     /**
-     * @return The field is a metadata field
-     */
+    * @return The field is a metadata field
+    */
     public boolean isMetadataField() {
-        return MapperService.isMetadataField(name);
+        return isMetaField;
     }
 
     @Override
@@ -107,10 +115,15 @@ public class DocumentField implements Writeable, ToXContentFragment, Iterable<Ob
         for (Object obj : values) {
             out.writeGenericValue(obj);
         }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeBoolean(isMetaField);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        // we don't convert isMetaField to XContent,
+        // the way fields are organized in a document defines if they are metafields
         builder.startArray(name);
         for (Object value : values) {
             // this call doesn't really need to support writing any kind of object.
@@ -123,16 +136,16 @@ public class DocumentField implements Writeable, ToXContentFragment, Iterable<Ob
         return builder;
     }
 
-    public static DocumentField fromXContent(XContentParser parser) throws IOException {
+    public static DocumentField fromXContent(XContentParser parser, boolean isMetaField) throws IOException {
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
         String fieldName = parser.currentName();
         XContentParser.Token token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
         List<Object> values = new ArrayList<>();
-        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             values.add(parseFieldsValue(parser));
         }
-        return new DocumentField(fieldName, values);
+        return new DocumentField(fieldName, values, isMetaField);
     }
 
     @Override
@@ -144,19 +157,20 @@ public class DocumentField implements Writeable, ToXContentFragment, Iterable<Ob
             return false;
         }
         DocumentField objects = (DocumentField) o;
-        return Objects.equals(name, objects.name) && Objects.equals(values, objects.values);
+        return Objects.equals(name, objects.name) && Objects.equals(values, objects.values) && isMetaField == objects.isMetaField;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, values);
+        return Objects.hash(name, values, isMetaField);
     }
 
     @Override
     public String toString() {
         return "DocumentField{" +
                 "name='" + name + '\'' +
-                ", values=" + values +
-                '}';
+                ", values=" + values  +
+                 ", is meta-field=" + isMetaField +
+            '}';
     }
 }

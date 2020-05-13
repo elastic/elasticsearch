@@ -23,8 +23,8 @@ public class SearchHitBuilder {
     private final Map<String, DocumentField> fields;
 
     public SearchHitBuilder(int docId) {
-        hit = new SearchHit(docId);
         fields = new HashMap<>();
+        hit = new SearchHit(docId, null, fields, null);
     }
 
     public SearchHitBuilder addField(String name, Object value) {
@@ -32,7 +32,7 @@ public class SearchHitBuilder {
     }
 
     public SearchHitBuilder addField(String name, List<Object> values) {
-        fields.put(name, new DocumentField(name, values));
+        fields.put(name, new DocumentField(name, values, false));
         return this;
     }
 
@@ -42,9 +42,6 @@ public class SearchHitBuilder {
     }
 
     public SearchHit build() {
-        if (!fields.isEmpty()) {
-            hit.fields(fields);
-        }
         return hit;
     }
 }

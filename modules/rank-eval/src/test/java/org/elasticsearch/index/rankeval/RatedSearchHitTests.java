@@ -30,6 +30,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.OptionalInt;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
@@ -74,7 +75,9 @@ public class RatedSearchHitTests extends ESTestCase {
         RatedSearchHit testItem = randomRatedSearchHit();
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
-        BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, null, random());
+        // exclude inserting random fields in a search hit root level, as these fields interpreted as meta-fields and will be kept
+        Predicate<String> pathsToExclude = path -> path.equals("hit");
+        BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, pathsToExclude, random());
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
             RatedSearchHit parsedItem = RatedSearchHit.parse(parser);
             assertNotSame(testItem, parsedItem);

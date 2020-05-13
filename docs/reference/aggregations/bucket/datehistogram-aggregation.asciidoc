@@ -183,7 +183,6 @@ Defined as 1000 milliseconds each
 
 minutes (m) ::
 All minutes begin at 00 seconds.
-
 Defined as 60 seconds each (60,000 milliseconds)
 
 hours (h) ::
@@ -193,7 +192,6 @@ Defined as 60 minutes each (3,600,000 milliseconds)
 days (d) ::
 All days begin at the earliest possible time, which is usually 00:00:00
 (midnight).
-
 Defined as 24 hours (86,400,000 milliseconds)
 
 [[fixed_interval_examples]]

@@ -528,3 +528,36 @@ See <<cluster-shard-allocation-filtering>>.
 === Miscellaneous cluster settings
 
 See <<misc-cluster-settings>>.
+
+[role="exclude",id="modules"]
+=== Modules
+
+This page has been removed.
+
+See <<settings,Configuring Elasticsearch>> for settings information:
+
+* <<circuit-breaker>>
+* <<modules-cluster>>
+* <<modules-discovery-settings>>
+* <<modules-fielddata>>
+* <<modules-http>>
+* <<recovery>>
+* <<indexing-buffer>>
+* <<modules-gateway>>
+* <<modules-network>>
+* <<query-cache>>
+* <<search-settings>>
+* <<shard-request-cache>>
+
+For other information, see:
+
+* <<modules-transport>>
+* <<modules-threadpool>>
+* <<modules-node>>
+* <<modules-plugins>>
+* <<modules-remote-clusters>>
+
+[role="exclude",id="modules-discovery-adding-removing-nodes"]
+=== Adding and removing nodes
+
+See <<add-elasticsearch-nodes>>.

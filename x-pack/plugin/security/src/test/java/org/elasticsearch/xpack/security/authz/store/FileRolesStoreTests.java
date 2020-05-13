@@ -423,8 +423,10 @@ public class FileRolesStoreTests extends ESTestCase {
             assertArrayEquals(new String[]{"MONITOR"}, descriptors.iterator().next().getClusterPrivileges());
 
             // modify
+            final Set<String> modifiedFileRolesModified = new HashSet<>();
             final CountDownLatch modifyLatch = new CountDownLatch(1);
             store = new FileRolesStore(settings, env, watcherService, roleSet -> {
+                modifiedFileRolesModified.addAll(roleSet);
                 if (roleSet.contains("dummy2")) {
                     modifyLatch.countDown();
                 }
@@ -440,6 +442,7 @@ public class FileRolesStoreTests extends ESTestCase {
             }
 
             assertTrue(modifyLatch.await(5, TimeUnit.SECONDS));
+            assertTrue(modifiedFileRolesModified.contains("role5"));
             descriptors = store.roleDescriptors(Collections.singleton("role5"));
             assertThat(descriptors, notNullValue());
             assertEquals(1, descriptors.size());

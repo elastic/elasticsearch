@@ -98,7 +98,11 @@ some shards returned their results, or when the node that is coordinating the
 
 It is possible to block and wait until the search is completed up to a certain
 timeout by providing the `wait_for_completion_timeout` parameter, which
-defaults to `1` second.
+defaults to `1` second. When the async search completes within such timeout,
+the response won't include the ID as the results are not stored in the cluster.
+The `keep_on_completion` parameter, which defaults to `false`, can be set to
+`true` to request that results are stored for later retrieval also when the
+search completes within the `wait_for_completion_timeout`.
 
 You can also specify how long the async search needs to be
 available through the `keep_alive` parameter, which defaults to `5d` (five days).

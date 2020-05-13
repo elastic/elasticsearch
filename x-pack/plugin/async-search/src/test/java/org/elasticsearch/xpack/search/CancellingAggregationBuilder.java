@@ -33,17 +33,24 @@ public class CancellingAggregationBuilder extends AbstractAggregationBuilder<Can
     static final String NAME = "cancel";
     static final int SLEEP_TIME = 10;
 
-    public CancellingAggregationBuilder(String name) {
+    private final long randomUID;
+
+    /**
+     * Creates a {@link CancellingAggregationBuilder} with the provided <code>randomUID</code>.
+     */
+    public CancellingAggregationBuilder(String name, long randomUID) {
         super(name);
+        this.randomUID = randomUID;
     }
 
     public CancellingAggregationBuilder(StreamInput in) throws IOException {
         super(in);
+        this.randomUID = in.readLong();
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new CancellingAggregationBuilder(name);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new CancellingAggregationBuilder(name, randomUID);
     }
 
     @Override
@@ -53,6 +60,7 @@ public class CancellingAggregationBuilder extends AbstractAggregationBuilder<Can
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeLong(randomUID);
     }
 
     @Override
@@ -63,7 +71,7 @@ public class CancellingAggregationBuilder extends AbstractAggregationBuilder<Can
     }
 
     static final ConstructingObjectParser<CancellingAggregationBuilder, String> PARSER =
-        new ConstructingObjectParser<>(NAME, false, (args, name) -> new CancellingAggregationBuilder(name));
+        new ConstructingObjectParser<>(NAME, false, (args, name) -> new CancellingAggregationBuilder(name, 0L));
 
 
     static CancellingAggregationBuilder fromXContent(String aggName, XContentParser parser) {

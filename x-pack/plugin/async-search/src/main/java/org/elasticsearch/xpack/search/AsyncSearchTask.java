@@ -383,7 +383,7 @@ final class AsyncSearchTask extends SearchTask {
 
         @Override
         public void onResponse(SearchResponse response) {
-            searchResponse.get().updateFinalResponse(response.getSuccessfulShards(), response.getInternalResponse());
+            searchResponse.get().updateFinalResponse(response);
             executeCompletionListeners();
         }
 

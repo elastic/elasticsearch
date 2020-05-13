@@ -20,11 +20,12 @@
 package org.elasticsearch.tasks;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.TaskManagerTestCase;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.FakeTcpChannel;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TransportRequest;
@@ -39,9 +40,9 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
-public class TaskManagerTests extends TaskManagerTestCase {
-
+public class TaskManagerTests extends ESTestCase {
     /**
      * Makes sure that tasks that attempt to store themselves on completion retry if
      * they don't succeed at first.
@@ -55,12 +56,10 @@ public class TaskManagerTests extends TaskManagerTestCase {
         assertEquals(600000L, total);
     }
 
-    public void testTrackingChannelTask() throws Exception {
-        setupTestNodes(Settings.EMPTY);
-        connectNodes(testNodes);
-        final TaskManager taskManager = testNodes[0].transportService.getTaskManager();
+    public void testTrackingChannelTask() {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, mock(ThreadPool.class), Set.of());
         Set<CancellableTask> cancelledTasks = new HashSet<>();
-        taskManager.registerOrphanedTasksOnChannelCloseListener(tasks -> {
+        taskManager.setOrphanedTasksOnChannelCloseListener(tasks -> {
             for (CancellableTask task : tasks) {
                 assertTrue("task [" + task + "] was cancelled already", cancelledTasks.add(task));
             }

@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.ObjectIntMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
@@ -57,7 +58,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
@@ -96,7 +96,7 @@ public class TaskManager implements ClusterStateApplier {
 
     private final ByteSizeValue maxHeaderSize;
     private final Map<TcpChannel, ChannelPendingTaskTracker> channelPendingTaskTrackers = ConcurrentCollections.newConcurrentMap();
-    private final List<Consumer<Set<CancellableTask>>> onChannelCloseListeners = new CopyOnWriteArrayList<>();
+    private final SetOnce<Consumer<Set<CancellableTask>>> onChannelCloseListener = new SetOnce<>();
 
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         this.threadPool = threadPool;
@@ -617,9 +617,11 @@ public class TaskManager implements ClusterStateApplier {
                 r -> {
                     final ChannelPendingTaskTracker removedTracker = channelPendingTaskTrackers.remove(channel);
                     assert removedTracker == tracker;
-                    final Set<CancellableTask> pendingTasks = Collections.unmodifiableSet(tracker.pendingTasks);
-                    for (Consumer<Set<CancellableTask>> listener : onChannelCloseListeners) {
-                        listener.accept(pendingTasks);
+                    final Consumer<Set<CancellableTask>> listener = onChannelCloseListener.get();
+                    if (listener != null) {
+                        listener.accept(Collections.unmodifiableSet(tracker.pendingTasks));
+                    } else {
+                        assert false : "onChannelCloseListener was not set";
                     }
                 },
                 e -> {
@@ -630,11 +632,11 @@ public class TaskManager implements ClusterStateApplier {
     }
 
     /**
-     * Register a callback which will be called when a transport channel is closed and there're some pending orphaned
+     * Sets a callback which will be called when a transport channel is closed and there're some pending orphaned
      * tasks associate with that transport channel.
      */
-    public void registerOrphanedTasksOnChannelCloseListener(Consumer<Set<CancellableTask>> listener) {
-        onChannelCloseListeners.add(listener);
+    public void setOrphanedTasksOnChannelCloseListener(Consumer<Set<CancellableTask>> listener) {
+        onChannelCloseListener.set(listener);
     }
 
     private static class ChannelPendingTaskTracker {

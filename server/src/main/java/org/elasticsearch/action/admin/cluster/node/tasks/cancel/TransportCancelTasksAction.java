@@ -72,7 +72,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             CancelTasksRequest::new, CancelTasksResponse::new, TaskInfo::new, ThreadPool.Names.MANAGEMENT);
         transportService.registerRequestHandler(BAN_PARENT_ACTION_NAME, ThreadPool.Names.SAME, BanParentTaskRequest::new,
             new BanParentRequestHandler());
-        taskManager.registerOrphanedTasksOnChannelCloseListener(this::cancelOrphanedTasks);
+        taskManager.setOrphanedTasksOnChannelCloseListener(this::cancelOrphanedTasks);
     }
 
     @Override

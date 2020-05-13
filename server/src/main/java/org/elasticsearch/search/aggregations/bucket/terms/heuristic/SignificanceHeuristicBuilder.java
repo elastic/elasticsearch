@@ -17,22 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.example.customsigheuristic;
 
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
 
-import java.util.List;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 
-import static java.util.Collections.singletonList;
 
-/**
- * Plugin declaring a custom {@link SignificanceHeuristic}.
- */
-public class CustomSignificanceHeuristicPlugin extends Plugin implements SearchPlugin {
-    @Override
-    public List<SignificanceHeuristicSpec<?>> getSignificanceHeuristics() {
-        return singletonList(new SignificanceHeuristicSpec<>(SimpleHeuristic.NAME, SimpleHeuristic::new, SimpleHeuristic.PARSER));
-    }
+public interface SignificanceHeuristicBuilder extends ToXContentFragment {
 }

@@ -220,9 +220,9 @@ GET /sec_logs/_eql/search
 [[eql-search-async]]
 === Run an async EQL search
 
-EQL searches in {es} are designed to to run on large volumes of data quickly,
+EQL searches in {es} are designed to run on large volumes of data quickly,
 often returning results in milliseconds. Because of this, the EQL search API
-runs _synchronous_ searches run by default. This means the search request
+runs _synchronous_ searches by default. This means the search request
 blocks other requests and waits for complete results before returning a
 response.
 
@@ -349,9 +349,8 @@ After two seconds, the request returns the following response.
 [[eql-search-store-async-eql-search]]
 === Change the search retention period
 
-By default, the EQL search API only stores ongoing async searches and their
-search results for five days. After this period, async searches and any saved
-search results are deleted.
+By default, the EQL search API only stores async searches and their results for
+five days. After this period, any ongoing searches or saved results are deleted.
 
 You can use the `keep_alive` parameter to change the duration of this period.
 
@@ -359,7 +358,7 @@ You can use the `keep_alive` parameter to change the duration of this period.
 .*Example*
 ====
 In the following EQL search API request, the `keep_alive` parameter is `2d` (two
-days). This indicates that if the search becomes async, its results
+days). This means that if the search becomes async, its results
 are stored on the cluster for two days. After two days, the async
 search and its results are deleted, even if it's still ongoing.
 
@@ -391,7 +390,7 @@ subject to the storage retention period set by the `keep_alive` parameter.
 .*Example*
 ====
 In the following EQL search API request, the `keep_on_completion` parameter is
-`true`. This indicates search results should be stored on the cluster, even if
+`true`. This means the search results are stored on the cluster, even if
 the search completes within the `2s` (two-second) period set by the
 `wait_for_completion_timeout` parameter.
 

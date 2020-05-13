@@ -295,7 +295,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
                             final TaskInfo taskInfo = task.taskInfo(transportService.getLocalNode().getId(), false);
                             assertTrue(taskInfo.toString(), task.isCancelled());
                             assertNotNull(taskInfo.toString(), task.getReasonCancelled());
-                            assertThat(taskInfo.toString(), task.getReasonCancelled(), equalTo("channel is closed"));
+                            assertThat(taskInfo.toString(), task.getReasonCancelled(), equalTo("channel was closed"));
                         }
                     }
                 }

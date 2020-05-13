@@ -42,6 +42,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -63,7 +64,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -98,7 +98,7 @@ public class TaskManager implements ClusterStateApplier {
 
     private final ByteSizeValue maxHeaderSize;
     private final Map<TcpChannel, ChannelPendingTaskTracker> channelPendingTaskTrackers = ConcurrentCollections.newConcurrentMap();
-    private final SetOnce<Consumer<Set<CancellableTask>>> onChannelCloseListener = new SetOnce<>();
+    private final SetOnce<TaskCancellationService> cancellationService = new SetOnce<>();
 
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         this.threadPool = threadPool;
@@ -109,6 +109,10 @@ public class TaskManager implements ClusterStateApplier {
     public void setTaskResultsService(TaskResultsService taskResultsService) {
         assert this.taskResultsService == null;
         this.taskResultsService = taskResultsService;
+    }
+
+    public void setTaskCancellationService(TaskCancellationService taskCancellationService) {
+        this.cancellationService.set(taskCancellationService);
     }
 
     /**
@@ -612,7 +616,6 @@ public class TaskManager implements ClusterStateApplier {
      */
     public Releasable startTrackingCancellableChannelTask(TcpChannel channel, CancellableTask task) {
         assert cancellableTasks.containsKey(task.getId()) : "task [" + task.getId() + "] is not registered yet";
-        assert onChannelCloseListener.get() != null : "onChannelCloseListener was not set";
         final ChannelPendingTaskTracker tracker = channelPendingTaskTrackers.compute(channel, (k, curr) -> {
             if (curr == null) {
                 curr = new ChannelPendingTaskTracker();
@@ -625,11 +628,7 @@ public class TaskManager implements ClusterStateApplier {
                 r -> {
                     final ChannelPendingTaskTracker removedTracker = channelPendingTaskTrackers.remove(channel);
                     assert removedTracker == tracker;
-                    final Set<CancellableTask> pendingTasks = tracker.drainTasks();
-                    final Consumer<Set<CancellableTask>> listener = onChannelCloseListener.get();
-                    if (listener != null) {
-                        listener.accept(pendingTasks);
-                    }
+                    cancelTasksOnChannelClosed(tracker.drainTasks());
                 },
                 e -> {
                     assert false : new AssertionError("must not be here", e);
@@ -641,14 +640,6 @@ public class TaskManager implements ClusterStateApplier {
     // for testing
     final int numberOfChannelPendingTaskTrackers() {
         return channelPendingTaskTrackers.size();
-    }
-
-    /**
-     * Sets a callback which will be called when a transport channel is closed and there're some pending orphaned
-     * tasks associate with that transport channel.
-     */
-    public void setOrphanedTasksOnChannelCloseListener(Consumer<Set<CancellableTask>> listener) {
-        onChannelCloseListener.set(listener);
     }
 
     private static class ChannelPendingTaskTracker {
@@ -681,6 +672,34 @@ public class TaskManager implements ClusterStateApplier {
         void removeTask(CancellableTask task) {
             final boolean removed = pendingTasks.remove(task);
             assert removed : "task " + task.getId() + " is not in the pending list";
+        }
+    }
+
+    private void cancelTasksOnChannelClosed(Set<CancellableTask> tasks) {
+        if (tasks.isEmpty() == false) {
+            threadPool.generic().execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn("failed to cancel tasks on channel closed", e);
+                }
+
+                @Override
+                protected void doRun() {
+                    for (CancellableTask task : tasks) {
+                        cancelTaskAndDescendants(task, "channel was closed", false, ActionListener.wrap(() -> {}));
+                    }
+                }
+            });
+        }
+    }
+
+    public void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
+        final TaskCancellationService service = cancellationService.get();
+        if (service != null) {
+            service.cancelTaskAndDescendants(task, reason, waitForCompletion, listener);
+        } else {
+            assert false : "TaskCancellationService is not initialized";
+            throw new IllegalStateException("TaskCancellationService is not initialized");
         }
     }
 }

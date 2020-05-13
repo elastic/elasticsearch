@@ -36,10 +36,10 @@ the index must be older than the minimum age of the next phase.
 The minimum age defaults to zero, which causes {ilm-init} to move indices to the next phase
 as soon as all actions in the current phase complete. 
 
-If an index has unallocated shards and the cluster is in the _yellow_ state, 
-the index can still transition from one phase to the next according to its {ilm} policy, 
-but there might be unexpected side effects because {es} can only perform 
-certain clean up tasks on a healthy cluster. 
+If an index has unallocated shards and the <<cluster-health,cluster health status>> is yellow, 
+the index can still transition to the next phase according to its {ilm} policy.
+However, because {es} can only perform certain clean up tasks on a green
+cluster, there may be unexpected side effects. 
 
 To avoid unexpected disk usage and other reliability issues,
 address any cluster health problems in a timely fashion.

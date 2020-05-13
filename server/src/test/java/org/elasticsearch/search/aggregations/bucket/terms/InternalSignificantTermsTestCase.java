@@ -21,8 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
-import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantTerms.ParsedBucket;
-import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ChiSquare;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.GND;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.JLHScore;

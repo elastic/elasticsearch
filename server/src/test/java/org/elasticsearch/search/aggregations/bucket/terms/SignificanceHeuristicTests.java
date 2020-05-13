@@ -40,7 +40,6 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ChiSquare;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.GND;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.JLHScore;

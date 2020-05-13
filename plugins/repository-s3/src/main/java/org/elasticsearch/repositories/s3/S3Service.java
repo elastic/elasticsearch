@@ -107,14 +107,20 @@ class S3Service implements Closeable {
      */
     S3ClientSettings settings(RepositoryMetadata repositoryMetadata) {
         final Settings settings = repositoryMetadata.settings();
-        final S3ClientSettings existing = derivedClientSettings.get(settings);
-        if (existing != null) {
-            return existing;
+        {
+            final S3ClientSettings existing = derivedClientSettings.get(settings);
+            if (existing != null) {
+                return existing;
+            }
         }
         final String clientName = S3Repository.CLIENT_NAME.get(settings);
         final S3ClientSettings staticSettings = staticClientSettings.get(clientName);
         if (staticSettings != null) {
             synchronized (this) {
+                final S3ClientSettings existing = derivedClientSettings.get(settings);
+                if (existing != null) {
+                    return existing;
+                }
                 final S3ClientSettings newSettings = staticSettings.refine(settings);
                 derivedClientSettings = Maps.copyMapWithAddedOrReplacedEntry(derivedClientSettings, settings, newSettings);
                 return newSettings;

@@ -220,6 +220,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             Explicit<Metric> defaultMetric = defaultMetric(context);
             AggregateDoubleMetricFieldType metricFieldType = (AggregateDoubleMetricFieldType) fieldType;
             metricFieldType.setMetricFields(metricFields);
+            metricFieldType.setDefaultMetric(defaultMetric.value());
 
             return new AggregateDoubleMetricFieldMapper(
                 name,

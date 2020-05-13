@@ -43,10 +43,8 @@ public class BulkIndexingMemoryLimits {
 
     public void markPrimaryOperationStarted(long bytes) {
         long pendingWithOperation = pendingBytes.addAndGet(bytes);
-        System.err.println("ACQUIRE " + pendingWithOperation);
 
         if (pendingWithOperation > indexingLimits) {
-            System.err.println("FAILED " + bytes);
             decrementPendingBytes(bytes);
             long pendingPreOperation = pendingWithOperation - bytes;
             throw new EsRejectedExecutionException("rejected execution of primary shard operation [" +
@@ -57,7 +55,6 @@ public class BulkIndexingMemoryLimits {
     }
 
     public void markPrimaryOperationFinished(long bytes) {
-        System.err.println("RELEASE " + bytes);
         decrementPendingBytes(bytes);
     }
 

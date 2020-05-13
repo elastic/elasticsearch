@@ -101,11 +101,11 @@ public class SamlRealmSettings {
      */
     public static Set<Setting.AffixSetting<?>> getSettings() {
         final Set<Setting.AffixSetting<?>> set = Sets.newHashSet(
-                IDP_ENTITY_ID, IDP_METADATA_PATH, IDP_SINGLE_LOGOUT,
-                SP_ENTITY_ID, SP_ACS, SP_LOGOUT,
-                NAMEID_FORMAT, NAMEID_ALLOW_CREATE, NAMEID_SP_QUALIFIER, FORCE_AUTHN,
-                POPULATE_USER_METADATA, CLOCK_SKEW,
-                ENCRYPTION_KEY_ALIAS, SIGNING_KEY_ALIAS, SIGNING_MESSAGE_TYPES, REQUESTED_AUTHN_CONTEXT_CLASS_REF);
+            IDP_ENTITY_ID, IDP_METADATA_PATH, IDP_METADATA_HTTP_REFRESH, IDP_SINGLE_LOGOUT,
+            SP_ENTITY_ID, SP_ACS, SP_LOGOUT,
+            NAMEID_FORMAT, NAMEID_ALLOW_CREATE, NAMEID_SP_QUALIFIER, FORCE_AUTHN,
+            POPULATE_USER_METADATA, CLOCK_SKEW,
+            ENCRYPTION_KEY_ALIAS, SIGNING_KEY_ALIAS, SIGNING_MESSAGE_TYPES, REQUESTED_AUTHN_CONTEXT_CLASS_REF);
         set.addAll(X509KeyPairSettings.affix(RealmSettings.realmSettingPrefix(TYPE), ENCRYPTION_SETTING_KEY, false));
         set.addAll(X509KeyPairSettings.affix(RealmSettings.realmSettingPrefix(TYPE), SIGNING_SETTING_KEY, false));
         set.addAll(SSLConfigurationSettings.getRealmSettings(TYPE));

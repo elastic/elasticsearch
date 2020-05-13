@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.indices;
 
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
@@ -28,12 +28,17 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.MultiSearchRequestBuilder;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -46,7 +51,22 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT._flush;
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.clearCache;
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.getAliases;
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.getFieldMapping;
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.getMapping;
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.getSettings;
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.health;
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.indicesStats;
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.msearch;
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.refreshBuilder;
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.search;
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.segments;
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.validateQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -176,6 +196,96 @@ public class DataStreamIT extends ESIntegTestCase {
                     .opType(DocWriteRequest.OpType.CREATE));
             BulkResponse bulkItemResponses  = client().bulk(bulkRequest).actionGet();
             assertThat(bulkItemResponses.getItems()[0].getIndex(), equalTo(DataStream.getBackingIndexName(dataStreamName, 1)));
+        }
+    }
+
+    public void testResolvabilityOfDataStreamsInAPIs() {
+        String dataStreamName = "logs-foobar";
+        CreateDataStreamAction.Request request = new CreateDataStreamAction.Request(dataStreamName);
+        request.setTimestampFieldName("ts");
+        client().admin().indices().createDataStream(request).actionGet();
+
+        verifyResolvability(dataStreamName, client().prepareIndex(dataStreamName)
+                .setSource("{}", XContentType.JSON)
+                .setOpType(DocWriteRequest.OpType.CREATE),
+            false);
+        verifyResolvability(dataStreamName, refreshBuilder(dataStreamName), false);
+        verifyResolvability(dataStreamName, search(dataStreamName), false, 1);
+        verifyResolvability(dataStreamName, msearch(null, dataStreamName), false);
+        verifyResolvability(dataStreamName, clearCache(dataStreamName), false);
+        verifyResolvability(dataStreamName, _flush(dataStreamName),false);
+        verifyResolvability(dataStreamName, segments(dataStreamName), false);
+        verifyResolvability(dataStreamName, indicesStats(dataStreamName), false);
+        verifyResolvability(dataStreamName, IndicesOptionsIntegrationIT.forceMerge(dataStreamName), false);
+        verifyResolvability(dataStreamName, validateQuery(dataStreamName), false);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareUpgrade(dataStreamName), false);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareRecoveries(dataStreamName), false);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareUpgradeStatus(dataStreamName), false);
+        verifyResolvability(dataStreamName, getAliases(dataStreamName), true);
+        verifyResolvability(dataStreamName, getFieldMapping(dataStreamName), true);
+        verifyResolvability(dataStreamName, getMapping(dataStreamName), true);
+        verifyResolvability(dataStreamName, getSettings(dataStreamName), true);
+        verifyResolvability(dataStreamName, health(dataStreamName), false);
+
+        request = new CreateDataStreamAction.Request("logs-barbaz");
+        request.setTimestampFieldName("ts");
+        client().admin().indices().createDataStream(request).actionGet();
+        verifyResolvability("logs-barbaz", client().prepareIndex("logs-barbaz")
+                .setSource("{}", XContentType.JSON)
+                .setOpType(DocWriteRequest.OpType.CREATE),
+            false);
+
+        String wildcardExpression = "logs*";
+        verifyResolvability(wildcardExpression, refreshBuilder(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, search(wildcardExpression), false, 2);
+        verifyResolvability(wildcardExpression, msearch(null, wildcardExpression), false);
+        verifyResolvability(wildcardExpression, clearCache(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, _flush(wildcardExpression),false);
+        verifyResolvability(wildcardExpression, segments(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, indicesStats(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, IndicesOptionsIntegrationIT.forceMerge(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, validateQuery(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, client().admin().indices().prepareUpgrade(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, client().admin().indices().prepareRecoveries(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, client().admin().indices().prepareUpgradeStatus(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, getAliases(wildcardExpression), true);
+        verifyResolvability(wildcardExpression, getFieldMapping(wildcardExpression), true);
+        verifyResolvability(wildcardExpression, getMapping(wildcardExpression), true);
+        verifyResolvability(wildcardExpression, getSettings(wildcardExpression), true);
+        verifyResolvability(wildcardExpression, health(wildcardExpression), false);
+    }
+
+    private static void verifyResolvability(String dataStream, ActionRequestBuilder requestBuilder, boolean fail) {
+        verifyResolvability(dataStream, requestBuilder, fail, 0);
+    }
+
+    private static void verifyResolvability(String dataStream, ActionRequestBuilder requestBuilder, boolean fail, long expectedCount) {
+        if (fail) {
+            String expectedErrorMessage = "The provided expression [" + dataStream +
+                "] matches a data stream, specify the corresponding concrete indices instead.";
+            if (requestBuilder instanceof MultiSearchRequestBuilder) {
+                MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
+                assertThat(multiSearchResponse.getResponses().length, equalTo(1));
+                assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(true));
+                assertThat(multiSearchResponse.getResponses()[0].getFailure(), instanceOf(IllegalArgumentException.class));
+                assertThat(multiSearchResponse.getResponses()[0].getFailure().getMessage(), equalTo(expectedErrorMessage));
+            } else if (requestBuilder instanceof ValidateQueryRequestBuilder) {
+                ValidateQueryResponse response = (ValidateQueryResponse) requestBuilder.get();
+                assertThat(response.getQueryExplanation().get(0).getError(), equalTo(expectedErrorMessage));
+            } else {
+                Exception e = expectThrows(IllegalArgumentException.class, requestBuilder::get);
+                assertThat(e.getMessage(), equalTo(expectedErrorMessage));
+            }
+        } else {
+            if (requestBuilder instanceof SearchRequestBuilder) {
+                SearchRequestBuilder searchRequestBuilder = (SearchRequestBuilder) requestBuilder;
+                assertHitCount(searchRequestBuilder.get(), expectedCount);
+            } else if (requestBuilder instanceof MultiSearchRequestBuilder) {
+                MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
+                assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(false));
+            } else {
+                requestBuilder.get();
+            }
         }
     }
 

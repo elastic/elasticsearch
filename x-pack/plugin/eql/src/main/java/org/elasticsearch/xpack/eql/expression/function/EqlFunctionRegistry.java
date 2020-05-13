@@ -6,8 +6,8 @@
 
 package org.elasticsearch.xpack.eql.expression.function;
 
-import org.elasticsearch.xpack.eql.expression.function.scalar.string.CIDRMatch;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Between;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.CIDRMatch;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.IndexOf;

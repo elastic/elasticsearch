@@ -146,12 +146,27 @@ InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),par
 "params":{"v0":"constant_keyword","v1":5}
 ;
 
-startsWithFunction
+startsWithFunction-caseInSensitive
 process where startsWith(user_name, 'A')
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.startsWith(
-InternalQlScriptUtils.docValue(doc,params.v0),params.v1))",
-"params":{"v0":"user_name","v1":"A"}
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.startsWith(
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))",
+"params":{"v0":"user_name","v1":"A","v2":false}}
+;
+
+startsWithFunctionSimple-caseSensitive
+process where startsWith(user_name, 'A')
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
+{"prefix":{"user_name":{"value":"A","boost":1.0}}}],"boost":1.0}}
+;
+
+startsWithFunctionWithCondition-caseSensitive
+process where startsWith(user_name, 'A') or startsWith(user_name, 'B')
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
+{"bool":{"should":[{"prefix":{"user_name":{"value":"A","boost":1.0}}},
+{"prefix":{"user_name":{"value":"B","boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
 ;
 
 stringContains
@@ -248,6 +263,15 @@ InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0),para
 "params":{"v0":"process_name","v1":null,"v2":1}
 ;
 
+matchFunctionScalar
+process where match(substring(command_line, 5), "^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.regex(InternalEqlScriptUtils.substring(
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
+"params":{"v0":"command_line","v1":5,"v2":null,"v3":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"}}
+;
+
+
 numberFunctionTwoFieldArguments
 process where number(process_name, pid) != null;
 InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0),InternalQlScriptUtils.docValue(doc,params.v1))))",
@@ -269,6 +293,7 @@ numberFunctionFoldedHexComparison
 process where serial_event_id == number("0x32", 16);
 {"term":{"serial_event_id":{"value":50,
 ;
+
 
 wildcardFunctionSingleArgument
 process where wildcard(process_path, "*\\red_ttp\\wininit.*")

@@ -111,9 +111,9 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
 
     public void test() {
         // skip tests that do not make sense from case sensitivity point of view
-        boolean isCaseSensitiveValidTest = name.toLowerCase(Locale.ROOT).endsWith("-casesensitive") && configuration.isCaseSensitive()
-            || name.toLowerCase(Locale.ROOT).endsWith("-caseinsensitive") && configuration.isCaseSensitive() == false
-            || name.toLowerCase(Locale.ROOT).endsWith("sensitive") == false;
+        boolean isCaseSensitiveValidTest = name.toLowerCase(Locale.ROOT).endsWith("sensitive") == false
+            || name.toLowerCase(Locale.ROOT).endsWith("-casesensitive") && configuration.isCaseSensitive()
+            || name.toLowerCase(Locale.ROOT).endsWith("-caseinsensitive") && configuration.isCaseSensitive() == false;
         Assume.assumeTrue(isCaseSensitiveValidTest);
 
         PhysicalPlan p = plan(query);

@@ -17,7 +17,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -26,9 +25,28 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
-public abstract class AbstractLatLonShapeDVIndexFieldData extends DocValuesIndexFieldData implements IndexGeoShapeFieldData {
-    AbstractLatLonShapeDVIndexFieldData(Index index, String fieldName) {
-        super(index, fieldName);
+public abstract class AbstractLatLonShapeIndexFieldData implements IndexGeoShapeFieldData {
+    protected final Index index;
+    protected final String fieldName;
+
+    AbstractLatLonShapeIndexFieldData(Index index, String fieldName) {
+        this.index = index;
+        this.fieldName = fieldName;
+    }
+
+    @Override
+    public final String getFieldName() {
+        return fieldName;
+    }
+
+    @Override
+    public final void clear() {
+        // can't do
+    }
+
+    @Override
+    public final Index index() {
+        return index;
     }
 
     @Override
@@ -37,8 +55,8 @@ public abstract class AbstractLatLonShapeDVIndexFieldData extends DocValuesIndex
         throw new IllegalArgumentException("can't sort on geo_shape field without using specific sorting feature, like geo_distance");
     }
 
-    public static class LatLonShapeDVIndexFieldData extends AbstractLatLonShapeDVIndexFieldData {
-        public LatLonShapeDVIndexFieldData(Index index, String fieldName) {
+    public static class LatLonShapeIndexFieldData extends AbstractLatLonShapeIndexFieldData {
+        public LatLonShapeIndexFieldData(Index index, String fieldName) {
             super(index, fieldName);
         }
 
@@ -81,7 +99,7 @@ public abstract class AbstractLatLonShapeDVIndexFieldData extends DocValuesIndex
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             // ignore breaker
-            return new LatLonShapeDVIndexFieldData(indexSettings.getIndex(), fieldType.name());
+            return new LatLonShapeIndexFieldData(indexSettings.getIndex(), fieldType.name());
         }
     }
 }

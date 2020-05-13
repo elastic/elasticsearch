@@ -36,14 +36,13 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Maps;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 
-public class GoogleCloudStorageService implements Closeable {
+public class GoogleCloudStorageService {
 
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageService.class);
 
@@ -64,12 +63,8 @@ public class GoogleCloudStorageService implements Closeable {
      * @param clientsSettings the new settings used for building clients for subsequent requests
      */
     public synchronized void refreshAndClearCache(Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
-        releaseCachedClients();
-        this.clientSettings = Maps.ofEntries(clientsSettings.entrySet());
-    }
-
-    private synchronized void releaseCachedClients() {
         this.clientCache = emptyMap();
+        this.clientSettings = Maps.ofEntries(clientsSettings.entrySet());
     }
 
     /**
@@ -118,6 +113,10 @@ public class GoogleCloudStorageService implements Closeable {
 
     private String clientKey(String clientName, String repositoryName) {
         return clientName + "-" + repositoryName;
+    }
+
+    synchronized void closeClient(String clientName, String repositoryName) {
+        clientCache = Maps.copyMapWithRemovedEntry(clientCache, clientKey(clientName, repositoryName));
     }
 
     /**
@@ -212,10 +211,5 @@ public class GoogleCloudStorageService implements Closeable {
             return 0;
         }
         return Math.toIntExact(timeout.getMillis());
-    }
-
-    @Override
-    public void close() throws IOException {
-        releaseCachedClients();
     }
 }

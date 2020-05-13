@@ -28,12 +28,22 @@ final class GoogleCloudStorageOperationsStats {
     private final AtomicLong getObjectCount = new AtomicLong();
     private final AtomicLong listCount = new AtomicLong();
 
+    private final String bucketName;
+
+    public GoogleCloudStorageOperationsStats(String bucketName) {
+        this.bucketName = bucketName;
+    }
+
     void trackGetObjectOperation() {
         getObjectCount.incrementAndGet();
     }
 
     void trackListObjectsOperation() {
         listCount.incrementAndGet();
+    }
+
+    String getTrackedBucket() {
+        return bucketName;
     }
 
     Map<String, Long> toMap() {

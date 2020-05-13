@@ -26,27 +26,38 @@ import com.google.api.client.http.HttpResponseInterceptor;
 
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+import static java.lang.String.format;
 
 final class GoogleCloudStorageHttpStatsCollector implements HttpResponseInterceptor {
     // The specification for the current API (v1) endpoints can be found at:
     // https://cloud.google.com/storage/docs/json_api/v1
-    private static final List<HttpRequestTracker> trackers =
+    private static final List<Function<String, HttpRequestTracker>> trackerFactories =
         List.of(
-            HttpRequestTracker.get("/download/storage/v1/b/[a-z0-9._-]+/o/.+",
-                GoogleCloudStorageOperationsStats::trackGetObjectOperation),
+            (bucket) ->
+                HttpRequestTracker.get(format("/download/storage/v1/b/%s/o/.+", bucket),
+                    GoogleCloudStorageOperationsStats::trackGetObjectOperation),
 
-            HttpRequestTracker.get("/storage/v1/b/[a-z0-9._-]+/o/.+",
-                GoogleCloudStorageOperationsStats::trackGetObjectOperation),
+            (bucket) ->
+                HttpRequestTracker.get(format("/storage/v1/b/%s/o/.+", bucket),
+                    GoogleCloudStorageOperationsStats::trackGetObjectOperation),
 
-            HttpRequestTracker.get("/storage/v1/b/[a-z0-9._-]+/o",
-                GoogleCloudStorageOperationsStats::trackListObjectsOperation)
+            (bucket) ->
+                HttpRequestTracker.get(format("/storage/v1/b/%s/o", bucket),
+                    GoogleCloudStorageOperationsStats::trackListObjectsOperation)
             );
 
     private final GoogleCloudStorageOperationsStats gcsOperationStats;
+    private final List<HttpRequestTracker> trackers;
 
     GoogleCloudStorageHttpStatsCollector(final GoogleCloudStorageOperationsStats gcsOperationStats) {
         this.gcsOperationStats = gcsOperationStats;
+        this.trackers = trackerFactories.stream()
+            .map(trackerFactory -> trackerFactory.apply(gcsOperationStats.getTrackedBucket()))
+            .collect(Collectors.toList());
     }
 
     @Override

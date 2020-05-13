@@ -68,7 +68,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
                 .build();
         final GoogleCloudStorageService service = new GoogleCloudStorageService();
         service.refreshAndClearCache(GoogleCloudStorageClientSettings.load(settings));
-        GoogleCloudStorageOperationsStats statsCollector = new GoogleCloudStorageOperationsStats();
+        GoogleCloudStorageOperationsStats statsCollector = new GoogleCloudStorageOperationsStats("bucket");
         final IllegalArgumentException e =
             expectThrows(IllegalArgumentException.class, () -> service.client("another_client", "repo", statsCollector));
         assertThat(e.getMessage(), Matchers.startsWith("Unknown client name"));
@@ -97,7 +97,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         final Settings settings2 = Settings.builder().setSecureSettings(secureSettings2).build();
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings1)) {
             final GoogleCloudStorageService storageService = plugin.storageService;
-            GoogleCloudStorageOperationsStats statsCollector = new GoogleCloudStorageOperationsStats();
+            GoogleCloudStorageOperationsStats statsCollector = new GoogleCloudStorageOperationsStats("bucket");
             final Storage client11 = storageService.client("gcs1", "repo", statsCollector);
             assertThat(client11.getOptions().getProjectId(), equalTo("project_gcs11"));
             final Storage client12 = storageService.client("gcs2", "repo", statsCollector);
@@ -133,11 +133,11 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             final GoogleCloudStorageService storageService = plugin.storageService;
 
             final Storage repo1Client =
-                storageService.client("gcs1", "repo1", new GoogleCloudStorageOperationsStats());
+                storageService.client("gcs1", "repo1", new GoogleCloudStorageOperationsStats("bucket"));
             final Storage repo2Client =
-                storageService.client("gcs1", "repo2", new GoogleCloudStorageOperationsStats());
+                storageService.client("gcs1", "repo2", new GoogleCloudStorageOperationsStats("bucket"));
             final Storage repo1ClientSecondInstance =
-                storageService.client("gcs1", "repo1", new GoogleCloudStorageOperationsStats());
+                storageService.client("gcs1", "repo1", new GoogleCloudStorageOperationsStats("bucket"));
 
             assertThat(repo1Client, is(not(theInstance(repo2Client))));
             assertThat(repo1Client, is(theInstance(repo1ClientSecondInstance)));

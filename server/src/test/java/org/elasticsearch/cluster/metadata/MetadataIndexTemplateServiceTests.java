@@ -308,15 +308,15 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertNotNull(state.metadata().componentTemplates().get("foo"));
 
         IndexTemplateV2 firstGlobalIndexTemplate =
-            new IndexTemplateV2(List.of("*"), template, List.of("foo"), 1L, null, null);
+            new IndexTemplateV2(List.of("*"), template, List.of("foo"), 1L, null, null, null);
         state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "globalindextemplate1", firstGlobalIndexTemplate);
 
         IndexTemplateV2 secondGlobalIndexTemplate =
-            new IndexTemplateV2(List.of("*"), template, List.of("foo"), 2L, null, null);
+            new IndexTemplateV2(List.of("*"), template, List.of("foo"), 2L, null, null, null);
         state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "globalindextemplate2", secondGlobalIndexTemplate);
 
         IndexTemplateV2 fooPatternIndexTemplate =
-            new IndexTemplateV2(List.of("foo-*"), template, List.of("foo"), 3L, null, null);
+            new IndexTemplateV2(List.of("foo-*"), template, List.of("foo"), 3L, null, null, null);
         state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "foopatternindextemplate", fooPatternIndexTemplate);
 
         // update the component template to set the index.hidden setting
@@ -368,7 +368,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         List<String> patterns = new ArrayList<>(template.indexPatterns());
         patterns.add("new-pattern");
         template = new IndexTemplateV2(patterns, template.template(), template.composedOf(), template.priority(), template.version(),
-            template.metadata());
+            template.metadata(), null);
         state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template);
 
         assertNotNull(state.metadata().templatesV2().get("foo"));
@@ -405,7 +405,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .build())
             .build();
 
-        IndexTemplateV2 v2Template = new IndexTemplateV2(Arrays.asList("foo-bar-*", "eggplant"), null, null, null, null, null);
+        IndexTemplateV2 v2Template = new IndexTemplateV2(Arrays.asList("foo-bar-*", "eggplant"), null, null, null, null, null, null);
         state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "v2-template", v2Template);
 
         assertWarnings("index template [v2-template] has index patterns [foo-bar-*, eggplant] matching patterns " +
@@ -442,7 +442,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         waitToCreateComponentTemplate.await(10, TimeUnit.SECONDS);
 
         IndexTemplateV2 globalIndexTemplate = new IndexTemplateV2(List.of("*"), null, List.of("ct-with-index-hidden-setting"), null, null,
-            null);
+            null, null);
 
         expectThrows(InvalidIndexTemplateException.class, () ->
             metadataIndexTemplateService.putIndexTemplateV2("testing", true, "template-referencing-ct-with-hidden-index-setting",
@@ -466,7 +466,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
      */
     public void testPuttingV1StarTemplateGeneratesWarning() throws Exception {
         final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
-        IndexTemplateV2 v2Template = new IndexTemplateV2(Arrays.asList("foo-bar-*", "eggplant"), null, null, null, null, null);
+        IndexTemplateV2 v2Template = new IndexTemplateV2(Arrays.asList("foo-bar-*", "eggplant"), null, null, null, null, null, null);
         ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "v2-template", v2Template);
 
         MetadataIndexTemplateService.PutRequest req = new MetadataIndexTemplateService.PutRequest("cause", "v1-template");
@@ -486,7 +486,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
      */
     public void testPuttingV1NonStarTemplateGeneratesError() throws Exception {
         final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
-        IndexTemplateV2 v2Template = new IndexTemplateV2(Arrays.asList("foo-bar-*", "eggplant"), null, null, null, null, null);
+        IndexTemplateV2 v2Template = new IndexTemplateV2(Arrays.asList("foo-bar-*", "eggplant"), null, null, null, null, null, null);
         ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "v2-template", v2Template);
 
         MetadataIndexTemplateService.PutRequest req = new MetadataIndexTemplateService.PutRequest("cause", "v1-template");
@@ -519,7 +519,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .build())
             .build();
 
-        IndexTemplateV2 v2Template = new IndexTemplateV2(Arrays.asList("foo-bar-*", "eggplant"), null, null, null, null, null);
+        IndexTemplateV2 v2Template = new IndexTemplateV2(Arrays.asList("foo-bar-*", "eggplant"), null, null, null, null, null, null);
         state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "v2-template", v2Template);
 
         assertWarnings("index template [v2-template] has index patterns [foo-bar-*, eggplant] matching patterns " +
@@ -559,7 +559,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .build())
             .build();
 
-        IndexTemplateV2 v2Template = new IndexTemplateV2(Arrays.asList("foo-bar-*", "eggplant"), null, null, null, null, null);
+        IndexTemplateV2 v2Template = new IndexTemplateV2(Arrays.asList("foo-bar-*", "eggplant"), null, null, null, null, null, null);
         state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "v2-template", v2Template);
 
         assertWarnings("index template [v2-template] has index patterns [foo-bar-*, eggplant] matching patterns " +
@@ -584,10 +584,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testPuttingOverlappingV2Template() throws Exception {
         {
-            IndexTemplateV2 template = new IndexTemplateV2(Arrays.asList("egg*", "baz"), null, null, 1L, null, null);
+            IndexTemplateV2 template = new IndexTemplateV2(Arrays.asList("egg*", "baz"), null, null, 1L, null, null, null);
             MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
             ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", template);
-            IndexTemplateV2 newTemplate = new IndexTemplateV2(Arrays.asList("abc", "baz*"), null, null, 1L, null, null);
+            IndexTemplateV2 newTemplate = new IndexTemplateV2(Arrays.asList("abc", "baz*"), null, null, 1L, null, null, null);
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo2", newTemplate));
             assertThat(e.getMessage(), equalTo("index template [foo2] has index patterns [abc, baz*] matching patterns from existing " +
@@ -596,10 +596,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
 
         {
-            IndexTemplateV2 template = new IndexTemplateV2(Arrays.asList("egg*", "baz"), null, null, null, null, null);
+            IndexTemplateV2 template = new IndexTemplateV2(Arrays.asList("egg*", "baz"), null, null, null, null, null, null);
             MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
             ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", template);
-            IndexTemplateV2 newTemplate = new IndexTemplateV2(Arrays.asList("abc", "baz*"), null, null, 0L, null, null);
+            IndexTemplateV2 newTemplate = new IndexTemplateV2(Arrays.asList("abc", "baz*"), null, null, 0L, null, null, null);
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo2", newTemplate));
             assertThat(e.getMessage(), equalTo("index template [foo2] has index patterns [abc, baz*] matching patterns from existing " +
@@ -615,9 +615,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         ComponentTemplate ct = ComponentTemplateTests.randomInstance();
         state = service.addComponentTemplate(state, true, "ct", ct);
-        IndexTemplateV2 it = new IndexTemplateV2(List.of("i*"), null, List.of("ct"), null, 1L, null);
+        IndexTemplateV2 it = new IndexTemplateV2(List.of("i*"), null, List.of("ct"), null, 1L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
-        IndexTemplateV2 it2 = new IndexTemplateV2(List.of("in*"), null, List.of("ct"), 10L, 2L, null);
+        IndexTemplateV2 it2 = new IndexTemplateV2(List.of("in*"), null, List.of("ct"), 10L, 2L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template2", it2);
 
         String result = MetadataIndexTemplateService.findV2Template(state.metadata(), "index", randomBoolean());
@@ -632,9 +632,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         ComponentTemplate ct = ComponentTemplateTests.randomInstance();
         state = service.addComponentTemplate(state, true, "ct", ct);
-        IndexTemplateV2 it = new IndexTemplateV2(List.of("i*"), null, List.of("ct"), 0L, 1L, null);
+        IndexTemplateV2 it = new IndexTemplateV2(List.of("i*"), null, List.of("ct"), 0L, 1L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
-        IndexTemplateV2 it2 = new IndexTemplateV2(List.of("*"), null, List.of("ct"), 10L, 2L, null);
+        IndexTemplateV2 it2 = new IndexTemplateV2(List.of("*"), null, List.of("ct"), 10L, 2L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template2", it2);
 
         String result = MetadataIndexTemplateService.findV2Template(state.metadata(), "index", true);
@@ -647,7 +647,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         try {
             // add an invalid global template that specifies the `index.hidden` setting
             IndexTemplateV2 invalidGlobalTemplate = new IndexTemplateV2(List.of("*"), templateWithHiddenSetting, List.of("ct"), 5L, 1L,
-                null);
+                null, null);
             Metadata invalidGlobalTemplateMetadata = Metadata.builder().putCustom(IndexTemplateV2Metadata.TYPE,
                 new IndexTemplateV2Metadata(Map.of("invalid_global_template", invalidGlobalTemplate))).build();
 
@@ -690,7 +690,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     "      }\n" +
                     "    }\n" +
                     "  }"), null),
-            List.of("ct_low", "ct_high"), 0L, 1L, null);
+            List.of("ct_low", "ct_high"), 0L, 1L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
         List<CompressedXContent> mappings = MetadataIndexTemplateService.resolveMappings(state, "my-template");
@@ -743,7 +743,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .put("index.blocks.write", false)
                 .put("index.number_of_shards", 3)
                 .build(), null, null),
-            List.of("ct_low", "ct_high"), 0L, 1L, null);
+            List.of("ct_low", "ct_high"), 0L, 1L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
         Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), "my-template");
@@ -771,7 +771,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = service.addComponentTemplate(state, true, "ct_low", ct2);
         IndexTemplateV2 it = new IndexTemplateV2(List.of("i*"),
             new Template(null, null, a3),
-            List.of("ct_low", "ct_high"), 0L, 1L, null);
+            List.of("ct_low", "ct_high"), 0L, 1L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
         List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(state.metadata(), "my-template");
@@ -856,9 +856,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     @SuppressWarnings("unchecked")
     public static void assertTemplatesEqual(IndexTemplateV2 actual, IndexTemplateV2 expected) {
         IndexTemplateV2 actualNoTemplate = new IndexTemplateV2(actual.indexPatterns(), null,
-            actual.composedOf(), actual.priority(), actual.version(), actual.metadata());
+            actual.composedOf(), actual.priority(), actual.version(), actual.metadata(), actual.getDataStreamTemplate());
         IndexTemplateV2 expectedNoTemplate = new IndexTemplateV2(expected.indexPatterns(), null,
-            expected.composedOf(), expected.priority(), expected.version(), expected.metadata());
+            expected.composedOf(), expected.priority(), expected.version(), expected.metadata(), expected.getDataStreamTemplate());
 
         assertThat(actualNoTemplate, equalTo(expectedNoTemplate));
         Template actualTemplate = actual.template();

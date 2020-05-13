@@ -47,6 +47,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -494,7 +495,7 @@ public class JobResultsProvider {
                         SearchResponse searchResponse = itemResponse.getResponse();
                         ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
                         int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
-                        if (shardFailures != null && shardFailures.length > 0) {
+                        if (CollectionUtils.isEmpty(shardFailures) == false) {
                             LOGGER.error("[{}] Search request returned shard failures: {}", jobId, Arrays.toString(shardFailures));
                             listener.onFailure(
                                 new ElasticsearchException(ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
@@ -600,7 +601,7 @@ public class JobResultsProvider {
                                 SearchResponse searchResponse = itemResponse.getResponse();
                                 ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
                                 int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
-                                if (shardFailures != null && shardFailures.length > 0) {
+                                if (CollectionUtils.isEmpty(shardFailures) == false) {
                                     LOGGER.error("[{}] Search request returned shard failures: {}", jobId,
                                         Arrays.toString(shardFailures));
                                     errorHandler.accept(new ElasticsearchException(

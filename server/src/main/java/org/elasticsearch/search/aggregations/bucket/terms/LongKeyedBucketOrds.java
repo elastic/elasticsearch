@@ -54,6 +54,11 @@ public abstract class LongKeyedBucketOrds implements Releasable {
     public abstract long bucketsInOrd(long owningBucketOrd);
 
     /**
+     * The number of collected buckets.
+     */
+    public abstract long size();
+
+    /**
      * Build an iterator for buckets inside {@code owningBucketOrd}.
      * <p>
      * When this is first returns it is "unpositioned" and you must call
@@ -112,6 +117,11 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         @Override
         public long bucketsInOrd(long owningBucketOrd) {
             assert owningBucketOrd == 0;
+            return ords.size();
+        }
+
+        @Override
+        public long size() {
             return ords.size();
         }
 
@@ -218,6 +228,11 @@ public abstract class LongKeyedBucketOrds implements Releasable {
                 return 0;
             }
             return buckets.valueToThisBucketOrd.size();
+        }
+
+        @Override
+        public long size() {
+            return lastGlobalOrd + 1;
         }
 
         @Override

@@ -55,6 +55,7 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
             Set<Long> seen = new HashSet<>();
             seen.add(0L);
             seen.add(1000L);
+            assertThat(ords.size(), equalTo(2L));
             long[] values = new long[scaledRandomIntBetween(1, 10000)];
             for (int i = 0; i < values.length; i++) {
                 values[i] = randomValueOtherThanMany(seen::contains, ESTestCase::randomLong);
@@ -62,6 +63,7 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
             }
             for (int i = 0; i < values.length; i++) {
                 assertThat(ords.add(0, values[i]), equalTo(i + 2L));
+                assertThat(ords.size(), equalTo(i + 3L));
                 if (randomBoolean()) {
                     assertThat(ords.add(0, 0), equalTo(-1L));
                 }
@@ -103,6 +105,7 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
             assertThat(ords.add(1, 0), equalTo(1L));
             assertThat(ords.add(0, 0), equalTo(-1L));
             assertThat(ords.add(1, 0), equalTo(-2L));
+            assertThat(ords.size(), equalTo(2L));
 
             // And some random values
             Set<OwningBucketOrdAndValue> seen = new HashSet<>();
@@ -117,6 +120,7 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
             }
             for (int i = 0; i < values.length; i++) {
                 assertThat(ords.add(values[i].owningBucketOrd, values[i].value), equalTo(i + 2L));
+                assertThat(ords.size(), equalTo(i + 3L));
                 if (randomBoolean()) {
                     assertThat(ords.add(0, 0), equalTo(-1L));
                 }

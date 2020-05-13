@@ -1578,7 +1578,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         AliasMetadata alias = AliasMetadata.builder("alias").writeIndex(true).build();
         Template template = new Template(settings, mappings, Map.of("alias", alias));
         List<String> pattern = List.of("pattern");
-        IndexTemplateV2 indexTemplate = new IndexTemplateV2(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>());
+        IndexTemplateV2 indexTemplate =
+            new IndexTemplateV2(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>(), null);
         PutIndexTemplateV2Request putIndexTemplateV2Request =
             new PutIndexTemplateV2Request().name(templateName).create(true).indexTemplate(indexTemplate);
 
@@ -1624,7 +1625,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         AliasMetadata alias = AliasMetadata.builder("alias").writeIndex(true).build();
         Template template = new Template(settings, mappings, Map.of("alias", alias));
         List<String> pattern = List.of("pattern");
-        IndexTemplateV2 indexTemplate = new IndexTemplateV2(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>());
+        IndexTemplateV2 indexTemplate =
+            new IndexTemplateV2(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>(), null);
         PutIndexTemplateV2Request putIndexTemplateV2Request =
             new PutIndexTemplateV2Request().name(templateName).create(true).indexTemplate(indexTemplate);
 
@@ -1635,7 +1637,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         SimulateIndexTemplateRequest simulateIndexTemplateRequest = new SimulateIndexTemplateRequest("pattern");
         AliasMetadata simulationAlias = AliasMetadata.builder("simulation-alias").writeIndex(true).build();
         IndexTemplateV2 simulationTemplate = new IndexTemplateV2(pattern, new Template(null, null,
-            Map.of("simulation-alias", simulationAlias)), Collections.emptyList(), 2L, 1L, new HashMap<>());
+            Map.of("simulation-alias", simulationAlias)), Collections.emptyList(), 2L, 1L, new HashMap<>(), null);
         PutIndexTemplateV2Request newIndexTemplateReq =
             new PutIndexTemplateV2Request().name("used-for-simulation").create(true).indexTemplate(indexTemplate);
         newIndexTemplateReq.indexTemplate(simulationTemplate);

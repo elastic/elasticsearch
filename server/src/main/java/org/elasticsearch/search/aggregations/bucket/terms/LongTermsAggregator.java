@@ -41,6 +41,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyList;
 
@@ -186,5 +187,11 @@ public class LongTermsAggregator extends TermsAggregator {
     public void doClose() {
         super.doClose();
         Releasables.close(bucketOrds);
+    }
+
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        super.collectDebugInfo(add);
+        add.accept("total_buckets", bucketOrds.size());
     }
 }

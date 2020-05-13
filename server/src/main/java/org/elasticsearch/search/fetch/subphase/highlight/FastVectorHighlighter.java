@@ -36,6 +36,7 @@ import org.apache.lucene.search.vectorhighlight.SingleFragListBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
@@ -182,7 +183,7 @@ public class FastVectorHighlighter implements Highlighter {
                     entry.fragmentsBuilder, field.fieldOptions().preTags(), field.fieldOptions().postTags(), encoder);
             }
 
-            if (fragments != null && fragments.length > 0) {
+            if (CollectionUtils.isEmpty(fragments) == false) {
                 return new HighlightField(highlighterContext.fieldName, Text.convertFromStringArray(fragments));
             }
 
@@ -195,7 +196,7 @@ public class FastVectorHighlighter implements Highlighter {
                 fragments = entry.fragmentsBuilder.createFragments(hitContext.reader(), hitContext.docId(),
                     fieldType.name(), fieldFragList, 1, field.fieldOptions().preTags(),
                     field.fieldOptions().postTags(), encoder);
-                if (fragments != null && fragments.length > 0) {
+                if (CollectionUtils.isEmpty(fragments) == false) {
                     return new HighlightField(highlighterContext.fieldName, Text.convertFromStringArray(fragments));
                 }
             }

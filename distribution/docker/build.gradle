@@ -28,32 +28,47 @@ dependencies {
 }
 
 ext.expansions = { architecture, oss, local ->
-  String base_image = null
-  String tini_arch = null
-  String classifier = null
-  switch (architecture) {
-    case "aarch64":
-      base_image = "arm64v8/centos:7"
-      tini_arch = "arm64"
-      classifier = "linux-aarch64"
-      break;
-    case "x64":
-      base_image = "amd64/centos:7"
-      tini_arch = "amd64"
-      classifier = "linux-x86_64"
-      break;
-    default:
-      throw new IllegalArgumentException("unrecongized architecture [" + architecture + "], must be one of (aarch64|x64)")
+  String classifier
+  if (local) {
+    switch (architecture) {
+      case "aarch64":
+        classifier = "linux-aarch64"
+        break
+      case "x64":
+        classifier = "linux-x86_64"
+        break
+      default:
+        throw new IllegalArgumentException("Unrecognized architecture [" + architecture + "], must be one of (aarch64|x64)")
+    }
+  } else {
+    /* When sourcing the Elasticsearch build remotely, the same Dockerfile needs
+     * to be able to fetch the artifact for any supported platform. We can't make
+     * the decision here. Bash will interpolate the `arch` command for us. */
+    classifier = "linux-\$(arch)"
   }
-  final String elasticsearch = oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}-${classifier}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}-${classifier}.tar.gz"
+
+  final String elasticsearch = "elasticsearch-${oss ? 'oss-' : ''}${VersionProperties.elasticsearch}-${classifier}.tar.gz"
+
+  /* Both the following Dockerfile commands put the resulting artifact at
+   * the same location, regardless of classifier, so that the commands that
+   * follow in the Dockerfile don't have to know about the runtime
+   * architecture. */
+  String sourceElasticsearch
+  if (local) {
+    sourceElasticsearch = "COPY $elasticsearch /opt/elasticsearch.tar.gz"
+  } else {
+    sourceElasticsearch = """
+RUN curl --retry 8 -S -L \\
+      --output /opt/elasticsearch.tar.gz \\
+      https://artifacts.elastic.co/downloads/elasticsearch/$elasticsearch
+"""
+  }
+
   return [
-    'base_image'          : base_image,
     'build_date'          : BuildParams.buildDate,
-    'elasticsearch'       : elasticsearch,
     'git_revision'        : BuildParams.gitRevision,
     'license'             : oss ? 'Apache-2.0' : 'Elastic-License',
-    'source_elasticsearch': local ? "COPY $elasticsearch /opt/" : "RUN cd /opt && curl --retry 8 -s -L -O https://artifacts.elastic.co/downloads/elasticsearch/${elasticsearch} && cd -",
-    'tini_arch'           : tini_arch,
+    'source_elasticsearch': sourceElasticsearch,
     'version'             : VersionProperties.elasticsearch
   ]
 }

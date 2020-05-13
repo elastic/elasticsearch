@@ -31,6 +31,7 @@ import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.search.aggregations.support.AggregationUsageService.OTHER_SUBTYPE;
 
@@ -177,6 +178,18 @@ public abstract class AggregatorFactory {
         @Override
         public void close() {
             Releasables.close(aggregators, collectors);
+        }
+
+        @Override
+        public void collectDebugInfo(BiConsumer<String, Object> add) {
+            /*
+             * There isn't really a sane way to give our delegates a way to
+             * add entries because we'd have to merge them. So we just *don't*
+             * and leave a marker of our own. This ain't great, but we plan
+             * to cut down on usage of this wrapper in the future.
+             */
+            add.accept("wrapped_in_multi_bucket_aggregator", true);
+            super.collectDebugInfo(add);
         }
     }
 

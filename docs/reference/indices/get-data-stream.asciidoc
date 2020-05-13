@@ -56,6 +56,7 @@ retrieve.
 --------------------------------------------------
 GET _data_streams/my-data-stream*
 --------------------------------------------------
+// TEST[continued]
 
 The API returns the following response:
 
@@ -79,6 +80,7 @@ The API returns the following response:
   }
 ]
 --------------------------------------------------
+// TESTRESPONSE[s/"index_uuid": \.\.\./"index_uuid": $body.$_path/]
 
 <1> Name of the data stream
 <2> The name of the timestamp field for the data stream

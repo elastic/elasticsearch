@@ -36,6 +36,7 @@ PUT _data_stream/my-data-stream
 -----------------------------------
 DELETE /_data_stream/my-data-stream
 -----------------------------------
+// TEST[continued]
 ////
 
 [[indices-create-data-stream-request]]

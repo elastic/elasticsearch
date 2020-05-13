@@ -146,12 +146,27 @@ InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),par
 "params":{"v0":"constant_keyword","v1":5}
 ;
 
-startsWithFunction
+startsWithFunction-caseInSensitive
 process where startsWith(user_name, 'A')
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.startsWith(
-InternalQlScriptUtils.docValue(doc,params.v0),params.v1))",
-"params":{"v0":"user_name","v1":"A"}
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.startsWith(
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))",
+"params":{"v0":"user_name","v1":"A","v2":false}}
+;
+
+startsWithFunctionSimple-caseSensitive
+process where startsWith(user_name, 'A')
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
+{"prefix":{"user_name":{"value":"A","boost":1.0}}}],"boost":1.0}}
+;
+
+startsWithFunctionWithCondition-caseSensitive
+process where startsWith(user_name, 'A') or startsWith(user_name, 'B')
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
+{"bool":{"should":[{"prefix":{"user_name":{"value":"A","boost":1.0}}},
+{"prefix":{"user_name":{"value":"B","boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
 ;
 
 stringContains

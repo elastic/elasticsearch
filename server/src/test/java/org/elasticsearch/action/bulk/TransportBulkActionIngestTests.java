@@ -581,7 +581,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         IndexTemplateV2 t1 = new IndexTemplateV2(Collections.singletonList("missing_*"),
             new Template(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build(), null, null),
-            null, null, null, null);
+            null, null, null, null, null);
 
         ClusterState state = clusterService.state();
         Metadata metadata = Metadata.builder()

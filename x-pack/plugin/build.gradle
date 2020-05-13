@@ -114,7 +114,4 @@ testClusters.integTest {
   }
 }
 
-validateRestSpec {
-  ignore 'ml.validate.json'
-  ignore 'ml.validate_detector.json'
-}
+

@@ -42,7 +42,7 @@ public class ToNumberFunctionProcessor implements Processor {
 
     private static Number parseDecimal(String source) {
         try {
-            return Integer.valueOf(source);
+            return Long.valueOf(source);
         } catch (NumberFormatException e) {
             return Double.valueOf(source);
         }
@@ -75,7 +75,7 @@ public class ToNumberFunctionProcessor implements Processor {
             if (radix == 10) {
                 return parseDecimal(value.toString());
             } else {
-                return Integer.parseInt(value.toString(), radix);
+                return Long.parseLong(value.toString(), radix);
             }
         } catch (NumberFormatException e) {
             throw new EqlIllegalArgumentException("Unable to convert [{}] to number of base [{}]", value, radix);

@@ -25,6 +25,18 @@ public class ToNumberProcessorTests extends ESTestCase {
         return saie.getMessage();
     }
 
+    public void toNumberWithLongRange() {
+        long number = randomLongBetween(Integer.MAX_VALUE, Long.MAX_VALUE);
+
+        assertEquals(number, process(Long.toString(number), null));
+        assertEquals(number, process("0x" + Long.toHexString(number), null));
+
+        assertEquals(number, process(Long.toString(number), 10));
+        assertEquals(number, process(Long.toOctalString(number), 8));
+        assertEquals(number, process(Long.toHexString(number), 16));
+        assertEquals(number, process("0x" + Long.toHexString(number), 16));
+    }
+
     public void toNumberWithPositiveInteger() {
         int number = randomIntBetween(0, 1000);
 

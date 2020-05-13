@@ -49,7 +49,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -163,6 +162,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
         setTracerLogInclude(TransportSettings.TRACE_LOG_INCLUDE_SETTING.get(settings));
         setTracerLogExclude(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.get(settings));
         tracerLog = Loggers.getLogger(logger, ".tracer");
+        taskManager = createTaskManager(settings, threadPool, taskHeaders);
         this.interceptor = transportInterceptor;
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
         this.remoteClusterClient = Node.NODE_REMOTE_CLUSTER_CLIENT.get(settings);
@@ -182,8 +182,6 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
             HandshakeRequest::new,
             (request, channel, task) -> channel.sendResponse(
                 new HandshakeResponse(localNode, clusterName, localNode.getVersion())));
-        taskManager = createTaskManager(settings, threadPool, taskHeaders);
-        taskManager.setTaskCancellationService(new TaskCancellationService(this));
     }
 
     public RemoteClusterService getRemoteClusterService() {

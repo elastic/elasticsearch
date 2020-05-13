@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.eql.session;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.eql.analysis.Analyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
@@ -91,7 +90,7 @@ public class EqlSession {
     }
 
     private <T> void preAnalyze(LogicalPlan parsed, ActionListener<LogicalPlan> listener) {
-        String indexWildcard = Strings.arrayToCommaDelimitedString(configuration.indices());
+        String indexWildcard = configuration.indexAsWildcard();
         if(configuration.isCancelled()){
             throw new TaskCancelledException("cancelled");
         }

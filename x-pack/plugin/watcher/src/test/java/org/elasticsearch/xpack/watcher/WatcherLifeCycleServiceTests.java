@@ -179,9 +179,9 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         ArgumentCaptor<Runnable> captor = ArgumentCaptor.forClass(Runnable.class);
         verify(watcherService, times(1))
             .stop(eq("watcher manually marked to shutdown by cluster state update"), captor.capture());
-        assertEquals(WatcherState.STOPPING, lifeCycleService.getState());
+        assertEquals(WatcherState.STOPPING, lifeCycleService.getState().get());
         captor.getValue().run();
-        assertEquals(WatcherState.STOPPED, lifeCycleService.getState());
+        assertEquals(WatcherState.STOPPED, lifeCycleService.getState().get());
 
         // Starting via cluster state update, as the watcher metadata block is removed/set to true
         reset(watcherService);
@@ -480,7 +480,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
                     new HashSet<>(roles), Version.CURRENT))).build();
 
         lifeCycleService.clusterChanged(new ClusterChangedEvent("test", state, state));
-        assertThat(lifeCycleService.getState(), is(WatcherState.STARTED));
+        assertThat(lifeCycleService.getState().get(), is(WatcherState.STARTED));
     }
 
     public void testDataNodeWithoutDataCanStart() {
@@ -494,7 +494,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .build();
 
         lifeCycleService.clusterChanged(new ClusterChangedEvent("test", state, state));
-        assertThat(lifeCycleService.getState(), is(WatcherState.STARTED));
+        assertThat(lifeCycleService.getState().get(), is(WatcherState.STARTED));
     }
 
     // this emulates a node outage somewhere in the cluster that carried a watcher shard
@@ -584,7 +584,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         when(watcherService.validate(state)).thenReturn(true);
 
         lifeCycleService.clusterChanged(new ClusterChangedEvent("foo", state, emptyState));
-        assertThat(lifeCycleService.getState(), is(WatcherState.STARTED));
+        assertThat(lifeCycleService.getState().get(), is(WatcherState.STARTED));
         verify(watcherService, times(1)).reload(eq(state), anyString());
         assertThat(lifeCycleService.shardRoutings(), hasSize(1));
 

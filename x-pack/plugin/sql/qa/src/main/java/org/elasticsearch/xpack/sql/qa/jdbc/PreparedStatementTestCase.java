@@ -140,7 +140,9 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
         setupIndexForDateTimeTests(randomMillis);
 
         try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT id, birth_date FROM emps WHERE birth_date::date = ?")) {
+            try (PreparedStatement statement = connection.prepareStatement("SELECT id, birth_date FROM emps WHERE birth_date::date = ? " +
+                "ORDER BY id")) {
+
                 statement.setDate(1, new Date(asDate(randomMillis, UTC).getTime()));
                 try (ResultSet results = statement.executeQuery()) {
                     for (int i = 1; i <= 3; i++) {

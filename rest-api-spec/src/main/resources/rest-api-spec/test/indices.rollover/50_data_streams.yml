@@ -1,8 +1,8 @@
 ---
 "Roll over a data stream":
   - skip:
-      version: " - 7.99.99"
-      reason:  "enable in 7.8+ after backporting"
+      version: " - 7.8.99"
+      reason:  "data streams only supported in 7.9+"
 
   - do:
       indices.create_data_stream:

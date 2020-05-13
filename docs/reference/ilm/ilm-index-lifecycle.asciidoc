@@ -48,6 +48,17 @@ This ensures that policy updates don't put the index into a state where it can n
 If changes can be safely applied, {ilm-init} updates the cached phase definition.
 If they cannot, phase execution continues using the cached definition. 
 
+{ilm-init} runs periodically, checks to see if an index meets policy criteria, 
+and executes whatever steps are needed. 
+To avoid race conditions, {ilm-init} might need to run more than once to execute all of the steps
+required to complete an action.
+For example, if {ilm-init} determines that an index has met the rollover criteria, 
+it begins executing the steps required to complete the rollover action. 
+If it reaches a point where it is not safe to advance to the next step, execution stops. 
+The next time {ilm-init} runs, {ilm-init} picks up execution where it left off. 
+This means that even if `indices.lifecycle.poll_interval` is set to 10 minutes and an index meets
+the rollover criteria, it could be 20 minutes before the rollover is complete. 
+
 [discrete]
 [[ilm-phase-actions]]
 === Phase actions

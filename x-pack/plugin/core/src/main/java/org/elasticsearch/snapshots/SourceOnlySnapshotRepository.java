@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.snapshots;
 
-import org.apache.lucene.codecs.blocktree.BlockTreeTermsReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
@@ -46,7 +45,6 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -161,8 +159,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             tempStore.bootstrapNewHistory(maxDoc, maxDoc);
             store.incRef();
             toClose.add(store::decRef);
-            DirectoryReader reader = DirectoryReader.open(tempStore.directory(),
-                Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY, BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name()));
+            DirectoryReader reader = DirectoryReader.open(tempStore.directory());
             toClose.add(reader);
             IndexCommit indexCommit = reader.getIndexCommit();
             super.snapshotShard(tempStore, mapperService, snapshotId, indexId, indexCommit, shardStateIdentifier, snapshotStatus,

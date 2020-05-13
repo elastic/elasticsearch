@@ -26,16 +26,16 @@ import java.util.function.Function;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
-import static org.elasticsearch.xpack.analytics.normalize.NormalizePipelineNormalizers.Mean;
-import static org.elasticsearch.xpack.analytics.normalize.NormalizePipelineNormalizers.Percent;
-import static org.elasticsearch.xpack.analytics.normalize.NormalizePipelineNormalizers.RescaleZeroToOne;
-import static org.elasticsearch.xpack.analytics.normalize.NormalizePipelineNormalizers.RescaleZeroToOneHundred;
-import static org.elasticsearch.xpack.analytics.normalize.NormalizePipelineNormalizers.Softmax;
-import static org.elasticsearch.xpack.analytics.normalize.NormalizePipelineNormalizers.ZScore;
+import static org.elasticsearch.xpack.analytics.normalize.NormalizePipelineMethods.Mean;
+import static org.elasticsearch.xpack.analytics.normalize.NormalizePipelineMethods.Percent;
+import static org.elasticsearch.xpack.analytics.normalize.NormalizePipelineMethods.RescaleZeroToOne;
+import static org.elasticsearch.xpack.analytics.normalize.NormalizePipelineMethods.RescaleZeroToOneHundred;
+import static org.elasticsearch.xpack.analytics.normalize.NormalizePipelineMethods.Softmax;
+import static org.elasticsearch.xpack.analytics.normalize.NormalizePipelineMethods.ZScore;
 
 public class NormalizePipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<NormalizePipelineAggregationBuilder> {
     public static final String NAME = "normalize";
-    static final ParseField NORMALIZER_FIELD = new ParseField("normalizer");
+    static final ParseField METHOD_FIELD = new ParseField("method");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<NormalizePipelineAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
@@ -44,7 +44,7 @@ public class NormalizePipelineAggregationBuilder extends AbstractPipelineAggrega
 
     static {
         PARSER.declareString(optionalConstructorArg(), FORMAT);
-        PARSER.declareString(constructorArg(), NORMALIZER_FIELD);
+        PARSER.declareString(constructorArg(), METHOD_FIELD);
         PARSER.declareStringArray(constructorArg(), BUCKETS_PATH_FIELD);
     }
 
@@ -57,22 +57,20 @@ public class NormalizePipelineAggregationBuilder extends AbstractPipelineAggrega
         Softmax.NAME, Softmax::new
     );
 
-    static String validateNormalizerName(String name) {
+    static String validateMethodName(String name) {
         if (NAME_MAP.containsKey(name)) {
             return name;
         }
-
-        throw new IllegalArgumentException("invalid normalizer [" + name + "]");
+        throw new IllegalArgumentException("invalid method [" + name + "]");
     }
 
     private final String format;
-    private final String normalizer;
+    private final String method;
 
-
-    public NormalizePipelineAggregationBuilder(String name, String format, String normalizer, List<String> bucketsPath) {
+    public NormalizePipelineAggregationBuilder(String name, String format, String method, List<String> bucketsPath) {
         super(name, NAME, bucketsPath.toArray(new String[0]));
         this.format = format;
-        this.normalizer = validateNormalizerName(normalizer);
+        this.method = validateMethodName(method);
     }
 
     /**
@@ -81,13 +79,13 @@ public class NormalizePipelineAggregationBuilder extends AbstractPipelineAggrega
     public NormalizePipelineAggregationBuilder(StreamInput in) throws IOException {
         super(in, NAME);
         format = in.readOptionalString();
-        normalizer = in.readString();
+        method = in.readString();
     }
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalString(format);
-        out.writeString(normalizer);
+        out.writeString(method);
     }
 
     /**
@@ -107,7 +105,7 @@ public class NormalizePipelineAggregationBuilder extends AbstractPipelineAggrega
 
     @Override
     protected PipelineAggregator createInternal(Map<String, Object> metadata) {
-        return new NormalizePipelineAggregator(name, bucketsPaths, formatter(), NAME_MAP.get(normalizer), metadata);
+        return new NormalizePipelineAggregator(name, bucketsPaths, formatter(), NAME_MAP.get(method), metadata);
     }
 
     @Override
@@ -115,6 +113,7 @@ public class NormalizePipelineAggregationBuilder extends AbstractPipelineAggrega
         if (bucketsPaths.length != 1) {
             context.addBucketPathValidationError("must contain a single entry for aggregation [" + name + "]");
         }
+        context.validateHasParent(NAME, name);
     }
 
     @Override
@@ -122,13 +121,13 @@ public class NormalizePipelineAggregationBuilder extends AbstractPipelineAggrega
         if (format != null) {
             builder.field(BucketMetricsParser.FORMAT.getPreferredName(), format);
         }
-        builder.field(NORMALIZER_FIELD.getPreferredName(), normalizer);
+        builder.field(METHOD_FIELD.getPreferredName(), method);
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), format, normalizer);
+        return Objects.hash(super.hashCode(), format, method);
     }
 
     @Override
@@ -137,7 +136,7 @@ public class NormalizePipelineAggregationBuilder extends AbstractPipelineAggrega
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         NormalizePipelineAggregationBuilder other = (NormalizePipelineAggregationBuilder) obj;
-        return Objects.equals(format, other.format) && Objects.equals(normalizer, other.normalizer);
+        return Objects.equals(format, other.format) && Objects.equals(method, other.method);
     }
 
     @Override

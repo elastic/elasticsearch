@@ -8,10 +8,12 @@ package org.elasticsearch.xpack.analytics.normalize;
 
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
+import org.hamcrest.CoreMatchers;
 
 import java.util.Collections;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -36,7 +38,14 @@ public class NormalizeTests extends BasePipelineAggregationTestCase<NormalizePip
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> new NormalizePipelineAggregationBuilder(builder.getName(), builder.format(), invalidNormalizer,
                 List.of(builder.getBucketsPaths())));
-        assertThat(exception.getMessage(), equalTo("invalid normalizer [" + invalidNormalizer + "]"));
+        assertThat(exception.getMessage(), equalTo("invalid method [" + invalidNormalizer + "]"));
+    }
+
+    public void testHasParentValidation() {
+        NormalizePipelineAggregationBuilder builder = createTestAggregatorFactory();
+        assertThat(validate(emptyList(), builder), CoreMatchers.equalTo(
+            "Validation Failed: 1: normalize aggregation [" + builder.getName() + "] must be declared inside" +
+                " of another aggregation;"));
     }
 
     @Override

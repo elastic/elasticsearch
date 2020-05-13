@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.analytics.normalize;
 
 import java.util.function.DoubleUnaryOperator;
 
-class NormalizePipelineNormalizers {
+class NormalizePipelineMethods {
 
     // never to be instantiated
-    private NormalizePipelineNormalizers() {}
+    private NormalizePipelineMethods() {}
 
-    static class RescaleZeroToOne extends SinglePassSimpleStatisticsNormalizer {
+    static class RescaleZeroToOne extends SinglePassSimpleStatisticsMethod {
         static final String NAME = "rescale_0_1";
 
         RescaleZeroToOne(double[] values) {
@@ -27,7 +27,7 @@ class NormalizePipelineNormalizers {
         }
     }
 
-    static class RescaleZeroToOneHundred extends SinglePassSimpleStatisticsNormalizer {
+    static class RescaleZeroToOneHundred extends SinglePassSimpleStatisticsMethod {
         static final String NAME = "rescale_0_100";
 
         RescaleZeroToOneHundred(double[] values) {
@@ -40,7 +40,7 @@ class NormalizePipelineNormalizers {
         }
     }
 
-    static class Mean extends SinglePassSimpleStatisticsNormalizer {
+    static class Mean extends SinglePassSimpleStatisticsMethod {
         static final String NAME = "mean";
 
         Mean(double[] values) {
@@ -53,7 +53,7 @@ class NormalizePipelineNormalizers {
         }
     }
 
-    static class Percent extends SinglePassSimpleStatisticsNormalizer {
+    static class Percent extends SinglePassSimpleStatisticsMethod {
         static final String NAME = "percent_of_sum";
 
         Percent(double[] values) {
@@ -66,7 +66,7 @@ class NormalizePipelineNormalizers {
         }
     }
 
-    static class ZScore extends SinglePassSimpleStatisticsNormalizer {
+    static class ZScore extends SinglePassSimpleStatisticsMethod {
         static final String NAME = "z-score";
 
         private final double stdev;
@@ -110,14 +110,14 @@ class NormalizePipelineNormalizers {
         }
     }
 
-    abstract static class SinglePassSimpleStatisticsNormalizer implements DoubleUnaryOperator {
+    abstract static class SinglePassSimpleStatisticsMethod implements DoubleUnaryOperator {
         protected final double max;
         protected final double min;
         protected final double sum;
         protected final double mean;
         protected final int count;
 
-        SinglePassSimpleStatisticsNormalizer(double[] values) {
+        SinglePassSimpleStatisticsMethod(double[] values) {
             int count = 0;
             double sum = 0.0;
             double min = Double.MAX_VALUE;

@@ -4,6 +4,7 @@
 === Normalize Aggregation
 
 A parent pipeline aggregation which calculates the specific normalized/rescaled value for a specific bucket value.
+Values that cannot be normalized, will be skipped using the <<gap-policy, skip gap policy>>.
 
 ==== Syntax
 
@@ -14,7 +15,7 @@ A `normalize` aggregation looks like this in isolation:
 {
     "normalize": {
         "buckets_path": "normalized",
-        "normalizer": "percent_of_sum"
+        "method": "percent_of_sum"
     }
 }
 --------------------------------------------------
@@ -25,10 +26,48 @@ A `normalize` aggregation looks like this in isolation:
 [options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
-|`buckets_path` |The path to the buckets we wish to normalize (see <<buckets-path-syntax>> for more details) |Required |
-|`normalizer` | The specific rescaling to apply | Required |
+|`buckets_path` |The path to the buckets we wish to normalize (see <<buckets-path-syntax, `buckets_path` syntax>> for more details) |Required |
+|`method` | The specific <<normalizer_pipeline-method, method>> to apply | Required |
 |`format` |format to apply to the output value of this aggregation |Optional |`null`
 |===
+
+[[normalizer_pipeline-method]]
+
+The Normalize Aggregation supports multiple methods to transform the bucket values. Each method definition will use
+the following original set of bucket values as examples: `[5, 5, 10, 50, 10, 20]`.
+
+_rescale\_0\_1_::
+                This method rescales the data such that the minimum number is zero, and the maximum number is 1, with the rest normalized
+                linearly in-between.
+                x' = (x - min_x) / (max_x - min_x)
+                [0, 0, .1111, 1, .1111, .3333]
+
+_rescale\_0\_100_::
+                This method rescales the data such that the minimum number is zero, and the maximum number is 1, with the rest normalized
+                linearly in-between.
+                x' = 100 * (x - min_x) / (max_x - min_x)
+                [0, 0, 11.11, 100, 11.11, 33.33]
+
+_percent_of_sum_::
+                This method normalizes each value so that it represents a percentage of the total sum it attributes to.
+                x' = x / sum_x
+                [5%, 5%, 10%, 50%, 10%, 20%]
+
+
+_mean_::
+                This method normalizes such that each value is normalized by how much it differs from the average.
+                x' = (x - mean_x) / (max_x - min_x)
+                [4.63, 4.63, 9.63, 49.63, 9.63, 9.63, 19.63]
+
+_zscore_::
+                This method normalizes such that each value represents how far it is from the mean relative to the standard deviation
+                x' = (x - mean_x) / stdev_x
+                [-0.68, -0.68, -0.39, 1.94, -0.39, 0.19]
+
+_softmax_::
+                This method normalizes such that each value is exponentiated and relative to the sum of the exponents of the original values.
+                x' = e^x / sum_e_x
+                [2.862E-20, 2.862E-20, 4.248E-18, 0.999, 9.357E-14, 4.248E-18]
 
 The following snippet calculates the percent of total sales for each month:
 
@@ -52,7 +91,7 @@ POST /sales/_search
                 "percent_of_total_sales": {
                     "normalize": {
                         "buckets_path": "sales", <1>
-                        "normalizer": "percent_of_sum"  <2>
+                        "method": "percent_of_sum"  <2>
                     }
                 }
             }
@@ -63,7 +102,7 @@ POST /sales/_search
 // TEST[setup:sales]
 
 <1> `buckets_path` instructs this normalize aggregation to use the output of the `sales` aggregation for rescaling
-<2> `normalizer` sets which rescaling to apply. In this case, `percent_of_sum` will calculate the sales value as a percent of all sales
+<2> `method` sets which rescaling to apply. In this case, `percent_of_sum` will calculate the sales value as a percent of all sales
     in the parent bucket
 
 And the following may be the response:

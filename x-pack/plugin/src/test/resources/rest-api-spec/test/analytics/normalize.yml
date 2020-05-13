@@ -64,7 +64,7 @@ setup:
                 percent_of_total_users:
                   normalize:
                     buckets_path: "_count"
-                    normalizer: "percent_of_sum"
+                    method: "percent_of_sum"
 
   - length: { aggregations.users_by_day.buckets: 3 }
   - match: { aggregations.users_by_day.buckets.0.key_as_string: "2017-01-01T00:00:00.000Z" }

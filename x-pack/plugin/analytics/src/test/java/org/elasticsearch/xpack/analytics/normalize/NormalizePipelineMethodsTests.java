@@ -12,7 +12,7 @@ import java.util.function.DoubleUnaryOperator;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class NormalizePipelineNormalizersTests extends ESTestCase {
+public class NormalizePipelineMethodsTests extends ESTestCase {
 
     private static final double[] DATA =
         new double[] { 1, 50, Double.NaN, 8, 10, 4, 3, 0, 10, -10, -4};
@@ -23,7 +23,7 @@ public class NormalizePipelineNormalizersTests extends ESTestCase {
     private static final double MEAN = SUM / COUNT;
 
     public void testRescaleZeroToOne() {
-        NormalizePipelineNormalizers.RescaleZeroToOne normalizer = new NormalizePipelineNormalizers.RescaleZeroToOne(DATA);
+        NormalizePipelineMethods.RescaleZeroToOne normalizer = new NormalizePipelineMethods.RescaleZeroToOne(DATA);
         assertSinglePassStatistics(normalizer);
         double[] normalized = new double[] { 0.18333333333333332, 1.0, Double.NaN, 0.3, 0.3333333333333333, 0.23333333333333334,
             0.21666666666666667, 0.16666666666666666, 0.3333333333333333, 0.0, 0.1 };
@@ -31,7 +31,7 @@ public class NormalizePipelineNormalizersTests extends ESTestCase {
     }
 
     public void testRescaleZeroToOneHundred() {
-        NormalizePipelineNormalizers.RescaleZeroToOneHundred normalizer = new NormalizePipelineNormalizers.RescaleZeroToOneHundred(DATA);
+        NormalizePipelineMethods.RescaleZeroToOneHundred normalizer = new NormalizePipelineMethods.RescaleZeroToOneHundred(DATA);
         assertSinglePassStatistics(normalizer);
         double[] normalized = new double[] { 18.333333333333332, 100.0, Double.NaN, 30.0, 33.333333333333336, 23.333333333333332,
             21.666666666666668, 16.666666666666668, 33.333333333333336, 0.0, 10.0 };
@@ -39,7 +39,7 @@ public class NormalizePipelineNormalizersTests extends ESTestCase {
     }
 
     public void testMean() {
-        NormalizePipelineNormalizers.Mean normalizer = new NormalizePipelineNormalizers.Mean(DATA);
+        NormalizePipelineMethods.Mean normalizer = new NormalizePipelineMethods.Mean(DATA);
         assertSinglePassStatistics(normalizer);
         double[] normalized = new double[] { -0.10333333333333333, 0.7133333333333333, Double.NaN, 0.01333333333333333,
             0.04666666666666666, -0.05333333333333334, -0.07, -0.12000000000000001, 0.04666666666666666,
@@ -48,7 +48,7 @@ public class NormalizePipelineNormalizersTests extends ESTestCase {
     }
 
     public void testZScore() {
-        NormalizePipelineNormalizers.ZScore normalizer = new NormalizePipelineNormalizers.ZScore(DATA);
+        NormalizePipelineMethods.ZScore normalizer = new NormalizePipelineMethods.ZScore(DATA);
         assertSinglePassStatistics(normalizer);
         double[] normalized = new double[] { -0.4012461740749068, 2.7698929436138724, Double.NaN, 0.05177369988063312,
             0.18120794958221595, -0.20709479952253254, -0.27181192437332397, -0.4659632989256982, 0.18120794958221595,
@@ -57,7 +57,7 @@ public class NormalizePipelineNormalizersTests extends ESTestCase {
     }
 
     public void testSoftmax() {
-        NormalizePipelineNormalizers.Softmax normalizer = new NormalizePipelineNormalizers.Softmax(DATA);
+        NormalizePipelineMethods.Softmax normalizer = new NormalizePipelineMethods.Softmax(DATA);
         double[] normalized = new double[] { 5.242885663363464E-22, 1.0, Double.NaN, 5.74952226429356E-19, 4.24835425529159E-18,
             1.0530617357553813E-20, 3.8739976286871875E-21, 1.928749847963918E-22, 4.24835425529159E-18, 8.756510762696521E-27,
             3.532628572200807E-24 };
@@ -65,7 +65,7 @@ public class NormalizePipelineNormalizersTests extends ESTestCase {
         assertNormalized(normalizer, normalized);
     }
 
-    private void assertSinglePassStatistics(NormalizePipelineNormalizers.SinglePassSimpleStatisticsNormalizer normalizer) {
+    private void assertSinglePassStatistics(NormalizePipelineMethods.SinglePassSimpleStatisticsMethod normalizer) {
         assertThat(normalizer.min, equalTo(MIN));
         assertThat(normalizer.max, equalTo(MAX));
         assertThat(normalizer.count, equalTo(COUNT));

@@ -11,8 +11,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramFactory;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -29,29 +27,28 @@ import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resol
 
 public class NormalizePipelineAggregator extends PipelineAggregator {
     private final DocValueFormat formatter;
-    private final Function<double[], DoubleUnaryOperator> normalizerSupplier;
+    private final Function<double[], DoubleUnaryOperator> methodSupplier;
 
     NormalizePipelineAggregator(String name, String[] bucketsPaths, DocValueFormat formatter,
-                                Function<double[], DoubleUnaryOperator> normalizerSupplier,
+                                Function<double[], DoubleUnaryOperator> methodSupplier,
                                 Map<String, Object> metadata) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
-        this.normalizerSupplier = normalizerSupplier;
+        this.methodSupplier = methodSupplier;
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
-        InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends InternalMultiBucketAggregation.InternalBucket>
-                histo = (InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends
-                InternalMultiBucketAggregation.InternalBucket>) aggregation;
-        List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = histo.getBuckets();
-        HistogramFactory factory = (HistogramFactory) histo;
-        List<Bucket> newBuckets = new ArrayList<>(buckets.size());
+        InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
+            (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
+        List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
+        List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>(buckets.size());
 
         double[] values = buckets.stream()
-            .mapToDouble(bucket -> resolveBucketValue(histo, bucket, bucketsPaths()[0], GapPolicy.SKIP)).toArray();
+            .mapToDouble(bucket -> resolveBucketValue(originalAgg, bucket, bucketsPaths()[0], GapPolicy.SKIP)).toArray();
 
-        DoubleUnaryOperator normalizer = normalizerSupplier.apply(values);
+        DoubleUnaryOperator method = methodSupplier.apply(values);
 
         for (int i = 0; i < buckets.size(); i++) {
             InternalMultiBucketAggregation.InternalBucket bucket = buckets.get(i);
@@ -63,17 +60,17 @@ public class NormalizePipelineAggregator extends PipelineAggregator {
             if (Double.isNaN(values[i])) {
                 normalizedBucketValue = Double.NaN;
             } else {
-                normalizedBucketValue = normalizer.applyAsDouble(values[i]);
+                normalizedBucketValue = method.applyAsDouble(values[i]);
             }
 
             List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
                 .map((p) -> (InternalAggregation) p)
                 .collect(Collectors.toList());
             aggs.add(new InternalSimpleValue(name(), normalizedBucketValue, formatter, metadata()));
-            Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));
+            InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(new InternalAggregations(aggs), bucket);
             newBuckets.add(newBucket);
         }
 
-        return factory.createAggregation(newBuckets);
+        return originalAgg.create(newBuckets);
     }
 }

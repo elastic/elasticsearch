@@ -57,8 +57,8 @@ the analyze API uses the <<analysis-standard-analyzer,standard analyzer>>.
 +
 --
 (Optional, string)
-The name of the analyzer that should be applied to the provided `text`. See <<analysis-analyzers>>
-for a list of built-in analyzers.
+The name of the analyzer that should be applied to the provided `text`. This could be a
+<<analysis-analyzers, built-in analyzer>>, or an analyzer that's been configured in the index.
 
 If this parameter is not specified,
 the analyze API uses the analyzer defined in the field's mapping.

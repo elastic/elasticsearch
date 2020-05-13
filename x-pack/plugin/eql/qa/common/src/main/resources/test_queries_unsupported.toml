@@ -237,25 +237,10 @@ process where true
 [[queries]]
 query = '''
 sequence
-  [process where serial_event_id = 1]
-  [process where serial_event_id = 2]
-'''
-expected_event_ids  = [1, 2]
-
-[[queries]]
-query = '''
-sequence
   [process where serial_event_id < 5]
   [process where serial_event_id = 5]
 '''
 expected_event_ids  = [4, 5]
-
-[[queries]]
-query = '''
-sequence
-  [process where serial_event_id=1] by unique_pid
-  [process where true] by unique_ppid'''
-expected_event_ids  = [1, 2]
 
 [[queries]]
 query = '''

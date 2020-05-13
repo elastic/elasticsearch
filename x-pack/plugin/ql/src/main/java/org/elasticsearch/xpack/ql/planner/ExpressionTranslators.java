@@ -120,19 +120,17 @@ public final class ExpressionTranslators {
 
             if (e.field() instanceof FieldAttribute) {
                 targetFieldName = handler.nameOf(((FieldAttribute) e.field()).exactAttribute());
+                if (e instanceof Like) {
+                    LikePattern p = ((Like) e).pattern();
+                    q = new WildcardQuery(e.source(), targetFieldName, p.asLuceneWildcard());
+                }
+
+                if (e instanceof RLike) {
+                    String pattern = ((RLike) e).pattern().asJavaRegex();
+                    q = new RegexQuery(e.source(), targetFieldName, pattern);
+                }
             } else {
-                throw new QlIllegalArgumentException("Scalar function [{}] not allowed (yet) as argument for " + e.sourceText(),
-                        Expressions.name(e.field()));
-            }
-
-            if (e instanceof Like) {
-                LikePattern p = ((Like) e).pattern();
-                q = new WildcardQuery(e.source(), targetFieldName, p.asLuceneWildcard());
-            }
-
-            if (e instanceof RLike) {
-                String pattern = ((RLike) e).pattern().asJavaRegex();
-                q = new RegexQuery(e.source(), targetFieldName, pattern);
+                q = new ScriptQuery(e.source(), e.asScript());
             }
 
             return wrapIfNested(q, e.field());

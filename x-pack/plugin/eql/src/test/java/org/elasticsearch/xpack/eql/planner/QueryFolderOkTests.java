@@ -21,7 +21,6 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.hamcrest.Matchers.containsString;
 
 public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
@@ -38,7 +37,7 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
 
     @ParametersFactory(shuffle = false, argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() throws Exception {
-        return readSpec("/queryfolder_tests.txt");
+        return QueriesUtils.readSpec("/queryfolder_tests.txt");
     }
 
     public static Iterable<Object[]> readSpec(String url) throws Exception {
@@ -112,15 +111,14 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
 
     public void test() {
         // skip tests that do not make sense from case sensitivity point of view
-        boolean isCaseSensitiveValidTest = name.toLowerCase(Locale.ROOT).endsWith("-casesensitive") && configuration.isCaseSensitive() 
+        boolean isCaseSensitiveValidTest = name.toLowerCase(Locale.ROOT).endsWith("-casesensitive") && configuration.isCaseSensitive()
             || name.toLowerCase(Locale.ROOT).endsWith("-caseinsensitive") && configuration.isCaseSensitive() == false;
         Assume.assumeTrue(isCaseSensitiveValidTest);
 
         PhysicalPlan p = plan(query);
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
-        assertEquals(27, eqe.output().size());
-        assertEquals(KEYWORD, eqe.output().get(0).dataType());
+        assertEquals(0, eqe.output().size());
 
         final String query = eqe.queryContainer().toString().replaceAll("\\s+", "");
 

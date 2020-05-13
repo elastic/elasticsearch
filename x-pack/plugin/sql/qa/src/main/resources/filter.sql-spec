@@ -51,6 +51,8 @@ whereFieldWithNotEqualsOnString
 SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 AND gender <> 'M';
 whereFieldWithLikeMatch
 SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 AND last_name LIKE 'K%';
+whereFieldWithLikeAndScalarsMatch
+SELECT RTRIM(CONCAT(last_name, '     ')) AS l FROM "test_emp" WHERE RTRIM(CONCAT(last_name, '     ')) LIKE '%k%' ORDER BY emp_no;
 whereFieldWithNotLikeMatch
 SELECT last_name l FROM "test_emp" WHERE emp_no < 10020 AND first_name NOT LIKE 'Ma%';
 whereFieldWithInlineLikeMatch

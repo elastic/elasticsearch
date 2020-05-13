@@ -217,6 +217,16 @@ public class MetadataUpdateSettingsService {
                             if (preserveExisting) {
                                 indexSettings.put(indexMetadata.getSettings());
                             }
+                            /*
+                             * The setting index.number_of_replicas is special; we require that this setting has a value in the index. When
+                             * creating the index, we ensure this by explicitly providing a value for the setting to the default (one) if
+                             * there is a not value provided on the source of the index creation. A user can update this setting though,
+                             * including updating it to null, indicating that they want to use the default value. In this case, we again
+                             * have to provide an explicit value for the setting to the default (one).
+                             */
+                            if (indexSettings.get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS) == null) {
+                                indexSettings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
+                            }
                             Settings finalSettings = indexSettings.build();
                             indexScopedSettings.validate(
                                 finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false), true);

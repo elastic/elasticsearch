@@ -38,6 +38,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptySet;
+import static java.util.Collections.singleton;
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.hamcrest.Matchers.hasEntry;
@@ -482,7 +484,9 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
 
     @Override
     public void testSimpleArrayOfObjectsExclusive() throws Exception {
-        //TODO this test should be moved from the base class as it does not apply to this subclass anymore after the fix
+        //Empty arrays are preserved by XContentMapValues, they get removed only if explicitly excluded.
+        //See following tests around this specific behaviour
+        testFilter(SIMPLE_ARRAY_OF_OBJECTS_EXCLUSIVE, SAMPLE, emptySet(), singleton("authors"));
     }
 
     public void testArraySubFieldExclusion() {

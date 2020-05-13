@@ -171,15 +171,20 @@ given in the query string.
 end::df[]
 
 tag::docs-count[]
-Number of non-deleted documents in the segment, such as `25`. This
-number is based on Lucene documents and may include documents from
-<<nested,nested>> fields.
+The number of documents as reported by Lucene. This excludes deleted documents
+and counts any <<nested,nested documents>> separately from their parents. It
+also excludes documents which were indexed recently and do not yet belong to a
+segment.
 end::docs-count[]
 
 tag::docs-deleted[]
-Number of deleted documents in the segment, such as `0`. This number
-is based on Lucene documents. {es} reclaims the disk space of deleted Lucene
-documents when a segment is merged.
+The number of deleted documents as reported by Lucene, which may be higher or
+lower than the number of delete operations you have performed. This number
+excludes deletes that were performed recently and do not yet belong to a
+segment. Deleted documents are cleaned up by the
+<<index-modules-merge,automatic merge process>> if it makes sense to do so.
+Also, {es} creates extra deleted documents to internally track the recent
+history of operations on a shard.
 end::docs-deleted[]
 
 tag::docs-indexed[]

@@ -41,6 +41,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 /**
  * An aggregator for numeric values. For a given {@code interval},
@@ -159,5 +160,11 @@ public class NumericHistogramAggregator extends BucketsAggregator {
     @Override
     public void doClose() {
         Releasables.close(bucketOrds);
+    }
+
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        add.accept("total_buckets", bucketOrds.size());
+        super.collectDebugInfo(add);
     }
 }

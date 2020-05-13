@@ -34,12 +34,12 @@ import java.util.function.Function;
 /**
  * An {@link LeafFieldData} implementation that uses Lucene {@link SortedSetDocValues}.
  */
-public final class SortedSetDVBytesLeafFieldData extends AbstractLeafOrdinalsFieldData {
+public final class SortedSetBytesLeafFieldData extends AbstractLeafOrdinalsFieldData {
 
     private final LeafReader reader;
     private final String field;
 
-    SortedSetDVBytesLeafFieldData(LeafReader reader, String field, Function<SortedSetDocValues,
+    SortedSetBytesLeafFieldData(LeafReader reader, String field, Function<SortedSetDocValues,
             ScriptDocValues<?>> scriptFunction) {
         super(scriptFunction);
         this.reader = reader;

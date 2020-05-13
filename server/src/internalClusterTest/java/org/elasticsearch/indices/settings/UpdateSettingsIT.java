@@ -653,7 +653,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             assertAcked(client().admin()
                 .indices()
                 .prepareCreate("test")
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(1, 8))));
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(1, 8))));
         } else {
             assertAcked(client().admin().indices().prepareCreate("test"));
         }
@@ -665,7 +665,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         assertAcked(client().admin()
             .indices()
             .prepareUpdateSettings("test")
-            .setSettings(Settings.builder().putNull(IndexMetadata.SETTING_NUMBER_OF_REPLICAS)));
+            .setSettings(Settings.builder().putNull(IndexMetaData.SETTING_NUMBER_OF_REPLICAS)));
 
     }
 

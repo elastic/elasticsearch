@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -153,6 +154,16 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         verify(cutoffListener).onResponse(eq(new AbstractExpiredJobDataRemover.CutoffDetails(latest.getTime(), expectedCutoffTime)));
     }
 
+    public void testCreateDBQ() {
+        DeleteByQueryRequest request = createExpiredResultsRemover().createDBQRequest(JobTests.buildJobBuilder("foo").build(), 100);
+        assertThat(request.getBatchSize(), equalTo(1000));
+        assertThat((double)request.getRequestsPerSecond(), closeTo(200, 0.00001));
+
+        request = createExpiredResultsRemover(100).createDBQRequest(JobTests.buildJobBuilder("foo").build(), 100);
+        assertThat(request.getBatchSize(), equalTo(1000));
+        assertThat(request.getRequestsPerSecond(), equalTo(Float.POSITIVE_INFINITY));
+    }
+
     private void givenDBQRequestsSucceed() {
         givenDBQRequest(true);
     }
@@ -196,6 +207,10 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
     }
 
     private ExpiredResultsRemover createExpiredResultsRemover() {
+        return createExpiredResultsRemover(1);
+    }
+
+    private ExpiredResultsRemover createExpiredResultsRemover(int numberDataNodes) {
         ThreadPool threadPool = mock(ThreadPool.class);
         ExecutorService executor = mock(ExecutorService.class);
 
@@ -208,6 +223,6 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
             }
         ).when(executor).execute(any());
 
-        return new ExpiredResultsRemover(originSettingClient, mock(AnomalyDetectionAuditor.class), threadPool);
+        return new ExpiredResultsRemover(originSettingClient, mock(AnomalyDetectionAuditor.class), threadPool, numberDataNodes);
     }
 }

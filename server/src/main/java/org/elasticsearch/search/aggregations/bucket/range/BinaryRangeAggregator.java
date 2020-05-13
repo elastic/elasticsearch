@@ -34,7 +34,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -77,11 +76,11 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
     final Range[] ranges;
 
     public BinaryRangeAggregator(String name, AggregatorFactories factories,
-            ValuesSource.Bytes valuesSource, DocValueFormat format,
+            ValuesSource valuesSource, DocValueFormat format,
             List<Range> ranges, boolean keyed, SearchContext context,
             Aggregator parent, Map<String, Object> metadata) throws IOException {
         super(name, factories, context, parent, metadata);
-        this.valuesSource = valuesSource;
+        this.valuesSource = (ValuesSource.Bytes) valuesSource;
         this.format = format;
         this.keyed = keyed;
         this.ranges = ranges.toArray(new Range[0]);
@@ -326,16 +325,12 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long bucket) throws IOException {
-        consumeBucketsAndMaybeBreak(ranges.length);
-        List<InternalBinaryRange.Bucket> buckets = new ArrayList<>(ranges.length);
-        for (int i = 0; i < ranges.length; ++i) {
-            long bucketOrd = bucket * ranges.length + i;
-            buckets.add(new InternalBinaryRange.Bucket(format, keyed,
-                    ranges[i].key, ranges[i].from, ranges[i].to,
-                    bucketDocCount(bucketOrd), bucketAggregations(bucketOrd)));
-        }
-        return new InternalBinaryRange(name, format, keyed, buckets, metadata());
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        return buildAggregationsForFixedBucketCount(owningBucketOrds, ranges.length,
+            (offsetInOwningOrd, docCount, subAggregationResults) -> {
+                Range range = ranges[offsetInOwningOrd];
+                return new InternalBinaryRange.Bucket(format, keyed, range.key, range.from, range.to, docCount, subAggregationResults);
+            }, buckets -> new InternalBinaryRange(name, format, keyed, buckets, metadata()));
     }
 
     @Override

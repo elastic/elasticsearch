@@ -401,6 +401,24 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return indexMapBuilder.build();
     }
 
+    /**
+     * Finds the parent data streams, if any, for the specified concrete indices.
+     */
+    public ImmutableOpenMap<String, IndexAbstraction.DataStream> findDataStreams(String[] concreteIndices) {
+        assert concreteIndices != null;
+        final ImmutableOpenMap.Builder<String, IndexAbstraction.DataStream> builder = ImmutableOpenMap.builder();
+        final SortedMap<String, IndexAbstraction> lookup = getIndicesLookup();
+        for (String indexName : concreteIndices) {
+            IndexAbstraction index = lookup.get(indexName);
+            assert index != null;
+            assert index.getType() == IndexAbstraction.Type.CONCRETE_INDEX;
+            if (index.getParentDataStream() != null) {
+                builder.put(indexName, index.getParentDataStream());
+            }
+        }
+        return builder.build();
+    }
+
     @SuppressWarnings("unchecked")
     private static MappingMetadata filterFields(MappingMetadata mappingMetadata, Predicate<String> fieldPredicate) {
         if (mappingMetadata == null) {

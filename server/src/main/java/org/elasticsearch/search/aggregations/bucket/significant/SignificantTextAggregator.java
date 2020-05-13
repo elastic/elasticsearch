@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
@@ -184,8 +185,8 @@ public class SignificantTextAggregator extends BucketsAggregator {
     }
 
     @Override
-    public SignificantStringTerms buildAggregation(long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0;
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0;
 
         final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
         long supersetSize = termsAggFactory.getSupersetNumDocs();
@@ -223,16 +224,16 @@ public class SignificantTextAggregator extends BucketsAggregator {
 
         final SignificantStringTerms.Bucket[] list = new SignificantStringTerms.Bucket[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; i--) {
-            final SignificantStringTerms.Bucket bucket = ordered.pop();
+            list[i] = ordered.pop();
             // the terms are owned by the BytesRefHash, we need to pull a copy since the BytesRef hash data may be recycled at some point
-            bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
-            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
-            list[i] = bucket;
+            list[i].termBytes = BytesRef.deepCopyOf(list[i].termBytes);
         }
+        buildSubAggsForBuckets(list, b -> b.bucketOrd, (b, a) -> b.aggregations = a);
 
-        return new SignificantStringTerms( name, bucketCountThresholds.getRequiredSize(),
+        return new InternalAggregation[] { new SignificantStringTerms(name, bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(),
-                metadata(), format, subsetSize, supersetSize, significanceHeuristic, Arrays.asList(list));
+                metadata(), format, subsetSize, supersetSize, significanceHeuristic, Arrays.asList(list))
+        };
     }
 
 

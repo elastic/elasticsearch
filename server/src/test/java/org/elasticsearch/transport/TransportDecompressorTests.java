@@ -73,7 +73,7 @@ public class TransportDecompressorTests extends ESTestCase {
             ReleasableBytesReference reference2 = decompressor.pollDecompressedPage();
             ReleasableBytesReference reference3 = decompressor.pollDecompressedPage();
             assertNull(decompressor.pollDecompressedPage());
-            CompositeBytesReference composite = new CompositeBytesReference(reference1, reference2, reference3);
+            BytesReference composite = CompositeBytesReference.of(reference1, reference2, reference3);
             assertEquals(4 * 10000, composite.length());
             StreamInput streamInput = composite.streamInput();
             for (int i = 0; i < 10000; ++i) {
@@ -114,7 +114,7 @@ public class TransportDecompressorTests extends ESTestCase {
             ReleasableBytesReference reference2 = decompressor.pollDecompressedPage();
             ReleasableBytesReference reference3 = decompressor.pollDecompressedPage();
             assertNull(decompressor.pollDecompressedPage());
-            CompositeBytesReference composite = new CompositeBytesReference(reference1, reference2, reference3);
+            BytesReference composite = CompositeBytesReference.of(reference1, reference2, reference3);
             assertEquals(4 * 10000, composite.length());
             StreamInput streamInput = composite.streamInput();
             for (int i = 0; i < 10000; ++i) {

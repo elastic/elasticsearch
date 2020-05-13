@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -63,9 +64,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
-import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -99,7 +100,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void setupMocks() {
         this.licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isApiKeyServiceAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(true);
 
         this.client = mock(Client.class);
         this.securityIndex = SecurityMocks.mockSecurityIndexManager();
@@ -168,7 +169,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         mockKeyDocument(service, id, key, new User(randomAlphaOfLength(6), randomAlphaOfLength(12)));
 
-        when(licenseState.isApiKeyServiceAllowed()).thenReturn(false);
+        when(licenseState.isAllowed(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(false);
         final AuthenticationResult auth = tryAuthenticate(service, id, key);
         assertThat(auth.getStatus(), is(AuthenticationResult.Status.CONTINUE));
         assertThat(auth.getUser(), nullValue());
@@ -307,7 +308,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertNotNull(result);
         assertTrue(result.isAuthenticated());
         assertThat(result.getUser().principal(), is("test_user"));
-        assertThat(result.getUser().roles(), arrayContaining("a role"));
+        assertThat(result.getUser().roles(), is(emptyArray()));
         assertThat(result.getUser().metadata(), is(Collections.emptyMap()));
         assertThat(result.getMetadata().get(ApiKeyService.API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(sourceMap.get("role_descriptors")));
         assertThat(result.getMetadata().get(ApiKeyService.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
@@ -321,7 +322,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertNotNull(result);
         assertTrue(result.isAuthenticated());
         assertThat(result.getUser().principal(), is("test_user"));
-        assertThat(result.getUser().roles(), arrayContaining("a role"));
+        assertThat(result.getUser().roles(), is(emptyArray()));
         assertThat(result.getUser().metadata(), is(Collections.emptyMap()));
         assertThat(result.getMetadata().get(ApiKeyService.API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(sourceMap.get("role_descriptors")));
         assertThat(result.getMetadata().get(ApiKeyService.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),

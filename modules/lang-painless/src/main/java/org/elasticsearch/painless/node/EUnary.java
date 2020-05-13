@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.UnaryMathNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
@@ -66,12 +67,14 @@ public class EUnary extends AExpression {
 
         Input childInput = new Input();
         Output childOutput;
+        PainlessCast childCast;
 
         if (operation == Operation.NOT) {
 
             childInput.expected = boolean.class;
             childOutput = child.analyze(classNode, scriptRoot, scope, childInput);
-            child.cast(childInput, childOutput);
+            childCast = AnalyzerCaster.getLegalCast(child.location,
+                    childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
 
             output.actual = boolean.class;
         } else if (operation == Operation.BWNOT || operation == Operation.ADD || operation == Operation.SUB) {
@@ -86,7 +89,8 @@ public class EUnary extends AExpression {
             }
 
             childInput.expected = promote;
-            child.cast(childInput, childOutput);
+            childCast = AnalyzerCaster.getLegalCast(child.location,
+                    childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
 
             if (promote == def.class && input.expected != null) {
                 output.actual = input.expected;
@@ -99,7 +103,7 @@ public class EUnary extends AExpression {
 
         UnaryMathNode unaryMathNode = new UnaryMathNode();
 
-        unaryMathNode.setChildNode(child.cast(childOutput));
+        unaryMathNode.setChildNode(cast(childOutput.expressionNode, childCast));
 
         unaryMathNode.setLocation(location);
         unaryMathNode.setExpressionType(output.actual);

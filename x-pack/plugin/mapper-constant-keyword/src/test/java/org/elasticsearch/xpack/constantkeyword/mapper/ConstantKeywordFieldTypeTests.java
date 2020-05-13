@@ -96,6 +96,13 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(new MatchNoDocsQuery(), ft.prefixQuery("ba", null, null));
     }
 
+    public void testExistsQuery() {
+        ConstantKeywordFieldType ft = new ConstantKeywordFieldType();
+        assertEquals(new MatchNoDocsQuery(), ft.existsQuery(null));
+        ft.setValue("foo");
+        assertEquals(new MatchAllDocsQuery(), ft.existsQuery(null));
+    }
+
     public void testRangeQuery() {
         ConstantKeywordFieldType ft = new ConstantKeywordFieldType();
         assertEquals(new MatchNoDocsQuery(), ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null, null, null, null));

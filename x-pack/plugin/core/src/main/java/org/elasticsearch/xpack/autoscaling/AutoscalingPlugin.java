@@ -12,5 +12,9 @@ import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDeciderService;
 import java.util.Collection;
 
 public interface AutoscalingPlugin {
+    /**
+     * Get the list of decider services for this plugin. This is called after createComponents has been called.
+     * @return list of decider services
+     */
     Collection<AutoscalingDeciderService<? extends AutoscalingDecider>> deciders();
 }

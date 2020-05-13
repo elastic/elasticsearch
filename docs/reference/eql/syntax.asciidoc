@@ -403,7 +403,7 @@ The following sequence uses the `by` keyword to constrain matching events to:
 [source,eql]
 ----
 sequence
-  [ file where file.name == "*.exe" ] by user.name, file.path
+  [ file where file.extension == "exe" ] by user.name, file.path
   [ process where true ] by user.name, process.path
 ----
 

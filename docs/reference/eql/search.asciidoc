@@ -70,6 +70,8 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
 [source,console-result]
 ----
 {
+  "is_partial": false,
+  "is_running": false,
   "took": 60,
   "timed_out": false,
   "hits": {
@@ -121,9 +123,7 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
         ]
       }
     ]
-  },
-  "is_partial": false,
-  "is_running": false
+  }
 }
 ----
 // TESTRESPONSE[s/"took": 60/"took": $body.took/]
@@ -211,6 +211,198 @@ GET /sec_logs/_eql/search
   },
   "query": """
     file where (file.type == "file" and file.name == "cmd.exe")
+  """
+}
+----
+====
+
+[discrete]
+[[eql-search-async]]
+=== Run an async EQL search
+
+EQL searches in {es} are designed to to run on large volumes of data quickly,
+often returning results in milliseconds. Because of this, the EQL search API
+runs _synchronous_ searches run by default. This means the search request
+blocks other requests and waits for complete results before returning a
+response.
+
+However, complete results can take longer for searches across:
+
+* <<frozen-indices,Frozen indices>>
+* <<modules-cross-cluster-search,Multiple clusters>>
+* Many shards
+
+To avoid long waits, you can use the EQL search API's
+`wait_for_completion_timeout` parameter to run an _asynchronous_, or _async_,
+search.
+
+Set the `wait_for_completion_timeout` parameter to a duration you'd like to wait
+for complete search results. If the search request does not finish within this
+period, the search becomes an async search. The EQL search
+API returns a response that includes:
+
+* A search ID, which can be used to monitor the progress of the async search and
+  retrieve complete results when it finishes.
+* An `is_partial` value of `true`, indicating the response does not contain
+  complete search results.
+* An `is_running` value of `true`, indicating the search is async and ongoing.
+
+The async search continues to run in the background without blocking
+other requests.
+
+[%collapsible]
+.*Example*
+====
+The following request searches the `frozen_sec_logs` index, which has been
+<<frozen-indices,frozen>> for storage and is rarely searched.
+
+Because searches on frozen indices are expected to take longer to complete, the
+request contains a `wait_for_completion_timeout` query parameter value of `2s`
+(two seconds).
+
+If the request does not return complete results in two seconds, the search
+becomes an async search and a search ID is returned.
+
+[source,console]
+----
+GET /frozen_sec_logs/_eql/search
+{
+  "wait_for_completion_timeout": "2s",
+  "query": """
+    process where process.name == "cmd.exe"
+  """
+}
+----
+// TEST[s/frozen_sec_logs/sec_logs/]
+// TEST[s/"wait_for_completion_timeout": "2s"/"wait_for_completion_timeout": "2s"/]
+
+After two seconds, the request returns the following response.
+
+[source,console-result]
+----
+{
+  "id": "FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=",
+  "is_partial": true,
+  "is_running": true,
+  "took": 2000,
+  "timed_out": false,
+  "hits": {
+    "total": {
+      "value": 2,
+      "relation": "eq"
+    },
+    "events": [
+      {
+        "_index": "frozen_sec_logs",
+        "_id": "1",
+        "_score": null,
+        "_source": {
+          "@timestamp": "2020-12-06T11:04:05.000Z",
+          "agent": {
+            "id": "8a4f500d"
+          },
+          "event": {
+            "category": "process"
+          },
+          "process": {
+            "name": "cmd.exe",
+            "path": "C:\\Windows\\System32\\cmd.exe"
+          }
+        },
+        "sort": [
+          1607252645000
+        ]
+      },
+      {
+        "_index": "frozen_sec_logs",
+        "_id": "3",
+        "_score": null,
+        "_source": {
+          "@timestamp": "2020-12-07T11:06:07.000Z",
+          "agent": {
+            "id": "8a4f500d"
+          },
+          "event": {
+            "category": "process"
+          },
+          "process": {
+            "name": "cmd.exe",
+            "path": "C:\\Windows\\System32\\cmd.exe"
+          }
+        },
+        "sort": [
+          1607339167000
+        ]
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=/$body.id/]
+// TESTRESPONSE[s/"is_partial": true/"is_partial": $body.is_partial/]
+// TESTRESPONSE[s/"is_running": true/"is_running": $body.is_running/]
+// TESTRESPONSE[s/"took": 2000/"took": $body.took/]
+// TESTRESPONSE[s/"_index": "frozen_sec_logs"/"_index": "sec_logs"/]
+====
+
+[discrete]
+[[eql-search-store-async-eql-search]]
+=== Change the search retention period
+
+By default, the EQL search API only stores ongoing async searches and their
+search results for five days. After this period, async searches and any saved
+search results are deleted.
+
+You can use the `keep_alive` parameter to change the duration of this period.
+
+[%collapsible]
+.*Example*
+====
+In the following EQL search API request, the `keep_alive` parameter is `2d` (two
+days). This indicates that if the search becomes async, its results
+are stored on the cluster for two days. After two days, the async
+search and its results are deleted, even if it's still ongoing.
+
+[source,console]
+----
+GET /sec_logs/_eql/search
+{
+  "keep_alive": "2d",
+  "wait_for_completion_timeout": 2s,
+  "query": """
+    process where process.name == "cmd.exe"
+  """
+}
+----
+====
+
+[discrete]
+[[eql-search-store-sync-eql-search]]
+=== Store synchronous EQL searches
+
+By default, the EQL search API only stores async searches that cannot be
+completed within the period set by the `wait_for_completion_timeout` parameter.
+
+To save the results of searches that complete during this period, set the
+`keep_on_completion` parameter to `true`. Note these saved searches are still
+subject to the storage retention period set by the `keep_alive` parameter.
+
+[%collapsible]
+.*Example*
+====
+In the following EQL search API request, the `keep_on_completion` parameter is
+`true`. This indicates search results should be stored on the cluster, even if
+the search completes within the `2s` (two-second) period set by the
+`wait_for_completion_timeout` parameter.
+
+[source,console]
+----
+GET /sec_logs/_eql/search
+{
+  "keep_on_completion": true,
+  "wait_for_completion_timeout": 2s,
+  "query": """
+    process where process.name == "cmd.exe"
   """
 }
 ----

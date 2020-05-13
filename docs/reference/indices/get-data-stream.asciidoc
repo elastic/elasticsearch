@@ -29,6 +29,7 @@ DELETE /_data_stream/my-data-stream
 --------------------------------------------------
 GET _data_streams/my-data-stream
 --------------------------------------------------
+// TEST[skip_shard_failures]
 
 [[get-data-stream-api-request]]
 ==== {api-request-title}
@@ -57,6 +58,7 @@ retrieve.
 GET _data_streams/my-data-stream*
 --------------------------------------------------
 // TEST[continued]
+// TEST[skip_shard_failures]
 
 The API returns the following response:
 
@@ -80,7 +82,7 @@ The API returns the following response:
   }
 ]
 --------------------------------------------------
-// TESTRESPONSE[s/"index_uuid": \.\.\./"index_uuid": $body.$_path/]
+// TESTRESPONSE[skip:unable to assert responses with top level array]
 
 <1> Name of the data stream
 <2> The name of the timestamp field for the data stream

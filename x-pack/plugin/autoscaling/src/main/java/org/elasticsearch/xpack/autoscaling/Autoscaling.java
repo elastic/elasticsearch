@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -26,7 +25,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
-import org.elasticsearch.plugins.ExtensionPlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -48,16 +47,15 @@ import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestPutAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * Container class for autoscaling functionality.
  */
-public class Autoscaling extends Plugin implements ActionPlugin, ExtensionPlugin, AutoscalingPlugin {
+public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugin, AutoscalingPlugin {
     private static final Logger logger = LogManager.getLogger(AutoscalingPlugin.class);
     private static final Boolean AUTOSCALING_FEATURE_FLAG_REGISTERED;
 
@@ -87,8 +85,11 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensionPlugin
 
     private final boolean enabled;
 
+    private final List<AutoscalingPlugin> autoscalingPlugins;
+
     public Autoscaling(final Settings settings) {
         this.enabled = AUTOSCALING_ENABLED_SETTING.get(settings);
+        this.autoscalingPlugins = new ArrayList<>(List.of(this));
     }
 
     /**
@@ -171,20 +172,16 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensionPlugin
     }
 
     @Override
-    public <O> void extend(Extender extender) {
-        extender.extend(AutoscalingPlugin.class).addLazySet(new TypeLiteral<>() {
-        }, AutoscalingPlugin::deciders);
+    public void extensionPlugin(Plugin plugin) {
+        if (plugin instanceof AutoscalingPlugin) {
+            autoscalingPlugins.add((AutoscalingPlugin) plugin);
+        } else {
+            throw new IllegalArgumentException("received non autoscaling plugin: " + plugin);
+        }
     }
 
     @Override
-    public Collection<Object> createExtensionComponents(PluginRegistry registry) {
-        Set<Class<? extends AutoscalingDeciderService<? extends AutoscalingDecider>>> deciderServices
-            = registry.getPlugins(AutoscalingPlugin.class).stream().flatMap(p -> p.deciders().stream()).collect(Collectors.toSet());
-        return null;
-    }
-
-    @Override
-    public Collection<Class<? extends AutoscalingDeciderService<? extends AutoscalingDecider>>> deciders() {
-        return List.of(AlwaysAutoscalingDeciderService.class);
+    public Collection<AutoscalingDeciderService<? extends AutoscalingDecider>> deciders() {
+        return List.of(new AlwaysAutoscalingDeciderService());
     }
 }

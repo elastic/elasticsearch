@@ -11,12 +11,8 @@ import org.elasticsearch.common.inject.Inject;
 
 public class AlwaysAutoscalingDeciderService implements AutoscalingDeciderService<AlwaysAutoscalingDecider> {
 
-    private MetadataRolloverService rolloverService;
-
     @Inject
-    public AlwaysAutoscalingDeciderService(MetadataRolloverService rolloverService) {
-        this.rolloverService = rolloverService;
-        assert rolloverService != null;
+    public AlwaysAutoscalingDeciderService() {
     }
 
     @Override

@@ -8,16 +8,15 @@ package org.elasticsearch.xpack.autoscaling;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.plugins.ExtensionPlugin;
-import org.elasticsearch.xpack.autoscaling.decision.AlwaysAutoscalingDeciderService;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecider;
 import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDeciderService;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.util.Collection;
-import java.util.List;
+import java.util.stream.Collectors;
 
-public class LocalStateAutoscaling extends LocalStateCompositeXPackPlugin implements ExtensionPlugin, AutoscalingPlugin {
+public class LocalStateAutoscaling extends LocalStateCompositeXPackPlugin implements ExtensiblePlugin, AutoscalingPlugin {
 
     public LocalStateAutoscaling(final Settings settings) {
         super(settings, null);
@@ -32,7 +31,7 @@ public class LocalStateAutoscaling extends LocalStateCompositeXPackPlugin implem
     }
 
     @Override
-    public Collection<Class<? extends AutoscalingDeciderService<? extends AutoscalingDecider>>> deciders() {
-        return List.of(AlwaysAutoscalingDeciderService.class);
+    public Collection<AutoscalingDeciderService<? extends AutoscalingDecider>> deciders() {
+        return filterPlugins(AutoscalingPlugin.class).stream().flatMap(p -> p.deciders().stream()).collect(Collectors.toList());
     }
 }

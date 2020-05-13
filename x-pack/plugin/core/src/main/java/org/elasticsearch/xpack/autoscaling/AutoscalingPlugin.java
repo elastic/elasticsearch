@@ -12,5 +12,5 @@ import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDeciderService;
 import java.util.Collection;
 
 public interface AutoscalingPlugin {
-    Collection<Class<? extends AutoscalingDeciderService<? extends AutoscalingDecider>>> deciders();
+    Collection<AutoscalingDeciderService<? extends AutoscalingDecider>> deciders();
 }

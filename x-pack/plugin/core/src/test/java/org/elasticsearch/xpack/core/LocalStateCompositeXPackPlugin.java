@@ -52,7 +52,6 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
-import org.elasticsearch.plugins.ExtensionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -96,7 +95,7 @@ import java.util.stream.Collectors;
 import static java.util.stream.Collectors.toList;
 
 public class LocalStateCompositeXPackPlugin extends XPackPlugin implements ScriptPlugin, ActionPlugin, IngestPlugin, NetworkPlugin,
-        ClusterPlugin, DiscoveryPlugin, MapperPlugin, AnalysisPlugin, PersistentTaskPlugin, EnginePlugin, ExtensionPlugin {
+        ClusterPlugin, DiscoveryPlugin, MapperPlugin, AnalysisPlugin, PersistentTaskPlugin, EnginePlugin {
 
     private XPackLicenseState licenseState;
     private SSLService sslService;
@@ -465,13 +464,9 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
                 .collect(Collectors.toList());
     }
 
-    private <T> List<T> filterPlugins(Class<T> type) {
+    protected <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.getClass())).map(p -> ((T)p))
                 .collect(Collectors.toList());
     }
 
-    @Override
-    public <O> void extend(ExtensionPlugin.Extender extender) {
-        filterPlugins(ExtensionPlugin.class).forEach(p -> p.extend(extender));
-    }
 }

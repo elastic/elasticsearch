@@ -42,7 +42,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
-import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -345,7 +345,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 throw new QueryShardException(context,
                     "[numeric_type] option cannot be set on a non-numeric field, got " + fieldType.typeName());
             }
-            SortedNumericDVIndexFieldData numericFieldData = (SortedNumericDVIndexFieldData) fieldData;
+            SortedNumericIndexFieldData numericFieldData = (SortedNumericIndexFieldData) fieldData;
             NumericType resolvedType = resolveNumericType(numericType);
             field = numericFieldData.sortField(resolvedType, missing, localSortMode(), nested, reverse);
         } else {
@@ -421,7 +421,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
         }
         if (numericType != null) {
-            SortedNumericDVIndexFieldData numericFieldData = (SortedNumericDVIndexFieldData) fieldData;
+            SortedNumericIndexFieldData numericFieldData = (SortedNumericIndexFieldData) fieldData;
             NumericType resolvedType = resolveNumericType(numericType);
             return numericFieldData.newBucketedSort(resolvedType, context.bigArrays(), missing, localSortMode(), nested, order,
                     fieldType.docValueFormat(null, null), bucketSize, extra);

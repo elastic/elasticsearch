@@ -158,6 +158,32 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
             "must be [string], found value [1] type [integer]", msg);
     }
 
+    public void testNumberFunctionAlreadyNumber() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where number(pid) == 1"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: first argument of [number(pid)] must be [string], "
+            + "found value [pid] type [long]", msg);
+    }
+
+    public void testNumberFunctionFloatBase() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where number(process_name, 1.0) == 1"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: second argument of [number(process_name, 1.0)] must be [integer], "
+            + "found value [1.0] type [double]", msg);
+
+    }
+
+    public void testNumberFunctionNonString() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where number(plain_text) == 1"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: [number(plain_text)] cannot operate on first argument field of data type "
+            + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+
+    }
+
     public void testPropertyEquationFilterUnsupported() {
         QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class,
                 () -> plan("process where (serial_event_id<9 and serial_event_id >= 7) or (opcode == pid)"));
@@ -190,7 +216,6 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
         assertEquals("Found 1 problem\nline 1:15: [startsWith(plain_text, \"foo\")] cannot operate on first argument field of data type "
                 + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
     }
-
 
     public void testStringContainsWrongParams() {
         assertEquals("1:16: error building [stringcontains]: expects exactly two arguments",

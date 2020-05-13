@@ -7,47 +7,13 @@
 package org.elasticsearch.xpack.eql.planner;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
-import org.elasticsearch.xpack.ql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.ql.planner.QlTranslatorHandler;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
-import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 
-public class EqlTranslatorHandler implements TranslatorHandler {
+public class EqlTranslatorHandler extends QlTranslatorHandler {
 
     @Override
     public Query asQuery(Expression e) {
         return QueryTranslator.toQuery(e, this);
-    }
-
-    @Override
-    public Query wrapFunctionQuery(ScalarFunction sf, Expression field, Query q) {
-        if (field instanceof FieldAttribute) {
-            return ExpressionTranslator.wrapIfNested(q, field);
-        }
-        return new ScriptQuery(sf.source(), sf.asScript());
-    }
-
-    @Override
-    public String nameOf(Expression e) {
-        if (e instanceof NamedExpression) {
-            return ((NamedExpression) e).name();
-        } else {
-            return e.sourceText();
-        }
-    }
-
-    @Override
-    public String dateFormat(Expression e) {
-        return null;
-    }
-
-    @Override
-    public Object convert(Object value, DataType dataType) {
-        return DataTypeConverter.convert(value, dataType);
     }
 }

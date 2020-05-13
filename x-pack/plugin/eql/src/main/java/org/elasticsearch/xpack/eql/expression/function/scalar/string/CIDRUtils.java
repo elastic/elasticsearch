@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 
 import java.net.InetAddress;
 import java.util.Arrays;
@@ -20,26 +21,31 @@ public class CIDRUtils {
     }
 
     public static boolean isInRange(String address, String... cidrAddresses) {
-        // Check if address is parsable first
-        byte[] addr = InetAddresses.forString(address).getAddress();
+        try {
+            // Check if address is parsable first
+            byte[] addr = InetAddresses.forString(address).getAddress();
 
-        if (cidrAddresses == null || cidrAddresses.length == 0) {
-            return false;
-        }
-
-        for (String cidrAddress : cidrAddresses) {
-            if (cidrAddress == null) continue;
-            byte[] lower, upper;
-            if (cidrAddress.contains("/")) {
-                final Tuple<byte[], byte[]> range = getLowerUpper(InetAddresses.parseCidr(cidrAddress));
-                lower = range.v1();
-                upper = range.v2();
-            } else {
-                lower = InetAddresses.forString(cidrAddress).getAddress();
-                upper = lower;
+            if (cidrAddresses == null || cidrAddresses.length == 0) {
+                return false;
             }
-            if (isBetween(addr, lower, upper)) return true;
+
+            for (String cidrAddress : cidrAddresses) {
+                if (cidrAddress == null) continue;
+                byte[] lower, upper;
+                if (cidrAddress.contains("/")) {
+                    final Tuple<byte[], byte[]> range = getLowerUpper(InetAddresses.parseCidr(cidrAddress));
+                    lower = range.v1();
+                    upper = range.v2();
+                } else {
+                    lower = InetAddresses.forString(cidrAddress).getAddress();
+                    upper = lower;
+                }
+                if (isBetween(addr, lower, upper)) return true;
+            }
+        } catch (IllegalArgumentException e) {
+            throw new EqlIllegalArgumentException(e.getMessage());
         }
+
         return false;
     }
 

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 
@@ -34,14 +35,14 @@ public class CIDRMatchProcessorTests extends ESTestCase {
         ArrayList<Expression> addresses = new ArrayList<>();
 
         // Invalid source address
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+        EqlIllegalArgumentException e = expectThrows(EqlIllegalArgumentException.class,
                 () -> new CIDRMatch(EMPTY, l("10.6.48"), addresses).makePipe().asProcessor().process(null));
 
         assertEquals("'10.6.48' is not an IP string literal.", e.getMessage());
 
         // Invalid match ip address
         addresses.add(l("10.6.48"));
-        e = expectThrows(IllegalArgumentException.class,
+        e = expectThrows(EqlIllegalArgumentException.class,
                 () -> new CIDRMatch(EMPTY, l("10.6.48.157"), addresses).makePipe().asProcessor().process(null));
 
         assertEquals("'10.6.48' is not an IP string literal.", e.getMessage());
@@ -49,7 +50,7 @@ public class CIDRMatchProcessorTests extends ESTestCase {
 
         // Invalid CIDR
         addresses.add(l("10.6.12/12"));
-        e = expectThrows(IllegalArgumentException.class,
+        e = expectThrows(EqlIllegalArgumentException.class,
                 () -> new CIDRMatch(EMPTY, l("10.6.48.157"), addresses).makePipe().asProcessor().process(null));
 
         assertEquals("'10.6.12' is not an IP string literal.", e.getMessage());

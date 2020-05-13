@@ -90,6 +90,10 @@ final class QueryTranslator {
         }
 
         public static Query doTranslate(ScalarFunction f, TranslatorHandler handler) {
+            Query q = ExpressionTranslators.Scalars.doKnownTranslate(f, handler);
+            if (q != null) {
+                return q;
+            }
             if (f instanceof CIDRMatch) {
                 CIDRMatch cm = (CIDRMatch) f;
                 if (cm.field() instanceof FieldAttribute && Expressions.foldable(cm.addresses())) {

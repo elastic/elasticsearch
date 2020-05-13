@@ -239,6 +239,13 @@ process where cidrMatch(source_address, "10.0.0.0/8", "192.168.0.0/16")
 {"terms":{"source_address":["10.0.0.0/8","192.168.0.0/16"]
 ;
 
+cidrMatchFunctionTwoWithOr
+process where cidrMatch(source_address, "10.0.0.0/8") or cidrMatch(source_address, "192.168.0.0/16")
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"terms":{"source_address":["10.0.0.0/8"],"boost":1.0}},{"terms":{"source_address":["192.168.0.0/16"]
+;
+
 cidrMatchFunctionThree
 process where cidrMatch(source_address, "10.0.0.0/8", "192.168.0.0/16", "2001:db8::/32")
 ;

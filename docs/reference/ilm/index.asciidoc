@@ -15,7 +15,7 @@ For example, you could use {ilm-init} to:
 
 When you enable {ilm} for {beats} or the {ls} {es} output plugin, 
 {ilm-init} is configured automatically. 
-You can modify the default policies through the {kib} Management UI or {ilm-init} APIs.
+You can modify the default policies through {kib} Management or the {ilm-init} APIs.
 
 [TIP]
 To automatically back up your indices and manage snapshots, 
@@ -52,4 +52,3 @@ include::using-policies-rollover.asciidoc[]
 include::ilm-with-existing-indices.asciidoc[]
 
 include::ilm-and-snapshots.asciidoc[]
-

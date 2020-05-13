@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.function.scalar.ConfigurationFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -17,24 +17,20 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.List;
 import java.util.Objects;
 
-public abstract class ConfigurationFunction extends ScalarFunction {
+import static java.util.Collections.emptyList;
 
-    private final Configuration configuration;
+public abstract class SqlConfigurationFunction extends ConfigurationFunction {
+
     private final DataType dataType;
 
-    protected ConfigurationFunction(Source source, Configuration configuration, DataType dataType) {
-        super(source);
-        this.configuration = configuration;
+    protected SqlConfigurationFunction(Source source, Configuration configuration, DataType dataType) {
+        super(source, emptyList(), configuration);
         this.dataType = dataType;
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         throw new UnsupportedOperationException("this node doesn't have any children");
-    }
-
-    public Configuration configuration() {
-        return configuration;
     }
 
     @Override
@@ -67,6 +63,6 @@ public abstract class ConfigurationFunction extends ScalarFunction {
 
     @Override
     public boolean equals(Object obj) {
-        return super.equals(obj) && Objects.equals(fold(), ((ConfigurationFunction) obj).fold());
+        return super.equals(obj) && Objects.equals(fold(), ((SqlConfigurationFunction) obj).fold());
     }
 }

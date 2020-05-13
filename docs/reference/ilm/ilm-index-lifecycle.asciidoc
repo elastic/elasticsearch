@@ -40,9 +40,7 @@ If an index has unallocated shards and the cluster is in the _yellow_ state,
 the index can still transition from one phase to the next according to its {ilm} policy, 
 but there might be unexpected side effects because {es} can only perform 
 certain clean up tasks on a healthy cluster. 
-For example, if you have a policy that moves shards to warm nodes when 
-the index transitions out of the hot phase, {es} won't delete shards that 
-weren't fully replicated from the hot nodes. 
+
 To avoid unexpected disk usage and other reliability issues,
 address any cluster health problems in a timely fashion.
 

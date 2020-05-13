@@ -242,18 +242,6 @@ process where match(command_line, "^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\
 "regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"
 ;
 
-matchFunctionThreeFieldInTheMiddle
-process where match("^.*?net.exe", "net\\.exe", command_line, "C:\\\\Windows\\\\system32\\\\net1\\s+")
-;
-"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"
-;
-
-matchFunctionThreeFieldAtTheEnd
-process where match("^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+", command_line)
-;
-"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"
-;
-
 matchFunctionScalar
 process where match(substring(command_line, 5), "^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
 ;

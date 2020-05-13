@@ -63,7 +63,7 @@ public class SimulateIndexTemplateRequestTests extends AbstractWireSerializingTe
 
     public void testAddingGlobalTemplateWithHiddenIndexSettingIsIllegal() {
         Template template = new Template(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build(), null, null);
-        IndexTemplateV2 globalTemplate = new IndexTemplateV2(List.of("*"), template, null, null, null, null);
+        IndexTemplateV2 globalTemplate = new IndexTemplateV2(List.of("*"), template, null, null, null, null, null);
 
         PutIndexTemplateV2Action.Request request = new PutIndexTemplateV2Action.Request("test");
         request.indexTemplate(globalTemplate);

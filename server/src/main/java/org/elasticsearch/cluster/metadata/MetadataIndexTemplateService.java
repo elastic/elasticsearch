@@ -400,7 +400,7 @@ public class MetadataIndexTemplateService {
             final Template finalTemplate = new Template(finalSettings,
                 stringMappings == null ? null : new CompressedXContent(stringMappings), innerTemplate.aliases());
             finalIndexTemplate = new IndexTemplateV2(template.indexPatterns(), finalTemplate, template.composedOf(),
-                template.priority(), template.version(), template.metadata());
+                template.priority(), template.version(), template.metadata(), template.getDataStreamTemplate());
         }
 
         validate(name, finalIndexTemplate);

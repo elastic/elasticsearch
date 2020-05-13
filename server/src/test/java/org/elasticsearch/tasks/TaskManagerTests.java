@@ -24,6 +24,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.FakeTcpChannel;
@@ -38,6 +39,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Phaser;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -66,17 +68,17 @@ public class TaskManagerTests extends ESTestCase {
         });
         Map<TcpChannel, Set<Task>> pendingTasks = new HashMap<>();
         Set<Task> expectedCancelledTasks = new HashSet<>();
-        MockTcpChannel[] channels = new MockTcpChannel[randomIntBetween(1, 10)];
+        FakeTcpChannel[] channels = new FakeTcpChannel[randomIntBetween(1, 10)];
         List<Releasable> stopTrackingTasks = new ArrayList<>();
         for (int i = 0; i < channels.length; i++) {
-            channels[i] = new MockTcpChannel();
+            channels[i] = new SingleThreadedTcpChannel();
         }
         int iterations = randomIntBetween(1, 200);
         for (int i = 0; i < iterations; i++) {
             final List<Releasable> subset = randomSubsetOf(stopTrackingTasks);
             stopTrackingTasks.removeAll(subset);
             Releasables.close(subset);
-            final MockTcpChannel channel = randomFrom(channels);
+            final FakeTcpChannel channel = randomFrom(channels);
             final Task task = taskManager.register("transport", "test", new CancellableRequest(Integer.toString(i)));
             if (channel.isOpen() && randomBoolean()) {
                 channel.close();
@@ -92,9 +94,52 @@ public class TaskManagerTests extends ESTestCase {
             } else {
                 expectedCancelledTasks.add(task);
             }
-            assertThat(expectedCancelledTasks, equalTo(expectedCancelledTasks));
+            assertThat(cancelledTasks, equalTo(expectedCancelledTasks));
         }
-        assertThat(expectedCancelledTasks, equalTo(expectedCancelledTasks));
+        assertThat(cancelledTasks, equalTo(expectedCancelledTasks));
+        assertThat(taskManager.numberOfChannelPendingTaskTrackers(), equalTo(0));
+    }
+
+    public void testTrackingTaskAndCloseChannelConcurrently() throws Exception {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, mock(ThreadPool.class), Set.of());
+        Set<CancellableTask> cancelledTasks = ConcurrentCollections.newConcurrentSet();
+        taskManager.setOrphanedTasksOnChannelCloseListener(tasks -> {
+            for (CancellableTask task : tasks) {
+                assertTrue("task [" + task + "] was cancelled already", cancelledTasks.add(task));
+            }
+        });
+        Set<Task> expectedCancelledTasks = ConcurrentCollections.newConcurrentSet();
+        FakeTcpChannel[] channels = new FakeTcpChannel[randomIntBetween(2, 20)];
+        for (int i = 0; i < channels.length; i++) {
+            channels[i] = new FakeTcpChannel();
+        }
+        Thread[] threads = new Thread[randomIntBetween(2, 8)];
+        Phaser phaser = new Phaser(threads.length);
+        for (int t = 0; t < threads.length; t++) {
+            String threadName = "thread-" + t;
+            threads[t] = new Thread(() -> {
+                phaser.arriveAndAwaitAdvance();
+                int iterations = randomIntBetween(100, 1000);
+                for (int i = 0; i < iterations; i++) {
+                    final FakeTcpChannel channel = randomFrom(channels);
+                    final Task task = taskManager.register("transport", "test", new CancellableRequest(threadName + ":" + i));
+                    expectedCancelledTasks.add(task);
+                    taskManager.startTrackingCancellableChannelTask(channel, (CancellableTask) task);
+                    if (randomInt(100) < 5) {
+                        randomFrom(channels).close();
+                    }
+                }
+            });
+            threads[t].start();
+        }
+        for (FakeTcpChannel channel : channels) {
+            channel.close();
+        }
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        assertThat(cancelledTasks, equalTo(expectedCancelledTasks));
+        assertThat(taskManager.numberOfChannelPendingTaskTrackers(), equalTo(0));
     }
 
     static class CancellableRequest extends TransportRequest {
@@ -120,7 +165,7 @@ public class TaskManagerTests extends ESTestCase {
         }
     }
 
-    static class MockTcpChannel extends FakeTcpChannel {
+    static class SingleThreadedTcpChannel extends FakeTcpChannel {
         private boolean registeredListener = false;
 
         @Override
@@ -128,10 +173,8 @@ public class TaskManagerTests extends ESTestCase {
             if (isOpen()) {
                 assertFalse("listener was registered already", registeredListener);
                 registeredListener = true;
-                super.addCloseListener(listener);
-            } else {
-                listener.onResponse(null);
             }
+            super.addCloseListener(listener);
         }
     }
 }

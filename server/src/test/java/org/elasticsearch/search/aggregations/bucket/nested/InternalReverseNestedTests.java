@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.nested;
 
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
@@ -39,11 +38,6 @@ public class InternalReverseNestedTests extends InternalSingleBucketAggregationT
     @Override
     protected void extraAssertReduced(InternalReverseNested reduced, List<InternalReverseNested> inputs) {
         // Nothing extra to assert
-    }
-
-    @Override
-    protected Reader<InternalReverseNested> instanceReader() {
-        return InternalReverseNested::new;
     }
 
     @Override

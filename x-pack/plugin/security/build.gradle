@@ -170,7 +170,7 @@ forbiddenPatterns {
   exclude '**/*.zip'
 }
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   signaturesFiles += files('forbidden/ldap-signatures.txt', 'forbidden/xml-signatures.txt', 'forbidden/oidc-signatures.txt')
 }
 

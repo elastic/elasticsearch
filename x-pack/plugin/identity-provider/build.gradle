@@ -67,7 +67,7 @@ forbiddenPatterns {
   exclude '**/*.zip'
 }
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   signaturesFiles += files('forbidden/xml-signatures.txt')
 }
 

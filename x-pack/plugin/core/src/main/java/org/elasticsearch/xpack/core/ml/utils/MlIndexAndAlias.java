@@ -132,6 +132,7 @@ public final class MlIndexAndAlias {
                                                  String alias,
                                                  boolean addAlias,
                                                  ActionListener<Boolean> listener) {
+        logger.info("About to create first concrete index [{}] with alias [{}]", index, alias);
         CreateIndexRequestBuilder requestBuilder = client.admin()
             .indices()
             .prepareCreate(index);
@@ -163,6 +164,7 @@ public final class MlIndexAndAlias {
                                          @Nullable String currentIndex,
                                          String newIndex,
                                          ActionListener<Boolean> listener) {
+        logger.info("About to move write alias [{}] from index [{}] to index [{}]", alias, currentIndex, newIndex);
         IndicesAliasesRequestBuilder requestBuilder = client.admin()
             .indices()
             .prepareAliases()

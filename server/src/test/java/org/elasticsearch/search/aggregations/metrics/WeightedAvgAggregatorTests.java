@@ -354,6 +354,26 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
             "Use a script to combine multiple weights-per-doc into a single value."));
     }
 
+    public void testFormatter() throws IOException {
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
+        WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
+            .value(valueConfig)
+            .weight(weightConfig)
+            .format("0.00%");
+        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("value_field", 7),
+                new SortedNumericDocValuesField("weight_field", 1)));
+            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("value_field", 2),
+                new SortedNumericDocValuesField("weight_field", 1)));
+            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("value_field", 3),
+                new SortedNumericDocValuesField("weight_field", 1)));
+        }, avg -> {
+            assertEquals(4, avg.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(avg));
+            assertEquals("400.00%", avg.getValueAsString());
+        });
+    }
 
     public void testSummationAccuracy() throws IOException {
         // Summing up a normal array and expect an accurate value

@@ -109,11 +109,17 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         }
         ActionFuture<BulkResponse> indexUnusedStateDocsResponse = bulkRequestBuilder.execute();
 
-        registerJob(newJobBuilder("no-retention").setResultsRetentionDays(null).setModelSnapshotRetentionDays(1000L));
-        registerJob(newJobBuilder("results-retention").setResultsRetentionDays(1L).setModelSnapshotRetentionDays(1000L));
-        registerJob(newJobBuilder("snapshots-retention").setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L));
-        registerJob(newJobBuilder("snapshots-retention-with-retain").setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L));
-        registerJob(newJobBuilder("results-and-snapshots-retention").setResultsRetentionDays(1L).setModelSnapshotRetentionDays(2L));
+        // These jobs don't thin out model state; ModelSnapshotRetentionIT tests that
+        registerJob(newJobBuilder("no-retention")
+            .setResultsRetentionDays(null).setModelSnapshotRetentionDays(1000L).setDailyModelSnapshotRetentionAfterDays(1000L));
+        registerJob(newJobBuilder("results-retention")
+            .setResultsRetentionDays(1L).setModelSnapshotRetentionDays(1000L).setDailyModelSnapshotRetentionAfterDays(1000L));
+        registerJob(newJobBuilder("snapshots-retention")
+            .setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L).setDailyModelSnapshotRetentionAfterDays(2L));
+        registerJob(newJobBuilder("snapshots-retention-with-retain")
+            .setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L).setDailyModelSnapshotRetentionAfterDays(2L));
+        registerJob(newJobBuilder("results-and-snapshots-retention")
+            .setResultsRetentionDays(1L).setModelSnapshotRetentionDays(2L).setDailyModelSnapshotRetentionAfterDays(2L));
 
         List<String> shortExpiryForecastIds = new ArrayList<>();
 
@@ -171,9 +177,10 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         // Refresh to ensure the snapshot timestamp updates are visible
         refresh("*");
 
-        // We need to wait a second to ensure the second time around model snapshots will have a different ID (it depends on epoch seconds)
-        // FIXME it would be better to wait for something concrete instead of wait for time to elapse
-        assertBusy(() -> {}, 1, TimeUnit.SECONDS);
+        // We need to wait for the clock to tick to a new second to ensure the second time
+        // around model snapshots will have a different ID (it depends on epoch seconds)
+        long before = System.currentTimeMillis() / 1000;
+        assertBusy(() -> assertNotEquals(before, System.currentTimeMillis() / 1000), 1, TimeUnit.SECONDS);
 
         for (Job.Builder job : getJobs()) {
             // Run up to now

@@ -23,7 +23,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -236,14 +235,14 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         // see InternalEngine.innerIndex to see where the real version value is set
         // also see ParsedDocument.updateSeqID (called by innerIndex)
         SequenceIDFields seqID = SequenceIDFields.emptySeqID();
         context.seqID(seqID);
-        fields.add(seqID.seqNo);
-        fields.add(seqID.seqNoDocValue);
-        fields.add(seqID.primaryTerm);
+        context.doc().add(seqID.seqNo);
+        context.doc().add(seqID.seqNoDocValue);
+        context.doc().add(seqID.primaryTerm);
     }
 
     @Override

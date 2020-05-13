@@ -253,10 +253,10 @@ To run all verification tasks, including static checks, unit tests, and integrat
 ---------------------------------------------------------------------------
 
 Note that this will also run the unit tests and precommit tasks first. If you want to just
-run the integration tests (because you are debugging them):
+run the in memory cluster integration tests (because you are debugging them):
 
 ---------------------------------------------------------------------------
-./gradlew integTest
+./gradlew internalClusterTest
 ---------------------------------------------------------------------------
 
 If you want to just run the precommit checks:

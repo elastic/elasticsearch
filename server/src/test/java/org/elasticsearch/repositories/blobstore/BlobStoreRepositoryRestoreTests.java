@@ -59,6 +59,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -177,7 +178,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                     ShardGenerations.builder().put(indexId, 0, shardGen).build(),
                     0L, null, 1, Collections.emptyList(), -1L, false,
                     Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(), Collections.emptyMap(),
-                    Version.CURRENT, f));
+                    Version.CURRENT, Function.identity(), f));
             IndexShardSnapshotFailedException isfe = expectThrows(IndexShardSnapshotFailedException.class,
                 () -> snapshotShard(shard, snapshotWithSameName, repository));
             assertThat(isfe.getMessage(), containsString("Duplicate snapshot name"));

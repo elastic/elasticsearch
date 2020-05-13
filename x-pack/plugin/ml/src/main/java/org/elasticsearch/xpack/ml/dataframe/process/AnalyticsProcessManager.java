@@ -11,7 +11,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
@@ -117,7 +116,8 @@ public class AnalyticsProcessManager {
                     return;
                 }
                 if (processContextByAllocation.putIfAbsent(task.getAllocationId(), processContext) != null) {
-                    task.setFailed("[" + config.getId() + "] Could not create process as one already exists");
+                    task.setFailed(ExceptionsHelper.serverError(
+                        "[" + config.getId() + "] Could not create process as one already exists"));
                     return;
                 }
             }
@@ -208,7 +208,7 @@ public class AnalyticsProcessManager {
                 task.markAsCompleted();
             } else {
                 LOGGER.error("[{}] Marking task failed; {}", config.getId(), processContext.getFailureReason());
-                task.setFailed(processContext.getFailureReason());
+                task.setFailed(ExceptionsHelper.serverError(processContext.getFailureReason()));
                 // Note: We are not marking the task as failed here as we want the user to be able to inspect the failure reason.
             }
         }
@@ -246,7 +246,7 @@ public class AnalyticsProcessManager {
                     }
                 }
                 rowsProcessed += rows.get().size();
-                progressTracker.loadingDataPercent.set(rowsProcessed >= totalRows ? 100 : (int) (rowsProcessed * 100.0 / totalRows));
+                progressTracker.updateLoadingDataProgress(rowsProcessed >= totalRows ? 100 : (int) (rowsProcessed * 100.0 / totalRows));
             }
         }
     }
@@ -265,10 +265,6 @@ public class AnalyticsProcessManager {
         headerRecord[headerRecord.length - 2] = ".";
         headerRecord[headerRecord.length - 1] = ".";
         process.writeRecord(headerRecord);
-    }
-
-    private void indexDataCounts(DataCounts dataCounts) {
-        IndexRequest indexRequest = new IndexRequest(MlStatsIndex.writeAlias());
     }
 
     private void restoreState(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config, @Nullable BytesReference state,
@@ -290,7 +286,7 @@ public class AnalyticsProcessManager {
             process.restoreState(state);
         } catch (Exception e) {
             LOGGER.error(new ParameterizedMessage("[{}] Failed to restore state", process.getConfig().jobId()), e);
-            task.setFailed("Failed to restore state: " + e.getMessage());
+            task.setFailed(ExceptionsHelper.serverError("Failed to restore state: " + e.getMessage()));
         }
     }
 

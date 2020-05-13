@@ -38,6 +38,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -254,6 +255,15 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("suggest.time", "alias:suti,suggestTime;default:false;text-align:right;desc:time spend in suggest");
         table.addCell("suggest.total", "alias:suto,suggestTotal;default:false;text-align:right;desc:number of suggest ops");
 
+        table.addCell("bulk.total_operations",
+            "alias:bto,bulkTotalOperations;default:false;text-align:right;desc:number of bulk shard ops");
+        table.addCell("bulk.total_time", "alias:btti,bulkTotalTime;default:false;text-align:right;desc:time spend in shard bulk");
+        table.addCell("bulk.total_size_in_bytes",
+            "alias:btsi,bulkTotalSizeInBytes;default:false;text-align:right;desc:total size in bytes of shard bulk");
+        table.addCell("bulk.avg_time", "alias:bati,bulkAvgTime;default:false;text-align:right;desc:average time spend in shard bulk");
+        table.addCell("bulk.avg_size_in_bytes",
+            "alias:basi,bulkAvgSizeInBytes;default:false;text-align:right;desc:average size in bytes of shard bulk");
+
         table.endHeaders();
         return table;
     }
@@ -427,6 +437,13 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(searchStats == null ? null : searchStats.getTotal().getSuggestCurrent());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getSuggestTime());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getSuggestCount());
+
+            BulkStats bulkStats = indicesStats == null ? null : indicesStats.getBulk();
+            table.addCell(bulkStats == null ? null : bulkStats.getTotalOperations());
+            table.addCell(bulkStats == null ? null : bulkStats.getTotalTime());
+            table.addCell(bulkStats == null ? null : bulkStats.getTotalSizeInBytes());
+            table.addCell(bulkStats == null ? null : bulkStats.getAvgTime());
+            table.addCell(bulkStats == null ? null : bulkStats.getAvgSizeInBytes());
 
             table.endRow();
         }

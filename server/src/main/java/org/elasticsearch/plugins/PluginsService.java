@@ -62,6 +62,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
@@ -434,11 +435,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         Map<String, Plugin> loaded = new HashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
         List<Bundle> sortedBundles = sortBundles(bundles);
-
+        Map<String, Bundle> lookup = bundles.stream().collect(Collectors.toMap(b -> b.plugin.getName(), Function.identity()));
         for (Bundle bundle : sortedBundles) {
             checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveUrls);
 
-            final Plugin plugin = loadBundle(bundle, loaded);
+            final Plugin plugin = loadBundle(bundle, loaded, lookup);
             plugins.add(new Tuple<>(bundle.plugin, plugin));
         }
 
@@ -495,7 +496,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    private Plugin loadBundle(Bundle bundle, Map<String, Plugin> loaded) {
+    private Plugin loadBundle(Bundle bundle, Map<String, Plugin> loaded, Map<String, Bundle> lookup) {
         String name = bundle.plugin.getName();
 
         verifyCompatibility(bundle.plugin);
@@ -524,12 +525,18 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
         Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), loader);
         Plugin plugin = loadPlugin(pluginClass, settings, configPath);
-        for (String extendedPluginName : bundle.plugin.getExtendedPlugins()) {
-            // note: already asserted above that extended plugins are loaded and extensible
-            ExtensiblePlugin.class.cast(loaded.get(extendedPluginName)).extensionPlugin(plugin);
-        }
+        // need to do this transitively - to some extent because of the jarhell check, to be discussed.
+        transitivePlugins(bundle.plugin.getExtendedPlugins(), lookup).map(loaded::get).map(ExtensiblePlugin.class::cast)
+            .forEach(extensiblePlugin -> extensiblePlugin.extensionPlugin(plugin));
         loaded.put(name, plugin);
         return plugin;
+    }
+
+    private Stream<String> transitivePlugins(List<String> extendedPlugins, Map<String, Bundle> lookup) {
+        // we can optimize this a bit.
+        return Stream.concat(extendedPlugins.stream(),
+            extendedPlugins.stream().flatMap(name -> transitivePlugins(lookup.get(name).plugin.getExtendedPlugins(), lookup)))
+            .collect(Collectors.toSet()).stream();
     }
 
     /**

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -31,7 +32,7 @@ import static org.elasticsearch.xpack.ql.planner.ExpressionTranslators.or;
 
 final class QueryTranslator {
 
-    public static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = List.of(
+    public static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = Arrays.asList(
             new ExpressionTranslators.BinaryComparisons(),
             new ExpressionTranslators.Ranges(),
             new BinaryLogic(),

@@ -6,12 +6,12 @@
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
+import org.apache.lucene.util.FutureArrays;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 
 import java.net.InetAddress;
-import java.util.Arrays;
 
 public class CIDRUtils {
     // Borrowed from Lucene, rfc4291 prefix
@@ -76,8 +76,8 @@ public class CIDRUtils {
             lower = encode(lower);
             upper = encode(upper);
         }
-        return Arrays.compareUnsigned(lower, addr) <= 0 &&
-                Arrays.compareUnsigned(upper, addr) >= 0;
+        return FutureArrays.compareUnsigned(lower, 0, lower.length, addr, 0, addr.length) <= 0 &&
+                FutureArrays.compareUnsigned(upper, 0, upper.length, addr, 0, addr.length) >= 0;
     }
 
     // Borrowed from Lucene to make this consistent IP fields matching for the mix of IPv4 and IPv6 values

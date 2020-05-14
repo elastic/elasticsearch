@@ -291,6 +291,15 @@
         features: allowed_warnings
 
     - do:
+        cluster.put_component_template:
+          name: foo
+          body:
+            template:
+              settings:
+                number_of_shards: 1
+                number_of_replicas: 0
+
+    - do:
         indices.put_template:
           name: test
           body:
@@ -310,7 +319,7 @@
             index_patterns: [v2-test]
             priority: 4
             version: 3
-            composed_of: [foo, bar]
+            composed_of: [foo]
 
     - do:
         cat.templates: {}
@@ -332,5 +341,5 @@
                 \[v2-test\]     \s+
                 4               \s+
                 3               \s+
-                \[foo,\ bar\]
+                \[foo\]
                /

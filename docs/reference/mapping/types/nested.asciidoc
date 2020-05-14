@@ -5,14 +5,13 @@
 ++++
 
 The `nested` type is a specialised version of the <<object,`object`>> datatype
-that allows arrays of objects to be indexed in a way that they can be queried 
+that allows arrays of objects to be indexed in a way that they can be queried
 independently of each other.
 
 ==== How arrays of objects are flattened
 
-Arrays of inner <<object,`object` fields>> do not work the way you may expect.
-Lucene has no concept of inner objects, so Elasticsearch flattens object
-hierarchies into a simple list of field names and values. For instance, the
+Elasticsearch has no concept of inner objects. Therefore, it flattens object
+hierarchies into a simple list of field names and values. For instance, consider the
 following document:
 
 [source,console]
@@ -35,7 +34,7 @@ PUT my_index/_doc/1
 
 <1> The `user` field is dynamically added as a field of type `object`.
 
-would be transformed internally into a document that looks more like this:
+The previous document would be transformed internally into a document that looks more like this:
 
 [source,js]
 --------------------------------------------------
@@ -71,10 +70,15 @@ GET my_index/_search
 ==== Using `nested` fields for arrays of objects
 
 If you need to index arrays of objects and to maintain the independence of
-each object in the array, you should use the `nested` datatype instead of the
-<<object,`object`>> datatype.  Internally, nested objects index each object in
+each object in the array, use the `nested` datatype instead of the
+<<object,`object`>> datatype.
+
+TIP: If you consider creating `nested` objects with two `key` and `value` keyword fields, consider using the <<flattened>> datatype instead.
+Because nested documents are indexed as separate documents, they can only be accessed within the scope of the nested query. While a flattened object provides only a single field to search on, the object's contents can still be searched using simple queries and aggregations.
+
+Internally, nested objects index each object in
 the array as a separate hidden document, meaning that each nested object can be
-queried independently of the others, with the <<query-dsl-nested-query,`nested` query>>:
+queried independently of the others with the <<query-dsl-nested-query,`nested` query>>:
 
 [source,console]
 --------------------------------------------------
@@ -230,6 +234,3 @@ settings in place to guard against performance problems:
 
 Additional background on these settings, including information on their default values, can be found
 in <<mapping-limit-settings>>.
-
-
-

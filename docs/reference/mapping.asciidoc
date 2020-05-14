@@ -17,7 +17,7 @@ A mapping definition has:
 
 <<mapping-fields,Meta-fields>>::
 
-Meta-fields are used to customize how a document's metadata associated is
+Meta-fields are used to customize how a document's associated metadata is
 treated. Examples of meta-fields include the document's
 <<mapping-index-field,`_index`>>, <<mapping-id-field,`_id`>>, and
 <<mapping-source-field,`_source`>> fields.

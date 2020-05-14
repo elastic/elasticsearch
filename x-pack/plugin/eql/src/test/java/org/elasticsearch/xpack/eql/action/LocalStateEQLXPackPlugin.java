@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.eql.action;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 import org.elasticsearch.xpack.ql.plugin.QlPlugin;

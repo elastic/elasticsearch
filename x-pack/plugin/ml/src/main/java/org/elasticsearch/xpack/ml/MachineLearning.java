@@ -66,7 +66,6 @@ import org.elasticsearch.xpack.autoscaling.AutoscalingPlugin;
 import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecider;
 import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDeciderService;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.XPackSharedPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;

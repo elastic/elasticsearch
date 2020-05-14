@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -582,7 +582,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final IllegalStateException e =
                 expectThrows(IllegalStateException.class, () -> indicesService.createIndex(indexMetadata, Collections.emptyList(), false));
         final String pattern =
-                ".*multiple engine factories provided for \\[foobar/.*\\]: \\[.*FooEngineFactory\\],\\[.*BarEngineFactory\\].*";
+                ".*multiple engine factories provided for \\[foobar/.*\\]: \\[.*BarEngineFactory\\],\\[.*FooEngineFactory\\].*";
         assertThat(e, hasToString(new RegexMatcher(pattern)));
     }
 

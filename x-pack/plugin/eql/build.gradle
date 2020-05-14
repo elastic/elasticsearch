@@ -41,6 +41,8 @@ dependencies {
   testCompile project(path: ':modules:reindex', configuration: 'runtime')
   testCompile project(path: ':modules:parent-join', configuration: 'runtime')
   testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
+  testCompile project(path: ':modules:transport-netty4', configuration: 'runtime') // for http in RestEqlCancellationIT
+  testCompile project(path: ':plugins:transport-nio', configuration: 'runtime') // for http in RestEqlCancellationIT
 }
 
 

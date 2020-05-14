@@ -64,8 +64,18 @@ public abstract class AbstractEqlBlockingIntegTestCase extends AbstractEqlIntegT
     }
 
     protected void disableBlocks(List<SearchBlockPlugin> plugins) {
+        disableFieldCapBlocks(plugins);
+        disableSearchBlocks(plugins);
+    }
+
+    protected void disableSearchBlocks(List<SearchBlockPlugin> plugins) {
         for (SearchBlockPlugin plugin : plugins) {
             plugin.disableSearchBlock();
+        }
+    }
+
+    protected void disableFieldCapBlocks(List<SearchBlockPlugin> plugins) {
+        for (SearchBlockPlugin plugin : plugins) {
             plugin.disableFieldCapBlock();
         }
     }
@@ -198,10 +208,19 @@ public abstract class AbstractEqlBlockingIntegTestCase extends AbstractEqlIntegT
     }
 
     protected TaskId findTaskWithXOpaqueId(String id, String action) {
+        TaskInfo taskInfo = getTaskInfoWithXOpaqueId(id, action);
+        if (taskInfo != null) {
+            return taskInfo.getTaskId();
+        } else {
+             return null;
+        }
+    }
+
+    protected TaskInfo getTaskInfoWithXOpaqueId(String id, String action) {
         ListTasksResponse tasks = client().admin().cluster().prepareListTasks().setActions(action).get();
         for (TaskInfo task : tasks.getTasks()) {
             if (id.equals(task.getHeaders().get(Task.X_OPAQUE_ID))) {
-                return task.getTaskId();
+                return task;
             }
         }
         return null;

@@ -16,6 +16,7 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
@@ -56,14 +57,17 @@ public class RestEqlSearchAction extends BaseRestHandler {
             eqlRequest.keepOnCompletion(request.paramAsBoolean("keep_on_completion", eqlRequest.keepOnCompletion()));
         }
 
-        return channel -> client.execute(EqlSearchAction.INSTANCE, eqlRequest, new RestResponseListener<>(channel) {
-            @Override
-            public RestResponse buildResponse(EqlSearchResponse response) throws Exception {
-                XContentBuilder builder = channel.newBuilder(request.getXContentType(), XContentType.JSON, true);
-                response.toXContent(builder, request);
-                return new BytesRestResponse(RestStatus.OK, builder);
-            }
-        });
+        return channel -> {
+            RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+            cancellableClient.execute(EqlSearchAction.INSTANCE, eqlRequest, new RestResponseListener<>(channel) {
+                @Override
+                public RestResponse buildResponse(EqlSearchResponse response) throws Exception {
+                    XContentBuilder builder = channel.newBuilder(request.getXContentType(), XContentType.JSON, true);
+                    response.toXContent(builder, request);
+                    return new BytesRestResponse(RestStatus.OK, builder);
+                }
+            });
+        };
     }
 
     @Override

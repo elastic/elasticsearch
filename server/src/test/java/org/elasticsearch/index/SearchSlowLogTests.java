@@ -104,8 +104,9 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
     public void testLevelPrecedence()  {
         SearchContext ctx = searchContextWithSourceAndTask(createIndex("index"));
+        String uuid = UUIDs.randomBase64UUID();
         IndexSettings settings =
-            new IndexSettings(createIndexMetadata(SlowLogLevel.WARN, "index", UUIDs.randomBase64UUID()), Settings.EMPTY);
+            new IndexSettings(createIndexMetadata(SlowLogLevel.WARN, "index", uuid), Settings.EMPTY);
         SearchSlowLog log = new SearchSlowLog(settings);
 
         {
@@ -123,7 +124,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
         {
             // level set INFO, should log when INFO level is breached
-            settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.INFO, "index", UUIDs.randomBase64UUID()));
+            settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.INFO, "index", uuid));
             log.onQueryPhase(ctx,30L);
             assertNull(appender.getLastEventAndReset());
             log.onQueryPhase(ctx,31L);
@@ -137,7 +138,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
         {
             // level set DEBUG, should log when DEBUG level is breached
-            settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.DEBUG, "index", UUIDs.randomBase64UUID()));
+            settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.DEBUG, "index", uuid));
             log.onQueryPhase(ctx,20L);
             assertNull(appender.getLastEventAndReset());
             log.onQueryPhase(ctx,21L);
@@ -151,7 +152,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
         {
             // level set TRACE, should log when TRACE level is breached
-            settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.TRACE, "index", UUIDs.randomBase64UUID()));
+            settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.TRACE, "index", uuid));
             log.onQueryPhase(ctx,10L);
             assertNull(appender.getLastEventAndReset());
             log.onQueryPhase(ctx,11L);
@@ -163,8 +164,6 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
             assertNotNull(appender.getLastEventAndReset());
         }
     }
-
-
 
     public void testTwoLoggersDifferentLevel() {
         SearchContext ctx1 = searchContextWithSourceAndTask(createIndex("index-1"));

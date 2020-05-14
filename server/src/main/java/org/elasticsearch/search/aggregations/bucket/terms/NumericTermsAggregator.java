@@ -58,11 +58,22 @@ public class NumericTermsAggregator extends TermsAggregator {
     private final LongKeyedBucketOrds bucketOrds;
     private final LongFilter longFilter;
 
-    public NumericTermsAggregator(String name, AggregatorFactories factories,
-            Function<NumericTermsAggregator, ResultStrategy<?, ?>> resultStrategy, ValuesSource.Numeric valuesSource, DocValueFormat format,
-            BucketOrder order, BucketCountThresholds bucketCountThresholds, SearchContext aggregationContext,
-            Aggregator parent, SubAggCollectionMode subAggCollectMode, IncludeExclude.LongFilter longFilter,
-            boolean collectsFromSingleBucket, Map<String, Object> metadata) throws IOException {
+    public NumericTermsAggregator(
+        String name,
+        AggregatorFactories factories,
+        Function<NumericTermsAggregator, ResultStrategy<?, ?>> resultStrategy,
+        ValuesSource.Numeric valuesSource,
+        DocValueFormat format,
+        BucketOrder order,
+        BucketCountThresholds bucketCountThresholds,
+        SearchContext aggregationContext,
+        Aggregator parent,
+        SubAggCollectionMode subAggCollectMode,
+        IncludeExclude.LongFilter longFilter,
+        boolean collectsFromSingleBucket,
+        Map<String, Object> metadata
+    )
+        throws IOException {
         super(name, factories, aggregationContext, parent, bucketCountThresholds, order, format, subAggCollectMode, metadata);
         this.resultStrategy = resultStrategy.apply(this);
         this.valuesSource = valuesSource;
@@ -79,18 +90,17 @@ public class NumericTermsAggregator extends TermsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
-        final SortedNumericDocValues values = resultStrategy.getValues(ctx);
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        SortedNumericDocValues values = resultStrategy.getValues(ctx);
         return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 if (values.advanceExact(doc)) {
-                    final int valuesCount = values.docValueCount();
+                    int valuesCount = values.docValueCount();
 
                     long previous = Long.MAX_VALUE;
                     for (int i = 0; i < valuesCount; ++i) {
-                        final long val = values.nextValue();
+                        long val = values.nextValue();
                         if (previous != val || i == 0) {
                             if ((longFilter == null) || (longFilter.accept(val))) {
                                 long bucketOrdinal = bucketOrds.add(owningBucketOrd, val);
@@ -136,7 +146,8 @@ public class NumericTermsAggregator extends TermsAggregator {
      * Strategy for building results.
      */
     abstract class ResultStrategy<R extends InternalAggregation, B extends InternalMultiBucketAggregation.InternalBucket>
-            implements Releasable {
+        implements
+            Releasable {
         private InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
             B[][] topBucketsPerOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
             long[] otherDocCounts = new long[owningBucketOrds.length];
@@ -144,7 +155,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 collectZeroDocEntriesIfNeeded(owningBucketOrds[ordIdx]);
                 long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
 
-                final int size = (int) Math.min(bucketsInOrd, bucketCountThresholds.getShardSize());
+                int size = (int) Math.min(bucketsInOrd, bucketCountThresholds.getShardSize());
                 PriorityQueue<B> ordered = buildPriorityQueue(size);
                 B spare = null;
                 BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
@@ -182,21 +193,32 @@ public class NumericTermsAggregator extends TermsAggregator {
         }
 
         abstract String describe();
+
         abstract SortedNumericDocValues getValues(LeafReaderContext ctx) throws IOException;
+
         abstract LeafBucketCollector wrapCollector(LeafBucketCollector primary);
+
         abstract B[][] buildTopBucketsPerOrd(int size);
+
         abstract B[] buildBuckets(int size);
+
         abstract B buildEmptyBucket(long owningBucketOrd);
+
         abstract void updateBucket(B spare, BucketOrdsEnum ordsEnum, long docCount) throws IOException;
-        abstract PriorityQueue<B> buildPriorityQueue(int size); 
+
+        abstract PriorityQueue<B> buildPriorityQueue(int size);
+
         abstract void buildSubAggs(B[][] topBucketsPerOrd) throws IOException;
+
         abstract void collectZeroDocEntriesIfNeeded(long ord) throws IOException;
+
         abstract R buildResult(long owningBucketOrd, long otherDocCounts, B[] topBuckets);
+
         abstract R buildEmptyResult();
     }
 
-    abstract class StandardTermsResultStrategy<R extends InternalMappedTerms<R, B>, B extends InternalTerms.Bucket<B>>
-            extends ResultStrategy<R, B> {
+    abstract class StandardTermsResultStrategy<R extends InternalMappedTerms<R, B>, B extends InternalTerms.Bucket<B>> extends
+        ResultStrategy<R, B> {
         protected final boolean showTermDocCountError;
 
         StandardTermsResultStrategy(boolean showTermDocCountError) {
@@ -231,7 +253,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 SortedNumericDocValues values = getValues(ctx);
                 for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
                     if (values.advanceExact(docId)) {
-                        final int valueCount = values.docValueCount();
+                        int valueCount = values.docValueCount();
                         for (int v = 0; v < valueCount; ++v) {
                             long value = values.nextValue();
                             if (longFilter == null || longFilter.accept(value)) {
@@ -286,15 +308,36 @@ public class NumericTermsAggregator extends TermsAggregator {
 
         @Override
         LongTerms buildResult(long owningBucketOrd, long otherDocCount, LongTerms.Bucket[] topBuckets) {
-            return new LongTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError, otherDocCount,
-                List.of(topBuckets), 0);
+            return new LongTerms(
+                name,
+                order,
+                bucketCountThresholds.getRequiredSize(),
+                bucketCountThresholds.getMinDocCount(),
+                metadata(),
+                format,
+                bucketCountThresholds.getShardSize(),
+                showTermDocCountError,
+                otherDocCount,
+                List.of(topBuckets),
+                0
+            );
         }
 
         @Override
         LongTerms buildEmptyResult() {
-            return new LongTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError, 0, emptyList(), 0);
+            return new LongTerms(
+                name,
+                order,
+                bucketCountThresholds.getRequiredSize(),
+                bucketCountThresholds.getMinDocCount(),
+                metadata(),
+                format,
+                bucketCountThresholds.getShardSize(),
+                showTermDocCountError,
+                0,
+                emptyList(),
+                0
+            );
         }
     }
 
@@ -337,15 +380,36 @@ public class NumericTermsAggregator extends TermsAggregator {
 
         @Override
         DoubleTerms buildResult(long owningBucketOrd, long otherDocCount, DoubleTerms.Bucket[] topBuckets) {
-            return new DoubleTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError, otherDocCount,
-                List.of(topBuckets), 0);
+            return new DoubleTerms(
+                name,
+                order,
+                bucketCountThresholds.getRequiredSize(),
+                bucketCountThresholds.getMinDocCount(),
+                metadata(),
+                format,
+                bucketCountThresholds.getShardSize(),
+                showTermDocCountError,
+                otherDocCount,
+                List.of(topBuckets),
+                0
+            );
         }
 
         @Override
         DoubleTerms buildEmptyResult() {
-            return new DoubleTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError, 0, emptyList(), 0);
+            return new DoubleTerms(
+                name,
+                order,
+                bucketCountThresholds.getRequiredSize(),
+                bucketCountThresholds.getMinDocCount(),
+                metadata(),
+                format,
+                bucketCountThresholds.getShardSize(),
+                showTermDocCountError,
+                0,
+                emptyList(),
+                0
+            );
         }
     }
 
@@ -396,7 +460,14 @@ public class NumericTermsAggregator extends TermsAggregator {
         @Override
         SignificantLongTerms.Bucket buildEmptyBucket(long owningBucketOrd) {
             return new SignificantLongTerms.Bucket(
-                0, subsetSize.get(owningBucketOrd), 0, termsAggFactory.getSupersetNumDocs(), 0, null, format, 0
+                0,
+                subsetSize.get(owningBucketOrd),
+                0,
+                termsAggFactory.getSupersetNumDocs(),
+                0,
+                null,
+                format,
+                0
             );
         }
 
@@ -426,9 +497,17 @@ public class NumericTermsAggregator extends TermsAggregator {
 
         @Override
         SignificantLongTerms buildResult(long owningBucketOrd, long otherDocCounts, SignificantLongTerms.Bucket[] topBuckets) {
-            return new SignificantLongTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                metadata(), format, subsetSize.get(owningBucketOrd), termsAggFactory.getSupersetNumDocs(),
-                significanceHeuristic, List.of(topBuckets));
+            return new SignificantLongTerms(
+                name,
+                bucketCountThresholds.getRequiredSize(),
+                bucketCountThresholds.getMinDocCount(),
+                metadata(),
+                format,
+                subsetSize.get(owningBucketOrd),
+                termsAggFactory.getSupersetNumDocs(),
+                significanceHeuristic,
+                List.of(topBuckets)
+            );
         }
 
         @Override
@@ -437,8 +516,17 @@ public class NumericTermsAggregator extends TermsAggregator {
             ContextIndexSearcher searcher = context.searcher();
             IndexReader topReader = searcher.getIndexReader();
             int supersetSize = topReader.numDocs();
-            return new SignificantLongTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                    metadata(), format, 0, supersetSize, significanceHeuristic, emptyList());
+            return new SignificantLongTerms(
+                name,
+                bucketCountThresholds.getRequiredSize(),
+                bucketCountThresholds.getMinDocCount(),
+                metadata(),
+                format,
+                0,
+                supersetSize,
+                significanceHeuristic,
+                emptyList()
+            );
         }
 
         @Override

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.rest;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -41,7 +42,8 @@ public class RestDeleteExpiredDataAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        DeleteExpiredDataAction.Request request = new DeleteExpiredDataAction.Request();
+        XContentParser parser = restRequest.contentParser();
+        DeleteExpiredDataAction.Request request = DeleteExpiredDataAction.Request.PARSER.apply(parser, null);
         return channel -> client.execute(DeleteExpiredDataAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

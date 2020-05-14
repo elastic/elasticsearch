@@ -73,40 +73,54 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
     protected void doExecute(Task task, DeleteExpiredDataAction.Request request,
                              ActionListener<DeleteExpiredDataAction.Response> listener) {
         logger.info("Deleting expired data");
-        Instant timeoutTime = Instant.now(clock).plus(MAX_DURATION);
+        Instant timeoutTime = Instant.now(clock).plus(
+            request.getExpiration() == null ? MAX_DURATION : Duration.ofMillis(request.getExpiration().millis())
+        );
         Supplier<Boolean> isTimedOutSupplier = () -> Instant.now(clock).isAfter(timeoutTime);
-        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> deleteExpiredData(listener, isTimedOutSupplier));
+        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(
+            () -> deleteExpiredData(request, listener, isTimedOutSupplier)
+        );
     }
 
-    private void deleteExpiredData(ActionListener<DeleteExpiredDataAction.Response> listener,
+    private void deleteExpiredData(DeleteExpiredDataAction.Request request,
+                                   ActionListener<DeleteExpiredDataAction.Response> listener,
                                    Supplier<Boolean> isTimedOutSupplier) {
         AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client, clusterService.getNodeName());
         List<MlDataRemover> dataRemovers = Arrays.asList(
-                new ExpiredResultsRemover(client, auditor, threadPool, clusterService.state().getNodes().getDataNodes().size()),
+                new ExpiredResultsRemover(client, auditor, threadPool),
                 new ExpiredForecastsRemover(client, threadPool),
                 new ExpiredModelSnapshotsRemover(client, threadPool),
                 new UnusedStateRemover(client, clusterService),
                 new EmptyStateIndexRemover(client)
         );
         Iterator<MlDataRemover> dataRemoversIterator = new VolatileCursorIterator<>(dataRemovers);
-        deleteExpiredData(dataRemoversIterator, listener, isTimedOutSupplier, true);
+        float requestsPerSecond = request.getRequestsPerSecond() == null ? Float.POSITIVE_INFINITY : request.getRequestsPerSecond();
+        deleteExpiredData(dataRemoversIterator, requestsPerSecond, listener, isTimedOutSupplier, true);
     }
 
     void deleteExpiredData(Iterator<MlDataRemover> mlDataRemoversIterator,
+                           float requestsPerSecond,
                            ActionListener<DeleteExpiredDataAction.Response> listener,
                            Supplier<Boolean> isTimedOutSupplier,
                            boolean haveAllPreviousDeletionsCompleted) {
         if (haveAllPreviousDeletionsCompleted && mlDataRemoversIterator.hasNext()) {
             MlDataRemover remover = mlDataRemoversIterator.next();
             ActionListener<Boolean> nextListener = ActionListener.wrap(
-                    booleanResponse -> deleteExpiredData(mlDataRemoversIterator, listener, isTimedOutSupplier, booleanResponse),
+                    booleanResponse ->
+                        deleteExpiredData(
+                            mlDataRemoversIterator,
+                            requestsPerSecond,
+                            listener,
+                            isTimedOutSupplier,
+                            booleanResponse
+                        ),
                     listener::onFailure);
             // Removing expired ML data and artifacts requires multiple operations.
             // These are queued up and executed sequentially in the action listener,
             // the chained calls must all run the ML utility thread pool NOT the thread
             // the previous action returned in which in the case of a transport_client_boss
             // thread is a disaster.
-            remover.remove(new ThreadedActionListener<>(logger, threadPool, executor, nextListener, false),
+            remover.remove(requestsPerSecond, new ThreadedActionListener<>(logger, threadPool, executor, nextListener, false),
                 isTimedOutSupplier);
         } else {
             if (haveAllPreviousDeletionsCompleted) {

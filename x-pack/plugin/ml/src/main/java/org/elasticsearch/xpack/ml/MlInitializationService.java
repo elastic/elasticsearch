@@ -87,10 +87,24 @@ class MlInitializationService implements LocalNodeMasterListener, ClusterStateLi
 
     private synchronized void installDailyMaintenanceService() {
         if (mlDailyMaintenanceService == null) {
-            mlDailyMaintenanceService =
-                new MlDailyMaintenanceService(clusterService.getClusterName(), threadPool, client, clusterService, mlAssignmentNotifier);
+            mlDailyMaintenanceService = new MlDailyMaintenanceService(
+                settings,
+                clusterService.getClusterName(),
+                threadPool,
+                client,
+                clusterService,
+                mlAssignmentNotifier
+            );
             mlDailyMaintenanceService.start();
             clusterService.addLifecycleListener(new LifecycleListener() {
+                @Override
+                public void afterStart() {
+                    clusterService.getClusterSettings().addSettingsUpdateConsumer(
+                        MachineLearning.NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND,
+                        mlDailyMaintenanceService::setDeleteExpiredDataRequestsPerSecond
+                    );
+                }
+
                 @Override
                 public void beforeStop() {
                     uninstallDailyMaintenanceService();

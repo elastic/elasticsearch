@@ -13,8 +13,10 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -51,19 +53,25 @@ public class MlDailyMaintenanceService implements Releasable {
     private final Supplier<TimeValue> schedulerProvider;
 
     private volatile Scheduler.Cancellable cancellable;
+    private volatile float deleteExpiredDataRequestsPerSecond;
 
-    MlDailyMaintenanceService(ThreadPool threadPool, Client client, ClusterService clusterService,
+    MlDailyMaintenanceService(Settings settings, ThreadPool threadPool, Client client, ClusterService clusterService,
                               MlAssignmentNotifier mlAssignmentNotifier, Supplier<TimeValue> scheduleProvider) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.mlAssignmentNotifier = Objects.requireNonNull(mlAssignmentNotifier);
         this.schedulerProvider = Objects.requireNonNull(scheduleProvider);
+        this.deleteExpiredDataRequestsPerSecond = MachineLearning.NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND.get(settings);
     }
 
-    public MlDailyMaintenanceService(ClusterName clusterName, ThreadPool threadPool, Client client, ClusterService clusterService,
-                                     MlAssignmentNotifier mlAssignmentNotifier) {
-        this(threadPool, client, clusterService, mlAssignmentNotifier, () -> delayToNextTime(clusterName));
+    public MlDailyMaintenanceService(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+                                     Client client, ClusterService clusterService, MlAssignmentNotifier mlAssignmentNotifier) {
+        this(settings, threadPool, client, clusterService, mlAssignmentNotifier, () -> delayToNextTime(clusterName));
+    }
+
+    void setDeleteExpiredDataRequestsPerSecond(float value) {
+        this.deleteExpiredDataRequestsPerSecond = value;
     }
 
     /**
@@ -129,7 +137,20 @@ public class MlDailyMaintenanceService implements Releasable {
                 return;
             }
             LOGGER.info("triggering scheduled [ML] maintenance tasks");
-            executeAsyncWithOrigin(client, ML_ORIGIN, DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request(),
+            float requestsPerSec = deleteExpiredDataRequestsPerSecond;
+            if (requestsPerSec == -1.0f) {
+                // With DEFAULT_SCROLL_SIZE = 1000 and a single data node this implies we spread deletion of
+                //   1 million documents over 5000 seconds ~= 83 minutes.
+                int numberOfDatanodes = clusterService.state().getNodes().getDataNodes().size();
+                // If we have > 5 data nodes, we don't set our throttling.
+                requestsPerSec = numberOfDatanodes < 5 ?
+                    (float)(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE / 5) * numberOfDatanodes :
+                    0.0f;
+            }
+            executeAsyncWithOrigin(client,
+                ML_ORIGIN,
+                DeleteExpiredDataAction.INSTANCE,
+                new DeleteExpiredDataAction.Request(requestsPerSec, TimeValue.timeValueHours(8)),
                 ActionListener.wrap(
                     response -> {
                         if (response.isDeleted()) {

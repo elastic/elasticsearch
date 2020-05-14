@@ -70,14 +70,12 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
     private final OriginSettingClient client;
     private final AnomalyDetectionAuditor auditor;
     private final ThreadPool threadPool;
-    private final int numberOfDatanodes;
 
-    public ExpiredResultsRemover(OriginSettingClient client, AnomalyDetectionAuditor auditor, ThreadPool threadPool, int numberDataNodes) {
+    public ExpiredResultsRemover(OriginSettingClient client, AnomalyDetectionAuditor auditor, ThreadPool threadPool) {
         super(client);
         this.client = Objects.requireNonNull(client);
         this.auditor = Objects.requireNonNull(auditor);
         this.threadPool = Objects.requireNonNull(threadPool);
-        this.numberOfDatanodes = Math.max(numberDataNodes, 1);
     }
 
     @Override
@@ -86,9 +84,15 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
     }
 
     @Override
-    protected void removeDataBefore(Job job, long latestTimeMs, long cutoffEpochMs, ActionListener<Boolean> listener) {
+    protected void removeDataBefore(
+        Job job,
+        float requestsPerSecond,
+        long latestTimeMs,
+        long cutoffEpochMs,
+        ActionListener<Boolean> listener
+    ) {
         LOGGER.debug("Removing results of job [{}] that have a timestamp before [{}]", job.getId(), cutoffEpochMs);
-        DeleteByQueryRequest request = createDBQRequest(job, cutoffEpochMs);
+        DeleteByQueryRequest request = createDBQRequest(job, requestsPerSecond, cutoffEpochMs);
 
         client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<>() {
             @Override
@@ -110,18 +114,14 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         });
     }
 
-    DeleteByQueryRequest createDBQRequest(Job job, long cutoffEpochMs) {
+    DeleteByQueryRequest createDBQRequest(Job job, float requestsPerSec, long cutoffEpochMs) {
         DeleteByQueryRequest request = new DeleteByQueryRequest();
         request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
 
-        // Delete the documents gradually.
-        // With DEFAULT_SCROLL_SIZE = 1000 and a single data node this implies we spread deletion of 1 million documents over 5000 seconds
-        //   ~= 83 minutes.
-        request.setBatchSize(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE);
-        // If we have > 5 data nodes, we don't set our throttling.
-        if (numberOfDatanodes < 5) {
-            request.setRequestsPerSecond((AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE / 5) * numberOfDatanodes);
-        }
+        request.setBatchSize(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE)
+            // We are deleting old data, we should simply proceed as a version conflict could mean that another deletion is taking place
+            .setAbortOnVersionConflict(false)
+            .setRequestsPerSecond(requestsPerSec);
 
         request.indices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));
         QueryBuilder excludeFilter = QueryBuilders.termsQuery(Result.RESULT_TYPE.getPreferredName(),

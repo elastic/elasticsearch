@@ -78,7 +78,7 @@ public class Netty4Transport extends TcpTransport {
 
     public static final Setting<Integer> WORKER_COUNT =
         new Setting<>("transport.netty.worker_count",
-            (s) -> Integer.toString(EsExecutors.allocatedProcessors(s) * 2),
+            (s) -> Integer.toString(EsExecutors.allocatedProcessors(s)),
             (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"), Property.NodeScope);
 
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_SIZE = Setting.byteSizeSetting(

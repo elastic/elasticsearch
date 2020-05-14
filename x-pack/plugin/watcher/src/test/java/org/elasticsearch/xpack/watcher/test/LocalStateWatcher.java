@@ -6,9 +6,7 @@
 package org.elasticsearch.xpack.watcher.test;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.watcher.Watcher;
 
 import java.nio.file.Path;

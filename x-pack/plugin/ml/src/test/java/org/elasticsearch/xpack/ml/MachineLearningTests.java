@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.test.ESTestCase;
 

@@ -95,7 +95,7 @@ chosen.
 API chooses the format. In this default scenario, all rows must
 have the same number of fields for a delimited format to be detected. If the
 `format` is set to `delimited` and the `delimiter` is not set, however, the
-the API tolerates up to 5% of rows that have a different number of
+API tolerates up to 5% of rows that have a different number of
 columns than the first row.
 
 `grok_pattern`::

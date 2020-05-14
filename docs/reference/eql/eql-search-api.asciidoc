@@ -448,6 +448,7 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
         "events": [
           {
             "_index": "my_index",
+            "_type": "_doc",
             "_id": "4",
             "_score": null,
             "_source": {
@@ -481,6 +482,7 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
           },
           {
             "_index": "my_index",
+            "_type": "_doc",
             "_id": "5",
             "_score": null,
             "_source": {

@@ -23,7 +23,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.settings.Settings;
@@ -33,7 +32,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /** Mapper for the _doc_count field. */
@@ -96,7 +94,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context, "The _doc_count field is not searchable");
+            throw new QueryShardException(context, "Field of type [" + CONTENT_TYPE + " ] is not searchable");
         }
     }
 
@@ -110,11 +108,10 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
-        // see InternalEngine.updateVersion to see where the real version value is set
+    protected void parseCreateField(ParseContext context) throws IOException {
         final Field docCount = new NumericDocValuesField(NAME, -1L);
         context.version(docCount);
-        fields.add(docCount);
+        context.doc().add(docCount);
     }
 
     @Override

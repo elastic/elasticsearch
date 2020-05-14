@@ -24,7 +24,8 @@ public class AggregateMetricFeatureSetUsage extends XPackFeatureSet.Usage {
         super(XPackField.AGGREGATE_METRIC, available, enabled);
     }
 
-    @Override public Version getMinimalSupportedVersion() {
+    @Override
+    public Version getMinimalSupportedVersion() {
         return Version.V_8_0_0;
     }
 
@@ -44,10 +45,5 @@ public class AggregateMetricFeatureSetUsage extends XPackFeatureSet.Usage {
     @Override
     public int hashCode() {
         return Objects.hash(available, enabled);
-    }
-
-    @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_0_0;
     }
 }

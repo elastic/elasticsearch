@@ -19,14 +19,12 @@
 package org.elasticsearch.gradle;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -89,7 +87,6 @@ public class BwcVersions {
     private static final Pattern LINE_PATTERN = Pattern.compile(
         "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)? .*"
     );
-    private static final List<Version> IGNORED_VERSIONS = Arrays.asList(Version.fromString("7.7.0"));
 
     private final Version currentVersion;
     private final Map<Integer, List<Version>> groupByMajor;
@@ -123,7 +120,6 @@ public class BwcVersions {
                         Integer.parseInt(match.group(3))
                     )
                 )
-                .filter(v -> !IGNORED_VERSIONS.contains(v)) // remove any specifically ignored versions
                 .collect(Collectors.toCollection(TreeSet::new)),
             currentVersionProperty
         );
@@ -276,16 +272,7 @@ public class BwcVersions {
                 // we found that the previous minor is staged but not yet released
                 // in this case, the minor before that has a bugfix, should there be such a minor
                 if (greatestMinor >= 2) {
-                    int major = groupByMinor.values()
-                        .stream()
-                        .flatMap(Collection::stream)
-                        .findFirst()
-                        .map(Version::getMajor)
-                        .orElseThrow(NoSuchElementException::new);
-                    // Don't bother searching for a version we've ignored
-                    if (IGNORED_VERSIONS.contains(new Version(major, greatestMinor - 2, 0)) == false) {
-                        unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor - 2));
-                    }
+                    unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor - 2));
                 }
             }
         }

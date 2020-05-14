@@ -128,6 +128,23 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-group-by]
 ====
 //End pivot
 
+//Begin settings
+`settings`::
+(Optional, object)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-settings]
++
+.Properties of `settings`
+[%collapsible%open]
+====
+`docs_per_second`:::
+(Optional, float)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
+`max_page_search_size`:::
+(Optional, integer)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]
+====
+//End settings
+
 //Begin source
 `source`::
 (Required, object)
@@ -184,23 +201,6 @@ delays.
 //End time
 ====
 //End sync
-
-//Begin settings
-`settings`::
-(Optional, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-settings]
-+
-.Properties of `settings`
-[%collapsible%open]
-====
-`docs_per_second`:::
-(Optional, float)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
-`max_page_search_size`:::
-(Optional, integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]
-====
-//End settings
 
 
 [[put-transform-example]]

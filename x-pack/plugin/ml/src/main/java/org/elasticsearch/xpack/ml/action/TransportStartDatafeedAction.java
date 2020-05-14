@@ -156,7 +156,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     protected void masterOperation(Task task, StartDatafeedAction.Request request, ClusterState state,
                                    ActionListener<NodeAcknowledgedResponse> listener) {
         StartDatafeedAction.DatafeedParams params = request.getParams();
-        if (licenseState.isMachineLearningAllowed() == false) {
+        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
         }

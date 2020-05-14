@@ -36,6 +36,8 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.search.aggregations.support.AggregationUsageService.OTHER_SUBTYPE;
+
 public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final Query parentFilter;
@@ -84,5 +86,11 @@ public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory {
         } else {
             return asMultiBucketAggregator(this, searchContext, children);
         }
+    }
+
+    @Override
+    public String getStatsSubtype() {
+        // Parent Aggregation is registered in non-standard way
+        return OTHER_SUBTYPE;
     }
 }

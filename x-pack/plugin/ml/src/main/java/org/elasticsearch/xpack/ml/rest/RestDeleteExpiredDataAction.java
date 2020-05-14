@@ -42,8 +42,9 @@ public class RestDeleteExpiredDataAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        XContentParser parser = restRequest.contentParser();
-        DeleteExpiredDataAction.Request request = DeleteExpiredDataAction.Request.PARSER.apply(parser, null);
+        DeleteExpiredDataAction.Request request = restRequest.hasContent() ?
+            DeleteExpiredDataAction.Request.PARSER.apply(restRequest.contentParser(), null) :
+            new DeleteExpiredDataAction.Request();
         return channel -> client.execute(DeleteExpiredDataAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

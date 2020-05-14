@@ -341,6 +341,7 @@ REPLACE          |SCALAR
 RIGHT            |SCALAR         
 RTRIM            |SCALAR         
 SPACE            |SCALAR         
+STARTS_WITH      |SCALAR
 SUBSTRING        |SCALAR         
 UCASE            |SCALAR
 CAST             |SCALAR
@@ -1796,6 +1797,26 @@ SELECT SPACE(3);
                
  
 // end::stringSpace
+;
+
+stringStartsWithTrue
+// tag::stringStartsWithTrue
+SELECT STARTS_WITH('Elasticsearch', 'Elastic');
+
+STARTS_WITH('Elasticsearch', 'Elastic')
+--------------------------------
+true    
+// end::stringStartsWithTrue
+;
+
+stringStartsWithFalse
+// tag::stringStartsWithFalse
+SELECT STARTS_WITH('Elasticsearch', 'ELASTIC');
+
+STARTS_WITH('Elasticsearch', 'ELASTIC')
+--------------------------------
+false   
+// end::stringStartsWithFalse
 ;
 
 stringSubString

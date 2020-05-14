@@ -44,7 +44,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.plain.BytesBinaryDVIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -467,7 +467,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 @Override
                 public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                         CircuitBreakerService breakerService, MapperService mapperService) {
-                    return new WildcardBytesBinaryDVIndexFieldData(indexSettings.getIndex(), fieldType.name());
+                    return new WildcardBytesBinaryIndexFieldData(indexSettings.getIndex(), fieldType.name());
                 }};
         }
 
@@ -478,9 +478,9 @@ public class WildcardFieldMapper extends FieldMapper {
 
     }
 
-    static class  WildcardBytesBinaryDVIndexFieldData extends BytesBinaryDVIndexFieldData{
+    static class WildcardBytesBinaryIndexFieldData extends BytesBinaryIndexFieldData {
 
-        WildcardBytesBinaryDVIndexFieldData(Index index, String fieldName) {
+        WildcardBytesBinaryIndexFieldData(Index index, String fieldName) {
             super(index, fieldName);
         }
 

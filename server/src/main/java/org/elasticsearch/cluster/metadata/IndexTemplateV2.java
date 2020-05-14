@@ -122,7 +122,7 @@ public class IndexTemplateV2 extends AbstractDiffable<IndexTemplateV2> implement
         this.priority = in.readOptionalVLong();
         this.version = in.readOptionalVLong();
         this.metadata = in.readMap();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
             this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
         } else {
             this.dataStreamTemplate = null;
@@ -181,7 +181,7 @@ public class IndexTemplateV2 extends AbstractDiffable<IndexTemplateV2> implement
         out.writeOptionalVLong(this.priority);
         out.writeOptionalVLong(this.version);
         out.writeMap(this.metadata);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
             out.writeOptionalWriteable(dataStreamTemplate);
         }
     }

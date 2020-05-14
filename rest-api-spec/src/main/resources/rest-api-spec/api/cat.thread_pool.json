@@ -36,6 +36,7 @@
         "type":"enum",
         "description":"The multiplier in which to display values",
         "options":[
+          "",
           "k",
           "m",
           "g",
@@ -43,7 +44,7 @@
           "p"
         ],
         "deprecated":{
-          "version":"7.8.0",
+          "version":"7.7.0",
           "description":"Setting this value has no effect and will be removed from the specification."
         }
       },

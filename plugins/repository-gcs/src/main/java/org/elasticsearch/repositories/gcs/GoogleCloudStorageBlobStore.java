@@ -98,19 +98,26 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     private final String bucketName;
     private final String clientName;
+    private final String repositoryName;
     private final GoogleCloudStorageService storageService;
+    private final GoogleCloudStorageOperationsStats stats;
 
-    GoogleCloudStorageBlobStore(String bucketName, String clientName, GoogleCloudStorageService storageService) {
+    GoogleCloudStorageBlobStore(String bucketName,
+                                String clientName,
+                                String repositoryName,
+                                GoogleCloudStorageService storageService) {
         this.bucketName = bucketName;
         this.clientName = clientName;
+        this.repositoryName = repositoryName;
         this.storageService = storageService;
+        this.stats = new GoogleCloudStorageOperationsStats(bucketName);
         if (doesBucketExist(bucketName) == false) {
             throw new BlobStoreException("Bucket [" + bucketName + "] does not exist");
         }
     }
 
     private Storage client() throws IOException {
-        return storageService.client(clientName);
+        return storageService.client(clientName, repositoryName, stats);
     }
 
     @Override
@@ -119,7 +126,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
+        storageService.closeRepositoryClient(repositoryName);
     }
 
     /**
@@ -410,5 +418,10 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     private static String buildKey(String keyPath, String s) {
         assert s != null;
         return keyPath + s;
+    }
+
+    @Override
+    public Map<String, Long> stats() {
+        return stats.toMap();
     }
 }

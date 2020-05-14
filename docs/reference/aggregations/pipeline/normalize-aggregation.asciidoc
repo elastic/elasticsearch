@@ -107,7 +107,7 @@ POST /sales/_search
                 "percent_of_total_sales": {
                     "normalize": {
                         "buckets_path": "sales", <1>
-                        "method": "percent_of_sum"  <2>
+                        "method": "percent_of_sum",  <2>
                         "format": "00.00%" <3>
                     }
                 }

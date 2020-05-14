@@ -633,6 +633,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         boolean success = false;
         try {
             putContext(context);
+            // ensure that if we race against afterIndexRemoved, we free the context here.
+            // this is important to ensure store can be cleaned up, in particular if the search is a scroll with a long timeout.
+            indicesService.indexServiceSafe(request.shardId().getIndex());
             success = true;
             return context;
         } finally {

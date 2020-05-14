@@ -33,10 +33,10 @@ import java.util.Objects;
  */
 public class EExplicit extends AExpression {
 
-    protected final String type;
+    protected final DType type;
     protected final AExpression child;
 
-    public EExplicit(Location location, String type, AExpression child) {
+    public EExplicit(Location location, DType type, AExpression child) {
         super(location);
 
         this.type = Objects.requireNonNull(type);
@@ -45,28 +45,25 @@ public class EExplicit extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        String canonicalTypeName = type.getCanonicalTypeName();
+
         if (input.write) {
             throw createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to an explicit cast with target type [" + type + "]"));
+                    "invalid assignment: cannot assign a value to an explicit cast with target type [" + canonicalTypeName + "]"));
         }
 
         if (input.read == false) {
             throw createError(new IllegalArgumentException(
-                    "not a statement: result not used from explicit cast with target type [" + type + "]"));
+                    "not a statement: result not used from explicit cast with target type [" + canonicalTypeName + "]"));
         }
 
         Output output = new Output();
-
-        output.actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(type);
-
-        if (output.actual == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + type + "]."));
-        }
+        output.actual = type.resolveType(scriptRoot.getPainlessLookup()).getType();
 
         Input childInput = new Input();
         childInput.expected = output.actual;
         childInput.explicit = true;
-        Output childOutput = child.analyze(classNode, scriptRoot, scope, childInput);
+        Output childOutput = analyze(child, classNode, scriptRoot, scope, childInput);
         PainlessCast childCast = AnalyzerCaster.getLegalCast(child.location,
                 childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
 

@@ -14,8 +14,10 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryProcessor;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -43,7 +45,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<AbstractShapeGeometryFieldMapper.Builder,
-            ShapeFieldMapper> {
+            ShapeFieldMapper, ShapeFieldType> {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -58,21 +60,20 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
         }
 
         @Override
-        public ShapeFieldType fieldType() {
-            return (ShapeFieldType)fieldType;
+        protected void setGeometryParser(ShapeFieldType fieldType) {
+            GeometryParser geometryParser = new GeometryParser(fieldType.orientation().getAsBoolean(),
+                coerce().value(), ignoreZValue().value());
+            fieldType().setGeometryParser((parser, mapper) -> geometryParser.parse(parser));
         }
 
-        @SuppressWarnings("unchecked")
         @Override
-        protected void setupFieldType(BuilderContext context) {
-            super.setupFieldType(context);
+        protected void setGeometryIndexer(ShapeFieldType fieldType) {
+            fieldType.setGeometryIndexer(new ShapeIndexer(fieldType.name()));
+        }
 
-            GeometryParser geometryParser = new GeometryParser(orientation == Orientation.RIGHT,
-                coerce(context).value(), ignoreZValue().value());
-
-            fieldType().setGeometryIndexer(new ShapeIndexer(fieldType().name()));
-            fieldType().setGeometryParser((parser, mapper) -> geometryParser.parse(parser));
-            fieldType().setGeometryQueryBuilder(new ShapeQueryProcessor());
+        @Override
+        protected void setGeometryQueryBuilder(ShapeFieldType fieldType) {
+            fieldType.setGeometryQueryBuilder(new ShapeQueryProcessor());
         }
     }
 
@@ -122,6 +123,23 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
                             Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, orientation, indexSettings,
             multiFields, copyTo);
+    }
+
+    @Override
+    protected void addStoredFields(ParseContext context, Geometry geometry) {
+        // noop: we currently do not store geo_shapes
+        // @todo store as geojson string?
+    }
+
+    @Override
+    @SuppressWarnings("rawtypes")
+    protected void addDocValuesFields(String name, Geometry geometry, List fields, ParseContext context) {
+        // we should throw a mapping exception before we get here
+    }
+
+    @Override
+    protected void addMultiFields(ParseContext context, Geometry geometry) {
+        // noop (completion suggester currently not compatible with geo_shape)
     }
 
     @Override

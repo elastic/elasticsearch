@@ -33,8 +33,13 @@ import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.LongTermsAggregator;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 
@@ -45,10 +50,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.nested;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.reverseNested;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ReverseNestedAggregatorTests extends AggregatorTestCase {
 
@@ -68,12 +76,20 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
             Function.identity()));
     }
 
+    /**
+     * Nested aggregations need the {@linkplain DirectoryReader} wrapped.
+     */
+    @Override
+    protected IndexReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
+        return wrapInMockESDirectoryReader(reader);
+    }
+
     public void testNoDocs() throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 // intentionally not writing any docs
             }
-            try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
+            try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG,
                         NESTED_OBJECT);
                 ReverseNestedAggregationBuilder reverseNestedBuilder
@@ -137,7 +153,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 }
                 iw.commit();
             }
-            try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
+            try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG,
                         NESTED_OBJECT);
                 ReverseNestedAggregationBuilder reverseNestedBuilder
@@ -207,7 +223,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 iw.commit();
             }
 
-            try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
+            try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 MaxAggregationBuilder maxAgg = max(MAX_AGG_NAME).field(VALUE_FIELD_NAME);
                 MaxAggregationBuilder aliasMaxAgg = max(MAX_AGG_NAME).field(VALUE_FIELD_NAME + "-alias");
 
@@ -228,6 +244,38 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 assertEquals(expectedParentDocs, reverseNested.getDocCount());
             }
         }
+    }
+
+    /**
+     * {@link LongTermsAggregator} is the first complex bucking aggregation
+     * that stopped wrapping itself in {@link AggregatorFactory#asMultiBucketAggregator}
+     * so this tests that nested works properly inside of it.
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/56529")
+    public void testNestedUnderLongTerms() throws IOException {
+        int numProducts = scaledRandomIntBetween(1, 100);
+        int numResellers = scaledRandomIntBetween(1, 100);
+
+        AggregationBuilder b = new NestedAggregationBuilder("nested", "nested_reseller")
+            .subAggregation(new TermsAggregationBuilder("resellers").field("reseller_id").size(numResellers)
+                .subAggregation(new ReverseNestedAggregationBuilder("reverse_nested")
+                    .subAggregation(new TermsAggregationBuilder("products").field("product_id").size(numProducts))));
+        testCase(b, new MatchAllDocsQuery(), NestedAggregatorTests.buildResellerData(numProducts, numResellers), result -> {
+            InternalNested nested = (InternalNested) result;
+            assertThat(nested.getDocCount(), equalTo((long) numProducts * numResellers));
+            LongTerms resellers = nested.getAggregations().get("resellers");
+            assertThat(resellers.getBuckets().stream().map(LongTerms.Bucket::getKeyAsNumber).collect(toList()),
+                equalTo(LongStream.range(0, numResellers).mapToObj(Long::valueOf).collect(toList())));
+            for (int r = 0; r < numResellers; r++) {
+                LongTerms.Bucket bucket = resellers.getBucketByKey(Integer.toString(r));
+                assertThat(bucket.getDocCount(), equalTo((long) numProducts));
+                InternalReverseNested reverseNested = bucket.getAggregations().get("reverse_nested");
+                assertThat(reverseNested.getDocCount(), equalTo((long) numProducts));
+                LongTerms products = reverseNested.getAggregations().get("products");
+                assertThat(products.getBuckets().stream().map(LongTerms.Bucket::getKeyAsNumber).collect(toList()),
+                    equalTo(LongStream.range(0, numProducts).mapToObj(Long::valueOf).collect(toList())));
+            }
+        }, NestedAggregatorTests.resellersMappedFields());
     }
 
 }

@@ -247,7 +247,7 @@ following:
         "indices": ["..."],
         "match_field": "...",
         "enrich_fields": ["..."],
-        "query": "..."
+        "query": {...}
     }
   }
 }
@@ -297,9 +297,9 @@ Fields to add to matching incoming documents. These fields must be present in
 the source indices.
 
 `query`::
-(Optional, string)
-Query type used to filter documents in the enrich index for matching. Valid
-value is <<query-dsl-match-all-query,`match_all`>> (default).
+(Optional, <<query-dsl,Query DSL query object>>)
+Query used to filter documents in the enrich index for matching. Defaults to
+a <<query-dsl-match-all-query,`match_all`>> query.
 
 [role="xpack"]
 [testenv="basic"]

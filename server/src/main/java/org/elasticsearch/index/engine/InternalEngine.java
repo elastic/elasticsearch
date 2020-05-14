@@ -20,8 +20,6 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.codecs.blocktree.BlockTreeTermsReader;
-import org.apache.lucene.codecs.blocktree.BlockTreeTermsReader.FSTLoadMode;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -29,7 +27,6 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
@@ -50,9 +47,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.LockObtainFailedException;
-import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.Assertions;
@@ -91,7 +86,6 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -103,7 +97,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -2102,24 +2095,10 @@ public class InternalEngine extends Engine {
         }
     }
 
-    static Map<String, String> getReaderAttributes(Directory directory, IndexSettings indexSettings) {
-        Directory unwrap = FilterDirectory.unwrap(directory);
-        boolean defaultOffHeap = FsDirectoryFactory.isHybridFs(unwrap) || unwrap instanceof MMapDirectory;
-        Map<String, String> attributes = new HashMap<>();
-        attributes.put(BlockTreeTermsReader.FST_MODE_KEY, defaultOffHeap ? FSTLoadMode.OFF_HEAP.name() : FSTLoadMode.ON_HEAP.name());
-        if (IndexSettings.ON_HEAP_ID_TERMS_INDEX.exists(indexSettings.getSettings())) {
-            final boolean idOffHeap = IndexSettings.ON_HEAP_ID_TERMS_INDEX.get(indexSettings.getSettings()) == false;
-            attributes.put(BlockTreeTermsReader.FST_MODE_KEY + "." + IdFieldMapper.NAME,
-                    idOffHeap ? FSTLoadMode.OFF_HEAP.name() : FSTLoadMode.ON_HEAP.name());
-        }
-        return Collections.unmodifiableMap(attributes);
-    }
-
     private IndexWriterConfig getIndexWriterConfig() {
         final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
         iwc.setCommitOnClose(false); // we by default don't commit on close
         iwc.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
-        iwc.setReaderAttributes(getReaderAttributes(store.directory(), engineConfig.getIndexSettings()));
         iwc.setIndexDeletionPolicy(combinedDeletionPolicy);
         // with tests.verbose, lucene sets this up: plumb to align with filesystem stream
         boolean verbose = false;
@@ -2274,7 +2253,7 @@ public class InternalEngine extends Engine {
         }
 
         @Override
-        protected void handleMergeException(final Directory dir, final Throwable exc) {
+        protected void handleMergeException(final Throwable exc) {
             engineConfig.getThreadPool().generic().execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
@@ -2288,7 +2267,7 @@ public class InternalEngine extends Engine {
                      * confidence that the call stack does not contain catch statements that would cause the error that might be thrown
                      * here from being caught and never reaching the uncaught exception handler.
                      */
-                    failEngine("merge failed", new MergePolicy.MergeException(exc, dir));
+                    failEngine("merge failed", new MergePolicy.MergeException(exc));
                 }
             });
         }
@@ -2533,16 +2512,6 @@ public class InternalEngine extends Engine {
     private static class AssertingIndexWriter extends IndexWriter {
         AssertingIndexWriter(Directory d, IndexWriterConfig conf) throws IOException {
             super(d, conf);
-        }
-
-        @Override
-        public long updateDocument(Term term, Iterable<? extends IndexableField> doc) {
-            throw new AssertionError("must not hard update document");
-        }
-
-        @Override
-        public long updateDocuments(Term delTerm, Iterable<? extends Iterable<? extends IndexableField>> docs) {
-            throw new AssertionError("must not hard update documents");
         }
 
         @Override

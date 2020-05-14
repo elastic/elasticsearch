@@ -646,4 +646,45 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
     }
 
+    /*
+     * Test that we are able to set the setting index.number_of_replicas to the default.
+     */
+    public void testDefaultNumberOfReplicasOnOpenIndices() {
+        runTestDefaultNumberOfReplicasTest(false);
+    }
+
+    public void testDefaultNumberOfReplicasOnClosedIndices() {
+        runTestDefaultNumberOfReplicasTest(true);
+    }
+
+    private void runTestDefaultNumberOfReplicasTest(final boolean closeIndex) {
+        if (randomBoolean()) {
+            assertAcked(client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(1, 8))));
+        } else {
+            assertAcked(client().admin().indices().prepareCreate("test"));
+        }
+
+        if (closeIndex) {
+            assertAcked(client().admin().indices().prepareClose("test"));
+        }
+
+        /*
+         * Previous versions of Elasticsearch would throw an exception that the number of replicas had to have a value, and could not be
+         * null. In the update settings logic, we ensure this by providing an explicit default value if the setting is set to null.
+         */
+        assertAcked(client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().putNull(IndexMetadata.SETTING_NUMBER_OF_REPLICAS)));
+
+        final GetSettingsResponse response = client().admin().indices().prepareGetSettings("test").get();
+
+        // we removed the setting but it should still have an explicit value since index metadata requires this
+        assertTrue(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(response.getIndexToSettings().get("test")));
+        assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(response.getIndexToSettings().get("test")), equalTo(1));
+    }
+
 }

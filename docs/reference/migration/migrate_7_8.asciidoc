@@ -121,18 +121,20 @@ indices, the newly introduced `xpack.watcher.use_ilm_index_management` setting
 may be set to false.
 ====
 
-[float]
+[discrete]
 [[builtin-users-changes]]
 ==== Changes to built-in users
 
-[float]
-===== The `kibana` user has been deprecated in favor of the `kibana_system` user
-
+.The `kibana` user has been deprecated in favor of the `kibana_system` user.
+[%collapsible]
+====
+*Details* +
 The `kibana` user was historically used to authenticate {kib} to {es}.
 The name of this user was confusing, and was often mistakenly used to login to {kib}.
 This has been renamed to `kibana_system` in order to reduce confusion, and to better
 align with other built-in system accounts.
 
+*Impact* +
 If your `kibana.yml` used to contain:
 [source,yaml]
 --------------------------------------------------
@@ -144,17 +146,24 @@ then you should update to use the new `kibana_system` user instead:
 --------------------------------------------------
 elasticsearch.username: kibana_system
 --------------------------------------------------
+====
 
 
-[float]
+[discrete]
 [[builtin-roles-changes]]
 ==== Changes to built-in roles
 
-[float]
-===== The `kibana_user` role has been deprecated in favor of the `kibana_admin` role
-
+.The `kibana_user` role has been deprecated in favor of the `kibana_admin` role.
+[%collapsible]
+====
+*Details* +
 Users who were previously assigned the `kibana_user` role should instead be assigned
 the `kibana_admin` role. This role grants the same set of privileges as `kibana_user`, but has been
 renamed to better reflect its intended use.
+
+*Impact* +
+Assign users with the `kibana_user` role to the `kibana_admin` role.
+Discontinue use of the `kibana_user` role.
+====
 
 //end::notable-breaking-changes[]

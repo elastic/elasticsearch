@@ -106,7 +106,7 @@ public final class FieldAliasMapper extends Mapper {
         }
     }
 
-    public static class Builder extends Mapper.Builder<FieldAliasMapper.Builder> {
+    public static class Builder extends Mapper.Builder {
         private String name;
         private String path;
 

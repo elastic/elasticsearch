@@ -100,13 +100,12 @@ public class WildcardFieldMapper extends FieldMapper {
         public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    public static class Builder extends FieldMapper.Builder {
         protected int ignoreAbove = Defaults.IGNORE_ABOVE;
 
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
-            builder = this;
         }
 
         @Override
@@ -118,11 +117,10 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Builder indexOptions(IndexOptions indexOptions) {
+        public void indexOptions(IndexOptions indexOptions) {
             if (indexOptions != IndexOptions.DOCS) {
                 throw new MapperParsingException("The field [" + name + "] cannot have indexOptions = " + indexOptions);
             }
-            return this;
         }
 
         @Override
@@ -134,7 +132,7 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Builder similarity(SimilarityProvider similarity) {
+        public void similarity(SimilarityProvider similarity) {
             throw new MapperParsingException("The field [" + name + "] cannot have custom similarities");
         }
 
@@ -146,12 +144,11 @@ public class WildcardFieldMapper extends FieldMapper {
             return this;
         }
 
-        public Builder ignoreAbove(int ignoreAbove) {
+        public void ignoreAbove(int ignoreAbove) {
             if (ignoreAbove < 0) {
                 throw new IllegalArgumentException("[ignore_above] must be positive, got " + ignoreAbove);
             }
             this.ignoreAbove = ignoreAbove;
-            return this;
         }
 
 
@@ -179,7 +176,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext)
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
             WildcardFieldMapper.Builder builder = new WildcardFieldMapper.Builder(name);
             parseField(builder, name, node, parserContext);

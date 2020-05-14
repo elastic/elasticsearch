@@ -71,16 +71,15 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private static class Builder extends MetadataFieldMapper.Builder<Builder> {
+    private static class Builder extends MetadataFieldMapper.Builder {
         private boolean enabled = Defaults.ENABLED;
 
         private Builder(MappedFieldType existing) {
             super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
         }
 
-        private Builder enabled(boolean enabled) {
+        private void enabled(boolean enabled) {
             this.enabled = enabled;
-            return this;
         }
 
         @Override
@@ -100,7 +99,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                 + "will be removed in a future major version. Please remove it from your mappings and templates.";
 
         @Override
-        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
+        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node,
                                                       ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fieldType(NAME));
 

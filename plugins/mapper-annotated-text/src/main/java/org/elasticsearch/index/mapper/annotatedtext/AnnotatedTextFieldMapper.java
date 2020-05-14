@@ -85,13 +85,12 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    public static class Builder extends FieldMapper.Builder {
 
         private int positionIncrementGap = POSITION_INCREMENT_GAP_USE_ANALYZER;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
-            builder = this;
         }
 
         @Override
@@ -99,12 +98,11 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             return (AnnotatedTextFieldType) super.fieldType();
         }
 
-        public Builder positionIncrementGap(int positionIncrementGap) {
+        public void positionIncrementGap(int positionIncrementGap) {
             if (positionIncrementGap < 0) {
                 throw new MapperParsingException("[positions_increment_gap] must be positive, got " + positionIncrementGap);
             }
             this.positionIncrementGap = positionIncrementGap;
-            return this;
         }
 
         @Override
@@ -112,7 +110,8 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             if (docValues) {
                 throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields do not support doc values");
             }
-            return super.docValues(docValues);
+            super.docValues(docValues);
+            return this;
         }
 
         @Override
@@ -147,7 +146,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<AnnotatedTextFieldMapper.Builder> parse(
+        public Mapper.Builder parse(
                 String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             AnnotatedTextFieldMapper.Builder builder = new AnnotatedTextFieldMapper.Builder(fieldName);
 

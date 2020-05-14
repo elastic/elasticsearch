@@ -57,11 +57,10 @@ public class RankFeatureFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    public static class Builder extends FieldMapper.Builder {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
-            builder = this;
         }
 
         @Override
@@ -69,9 +68,8 @@ public class RankFeatureFieldMapper extends FieldMapper {
             return (RankFeatureFieldType) super.fieldType();
         }
 
-        public Builder positiveScoreImpact(boolean v) {
+        public void positiveScoreImpact(boolean v) {
             fieldType().setPositiveScoreImpact(v);
-            return builder;
         }
 
         @Override
@@ -85,7 +83,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             RankFeatureFieldMapper.Builder builder = new RankFeatureFieldMapper.Builder(name);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();

@@ -56,7 +56,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         Setting.boolSetting("index.mapping.ignore_malformed", false, Property.IndexScope);
     public static final Setting<Boolean> COERCE_SETTING =
         Setting.boolSetting("index.mapping.coerce", false, Property.IndexScope);
-    public abstract static class Builder<T extends Builder> extends Mapper.Builder<T> {
+    public abstract static class Builder extends Mapper.Builder {
 
         protected final MappedFieldType fieldType;
         protected final MappedFieldType defaultFieldType;
@@ -80,7 +80,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return fieldType;
         }
 
-        public T index(boolean index) {
+        public Builder index(boolean index) {
             if (index) {
                 if (fieldType.indexOptions() == IndexOptions.NONE) {
                     /*
@@ -101,105 +101,92 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             } else {
                 fieldType.setIndexOptions(IndexOptions.NONE);
             }
-            return builder;
+            return this;
         }
 
         protected IndexOptions getDefaultIndexOption() {
             return defaultOptions;
         }
 
-        public T store(boolean store) {
+        public Builder store(boolean store) {
             this.fieldType.setStored(store);
-            return builder;
+            return this;
         }
 
-        public T docValues(boolean docValues) {
+        public Builder docValues(boolean docValues) {
             this.fieldType.setHasDocValues(docValues);
             this.docValuesSet = true;
-            return builder;
+            return this;
         }
 
-        public T storeTermVectors(boolean termVectors) {
+        public void storeTermVectors(boolean termVectors) {
             if (termVectors != this.fieldType.storeTermVectors()) {
                 this.fieldType.setStoreTermVectors(termVectors);
             } // don't set it to false, it is default and might be flipped by a more specific option
-            return builder;
         }
 
-        public T storeTermVectorOffsets(boolean termVectorOffsets) {
+        public void storeTermVectorOffsets(boolean termVectorOffsets) {
             if (termVectorOffsets) {
                 this.fieldType.setStoreTermVectors(termVectorOffsets);
             }
             this.fieldType.setStoreTermVectorOffsets(termVectorOffsets);
-            return builder;
         }
 
-        public T storeTermVectorPositions(boolean termVectorPositions) {
+        public void storeTermVectorPositions(boolean termVectorPositions) {
             if (termVectorPositions) {
                 this.fieldType.setStoreTermVectors(termVectorPositions);
             }
             this.fieldType.setStoreTermVectorPositions(termVectorPositions);
-            return builder;
         }
 
-        public T storeTermVectorPayloads(boolean termVectorPayloads) {
+        public void storeTermVectorPayloads(boolean termVectorPayloads) {
             if (termVectorPayloads) {
                 this.fieldType.setStoreTermVectors(termVectorPayloads);
             }
             this.fieldType.setStoreTermVectorPayloads(termVectorPayloads);
-            return builder;
         }
 
-        public T boost(float boost) {
+        public void boost(float boost) {
             this.fieldType.setBoost(boost);
-            return builder;
         }
 
-        public T omitNorms(boolean omitNorms) {
+        public void omitNorms(boolean omitNorms) {
             this.fieldType.setOmitNorms(omitNorms);
             this.omitNormsSet = true;
-            return builder;
         }
 
-        public T indexOptions(IndexOptions indexOptions) {
+        public void indexOptions(IndexOptions indexOptions) {
             this.fieldType.setIndexOptions(indexOptions);
             this.indexOptionsSet = true;
-            return builder;
         }
 
-        public T indexAnalyzer(NamedAnalyzer indexAnalyzer) {
+        public void indexAnalyzer(NamedAnalyzer indexAnalyzer) {
             this.fieldType.setIndexAnalyzer(indexAnalyzer);
-            return builder;
         }
 
-        public T searchAnalyzer(NamedAnalyzer searchAnalyzer) {
+        public void searchAnalyzer(NamedAnalyzer searchAnalyzer) {
             this.fieldType.setSearchAnalyzer(searchAnalyzer);
-            return builder;
         }
 
-        public T searchQuoteAnalyzer(NamedAnalyzer searchQuoteAnalyzer) {
+        public void searchQuoteAnalyzer(NamedAnalyzer searchQuoteAnalyzer) {
             this.fieldType.setSearchQuoteAnalyzer(searchQuoteAnalyzer);
-            return builder;
         }
 
-        public T similarity(SimilarityProvider similarity) {
+        public void similarity(SimilarityProvider similarity) {
             this.fieldType.setSimilarity(similarity);
-            return builder;
         }
 
-        public Builder nullValue(Object nullValue) {
+        public void nullValue(Object nullValue) {
             this.fieldType.setNullValue(nullValue);
+        }
+
+        public Builder addMultiField(Mapper.Builder mapperBuilder) {
+            multiFieldsBuilder.add(mapperBuilder);
             return this;
         }
 
-        public T addMultiField(Mapper.Builder<?> mapperBuilder) {
-            multiFieldsBuilder.add(mapperBuilder);
-            return builder;
-        }
-
-        public T copyTo(CopyTo copyTo) {
+        public void copyTo(CopyTo copyTo) {
             this.copyTo = copyTo;
-            return builder;
         }
 
         protected String buildFullName(BuilderContext context) {
@@ -224,9 +211,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         /** Set metadata on this field. */
-        public T meta(Map<String, String> meta) {
+        public void meta(Map<String, String> meta) {
             fieldType.setMeta(meta);
-            return (T) this;
         }
     }
 

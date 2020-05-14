@@ -62,19 +62,17 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         return defaultFieldType;
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder> {
+    public static class Builder extends MetadataFieldMapper.Builder {
 
         protected EnabledAttributeMapper enabledState = EnabledAttributeMapper.UNSET_DISABLED;
 
         private Builder(MappedFieldType existing, Version indexCreated) {
             super(NAME, existing == null ? defaultFieldType(indexCreated) : existing.clone(),
                 defaultFieldType(indexCreated));
-            builder = this;
         }
 
-        public Builder enabled(EnabledAttributeMapper enabled) {
+        public void enabled(EnabledAttributeMapper enabled) {
             this.enabledState = enabled;
-            return builder;
         }
 
         @Override
@@ -86,7 +84,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
+        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node,
                                                        ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fieldType(NAME),
                 parserContext.indexVersionCreated());

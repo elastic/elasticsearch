@@ -77,14 +77,13 @@ public class RangeFieldMapper extends FieldMapper {
     static final Setting<Boolean> COERCE_SETTING =
         Setting.boolSetting("index.mapping.coerce", true, Setting.Property.IndexScope);
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    public static class Builder extends FieldMapper.Builder {
         private Boolean coerce;
         private Locale locale = Locale.ROOT;
         private String pattern;
 
         public Builder(String name, RangeType type) {
             super(name, new RangeFieldType(type), new RangeFieldType(type));
-            builder = this;
         }
 
         @Override
@@ -92,9 +91,8 @@ public class RangeFieldMapper extends FieldMapper {
             return (RangeFieldType)fieldType;
         }
 
-        public Builder coerce(boolean coerce) {
+        public void coerce(boolean coerce) {
             this.coerce = coerce;
-            return builder;
         }
 
         protected Explicit<Boolean> coerce(BuilderContext context) {
@@ -107,13 +105,12 @@ public class RangeFieldMapper extends FieldMapper {
             return Defaults.COERCE;
         }
 
-        public Builder format(String format) {
+        public void format(String format) {
             this.pattern = format;
-            return this;
         }
 
         @Override
-        public Builder nullValue(Object nullValue) {
+        public void nullValue(Object nullValue) {
             throw new IllegalArgumentException("Field [" + name() + "] does not support null value.");
         }
 
@@ -126,10 +123,10 @@ public class RangeFieldMapper extends FieldMapper {
             super.setupFieldType(context);
             DateFormatter formatter = fieldType().dateTimeFormatter;
             if (fieldType().rangeType == RangeType.DATE) {
-                boolean hasPatternChanged = Strings.hasLength(builder.pattern) &&
-                    Objects.equals(builder.pattern, formatter.pattern()) == false;
+                boolean hasPatternChanged = Strings.hasLength(this.pattern) &&
+                    Objects.equals(this.pattern, formatter.pattern()) == false;
 
-                if (hasPatternChanged || Objects.equals(builder.locale, formatter.locale()) == false) {
+                if (hasPatternChanged || Objects.equals(this.locale, formatter.locale()) == false) {
                     fieldType().setDateTimeFormatter(DateFormatter.forPattern(pattern).withLocale(locale));
                 }
             } else if (pattern != null) {
@@ -154,7 +151,7 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node,
+        public Mapper.Builder parse(String name, Map<String, Object> node,
                                          ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name, type);
             TypeParsers.parseField(builder, name, node, parserContext);

@@ -74,7 +74,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder> {
+    public static class Builder extends MetadataFieldMapper.Builder {
 
         private boolean enabled = Defaults.ENABLED;
 
@@ -85,19 +85,16 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             super(Defaults.NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
         }
 
-        public Builder enabled(boolean enabled) {
+        public void enabled(boolean enabled) {
             this.enabled = enabled;
-            return this;
         }
 
-        public Builder includes(String[] includes) {
+        public void includes(String[] includes) {
             this.includes = includes;
-            return this;
         }
 
-        public Builder excludes(String[] excludes) {
+        public void excludes(String[] excludes) {
             this.excludes = excludes;
-            return this;
         }
 
         @Override
@@ -108,7 +105,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
+        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node,
                                                       ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder();
 

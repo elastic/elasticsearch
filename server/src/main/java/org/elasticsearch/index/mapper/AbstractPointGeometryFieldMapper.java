@@ -44,8 +44,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
         public static final ParseField NULL_VALUE = new ParseField("null_value");
     }
 
-    public abstract static class Builder<T extends Builder,
-            FT extends AbstractPointGeometryFieldType> extends AbstractGeometryFieldMapper.Builder<T, FT> {
+    public abstract static class Builder<FT extends AbstractPointGeometryFieldType> extends AbstractGeometryFieldMapper.Builder<FT> {
         public Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType) {
             super(name, fieldType, defaultFieldType);
         }

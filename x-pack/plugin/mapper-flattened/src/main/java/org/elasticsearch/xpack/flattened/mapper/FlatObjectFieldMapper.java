@@ -109,13 +109,12 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    public static class Builder extends FieldMapper.Builder {
         private int depthLimit = Defaults.DEPTH_LIMIT;
         private int ignoreAbove = Defaults.IGNORE_ABOVE;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
-            builder = this;
         }
 
         @Override
@@ -124,13 +123,13 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
 
         @Override
-        public Builder indexOptions(IndexOptions indexOptions) {
+        public void indexOptions(IndexOptions indexOptions) {
             if (indexOptions.compareTo(IndexOptions.DOCS_AND_FREQS) > 0) {
                 throw new IllegalArgumentException("The [" + CONTENT_TYPE
                     + "] field does not support positions, got [index_options]="
                     + indexOptionToString(indexOptions));
             }
-            return super.indexOptions(indexOptions);
+            super.indexOptions(indexOptions);
         }
 
         public Builder depthLimit(int depthLimit) {
@@ -141,9 +140,8 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             return this;
         }
 
-        public Builder eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
+        public void eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
             fieldType().setEagerGlobalOrdinals(eagerGlobalOrdinals);
-            return builder;
         }
 
         public Builder ignoreAbove(int ignoreAbove) {
@@ -154,18 +152,17 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             return this;
         }
 
-        public Builder splitQueriesOnWhitespace(boolean splitQueriesOnWhitespace) {
+        public void splitQueriesOnWhitespace(boolean splitQueriesOnWhitespace) {
             fieldType().setSplitQueriesOnWhitespace(splitQueriesOnWhitespace);
-            return builder;
         }
 
         @Override
-        public Builder addMultiField(Mapper.Builder<?> mapperBuilder) {
+        public Builder addMultiField(Mapper.Builder mapperBuilder) {
             throw new UnsupportedOperationException("[fields] is not supported for [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
-        public Builder copyTo(CopyTo copyTo) {
+        public void copyTo(CopyTo copyTo) {
             throw new UnsupportedOperationException("[copy_to] is not supported for [" + CONTENT_TYPE + "] fields.");
         }
 
@@ -188,7 +185,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name);
             parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {

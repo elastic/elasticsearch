@@ -78,25 +78,28 @@ public class NumberFieldMapper extends FieldMapper {
         public static final Explicit<Boolean> COERCE = new Explicit<>(true, false);
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    public static class Builder extends FieldMapper.Builder {
 
         private Boolean ignoreMalformed;
         private Boolean coerce;
 
         public Builder(String name, NumberType type) {
             super(name, new NumberFieldType(type), new NumberFieldType(type));
-            builder = this;
         }
 
-        public Builder ignoreMalformed(boolean ignoreMalformed) {
+        public void ignoreMalformed(boolean ignoreMalformed) {
             this.ignoreMalformed = ignoreMalformed;
-            return builder;
+        }
+
+        public Builder docValues(boolean docValues) {
+            super.docValues(docValues);
+            return this;
         }
 
         @Override
-        public Builder indexOptions(IndexOptions indexOptions) {
+        public void indexOptions(IndexOptions indexOptions) {
             throw new MapperParsingException(
-                    "index_options not allowed in field [" + name + "] of type [" + builder.fieldType().typeName() + "]");
+                    "index_options not allowed in field [" + name + "] of type [" + fieldType().typeName() + "]");
         }
 
         protected Explicit<Boolean> ignoreMalformed(BuilderContext context) {
@@ -109,9 +112,8 @@ public class NumberFieldMapper extends FieldMapper {
             return Defaults.IGNORE_MALFORMED;
         }
 
-        public Builder coerce(boolean coerce) {
+        public void coerce(boolean coerce) {
             this.coerce = coerce;
-            return builder;
         }
 
         protected Explicit<Boolean> coerce(BuilderContext context) {
@@ -146,7 +148,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node,
+        public Mapper.Builder parse(String name, Map<String, Object> node,
                                          ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name, type);
             TypeParsers.parseField(builder, name, node, parserContext);

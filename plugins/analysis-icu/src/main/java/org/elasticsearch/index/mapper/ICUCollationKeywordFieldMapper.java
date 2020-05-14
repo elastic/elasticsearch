@@ -221,7 +221,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    public static class Builder extends FieldMapper.Builder {
         private String rules = null;
         private String language = null;
         private String country = null;
@@ -238,7 +238,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
-            builder = this;
         }
 
         @Override
@@ -247,129 +246,116 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Builder indexOptions(IndexOptions indexOptions) {
+        public void indexOptions(IndexOptions indexOptions) {
             if (indexOptions.compareTo(IndexOptions.DOCS_AND_FREQS) > 0) {
                 throw new IllegalArgumentException("The [" + CONTENT_TYPE + "] field does not support positions, got [index_options]="
                     + indexOptionToString(indexOptions));
             }
 
-            return super.indexOptions(indexOptions);
+            super.indexOptions(indexOptions);
         }
 
-        public Builder ignoreAbove(int ignoreAbove) {
+        public void ignoreAbove(int ignoreAbove) {
             if (ignoreAbove < 0) {
                 throw new IllegalArgumentException("[ignore_above] must be positive, got " + ignoreAbove);
             }
             this.ignoreAbove = ignoreAbove;
-            return this;
         }
 
         public String rules() {
             return rules;
         }
 
-        public Builder rules(final String rules) {
+        public void rules(final String rules) {
             this.rules = rules;
-            return this;
         }
 
         public String language() {
             return language;
         }
 
-        public Builder language(final String language) {
+        public void language(final String language) {
             this.language = language;
-            return this;
         }
 
         public String country() {
             return country;
         }
 
-        public Builder country(final String country) {
+        public void country(final String country) {
             this.country = country;
-            return this;
         }
 
         public String variant() {
             return variant;
         }
 
-        public Builder variant(final String variant) {
+        public void variant(final String variant) {
             this.variant = variant;
-            return this;
         }
 
         public String strength() {
             return strength;
         }
 
-        public Builder strength(final String strength) {
+        public void strength(final String strength) {
             this.strength = strength;
-            return this;
         }
 
         public String decomposition() {
             return decomposition;
         }
 
-        public Builder decomposition(final String decomposition) {
+        public void decomposition(final String decomposition) {
             this.decomposition = decomposition;
-            return this;
         }
 
         public String alternate() {
             return alternate;
         }
 
-        public Builder alternate(final String alternate) {
+        public void alternate(final String alternate) {
             this.alternate = alternate;
-            return this;
         }
 
         public boolean caseLevel() {
             return caseLevel;
         }
 
-        public Builder caseLevel(final boolean caseLevel) {
+        public void caseLevel(final boolean caseLevel) {
             this.caseLevel = caseLevel;
-            return this;
         }
 
         public String caseFirst() {
             return caseFirst;
         }
 
-        public Builder caseFirst(final String caseFirst) {
+        public void caseFirst(final String caseFirst) {
             this.caseFirst = caseFirst;
-            return this;
         }
 
         public boolean numeric() {
             return numeric;
         }
 
-        public Builder numeric(final boolean numeric) {
+        public void numeric(final boolean numeric) {
             this.numeric = numeric;
-            return this;
         }
 
         public String variableTop() {
             return variableTop;
         }
 
-        public Builder variableTop(final String variableTop) {
+        public void variableTop(final String variableTop) {
             this.variableTop = variableTop;
-            return this;
         }
 
         public boolean hiraganaQuaternaryMode() {
             return hiraganaQuaternaryMode;
         }
 
-        public Builder hiraganaQuaternaryMode(final boolean hiraganaQuaternaryMode) {
+        public void hiraganaQuaternaryMode(final boolean hiraganaQuaternaryMode) {
             this.hiraganaQuaternaryMode = hiraganaQuaternaryMode;
-            return this;
         }
 
         public Collator buildCollator() {
@@ -481,7 +467,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext)
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
             throws MapperParsingException {
             Builder builder = new Builder(name);
             TypeParsers.parseField(builder, name, node, parserContext);

@@ -62,11 +62,16 @@ public class BinaryFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    public static class Builder extends FieldMapper.Builder {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
-            builder = this;
+        }
+
+        @Override
+        public Builder docValues(boolean docValues) {
+            super.docValues(docValues);
+            return this;
         }
 
         @Override

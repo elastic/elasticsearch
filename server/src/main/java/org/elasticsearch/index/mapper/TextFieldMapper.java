@@ -110,7 +110,7 @@ public class TextFieldMapper extends FieldMapper {
         public static final int POSITION_INCREMENT_GAP = 100;
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    public static class Builder extends FieldMapper.Builder {
 
         private int positionIncrementGap = POSITION_INCREMENT_GAP_USE_ANALYZER;
         private int minPrefixChars = -1;
@@ -118,7 +118,6 @@ public class TextFieldMapper extends FieldMapper {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
-            builder = this;
         }
 
         @Override
@@ -136,12 +135,11 @@ public class TextFieldMapper extends FieldMapper {
 
         public Builder fielddata(boolean fielddata) {
             fieldType().setFielddata(fielddata);
-            return builder;
+            return this;
         }
 
-        public Builder indexPhrases(boolean indexPhrases) {
+        public void indexPhrases(boolean indexPhrases) {
             fieldType().setIndexPhrases(indexPhrases);
-            return builder;
         }
 
         @Override
@@ -149,22 +147,22 @@ public class TextFieldMapper extends FieldMapper {
             if (docValues) {
                 throw new IllegalArgumentException("[text] fields do not support doc values");
             }
-            return super.docValues(docValues);
+            super.docValues(docValues);
+            return this;
         }
 
-        public Builder eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
+        public void eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
             fieldType().setEagerGlobalOrdinals(eagerGlobalOrdinals);
-            return builder;
         }
 
         public Builder fielddataFrequencyFilter(double minFreq, double maxFreq, int minSegmentSize) {
             fieldType().setFielddataMinFrequency(minFreq);
             fieldType().setFielddataMaxFrequency(maxFreq);
             fieldType().setFielddataMinSegmentSize(minSegmentSize);
-            return builder;
+            return this;
         }
 
-        public Builder indexPrefixes(int minChars, int maxChars) {
+        public void indexPrefixes(int minChars, int maxChars) {
 
             if (minChars > maxChars) {
                 throw new IllegalArgumentException("min_chars [" + minChars + "] must be less than max_chars [" + maxChars + "]");
@@ -177,7 +175,6 @@ public class TextFieldMapper extends FieldMapper {
             }
             this.minPrefixChars = minChars;
             this.maxPrefixChars = maxChars;
-            return this;
         }
 
         @Override

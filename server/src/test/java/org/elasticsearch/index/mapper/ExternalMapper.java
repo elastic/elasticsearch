@@ -56,27 +56,22 @@ public class ExternalMapper extends FieldMapper {
         public static final String FIELD_SHAPE = "shape";
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    public static class Builder extends FieldMapper.Builder {
 
         private BinaryFieldMapper.Builder binBuilder = new BinaryFieldMapper.Builder(Names.FIELD_BIN);
         private BooleanFieldMapper.Builder boolBuilder = new BooleanFieldMapper.Builder(Names.FIELD_BOOL);
         private GeoPointFieldMapper.Builder latLonPointBuilder = new GeoPointFieldMapper.Builder(Names.FIELD_POINT);
         private GeoShapeFieldMapper.Builder shapeBuilder = new GeoShapeFieldMapper.Builder(Names.FIELD_SHAPE);
-        private Mapper.Builder stringBuilder;
+        private FieldMapper.Builder stringBuilder;
         private String generatedValue;
         private String mapperName;
 
         public Builder(String name, String generatedValue, String mapperName) {
             super(name, new ExternalFieldType(), new ExternalFieldType());
-            this.builder = this;
-            this.stringBuilder = new TextFieldMapper.Builder(name).store(false);
+            this.stringBuilder = new TextFieldMapper.Builder(name);
+            this.stringBuilder.store(false);
             this.generatedValue = generatedValue;
             this.mapperName = mapperName;
-        }
-
-        public Builder string(Mapper.Builder content) {
-            this.stringBuilder = content;
-            return this;
         }
 
         @Override

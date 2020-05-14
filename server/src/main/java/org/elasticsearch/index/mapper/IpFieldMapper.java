@@ -63,18 +63,16 @@ public class IpFieldMapper extends FieldMapper {
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    public static class Builder extends FieldMapper.Builder {
 
         private Boolean ignoreMalformed;
 
         public Builder(String name) {
             super(name, new IpFieldType(), new IpFieldType());
-            builder = this;
         }
 
-        public Builder ignoreMalformed(boolean ignoreMalformed) {
+        public void ignoreMalformed(boolean ignoreMalformed) {
             this.ignoreMalformed = ignoreMalformed;
-            return builder;
         }
 
         protected Explicit<Boolean> ignoreMalformed(BuilderContext context) {
@@ -101,7 +99,7 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name);
             TypeParsers.parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {

@@ -58,12 +58,11 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    public static class Builder extends FieldMapper.Builder {
         private int dims = 0;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
-            builder = this;
         }
 
         public Builder dims(int dims) {
@@ -97,7 +96,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(name);
             Object dimsField = node.remove("dims");
             if (dimsField == null) {

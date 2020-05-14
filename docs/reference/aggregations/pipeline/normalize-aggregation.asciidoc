@@ -21,18 +21,18 @@ A `normalize` aggregation looks like this in isolation:
 --------------------------------------------------
 // NOTCONSOLE
 
-[[normalizer_pipeline-params]]
-.`normalizer_pipeline` Parameters
+[[normalize_pipeline-params]]
+.`normalize_pipeline` Parameters
 [options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |The path to the buckets we wish to normalize (see <<buckets-path-syntax, `buckets_path` syntax>> for more details) |Required |
-|`method` | The specific <<normalizer_pipeline-method, method>> to apply | Required |
+|`method` | The specific <<normalize_pipeline-method, method>> to apply | Required |
 |`format` |format to apply to the output value of this aggregation |Optional |`null`
 |===
 
 ==== Methods
-[[normalizer_pipeline-method]]
+[[normalize_pipeline-method]]
 
 The Normalize Aggregation supports multiple methods to transform the bucket values. Each method definition will use
 the following original set of bucket values as examples: `[5, 5, 10, 50, 10, 20]`.
@@ -81,6 +81,9 @@ _softmax_::
                 x' = e^x / sum_e_x
 
                 [2.862E-20, 2.862E-20, 4.248E-18, 0.999, 9.357E-14, 4.248E-18]
+
+
+==== Example
 
 The following snippet calculates the percent of total sales for each month:
 

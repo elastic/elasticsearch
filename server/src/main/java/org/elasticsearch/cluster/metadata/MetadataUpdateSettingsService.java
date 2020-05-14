@@ -147,26 +147,30 @@ public class MetadataUpdateSettingsService {
                             "Can't update non dynamic settings [%s] for open indices %s", skippedSettings, openIndices));
                 }
 
-                int updatedNumberOfReplicas = openSettings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, -1);
-                if (updatedNumberOfReplicas != -1 && preserveExisting == false) {
+                if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(openSettings)) {
+                    final int updatedNumberOfReplicas = IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(openSettings);
+                    if (preserveExisting == false) {
+                        // Verify that this won't take us over the cluster shard limit.
+                        int totalNewShards = Arrays.stream(request.indices())
+                            .mapToInt(i -> getTotalNewShards(i, currentState, updatedNumberOfReplicas))
+                            .sum();
+                        Optional<String> error = IndicesService.checkShardLimit(totalNewShards, currentState);
+                        if (error.isPresent()) {
+                            ValidationException ex = new ValidationException();
+                            ex.addValidationError(error.get());
+                            throw ex;
+                        }
 
-                    // Verify that this won't take us over the cluster shard limit.
-                    int totalNewShards = Arrays.stream(request.indices())
-                        .mapToInt(i -> getTotalNewShards(i, currentState, updatedNumberOfReplicas))
-                        .sum();
-                    Optional<String> error = IndicesService.checkShardLimit(totalNewShards, currentState);
-                    if (error.isPresent()) {
-                        ValidationException ex = new ValidationException();
-                        ex.addValidationError(error.get());
-                        throw ex;
+                        /*
+                         * We do not update the in-sync allocation IDs as they will be removed upon the first index operation which makes
+                         * these copies stale.
+                         *
+                         * TODO: should we update the in-sync allocation IDs once the data is deleted by the node?
+                         */
+                        routingTableBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
+                        metadataBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
+                        logger.info("updating number_of_replicas to [{}] for indices {}", updatedNumberOfReplicas, actualIndices);
                     }
-
-                    // we do *not* update the in sync allocation ids as they will be removed upon the first index
-                    // operation which make these copies stale
-                    // TODO: update the list once the data is deleted by the node?
-                    routingTableBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
-                    metadataBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
-                    logger.info("updating number_of_replicas to [{}] for indices {}", updatedNumberOfReplicas, actualIndices);
                 }
 
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());

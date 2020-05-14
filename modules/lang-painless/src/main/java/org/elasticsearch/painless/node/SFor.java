@@ -62,7 +62,7 @@ public class SFor extends AStatement {
 
                 AExpression.Input initializerInput = new AExpression.Input();
                 initializerInput.read = false;
-                initializerExpressionOutput = initializer.analyze(classNode, scriptRoot, scope, initializerInput);
+                initializerExpressionOutput = AExpression.analyze(initializer, classNode, scriptRoot, scope, initializerInput);
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
@@ -76,11 +76,11 @@ public class SFor extends AStatement {
         if (condition != null) {
             AExpression.Input conditionInput = new AExpression.Input();
             conditionInput.expected = boolean.class;
-            conditionOutput = condition.analyze(classNode, scriptRoot, scope, conditionInput);
+            conditionOutput = AExpression.analyze(condition, classNode, scriptRoot, scope, conditionInput);
             conditionCast = AnalyzerCaster.getLegalCast(condition.location,
                     conditionOutput.actual, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
 
-            if (condition instanceof EBoolean) {
+            if (condition.getChildIf(EBoolean.class) != null) {
                 continuous = ((EBoolean)condition).constant;
 
                 if (!continuous) {
@@ -100,7 +100,7 @@ public class SFor extends AStatement {
         if (afterthought != null) {
             AExpression.Input afterthoughtInput = new AExpression.Input();
             afterthoughtInput.read = false;
-            afterthoughtOutput = afterthought.analyze(classNode, scriptRoot, scope, afterthoughtInput);
+            afterthoughtOutput = AExpression.analyze(afterthought, classNode, scriptRoot, scope, afterthoughtInput);
         }
 
         Output output = new Output();

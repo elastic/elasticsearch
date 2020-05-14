@@ -819,6 +819,7 @@ Converts a string to the corresponding integer or float.
 ----
 number("1337")              // returns 1337
 number("42.5")              // returns 42.5
+number("deadbeef", 16)      // returns 3735928559
 number("0xdeadbeef", 16)    // returns 3735928559
 
 // "+" and "-" are supported

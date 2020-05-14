@@ -59,10 +59,14 @@ sequenceTerm
    ;
 
 subquery
-    : LB eventQuery RB
+    : LB eventFilter RB
     ;
 
 eventQuery
+    : eventFilter
+    ;
+    
+eventFilter
     : (ANY | event=identifier) WHERE expression
     ;
 

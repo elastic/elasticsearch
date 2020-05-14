@@ -84,13 +84,6 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 [[eql-search-api-request-body]]
 ==== {api-request-body-title}
 
-`query`::
-(Required, string)
-<<eql-syntax,EQL>> query you wish to run.
-+
-IMPORTANT: This parameter supports a subset of EQL syntax. See
-<<eql-unsupported-syntax>>.
-
 `event_category_field`::
 (Required*, string)
 Field containing the event classification, such as `process`, `file`, or
@@ -99,6 +92,31 @@ Field containing the event classification, such as `process`, `file`, or
 Defaults to `event.category`, as defined in the {ecs-ref}/ecs-event.html[Elastic
 Common Schema (ECS)]. If an index does not contain the `event.category` field,
 this value is required.
+
+`filter`::
+(Optional, <<query-dsl,query DSL object>>)
+Query, written in query DSL, used to filter the events on which the EQL query
+runs.
+
+`implicit_join_key_field`::
+(Optional, string)
+Reserved for future use.
+
+`query`::
+(Required, string)
+<<eql-syntax,EQL>> query you wish to run.
++
+IMPORTANT: This parameter supports a subset of EQL syntax. See
+<<eql-unsupported-syntax>>.
+
+`search_after`::
+(Optional, string)
+Reserved for future use.
+
+`size`::
+(Optional, integer or float)
+Maximum number of matching events to return. Defaults to `50`. Values must be
+greater than `0`.
 
 [[eql-search-api-timestamp-field]]
 `timestamp_field`::
@@ -115,24 +133,6 @@ Events in the API response are sorted by this field's value, converted to
 milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in
 ascending order.
 --
-
-`implicit_join_key_field`::
-(Optional, string)
-Reserved for future use.
-
-`filter`::
-(Optional, <<query-dsl,query DSL object>>)
-Query, written in query DSL, used to filter the events on which the EQL query
-runs.
-
-`search_after`::
-(Optional, string)
-Reserved for future use.
-
-`size`::
-(Optional, integer or float)
-Maximum number of matching events to return. Defaults to `50`. Values must be
-greater than `0`.
 
 [role="child_attributes"]
 [[eql-search-api-response-body]]

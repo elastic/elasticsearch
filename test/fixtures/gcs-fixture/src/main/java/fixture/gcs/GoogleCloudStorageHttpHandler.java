@@ -231,7 +231,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 final int start = getContentRangeStart(range);
                 final int end = getContentRangeEnd(range);
 
-                blob = new CompositeBytesReference(blob, requestBody);
+                blob = CompositeBytesReference.of(blob, requestBody);
                 blobs.put(blobName, blob);
 
                 if (limit == null) {

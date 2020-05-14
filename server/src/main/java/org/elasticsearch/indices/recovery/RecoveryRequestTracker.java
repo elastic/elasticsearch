@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -31,15 +32,13 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 
 public class RecoveryRequestTracker {
 
-    private final Map<Long, ListenableFuture<Void>> ongoingRequests = new HashMap<>();
+    private final Map<Long, ListenableFuture<Void>> ongoingRequests = Collections.synchronizedMap(new HashMap<>());
     private final LocalCheckpointTracker checkpointTracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
 
     public synchronized ActionListener<Void> markReceivedAndCreateListener(long requestSeqNo, ActionListener<Void> listener) {
         if (checkpointTracker.hasProcessed(requestSeqNo)) {
             final ListenableFuture<Void> existingFuture;
-            synchronized (ongoingRequests) {
-                existingFuture = ongoingRequests.get(requestSeqNo);
-            }
+            existingFuture = ongoingRequests.get(requestSeqNo);
             if (existingFuture != null) {
                 existingFuture.addListener(listener, EsExecutors.newDirectExecutorService());
             } else {
@@ -53,9 +52,7 @@ public class RecoveryRequestTracker {
             future.addListener(new ActionListener<>() {
                 @Override
                 public void onResponse(Void v) {
-                    synchronized (ongoingRequests) {
-                        ongoingRequests.remove(requestSeqNo);
-                    }
+                    ongoingRequests.remove(requestSeqNo);
                     listener.onResponse(v);
                 }
 

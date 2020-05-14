@@ -54,7 +54,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.NumberFieldMapper.Defaults;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -289,8 +289,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 @Override
                 public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                         CircuitBreakerService breakerService, MapperService mapperService) {
-                    final IndexNumericFieldData scaledValues = (IndexNumericFieldData) new DocValuesIndexFieldData.Builder()
-                            .numericType(IndexNumericFieldData.NumericType.LONG)
+                    final IndexNumericFieldData scaledValues = new SortedNumericIndexFieldData.Builder(
+                        IndexNumericFieldData.NumericType.LONG
+                    )
                             .build(indexSettings, fieldType, cache, breakerService, mapperService);
                     return new ScaledFloatIndexFieldData(scaledValues, scalingFactor);
                 }

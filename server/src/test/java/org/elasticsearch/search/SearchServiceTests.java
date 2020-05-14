@@ -536,6 +536,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     "This limit can be set by changing the [search.max_open_scroll_context] setting."
                 )
             );
+            clearScrollRequest = new ClearScrollRequest();
+            clearScrollRequest.addScrollId("_all");
+            client().clearScroll(clearScrollRequest);
         } finally {
             client().admin().cluster().prepareUpdateSettings()
                 .setPersistentSettings(

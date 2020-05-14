@@ -144,7 +144,8 @@ And the following may be the response:
                   "value": 550.0
                },
                "percent_of_total_sales": {
-                  "value": "55.83%"
+                  "value": 0.5583756345177665,
+                  "value_as_string": "55.84%"
                }
             },
             {
@@ -155,7 +156,8 @@ And the following may be the response:
                   "value": 60.0
                },
                "percent_of_total_sales": {
-                  "value": "6.09%"
+                  "value": 0.06091370558375635,
+                  "value_as_string": "06.09%"
                }
             },
             {
@@ -166,7 +168,8 @@ And the following may be the response:
                   "value": 375.0
                },
                "percent_of_total_sales": {
-                  "value": "38.07%"
+                  "value": 0.38071065989847713,
+                  "value_as_string": "38.07%"
                }
             }
          ]

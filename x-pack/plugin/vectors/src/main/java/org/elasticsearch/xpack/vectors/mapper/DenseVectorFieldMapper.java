@@ -28,7 +28,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xpack.vectors.query.VectorDVIndexFieldData;
+import org.elasticsearch.xpack.vectors.query.VectorIndexFieldData;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -147,7 +147,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            return new VectorDVIndexFieldData.Builder();
+            return new VectorIndexFieldData.Builder();
         }
 
         @Override

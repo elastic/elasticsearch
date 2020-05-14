@@ -28,7 +28,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xpack.spatial.index.fielddata.AbstractLatLonShapeDVIndexFieldData;
+import org.elasticsearch.xpack.spatial.index.fielddata.AbstractLatLonShapeIndexFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
@@ -146,7 +146,7 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
 
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new AbstractLatLonShapeDVIndexFieldData.Builder();
+            return new AbstractLatLonShapeIndexFieldData.Builder();
         }
 
         @Override

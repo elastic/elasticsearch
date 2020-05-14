@@ -37,8 +37,7 @@ import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
-import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DynamicKeyFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -460,7 +459,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                                            CircuitBreakerService breakerService,
                                            MapperService mapperService) {
                 String fieldName = fieldType.name();
-                IndexOrdinalsFieldData delegate = new SortedSetDVOrdinalsIndexFieldData(indexSettings,
+                IndexOrdinalsFieldData delegate = new SortedSetOrdinalsIndexFieldData(indexSettings,
                     cache, fieldName, breakerService, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
                 return new KeyedFlatObjectFieldData(key, delegate);
             }
@@ -537,7 +536,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder();
+            return new SortedSetOrdinalsIndexFieldData.Builder();
         }
 
         @Override

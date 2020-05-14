@@ -15,6 +15,43 @@ file where between(file_path, "dev", ".json", true) == "\\TestLogs\\something"
 '''
 
 [[queries]]
+expected_event_ids = [75304, 75305]
+query = '''
+network where cidrMatch(source_address, "10.6.48.157/8") == true
+'''
+
+[[queries]]
+expected_event_ids = [75304, 75305]
+query = '''
+network where string(cidrMatch(source_address, "10.6.48.157/8")) == "true"
+'''
+
+[[queries]]
+expected_event_ids = [75304, 75305]
+query = '''
+network where true == cidrMatch(source_address, "10.6.48.157/8")
+'''
+
+[[queries]]
+expected_event_ids = []
+query = '''
+network where cidrMatch(source_address, "192.168.0.0/16") == true
+'''
+
+[[queries]]
+expected_event_ids = [75304, 75305]
+query = '''
+network where cidrMatch(source_address, "192.168.0.0/16", "10.6.48.157/8") == true
+'''
+
+[[queries]]
+expected_event_ids = [75304, 75305]
+query = '''
+network where cidrMatch(source_address, "0.0.0.0/0") == true
+'''
+
+
+[[queries]]
 description = "test string concatenation. update test to avoid case-sensitivity issues"
 query = '''
 process where concat(serial_event_id, '::', process_name, '::', opcode) == '5::wininit.exe::3'
@@ -39,7 +76,6 @@ expected_event_ids  = [1, 4]
 [[queries]]
 query = 'process where serial_event_id < 5 and concat(process_name, null, null) == null'
 expected_event_ids  = [1, 2, 3, 4]
-
 
 
 [[queries]]

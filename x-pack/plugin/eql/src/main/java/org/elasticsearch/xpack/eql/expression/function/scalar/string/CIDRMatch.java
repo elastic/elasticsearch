@@ -6,58 +6,55 @@
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
-import org.elasticsearch.xpack.ql.expression.function.scalar.BaseSurrogateFunction;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.eql.expression.function.scalar.string.CIDRMatchFunctionProcessor.doProcess;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isIPAndExact;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
  * EQL specific cidrMatch function
  * Returns true if the source address matches any of the provided CIDR blocks.
  * Refer to: https://eql.readthedocs.io/en/latest/query-guide/functions.html#cidrMatch
  */
-public class CIDRMatch extends BaseSurrogateFunction {
+public class CIDRMatch extends ScalarFunction {
 
     private final Expression field;
     private final List<Expression> addresses;
 
     public CIDRMatch(Source source, Expression field, List<Expression> addresses) {
-        super(source, CollectionUtils.combine(singletonList(field), addresses));
+        super(source, CollectionUtils.combine(singletonList(field), addresses == null ? emptyList() : addresses));
         this.field = field;
-        this.addresses = addresses;
+        this.addresses = addresses == null ? emptyList() : addresses;
     }
 
-    @Override
-    protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, CIDRMatch::new, field, addresses);
+    public Expression field() {
+        return field;
     }
 
-    @Override
-    public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() < 2) {
-            throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
-        }
-        return new CIDRMatch(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()));
-    }
-
-    @Override
-    public DataType dataType() {
-        return DataTypes.BOOLEAN;
+    public List<Expression> addresses() {
+        return addresses;
     }
 
     @Override
@@ -69,15 +66,6 @@ public class CIDRMatch extends BaseSurrogateFunction {
         TypeResolution resolution = isIPAndExact(field, sourceText(), Expressions.ParamOrdinal.FIRST);
         if (resolution.unresolved()) {
             return resolution;
-        }
-
-        for (Expression addr : addresses) {
-            // Currently we have limited enum for ordinal numbers
-            // So just using default here for error messaging
-            resolution = isStringAndExact(addr, sourceText(), ParamOrdinal.DEFAULT);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
         }
 
         int index = 1;
@@ -101,14 +89,60 @@ public class CIDRMatch extends BaseSurrogateFunction {
     }
 
     @Override
-    public ScalarFunction makeSubstitute() {
-        ScalarFunction func = null;
-
+    protected Pipe makePipe() {
+        ArrayList<Pipe> arr = new ArrayList<>(addresses.size());
         for (Expression address : addresses) {
-            final Equals eq = new Equals(source(), field, address);
-            func = (func == null) ? eq : new Or(source(), func, eq);
+            arr.add(Expressions.pipe(address));
         }
+        return new CIDRMatchFunctionPipe(source(), this, Expressions.pipe(field), arr);
+    }
 
-        return func;
+    @Override
+    public boolean foldable() {
+        return field.foldable() && Expressions.foldable(addresses);
+    }
+
+    @Override
+    public Object fold() {
+        return doProcess(field.fold(), Expressions.fold(addresses));
+    }
+
+    @Override
+    protected NodeInfo<? extends Expression> info() {
+        return NodeInfo.create(this, CIDRMatch::new, field, addresses);
+    }
+
+    @Override
+    public ScriptTemplate asScript() {
+        ScriptTemplate leftScript = asScript(field);
+
+        List<Object> values = new ArrayList<>(new LinkedHashSet<>(Expressions.fold(addresses)));
+        return new ScriptTemplate(
+                formatTemplate(LoggerMessageFormat.format("{eql}.","cidrMatch({}, {})", leftScript.template())),
+                paramsBuilder()
+                        .script(leftScript.params())
+                        .variable(values)
+                        .build(),
+                dataType());
+    }
+
+    @Override
+    public ScriptTemplate scriptWithField(FieldAttribute field) {
+        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
+                paramsBuilder().variable(field.exactAttribute().name()).build(),
+                dataType());
+    }
+
+    @Override
+    public DataType dataType() {
+        return DataTypes.BOOLEAN;
+    }
+
+    @Override
+    public Expression replaceChildren(List<Expression> newChildren) {
+        if (newChildren.size() < 2) {
+            throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
+        }
+        return new CIDRMatch(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()));
     }
 }

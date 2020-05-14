@@ -18,27 +18,6 @@
 
 FROM centos:7 AS builder
 
-# `tini` is a tiny but valid init for containers. This is used to cleanly
-# control how ES and any child processes are shut down.
-#
-# The tini GitHub page gives instructions for verifying the binary using
-# gpg, but the keyservers are slow to return the key and this can fail the
-# build. Instead, we check the binary against the published checksum.
-RUN set -eux ; \\
-    \\
-    tini_bin="" ; \\
-    case "\$(arch)" in \\
-        aarch64) tini_bin='tini-arm64' ;; \\
-        x86_64)  tini_bin='tini-amd64' ;; \\
-        *) echo >&2 ; echo >&2 "Unsupported architecture \$(arch)" ; echo >&2 ; exit 1 ;; \\
-    esac ; \\
-    curl --retry 8 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin} ; \\
-    curl --retry 8 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}.sha256sum ; \\
-    sha256sum -c \${tini_bin}.sha256sum ; \\
-    rm \${tini_bin}.sha256sum ; \\
-    mv \${tini_bin} /tini ; \\
-    chmod +x /tini
-
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
 RUN groupadd -g 1000 elasticsearch && \\
@@ -48,7 +27,7 @@ WORKDIR /usr/share/elasticsearch
 
 ${source_elasticsearch}
 
-RUN tar zxf /opt/${elasticsearch} --strip-components=1
+RUN tar zxf /opt/elasticsearch.tar.gz --strip-components=1
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' /usr/share/elasticsearch/bin/elasticsearch-env
 RUN mkdir -p config config/jvm.options.d data logs
 RUN chmod 0775 config config/jvm.options.d data logs

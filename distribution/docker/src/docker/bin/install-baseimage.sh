@@ -10,25 +10,26 @@
 declare -r BUSYBOX_VERSION="1.31.0"
 declare -r TINI_VERSION="0.19.0"
 
+BUSYBOX_PATH=""
+TINI_BIN=""
+case "$(arch)" in
+    aarch64)
+        BUSYBOX_PATH="${BUSYBOX_VERSION}-defconfig-multiarch-musl/busybox-armv8l"
+        TINI_BIN='tini-arm64'
+        ;;
+    x86_64)
+        BUSYBOX_PATH="${BUSYBOX_VERSION}-i686-uclibc/busybox"
+        TINI_BIN='tini-amd64'
+        ;;
+    *)
+        echo >&2
+        echo >&2 "Unsupported architecture $(arch)"
+        echo >&2
+        exit 1
+        ;;
+esac
+
 set -e
-
-usage() {
-    cat <<EOOPTS
-$(basename $0) <platform> <output_file>
-EOOPTS
-    exit 1
-}
-
-platform="$1"
-output_file="$2"
-
-if [[ -z $platform ]]; then
-    usage
-fi
-
-if [[ -z "$output_file" ]]; then
-    usage
-fi
 
 # Start off with an up-to-date system
 yum update --setopt=tsflags=nodocs -y
@@ -80,21 +81,19 @@ yum --installroot="$target" --releasever=/ --setopt=tsflags=nodocs \
     java-latest-openjdk-headless \
     bash nc zip pigz
 
-ARCH="$(basename $platform)"
-curl --retry 10 -L -o "$target"/bin/tini-static-$ARCH           "https://github.com/krallin/tini/releases/download/v${TINI_VERSION}/tini-static-$ARCH"
-curl --retry 10 -L -o "$target"/bin/tini-static-$ARCH.sha256sum "https://github.com/krallin/tini/releases/download/v${TINI_VERSION}/tini-static-$ARCH.sha256sum"
-(cd "$target/bin" && sha256sum -c tini-static-$ARCH.sha256sum)
-rm "$target"/bin/tini-static-$ARCH.sha256sum
-mv "$target"/bin/tini-static-$ARCH "$target"/bin/tini
-chmod +x "$target"/bin/tini
+# The tini GitHub page gives instructions for verifying the binary using
+# gpg, but the keyservers are slow to return the key and this can fail the
+# build. Instead, we check the binary against the published checksum.
+curl --retry 8 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/${TINI_BIN}
+curl --retry 8 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/${TINI_BIN}.sha256sum
+sha256sum -c ${TINI_BIN}.sha256sum
+rm ${TINI_BIN}.sha256sum
+mv ${TINI_BIN} /tini
+chmod +x /tini
 
 # Use busybox instead of installing more RPMs, which can pull in all kinds of
 # stuff we don't want. There's no RPM for busybox available for CentOS.
-BUSYBOX_URL="https://busybox.net/downloads/binaries/${BUSYBOX_VERSION}-i686-uclibc/busybox"
-if [[ "$platform" == "linux/arm64" ]]; then
-  BUSYBOX_URL="https://www.busybox.net/downloads/binaries/${BUSYBOX_VERSION}-defconfig-multiarch-musl/busybox-armv8l"
-fi
-curl --retry 10 -L -o "$target"/bin/busybox "$BUSYBOX_URL"
+curl --retry 10 -L -o "$target"/bin/busybox "https://busybox.net/downloads/binaries/$BUSYBOX_PATH"
 chmod +x "$target"/bin/busybox
 
 set +x
@@ -104,8 +103,8 @@ for path in $( "$target"/bin/busybox --list-full | grep -v bin/sh ); do
 done
 set -x
 
-# Copy in our static curl build. This is provided via a Docker bind mount
-cp /curl "$target"/usr/bin/curl
+# Copy in our static curl build.
+cp /curl-$(arch) "$target"/usr/bin/curl
 
 # Curl needs files under here. More importantly, we change Elasticsearch's
 # bundled JDK to use /etc/pki/ca-trust/extracted/java/cacerts instead of
@@ -152,4 +151,4 @@ mkdir -p --mode=0755 "$target"/var/cache/ldconfig
 
 # Write out the base filesystem. The -C option changes directory to $target,
 # so '.' refers to that directory
-tar czf "$output_file" --numeric-owner -C "$target" .
+tar czf /base-filesystem.tar.gz --numeric-owner -C "$target" .

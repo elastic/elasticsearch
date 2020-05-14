@@ -67,8 +67,6 @@ public class PublishPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply("nebula.maven-base-publish");
 
-        configureJars(project);
-        configureJarManifest(project);
         configureJavadoc(project);
         configureJavadocJar(project);
         configureSourcesJar(project);
@@ -206,95 +204,5 @@ public class PublishPlugin implements Plugin<Project> {
         });
     }
 
-    /** Adds additional manifest info to jars */
-    static void configureJars(Project project) {
-        ExtraPropertiesExtension ext = project.getExtensions().getExtraProperties();
-        ext.set("licenseFile", null);
-        ext.set("noticeFile", null);
-        project.getTasks()
-            .withType(Jar.class)
-            .configureEach(
-                jarTask -> {
-                    // we put all our distributable files under distributions
-                    jarTask.getDestinationDirectory().set(new File(project.getBuildDir(), "distributions"));
-                    // fixup the jar manifest
-                    jarTask.doFirst(
-                        t -> {
-                            // this doFirst is added before the info plugin, therefore it will run
-                            // after the doFirst added by the info plugin, and we can override attributes
-                            jarTask.getManifest()
-                                .attributes(
-                                    Map.of(
-                                        "Build-Date",
-                                        BuildParams.getBuildDate(),
-                                        "Build-Java-Version",
-                                        BuildParams.getCompilerJavaVersion()
-                                    )
-                                );
-                        }
-                    );
-                }
-            );
-        // add license/notice files
-        project.afterEvaluate(p -> project.getTasks().withType(Jar.class).configureEach(jarTask -> {
-            File licenseFile = (File) ext.get("licenseFile");
-            File noticeFile = (File) ext.get("noticeFile");
-            if (licenseFile == null || noticeFile == null) {
-                throw new GradleException("Must specify license and notice file for project");
-            }
 
-            jarTask.metaInf(spec -> {
-                spec.from(licenseFile.getParent(), from -> {
-                    from.include(licenseFile.getName());
-                    from.rename(s -> "LICENSE.txt");
-                });
-                spec.from(noticeFile.getParent(), from -> {
-                    from.include(noticeFile.getName());
-                    from.rename(s -> "NOTICE.txt");
-                });
-            });
-        }));
-        project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", p -> {
-            project.getTasks()
-                .withType(ShadowJar.class)
-                .configureEach(
-                    shadowJar -> {
-                        /*
-                         * Replace the default "-all" classifier with null
-                         * which will leave the classifier off of the file name.
-                         */
-                        shadowJar.getArchiveClassifier().set((String) null);
-                        /*
-                         * Not all cases need service files merged but it is
-                         * better to be safe
-                         */
-                        shadowJar.mergeServiceFiles();
-                    }
-                );
-            // Add "original" classifier to the non-shadowed JAR to distinguish it from the shadow JAR
-            project.getTasks().named(JavaPlugin.JAR_TASK_NAME, Jar.class).configure(jar -> jar.getArchiveClassifier().set("original"));
-            // Make sure we assemble the shadow jar
-            project.getTasks().named(BasePlugin.ASSEMBLE_TASK_NAME).configure(task -> task.dependsOn("shadowJar"));
-        });
-    }
-
-    private static void configureJarManifest(Project project) {
-        project.getPlugins().withId("elasticsearch.java", p -> {
-            project.getPluginManager().apply("nebula.info-broker");
-            project.getPluginManager().apply("nebula.info-basic");
-            project.getPluginManager().apply("nebula.info-java");
-            project.getPluginManager().apply("nebula.info-jar");
-
-            project.getPlugins().withType(InfoBrokerPlugin.class).whenPluginAdded(manifestPlugin -> {
-                manifestPlugin.add("Module-Origin", (Callable<String>) BuildParams::getGitOrigin);
-                manifestPlugin.add("Change", (Callable<String>) BuildParams::getGitRevision);
-                manifestPlugin.add("X-Compile-Elasticsearch-Version", (Callable<String>) VersionProperties::getElasticsearch);
-                manifestPlugin.add("X-Compile-Lucene-Version", (Callable<String>) VersionProperties::getLucene);
-                manifestPlugin.add(
-                    "X-Compile-Elasticsearch-Snapshot",
-                    (Callable<String>) () -> Boolean.toString(VersionProperties.isElasticsearchSnapshot())
-                );
-            });
-        });
-    }
 }

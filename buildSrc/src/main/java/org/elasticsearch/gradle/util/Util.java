@@ -37,6 +37,8 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.concurrent.Callable;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -163,5 +165,14 @@ public class Util {
         } else {
             return origin; // best effort, the url doesnt really matter, it is just required by maven central
         }
+    }
+
+    public static Object toStringable(Supplier<String> getter) {
+        return new Object() {
+            @Override
+            public String toString() {
+                return getter.get();
+            }
+        };
     }
 }

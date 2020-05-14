@@ -70,6 +70,7 @@ class org.elasticsearch.xpack.eql.expression.function.scalar.whitelist.InternalE
   Boolean endsWith(String, String)
   Integer indexOf(String, String, Number)
   Integer length(String)
+  Number  number(String, Number)
   String  string(Object)
   Boolean stringContains(String, String)
   String  substring(String, Number, Number)

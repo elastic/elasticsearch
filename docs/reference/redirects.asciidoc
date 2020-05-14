@@ -562,3 +562,19 @@ For other information, see:
 === Adding and removing nodes
 
 See <<add-elasticsearch-nodes>>.
+
+////
+[role="exclude",id="search-request-body"]
+=== Request body search
+
+This page has been removed.
+
+For search API reference documentation, see <<search-search>>.
+
+For search examples, see <<run-a-search>>.
+
+[role="exclude",id="request-body-search-from-size"]
+==== From / size
+
+See <<paginate-search-results>>.
+////

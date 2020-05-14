@@ -89,6 +89,14 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=from]
 --
 [IMPORTANT]
 ====
+The combined document count, including offset and and returned documents, for
+the `from` and `size` parameters cannot exceed the
+<<index-max-result-window,`index.max_result_window`>> index setting, which
+defaults to 10,000 documents.
+====
+
+[IMPORTANT]
+====
 You can also specify this value using the `from` request body parameter. If
 both parameters are specified, only the query parameter is used.
 ====
@@ -170,6 +178,14 @@ parameter. If both parameters are specified, only the query parameter is used.
 (Optional, integer) Defines the number of hits to return. Defaults to `10`.
 +
 --
+[IMPORTANT]
+====
+The combined document count, including offset and and returned documents, for
+the `from` and `size` parameters cannot exceed the
+<<index-max-result-window,`index.max_result_window`>> index setting, which
+defaults to 10,000 documents.
+====
+
 [IMPORTANT]
 ====
 You can also specify this value using the `size` request body parameter. If
@@ -281,6 +297,14 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=from]
 --
 [IMPORTANT]
 ====
+The combined document count, including offset and and returned documents, for
+the `from` and `size` parameters cannot exceed the
+<<index-max-result-window,`index.max_result_window`>> index setting, which
+defaults to 10,000 documents.
+====
+
+[IMPORTANT]
+====
 You can also specify this value using the `from` query parameter. If both
 parameters are specified, only the query parameter is used.
 ====
@@ -309,6 +333,14 @@ If both parameters are specified, only the query parameter is used.
 (Optional, integer) The number of hits to return. Defaults to `10`.
 +
 --
+[IMPORTANT]
+====
+The combined document count, including offset and and returned documents, for
+the `from` and `size` parameters cannot exceed the
+<<index-max-result-window,`index.max_result_window`>> index setting, which
+defaults to 10,000 documents.
+====
+
 [IMPORTANT]
 ====
 You can also specify this value using the `size` query parameter. If both

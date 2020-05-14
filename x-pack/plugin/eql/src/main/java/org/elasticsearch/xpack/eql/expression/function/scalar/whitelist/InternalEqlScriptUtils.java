@@ -7,12 +7,14 @@
 package org.elasticsearch.xpack.eql.expression.function.scalar.whitelist;
 
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.BetweenFunctionProcessor;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.CIDRMatchFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.ConcatFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.EndsWithFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.IndexOfFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.LengthFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.StringContainsFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.SubstringFunctionProcessor;
+import org.elasticsearch.xpack.eql.expression.function.scalar.math.ToNumberFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToStringFunctionProcessor;
 import org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils;
 
@@ -29,6 +31,10 @@ public class InternalEqlScriptUtils extends InternalQlScriptUtils {
 
     public static String between(String s, String left, String right, Boolean greedy, Boolean caseSensitive) {
         return (String) BetweenFunctionProcessor.doProcess(s, left, right, greedy, caseSensitive);
+    }
+
+    public static Boolean cidrMatch(String s, List<Object>  addresses) {
+        return (Boolean) CIDRMatchFunctionProcessor.doProcess(s, addresses);
     }
 
     public static String concat(List<Object> values) {
@@ -53,6 +59,10 @@ public class InternalEqlScriptUtils extends InternalQlScriptUtils {
 
     public static Boolean stringContains(String string, String substring) {
         return (Boolean) StringContainsFunctionProcessor.doProcess(string, substring);
+    }
+
+    public static Number number(String source, Number base) {
+        return (Number) ToNumberFunctionProcessor.doProcess(source, base);
     }
 
     public static String substring(String s, Number start, Number end) {

@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
+import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.process.StateToProcessWriterHelper;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -25,11 +25,11 @@ public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<Analy
 
     private final AnalyticsProcessConfig config;
 
-    protected NativeAnalyticsProcess(String jobId, InputStream logStream, OutputStream processInStream, InputStream processOutStream,
-                                     OutputStream processRestoreStream, int numberOfFields, List<Path> filesToDelete,
+    protected NativeAnalyticsProcess(String jobId, ProcessPipes processPipes,
+                                     int numberOfFields, List<Path> filesToDelete,
                                      Consumer<String> onProcessCrash, Duration processConnectTimeout, AnalyticsProcessConfig config,
                                      NamedXContentRegistry namedXContentRegistry) {
-        super(NAME, AnalyticsResult.PARSER, jobId, logStream, processInStream, processOutStream, processRestoreStream, numberOfFields,
+        super(NAME, AnalyticsResult.PARSER, jobId, processPipes, numberOfFields,
             filesToDelete, onProcessCrash, processConnectTimeout, namedXContentRegistry);
         this.config = Objects.requireNonNull(config);
     }

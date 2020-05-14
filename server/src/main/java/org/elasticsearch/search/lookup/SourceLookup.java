@@ -54,7 +54,7 @@ public class SourceLookup implements Map<String, Object> {
         return sourceContentType;
     }
 
-    private Map<String, Object> loadSourceIfNeeded() {
+    public Map<String, Object> loadSourceIfNeeded() {
         if (source != null) {
             return source;
         }

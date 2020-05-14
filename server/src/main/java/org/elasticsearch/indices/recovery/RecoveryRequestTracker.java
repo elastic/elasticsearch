@@ -36,7 +36,10 @@ public class RecoveryRequestTracker {
 
     public synchronized ActionListener<Void> markReceivedAndCreateListener(long requestSeqNo, ActionListener<Void> listener) {
         if (checkpointTracker.hasProcessed(requestSeqNo)) {
-            final ListenableFuture<Void> existingFuture = ongoingRequests.get(requestSeqNo);
+            final ListenableFuture<Void> existingFuture;
+            synchronized (ongoingRequests) {
+                existingFuture = ongoingRequests.get(requestSeqNo);
+            }
             if (existingFuture != null) {
                 existingFuture.addListener(listener, EsExecutors.newDirectExecutorService());
             } else {
@@ -50,7 +53,7 @@ public class RecoveryRequestTracker {
             future.addListener(new ActionListener<>() {
                 @Override
                 public void onResponse(Void v) {
-                    synchronized (RecoveryRequestTracker.this) {
+                    synchronized (ongoingRequests) {
                         ongoingRequests.remove(requestSeqNo);
                     }
                     listener.onResponse(v);

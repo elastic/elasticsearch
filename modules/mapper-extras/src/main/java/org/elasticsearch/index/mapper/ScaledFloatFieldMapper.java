@@ -82,7 +82,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     // use the same default as numbers
     private static final Setting<Boolean> COERCE_SETTING = NumberFieldMapper.COERCE_SETTING;
 
-    public static class Builder extends FieldMapper.Builder<Builder, ScaledFloatFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         private boolean scalingFactorSet = false;
         private Boolean ignoreMalformed;
@@ -149,7 +149,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
 
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node,
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node,
                                          ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name);
             TypeParsers.parseField(builder, name, node, parserContext);

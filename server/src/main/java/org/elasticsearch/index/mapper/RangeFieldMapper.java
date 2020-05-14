@@ -77,7 +77,7 @@ public class RangeFieldMapper extends FieldMapper {
     static final Setting<Boolean> COERCE_SETTING =
         Setting.boolSetting("index.mapping.coerce", true, Setting.Property.IndexScope);
 
-    public static class Builder extends FieldMapper.Builder<Builder, RangeFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
         private Boolean coerce;
         private Locale locale = Locale.ROOT;
         private String pattern;
@@ -154,7 +154,7 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node,
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node,
                                          ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name, type);
             TypeParsers.parseField(builder, name, node, parserContext);

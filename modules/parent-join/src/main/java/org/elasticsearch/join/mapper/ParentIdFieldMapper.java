@@ -66,7 +66,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
         }
     }
 
-    static class Builder extends FieldMapper.Builder<Builder, ParentIdFieldMapper> {
+    static class Builder extends FieldMapper.Builder<Builder> {
         private final String parent;
         private final Set<String> children;
 

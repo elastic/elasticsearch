@@ -74,7 +74,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, KeywordFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         protected String nullValue = Defaults.NULL_VALUE;
         protected int ignoreAbove = Defaults.IGNORE_ABOVE;
@@ -151,7 +151,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder(name);
             parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {

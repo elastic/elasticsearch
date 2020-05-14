@@ -62,7 +62,7 @@ public class BinaryFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, BinaryFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);

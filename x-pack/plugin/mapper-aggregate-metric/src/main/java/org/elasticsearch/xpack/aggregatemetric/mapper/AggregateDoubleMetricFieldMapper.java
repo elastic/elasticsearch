@@ -418,7 +418,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                                     try {
                                         final SortedNumericDocValues values = DocValues.getSortedNumeric(
                                             context.reader(),
-                                            subfieldName(fieldName, metric)
+                                            subfieldName(getFieldName(), metric)
                                         );
 
                                         return new SortedNumericDoubleValues() {

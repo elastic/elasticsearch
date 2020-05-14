@@ -1159,11 +1159,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 .build())
             .build();
 
-        Map<String, Object> resolved =
+        Map<String, Map<String, Object>> resolved =
             MetadataCreateIndexService.resolveV2Mappings("{}", state,
-                "index-template", new NamedXContentRegistry(Collections.emptyList()));
+                "index-template", new NamedXContentRegistry(emptyList()));
 
-        Map<String, Object> doc = (Map<String, Object>) resolved.get(MapperService.SINGLE_MAPPING_NAME);
+        Map<String, Object> doc = resolved.get(MapperService.SINGLE_MAPPING_NAME);
         List<Map<String, Object>> dynamicTemplates = (List<Map<String, Object>>) doc.get("dynamic_templates");
         assertThat(dynamicTemplates.size(), is(1));
         Map<String, Object> dynamicMapping = (Map<String, Object>) dynamicTemplates.get(0).get("docker.container.labels");
@@ -1215,11 +1215,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 .build())
             .build();
 
-        Map<String, Object> resolved =
+        Map<String, Map<String, Object>> resolved =
             MetadataCreateIndexService.resolveV2Mappings(requestMappingJson, state,
-                "index-template", new NamedXContentRegistry(Collections.emptyList()));
+                "index-template", new NamedXContentRegistry(emptyList()));
 
-        Map<String, Object> doc = (Map<String, Object>) resolved.get(MapperService.SINGLE_MAPPING_NAME);
+        Map<String, Object> doc = resolved.get(MapperService.SINGLE_MAPPING_NAME);
         List<Map<String, Object>> dynamicTemplates = (List<Map<String, Object>>) doc.get("dynamic_templates");
         assertThat(dynamicTemplates.size(), is(1));
         Map<String, Object> dynamicMapping = (Map<String, Object>) dynamicTemplates.get(0).get("docker.container.labels");
@@ -1282,11 +1282,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 .build())
             .build();
 
-        Map<String, Object> resolved =
+        Map<String, Map<String, Object>> resolved =
             MetadataCreateIndexService.resolveV2Mappings("{}", state,
-                "index-template", new NamedXContentRegistry(Collections.emptyList()));
+                "index-template", new NamedXContentRegistry(emptyList()));
 
-        Map<String, Object> doc = (Map<String, Object>) resolved.get(MapperService.SINGLE_MAPPING_NAME);
+        Map<String, Object> doc = resolved.get(MapperService.SINGLE_MAPPING_NAME);
         List<Map<String, Object>> dynamicTemplates = (List<Map<String, Object>>) doc.get("dynamic_templates");
         assertThat(dynamicTemplates.size(), is(2));
         Map<String, Object> dockerLabelsDynamicTemplate = dynamicTemplates.get(0).get("docker.container.labels") != null ?

@@ -7,11 +7,9 @@
 package org.elasticsearch.xpack.transform;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
 
 public class TransformTests extends ESTestCase {
 

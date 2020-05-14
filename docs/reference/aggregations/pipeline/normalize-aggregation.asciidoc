@@ -40,46 +40,46 @@ the following original set of bucket values as examples: `[5, 5, 10, 50, 10, 20]
 _rescale_0_1_::
                 This method rescales the data such that the minimum number is zero, and the maximum number is 1, with the rest normalized
                 linearly in-between.
-                <p>
+
                 x' = (x - min_x) / (max_x - min_x)
-                <p>
+
                 [0, 0, .1111, 1, .1111, .3333]
 
 _rescale_0_100_::
                 This method rescales the data such that the minimum number is zero, and the maximum number is 1, with the rest normalized
                 linearly in-between.
-                <p>
+
                 x' = 100 * (x - min_x) / (max_x - min_x)
-                <p>
+
                 [0, 0, 11.11, 100, 11.11, 33.33]
 
 _percent_of_sum_::
                 This method normalizes each value so that it represents a percentage of the total sum it attributes to.
-                <p>
+
                 x' = x / sum_x
-                <p>
+
                 [5%, 5%, 10%, 50%, 10%, 20%]
 
 
 _mean_::
                 This method normalizes such that each value is normalized by how much it differs from the average.
-                <p>
+
                 x' = (x - mean_x) / (max_x - min_x)
-                <p>
+
                 [4.63, 4.63, 9.63, 49.63, 9.63, 9.63, 19.63]
 
 _zscore_::
                 This method normalizes such that each value represents how far it is from the mean relative to the standard deviation
-                <p>
+
                 x' = (x - mean_x) / stdev_x
-                <p>
+
                 [-0.68, -0.68, -0.39, 1.94, -0.39, 0.19]
 
 _softmax_::
                 This method normalizes such that each value is exponentiated and relative to the sum of the exponents of the original values.
-                <p>
+
                 x' = e^x / sum_e_x
-                <p>
+
                 [2.862E-20, 2.862E-20, 4.248E-18, 0.999, 9.357E-14, 4.248E-18]
 
 The following snippet calculates the percent of total sales for each month:

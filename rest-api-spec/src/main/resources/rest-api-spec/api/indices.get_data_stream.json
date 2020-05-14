@@ -1,5 +1,5 @@
 {
-  "indices.get_data_streams":{
+  "indices.get_data_stream":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams.html",
       "description":"Returns data streams."

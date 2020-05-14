@@ -29,7 +29,7 @@
   - is_true: ''
 
   - do:
-      indices.get_data_streams:
+      indices.get_data_stream:
         name: "*"
   - match: { 0.name: data-stream-for-rollover }
   - match: { 0.timestamp_field: '@timestamp' }

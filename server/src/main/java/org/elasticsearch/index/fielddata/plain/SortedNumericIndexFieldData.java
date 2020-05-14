@@ -53,6 +53,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -91,16 +92,23 @@ public class SortedNumericIndexFieldData implements IndexNumericFieldData {
     private final NumericType numericType;
     protected final Index index;
     protected final String fieldName;
+    protected final ValuesSourceType valuesSourceType;
 
     public SortedNumericIndexFieldData(Index index, String fieldName, NumericType numericType) {
         this.index = index;
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);
+        this.valuesSourceType = numericType.getValuesSourceType();
     }
 
     @Override
     public final String getFieldName() {
         return fieldName;
+    }
+
+    @Override
+    public ValuesSourceType getValuesSourceType() {
+        return valuesSourceType;
     }
 
     @Override

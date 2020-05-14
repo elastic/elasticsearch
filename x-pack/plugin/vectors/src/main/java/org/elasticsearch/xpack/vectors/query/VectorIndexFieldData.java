@@ -21,6 +21,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -29,15 +30,22 @@ public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldDat
 
     protected final Index index;
     protected final String fieldName;
+    protected final ValuesSourceType valuesSourceType;
 
-    public VectorIndexFieldData(Index index, String fieldName) {
+    public VectorIndexFieldData(Index index, String fieldName, ValuesSourceType valuesSourceType) {
         this.index = index;
         this.fieldName = fieldName;
+        this.valuesSourceType = valuesSourceType;
     }
 
     @Override
     public final String getFieldName() {
         return fieldName;
+    }
+
+    @Override
+    public ValuesSourceType getValuesSourceType() {
+        return valuesSourceType;
     }
 
     @Override
@@ -72,12 +80,17 @@ public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldDat
     }
 
     public static class Builder implements IndexFieldData.Builder {
+        private final ValuesSourceType valuesSourceType;
+
+        public Builder(ValuesSourceType valuesSourceType) {
+            this.valuesSourceType = valuesSourceType;
+        }
 
         @Override
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             final String fieldName = fieldType.name();
-            return new VectorIndexFieldData(indexSettings.getIndex(), fieldName);
+            return new VectorIndexFieldData(indexSettings.getIndex(), fieldName, valuesSourceType);
         }
 
     }

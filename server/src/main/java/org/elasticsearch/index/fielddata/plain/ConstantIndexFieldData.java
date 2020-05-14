@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -56,15 +57,17 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
     public static class Builder implements IndexFieldData.Builder {
 
         private final Function<MapperService, String> valueFunction;
+        private final ValuesSourceType valuesSourceType;
 
-        public Builder(Function<MapperService, String> valueFunction) {
+        public Builder(Function<MapperService, String> valueFunction, ValuesSourceType valuesSourceType) {
             this.valueFunction = valueFunction;
+            this.valuesSourceType = valuesSourceType;
         }
 
         @Override
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                 CircuitBreakerService breakerService, MapperService mapperService) {
-            return new ConstantIndexFieldData(indexSettings, fieldType.name(), valueFunction.apply(mapperService));
+            return new ConstantIndexFieldData(indexSettings, fieldType.name(), valueFunction.apply(mapperService), valuesSourceType);
         }
 
     }
@@ -136,8 +139,8 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     private final ConstantLeafFieldData atomicFieldData;
 
-    private ConstantIndexFieldData(IndexSettings indexSettings, String name, String value) {
-        super(indexSettings, name, null, null,
+    private ConstantIndexFieldData(IndexSettings indexSettings, String name, String value, ValuesSourceType valuesSourceType) {
+        super(indexSettings, name, valuesSourceType, null, null,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);

@@ -292,7 +292,7 @@ public class IpFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(IpScriptDocValues::new);
+            return new SortedSetOrdinalsIndexFieldData.Builder(IpScriptDocValues::new, CoreValuesSourceType.IP);
         }
 
         @Override

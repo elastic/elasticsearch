@@ -36,6 +36,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -57,6 +58,7 @@ import java.util.function.Function;
 public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent implements IndexOrdinalsFieldData, Accountable {
 
     private final String fieldName;
+    private final ValuesSourceType valuesSourceType;
     private final long memorySizeInBytes;
 
     private final OrdinalMap ordinalMap;
@@ -65,12 +67,14 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
 
     protected GlobalOrdinalsIndexFieldData(IndexSettings indexSettings,
                                            String fieldName,
+                                           ValuesSourceType valuesSourceType,
                                            LeafOrdinalsFieldData[] segmentAfd,
                                            OrdinalMap ordinalMap,
                                            long memorySizeInBytes,
                                            Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) {
         super(indexSettings);
         this.fieldName = fieldName;
+        this.valuesSourceType = valuesSourceType;
         this.memorySizeInBytes = memorySizeInBytes;
         this.ordinalMap = ordinalMap;
         this.segmentAfd = segmentAfd;
@@ -99,6 +103,11 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
     @Override
     public String getFieldName() {
         return fieldName;
+    }
+
+    @Override
+    public ValuesSourceType getValuesSourceType() {
+        return valuesSourceType;
     }
 
     @Override
@@ -189,6 +198,11 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
         @Override
         public String getFieldName() {
             return fieldName;
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return valuesSourceType;
         }
 
         @Override

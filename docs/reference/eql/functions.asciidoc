@@ -838,11 +838,14 @@ number(process.pid)         // returns 1337
 // null handling
 number(null)                // returns null
 number(null, 16)            // returns null
-number("1337", null)        // returns null
 
 // strings beginning with "0x" are treated as hexadecimal (base 16),
 // even if the <base_num> is explicitly null.
 number("0xdeadbeef", null) // returns 3735928559
+
+// otherwise, strings are treated as decimal (base 10)
+// if the <base_num> is explicitly null.
+number("1337", null)        // returns 1337
 ----
 
 *Syntax*
@@ -887,10 +890,10 @@ If this argument is `null`, the function returns `null`.
 +
 --
 (Optional, integer or `null`)
-Radix or base used to convert the string. Defaults to base `10`. If the
-`<string>` begins with `0x`, this parameter defaults to `16` (hexadecimal), even
-if a `null` argument is specified. Otherwise, if a `null` argument is specified,
-the function returns `null`.
+Radix or base used to convert the string. If the `<string>` begins with `0x`,
+this parameter defaults to `16` (hexadecimal). Otherwise, defaults to base `10`.
+
+If this argument is explicitly `null`, the default value is used.
 
 Fields are not supported as arguments.
 --

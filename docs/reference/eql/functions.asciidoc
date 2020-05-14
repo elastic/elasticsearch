@@ -820,6 +820,9 @@ Converts a string to the corresponding integer or float.
 number("1337")              // returns 1337
 number("42.5")              // returns 42.5
 number("deadbeef", 16)      // returns 3735928559
+
+// integer literals beginning with "0x" are auto-detected as hexadecimal
+number("0xdeadbeef")        // returns 3735928559
 number("0xdeadbeef", 16)    // returns 3735928559
 
 // "+" and "-" are supported
@@ -836,6 +839,10 @@ number(process.pid)         // returns 1337
 number(null)                // returns null
 number(null, 16)            // returns null
 number("1337", null)        // returns null
+
+// strings beginning with "0x" are treated as hexadecimal (base 16),
+// even if the <base_num> is explicitly null.
+number("0xdeadbeef", null) // returns 3735928559
 ----
 
 *Syntax*
@@ -856,7 +863,11 @@ one of the following:
 * A string representation of an integer (e.g., `"42"`)
 * A string representation of a float (e.g., `"9.5"`)
 * If the `<base_num>` parameter is specified, a string containing an integer
-  literal in the base notation (e.g., `"0xDECAFBAD"` in base `16`)
+  literal in the base notation (e.g., `"0xDECAFBAD"` in hexadecimal or base
+  `16`)
+
+Strings that begin with `0x` are auto-detected as hexadecimal and use a default
+`<base_num>` of `16`.
 
 `-` and `+` are supported with no space between. Surrounding whitespace is
 ignored. Empty strings (`""`) are not supported.
@@ -876,8 +887,10 @@ If this argument is `null`, the function returns `null`.
 +
 --
 (Optional, integer or `null`)
-Radix or base used to convert the string. Defaults to base `10`. If `null`, the
-function returns `null`.
+Radix or base used to convert the string. Defaults to base `10`. If the
+`<string>` begins with `0x`, this parameter defaults to `16` (hexadecimal), even
+if a `null` argument is specified. Otherwise, if a `null` argument is specified,
+the function returns `null`.
 
 Fields are not supported as arguments.
 --

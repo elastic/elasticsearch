@@ -108,6 +108,7 @@ POST /sales/_search
                     "normalize": {
                         "buckets_path": "sales", <1>
                         "method": "percent_of_sum"  <2>
+                        "format": "00.00%" <3>
                     }
                 }
             }
@@ -120,6 +121,8 @@ POST /sales/_search
 <1> `buckets_path` instructs this normalize aggregation to use the output of the `sales` aggregation for rescaling
 <2> `method` sets which rescaling to apply. In this case, `percent_of_sum` will calculate the sales value as a percent of all sales
     in the parent bucket
+<3> `format` influences how to format the metric as a string using Java's `DecimalFormat` pattern. In this case, multiplying by 100
+    and adding a '%'
 
 And the following may be the response:
 
@@ -141,7 +144,7 @@ And the following may be the response:
                   "value": 550.0
                },
                "percent_of_total_sales": {
-                  "value": 0.5583756345177665
+                  "value": "55.83%"
                }
             },
             {
@@ -152,7 +155,7 @@ And the following may be the response:
                   "value": 60.0
                },
                "percent_of_total_sales": {
-                  "value": 0.06091370558375635
+                  "value": "6.09%"
                }
             },
             {
@@ -163,7 +166,7 @@ And the following may be the response:
                   "value": 375.0
                },
                "percent_of_total_sales": {
-                  "value": 0.38071065989847713
+                  "value": "38.07%"
                }
             }
          ]

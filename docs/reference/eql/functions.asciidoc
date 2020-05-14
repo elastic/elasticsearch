@@ -19,6 +19,7 @@ experimental::[]
 * <<eql-fn-match>>
 * <<eql-fn-modulo>>
 * <<eql-fn-multiply>>
+* <<eql-fn-number>>
 * <<eql-fn-startswith>>
 * <<eql-fn-string>>
 * <<eql-fn-stringcontains>>
@@ -803,6 +804,84 @@ If using a field as the argument, this parameter supports only
 --
 
 *Returns:* integer, float, or `null`
+====
+
+[discrete]
+[[eql-fn-number]]
+=== `number`
+
+Converts a string to the corresponding integer or float.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+number("1337")              // returns 1337
+number("42.5")              // returns 42.5
+number("0xdeadbeef", 16)    // returns 3735928559
+
+// "+" and "-" are supported
+number("+1337")             // returns 1337
+number("-1337")             // returns -1337
+
+// surrounding whitespace is ignored
+number("  1337  ")          // returns 1337
+
+// process.pid = "1337"
+number(process.pid)         // returns 1337
+
+// null handling
+number(null)                // returns null
+number(null, 16)            // returns null
+number("1337", null)        // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+number(<string>[, <base_num>])
+----
+
+*Parameters*
+
+`<string>`::
++
+--
+(Required, string or `null`)
+String to convert to an integer or float. If this value is a string, it must be
+one of the following:
+
+* A string representation of an integer (e.g., `"42"`)
+* A string representation of a float (e.g., `"9.5"`)
+* If the `<base_num>` parameter is specified, a string containing an integer
+  literal in the base notation (e.g., `"0xDECAFBAD"` in base `16`)
+
+`-` and `+` are supported with no space between. Surrounding whitespace is
+ignored. Empty strings (`""`) are not supported.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+
+If this value is `null`, the function returns `null`.
+--
+
+`<base_num>`::
++
+--
+(Optional, integer or `null`)
+Radix or base used to convert the string. Defaults to base `10`. If `null`, the
+function returns `null`.
+
+Fields are not supported as arguments.
+--
+
+*Returns:* integer or `null`
 ====
 
 [discrete]

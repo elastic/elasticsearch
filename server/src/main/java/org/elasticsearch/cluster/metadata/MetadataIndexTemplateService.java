@@ -297,9 +297,9 @@ public class MetadataIndexTemplateService {
      * Validates that the given component template is not used by any index
      * templates, throwing an error if it is still in use
      */
-    static void validateNotInUse(Metadata metadata, String templateWildcard) {
+    static void validateNotInUse(Metadata metadata, String templateNameOrWildcard) {
         final Set<String> matchingComponentTemplates = metadata.componentTemplates().keySet().stream()
-            .filter(name -> Regex.simpleMatch(templateWildcard, name))
+            .filter(name -> Regex.simpleMatch(templateNameOrWildcard, name))
             .collect(Collectors.toSet());
         final Set<String> componentsBeingUsed = new HashSet<>();
         final List<String> templatesStillUsing = metadata.templatesV2().entrySet().stream()

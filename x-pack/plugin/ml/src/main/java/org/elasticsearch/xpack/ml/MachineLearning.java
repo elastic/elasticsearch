@@ -428,9 +428,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
             (s) -> Float.toString(-1.0f),
             (s) -> {
                 float value = Float.parseFloat(s);
-                if (value < 0.0f && value != -1.0f) {
+                if (value <= 0.0f && value != -1.0f) {
                     throw new IllegalArgumentException("Failed to parse value [" +
-                        s + "] for setting [xpack.ml.nightly_maintenance_requests_per_second] must be >= 0.0 or exactly equal to -1.0");
+                        s + "] for setting [xpack.ml.nightly_maintenance_requests_per_second] must be > 0.0 or exactly equal to -1.0");
                 }
                 return value;
             },

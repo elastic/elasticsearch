@@ -35,7 +35,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
     public static class Request extends ActionRequest {
 
         public static final ParseField REQUESTS_PER_SECOND = new ParseField("requests_per_second");
-        public static final ParseField EXPIRATION = new ParseField("expiration");
+        public static final ParseField TIMEOUT = new ParseField("timeout");
 
         public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(
             "delete_expired_data_request",
@@ -44,28 +44,28 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
 
         static {
             PARSER.declareFloat(Request::setRequestsPerSecond, REQUESTS_PER_SECOND);
-            PARSER.declareString((obj, value) -> obj.setExpiration(TimeValue.parseTimeValue(value, EXPIRATION.getPreferredName())),
-                EXPIRATION);
+            PARSER.declareString((obj, value) -> obj.setTimeout(TimeValue.parseTimeValue(value, TIMEOUT.getPreferredName())),
+                TIMEOUT);
         }
 
         private Float requestsPerSecond;
-        private TimeValue expiration;
+        private TimeValue timeout;
 
         public Request() {}
 
         public Request(Float requestsPerSecond, TimeValue timeValue) {
             this.requestsPerSecond = requestsPerSecond;
-            this.expiration = timeValue;
+            this.timeout = timeValue;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
                 this.requestsPerSecond = in.readOptionalFloat();
-                this.expiration = in.readOptionalTimeValue();
+                this.timeout = in.readOptionalTimeValue();
             } else {
                 this.requestsPerSecond = null;
-                this.expiration = null;
+                this.timeout = null;
             }
         }
 
@@ -73,8 +73,8 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
             return requestsPerSecond;
         }
 
-        public TimeValue getExpiration() {
-            return expiration;
+        public TimeValue getTimeout() {
+            return timeout;
         }
 
         public Request setRequestsPerSecond(Float requestsPerSecond) {
@@ -82,16 +82,16 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
             return this;
         }
 
-        public Request setExpiration(TimeValue expiration) {
-            this.expiration = expiration;
+        public Request setTimeout(TimeValue timeout) {
+            this.timeout = timeout;
             return this;
         }
 
         @Override
         public ActionRequestValidationException validate() {
-            if (this.requestsPerSecond != null && this.requestsPerSecond != -1.0f && this.requestsPerSecond < 0) {
+            if (this.requestsPerSecond != null && this.requestsPerSecond != -1.0f && this.requestsPerSecond <= 0) {
                 ActionRequestValidationException requestValidationException = new ActionRequestValidationException();
-                requestValidationException.addValidationError("[requests_per_second] must either be -1 or non-negative");
+                requestValidationException.addValidationError("[requests_per_second] must either be -1 or greater than 0");
                 return requestValidationException;
             }
             return null;
@@ -106,12 +106,12 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
                 request.requestsPerSecond == null ? Float.POSITIVE_INFINITY : request.requestsPerSecond,
                 requestsPerSecond == null ? Float.POSITIVE_INFINITY : requestsPerSecond
             ) == 0
-                && Objects.equals(expiration, request.expiration);
+                && Objects.equals(timeout, request.timeout);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(requestsPerSecond, expiration);
+            return Objects.hash(requestsPerSecond, timeout);
         }
 
         @Override
@@ -119,7 +119,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
             super.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
                 out.writeOptionalFloat(requestsPerSecond);
-                out.writeOptionalTimeValue(expiration);
+                out.writeOptionalTimeValue(timeout);
             }
         }
     }

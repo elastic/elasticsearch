@@ -214,12 +214,13 @@ public class MLRequestConvertersTests extends ESTestCase {
             requestEntityToString(request));
     }
 
-    public void testDeleteExpiredData() {
-        DeleteExpiredDataRequest deleteExpiredDataRequest = new DeleteExpiredDataRequest();
+    public void testDeleteExpiredData() throws Exception {
+        DeleteExpiredDataRequest deleteExpiredDataRequest = new DeleteExpiredDataRequest(1.0f, TimeValue.timeValueHours(1));
 
         Request request = MLRequestConverters.deleteExpiredData(deleteExpiredDataRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/_delete_expired_data", request.getEndpoint());
+        assertEquals("{\"requests_per_second\":1.0,\"timeout\":\"1h\"}", requestEntityToString(request));
     }
 
     public void testDeleteJob() {

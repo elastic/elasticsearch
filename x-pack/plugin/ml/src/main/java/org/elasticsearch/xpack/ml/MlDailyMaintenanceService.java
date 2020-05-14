@@ -16,7 +16,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -137,20 +136,10 @@ public class MlDailyMaintenanceService implements Releasable {
                 return;
             }
             LOGGER.info("triggering scheduled [ML] maintenance tasks");
-            float requestsPerSec = deleteExpiredDataRequestsPerSecond;
-            if (requestsPerSec == -1.0f) {
-                // With DEFAULT_SCROLL_SIZE = 1000 and a single data node this implies we spread deletion of
-                //   1 million documents over 5000 seconds ~= 83 minutes.
-                int numberOfDatanodes = clusterService.state().getNodes().getDataNodes().size();
-                // If we have > 5 data nodes, we don't set our throttling.
-                requestsPerSec = numberOfDatanodes < 5 ?
-                    (float)(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE / 5) * numberOfDatanodes :
-                    0.0f;
-            }
             executeAsyncWithOrigin(client,
                 ML_ORIGIN,
                 DeleteExpiredDataAction.INSTANCE,
-                new DeleteExpiredDataAction.Request(requestsPerSec, TimeValue.timeValueHours(8)),
+                new DeleteExpiredDataAction.Request(deleteExpiredDataRequestsPerSecond, TimeValue.timeValueHours(8)),
                 ActionListener.wrap(
                     response -> {
                         if (response.isDeleted()) {

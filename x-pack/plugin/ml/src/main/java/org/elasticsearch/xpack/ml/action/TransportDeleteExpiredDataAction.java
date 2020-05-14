@@ -15,6 +15,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -74,8 +75,9 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
                              ActionListener<DeleteExpiredDataAction.Response> listener) {
         logger.info("Deleting expired data");
         Instant timeoutTime = Instant.now(clock).plus(
-            request.getExpiration() == null ? MAX_DURATION : Duration.ofMillis(request.getExpiration().millis())
+            request.getTimeout() == null ? MAX_DURATION : Duration.ofMillis(request.getTimeout().millis())
         );
+
         Supplier<Boolean> isTimedOutSupplier = () -> Instant.now(clock).isAfter(timeoutTime);
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(
             () -> deleteExpiredData(request, listener, isTimedOutSupplier)
@@ -94,8 +96,18 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
                 new EmptyStateIndexRemover(client)
         );
         Iterator<MlDataRemover> dataRemoversIterator = new VolatileCursorIterator<>(dataRemovers);
-        float requestsPerSecond = request.getRequestsPerSecond() == null ? Float.POSITIVE_INFINITY : request.getRequestsPerSecond();
-        deleteExpiredData(dataRemoversIterator, requestsPerSecond, listener, isTimedOutSupplier, true);
+        // If there is no throttle provided, default to none
+        float requestsPerSec = request.getRequestsPerSecond() == null ? Float.POSITIVE_INFINITY : request.getRequestsPerSecond();
+        int numberOfDatanodes = Math.max(clusterService.state().getNodes().getDataNodes().size(), 1);
+        if (requestsPerSec == -1.0f) {
+            // With DEFAULT_SCROLL_SIZE = 1000 and a single data node this implies we spread deletion of
+            //   1 million documents over 5000 seconds ~= 83 minutes.
+            // If we have > 5 data nodes, we don't set our throttling.
+            requestsPerSec = numberOfDatanodes < 5 ?
+                (float)(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE / 5) * numberOfDatanodes :
+                Float.POSITIVE_INFINITY;
+        }
+        deleteExpiredData(dataRemoversIterator, requestsPerSec, listener, isTimedOutSupplier, true);
     }
 
     void deleteExpiredData(Iterator<MlDataRemover> mlDataRemoversIterator,

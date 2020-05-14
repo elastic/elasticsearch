@@ -31,7 +31,6 @@ public class TransformConfigurationIndexIT extends TransformRestTestCase {
      * test note: {@link TransformRestTestCase} checks for an empty index as part of the test case cleanup,
      * so we do not need to check that the document has been deleted in this place
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/56761")
     public void testDeleteConfigurationLeftOver() throws IOException {
         String fakeTransformName = randomAlphaOfLengthBetween(5, 20);
 

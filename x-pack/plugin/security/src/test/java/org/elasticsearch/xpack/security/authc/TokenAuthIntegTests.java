@@ -322,28 +322,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
             .get();
         InvalidateTokenResponse invalidateResponse = securityClient()
-                .prepareInvalidateToken(response.getTokenString())
-                .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
-                .get();
-        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(1));
-        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
-        InvalidateTokenResponse invalidateAgainResponse = securityClient()
-            .prepareInvalidateToken(response.getTokenString())
-            .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
-            .get();
-        assertThat(invalidateAgainResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateAgainResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(1));
-        assertThat(invalidateAgainResponse.getResult().getErrors().size(), equalTo(0));
-    }
-
-    public void testInvalidateMultipleTimes() {
-        CreateTokenResponse response = securityClient().prepareCreateToken()
-            .setGrantType("password")
-            .setUsername(SecuritySettingsSource.TEST_USER_NAME)
-            .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
-            .get();
-        InvalidateTokenResponse invalidateResponse = securityClient()
             .prepareInvalidateToken(response.getTokenString())
             .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
             .get();

@@ -178,13 +178,13 @@ final class S3ClientSettings {
     /**
      * Overrides the settings in this instance with settings found in repository metadata.
      *
-     * @param settings found in repository metadata
+     * @param repositorySettings found in repository metadata
      * @return S3ClientSettings
      */
-    S3ClientSettings refine(Settings settings) {
+    S3ClientSettings refine(Settings repositorySettings) {
         // Normalize settings to placeholder client settings prefix so that we can use the affix settings directly
         final Settings normalizedSettings =
-            Settings.builder().put(settings).normalizePrefix(PREFIX + PLACEHOLDER_CLIENT + '.').build();
+            Settings.builder().put(repositorySettings).normalizePrefix(PREFIX + PLACEHOLDER_CLIENT + '.').build();
         final String newEndpoint = getRepoSettingOrDefault(ENDPOINT_SETTING, normalizedSettings, endpoint);
 
         final Protocol newProtocol = getRepoSettingOrDefault(PROTOCOL_SETTING, normalizedSettings, protocol);

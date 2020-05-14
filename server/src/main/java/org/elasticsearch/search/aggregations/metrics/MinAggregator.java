@@ -48,7 +48,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.function.Function;
 
-class MinAggregator extends NumericMetricsAggregator.SingleValue {
+public class MinAggregator extends NumericMetricsAggregator.SingleValue {
     private static final int MAX_BKD_LOOKUPS = 1024;
 
     final ValuesSource.Numeric valuesSource;
@@ -168,7 +168,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
      * @param parent The parent aggregator.
      * @param config The config for the values source metric.
      */
-    static Function<byte[], Number> getPointReaderOrNull(SearchContext context, Aggregator parent,
+    public static Function<byte[], Number> getPointReaderOrNull(SearchContext context, Aggregator parent,
                                                                 ValuesSourceConfig config) {
         if (context.query() != null &&
                 context.query().getClass() != MatchAllDocsQuery.class) {

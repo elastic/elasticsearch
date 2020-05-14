@@ -25,10 +25,10 @@ import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregatorSupplier;
+import org.elasticsearch.search.aggregations.metrics.MetricAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.GeoGridAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregator;
-import org.elasticsearch.search.aggregations.metrics.ValueCountAggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
@@ -166,8 +166,8 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
 
     private static void registerValueCountAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(ValueCountAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
-            (ValueCountAggregatorSupplier) ValueCountAggregator::new
-        );
+            (MetricAggregatorSupplier) (name, valuesSource, format, context, parent, metadata)
+                -> new ValueCountAggregator(name, valuesSource, context, parent, metadata));
     }
 
     private static void registerCardinalityAggregator(ValuesSourceRegistry.Builder builder) {

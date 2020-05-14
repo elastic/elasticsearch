@@ -7,7 +7,6 @@
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
-
 esplugin {
   name 'x-pack-aggregate-metric'
   description 'Module for the aggregate_metric field type, which allows pre-aggregated fields to be stored a single field.'
@@ -16,7 +15,12 @@ esplugin {
 }
 archivesBaseName = 'x-pack-aggregate-metric'
 
+compileJava.options.compilerArgs << "-Xlint:-rawtypes"
+compileTestJava.options.compilerArgs << "-Xlint:-rawtypes"
+
 dependencies {
+  compileOnly project(":server")
+
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }

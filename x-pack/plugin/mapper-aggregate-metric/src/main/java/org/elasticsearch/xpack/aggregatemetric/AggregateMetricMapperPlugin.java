@@ -12,6 +12,9 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.xpack.aggregatemetric.aggregations.metrics.AggregateMetricsAggregatorsRegistrar;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -19,10 +22,11 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static java.util.Collections.singletonMap;
 
-public class AggregateMetricMapperPlugin extends Plugin implements MapperPlugin, ActionPlugin {
+public class AggregateMetricMapperPlugin extends Plugin implements MapperPlugin, ActionPlugin, SearchPlugin {
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
@@ -37,4 +41,14 @@ public class AggregateMetricMapperPlugin extends Plugin implements MapperPlugin,
         );
     }
 
+    @Override
+    public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
+        return List.of(
+            AggregateMetricsAggregatorsRegistrar::registerSumAggregator,
+            AggregateMetricsAggregatorsRegistrar::registerAvgAggregator,
+            AggregateMetricsAggregatorsRegistrar::registerMinAggregator,
+            AggregateMetricsAggregatorsRegistrar::registerMaxAggregator,
+            AggregateMetricsAggregatorsRegistrar::registerValueCountAggregator
+        );
+    }
 }

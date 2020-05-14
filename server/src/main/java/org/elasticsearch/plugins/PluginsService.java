@@ -78,7 +78,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      */
     private final List<Tuple<PluginInfo, Plugin>> plugins;
     /**
-     * The reverse plugins list is used for loading components, this ensures that the extending plug loads their components before the
+     * The reverse plugins list is used for loading components, this ensures that extending plugins load their components before the
      * extensible plugins
      */
     private final List<Plugin> reversePlugins;

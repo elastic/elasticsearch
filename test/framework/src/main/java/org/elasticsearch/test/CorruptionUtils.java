@@ -79,14 +79,6 @@ public final class CorruptionUtils {
             }
             try (FileChannel raf = FileChannel.open(fileToCorrupt, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
                 long maxPosition = raf.size();
-
-                if (fileToCorrupt.getFileName().toString().endsWith(".cfs") && maxPosition > 4) {
-                    // TODO: it is known that Lucene does not check the checksum of CFS file (CompoundFileS, like an archive)
-                    // see note at https://github.com/elastic/elasticsearch/pull/33911
-                    // so far, don't corrupt crc32 part of checksum (last 4 bytes) of cfs file
-                    // checksum is 8 bytes: first 4 bytes have to be zeros, while crc32 value is not verified
-                    maxPosition -= 4;
-                }
                 final int position = random.nextInt((int) Math.min(Integer.MAX_VALUE, maxPosition));
                 corruptAt(fileToCorrupt, raf, position);
             }

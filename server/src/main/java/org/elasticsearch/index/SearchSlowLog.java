@@ -145,13 +145,13 @@ public final class SearchSlowLog implements SearchOperationListener {
 
     @Override
     public void onFetchPhase(SearchContext context, long tookInNanos) {
-        if (fetchWarnThreshold >= 0 && tookInNanos > fetchWarnThreshold) {
+        if (fetchWarnThreshold >= 0 && tookInNanos > fetchWarnThreshold && level.isLevelEnabledFor(SlowLogLevel.WARN)) {
             fetchLogger.warn(new SearchSlowLogMessage(context, tookInNanos));
-        } else if (fetchInfoThreshold >= 0 && tookInNanos > fetchInfoThreshold) {
+        } else if (fetchInfoThreshold >= 0 && tookInNanos > fetchInfoThreshold && level.isLevelEnabledFor(SlowLogLevel.INFO)) {
             fetchLogger.info(new SearchSlowLogMessage(context, tookInNanos));
-        } else if (fetchDebugThreshold >= 0 && tookInNanos > fetchDebugThreshold) {
+        } else if (fetchDebugThreshold >= 0 && tookInNanos > fetchDebugThreshold && level.isLevelEnabledFor(SlowLogLevel.DEBUG)) {
             fetchLogger.debug(new SearchSlowLogMessage(context, tookInNanos));
-        } else if (fetchTraceThreshold >= 0 && tookInNanos > fetchTraceThreshold) {
+        } else if (fetchTraceThreshold >= 0 && tookInNanos > fetchTraceThreshold && level.isLevelEnabledFor(SlowLogLevel.TRACE)) {
             fetchLogger.trace(new SearchSlowLogMessage(context, tookInNanos));
         }
     }

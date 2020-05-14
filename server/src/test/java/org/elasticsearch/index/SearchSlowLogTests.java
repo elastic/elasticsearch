@@ -21,7 +21,6 @@ package org.elasticsearch.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.Term;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -31,10 +30,6 @@ import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.InternalEngineTests;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -46,7 +41,6 @@ import org.elasticsearch.test.TestSearchContext;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -107,63 +101,93 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
             }
         };
     }
-continue with fetch check and 2loggers test
-    public void testLevelPrecedence()  {
-        SearchContext ctx = createSearchContext(createIndex("index-precedence"));
-        SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
-        ctx.request().source(source);
-        ctx.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
-            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
 
-        String uuid = UUIDs.randomBase64UUID();
-        IndexMetadata metadata = createIndexMetadata(SlowLogLevel.WARN, "index-precedence", uuid);
-        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+    public void testLevelPrecedence()  {
+        SearchContext ctx = searchContextWithSourceAndTask(createIndex("index"));
+        IndexSettings settings =
+            new IndexSettings(createIndexMetadata(SlowLogLevel.WARN, "index", UUIDs.randomBase64UUID()), Settings.EMPTY);
         SearchSlowLog log = new SearchSlowLog(settings);
 
-
-        ParsedDocument doc = InternalEngineTests.createParsedDoc("1", null);
-        Engine.Index index = new Engine.Index(new Term("_id", Uid.encodeId("doc_id")), randomNonNegativeLong(), doc);
-        Engine.IndexResult result = Mockito.mock(Engine.IndexResult.class);//(0, 0, SequenceNumbers.UNASSIGNED_SEQ_NO, false);
-        Mockito.when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
-
-        // Test query phase logging
         {
             //level set to WARN, should only log when WARN limit is breached
             log.onQueryPhase(ctx,40L);
             assertNull(appender.getLastEventAndReset());
-
             log.onQueryPhase(ctx,41L);
             assertNotNull(appender.getLastEventAndReset());
 
+            log.onFetchPhase(ctx,40L);
+            assertNull(appender.getLastEventAndReset());
+            log.onFetchPhase(ctx,41L);
+            assertNotNull(appender.getLastEventAndReset());
         }
 
         {
             // level set INFO, should log when INFO level is breached
-            settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.INFO, "index", uuid));
+            settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.INFO, "index", UUIDs.randomBase64UUID()));
             log.onQueryPhase(ctx,30L);
             assertNull(appender.getLastEventAndReset());
-
             log.onQueryPhase(ctx,31L);
+            assertNotNull(appender.getLastEventAndReset());
+
+            log.onFetchPhase(ctx,30L);
+            assertNull(appender.getLastEventAndReset());
+            log.onFetchPhase(ctx,31L);
             assertNotNull(appender.getLastEventAndReset());
         }
 
         {
             // level set DEBUG, should log when DEBUG level is breached
-            settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.DEBUG, "index", uuid));
+            settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.DEBUG, "index", UUIDs.randomBase64UUID()));
             log.onQueryPhase(ctx,20L);
             assertNull(appender.getLastEventAndReset());
-
             log.onQueryPhase(ctx,21L);
+            assertNotNull(appender.getLastEventAndReset());
+
+            log.onFetchPhase(ctx,20L);
+            assertNull(appender.getLastEventAndReset());
+            log.onFetchPhase(ctx,21L);
             assertNotNull(appender.getLastEventAndReset());
         }
 
         {
             // level set TRACE, should log when TRACE level is breached
-            settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.TRACE, "index", uuid));
+            settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.TRACE, "index", UUIDs.randomBase64UUID()));
             log.onQueryPhase(ctx,10L);
             assertNull(appender.getLastEventAndReset());
-
             log.onQueryPhase(ctx,11L);
+            assertNotNull(appender.getLastEventAndReset());
+
+            log.onFetchPhase(ctx,10L);
+            assertNull(appender.getLastEventAndReset());
+            log.onFetchPhase(ctx,11L);
+            assertNotNull(appender.getLastEventAndReset());
+        }
+    }
+
+
+
+    public void testTwoLoggersDifferentLevel() {
+        SearchContext ctx1 = searchContextWithSourceAndTask(createIndex("index-1"));
+        SearchContext ctx2 = searchContextWithSourceAndTask(createIndex("index-2"));
+        IndexSettings settings1 =
+            new IndexSettings(createIndexMetadata(SlowLogLevel.WARN, "index-1", UUIDs.randomBase64UUID()), Settings.EMPTY);
+        SearchSlowLog log1 = new SearchSlowLog(settings1);
+
+        IndexSettings settings2 =
+            new IndexSettings(createIndexMetadata(SlowLogLevel.TRACE, "index-2", UUIDs.randomBase64UUID()), Settings.EMPTY);
+        SearchSlowLog log2 = new SearchSlowLog(settings2);
+
+        {
+            // level set WARN, should not log
+            log1.onQueryPhase(ctx1, 11L);
+            assertNull(appender.getLastEventAndReset());
+            log1.onFetchPhase(ctx1, 11L);
+            assertNull(appender.getLastEventAndReset());
+
+            // level set TRACE, should log
+            log2.onQueryPhase(ctx2, 11L);
+            assertNotNull(appender.getLastEventAndReset());
+            log2.onFetchPhase(ctx2, 11L);
             assertNotNull(appender.getLastEventAndReset());
         }
     }
@@ -187,11 +211,7 @@ continue with fetch check and 2loggers test
 
     public void testSlowLogHasJsonFields() throws IOException {
         IndexService index = createIndex("foo");
-        SearchContext searchContext = createSearchContext(index);
-        SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
-        searchContext.request().source(source);
-        searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
-            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+        SearchContext searchContext = searchContextWithSourceAndTask(index);
         SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
 
         assertThat(p.getValueFor("message"), equalTo("[foo][0]"));
@@ -207,11 +227,7 @@ continue with fetch check and 2loggers test
 
     public void testSlowLogWithTypes() throws IOException {
         IndexService index = createIndex("foo");
-        SearchContext searchContext = createSearchContext(index);
-        SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
-        searchContext.request().source(source);
-        searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
-            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+        SearchContext searchContext = searchContextWithSourceAndTask(index);
         searchContext.getQueryShardContext().setTypes("type1", "type2");
         SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
 
@@ -248,11 +264,7 @@ continue with fetch check and 2loggers test
 
     public void testSlowLogSearchContextPrinterToLog() throws IOException {
         IndexService index = createIndex("foo");
-        SearchContext searchContext = createSearchContext(index);
-        SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
-        searchContext.request().source(source);
-        searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
-            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+        SearchContext searchContext = searchContextWithSourceAndTask(index);
         SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
         assertThat(p.getFormattedMessage(), startsWith("[foo][0]"));
         // Makes sure that output doesn't contain any new lines
@@ -504,5 +516,14 @@ continue with fetch check and 2loggers test
             .build();
         IndexMetadata metadata = IndexMetadata.builder(name).settings(build).build();
         return metadata;
+    }
+
+    private SearchContext searchContextWithSourceAndTask(IndexService index) {
+        SearchContext ctx = createSearchContext(index);
+        SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
+        ctx.request().source(source);
+        ctx.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
+            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+        return ctx;
     }
 }

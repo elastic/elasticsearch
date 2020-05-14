@@ -43,9 +43,7 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.mockito.Mockito;
 
@@ -141,10 +139,12 @@ public class IndexingSlowLogTests extends ESTestCase {
     }
 
     public void testTwoLoggersDifferentLevel() {
-        IndexSettings index1Settings = new IndexSettings(createIndexMetadata(SlowLogLevel.WARN, "index1", UUIDs.randomBase64UUID()), Settings.EMPTY);
+        IndexSettings index1Settings = new IndexSettings(createIndexMetadata(SlowLogLevel.WARN, "index1", UUIDs.randomBase64UUID()),
+            Settings.EMPTY);
         IndexingSlowLog log1 = new IndexingSlowLog(index1Settings);
 
-        IndexSettings index2Settings = new IndexSettings(createIndexMetadata(SlowLogLevel.TRACE, "index2", UUIDs.randomBase64UUID()), Settings.EMPTY);
+        IndexSettings index2Settings = new IndexSettings(createIndexMetadata(SlowLogLevel.TRACE, "index2", UUIDs.randomBase64UUID()),
+            Settings.EMPTY);
         IndexingSlowLog log2 = new IndexingSlowLog(index2Settings);
 
 

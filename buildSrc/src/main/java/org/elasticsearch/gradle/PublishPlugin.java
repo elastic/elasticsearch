@@ -39,7 +39,6 @@ import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.publish.PublishingExtension;
 import org.gradle.api.publish.maven.MavenPublication;
-import org.gradle.api.publish.maven.plugins.MavenPublishPlugin;
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
@@ -56,7 +55,6 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -86,19 +84,21 @@ public class PublishPlugin implements Plugin<Project> {
     private static void configurePomGeneration(Project project) {
 
         TaskProvider<Task> generatePomTask = project.getTasks().register("generatePom");
-        //generatePomTask.configure(t -> t.dependsOn("generatePomFileForNebulaPublication"));
+        // generatePomTask.configure(t -> t.dependsOn("generatePomFileForNebulaPublication"));
 
-        maybeConfigure(project.getTasks(), LifecycleBasePlugin.ASSEMBLE_TASK_NAME,
-            assemble -> assemble.dependsOn(generatePomTask));
+        maybeConfigure(project.getTasks(), LifecycleBasePlugin.ASSEMBLE_TASK_NAME, assemble -> assemble.dependsOn(generatePomTask));
 
-        project.getTasks().withType(GenerateMavenPom.class).configureEach(pomTask ->
-            pomTask.setDestination(new Callable<String>() {
-                @Override
-                public String call() throws Exception {
-                    return String.format("%s/distributions/%s-%s.pom",
-                        project.getBuildDir(), getArchivesBaseName(project), project.getVersion());
-                }
-            }));
+        project.getTasks().withType(GenerateMavenPom.class).configureEach(pomTask -> pomTask.setDestination(new Callable<String>() {
+            @Override
+            public String call() throws Exception {
+                return String.format(
+                    "%s/distributions/%s-%s.pom",
+                    project.getBuildDir(),
+                    getArchivesBaseName(project),
+                    project.getVersion()
+                );
+            }
+        }));
 
         PublishingExtension publishing = project.getExtensions().getByType(PublishingExtension.class);
 
@@ -112,7 +112,7 @@ public class PublishPlugin implements Plugin<Project> {
                 Node root = xml.asNode();
                 root.appendNode("name", project.getName());
                 root.appendNode("description", project.getDescription());
-                Node dependenciesNode = (Node) ((NodeList)root.get("dependencies")).get(0);
+                Node dependenciesNode = (Node) ((NodeList) root.get("dependencies")).get(0);
                 project.getConfigurations().getByName(ShadowBasePlugin.getCONFIGURATION_NAME()).getAllDependencies().all(dependency -> {
                     if (dependency instanceof ProjectDependency) {
                         Node dependencyNode = dependenciesNode.appendNode("dependency");
@@ -134,11 +134,10 @@ public class PublishPlugin implements Plugin<Project> {
             // have to defer this until archivesBaseName is set
             project.afterEvaluate(p -> publication.setArtifactId(getArchivesBaseName(project)));
 
-            generatePomTask.configure(t ->
-                t.dependsOn(String.format("generatePomFileFor%sPublication", Util.capitalize(publication.getName()))));
+            generatePomTask.configure(
+                t -> t.dependsOn(String.format("generatePomFileFor%sPublication", Util.capitalize(publication.getName())))
+            );
         });
-
-
 
     }
 
@@ -152,8 +151,7 @@ public class PublishPlugin implements Plugin<Project> {
     private static void configureJavadoc(Project project) {
         // remove compiled classes from the Javadoc classpath: http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
         final List<File> classes = new ArrayList<>();
-        project.getTasks().withType(JavaCompile.class).configureEach(javaCompile ->
-            classes.add(javaCompile.getDestinationDir()));
+        project.getTasks().withType(JavaCompile.class).configureEach(javaCompile -> classes.add(javaCompile.getDestinationDir()));
         project.getTasks().withType(Javadoc.class).configureEach(javadoc -> {
             // only explicitly set javadoc executable if compiler JDK is different from Gradle
             // this ensures better cacheability as setting ths input to an absolute path breaks portability
@@ -175,7 +173,9 @@ public class PublishPlugin implements Plugin<Project> {
             javadocOptions.addBooleanOption("html5", true);
         });
         // ensure javadoc task is run with 'check'
-        project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(project.getTasks().withType(Javadoc.class)));
+        project.getTasks()
+            .named(LifecycleBasePlugin.CHECK_TASK_NAME)
+            .configure(t -> t.dependsOn(project.getTasks().withType(Javadoc.class)));
     }
 
     /** Adds a javadocJar task to generate a jar containing javadocs. */
@@ -209,54 +209,68 @@ public class PublishPlugin implements Plugin<Project> {
     /** Adds additional manifest info to jars */
     static void configureJars(Project project) {
         ExtraPropertiesExtension ext = project.getExtensions().getExtraProperties();
-        ext.set("licenseFile",  null);
+        ext.set("licenseFile", null);
         ext.set("noticeFile", null);
-        project.getTasks().withType(Jar.class).configureEach(jarTask -> {
-            // we put all our distributable files under distributions
-            jarTask.getDestinationDirectory().set(new File(project.getBuildDir(), "distributions"));
-            // fixup the jar manifest
-            jarTask.doFirst(t -> {
-                // this doFirst is added before the info plugin, therefore it will run
-                // after the doFirst added by the info plugin, and we can override attributes
-                jarTask.getManifest().attributes(Map.of(
-                    "Build-Date", BuildParams.getBuildDate(),
-                    "Build-Java-Version", BuildParams.getCompilerJavaVersion()));
-            });
-        });
-        // add license/notice files
-        project.afterEvaluate(p ->
-            project.getTasks().withType(Jar.class).configureEach(jarTask -> {
-                File licenseFile = (File) ext.get("licenseFile");
-                File noticeFile = (File) ext.get("noticeFile");
-                if (licenseFile == null || noticeFile == null) {
-                    throw new GradleException("Must specify license and notice file for project");
+        project.getTasks()
+            .withType(Jar.class)
+            .configureEach(
+                jarTask -> {
+                    // we put all our distributable files under distributions
+                    jarTask.getDestinationDirectory().set(new File(project.getBuildDir(), "distributions"));
+                    // fixup the jar manifest
+                    jarTask.doFirst(
+                        t -> {
+                            // this doFirst is added before the info plugin, therefore it will run
+                            // after the doFirst added by the info plugin, and we can override attributes
+                            jarTask.getManifest()
+                                .attributes(
+                                    Map.of(
+                                        "Build-Date",
+                                        BuildParams.getBuildDate(),
+                                        "Build-Java-Version",
+                                        BuildParams.getCompilerJavaVersion()
+                                    )
+                                );
+                        }
+                    );
                 }
+            );
+        // add license/notice files
+        project.afterEvaluate(p -> project.getTasks().withType(Jar.class).configureEach(jarTask -> {
+            File licenseFile = (File) ext.get("licenseFile");
+            File noticeFile = (File) ext.get("noticeFile");
+            if (licenseFile == null || noticeFile == null) {
+                throw new GradleException("Must specify license and notice file for project");
+            }
 
-                jarTask.metaInf(spec -> {
-                    spec.from(licenseFile.getParent(), from -> {
-                        from.include(licenseFile.getName());
-                        from.rename(s -> "LICENSE.txt");
-                    });
-                    spec.from(noticeFile.getParent(), from -> {
-                        from.include(noticeFile.getName());
-                        from.rename(s -> "NOTICE.txt");
-                    });
+            jarTask.metaInf(spec -> {
+                spec.from(licenseFile.getParent(), from -> {
+                    from.include(licenseFile.getName());
+                    from.rename(s -> "LICENSE.txt");
                 });
-            })
-        );
-        project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", p -> {
-            project.getTasks().withType(ShadowJar.class).configureEach(shadowJar -> {
-                /*
-                 * Replace the default "-all" classifier with null
-                 * which will leave the classifier off of the file name.
-                 */
-                shadowJar.getArchiveClassifier().set((String) null);
-                /*
-                 * Not all cases need service files merged but it is
-                 * better to be safe
-                 */
-                shadowJar.mergeServiceFiles();
+                spec.from(noticeFile.getParent(), from -> {
+                    from.include(noticeFile.getName());
+                    from.rename(s -> "NOTICE.txt");
+                });
             });
+        }));
+        project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", p -> {
+            project.getTasks()
+                .withType(ShadowJar.class)
+                .configureEach(
+                    shadowJar -> {
+                        /*
+                         * Replace the default "-all" classifier with null
+                         * which will leave the classifier off of the file name.
+                         */
+                        shadowJar.getArchiveClassifier().set((String) null);
+                        /*
+                         * Not all cases need service files merged but it is
+                         * better to be safe
+                         */
+                        shadowJar.mergeServiceFiles();
+                    }
+                );
             // Add "original" classifier to the non-shadowed JAR to distinguish it from the shadow JAR
             project.getTasks().named(JavaPlugin.JAR_TASK_NAME, Jar.class).configure(jar -> jar.getArchiveClassifier().set("original"));
             // Make sure we assemble the shadow jar
@@ -276,8 +290,10 @@ public class PublishPlugin implements Plugin<Project> {
                 manifestPlugin.add("Change", (Callable<String>) BuildParams::getGitRevision);
                 manifestPlugin.add("X-Compile-Elasticsearch-Version", (Callable<String>) VersionProperties::getElasticsearch);
                 manifestPlugin.add("X-Compile-Lucene-Version", (Callable<String>) VersionProperties::getLucene);
-                manifestPlugin.add("X-Compile-Elasticsearch-Snapshot",
-                    (Callable<String>) () -> Boolean.toString(VersionProperties.isElasticsearchSnapshot()));
+                manifestPlugin.add(
+                    "X-Compile-Elasticsearch-Snapshot",
+                    (Callable<String>) () -> Boolean.toString(VersionProperties.isElasticsearchSnapshot())
+                );
             });
         });
     }

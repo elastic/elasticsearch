@@ -18,6 +18,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -540,7 +541,15 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             + "       \"terms\": {"
             + "         \"field\": \"user_id\","
             + "         \"size\": 2"
-            + " } },"
+            + "        },"
+            + "        \"aggs\" : {"
+            + "          \"common_businesses\": {"
+            + "            \"terms\": {"
+            + "              \"field\": \"business_id\","
+            + "              \"size\": 2"
+            + "         }}"
+            + "        } "
+            +"      },"
             + "     \"rare_users\": {"
             + "       \"rare_terms\": {"
             + "         \"field\": \"user_id\""
@@ -572,8 +581,18 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         )).get(0);
         assertThat(commonUsers, is(not(nullValue())));
         assertThat(commonUsers, equalTo(new HashMap<>(){{
-            put("user_10", 12);
-            put("user_0", 35);
+            put("user_10",
+                Collections.singletonMap(
+                    "common_businesses",
+                    new HashMap<>(){{
+                        put("business_12", 6);
+                        put("business_9", 4);
+            }}));
+            put("user_0", Collections.singletonMap(
+                "common_businesses",
+                new HashMap<>(){{
+                    put("business_0", 35);
+            }}));
         }}));
         assertThat(rareUsers, is(not(nullValue())));
         assertThat(rareUsers, equalTo(new HashMap<>(){{

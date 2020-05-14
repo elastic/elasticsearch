@@ -41,7 +41,7 @@ public class Results {
         return new Results(new TotalHits(counts.size(), Relation.EQUAL_TO), tookTime, false, counts, Type.COUNT);
     }
 
-    private Results(TotalHits totalHits, TimeValue tookTime, boolean timedOut, List<?> results, Type type) {
+    Results(TotalHits totalHits, TimeValue tookTime, boolean timedOut, List<?> results, Type type) {
         this.totalHits = totalHits;
         this.tookTime = tookTime;
         this.timedOut = timedOut;

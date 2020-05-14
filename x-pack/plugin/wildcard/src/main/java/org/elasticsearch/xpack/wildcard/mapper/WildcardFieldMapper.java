@@ -44,7 +44,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.plain.BytesBinaryDVIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -467,7 +467,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 @Override
                 public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                         CircuitBreakerService breakerService, MapperService mapperService) {
-                    return new WildcardBytesBinaryDVIndexFieldData(indexSettings.getIndex(), fieldType.name());
+                    return new WildcardBytesBinaryIndexFieldData(indexSettings.getIndex(), fieldType.name());
                 }};
         }
 
@@ -478,9 +478,9 @@ public class WildcardFieldMapper extends FieldMapper {
 
     }
 
-    static class  WildcardBytesBinaryDVIndexFieldData extends BytesBinaryDVIndexFieldData{
+    static class WildcardBytesBinaryIndexFieldData extends BytesBinaryIndexFieldData {
 
-        WildcardBytesBinaryDVIndexFieldData(Index index, String fieldName) {
+        WildcardBytesBinaryIndexFieldData(Index index, String fieldName) {
             super(index, fieldName);
         }
 
@@ -532,7 +532,7 @@ public class WildcardFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         final String value;
         if (context.externalValueSet()) {
             value = context.externalValue().toString();
@@ -546,7 +546,9 @@ public class WildcardFieldMapper extends FieldMapper {
         }
         ParseContext.Document parseDoc = context.doc();
 
+        List<IndexableField> fields = new ArrayList<>();
         createFields(value, parseDoc, fields);
+        parseDoc.addAll(fields);
     }
 
     // For internal use by Lucene only - used to define ngram index

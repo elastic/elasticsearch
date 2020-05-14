@@ -12,6 +12,16 @@ SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 AND last_name RLIKE 'S.*
 Simmel
 ;
 
+whereFieldWithRLikeWithScalarsMatch
+SELECT LTRIM(concat('         ', first_name)) lt FROM test_emp WHERE LTRIM(concat('         ', first_name)) RLIKE '.*z' ORDER BY emp_no;
+
+      lt
+---------------
+Erez
+Parviz
+;
+
+
 whereFieldWithNotRLikeMatch
 SELECT last_name, first_name FROM "test_emp" WHERE emp_no < 10020 AND first_name NOT RLIKE 'Ma.*' ORDER BY first_name LIMIT 5;
 

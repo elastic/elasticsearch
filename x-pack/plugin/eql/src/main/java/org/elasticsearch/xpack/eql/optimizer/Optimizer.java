@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.eql.optimizer;
 
+import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
+import org.elasticsearch.xpack.eql.session.EmptyExecutable;
 import org.elasticsearch.xpack.eql.util.StringUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
@@ -15,13 +17,13 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Binar
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanEqualsSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneFilters;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceSurrogateFunction;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
@@ -47,6 +49,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // boolean
                 new BooleanSimplification(),
                 new BooleanLiteralsOnTheRight(),
+                new BooleanEqualsSimplification(),
                 // needs to occur before BinaryComparison combinations
                 new ReplaceWildcards(),
                 new ReplaceNullChecks(),
@@ -118,6 +121,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
                 return e;
             });
+        }
+    }
+
+    static class PruneFilters extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneFilters {
+
+        @Override
+        protected LogicalPlan nonMatchingFilter(Filter filter) {
+            return new LocalRelation(filter.source(), new EmptyExecutable(filter.output()));
         }
     }
 }

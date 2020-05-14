@@ -87,12 +87,11 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
             Map<String, Processor.Factory> factoryMap = new HashMap<>();
             XPackLicenseState licenseState = mock(XPackLicenseState.class);
-            when(licenseState.isMachineLearningAllowed()).thenReturn(true);
+            when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
             factoryMap.put(InferenceProcessor.TYPE,
                 new InferenceProcessor.Factory(parameters.client,
                     parameters.ingestService.getClusterService(),
-                    Settings.EMPTY,
-                    parameters.ingestService));
+                    Settings.EMPTY));
 
             factoryMap.put("not_inference", new NotInferenceProcessor.Factory());
 

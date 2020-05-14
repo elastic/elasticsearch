@@ -134,6 +134,28 @@ public class QueryShardContextTests extends ESTestCase {
         assertThat(shardContext.getFullyQualifiedIndex().getUUID(), equalTo(indexUuid));
     }
 
+    public void testIndexSortedOnField() {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put("index.sort.field", "sort_field")
+            .build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("index")
+            .settings(settings)
+            .build();
+
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+        QueryShardContext context = new QueryShardContext(
+            0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null,
+            null, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
+            null, null, () -> 0L, null, null, () -> true, null);
+
+        assertTrue(context.indexSortedOnField("sort_field"));
+        assertFalse(context.indexSortedOnField("second_sort_field"));
+        assertFalse(context.indexSortedOnField("non_sort_field"));
+    }
+
     public static QueryShardContext createQueryShardContext(String indexUuid, String clusterAlias) {
         IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder("index");
         indexMetadataBuilder.settings(Settings.builder().put("index.version.created", Version.CURRENT)

@@ -36,7 +36,6 @@
         "type":"enum",
         "description":"The multiplier in which to display values",
         "options":[
-          "",
           "k",
           "m",
           "g",

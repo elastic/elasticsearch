@@ -113,7 +113,7 @@ task updateCIBwcVersions() {
     File yml = file(".ci/bwcVersions")
     yml.text = ""
     yml << "BWC_VERSION:\n"
-    versions.indexCompatible.each {
+    BuildParams.bwcVersions.indexCompatible.each {
       yml << "  - \"$it\"\n"
     }
   }

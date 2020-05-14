@@ -83,6 +83,11 @@ public class AzureBlobStore implements BlobStore {
     private final String container;
     private final LocationMode locationMode;
 
+    private final Stats stats = new Stats();
+
+    private final RequestMetricCollector getMetricsCollector;
+    private final RequestMetricCollector listMetricsCollector;
+
     public AzureBlobStore(RepositoryMetadata metadata, AzureStorageService service, ThreadPool threadPool) {
         this.container = Repository.CONTAINER_SETTING.get(metadata.settings());
         this.clientName = Repository.CLIENT_NAME.get(metadata.settings());
@@ -93,6 +98,16 @@ public class AzureBlobStore implements BlobStore {
         final Map<String, AzureStorageSettings> prevSettings = this.service.refreshAndClearCache(emptyMap());
         final Map<String, AzureStorageSettings> newSettings = AzureStorageSettings.overrideLocationMode(prevSettings, this.locationMode);
         this.service.refreshAndClearCache(newSettings);
+        this.getMetricsCollector = (requestMethod) -> {
+            // BlobInputStream request information about the blob and those requests
+            // are not considered GET requests.
+            if (requestMethod.equalsIgnoreCase("HEAD")) {
+                return;
+            }
+
+            stats.getOperations.incrementAndGet();
+        };
+        this.listMetricsCollector = (requestMethod) -> stats.listOperations.incrementAndGet();
     }
 
     @Override
@@ -120,7 +135,7 @@ public class AzureBlobStore implements BlobStore {
     public void close() {
     }
 
-    public boolean blobExists(String blob) throws URISyntaxException, StorageException, IOException {
+    public boolean blobExists(String blob) throws URISyntaxException, StorageException {
         // Container name must be lower case.
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client();
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
@@ -130,7 +145,7 @@ public class AzureBlobStore implements BlobStore {
         });
     }
 
-    public void deleteBlob(String blob) throws URISyntaxException, StorageException, IOException {
+    public void deleteBlob(String blob) throws URISyntaxException, StorageException {
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client();
         // Container name must be lower case.
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
@@ -144,7 +159,7 @@ public class AzureBlobStore implements BlobStore {
 
     public DeleteResult deleteBlobDirectory(String path, Executor executor)
             throws URISyntaxException, StorageException, IOException {
-        final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client();
+        final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(listMetricsCollector);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
         final Collection<Exception> exceptions = Collections.synchronizedList(new ArrayList<>());
         final AtomicLong outstanding = new AtomicLong(1L);
@@ -152,7 +167,7 @@ public class AzureBlobStore implements BlobStore {
         final AtomicLong blobsDeleted = new AtomicLong();
         final AtomicLong bytesDeleted = new AtomicLong();
         SocketAccess.doPrivilegedVoidException(() -> {
-            for (final ListBlobItem blobItem : blobContainer.listBlobs(path, true)) {
+            for (final ListBlobItem blobItem : getListBlobItems(blobContainer, path, client.v2().get())) {
                 // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
                 // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /
                 final String blobPath = blobItem.getUri().getPath().substring(1 + container.length() + 1);
@@ -199,8 +214,12 @@ public class AzureBlobStore implements BlobStore {
         return new DeleteResult(blobsDeleted.get(), bytesDeleted.get());
     }
 
+    private Iterable<ListBlobItem> getListBlobItems(CloudBlobContainer blobContainer, String path, OperationContext opContext) {
+        return blobContainer.listBlobs(path,true, EnumSet.noneOf(BlobListingDetails.class),null, opContext);
+    }
+
     public InputStream getInputStream(String blob, long position, @Nullable Long length) throws URISyntaxException, StorageException {
-        final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client();
+        final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(getMetricsCollector);
         final CloudBlockBlob blockBlobReference = client.v1().getContainerReference(container).getBlockBlobReference(blob);
         logger.trace(() -> new ParameterizedMessage("reading container [{}], blob [{}]", container, blob));
         final BlobInputStream is = SocketAccess.doPrivilegedException(() ->
@@ -209,13 +228,13 @@ public class AzureBlobStore implements BlobStore {
     }
 
     public Map<String, BlobMetadata> listBlobsByPrefix(String keyPath, String prefix)
-        throws URISyntaxException, StorageException, IOException {
+        throws URISyntaxException, StorageException {
         // NOTE: this should be here: if (prefix == null) prefix = "";
         // however, this is really inefficient since deleteBlobsByPrefix enumerates everything and
         // then does a prefix match on the result; it should just call listBlobsByPrefix with the prefix!
         final var blobsBuilder = new HashMap<String, BlobMetadata>();
         final EnumSet<BlobListingDetails> enumBlobListingDetails = EnumSet.of(BlobListingDetails.METADATA);
-        final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client();
+        final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(listMetricsCollector);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
         logger.trace(() -> new ParameterizedMessage("listing container [{}], keyPath [{}], prefix [{}]", container, keyPath, prefix));
         SocketAccess.doPrivilegedVoidException(() -> {
@@ -237,9 +256,9 @@ public class AzureBlobStore implements BlobStore {
         return Map.copyOf(blobsBuilder);
     }
 
-    public Map<String, BlobContainer> children(BlobPath path) throws URISyntaxException, StorageException, IOException {
+    public Map<String, BlobContainer> children(BlobPath path) throws URISyntaxException, StorageException {
         final var blobsBuilder = new HashSet<String>();
-        final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client();
+        final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(listMetricsCollector);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
         final String keyPath = path.buildAsString();
         final EnumSet<BlobListingDetails> enumBlobListingDetails = EnumSet.of(BlobListingDetails.METADATA);
@@ -289,6 +308,10 @@ public class AzureBlobStore implements BlobStore {
         return service.client(clientName);
     }
 
+    private Tuple<CloudBlobClient, Supplier<OperationContext>> client(RequestMetricCollector metricCollector) {
+        return service.client(clientName, metricCollector);
+    }
+
     static InputStream giveSocketPermissionsToStream(final InputStream stream) {
         return new InputStream() {
             @Override
@@ -306,5 +329,21 @@ public class AzureBlobStore implements BlobStore {
                 return SocketAccess.doPrivilegedIOException(() -> stream.read(b, off, len));
             }
         };
+    }
+
+    @Override
+    public Map<String, Long> stats() {
+        return stats.toMap();
+    }
+
+    private static class Stats {
+
+        private final AtomicLong getOperations = new AtomicLong();
+
+        private final AtomicLong listOperations = new AtomicLong();
+
+        private Map<String, Long> toMap() {
+            return Map.of("GET", getOperations.get(), "LIST", listOperations.get());
+        }
     }
 }

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.client;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.JarURLConnection;
 import java.net.URL;
 import java.net.URLConnection;

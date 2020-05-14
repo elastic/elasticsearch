@@ -20,29 +20,16 @@
 package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.Message;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.SuppressLoggerChecks;
 
 /**
  * This class wraps both <code>HeaderWarningLogger</code> and <code>ThrottlingLogger</code>
  * which is a common use case across Elasticsearch
  */
-public class ThrottlingAndHeaderWarningLogger {
+class ThrottlingAndHeaderWarningLogger {
     private final ThrottlingLogger throttlingLogger;
 
-    public ThrottlingAndHeaderWarningLogger(Logger logger) {
+    ThrottlingAndHeaderWarningLogger(Logger logger) {
         this.throttlingLogger = new ThrottlingLogger(logger);
-    }
-
-    /**
-     * Logs a message, adding a formatted warning message as a response header on the thread context.
-     */
-    @SuppressLoggerChecks(reason = "ParametrizedMessage parameters are passed from the method arguments which is verified. Safe")
-    public void logAndAddWarning(String msg, Object... params) {
-        HeaderWarning.addWarning(msg, params);
-        Message message = new ParameterizedMessage(msg, params);
-        throttlingLogger.log(message);
     }
 
     /**

@@ -66,7 +66,7 @@ class ThrottlingLogger {
         }
     }
 
-    void log(Message message) {
+    private void log(Message message) {
         AccessController.doPrivileged(new PrivilegedAction<Void>() {
             @SuppressLoggerChecks(reason = "safely delegates to logger")
             @Override

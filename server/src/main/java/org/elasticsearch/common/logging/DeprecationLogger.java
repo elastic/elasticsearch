@@ -60,6 +60,7 @@ public class DeprecationLogger {
     /**
      * Logs a deprecation message, adding a formatted warning message as a response header on the thread context.
      * The deprecation message will be throttled to deprecation log.
+     * method returns a builder as more methods are expected to be chained.
      */
     public DeprecationLoggerBuilder deprecate(final String key, final String msg, final Object... params) {
         return new DeprecationLoggerBuilder()

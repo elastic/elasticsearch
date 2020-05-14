@@ -333,15 +333,6 @@ public class ESLoggerUsageChecker {
                             verifyLoggerUsage(methodNode, logMessageFrames, arraySizeFrames, lineNumber, i,
                                 methodInsn, argumentTypes, markerOffset, lengthWithoutMarker);
                         }
-                    } else if (methodInsn.owner.equals("org/elasticsearch/common/logging/ThrottlingAndHeaderWarningLogger")) {
-                        if (methodInsn.name.equals("logAndAddWarning")) {
-                            Type[] argumentTypes = Type.getArgumentTypes(methodInsn.desc);
-                            int markerOffset = 0;
-                            int lengthWithoutMarker = argumentTypes.length - markerOffset;
-
-                            verifyLoggerUsage(methodNode, logMessageFrames, arraySizeFrames, lineNumber, i,
-                                methodInsn, argumentTypes, markerOffset, lengthWithoutMarker);
-                        }
                     }
                 }
             }

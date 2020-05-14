@@ -76,10 +76,9 @@ public class TaskManagerTests extends ESTestCase {
         assertEquals(600000L, total);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/56746")
     public void testTrackingChannelTask() throws Exception {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
-        Set<CancellableTask> cancelledTasks = new HashSet<>();
+        Set<CancellableTask> cancelledTasks = ConcurrentCollections.newConcurrentSet();
         taskManager.setTaskCancellationService(new TaskCancellationService(mock(TransportService.class)) {
             @Override
             void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {

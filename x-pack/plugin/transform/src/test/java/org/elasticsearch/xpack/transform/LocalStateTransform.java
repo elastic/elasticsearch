@@ -15,7 +15,6 @@ public class LocalStateTransform extends LocalStateCompositeXPackPlugin {
 
     public LocalStateTransform(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
-        @SuppressWarnings("resource")
 
         plugins.add(new Transform(settings));
     }

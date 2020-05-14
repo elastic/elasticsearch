@@ -73,7 +73,6 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.nio.NioGroupFactory;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.XPackSharedPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;

@@ -13,6 +13,7 @@ import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
@@ -31,9 +32,11 @@ public class HistoryStore {
     private static final Logger logger = LogManager.getLogger(HistoryStore.class);
 
     private final BulkProcessor bulkProcessor;
+    private final ClusterService clusterService;
 
-    public HistoryStore(BulkProcessor bulkProcessor) {
+    public HistoryStore(BulkProcessor bulkProcessor, ClusterService clusterService) {
         this.bulkProcessor = bulkProcessor;
+        this.clusterService = clusterService;
     }
 
     /**
@@ -41,7 +44,7 @@ public class HistoryStore {
      * If the specified watchRecord already was stored this call will fail with a version conflict.
      */
     public void put(WatchRecord watchRecord) throws Exception {
-        String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
+        String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime(), clusterService.state());
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
 
@@ -58,7 +61,7 @@ public class HistoryStore {
      * Any existing watchRecord will be overwritten.
      */
     public void forcePut(WatchRecord watchRecord) {
-        String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
+        String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime(), clusterService.state());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
 
@@ -78,7 +81,7 @@ public class HistoryStore {
      * @return true, if history store is ready to be started
      */
     public static boolean validate(ClusterState state) {
-        String currentIndex = HistoryStoreField.getHistoryIndexNameForTime(ZonedDateTime.now(ZoneOffset.UTC));
+        String currentIndex = HistoryStoreField.getHistoryIndexNameForTime(ZonedDateTime.now(ZoneOffset.UTC), state);
         IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(currentIndex, state.metadata());
         return indexMetadata == null || (indexMetadata.getState() == IndexMetadata.State.OPEN &&
             state.routingTable().index(indexMetadata.getIndex()).allPrimaryShardsActive());

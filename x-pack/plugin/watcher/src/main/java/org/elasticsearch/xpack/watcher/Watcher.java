@@ -241,10 +241,6 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         this.settings = settings;
         this.transportClient = XPackPlugin.transportClientMode(settings);
         this.enabled = XPackSettings.WATCHER_ENABLED.get(settings);
-
-        if (enabled && transportClient == false) {
-            validAutoCreateIndex(settings, logger);
-        }
     }
 
     // overridable by tests
@@ -259,6 +255,10 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
                                                IndexNameExpressionResolver expressionResolver,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
+        if (enabled && transportClient == false) {
+            validAutoCreateIndex(settings, logger, clusterService);
+        }
+
         if (enabled == false) {
             return Collections.emptyList();
         }
@@ -386,7 +386,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             .setConcurrentRequests(SETTING_BULK_CONCURRENT_REQUESTS.get(settings))
             .build();
 
-        HistoryStore historyStore = new HistoryStore(bulkProcessor);
+        HistoryStore historyStore = new HistoryStore(bulkProcessor, clusterService);
 
         // schedulers
         final Set<Schedule.Parser> scheduleParsers = new HashSet<>();
@@ -601,7 +601,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         module.addIndexOperationListener(listener);
     }
 
-    static void validAutoCreateIndex(Settings settings, Logger logger) {
+    static void validAutoCreateIndex(Settings settings, Logger logger, ClusterService clusterService) {
         String value = settings.get("action.auto_create_index");
         if (value == null) {
             return;
@@ -623,14 +623,14 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         indices.add(".watches");
         indices.add(".triggered_watches");
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusDays(1)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(1)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(2)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(3)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(4)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(5)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(6)));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now, clusterService.state()));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusDays(1), clusterService.state()));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(1), clusterService.state()));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(2), clusterService.state()));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(3), clusterService.state()));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(4), clusterService.state()));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(5), clusterService.state()));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(6), clusterService.state()));
         for (String index : indices) {
             boolean matched = false;
             for (String match : matches) {

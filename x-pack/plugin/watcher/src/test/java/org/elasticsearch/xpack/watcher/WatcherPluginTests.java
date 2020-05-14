@@ -5,7 +5,11 @@
  */
 package org.elasticsearch.xpack.watcher;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.TestEnvironment;
@@ -19,7 +23,9 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.notification.NotificationService;
+import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -31,33 +37,52 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class WatcherPluginTests extends ESTestCase {
 
+    private ClusterService clusterService;
+    private ClusterState clusterState;
+    private DiscoveryNodes discoveryNodes;
+
+    @Before
+    public void init() {
+        clusterService = mock(ClusterService.class);
+        clusterState = mock(ClusterState.class);
+        discoveryNodes = mock(DiscoveryNodes.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterState.nodes()).thenReturn(discoveryNodes);
+        when(discoveryNodes.getMinNodeVersion()).thenReturn(randomFrom(Arrays.asList(Version.V_7_0_0, Version.V_7_7_0)));
+
+    }
+
     public void testValidAutoCreateIndex() {
-        Watcher.validAutoCreateIndex(Settings.EMPTY, logger);
-        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", true).build(), logger);
+        Watcher.validAutoCreateIndex(Settings.EMPTY, logger, clusterService);
+        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", true).build(), logger, clusterService);
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", false).build(), logger));
+                () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", false).build(), logger,
+                    clusterService));
         assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history-*]"));
 
         Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index",
-                ".watches,.triggered_watches,.watcher-history*").build(), logger);
-        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", "*w*").build(), logger);
-        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".w*,.t*").build(), logger);
+                ".watches,.triggered_watches,.watcher-history*").build(), logger, clusterService);
+        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", "*w*").build(), logger, clusterService);
+        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".w*,.t*").build(), logger, clusterService);
 
         exception = expectThrows(IllegalArgumentException.class,
-                () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watches").build(), logger));
+                () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watches").build(), logger,
+                    clusterService));
         assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history-*]"));
 
         exception = expectThrows(IllegalArgumentException.class,
-                () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".triggered_watch").build(), logger));
+                () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".triggered_watch").build(), logger,
+                    clusterService));
         assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history-*]"));
 
         exception = expectThrows(IllegalArgumentException.class,
                 () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watcher-history-*").build(),
-                        logger));
+                        logger, clusterService));
         assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history-*]"));
     }
 
@@ -130,7 +155,6 @@ public class WatcherPluginTests extends ESTestCase {
             .build();
         NotificationService mockService = mock(NotificationService.class);
         Watcher watcher = new TestWatcher(settings, mockService);
-
         watcher.reload(settings);
         verify(mockService, times(1)).reload(settings);
     }

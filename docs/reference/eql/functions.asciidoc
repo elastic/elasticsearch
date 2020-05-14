@@ -891,7 +891,8 @@ If this argument is `null`, the function returns `null`.
 --
 (Optional, integer or `null`)
 Radix or base used to convert the string. If the `<string>` begins with `0x`,
-this parameter defaults to `16` (hexadecimal). Otherwise, defaults to base `10`.
+this parameter defaults to `16` (hexadecimal). Otherwise, it defaults to base
+`10`.
 
 If this argument is explicitly `null`, the default value is used.
 

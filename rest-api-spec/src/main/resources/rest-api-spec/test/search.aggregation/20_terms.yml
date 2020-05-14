@@ -726,8 +726,8 @@ setup:
 ---
 "profiler":
   - skip:
-      version: " - 7.8.99"
-      reason: debug information added in 7.9.0
+      version: " - 7.99.99"
+      reason: debug information added in 7.9.0 (change backporting to 7.9.0)
   - do:
       bulk:
         index: test_1
@@ -782,7 +782,8 @@ setup:
                 field: number
   - match: { aggregations.n_terms.buckets.0.key: 1 }
   - match: { aggregations.n_terms.buckets.1.key: 3 }
-  - match: { profile.shards.0.aggregations.0.type: LongTermsAggregator }
+  - match: { profile.shards.0.aggregations.0.type: NumericTermsAggregator }
   - match: { profile.shards.0.aggregations.0.description: n_terms }
   - match: { profile.shards.0.aggregations.0.breakdown.collect_count: 4 }
+  - match: { profile.shards.0.aggregations.0.debug.result_strategy: long_terms }
   - match: { profile.shards.0.aggregations.0.debug.total_buckets: 2 }

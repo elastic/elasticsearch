@@ -232,7 +232,7 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new BinaryIndexFieldData.Builder();
+            return new BinaryIndexFieldData.Builder(CoreValuesSourceType.RANGE);
         }
 
         @Override

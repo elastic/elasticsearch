@@ -764,7 +764,12 @@ public class TextFieldMapper extends FieldMapper {
                     + "keyword field instead. Alternatively, set fielddata=true on [" + name() + "] in order to load "
                     + "field data by uninverting the inverted index. Note that this can use significant memory.");
             }
-            return new PagedBytesIndexFieldData.Builder(fielddataMinFrequency, fielddataMaxFrequency, fielddataMinSegmentSize);
+            return new PagedBytesIndexFieldData.Builder(
+                fielddataMinFrequency,
+                fielddataMaxFrequency,
+                fielddataMinSegmentSize,
+                CoreValuesSourceType.BYTES
+            );
         }
 
         @Override

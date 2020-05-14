@@ -19,30 +19,37 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
 public interface IndexNumericFieldData extends IndexFieldData<LeafNumericFieldData> {
 
     enum NumericType {
-        BOOLEAN(false),
-        BYTE(false),
-        SHORT(false),
-        INT(false),
-        LONG(false),
-        DATE(false),
-        DATE_NANOSECONDS(false),
-        HALF_FLOAT(true),
-        FLOAT(true),
-        DOUBLE(true);
+        BOOLEAN(false, CoreValuesSourceType.BOOLEAN),
+        BYTE(false, CoreValuesSourceType.NUMERIC),
+        SHORT(false, CoreValuesSourceType.NUMERIC),
+        INT(false, CoreValuesSourceType.NUMERIC),
+        LONG(false, CoreValuesSourceType.NUMERIC),
+        DATE(false, CoreValuesSourceType.DATE),
+        DATE_NANOSECONDS(false, CoreValuesSourceType.DATE),
+        HALF_FLOAT(true, CoreValuesSourceType.NUMERIC),
+        FLOAT(true, CoreValuesSourceType.NUMERIC),
+        DOUBLE(true, CoreValuesSourceType.NUMERIC);
 
         private final boolean floatingPoint;
+        private final ValuesSourceType valuesSourceType;
 
-        NumericType(boolean floatingPoint) {
+        NumericType(boolean floatingPoint, ValuesSourceType valuesSourceType) {
             this.floatingPoint = floatingPoint;
+            this.valuesSourceType = valuesSourceType;
         }
 
         public final boolean isFloatingPoint() {
             return floatingPoint;
         }
-
+        public final ValuesSourceType getValuesSourceType() {
+            return valuesSourceType;
+        }
     }
 
     NumericType getNumericType();

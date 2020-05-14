@@ -172,7 +172,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
             final IndexFieldData.Builder fieldDataBuilder = new PagedBytesIndexFieldData.Builder(
                     TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                     TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
-                    TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);
+                    TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
+                    CoreValuesSourceType.BYTES);
             return new IndexFieldData.Builder() {
                 @Override
                 public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
@@ -195,6 +196,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
                         @Override
                         public String getFieldName() {
                             return fieldData.getFieldName();
+                        }
+
+                        @Override
+                        public ValuesSourceType getValuesSourceType() {
+                            return fieldData.getValuesSourceType();
                         }
 
                         @Override

@@ -515,6 +515,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
+        public ValuesSourceType getValuesSourceType() {
+            return scaledFieldData.getValuesSourceType();
+        }
+
+        @Override
         public LeafNumericFieldData load(LeafReaderContext context) {
             return new ScaledFloatLeafFieldData(scaledFieldData.load(context), scalingFactor);
         }

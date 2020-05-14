@@ -899,7 +899,7 @@ If this argument is explicitly `null`, the default value is used.
 Fields are not supported as arguments.
 --
 
-*Returns:* integer or `null`
+*Returns:* integer or float or `null`
 ====
 
 [discrete]

@@ -102,7 +102,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-i
 
 `max_page_search_size`, `mpsz`:::
 (Default)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-max-page-search-size]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]
 
 `pages_processed`, `pp`:::
 include::{docdir}/rest-api/common-parms.asciidoc[tag=pages-processed]

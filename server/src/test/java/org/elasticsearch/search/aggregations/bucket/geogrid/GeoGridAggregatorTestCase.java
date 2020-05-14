@@ -248,7 +248,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         aggregator.preCollection();
         indexSearcher.search(query, aggregator);
         aggregator.postCollection();
-        verify.accept((InternalGeoGrid<T>) aggregator.buildAggregation(0L));
+        verify.accept((InternalGeoGrid<T>) aggregator.buildTopLevel());
 
         indexReader.close();
         directory.close();

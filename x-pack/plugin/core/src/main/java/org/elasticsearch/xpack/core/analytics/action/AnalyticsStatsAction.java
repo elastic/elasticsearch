@@ -43,7 +43,8 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         CUMULATIVE_CARDINALITY,
         STRING_STATS,
         TOP_METRICS,
-        T_TEST;
+        T_TEST,
+        MOVING_PERCENTILES;
     }
 
     public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {

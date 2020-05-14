@@ -78,28 +78,28 @@ functionEqualsTrue
 process where cidrMatch(source_address, "10.0.0.0/8") == true
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process"
-{"term":{"source_address":{"value":"10.0.0.0/8"
+{"terms":{"source_address":["10.0.0.0/8"]
 ;
 
 functionEqualsFalse
 process where cidrMatch(source_address, "10.0.0.0/8") == false
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process"
-{"bool":{"must_not":[{"term":{"source_address":{"value":"10.0.0.0/8"
+{"bool":{"must_not":[{"terms":{"source_address":["10.0.0.0/8"]
 ;
 
 functionNotEqualsTrue
 process where cidrMatch(source_address, "10.0.0.0/8") != true
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process"
-{"bool":{"must_not":[{"term":{"source_address":{"value":"10.0.0.0/8"
+{"bool":{"must_not":[{"terms":{"source_address":["10.0.0.0/8"]
 ;
 
 functionNotEqualsFalse
 process where cidrMatch(source_address, "10.0.0.0/8") != false
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process"
-{"term":{"source_address":{"value":"10.0.0.0/8"
+{"terms":{"source_address":["10.0.0.0/8"]
 ;
 
 twoFunctionsEqualsBooleanLiterals
@@ -221,22 +221,44 @@ InternalEqlScriptUtils.concat([InternalQlScriptUtils.docValue(doc,params.v0),par
 cidrMatchFunctionOne
 process where cidrMatch(source_address, "10.0.0.0/8")
 ;
-"term":{"source_address":{"value":"10.0.0.0/8"
+{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"terms":{"source_address":["10.0.0.0/8"]
+;
+
+cidrMatchFunctionOneBool
+process where cidrMatch(source_address, "10.0.0.0/8") == true
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"terms":{"source_address":["10.0.0.0/8"]
 ;
 
 cidrMatchFunctionTwo
 process where cidrMatch(source_address, "10.0.0.0/8", "192.168.0.0/16")
 ;
-"term":{"source_address":{"value":"10.0.0.0/8"
-"term":{"source_address":{"value":"192.168.0.0/16"
+{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"terms":{"source_address":["10.0.0.0/8","192.168.0.0/16"]
+;
+
+cidrMatchFunctionTwoWithOr
+process where cidrMatch(source_address, "10.0.0.0/8") or cidrMatch(source_address, "192.168.0.0/16")
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"bool":{"should":[{"terms":{"source_address":["10.0.0.0/8"],"boost":1.0}},{"terms":{"source_address":["192.168.0.0/16"],"boost":1.0}}
 ;
 
 cidrMatchFunctionThree
 process where cidrMatch(source_address, "10.0.0.0/8", "192.168.0.0/16", "2001:db8::/32")
 ;
-"term":{"source_address":{"value":"10.0.0.0/8"
-"term":{"source_address":{"value":"192.168.0.0/16"
-"term":{"source_address":{"value":"2001:db8::/32"
+{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"terms":{"source_address":["10.0.0.0/8","192.168.0.0/16","2001:db8::/32"]
+;
+
+cidrMatchFunctionWrapped
+process where string(cidrMatch(source_address, "10.6.48.157/8")) == "true"
+;
+{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalEqlScriptUtils.string(
+InternalEqlScriptUtils.cidrMatch(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)),params.v2))"
+"params":{"v0":"source_address","v1":["10.6.48.157/8"],"v2":"true"}
 ;
 
 matchFunctionOne

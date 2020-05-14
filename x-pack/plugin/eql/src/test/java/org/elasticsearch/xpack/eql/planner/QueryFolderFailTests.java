@@ -90,7 +90,7 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
             () -> plan("process where cidrMatch(source_address, 12345)"));
         String msg = e.getMessage();
         assertEquals("Found 1 problem\n" +
-            "line 1:15: argument of [cidrMatch(source_address, 12345)] must be [string], found value [12345] type [integer]", msg);
+            "line 1:15: second argument of [cidrMatch(source_address, 12345)] must be [string], found value [12345] type [integer]", msg);
     }
 
     public void testConcatWithInexact() {

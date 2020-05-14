@@ -8,13 +8,13 @@
     "url":{
       "paths":[
         {
-          "path":"/_data_streams",
+          "path":"/_data_stream",
           "methods":[
             "GET"
           ]
         },
         {
-          "path":"/_data_streams/{name}",
+          "path":"/_data_stream/{name}",
           "methods":[
             "GET"
           ],

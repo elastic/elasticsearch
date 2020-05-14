@@ -116,12 +116,6 @@ public class VerifierTests extends ESTestCase {
                 error("network where safe(process_name)"));
     }
 
-    // Test the known EQL functions that are not supported
-    public void testFunctionVerificationUnknown() {
-        assertEquals("1:34: Unknown function [number]",
-                error("process where serial_event_id == number('5')"));
-    }
-
     // Test unsupported array indexes
     public void testArrayIndexesUnsupported() {
         assertEquals("1:84: Array indexes are not supported",
@@ -323,13 +317,13 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:11: Cannot use field [multi_field_nested.dep_name] type [text] with unsupported nested type in hierarchy " +
                         "(field [multi_field_nested])",
                 error(idxr, "foo where multi_field_nested.dep_name == 'bar'"));
-        assertEquals("1:11: Cannot use field [multi_field_nested.dep_id.keyword] type [keyword] with unsupported nested type in " + 
+        assertEquals("1:11: Cannot use field [multi_field_nested.dep_id.keyword] type [keyword] with unsupported nested type in " +
                         "hierarchy (field [multi_field_nested])",
                 error(idxr, "foo where multi_field_nested.dep_id.keyword == 'bar'"));
-        assertEquals("1:11: Cannot use field [multi_field_nested.end_date] type [datetime] with unsupported nested type in " + 
+        assertEquals("1:11: Cannot use field [multi_field_nested.end_date] type [datetime] with unsupported nested type in " +
                         "hierarchy (field [multi_field_nested])",
                 error(idxr, "foo where multi_field_nested.end_date == ''"));
-        assertEquals("1:11: Cannot use field [multi_field_nested.start_date] type [datetime] with unsupported nested type in " + 
+        assertEquals("1:11: Cannot use field [multi_field_nested.start_date] type [datetime] with unsupported nested type in " +
                         "hierarchy (field [multi_field_nested])",
                 error(idxr, "foo where multi_field_nested.start_date == 'bar'"));
     }

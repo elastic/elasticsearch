@@ -225,6 +225,23 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
         }
     }
 
+    public void testProcess_GivenCardinalityIsOne() {
+        dependentVariable = "dep_var";
+        fields = Arrays.asList(dependentVariable, "feature");
+        classCardinalities = Collections.singletonMap("only_class", 1L);
+        CrossValidationSplitter splitter = createSplitter(80.0);
+
+        String[] row = new String[] { "only_class", "42.0"};
+
+        String[] processedRow = Arrays.copyOf(row, row.length);
+        splitter.process(processedRow, this::incrementTrainingDocsCount, this::incrementTestDocsCount);
+
+        assertThat(Arrays.equals(processedRow, row), is(true));
+
+        assertThat(trainingDocsCount, equalTo(1L));
+        assertThat(testDocsCount, equalTo(0L));
+    }
+
     private CrossValidationSplitter createSplitter(double trainingPercent) {
         return new StratifiedCrossValidationSplitter(fields, dependentVariable, classCardinalities, trainingPercent, randomizeSeed);
     }

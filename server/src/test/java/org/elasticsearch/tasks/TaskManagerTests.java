@@ -78,7 +78,7 @@ public class TaskManagerTests extends ESTestCase {
 
     public void testTrackingChannelTask() throws Exception {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
-        Set<CancellableTask> cancelledTasks = new HashSet<>();
+        Set<CancellableTask> cancelledTasks = ConcurrentCollections.newConcurrentSet();
         taskManager.setTaskCancellationService(new TaskCancellationService(mock(TransportService.class)) {
             @Override
             void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {

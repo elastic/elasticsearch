@@ -33,6 +33,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.mocksocket.MockHttpServer;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -46,9 +50,11 @@ import java.net.InetSocketAddress;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -159,6 +165,80 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         assertAcked(client().admin().cluster().prepareDeleteSnapshot(repository, snapshot).get());
     }
 
+    public void testRequestStats() throws Exception {
+        final String repository = createRepository(randomName());
+        final String index = "index-no-merges";
+        createIndex(index, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build());
+
+        final long nbDocs = randomLongBetween(100, 1000);
+        try (BackgroundIndexer indexer = new BackgroundIndexer(index, "_doc", client(), (int) nbDocs)) {
+            waitForDocs(nbDocs, indexer);
+        }
+
+        flushAndRefresh(index);
+        ForceMergeResponse forceMerge = client().admin().indices().prepareForceMerge(index).setFlush(true).setMaxNumSegments(1).get();
+        assertThat(forceMerge.getSuccessfulShards(), equalTo(1));
+        assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
+
+        final String snapshot = "snapshot";
+        assertSuccessfulSnapshot(client().admin().cluster().prepareCreateSnapshot(repository, snapshot)
+            .setWaitForCompletion(true).setIndices(index));
+
+        assertAcked(client().admin().indices().prepareDelete(index));
+
+        assertSuccessfulRestore(client().admin().cluster().prepareRestoreSnapshot(repository, snapshot).setWaitForCompletion(true));
+        ensureGreen(index);
+        assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
+
+        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repository, snapshot).get());
+
+        final RepositoryStats repositoryStats = StreamSupport.stream(
+            internalCluster().getInstances(RepositoriesService.class).spliterator(), false)
+            .map(repositoriesService -> {
+                try {
+                    return repositoriesService.repository(repository);
+                } catch (RepositoryMissingException e) {
+                    return null;
+                }
+            })
+            .filter(Objects::nonNull)
+            .map(Repository::stats)
+            .reduce(RepositoryStats::merge)
+            .get();
+
+        Map<String, Long> sdkRequestCounts = repositoryStats.requestCounts;
+
+        for (String requestType : List.of("GET", "LIST")) {
+            assertSDKCallsMatchMockCalls(sdkRequestCounts, requestType);
+        }
+    }
+
+    private void assertSDKCallsMatchMockCalls(Map<String, Long> sdkRequestCount, String requestTye) {
+        final long sdkCalls = sdkRequestCount.getOrDefault(requestTye, 0L);
+        final long mockCalls = handlers.values().stream()
+            .mapToLong(h -> {
+                while (h instanceof DelegatingHttpHandler) {
+                    if (h instanceof HttpStatsCollectorHandler) {
+                        return ((HttpStatsCollectorHandler) h).getCount(requestTye);
+                    }
+                    h = ((DelegatingHttpHandler) h).getDelegate();
+                }
+
+                return 0L;
+            }).sum();
+
+        String assertionErrorMsg = String.format("SDK sent %d [%s] calls and handler measured %d [%s] calls",
+            sdkCalls,
+            requestTye,
+            mockCalls,
+            requestTye);
+
+        assertEquals(assertionErrorMsg, mockCalls, sdkCalls);
+    }
+
     protected static String httpServerUrl() {
         InetSocketAddress address = httpServer.getAddress();
         return "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
@@ -243,6 +323,55 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")
     public interface DelegatingHttpHandler extends HttpHandler {
         HttpHandler getDelegate();
+    }
+
+    /**
+     * HTTP handler that allows collect request stats per request type.
+     *
+     * Implementors should keep track of the desired requests on {@link #maybeTrack(String)}.
+     */
+    @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")
+    public abstract static class HttpStatsCollectorHandler implements DelegatingHttpHandler {
+
+        private final HttpHandler delegate;
+
+        private final Map<String, Long> operationCount = new HashMap<>();
+
+        public HttpStatsCollectorHandler(HttpHandler delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public HttpHandler getDelegate() {
+            return delegate;
+        }
+
+        synchronized long getCount(final String requestType) {
+            return operationCount.getOrDefault(requestType, 0L);
+        }
+
+        protected synchronized void trackRequest(final String requestType) {
+            operationCount.put(requestType, operationCount.getOrDefault(requestType, 0L) + 1);
+        }
+
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
+
+            maybeTrack(request);
+
+            delegate.handle(exchange);
+        }
+
+        /**
+         * Tracks the given request if it matches the criteria.
+         *
+         * The request is represented as:
+         * Request = Method SP Request-URI
+         *
+         * @param request the request to be tracked if it matches the criteria
+         */
+        protected abstract void maybeTrack(String request);
     }
 
     /**

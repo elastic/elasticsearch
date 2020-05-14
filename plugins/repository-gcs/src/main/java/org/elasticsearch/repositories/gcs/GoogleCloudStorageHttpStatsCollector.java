@@ -63,7 +63,7 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
 
     @Override
     public void interceptResponse(final HttpResponse response) {
-        // Unsuccessful requests aren't billable, so we don't take those into account.
+        // TODO keep track of unsuccessful requests in different entries
         if (!response.isSuccessStatusCode())
             return;
 

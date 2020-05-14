@@ -41,9 +41,6 @@ import java.util.UUID;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.theInstance;
 
 public class GoogleCloudStorageServiceTests extends ESTestCase {
 
@@ -98,29 +95,29 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings1)) {
             final GoogleCloudStorageService storageService = plugin.storageService;
             GoogleCloudStorageOperationsStats statsCollector = new GoogleCloudStorageOperationsStats("bucket");
-            final Storage client11 = storageService.client("gcs1", "repo", statsCollector);
+            final Storage client11 = storageService.client("gcs1", "repo1", statsCollector);
             assertThat(client11.getOptions().getProjectId(), equalTo("project_gcs11"));
-            final Storage client12 = storageService.client("gcs2", "repo", statsCollector);
+            final Storage client12 = storageService.client("gcs2", "repo2", statsCollector);
             assertThat(client12.getOptions().getProjectId(), equalTo("project_gcs12"));
             // client 3 is missing
             final IllegalArgumentException e1 =
-                expectThrows(IllegalArgumentException.class, () -> storageService.client("gcs3", "repo", statsCollector));
+                expectThrows(IllegalArgumentException.class, () -> storageService.client("gcs3", "repo3", statsCollector));
             assertThat(e1.getMessage(), containsString("Unknown client name [gcs3]."));
             // update client settings
             plugin.reload(settings2);
             // old client 1 not changed
             assertThat(client11.getOptions().getProjectId(), equalTo("project_gcs11"));
             // new client 1 is changed
-            final Storage client21 = storageService.client("gcs1", "repo", statsCollector);
+            final Storage client21 = storageService.client("gcs1", "repo1", statsCollector);
             assertThat(client21.getOptions().getProjectId(), equalTo("project_gcs21"));
             // old client 2 not changed
             assertThat(client12.getOptions().getProjectId(), equalTo("project_gcs12"));
             // new client2 is gone
             final IllegalArgumentException e2 =
-                expectThrows(IllegalArgumentException.class, () -> storageService.client("gcs2", "repo", statsCollector));
+                expectThrows(IllegalArgumentException.class, () -> storageService.client("gcs2", "repo2", statsCollector));
             assertThat(e2.getMessage(), containsString("Unknown client name [gcs2]."));
             // client 3 emerged
-            final Storage client23 = storageService.client("gcs3", "repo", statsCollector);
+            final Storage client23 = storageService.client("gcs3", "repo3", statsCollector);
             assertThat(client23.getOptions().getProjectId(), equalTo("project_gcs23"));
         }
     }
@@ -139,8 +136,8 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             final Storage repo1ClientSecondInstance =
                 storageService.client("gcs1", "repo1", new GoogleCloudStorageOperationsStats("bucket"));
 
-            assertThat(repo1Client, is(not(theInstance(repo2Client))));
-            assertThat(repo1Client, is(theInstance(repo1ClientSecondInstance)));
+            assertNotSame(repo1Client, repo2Client);
+            assertSame(repo1Client, repo1ClientSecondInstance);
         }
     }
 

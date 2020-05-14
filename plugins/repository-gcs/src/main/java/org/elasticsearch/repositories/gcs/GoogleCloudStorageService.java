@@ -51,7 +51,7 @@ public class GoogleCloudStorageService {
     /**
      * Dictionary of client instances. Client instances are built lazily from the
      * latest settings. Each repository has its own client instance identified by
-     * a key created using {@link #clientKey(String, String)}.
+     * the repository name.
      */
     private volatile Map<String, Storage> clientCache = emptyMap();
 
@@ -84,13 +84,13 @@ public class GoogleCloudStorageService {
                           final String repositoryName,
                           final GoogleCloudStorageOperationsStats stats) throws IOException {
         {
-            final Storage storage = clientCache.get(clientKey(clientName, repositoryName));
+            final Storage storage = clientCache.get(repositoryName);
             if (storage != null) {
                 return storage;
             }
         }
         synchronized (this) {
-            final Storage existing = clientCache.get(clientKey(clientName, repositoryName));
+            final Storage existing = clientCache.get(repositoryName);
 
             if (existing != null) {
                 return existing;
@@ -106,17 +106,13 @@ public class GoogleCloudStorageService {
             logger.debug(() -> new ParameterizedMessage("creating GCS client with client_name [{}], endpoint [{}]", clientName,
                 settings.getHost()));
             final Storage storage = createClient(settings, stats);
-            clientCache = Maps.copyMapWithAddedEntry(clientCache, clientKey(clientName, repositoryName), storage);
+            clientCache = Maps.copyMapWithAddedEntry(clientCache, repositoryName, storage);
             return storage;
         }
     }
 
-    private String clientKey(String clientName, String repositoryName) {
-        return clientName + "-" + repositoryName;
-    }
-
-    synchronized void closeClient(String clientName, String repositoryName) {
-        clientCache = Maps.copyMapWithRemovedEntry(clientCache, clientKey(clientName, repositoryName));
+    synchronized void closeRepositoryClient(String repositoryName) {
+        clientCache = Maps.copyMapWithRemovedEntry(clientCache, repositoryName);
     }
 
     /**

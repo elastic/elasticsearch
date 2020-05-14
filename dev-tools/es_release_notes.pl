@@ -65,6 +65,11 @@ my $version = shift @ARGV
 dump_labels("Unknown version '$version'")
     unless $All_Labels{$version};
 
+my @released_versions = fetch_released_versions_in_current_major();
+
+die "$version has already been released!\n"
+    if grep { $_ eq $version } @released_versions;
+
 my $issues = fetch_issues($version);
 dump_issues( $version, $issues );
 
@@ -194,8 +199,14 @@ ISSUE:
     for my $issue (@issues) {
         next if $seen{ $issue->{number} } && !$issue->{pull_request};
 
-        for ( @{ $issue->{labels} } ) {
-            next ISSUE if $Ignore{ $_->{name} };
+        foreach my $label ( @{ $issue->{labels} } ) {
+            next ISSUE if $Ignore{ $label->{name} };
+
+            # If this PR was backported to an earlier version, don't
+            # include it in the docs. We check against the released
+            # versions because a change could have been backported to a
+            # point release.
+            next ISSUE if grep { $_ eq $label->{name} } @released_versions;
         }
 
         # uncomment for including/excluding PRs already issued in other versions
@@ -255,20 +266,23 @@ sub fetch {
 #===================================
 sub load_github_key {
 #===================================
-    my ($file) = glob("~/.github_auth");
+    my $file = "$ENV{HOME}/.github_auth";
     unless ( -e $file ) {
         warn "File ~/.github_auth doesn't exist - using anonymous API. "
             . "Generate a Personal Access Token at https://github.com/settings/applications\n";
         return '';
     }
-    open my $fh, $file or die "Couldn't open $file: $!";
-    my ($key) = <$fh> || die "Couldn't read $file: $!";
+
+    open KEYFILE, '<', $file or die "Couldn't open $file: $!";
+    my ($key) = <KEYFILE> || die "Couldn't read $file: $!";
+    close KEYFILE;
+
     $key =~ s/^\s+//;
     $key =~ s/\s+$//;
     die "Invalid GitHub key: $key"
         unless $key =~ /^[0-9a-f]{40}$/;
-    return "$key:x-oauth-basic@";
 
+    return "$key:x-oauth-basic@";
 }
 
 #===================================
@@ -278,13 +292,35 @@ sub dump_labels {
     if ($error) {
         $error = "\nERROR: $error\n";
     }
-    my $labels = join( "\n     - ", '', ( sort keys %All_Labels ) );
+    my $labels = join '', map { "    - $_\n" } sort keys %All_Labels;
     die <<USAGE
-    $error
-    USAGE: $0 version > outfile
+$error
+USAGE: $0 version > outfile
 
-    Known versions:$labels
-
+Known versions:
+$labels
 USAGE
 
+}
+
+
+#===================================
+sub fetch_released_versions_in_current_major {
+#===================================
+    my $response = HTTP::Tiny->new->get('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml');
+
+    die "Failed to fetch released versions - $response->{status} $response->{reason}\n"
+        unless $response->{success};
+
+    my ($current_major) = $version =~ m/^(v\d+\.)/;
+
+    # All our GitHub verson labels are prefixed with `v`, so insert that
+    # prefix here in order to allow easy comparisons later. Also filter the
+    # released versions down to the current major release.
+    my @versions =
+        grep /^$current_major/,
+        map { 'v' . $_ }
+        ($response->{content} =~ m#<version>(\d+\.\d+\.\d+)</version>#g);
+
+    return @versions;
 }

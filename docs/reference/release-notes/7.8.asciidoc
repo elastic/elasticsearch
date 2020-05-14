@@ -115,6 +115,9 @@ Cluster Coordination::
 Features/CAT APIs::
 * Add support for V2 index templates to /_cat/templates {pull}55829[#55829] (issue: {issue}53101[#53101])
 
+Features/ILM+SLM::
+* ILM add cluster update timeout on step retry {pull}54878[#54878]
+
 Features/Indices APIs::
 * Validate V2 templates more strictly {pull}56170[#56170] (issues: {issue}43737[#43737], {issue}46045[#46045], {issue}53101[#53101], {issue}53970[#53970])
 * Handle merging dotted object names when merging V2 template mappings {pull}55982[#55982] (issue: {issue}53101[#53101])
@@ -136,8 +139,8 @@ Features/Stats::
 * Fix available / total disk cluster stats {pull}32480[#32480] (issue: {issue}32478[#32478])
 
 Features/Watcher::
-* Delay warning about missing x-pack {pull}54265[#54265] (issue: {issue}40898[#40898])
 * Ensure that .watcher-history-11* template is in installed prior to use [OPEN] {pull}56734[#56734] (issue: {issue}56732[#56732])
+* Delay warning about missing x-pack {pull}54265[#54265] (issue: {issue}40898[#40898])
 
 Geo::
 * Add geo_shape mapper supporting doc-values in Spatial Plugin {pull}55037[#55037] (issue: {issue}53562[#53562])
@@ -255,6 +258,7 @@ Discovery-Plugins::
 
 Engine::
 * Ensure no circular reference in translog tragic exception {pull}55959[#55959] (issue: {issue}55893[#55893])
+* Update translog policy before the next safe commit {pull}54839[#54839] (issue: {issue}52223[#52223])
 
 Features/ILM+SLM::
 * Fix missing IgnoredUnavailable flag in SLM retention task {pull}56616[#56616]

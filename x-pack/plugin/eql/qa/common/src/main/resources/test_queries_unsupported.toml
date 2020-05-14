@@ -822,24 +822,8 @@ process where modulo(11, add(serial_event_id, 1)) == serial_event_id'''
 expected_event_ids  = [1, 2, 3, 5, 11]
 description = "test built-in math functions"
 
-[[queries]]
-query = '''
-process where serial_event_id == number('5')'''
-expected_event_ids  = [5]
-description = "test string/number conversions"
 
-[[queries]]
-expected_event_ids  = [50]
-description = "test string/number conversions"
-query = '''
-process where serial_event_id == number('0x32', 16)'''
-
-[[queries]]
-expected_event_ids  = [50]
-description = "test string/number conversions"
-query = '''
-process where serial_event_id == number('32', 16)'''
-
+# this should be removed and the number function should be updated to take only strings
 [[queries]]
 query = '''
 process where number(serial_event_id) == number(5)'''

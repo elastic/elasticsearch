@@ -154,16 +154,16 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         this.enabled = CCR_ENABLED_SETTING.get(settings);
     }
 
-//    /**
-//     * Construct an instance of the CCR container with the specified settings and license checker.
-//     *
-//     * @param settings          the settings
-//     * @param ccrLicenseChecker the CCR license checker
-//     */
-//    Ccr(final Settings settings, final CcrLicenseChecker ccrLicenseChecker) {
-//        this(settings);
-//        this.ccrLicenseChecker.set(ccrLicenseChecker);
-//    }
+    /**
+     * Construct an instance of the CCR container with the specified settings and license checker.
+     *
+     * @param settings          the settings
+     * @param ccrLicenseChecker the CCR license checker
+     */
+    Ccr(final Settings settings, final CcrLicenseChecker ccrLicenseChecker) {
+        this(settings);
+        this.ccrLicenseChecker.set(ccrLicenseChecker);
+    }
 
     @Override
     public Collection<Object> createComponents(
@@ -186,7 +186,10 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             return emptyList();
         }
 
-        ccrLicenseChecker.set(new CcrLicenseChecker(licenseState));
+        // todo: this condition is for tests only, may need something slightly nicer.
+        if (ccrLicenseChecker.get() == null) {
+            ccrLicenseChecker.set(new CcrLicenseChecker(licenseState));
+        }
         CcrSettings ccrSettings = new CcrSettings(settings, clusterService.getClusterSettings());
         this.ccrSettings.set(ccrSettings);
         CcrRestoreSourceService restoreSourceService = new CcrRestoreSourceService(threadPool, ccrSettings);

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
@@ -27,26 +26,24 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
 import java.util.Map;
 
-/** Mapper for the _doc_count field. */
-public class DocCountFieldMapper extends MetadataFieldMapper {
+import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
-    public static final String NAME = "_doc_count";
-    public static final String CONTENT_TYPE = "_doc_count";
+/** Mapper for the doc_count field. */
+public class DocCountFieldMapper extends FieldMapper {
+
+    public static final String CONTENT_TYPE = "doc_count";
 
     public static class Defaults {
-
-        public static final String NAME = DocCountFieldMapper.NAME;
         public static final MappedFieldType FIELD_TYPE = new DocCountFieldType();
 
         static {
-            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.setDocValuesType(DocValuesType.NUMERIC);
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.setHasDocValues(true);
@@ -54,17 +51,27 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TypeParser implements MetadataFieldMapper.TypeParser {
-        @Override
-        public Builder<?, ?> parse(String name, Map<String, Object> node,
-                                                       ParserContext parserContext) throws MapperParsingException {
-            throw new MapperParsingException(NAME + " is not configurable");
+    public static class Builder extends FieldMapper.Builder<DocCountFieldMapper.Builder, DocCountFieldMapper> {
+
+        public Builder(String name) {
+            super(name, DocCountFieldMapper.Defaults.FIELD_TYPE, DocCountFieldMapper.Defaults.FIELD_TYPE);
+            builder = this;
         }
 
         @Override
-        public MetadataFieldMapper getDefault(ParserContext context) {
-            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            return new DocCountFieldMapper(indexSettings);
+        public DocCountFieldMapper build(BuilderContext context) {
+            setupFieldType(context);
+            return new DocCountFieldMapper(name, fieldType, defaultFieldType, context.indexSettings());
+        }
+    }
+
+    public static class TypeParser implements Mapper.TypeParser {
+        @Override
+        public DocCountFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
+            throws MapperParsingException {
+            DocCountFieldMapper.Builder builder = new DocCountFieldMapper.Builder(name);
+            parseField(builder, name, node, parserContext);
+            return builder;
         }
     }
 
@@ -94,39 +101,33 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context, "Field of type [" + CONTENT_TYPE + " ] is not searchable");
+            throw new QueryShardException(context, "Field [" + name() + " ]of type [" + CONTENT_TYPE + "] is not searchable");
+
         }
     }
 
-    private DocCountFieldMapper(Settings indexSettings) {
-        super(NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE, indexSettings);
-    }
+    protected DocCountFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings) {
+        super(simpleName, fieldType, defaultFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
 
-    @Override
-    public void preParse(ParseContext context) throws IOException {
-        super.parse(context);
     }
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        final Field docCount = new NumericDocValuesField(NAME, -1L);
-        context.version(docCount);
-        context.doc().add(docCount);
-    }
+        Number value;
+        if (context.parser().currentToken() == XContentParser.Token.VALUE_NUMBER) {
+            value = context.parser().numberValue().floatValue();
+        } else {
+            return;
+        }
 
-    @Override
-    public void parse(ParseContext context) throws IOException {
-        // _version added in preparse
-    }
+        if (value != null) {
+            if (value.longValue() < 0 || value.floatValue() != value.longValue()) {
+                throw new IllegalArgumentException(
+                    "Field [" + fieldType.name() + "] must always be a positive integer");
+            }
 
-    @Override
-    public void postParse(ParseContext context) throws IOException {
-        // In the case of nested docs, let's fill nested docs with version=1 so that Lucene doesn't write a Bitset for documents
-        // that don't have the field. This is consistent with the default value for efficiency.
-        Field version = context.version();
-        assert version != null;
-        for (Document doc : context.nonRootDocuments()) {
-            doc.add(version);
+            final Field docCount = new NumericDocValuesField(name(), value.longValue());
+            context.doc().add(docCount);
         }
     }
 

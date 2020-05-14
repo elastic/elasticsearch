@@ -91,46 +91,8 @@ public class DocCountFieldMapperTests extends ESSingleNodeTestCase {
                 XContentType.JSON
             )
         );
-
-        assertThat(doc.rootDoc().getField(FIELD_NAME), notNullValue());
+        assertEquals(10L, doc.rootDoc().getField(FIELD_NAME).numericValue());
     }
 
-    /**
-     * Test parsing a doc_count field that contains no values
-     */
-    public void testParseEmptyValue() throws Exception {
-        ensureGreen();
-
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("_doc")
-                .startObject("properties")
-                .startObject(FIELD_NAME)
-                .field("type", CONTENT_TYPE)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-
-        DocumentMapper defaultMapper = parser.parse("_doc", new CompressedXContent(mapping));
-
-        Mapper fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
-        assertThat(fieldMapper, instanceOf(DocCountFieldMapper.class));
-
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> defaultMapper.parse(
-                new SourceToParse(
-                    "test",
-                    "1",
-                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().startObject(FIELD_NAME).endObject().endObject()),
-                    XContentType.JSON
-                )
-            )
-        );
-        assertThat(e.getCause().getMessage(), containsString("Aggregate metric field [metric] must contain all metrics"));
-    }
 
 }

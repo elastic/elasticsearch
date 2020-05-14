@@ -232,7 +232,8 @@ public class DependencyLicensesTask extends DefaultTask {
         Map<String, Boolean> notices,
         Map<String, Boolean> sources,
         Set<File> shaFiles
-    ) throws NoSuchAlgorithmException, IOException {
+    ) throws NoSuchAlgorithmException,
+        IOException {
         for (File dependency : dependencies) {
             String jarName = dependency.getName();
             String depName = regex.matcher(jarName).replaceFirst("");

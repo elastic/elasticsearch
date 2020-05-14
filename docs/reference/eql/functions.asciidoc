@@ -868,7 +868,7 @@ field datatypes:
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
 
-If this value is `null`, the function returns `null`.
+If this argument is `null`, the function returns `null`.
 --
 
 `<base_num>`::

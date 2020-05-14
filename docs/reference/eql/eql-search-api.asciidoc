@@ -168,7 +168,7 @@ If `true`, the request timed out before completion.
 
 `hits`::
 (object)
-Contains returned events and metadata.
+Contains matching events and metadata.
 +
 .Properties of `hits`
 [%collapsible%open]
@@ -176,7 +176,7 @@ Contains returned events and metadata.
 
 `total`::
 (object)
-Metadata about the number of returned events.
+Metadata about the number of matching events.
 +
 .Properties of `total`
 [%collapsible%open]
@@ -184,7 +184,7 @@ Metadata about the number of returned events.
 
 `value`::
 (integer)
-Total number of returned events.
+Total number of matching events.
 
 `relation`::
 +
@@ -199,29 +199,80 @@ Returned values are:
 --
 =====
 
+`sequences`::
+(array of objects)
+Contains event sequences matching the query. Each object represents a
+matching sequence. This parameter is only returned for EQL queries containing
+a <<eql-sequences,sequence>>.
++
+.Properties of `sequences` objects
+[%collapsible%open]
+=====
+`join_keys`::
+(array of strings)
+Shared field values used to constrain matches in the sequence. These are defined
+using the <<eql-sequences,`by` keyword>> in the EQL query syntax.
+
 `events`::
 (array of objects)
-Contains returned events matching the query. Each object represents a
+Contains events matching the query. Each object represents a
+matching event.
++
+.Properties of `events` objects
+[%collapsible%open]
+======
+`_index`::
+(string)
+Name of the index containing the event.
+
+`_id`::
+(string)
+(string)
+Unique identifier for the event.
+This ID is only unique within the index.
+
+`_score`::
+(float)
+Positive 32-bit floating point number used to determine the relevance of the
+ event. See <<relevance-scores>>.
+
+`_source`::
+(object)
+Original JSON body passed for the event at index time.
+
+`sort`::
+(array)
+Integer used as the sort value for the event.
++
+By default, this is the event's <<eql-search-api-timestamp-field,timestamp
+value>>, converted to milliseconds since the
+https://en.wikipedia.org/wiki/Unix_time[Unix epoch].
+======
+=====
+
+[[eql-search-api-response-events]]
+`events`::
+(array of objects)
+Contains events matching the query. Each object represents a
 matching event.
 +
 .Properties of `events` objects
 [%collapsible%open]
 =====
-
 `_index`::
 (string)
-Name of the index containing the returned event.
+Name of the index containing the event.
 
 `_id`::
 (string)
 (string)
-Unique identifier for the returned event.
-This ID is only unique within the returned index.
+Unique identifier for the event.
+This ID is only unique within the index.
 
 `_score`::
 (float)
 Positive 32-bit floating point number used to determine the relevance of the
-returned event. See <<relevance-scores>>.
+ event. See <<relevance-scores>>.
 
 `_source`::
 (object)
@@ -240,11 +291,14 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch].
 [[eql-search-api-example]]
 ==== {api-examples-title}
 
+[[eql-search-api-basic-query-ex]]
+==== Basic query example
+
 The following EQL search request searches for events with an `event.category` of
 `file` that meet the following conditions:
 
 * A `file.name` of `cmd.exe`
-* An `agent.id` that is _not_ `my_user`
+* An `agent.id` other than `my_user`
 
 [source,console]
 ----
@@ -256,9 +310,10 @@ GET my_index/_eql/search
 }
 ----
 
-The API returns the following response. Events in the response are sorted by
-<<eql-search-api-timestamp-field,timestamp>>, converted to milliseconds since
-the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
+The API returns the following response. Matching events in the `hits.events`
+property are sorted by <<eql-search-api-timestamp-field,timestamp>>, converted
+to milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch],
+in ascending order.
 
 [source,console-result]
 ----
@@ -325,6 +380,129 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
         },
         "sort": [
           1607339228000
+        ]
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 6/"took": $body.took/]
+
+[[eql-search-api-sequence-ex]]
+==== Sequence query example
+
+The following EQL search request matches a <<eql-sequences,sequence>> of events
+that:
+
+. Start with an event with:
++
+--
+* An `event.category` of `file`
+* A `file.name` of `cmd.exe`
+* An `agent.id` other than `my_user`
+--
+. Followed by an event with:
++
+--
+* An `event.category` of `process`
+* A `process.path` that contains the substring `regsvr32`
+--
+
+These events must also share the same `agent.id` value.
+
+[source,console]
+----
+GET my_index/_eql/search
+{
+  "query": """
+    sequence by agent.id
+      [ file where file.name == "cmd.exe" and agent.id != "my_user" ]
+      [ process where stringContains(process.path, "regsvr32") ]
+  """
+}
+----
+
+The API returns the following response. The `hits.sequences.join_keys` property
+contains the shared `agent.id` value for each matching event. Matching events in
+the `hits.sequences.events` property are sorted by
+<<eql-search-api-timestamp-field,timestamp>>, converted to milliseconds since
+the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
+
+[source,console-result]
+----
+{
+  "took": 6,
+  "timed_out": false,
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "sequences": [
+      {
+        "join_keys": [
+          "8a4f500d"
+        ],
+        "events": [
+          {
+            "_index": "my_index",
+            "_id": "4",
+            "_score": null,
+            "_source": {
+              "@timestamp": "2020-12-07T11:07:08.000Z",
+              "agent": {
+                "id": "8a4f500d"
+              },
+              "event": {
+                "category": "file"
+              },
+              "file": {
+                "accessed": "2020-12-07T11:07:08.000Z",
+                "name": "cmd.exe",
+                "path": "C:\\Windows\\System32\\cmd.exe",
+                "type": "file",
+                "size": 16384
+              },
+              "process": {
+                "name": "cmd.exe",
+                "path": "C:\\Windows\\System32\\cmd.exe"
+              }
+            },
+            "fields": {
+              "@timestamp": [
+                "1607339228000"
+              ]
+            },
+            "sort": [
+              1607339228000
+            ]
+          },
+          {
+            "_index": "my_index",
+            "_id": "5",
+            "_score": null,
+            "_source": {
+              "@timestamp": "2020-12-07T11:07:09.000Z",
+              "agent": {
+                "id": "8a4f500d"
+              },
+              "event": {
+                "category": "process"
+              },
+              "process": {
+                "name": "regsvr32.exe",
+                "path": "C:\\Windows\\System32\\regsvr32.exe"
+              }
+            },
+            "fields": {
+              "@timestamp": [
+                "1607339229000"
+              ]
+            },
+            "sort": [
+              1607339229000
+            ]
+          }
         ]
       }
     ]

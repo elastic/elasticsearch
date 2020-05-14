@@ -147,26 +147,30 @@ public class MetaDataUpdateSettingsService {
                             "Can't update non dynamic settings [%s] for open indices %s", skippedSettings, openIndices));
                 }
 
-                int updatedNumberOfReplicas = openSettings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, -1);
-                if (updatedNumberOfReplicas != -1 && preserveExisting == false) {
+                if (IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(openSettings)) {
+                    final int updatedNumberOfReplicas = IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(openSettings);
+                    if (preserveExisting == false) {
+                        // Verify that this won't take us over the cluster shard limit.
+                        int totalNewShards = Arrays.stream(request.indices())
+                            .mapToInt(i -> getTotalNewShards(i, currentState, updatedNumberOfReplicas))
+                            .sum();
+                        Optional<String> error = IndicesService.checkShardLimit(totalNewShards, currentState);
+                        if (error.isPresent()) {
+                            ValidationException ex = new ValidationException();
+                            ex.addValidationError(error.get());
+                            throw ex;
+                        }
 
-                    // Verify that this won't take us over the cluster shard limit.
-                    int totalNewShards = Arrays.stream(request.indices())
-                        .mapToInt(i -> getTotalNewShards(i, currentState, updatedNumberOfReplicas))
-                        .sum();
-                    Optional<String> error = IndicesService.checkShardLimit(totalNewShards, currentState);
-                    if (error.isPresent()) {
-                        ValidationException ex = new ValidationException();
-                        ex.addValidationError(error.get());
-                        throw ex;
+                        /*
+                         * We do not update the in-sync allocation IDs as they will be removed upon the first index operation which makes
+                         * these copies stale.
+                         *
+                         * TODO: should we update the in-sync allocation IDs once the data is deleted by the node?
+                         */
+                        routingTableBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
+                        metaDataBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
+                        logger.info("updating number_of_replicas to [{}] for indices {}", updatedNumberOfReplicas, actualIndices);
                     }
-
-                    // we do *not* update the in sync allocation ids as they will be removed upon the first index
-                    // operation which make these copies stale
-                    // TODO: update the list once the data is deleted by the node?
-                    routingTableBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
-                    metaDataBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
-                    logger.info("updating number_of_replicas to [{}] for indices {}", updatedNumberOfReplicas, actualIndices);
                 }
 
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
@@ -190,6 +194,16 @@ public class MetaDataUpdateSettingsService {
                             if (preserveExisting) {
                                 indexSettings.put(indexMetaData.getSettings());
                             }
+                            /*
+                             * The setting index.number_of_replicas is special; we require that this setting has a value in the index. When
+                             * creating the index, we ensure this by explicitly providing a value for the setting to the default (one) if
+                             * there is a not value provided on the source of the index creation. A user can update this setting though,
+                             * including updating it to null, indicating that they want to use the default value. In this case, we again
+                             * have to provide an explicit value for the setting to the default (one).
+                             */
+                            if (indexSettings.get(IndexMetaData.SETTING_NUMBER_OF_REPLICAS) == null) {
+                                indexSettings.put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1);
+                            }
                             Settings finalSettings = indexSettings.build();
                             indexScopedSettings.validate(
                                 finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false), true);
@@ -206,6 +220,16 @@ public class MetaDataUpdateSettingsService {
                         if (indexScopedSettings.updateSettings(closedSettings, indexSettings, updates, index.getName())) {
                             if (preserveExisting) {
                                 indexSettings.put(indexMetaData.getSettings());
+                            }
+                            /*
+                             * The setting index.number_of_replicas is special; we require that this setting has a value in the index. When
+                             * creating the index, we ensure this by explicitly providing a value for the setting to the default (one) if
+                             * there is a not value provided on the source of the index creation. A user can update this setting though,
+                             * including updating it to null, indicating that they want to use the default value. In this case, we again
+                             * have to provide an explicit value for the setting to the default (one).
+                             */
+                            if (indexSettings.get(IndexMetaData.SETTING_NUMBER_OF_REPLICAS) == null) {
+                                indexSettings.put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1);
                             }
                             Settings finalSettings = indexSettings.build();
                             indexScopedSettings.validate(

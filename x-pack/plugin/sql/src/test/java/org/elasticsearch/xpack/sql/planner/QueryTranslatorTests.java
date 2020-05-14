@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.List;
@@ -80,6 +81,7 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathPr
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.DATE_FORMAT;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.TIME_FORMAT;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
+import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.instanceOf;
@@ -111,11 +113,23 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     private LogicalPlan plan(String sql) {
-        return analyzer.analyze(parser.createStatement(sql), true);
+        return plan(sql, UTC);
+    }
+
+    private LogicalPlan plan(String sql, ZoneId zoneId) {
+        return analyzer.analyze(parser.createStatement(sql, zoneId), true);
     }
 
     private PhysicalPlan optimizeAndPlan(String sql) {
         return  planner.plan(optimizer.optimize(plan(sql)), true);
+    }
+
+    private QueryTranslation translate(Expression condition) {
+        return QueryTranslator.toQuery(condition, false);
+    }
+
+    private QueryTranslation translateWithAggs(Expression condition) {
+        return QueryTranslator.toQuery(condition, true);
     }
 
     public void testTermEqualityAnalyzer() {
@@ -124,7 +138,7 @@ public class QueryTranslatorTests extends ESTestCase {
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         Query query = translation.query;
         assertTrue(query instanceof TermQuery);
         TermQuery tq = (TermQuery) query;
@@ -166,7 +180,7 @@ public class QueryTranslatorTests extends ESTestCase {
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         Query query = translation.query;
         assertTrue(query instanceof TermQuery);
         TermQuery tq = (TermQuery) query;
@@ -180,7 +194,7 @@ public class QueryTranslatorTests extends ESTestCase {
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         Query query = translation.query;
         assertTrue(query instanceof TermQuery);
         TermQuery tq = (TermQuery) query;
@@ -189,12 +203,13 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testTermEqualityForDateWithLiteralDate() {
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE date = CAST('2019-08-08T12:34:56' AS DATETIME)");
+        ZoneId zoneId = randomZone();
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date = CAST('2019-08-08T12:34:56' AS DATETIME)", zoneId);
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         Query query = translation.query;
         assertTrue(query instanceof RangeQuery);
         RangeQuery rq = (RangeQuery) query;
@@ -204,15 +219,17 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(rq.includeLower());
         assertTrue(rq.includeUpper());
         assertEquals(DATE_FORMAT, rq.format());
+        assertEquals(zoneId, rq.zoneId());
     }
 
     public void testTermEqualityForDateWithLiteralTime() {
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE date = CAST('12:34:56' AS TIME)");
+        ZoneId zoneId = randomZone();
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date = CAST('12:34:56' AS TIME)", zoneId);
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         Query query = translation.query;
         assertTrue(query instanceof RangeQuery);
         RangeQuery rq = (RangeQuery) query;
@@ -222,6 +239,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(rq.includeLower());
         assertTrue(rq.includeUpper());
         assertEquals(TIME_FORMAT, rq.format());
+        assertEquals(zoneId, rq.zoneId());
     }
 
     public void testComparisonAgainstColumns() {
@@ -230,50 +248,56 @@ public class QueryTranslatorTests extends ESTestCase {
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> translate(condition));
         assertEquals("Line 1:43: Comparisons against variables are not (currently) supported; offender [int] in [>]", ex.getMessage());
     }
 
     public void testDateRange() {
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE date > 1969-05-13");
+        ZoneId zoneId = randomZone();
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date > 1969-05-13", zoneId);
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         Query query = translation.query;
         assertTrue(query instanceof RangeQuery);
         RangeQuery rq = (RangeQuery) query;
         assertEquals("date", rq.field());
         assertEquals(1951, rq.lower());
+        assertEquals(zoneId, rq.zoneId());
     }
 
     public void testDateRangeLiteral() {
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE date > '1969-05-13'");
+        ZoneId zoneId = randomZone();
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date > '1969-05-13'", zoneId);
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         Query query = translation.query;
         assertTrue(query instanceof RangeQuery);
         RangeQuery rq = (RangeQuery) query;
         assertEquals("date", rq.field());
         assertEquals("1969-05-13", rq.lower());
+        assertEquals(zoneId, rq.zoneId());
     }
 
     public void testDateRangeCast() {
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE date > CAST('1969-05-13T12:34:56Z' AS DATETIME)");
+        ZoneId zoneId = randomZone();
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date > CAST('1969-05-13T12:34:56Z' AS DATETIME)", zoneId);
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         Query query = translation.query;
         assertTrue(query instanceof RangeQuery);
         RangeQuery rq = (RangeQuery) query;
         assertEquals("date", rq.field());
         assertEquals("1969-05-13T12:34:56.000Z", rq.lower());
+        assertEquals(zoneId, rq.zoneId());
     }
 
     public void testDateRangeWithCurrentTimestamp() {
@@ -312,13 +336,14 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     private void testDateRangeWithCurrentFunctions(String function, String pattern, ZonedDateTime now) {
-        String operator = randomFrom(new String[] {">", ">=", "<", "<=", "=", "!="});
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE date" + operator + function);
+        ZoneId zoneId = randomZone();
+        String operator = randomFrom(">", ">=", "<", "<=", "=", "!=");
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date" + operator + function, zoneId);
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         Query query = translation.query;
         RangeQuery rq;
 
@@ -345,12 +370,13 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(operator.equals("=") || operator.equals("!=") || operator.equals("<="), rq.includeUpper());
         assertEquals(operator.equals("=") || operator.equals("!=") || operator.equals(">="), rq.includeLower());
         assertEquals(pattern, rq.format());
+        assertEquals(zoneId, rq.zoneId());
     }
 
     private void testDateRangeWithCurrentFunctions_AndRangeOptimization(String function, String pattern, ZonedDateTime lowerValue,
             ZonedDateTime upperValue) {
-        String lowerOperator = randomFrom(new String[] {"<", "<="});
-        String upperOperator = randomFrom(new String[] {">", ">="});
+        String lowerOperator = randomFrom("<", "<=");
+        String upperOperator = randomFrom(">", ">=");
         // use both date-only interval (1 DAY) and time-only interval (1 second) to cover CURRENT_TIMESTAMP and TODAY scenarios
         String interval = "(INTERVAL 1 DAY + INTERVAL 1 SECOND)";
 
@@ -377,6 +403,50 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(lowerOperator.equals("<="), rq.includeUpper());
         assertEquals(upperOperator.equals(">="), rq.includeLower());
         assertEquals(pattern, rq.format());
+        assertEquals(UTC, rq.zoneId());
+    }
+
+    public void testDateRangeWithESDateMath() {
+        ZoneId zoneId = randomZone();
+        String operator = randomFrom(">", ">=", "<", "<=", "=", "!=");
+        String dateMath = randomFrom("now", "now/d", "now/h", "now-2h", "now+2h", "now-5d", "now+5d");
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date" + operator + "'" + dateMath + "'", zoneId);
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QueryTranslation translation = translate(condition);
+        Query query = translation.query;
+
+        if ("=".equals(operator) || "!=".equals(operator)) {
+            TermQuery tq;
+            if ("=".equals(operator)) {
+                assertTrue(query instanceof TermQuery);
+                tq = (TermQuery) query;
+            } else {
+                assertTrue(query instanceof NotQuery);
+                NotQuery nq = (NotQuery) query;
+                assertTrue(nq.child() instanceof TermQuery);
+                tq = (TermQuery) nq.child();
+            }
+            assertEquals("date", tq.term());
+        } else {
+            assertTrue(query instanceof RangeQuery);
+            RangeQuery rq = (RangeQuery) query;
+            assertEquals("date", rq.field());
+
+            if (operator.contains("<")) {
+                assertEquals(dateMath, rq.upper());
+            }
+            if (operator.contains(">")) {
+                assertEquals(dateMath, rq.lower());
+            }
+
+            assertEquals("<=".equals(operator), rq.includeUpper());
+            assertEquals(">=".equals(operator), rq.includeLower());
+            assertNull(rq.format());
+            assertEquals(zoneId, rq.zoneId());
+        }
     }
 
     public void testTranslateDateAdd_WhereClause_Painless() {
@@ -385,7 +455,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p.children().get(0) instanceof Filter);
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         assertNull(translation.aggFilter);
         assertTrue(translation.query instanceof ScriptQuery);
         ScriptQuery sc = (ScriptQuery) translation.query;
@@ -402,7 +472,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p.children().get(0) instanceof Filter);
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         assertNull(translation.aggFilter);
         assertTrue(translation.query instanceof ScriptQuery);
         ScriptQuery sc = (ScriptQuery) translation.query;
@@ -419,7 +489,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p.children().get(0) instanceof Filter);
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         assertNull(translation.aggFilter);
         assertTrue(translation.query instanceof ScriptQuery);
         ScriptQuery sc = (ScriptQuery) translation.query;
@@ -435,7 +505,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p.children().get(0) instanceof Filter);
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         assertNull(translation.aggFilter);
         assertTrue(translation.query instanceof ScriptQuery);
         ScriptQuery sc = (ScriptQuery) translation.query;
@@ -451,7 +521,7 @@ public class QueryTranslatorTests extends ESTestCase {
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        QueryTranslation qt = QueryTranslator.toQuery(condition, false);
+        QueryTranslation qt = translate(condition);
         assertEquals(WildcardQuery.class, qt.query.getClass());
         WildcardQuery qsq = ((WildcardQuery) qt.query);
         assertEquals("some.string.typical", qsq.field());
@@ -463,7 +533,7 @@ public class QueryTranslatorTests extends ESTestCase {
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        QueryTranslation qt = QueryTranslator.toQuery(condition, false);
+        QueryTranslation qt = translate(condition);
         assertEquals(RegexQuery.class, qt.query.getClass());
         RegexQuery qsq = ((RegexQuery) qt.query);
         assertEquals("some.string.typical", qsq.field());
@@ -475,7 +545,7 @@ public class QueryTranslatorTests extends ESTestCase {
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> translate(condition));
         assertEquals("Scalar function [LTRIM(keyword)] not allowed (yet) as argument for LTRIM(keyword) like '%a%'", ex.getMessage());
     }
 
@@ -485,7 +555,7 @@ public class QueryTranslatorTests extends ESTestCase {
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> translate(condition));
         assertEquals("Scalar function [LTRIM(keyword)] not allowed (yet) as argument for LTRIM(keyword) RLIKE '.*a.*'", ex.getMessage());
     }
 
@@ -496,7 +566,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p instanceof Filter);
 
         Expression condition = ((Filter) p).condition();
-        QueryTranslation qt = QueryTranslator.toQuery(condition, false);
+        QueryTranslation qt = translate(condition);
         assertEquals(BoolQuery.class, qt.query.getClass());
         BoolQuery bq = ((BoolQuery) qt.query);
         assertTrue(bq.isAnd());
@@ -529,7 +599,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p instanceof Filter);
 
         Expression condition = ((Filter) p).condition();
-        QueryTranslation qt = QueryTranslator.toQuery(condition, false);
+        QueryTranslation qt = translate(condition);
         assertEquals(BoolQuery.class, qt.query.getClass());
         BoolQuery bq = ((BoolQuery) qt.query);
         assertTrue(bq.isAnd());
@@ -570,7 +640,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p.children().get(0) instanceof Filter);
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         assertTrue(translation.query instanceof ScriptQuery);
         ScriptQuery sc = (ScriptQuery) translation.query;
         assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.not(" +
@@ -586,7 +656,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p.children().get(0) instanceof Filter);
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         assertTrue(translation.query instanceof NotQuery);
         NotQuery tq = (NotQuery) translation.query;
         assertTrue(tq.child() instanceof ExistsQuery);
@@ -601,7 +671,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p.children().get(0) instanceof Filter);
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         assertTrue(translation.query instanceof ScriptQuery);
         ScriptQuery sc = (ScriptQuery) translation.query;
         assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNull(" +
@@ -616,7 +686,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p.children().get(0) instanceof Filter);
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         assertTrue(translation.query instanceof ExistsQuery);
         ExistsQuery eq = (ExistsQuery) translation.query;
         assertEquals("{\"exists\":{\"field\":\"keyword\",\"boost\":1.0}}",
@@ -629,7 +699,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p.children().get(0) instanceof Filter);
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         assertTrue(translation.query instanceof ScriptQuery);
         ScriptQuery sc = (ScriptQuery) translation.query;
         assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNotNull(" +
@@ -643,7 +713,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
+        QueryTranslation translation = translateWithAggs(condition);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
         assertEquals(
@@ -657,7 +727,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
+        QueryTranslation translation = translateWithAggs(condition);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
         assertEquals(
@@ -665,6 +735,8 @@ public class QueryTranslatorTests extends ESTestCase {
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int)"));
     }
+
+
 
     public void testTranslateCoalesceExpression_WhereGroupByAndHaving_Painless() {
         PhysicalPlan p = optimizeAndPlan("SELECT COALESCE(null, int) AS c, COALESCE(max(date), NULL) as m FROM test " +
@@ -699,7 +771,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p.children().get(0) instanceof Filter);
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         Query query = translation.query;
         assertTrue(query instanceof TermsQuery);
         TermsQuery tq = (TermsQuery) query;
@@ -713,7 +785,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p.children().get(0) instanceof Filter);
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         Query query = translation.query;
         assertTrue(query instanceof TermsQuery);
         TermsQuery tq = (TermsQuery) query;
@@ -727,7 +799,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p.children().get(0) instanceof Filter);
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         Query query = translation.query;
         assertTrue(query instanceof TermsQuery);
         TermsQuery tq = (TermsQuery) query;
@@ -741,7 +813,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p.children().get(0) instanceof Filter);
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         assertNull(translation.aggFilter);
         assertTrue(translation.query instanceof ScriptQuery);
         ScriptQuery sc = (ScriptQuery) translation.query;
@@ -756,7 +828,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
+        QueryTranslation translation = translateWithAggs(condition);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.in(params.a0, params.v0))",
@@ -770,7 +842,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
+        QueryTranslation translation = translateWithAggs(condition);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.in(params.a0, params.v0))",
@@ -785,7 +857,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
+        QueryTranslation translation = translateWithAggs(condition);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.in(params.a0, params.v0))",
@@ -803,7 +875,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
+        QueryTranslation translation = translateWithAggs(condition);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils." +
@@ -865,7 +937,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
+        QueryTranslation translation = translateWithAggs(condition);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.abs" +
@@ -881,7 +953,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(p.children().get(0), instanceOf(Filter.class));
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
+        QueryTranslation translation = translateWithAggs(condition);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(" +
@@ -898,7 +970,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(p.children().get(0), instanceOf(Filter.class));
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
+        QueryTranslation translation = translateWithAggs(condition);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalQlScriptUtils.nullSafeFilter(" +
@@ -916,7 +988,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(p.children().get(0), instanceOf(Filter.class));
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         assertNull(translation.aggFilter);
         assertTrue(translation.query instanceof ScriptQuery);
         ScriptQuery sc = (ScriptQuery) translation.query;
@@ -935,7 +1007,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(p.children().get(0), instanceOf(Filter.class));
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         assertNull(translation.aggFilter);
         assertTrue(translation.query instanceof GeoDistanceQuery);
         GeoDistanceQuery gq = (GeoDistanceQuery) translation.query;
@@ -952,7 +1024,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(p.children().get(0), instanceOf(Filter.class));
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         assertNull(translation.aggFilter);
         assertThat(translation.query, instanceOf(ScriptQuery.class));
         ScriptQuery sc = (ScriptQuery) translation.query;
@@ -968,7 +1040,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(p.children().get(0), instanceOf(Filter.class));
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        QueryTranslation translation = translate(condition);
         assertNull(translation.aggFilter);
         assertThat(translation.query, instanceOf(ScriptQuery.class));
         ScriptQuery sc = (ScriptQuery) translation.query;
@@ -1103,7 +1175,7 @@ public class QueryTranslatorTests extends ESTestCase {
             endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
                     + "\"calendar_interval\":\"1y\",\"time_zone\":\"Z\"}}}]}}}"));
     }
-    
+
     public void testGroupByOneMonthHistogramQueryTranslator() {
         PhysicalPlan p = optimizeAndPlan("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test GROUP BY h");
         assertEquals(EsQueryExec.class, p.getClass());
@@ -1115,7 +1187,7 @@ public class QueryTranslatorTests extends ESTestCase {
             endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
                     + "\"calendar_interval\":\"1M\",\"time_zone\":\"Z\"}}}]}}}"));
     }
-    
+
     public void testGroupByMoreMonthsHistogramQueryTranslator() {
         PhysicalPlan p = optimizeAndPlan("SELECT HISTOGRAM(date, INTERVAL 5 MONTH) AS h FROM test GROUP BY h");
         assertEquals(EsQueryExec.class, p.getClass());
@@ -1139,7 +1211,7 @@ public class QueryTranslatorTests extends ESTestCase {
             endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
                     + "\"calendar_interval\":\"1d\",\"time_zone\":\"Z\"}}}]}}}"));
     }
-    
+
     public void testGroupByMoreDaysHistogramQueryTranslator() {
         PhysicalPlan p = optimizeAndPlan("SELECT HISTOGRAM(date, INTERVAL '1 5' DAY TO HOUR) AS h FROM test GROUP BY h");
         assertEquals(EsQueryExec.class, p.getClass());
@@ -1769,7 +1841,6 @@ public class QueryTranslatorTests extends ESTestCase {
         EsQueryExec eqe = (EsQueryExec) p;
         assertTrue("Should be tracking hits", eqe.queryContainer().shouldTrackHits());
         assertEquals(1, eqe.output().size());
-        String query = eqe.queryContainer().toString().replaceAll("\\s+", "");
         assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString("\"size\":0"));
     }
 

@@ -341,12 +341,16 @@ final class AsyncSearchTask extends SearchTask {
             // best effort to cancel expired tasks
             checkCancellation();
             searchResponse.get().addShardFailure(shardIndex,
+                // the nodeId is null if all replicas of this shard failed
                 new ShardSearchFailure(exc, shardTarget.getNodeId() != null ? shardTarget : null));
         }
 
         @Override
-        protected void onFetchFailure(int shardIndex, Exception exc) {
+        protected void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
             checkCancellation();
+            searchResponse.get().addShardFailure(shardIndex,
+                // the nodeId is null if all replicas of this shard failed
+                new ShardSearchFailure(exc, shardTarget.getNodeId() != null ? shardTarget : null));
         }
 
         @Override
@@ -379,7 +383,7 @@ final class AsyncSearchTask extends SearchTask {
 
         @Override
         public void onResponse(SearchResponse response) {
-            searchResponse.get().updateFinalResponse(response.getSuccessfulShards(), response.getInternalResponse());
+            searchResponse.get().updateFinalResponse(response);
             executeCompletionListeners();
         }
 

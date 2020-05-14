@@ -84,8 +84,7 @@ public final class AsyncSearch extends Plugin implements ActionPlugin {
             AsyncSearchIndexService indexService =
                 new AsyncSearchIndexService(clusterService, threadPool.getThreadContext(), client, namedWriteableRegistry);
             AsyncSearchMaintenanceService maintenanceService =
-                new AsyncSearchMaintenanceService(nodeEnvironment.nodeId(), settings, threadPool, indexService);
-            clusterService.addListener(maintenanceService);
+                new AsyncSearchMaintenanceService(clusterService, nodeEnvironment.nodeId(), settings, threadPool, indexService);
             return Collections.singletonList(maintenanceService);
         } else {
             return Collections.emptyList();

@@ -91,7 +91,8 @@ class MutableSearchResponse {
             throw new IllegalStateException("received partial response out of order: "
                 + newSections.getNumReducePhases() + " < " + sections.getNumReducePhases());
         }
-        this.successfulShards = successfulShards;
+        //when we get partial results skipped shards are not included in the provided number of successful shards
+        this.successfulShards = successfulShards + skippedShards;
         this.sections = newSections;
         this.isPartial = true;
         this.isFinalReduce = isFinalReduce;
@@ -101,12 +102,20 @@ class MutableSearchResponse {
      * Updates the response with the final {@link SearchResponseSections} merged from #<code>successfulShards</code>
      * shards.
      */
-    synchronized void updateFinalResponse(int successfulShards, SearchResponseSections newSections) {
+    synchronized void updateFinalResponse(SearchResponse searchResponse) {
         failIfFrozen();
+        assert searchResponse.getTotalShards() == totalShards : "received number of total shards differs from the one " +
+            "notified through onListShards";
+        assert searchResponse.getSkippedShards() == skippedShards : "received number of skipped shards differs from the one " +
+            "notified through onListShards";
+        assert searchResponse.getFailedShards() == buildShardFailures().length : "number of tracked failures differs from failed shards";
         // copy the response headers from the current context
         this.responseHeaders = threadContext.getResponseHeaders();
-        this.successfulShards = successfulShards;
-        this.sections = newSections;
+        //we take successful from the final response, which overrides whatever value we set when we received the last partial results.
+        //This is important for cases where e.g. aggs work fine and then fetch fails on some of the shards but not all.
+        //The shards where fetch has failed should not be counted as successful.
+        this.successfulShards = searchResponse.getSuccessfulShards();
+        this.sections = searchResponse.getInternalResponse();
         this.isPartial = false;
         this.isFinalReduce = true;
         this.frozen = true;
@@ -121,6 +130,8 @@ class MutableSearchResponse {
         // copy the response headers from the current context
         this.responseHeaders = threadContext.getResponseHeaders();
         this.isPartial = true;
+        //note that when search fails, we may have gotten partial results before the failure. In that case async
+        // search will return an error plus the last partial results that were collected.
         this.failure = ElasticsearchException.guessRootCauses(exc)[0];
         this.frozen = true;
     }

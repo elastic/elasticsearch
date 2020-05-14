@@ -68,6 +68,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
@@ -139,7 +140,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Checks that there are Amazon trusted certificates in the cacaerts keystore.
      */
-    public void test043AmazonCaCertsAreInTheKeystore() {
+    public void test041AmazonCaCertsAreInTheKeystore() {
         final boolean matches = Arrays.stream(
             sh.run("jdk/bin/keytool -cacerts -storepass changeit -list | grep trustedCertEntry").stdout.split("\n")
         ).anyMatch(line -> line.contains("amazonrootca"));
@@ -251,8 +252,8 @@ public class DockerTests extends PackagingTestCase {
             waitForElasticsearch("green", null, installation, "elastic", "hunter2");
         } catch (Exception e) {
             throw new AssertionError(
-                "Failed to check whether Elasticsearch had started. This could be because authentication isn't working properly. "
-                    + "Check the container logs",
+                "Failed to check whether Elasticsearch had started. This could be because "
+                    + "authentication isn't working properly. Check the container logs",
                 e
             );
         }
@@ -335,8 +336,7 @@ public class DockerTests extends PackagingTestCase {
 
         Files.write(tempDir.resolve(passwordFilename), "hunter2\n".getBytes(StandardCharsets.UTF_8));
 
-        Map<String, String> envVars = new HashMap<>();
-        envVars.put("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
+        Map<String, String> envVars = singletonMap("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
 
         // Set invalid file permissions
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p660);
@@ -484,7 +484,6 @@ public class DockerTests extends PackagingTestCase {
 
     /**
      * Check that the Docker image has the expected "Label Schema" labels.
-     *
      * @see <a href="http://label-schema.org/">Label Schema website</a>
      */
     public void test110OrgLabelSchemaLabels() throws Exception {
@@ -526,7 +525,6 @@ public class DockerTests extends PackagingTestCase {
 
     /**
      * Check that the Docker image has the expected "Open Containers Annotations" labels.
-     *
      * @see <a href="https://github.com/opencontainers/image-spec/blob/master/annotations.md">Open Containers Annotations</a>
      */
     public void test110OrgOpencontainersLabels() throws Exception {
@@ -577,10 +575,10 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that the Java process running inside the container has the expect PID, UID and username.
+     * Check that the Java process running inside the container has the expected UID, GID and username.
      */
-    public void test130JavaHasCorrectPidAndOwnership() {
-        final List<String> processes = Arrays.stream(sh.run("ps -o pid,uid,user -C java").stdout.split("\n"))
+    public void test130JavaHasCorrectOwnership() {
+        final List<String> processes = Arrays.stream(sh.run("ps -o uid,gid,user -C java").stdout.split("\n"))
             .skip(1)
             .collect(Collectors.toList());
 
@@ -589,11 +587,34 @@ public class DockerTests extends PackagingTestCase {
         final String[] fields = processes.get(0).trim().split("\\s+");
 
         assertThat(fields, arrayWithSize(3));
-        assertThat("Incorrect PID", fields[0], equalTo("1"));
-        assertThat("Incorrect UID", fields[1], equalTo("1000"));
+        assertThat("Incorrect UID", fields[0], equalTo("1000"));
+        assertThat("Incorrect GID", fields[1], equalTo("0"));
         assertThat("Incorrect username", fields[2], equalTo("elasticsearch"));
     }
 
+    /**
+     * Check that the init process running inside the container has the expected PID, UID, GID and user.
+     * The PID is particularly important because PID 1 handles signal forwarding and child reaping.
+     */
+    public void test131InitProcessHasCorrectPID() {
+        final List<String> processes = Arrays.stream(sh.run("ps -o pid,uid,gid,command -p 1").stdout.split("\n"))
+            .skip(1)
+            .collect(Collectors.toList());
+
+        assertThat("Expected a single process", processes, hasSize(1));
+
+        final String[] fields = processes.get(0).trim().split("\\s+", 4);
+
+        assertThat(fields, arrayWithSize(4));
+        assertThat("Incorrect PID", fields[0], equalTo("1"));
+        assertThat("Incorrect UID", fields[1], equalTo("0"));
+        assertThat("Incorrect GID", fields[2], equalTo("0"));
+        assertThat("Incorrect init command", fields[3], startsWith("/tini"));
+    }
+
+    /**
+     * Check that Elasticsearch reports per-node cgroup information.
+     */
     public void test140CgroupOsStatsAreAvailable() throws Exception {
         waitForElasticsearch(installation);
 

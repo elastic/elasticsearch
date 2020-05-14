@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -55,24 +56,24 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPTIONS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                // crank up the deletion interval and set timeout for delete requests
-                .put(TokenService.DELETE_INTERVAL.getKey(), TimeValue.timeValueMillis(200L))
-                .put(TokenService.DELETE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5L))
-                .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
-                .build();
+            .put(super.nodeSettings(nodeOrdinal))
+            // crank up the deletion interval and set timeout for delete requests
+            .put(TokenService.DELETE_INTERVAL.getKey(), TimeValue.timeValueMillis(200L))
+            .put(TokenService.DELETE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5L))
+            .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
+            .build();
     }
 
     @Override
@@ -90,10 +91,10 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         final Client client = client();
         SecurityClient securityClient = new SecurityClient(client);
         CreateTokenResponse response = securityClient.prepareCreateToken()
-                .setGrantType("password")
-                .setUsername(SecuritySettingsSource.TEST_USER_NAME)
-                .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
-                .get();
+            .setGrantType("password")
+            .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+            .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
+            .get();
         for (TokenService tokenService : internalCluster().getInstances(TokenService.class)) {
             PlainActionFuture<UserToken> userTokenFuture = new PlainActionFuture<>();
             tokenService.decodeToken(response.getTokenString(), userTokenFuture);
@@ -118,10 +119,10 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         final Client client = client();
         SecurityClient securityClient = new SecurityClient(client);
         CreateTokenResponse response = securityClient.prepareCreateToken()
-                .setGrantType("password")
-                .setUsername(SecuritySettingsSource.TEST_USER_NAME)
-                .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
-                .get();
+            .setGrantType("password")
+            .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+            .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
+            .get();
         String masterName = internalCluster().getMasterName();
         TokenService masterTokenService = internalCluster().getInstance(TokenService.class, masterName);
         String activeKeyHash = masterTokenService.getActiveKeyHash();
@@ -148,32 +149,33 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
     public void testExpiredTokensDeletedAfterExpiration() throws Exception {
         final Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
-                        SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
         SecurityClient securityClient = new SecurityClient(client);
         CreateTokenResponse response = securityClient.prepareCreateToken()
-                .setGrantType("password")
-                .setUsername(SecuritySettingsSource.TEST_USER_NAME)
-                .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
-                .get();
-
+            .setGrantType("password")
+            .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+            .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
+            .get();
+        final String accessToken = response.getTokenString();
+        final String refreshToken = response.getRefreshToken();
         Instant created = Instant.now();
 
         InvalidateTokenResponse invalidateResponse = securityClient
-                .prepareInvalidateToken(response.getTokenString())
-                .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
-                .get();
+            .prepareInvalidateToken(response.getTokenString())
+            .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
+            .get();
         assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(1));
         assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
         assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
         AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
             SearchResponse searchResponse = client.prepareSearch(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS)
-                    .setSource(SearchSourceBuilder.searchSource()
-                        .query(QueryBuilders.termQuery("doc_type", "token")))
-                    .setSize(1)
-                    .setTerminateAfter(1)
-                    .get();
+                .setSource(SearchSourceBuilder.searchSource()
+                    .query(QueryBuilders.termQuery("doc_type", "token")))
+                .setSize(1)
+                .setTerminateAfter(1)
+                .get();
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
             docId.set(searchResponse.getHits().getAt(0).getId());
         });
@@ -190,24 +192,38 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertBusy(() -> {
             if (deleteTriggered.compareAndSet(false, true)) {
                 // invalidate a invalid token... doesn't matter that it is bad... we just want this action to trigger the deletion
-                try {
-                    securityClient.prepareInvalidateToken("fooobar")
+                 InvalidateTokenResponse invalidateResponseTwo = securityClient.prepareInvalidateToken("fooobar")
                             .setType(randomFrom(InvalidateTokenRequest.Type.values()))
                             .execute()
                             .actionGet();
-                } catch (ElasticsearchSecurityException e) {
-                    assertEquals("token malformed", e.getMessage());
-                    assertThat(e.status(), equalTo(RestStatus.UNAUTHORIZED));
-                }
+                 assertThat(invalidateResponseTwo.getResult().getInvalidatedTokens(), equalTo(0));
+                 assertThat(invalidateResponseTwo.getResult().getPreviouslyInvalidatedTokens(), equalTo(0));
+                 assertThat(invalidateResponseTwo.getResult().getErrors().size(), equalTo(0));
             }
             client.admin().indices().prepareRefresh(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS).get();
             SearchResponse searchResponse = client.prepareSearch(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS)
-                    .setSource(SearchSourceBuilder.searchSource()
-                        .query(QueryBuilders.termQuery("doc_type", "token")))
-                    .setTerminateAfter(1)
-                    .get();
+                .setSource(SearchSourceBuilder.searchSource()
+                    .query(QueryBuilders.termQuery("doc_type", "token")))
+                .setTerminateAfter(1)
+                .get();
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
         }, 30, TimeUnit.SECONDS);
+
+        // Now the documents are deleted, try to invalidate the access token and refresh token again
+        InvalidateTokenResponse invalidateAccessTokenResponse = securityClient.prepareInvalidateToken(accessToken)
+            .setType(randomFrom(InvalidateTokenRequest.Type.values()))
+            .execute()
+            .actionGet();
+        assertThat(invalidateAccessTokenResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateAccessTokenResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateAccessTokenResponse.getResult().getErrors().size(), equalTo(0));
+        InvalidateTokenResponse invalidateRefreshTokenResponse = securityClient.prepareInvalidateToken(refreshToken)
+            .setType(InvalidateTokenRequest.Type.REFRESH_TOKEN)
+            .execute()
+            .actionGet();
+        assertThat(invalidateRefreshTokenResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateRefreshTokenResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateRefreshTokenResponse.getResult().getErrors().size(), equalTo(0));
     }
 
     public void testInvalidateAllTokensForUser() throws Exception{
@@ -278,15 +294,15 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
     public void testExpireMultipleTimes() {
         CreateTokenResponse response = securityClient().prepareCreateToken()
-                .setGrantType("password")
-                .setUsername(SecuritySettingsSource.TEST_USER_NAME)
-                .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
-                .get();
+            .setGrantType("password")
+            .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+            .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
+            .get();
 
         InvalidateTokenResponse invalidateResponse = securityClient()
-                .prepareInvalidateToken(response.getTokenString())
-                .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
-                .get();
+            .prepareInvalidateToken(response.getTokenString())
+            .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
+            .get();
         assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(1));
         assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
         assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
@@ -299,51 +315,181 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateAgainResponse.getResult().getErrors().size(), equalTo(0));
     }
 
+    public void testInvalidateMultipleTimes() {
+        CreateTokenResponse response = securityClient().prepareCreateToken()
+            .setGrantType("password")
+            .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+            .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
+            .get();
+        InvalidateTokenResponse invalidateResponse = securityClient()
+            .prepareInvalidateToken(response.getTokenString())
+            .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
+            .get();
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(1));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+        InvalidateTokenResponse invalidateAgainResponse = securityClient()
+            .prepareInvalidateToken(response.getTokenString())
+            .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
+            .get();
+        assertThat(invalidateAgainResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateAgainResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(1));
+        assertThat(invalidateAgainResponse.getResult().getErrors().size(), equalTo(0));
+    }
+
+    public void testInvalidateNotValidAccessTokens() throws Exception {
+        // Perform a request to invalidate a token, before the tokens index is created
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> securityClient()
+            .prepareInvalidateToken(generateAccessToken(Version.CURRENT))
+            .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
+            .get());
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        // Create a token to trigger index creation
+        securityClient().prepareCreateToken()
+            .setGrantType("password")
+            .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+            .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
+            .get();
+
+        InvalidateTokenResponse invalidateResponse =
+            securityClient()
+                .prepareInvalidateToken("!this_is_not_a_base64_string_and_we_should_fail_decoding_it")
+                .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
+                .get();
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+
+        invalidateResponse =
+            securityClient()
+                .prepareInvalidateToken("10we+might+assume+this+is+valid+old+token")
+                .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
+                .get();
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+
+        invalidateResponse =
+            securityClient()
+                .prepareInvalidateToken(generateInvalidShortAccessToken(Version.CURRENT))
+                .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
+                .get();
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+
+        // Generate a token that could be a valid token string for the version we are on, and should decode fine, but is not found in our
+        // tokens index
+        invalidateResponse =
+            securityClient()
+                .prepareInvalidateToken(generateAccessToken(Version.CURRENT))
+                .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
+                .get();
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+    }
+
+    public void testInvalidateNotValidRefreshTokens() throws Exception {
+        // Perform a request to invalidate a refresh token, before the tokens index is created
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> securityClient()
+            .prepareInvalidateToken(TokenService.prependVersionAndEncodeRefreshToken(Version.CURRENT, UUIDs.randomBase64UUID()))
+            .setType(InvalidateTokenRequest.Type.REFRESH_TOKEN)
+            .get());
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        // Create a token to trigger index creation
+        // Create a token to trigger index creation
+        securityClient().prepareCreateToken()
+            .setGrantType("password")
+            .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+            .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
+            .get();
+
+        InvalidateTokenResponse invalidateResponse =
+            securityClient()
+                .prepareInvalidateToken("!this_is_not_a_base64_string_and_we_should_fail_decoding_it")
+                .setType(InvalidateTokenRequest.Type.REFRESH_TOKEN)
+                .get();
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+
+        invalidateResponse =
+            securityClient()
+                .prepareInvalidateToken(TokenService.prependVersionAndEncodeRefreshToken(Version.CURRENT, randomAlphaOfLength(32)))
+                .setType(InvalidateTokenRequest.Type.REFRESH_TOKEN)
+                .get();
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+
+        invalidateResponse =
+            securityClient()
+                .prepareInvalidateToken("10we+might+assume+this+is+valid+old+token")
+                .setType(InvalidateTokenRequest.Type.REFRESH_TOKEN)
+                .get();
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+
+        // Generate a token that could be a valid token string for the version we are on, and should decode fine, but is not found in our
+        // tokens index
+        invalidateResponse =
+            securityClient()
+                .prepareInvalidateToken(TokenService.prependVersionAndEncodeRefreshToken(Version.CURRENT, UUIDs.randomBase64UUID()))
+                .setType(InvalidateTokenRequest.Type.REFRESH_TOKEN)
+                .get();
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+
+    }
+
     public void testRefreshingToken() {
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
-                        SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
         SecurityClient securityClient = new SecurityClient(client);
         CreateTokenResponse createTokenResponse = securityClient.prepareCreateToken()
-                .setGrantType("password")
-                .setUsername(SecuritySettingsSource.TEST_USER_NAME)
-                .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
-                .get();
+            .setGrantType("password")
+            .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+            .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
+            .get();
         assertNotNull(createTokenResponse.getRefreshToken());
         // get cluster health with token
         assertNoTimeout(client()
-                .filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + createTokenResponse.getTokenString()))
-                .admin().cluster().prepareHealth().get());
+            .filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + createTokenResponse.getTokenString()))
+            .admin().cluster().prepareHealth().get());
         CreateTokenResponse refreshResponse = securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get();
         assertNotNull(refreshResponse.getRefreshToken());
         assertNotEquals(refreshResponse.getRefreshToken(), createTokenResponse.getRefreshToken());
         assertNotEquals(refreshResponse.getTokenString(), createTokenResponse.getTokenString());
 
         assertNoTimeout(client().filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + refreshResponse.getTokenString()))
-                .admin().cluster().prepareHealth().get());
+            .admin().cluster().prepareHealth().get());
     }
 
     public void testRefreshingInvalidatedToken() {
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
-                        SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
         SecurityClient securityClient = new SecurityClient(client);
         CreateTokenResponse createTokenResponse = securityClient.prepareCreateToken()
-                .setGrantType("password")
-                .setUsername(SecuritySettingsSource.TEST_USER_NAME)
-                .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
-                .get();
+            .setGrantType("password")
+            .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+            .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
+            .get();
         assertNotNull(createTokenResponse.getRefreshToken());
         InvalidateTokenResponse invalidateResponse = securityClient
-                .prepareInvalidateToken(createTokenResponse.getRefreshToken())
-                .setType(InvalidateTokenRequest.Type.REFRESH_TOKEN)
-                .get();
+            .prepareInvalidateToken(createTokenResponse.getRefreshToken())
+            .setType(InvalidateTokenRequest.Type.REFRESH_TOKEN)
+            .get();
         assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(1));
         assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
         assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
 
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-                () -> securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get());
+            () -> securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get());
         assertEquals("invalid_grant", e.getMessage());
         assertEquals(RestStatus.BAD_REQUEST, e.status());
         assertEquals("token has been invalidated", e.getHeader("error_description").get(0));
@@ -351,14 +497,14 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
     public void testRefreshingMultipleTimesFails() throws Exception {
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
-                        SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
         SecurityClient securityClient = new SecurityClient(client);
         CreateTokenResponse createTokenResponse = securityClient.prepareCreateToken()
-                .setGrantType("password")
-                .setUsername(SecuritySettingsSource.TEST_USER_NAME)
-                .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
-                .get();
+            .setGrantType("password")
+            .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+            .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
+            .get();
         assertNotNull(createTokenResponse.getRefreshToken());
         CreateTokenResponse refreshResponse = securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get();
         assertNotNull(refreshResponse);
@@ -391,12 +537,13 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertTrue(
             Instant.ofEpochMilli((long) refreshTokenMap.get("refresh_time")).isBefore(Instant.now().minus(30L, ChronoUnit.SECONDS)));
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-                () -> securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get());
+            () -> securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get());
         assertEquals("invalid_grant", e.getMessage());
         assertEquals(RestStatus.BAD_REQUEST, e.status());
         assertEquals("token has already been refreshed more than 30 seconds in the past", e.getHeader("error_description").get(0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55816")
     public void testRefreshingMultipleTimesWithinWindowSucceeds() throws Exception {
         final Clock clock = Clock.systemUTC();
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
@@ -404,6 +551,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
         SecurityClient securityClient = new SecurityClient(client);
         final List<String> tokens = Collections.synchronizedList(new ArrayList<>());
+        final List<RestStatus> authStatuses = Collections.synchronizedList(new ArrayList<>());
         CreateTokenResponse createTokenResponse = securityClient.prepareCreateToken()
             .setGrantType("password")
             .setUsername(SecuritySettingsSource.TEST_USER_NAME)
@@ -441,6 +589,10 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                             result.getTokenString(), result.getRefreshToken());
                     } else {
                         tokens.add(result.getTokenString() + result.getRefreshToken());
+                        client().filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + result.getTokenString()))
+                            .admin().cluster().health(new ClusterHealthRequest(), ActionListener.wrap(
+                            r -> authStatuses.add(RestStatus.OK),
+                            e -> authStatuses.add(RestStatus.BAD_REQUEST)));
                     }
                     logger.info("received access token [{}] and refresh token [{}]", result.getTokenString(), result.getRefreshToken());
                     completedLatch.countDown();
@@ -461,28 +613,32 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         }
         completedLatch.await();
         assertThat(failed.get(), equalTo(false));
-        // Assert that we only ever got one access_token/refresh_token pair
-        assertThat(tokens.stream().distinct().collect(Collectors.toList()).size(), equalTo(1));
+        // Assert that we only ever got one token/refresh_token pair
+        assertThat((int) tokens.stream().distinct().count(), equalTo(1));
+        // Assert that all requests from all threads could authenticate at the time they received the access token
+        // see: https://github.com/elastic/elasticsearch/issues/54289
+        assertThat((int) authStatuses.stream().distinct().count(), equalTo(1));
+        assertThat(authStatuses, hasItem(RestStatus.OK));
     }
 
     public void testRefreshAsDifferentUser() {
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
-                        SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
         SecurityClient securityClient = new SecurityClient(client);
         CreateTokenResponse createTokenResponse = securityClient.prepareCreateToken()
-                .setGrantType("password")
-                .setUsername(SecuritySettingsSource.TEST_USER_NAME)
-                .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
-                .get();
+            .setGrantType("password")
+            .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+            .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
+            .get();
         assertNotNull(createTokenResponse.getRefreshToken());
 
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-                () -> new SecurityClient(client()
-                        .filterWithHeader(Collections.singletonMap("Authorization",
-                                UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
-                                        SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING))))
-                        .prepareRefreshToken(createTokenResponse.getRefreshToken()).get());
+            () -> new SecurityClient(client()
+                .filterWithHeader(Collections.singletonMap("Authorization",
+                    UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                        SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING))))
+                .prepareRefreshToken(createTokenResponse.getRefreshToken()).get());
         assertEquals("invalid_grant", e.getMessage());
         assertEquals(RestStatus.BAD_REQUEST, e.status());
         assertEquals("tokens must be refreshed by the creating client", e.getHeader("error_description").get(0));
@@ -490,14 +646,14 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
     public void testCreateThenRefreshAsDifferentUser() {
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
-                        SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
         SecurityClient securityClient = new SecurityClient(client);
         CreateTokenResponse createTokenResponse = securityClient.prepareCreateToken()
-                .setGrantType("password")
-                .setUsername(SecuritySettingsSource.TEST_USER_NAME)
-                .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
-                .get();
+            .setGrantType("password")
+            .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+            .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
+            .get();
         assertNotNull(createTokenResponse.getRefreshToken());
 
         CreateTokenResponse refreshResponse = securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get();
@@ -515,7 +671,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         request = new AuthenticateRequest();
         request.username(SecuritySettingsSource.TEST_USER_NAME);
         client.filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + createTokenResponse.getTokenString()))
-                .execute(AuthenticateAction.INSTANCE, request, authFuture);
+            .execute(AuthenticateAction.INSTANCE, request, authFuture);
         response = authFuture.actionGet();
         assertEquals(SecuritySettingsSource.TEST_USER_NAME, response.authentication().getUser().principal());
 
@@ -523,7 +679,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         request = new AuthenticateRequest();
         request.username(SecuritySettingsSource.TEST_USER_NAME);
         client.filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + refreshResponse.getTokenString()))
-                .execute(AuthenticateAction.INSTANCE, request, authFuture);
+            .execute(AuthenticateAction.INSTANCE, request, authFuture);
         response = authFuture.actionGet();
         assertEquals(SecuritySettingsSource.TEST_USER_NAME, response.authentication().getUser().principal());
     }
@@ -567,7 +723,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         final RestHighLevelClient restClient = new TestRestHighLevelClient();
         org.elasticsearch.client.security.CreateTokenResponse response = restClient.security().createToken(
             org.elasticsearch.client.security.CreateTokenRequest.passwordGrant(SecuritySettingsSource.TEST_USER_NAME,
-            SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()), SECURITY_REQUEST_OPTIONS);
+                SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()), SECURITY_REQUEST_OPTIONS);
         assertNotNull(response.getAccessToken());
         // First authenticate with token
         RequestOptions correctAuthOptions =
@@ -593,6 +749,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             () -> restClient.security().authenticate(wrongAuthOptionsAfter72));
         assertThat(e2.status(), equalTo(RestStatus.UNAUTHORIZED));
     }
+
     @Before
     public void waitForSecurityIndexWritable() throws Exception {
         assertSecurityIndexActive();
@@ -615,9 +772,12 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     private String generateAccessToken(Version version) throws Exception {
         TokenService tokenService = internalCluster().getInstance(TokenService.class);
         String accessTokenString = UUIDs.randomBase64UUID();
-        if (version.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
-            accessTokenString = TokenService.hashTokenString(accessTokenString);
-        }
+        return tokenService.prependVersionAndEncodeAccessToken(version, accessTokenString);
+    }
+
+    private String generateInvalidShortAccessToken(Version version) throws Exception {
+        TokenService tokenService = internalCluster().getInstance(TokenService.class);
+        String accessTokenString = randomAlphaOfLength(32); // UUIDs are 36
         return tokenService.prependVersionAndEncodeAccessToken(version, accessTokenString);
     }
 }

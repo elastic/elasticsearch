@@ -33,11 +33,14 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyticsAction.Response> {
 
     public static final StopDataFrameAnalyticsAction INSTANCE = new StopDataFrameAnalyticsAction();
     public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/stop";
+
+    public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     private StopDataFrameAnalyticsAction() {
         super(NAME, StopDataFrameAnalyticsAction.Response::new);
@@ -76,6 +79,7 @@ public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyt
 
         public Request(String id) {
             setId(id);
+            setTimeout(DEFAULT_TIMEOUT);
         }
 
         public Request(StreamInput in) throws IOException {

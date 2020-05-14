@@ -1621,10 +1621,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @throws IOException if an I/O exception occurred during any file operations
      */
     public void rollGeneration() throws IOException {
-        // make sure we move most of the data to disk outside of the writeLock
-        // in order to reduce the time the lock is held since it's blocking all threads
-        sync();
+        syncBeforeRollGeneration();
         try (Releasable ignored = writeLock.acquire()) {
+            ensureOpen();
             try {
                 final TranslogReader reader = current.closeIntoReader();
                 readers.add(reader);
@@ -1639,6 +1638,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 throw e;
             }
         }
+    }
+
+    void syncBeforeRollGeneration() throws IOException {
+        // make sure we move most of the data to disk outside of the writeLock
+        // in order to reduce the time the lock is held since it's blocking all threads
+        sync();
     }
 
     /**

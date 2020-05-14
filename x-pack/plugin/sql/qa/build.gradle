@@ -9,7 +9,6 @@ dependencies {
   // JDBC testing dependencies
   compile project(path: xpackModule('sql:jdbc'))
 
-  compile project(path: xpackModule('sql:sql-action'))
   compile "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
 
   // CLI testing dependencies

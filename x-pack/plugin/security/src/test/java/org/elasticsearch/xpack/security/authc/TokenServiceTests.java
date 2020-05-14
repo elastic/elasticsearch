@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetRequestBuilder;
@@ -129,7 +130,7 @@ public class TokenServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             ActionListener<IndexResponse> responseActionListener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[2];
             responseActionListener.onResponse(new IndexResponse(new ShardId(".security", UUIDs.randomBase64UUID(), randomInt()), "_doc",
-                    randomAlphaOfLength(4), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), true));
+                randomAlphaOfLength(4), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), true));
             return null;
         }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
 
@@ -678,10 +679,12 @@ public class TokenServiceTests extends ESTestCase {
             tokensIndex = securityMainIndex;
             when(securityTokensIndex.isAvailable()).thenReturn(false);
             when(securityTokensIndex.indexExists()).thenReturn(false);
+            when(securityTokensIndex.freeze()).thenReturn(securityTokensIndex);
         } else {
             tokensIndex = securityTokensIndex;
             when(securityMainIndex.isAvailable()).thenReturn(false);
             when(securityMainIndex.indexExists()).thenReturn(false);
+            when(securityMainIndex.freeze()).thenReturn(securityMainIndex);
         }
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -689,6 +692,7 @@ public class TokenServiceTests extends ESTestCase {
             assertNull(future.get());
 
             when(tokensIndex.isAvailable()).thenReturn(false);
+            when(tokensIndex.getUnavailableReason()).thenReturn(new UnavailableShardsException(null, "unavailable"));
             when(tokensIndex.indexExists()).thenReturn(true);
             future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
@@ -739,7 +743,8 @@ public class TokenServiceTests extends ESTestCase {
             authentication.getUser().principal(), authentication.getAuthenticatedBy().getName(), true, Instant.now().minusSeconds(5L),
             encryptedTokens, Base64.getEncoder().encodeToString(iv), Base64.getEncoder().encodeToString(salt));
         refreshTokenStatus.setVersion(version);
-        tokenService.decryptAndReturnSupersedingTokens(refrehToken, refreshTokenStatus, tokenFuture);
+        mockGetTokenAsyncForDecryptedToken(newAccessToken);
+        tokenService.decryptAndReturnSupersedingTokens(refrehToken, refreshTokenStatus, securityTokensIndex, tokenFuture);
         if (version.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
             // previous versions serialized the access token encrypted and the cipher text was different each time (due to different IVs)
             assertThat(tokenService.prependVersionAndEncodeAccessToken(version, newAccessToken), equalTo(tokenFuture.get().v1()));
@@ -841,6 +846,19 @@ public class TokenServiceTests extends ESTestCase {
                     sourceMap.put("access_token", accessTokenMap);
                 }
                 when(response.getSource()).thenReturn(sourceMap);
+            }
+            listener.onResponse(response);
+            return Void.TYPE;
+        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+    }
+
+    private void mockGetTokenAsyncForDecryptedToken(String accessToken) {
+        doAnswer(invocationOnMock -> {
+            GetRequest request = (GetRequest) invocationOnMock.getArguments()[0];
+            ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
+            GetResponse response = mock(GetResponse.class);
+            if (request.id().replace("token_", "").equals(TokenService.hashTokenString(accessToken))) {
+                when(response.isExists()).thenReturn(true);
             }
             listener.onResponse(response);
             return Void.TYPE;

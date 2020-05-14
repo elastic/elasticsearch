@@ -119,9 +119,22 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     }
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool, ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry, Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<RepositoriesService> repositoriesServiceSupplier) {
-        Set<AutoscalingDeciderService<?>> services =
-            autoscalingPlugins.stream().flatMap(p -> p.deciders().stream()).collect(Collectors.toSet());
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
+        Set<AutoscalingDeciderService<?>> services = autoscalingPlugins.stream()
+            .flatMap(p -> p.deciders().stream())
+            .collect(Collectors.toSet());
         return List.of(new AutoscalingDeciderServices(services));
     }
 
@@ -181,6 +194,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
             )
         );
     }
+
     @Override
     public void extensionPlugin(Plugin plugin) {
         if (plugin instanceof AutoscalingPlugin) {

@@ -6,14 +6,12 @@
 
 package org.elasticsearch.xpack.autoscaling.decision;
 
-import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.common.inject.Inject;
 
 public class AlwaysAutoscalingDeciderService implements AutoscalingDeciderService<AlwaysAutoscalingDecider> {
 
     @Inject
-    public AlwaysAutoscalingDeciderService() {
-    }
+    public AlwaysAutoscalingDeciderService() {}
 
     @Override
     public String name() {

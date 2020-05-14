@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.autoscaling;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecider;
 import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDeciderService;

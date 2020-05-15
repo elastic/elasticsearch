@@ -31,7 +31,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.transport.RemoteClusterConnectionTests.startTransport;

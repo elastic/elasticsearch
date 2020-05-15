@@ -69,6 +69,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor.DOC_TYPE_VALUE;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor.Fields.APPLICATION;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
 
 /**
  * {@code NativePrivilegeStore} is a store that reads/writes {@link ApplicationPrivilegeDescriptor} objects,
@@ -201,6 +203,13 @@ public class NativePrivilegeStore {
                         hit -> buildPrivilege(hit.getId(), hit.getSourceRef()));
                 }
             });
+        }
+    }
+
+    public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
+        if (isMoveFromRedToNonRed(previousState, currentState) || isIndexDeleted(previousState, currentState)
+            || previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
+            invalidateAll();
         }
     }
 
@@ -425,4 +434,8 @@ public class NativePrivilegeStore {
         return descriptorsCache;
     }
 
+    // Package private for tests
+    AtomicLong getNumInvalidation() {
+        return numInvalidation;
+    }
 }

@@ -20,6 +20,8 @@ import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -40,6 +42,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -455,6 +458,42 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         store.invalidateAll();
         assertEquals(0, store.getApplicationNamesCache().count());
         assertEquals(0, store.getDescriptorsCache().count());
+    }
+
+    public void testCacheClearOnIndexHealthChange() {
+        final String securityIndexName = randomFrom(
+            RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6, RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7);
+
+        long count = store.getNumInvalidation().get();
+
+        // Cache should be cleared when security is back to green
+        store.onSecurityIndexStateChange(
+            dummyState(securityIndexName, true, randomFrom((ClusterHealthStatus) null, ClusterHealthStatus.RED)),
+            dummyState(securityIndexName, true, randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW)));
+        assertEquals(++count, store.getNumInvalidation().get());
+
+        // Cache should be cleared when security is deleted
+        store.onSecurityIndexStateChange(
+            dummyState(securityIndexName, true, randomFrom(ClusterHealthStatus.values())),
+            dummyState(securityIndexName, true, null));
+        assertEquals(++count, store.getNumInvalidation().get());
+
+        // Cache should be cleared if indexUpToDate changed
+        final boolean isIndexUpToDate = randomBoolean();
+        final ArrayList<ClusterHealthStatus> allPossibleHealthStatus = new ArrayList<>(Arrays.asList(ClusterHealthStatus.values()));
+        allPossibleHealthStatus.add(null);
+        store.onSecurityIndexStateChange(
+            dummyState(securityIndexName, isIndexUpToDate, randomFrom(allPossibleHealthStatus)),
+            dummyState(securityIndexName, !isIndexUpToDate, randomFrom(allPossibleHealthStatus)));
+        assertEquals(++count, store.getNumInvalidation().get());
+    }
+
+    private SecurityIndexManager.State dummyState(
+        String concreteSecurityIndexName, boolean isIndexUpToDate, ClusterHealthStatus healthStatus) {
+        return new SecurityIndexManager.State(
+            Instant.now(), isIndexUpToDate, true, true, null,
+            concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN
+        );
     }
 
     private SearchHit[] buildHits(List<ApplicationPrivilegeDescriptor> sourcePrivileges) {

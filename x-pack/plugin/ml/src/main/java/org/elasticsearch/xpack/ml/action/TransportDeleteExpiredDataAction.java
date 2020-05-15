@@ -44,8 +44,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
 
     private static final Logger logger = LogManager.getLogger(TransportDeleteExpiredDataAction.class);
 
-    // TODO: make configurable in the request
-    static final Duration MAX_DURATION = Duration.ofHours(8);
+    static final Duration DEFAULT_MAX_DURATION = Duration.ofHours(8);
 
     private final ThreadPool threadPool;
     private final String executor;
@@ -75,7 +74,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
                              ActionListener<DeleteExpiredDataAction.Response> listener) {
         logger.info("Deleting expired data");
         Instant timeoutTime = Instant.now(clock).plus(
-            request.getTimeout() == null ? MAX_DURATION : Duration.ofMillis(request.getTimeout().millis())
+            request.getTimeout() == null ? DEFAULT_MAX_DURATION : Duration.ofMillis(request.getTimeout().millis())
         );
 
         Supplier<Boolean> isTimedOutSupplier = () -> Instant.now(clock).isAfter(timeoutTime);

@@ -39,7 +39,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
 
         public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(
             "delete_expired_data_request",
-            true,
+            false,
             Request::new);
 
         static {

@@ -21,4 +21,14 @@ public interface AsyncTask {
      * Returns the {@link AsyncExecutionId} of the task
      */
     AsyncExecutionId getExecutionId();
+
+    /**
+     * Returns true if the task is cancelled
+     */
+    boolean isCancelled();
+
+    /**
+     * Update the expiration time of the (partial) response.
+     */
+    void setExpirationTime(long expirationTimeMillis);
 }

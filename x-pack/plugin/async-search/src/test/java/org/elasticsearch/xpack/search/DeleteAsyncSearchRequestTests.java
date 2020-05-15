@@ -9,7 +9,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
 
-import static org.elasticsearch.xpack.search.GetAsyncSearchRequestTests.randomSearchId;
+import static org.elasticsearch.xpack.core.async.GetAsyncResultRequestTests.randomSearchId;
 
 public class DeleteAsyncSearchRequestTests extends AbstractWireSerializingTestCase<DeleteAsyncSearchAction.Request> {
     @Override

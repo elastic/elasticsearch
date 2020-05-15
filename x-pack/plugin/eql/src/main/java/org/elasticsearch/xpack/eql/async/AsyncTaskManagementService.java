@@ -12,6 +12,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -39,7 +40,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Service for managing EQL requests
  */
 public class AsyncTaskManagementService<Request extends TaskAwareRequest, Response extends ActionResponse,
-    T extends CancellableTask & AsyncTask> {
+    T extends StoredAsyncTask<Response>> {
 
     private static final Logger logger = LogManager.getLogger(AsyncTaskManagementService.class);
 
@@ -57,7 +58,7 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
         T createTask(Request request, long id, String type, String action, TaskId parentTaskId, Map<String, String> headers,
                      Map<String, String> originHeaders, AsyncExecutionId asyncExecutionId);
 
-        void operation(Request request, T task, ActionListener<Response> listener);
+        void execute(Request request, T task, ActionListener<Response> listener);
 
         Response initialResponse(T task);
 
@@ -121,7 +122,7 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
         T searchTask = (T) taskManager.register("transport", action + "[a]", new AsyncRequestWrapper(request, nodeId));
         boolean operationStarted = false;
         try {
-            operation.operation(request, searchTask,
+            operation.execute(request, searchTask,
                 wrapStoringListener(searchTask, waitForCompletionTimeout, keepAlive, keepOnCompletion, listener));
             operationStarted = true;
         } finally {
@@ -130,22 +131,6 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
                 taskManager.unregister(searchTask);
             }
         }
-    }
-
-    // TODO: For tests for now, will be merged into comprehensive get operation later
-    T getTask(AsyncExecutionId asyncExecutionId) throws IOException {
-        return asyncTaskIndexService.getTask(taskManager, asyncExecutionId, taskClass);
-    }
-
-    // TODO: For tests for now, will be removed when the final get operation is added
-    void getResponse(AsyncExecutionId id, ActionListener<Response> listener) {
-        asyncTaskIndexService.getResponse(id, true, ActionListener.wrap(r -> {
-            if (r.getException() != null) {
-                listener.onFailure(r.getException());
-            } else {
-                listener.onResponse(r.getResponse());
-            }
-        }, listener::onFailure));
     }
 
     private ActionListener<Response> wrapStoringListener(T searchTask,
@@ -173,6 +158,7 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
                         ActionListener.wrap(() -> acquiredListener.onResponse(response)));
                 } else {
                     taskManager.unregister(searchTask);
+                    searchTask.onResponse(response);
                     acquiredListener.onResponse(response);
                 }
             } else {
@@ -190,6 +176,7 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
                         ActionListener.wrap(() -> acquiredListener.onFailure(e)));
                 } else {
                     taskManager.unregister(searchTask);
+                    searchTask.onFailure(e);
                     acquiredListener.onFailure(e);
                 }
             } else {
@@ -209,15 +196,21 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
                 threadPool.getThreadContext().getHeaders(), storedResponse, ActionListener.wrap(
                     // We should only unregister after the result is saved
                     resp -> {
-                        taskManager.unregister(searchTask);
                         logger.trace(() -> new ParameterizedMessage("stored eql search results for [{}]",
                             searchTask.getExecutionId().getEncoded()));
+                        taskManager.unregister(searchTask);
+                        if (storedResponse.getException() != null) {
+                            searchTask.onFailure(storedResponse.getException());
+                        } else {
+                            searchTask.onResponse(storedResponse.getResponse());
+                        }
                         if (finalListener != null) {
                             finalListener.onResponse(null);
                         }
                     },
                     exc -> {
                         taskManager.unregister(searchTask);
+                        searchTask.onFailure(exc);
                         Throwable cause = ExceptionsHelper.unwrapCause(exc);
                         if (cause instanceof DocumentMissingException == false &&
                             cause instanceof VersionConflictEngineException == false) {
@@ -230,8 +223,43 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
                     }));
         } catch (Exception exc) {
             taskManager.unregister(searchTask);
+            searchTask.onFailure(exc);
             logger.error(() -> new ParameterizedMessage("failed to store eql search results for [{}]",
                 searchTask.getExecutionId().getEncoded()), exc);
+        }
+    }
+
+    /**
+     * Adds a self-unregistering listener to a task. It works as a normal listener except it retrieves a partial response and unregister
+     * itself from the task if timeout occurs.
+     */
+    public static <Response extends ActionResponse, Task extends StoredAsyncTask<Response>> void addCompletionListener(
+        ThreadPool threadPool,
+        Task task,
+        ActionListener<StoredAsyncResponse<Response>> listener,
+        TimeValue timeout) {
+        if (timeout.getMillis() <= 0) {
+            getCurrentResult(task, listener);
+        } else {
+            task.addCompletionListener(ListenerTimeouts.wrapWithTimeout(threadPool, timeout, ThreadPool.Names.SEARCH, ActionListener.wrap(
+                r -> listener.onResponse(new StoredAsyncResponse<>(r, task.getExpirationTimeMillis())),
+                e -> listener.onResponse(new StoredAsyncResponse<>(e, task.getExpirationTimeMillis()))
+            ), wrapper -> {
+                // Timeout was triggered
+                task.removeCompletionListener(wrapper);
+                getCurrentResult(task, listener);
+            }));
+        }
+    }
+
+    private static <Response extends ActionResponse, Task extends StoredAsyncTask<Response>> void getCurrentResult(
+        Task task,
+        ActionListener<StoredAsyncResponse<Response>> listener
+    ) {
+        try {
+            listener.onResponse(new StoredAsyncResponse<>(task.getCurrentResult(), task.getExpirationTimeMillis()));
+        } catch (Exception ex) {
+            listener.onFailure(ex);
         }
     }
 }

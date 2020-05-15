@@ -36,7 +36,7 @@ import java.util.Date;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.search.GetAsyncSearchRequestTests.randomSearchId;
+import static org.elasticsearch.xpack.core.async.GetAsyncResultRequestTests.randomSearchId;
 
 public class AsyncSearchResponseTests extends ESTestCase {
     private SearchResponse searchResponse = randomSearchResponse();

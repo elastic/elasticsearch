@@ -69,11 +69,12 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
     @Override
     public EqlSearchTask createTask(EqlSearchRequest request, long id, String type, String action, TaskId parentTaskId,
                                     Map<String, String> headers, Map<String, String> originHeaders, AsyncExecutionId asyncExecutionId) {
-        return new EqlSearchTask(id, type, action, request.getDescription(), parentTaskId, headers, originHeaders, asyncExecutionId);
+        return new EqlSearchTask(id, type, action, request.getDescription(), parentTaskId, headers, originHeaders, asyncExecutionId,
+            request.keepAlive());
     }
 
     @Override
-    public void operation(EqlSearchRequest request, EqlSearchTask task, ActionListener<EqlSearchResponse> listener) {
+    public void execute(EqlSearchRequest request, EqlSearchTask task, ActionListener<EqlSearchResponse> listener) {
         operation(planExecutor, task, request, username(securityContext), clusterName(clusterService),
             clusterService.localNode().getId(), listener);
     }
@@ -115,7 +116,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             .implicitJoinKey(request.implicitJoinKeyField());
 
         EqlConfiguration cfg = new EqlConfiguration(request.indices(), zoneId, username, clusterName, filter, timeout, request.fetchSize(),
-                includeFrozen, request.isCaseSensitive(), clientId, new TaskId(nodeId, task.getId()), task);
+            includeFrozen, request.isCaseSensitive(), clientId, new TaskId(nodeId, task.getId()), task);
         planExecutor.eql(cfg, request.query(), params, wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())),
             listener::onFailure));
     }

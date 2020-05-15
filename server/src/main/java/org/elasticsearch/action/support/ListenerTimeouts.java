@@ -26,6 +26,7 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 public class ListenerTimeouts {
 
@@ -41,9 +42,29 @@ public class ListenerTimeouts {
      * @param listenerName name of the listener for timeout exception
      * @return the wrapped listener that will timeout
      */
-    public static <Response> ActionListener<Response> wrapWithTimeout(ThreadPool threadPool,  ActionListener<Response> listener,
+    public static <Response> ActionListener<Response> wrapWithTimeout(ThreadPool threadPool, ActionListener<Response> listener,
                                                                       TimeValue timeout, String executor, String listenerName) {
-        TimeoutableListener<Response> wrappedListener = new TimeoutableListener<>(listener, timeout, listenerName);
+        return wrapWithTimeout(threadPool, timeout, executor, listener, (ignore) -> {
+            String timeoutMessage = "[" + listenerName + "]" + " timed out after [" + timeout + "]";
+            listener.onFailure(new ElasticsearchTimeoutException(timeoutMessage));
+        });
+    }
+
+    /**
+     * Wraps a listener with a listener that can timeout. After the timeout period the
+     * onTimeout Runnable will be called.
+     *
+     * @param threadPool used to schedule the timeout
+     * @param timeout period before listener failed
+     * @param executor to use for scheduling timeout
+     * @param listener to that can timeout
+     * @param onTimeout consumer will be called and the resulting wrapper will be passed to it as a parameter
+     * @return the wrapped listener that will timeout
+     */
+    public static <Response> ActionListener<Response> wrapWithTimeout(ThreadPool threadPool, TimeValue timeout, String executor,
+                                                                      ActionListener<Response> listener,
+                                                                      Consumer<ActionListener<Response>> onTimeout) {
+        TimeoutableListener<Response> wrappedListener = new TimeoutableListener<>(listener, onTimeout);
         wrappedListener.cancellable = threadPool.schedule(wrappedListener, timeout, executor);
         return wrappedListener;
     }
@@ -52,14 +73,12 @@ public class ListenerTimeouts {
 
         private final AtomicBoolean isDone = new AtomicBoolean(false);
         private final ActionListener<Response> delegate;
-        private final TimeValue timeout;
-        private final String listenerName;
+        private final Consumer<ActionListener<Response>> onTimeout;
         private volatile Scheduler.ScheduledCancellable cancellable;
 
-        private TimeoutableListener(ActionListener<Response> delegate, TimeValue timeout, String listenerName) {
+        private TimeoutableListener(ActionListener<Response> delegate, Consumer<ActionListener<Response>> onTimeout) {
             this.delegate = delegate;
-            this.timeout = timeout;
-            this.listenerName = listenerName;
+            this.onTimeout = onTimeout;
         }
 
         @Override
@@ -81,8 +100,7 @@ public class ListenerTimeouts {
         @Override
         public void run() {
             if (isDone.compareAndSet(false, true)) {
-                String timeoutMessage = "[" + listenerName + "]" + " timed out after [" + timeout + "]";
-                delegate.onFailure(new ElasticsearchTimeoutException(timeoutMessage));
+                onTimeout.accept(this);
             }
         }
     }

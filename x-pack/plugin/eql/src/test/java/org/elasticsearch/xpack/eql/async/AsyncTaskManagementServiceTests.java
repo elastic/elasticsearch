@@ -13,35 +13,37 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
-import org.elasticsearch.xpack.core.async.AsyncTask;
+import org.elasticsearch.xpack.core.async.AsyncResultsService;
+import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
+import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.eql.async.AsyncTaskManagementService.addCompletionListener;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-// TODO: test CRUD operations
 public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
     private ClusterService clusterService;
     private TransportService transportService;
+    private AsyncResultsService<TestTask, StoredAsyncResponse<TestResponse>> results;
 
     private final ExecutorService executorService = Executors.newFixedThreadPool(1);
-
 
     public static class TestRequest extends ActionRequest {
         private final String string;
@@ -77,31 +79,17 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public static class TestTask extends CancellableTask implements AsyncTask {
-
-        private final Map<String, String> originHeaders;
-        private final AsyncExecutionId asyncExecutionId;
+    public static class TestTask extends StoredAsyncTask<TestResponse> {
+        public volatile AtomicReference<TestResponse> finalResponse = new AtomicReference<>();
 
         public TestTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers,
-                        Map<String, String> originHeaders, AsyncExecutionId asyncExecutionId) {
-            super(id, type, action, description, parentTaskId, headers);
-            this.originHeaders = originHeaders;
-            this.asyncExecutionId = asyncExecutionId;
+                        Map<String, String> originHeaders, AsyncExecutionId asyncExecutionId, TimeValue keepAlive) {
+            super(id, type, action, description, parentTaskId, headers, originHeaders, asyncExecutionId, keepAlive);
         }
 
         @Override
-        public boolean shouldCancelChildrenOnCancellation() {
-            return true;
-        }
-
-        @Override
-        public Map<String, String> getOriginHeaders() {
-            return originHeaders;
-        }
-
-        @Override
-        public AsyncExecutionId getExecutionId() {
-            return asyncExecutionId;
+        public TestResponse getCurrentResult() {
+            return Objects.requireNonNullElseGet(finalResponse.get(), () -> new TestResponse(null, getExecutionId().getEncoded()));
         }
     }
 
@@ -110,21 +98,22 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
         @Override
         public TestTask createTask(TestRequest request, long id, String type, String action, TaskId parentTaskId,
                                    Map<String, String> headers, Map<String, String> originHeaders, AsyncExecutionId asyncExecutionId) {
-            return new TestTask(id, type, action, request.getDescription(), parentTaskId, headers, originHeaders, asyncExecutionId);
+            return new TestTask(id, type, action, request.getDescription(), parentTaskId, headers, originHeaders, asyncExecutionId,
+                TimeValue.timeValueDays(5));
         }
 
         @Override
-        public void operation(TestRequest request, TestTask task, ActionListener<TestResponse> listener) {
+        public void execute(TestRequest request, TestTask task, ActionListener<TestResponse> listener) {
             if (request.string.equals("die")) {
                 listener.onFailure(new IllegalArgumentException("test exception"));
             } else {
-                listener.onResponse(new TestResponse("response for [" + request.string + "]", task.asyncExecutionId.getEncoded()));
+                listener.onResponse(new TestResponse("response for [" + request.string + "]", task.getExecutionId().getEncoded()));
             }
         }
 
         @Override
         public TestResponse initialResponse(TestTask task) {
-            return new TestResponse(null, task.asyncExecutionId.getEncoded());
+            return new TestResponse(null, task.getExecutionId().getEncoded());
         }
 
         @Override
@@ -139,6 +128,12 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
     public void setup() {
         clusterService = getInstanceFromNode(ClusterService.class);
         transportService = getInstanceFromNode(TransportService.class);
+        AsyncTaskIndexService<StoredAsyncResponse<TestResponse>> store =
+            new AsyncTaskIndexService<>(index, clusterService, transportService.getThreadPool().getThreadContext(), client(), "test",
+                in -> new StoredAsyncResponse<>(TestResponse::new, in), writableRegistry());
+        results = new AsyncResultsService<>(store, true, TestTask.class,
+            (task, listener, timeout) -> addCompletionListener(transportService.getThreadPool(), task, listener, timeout),
+            transportService.getTaskManager(), clusterService);
     }
 
     /**
@@ -149,14 +144,14 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
         executorService.shutdown();
     }
 
-    private AsyncTaskManagementService<TestRequest, TestResponse, TestTask> createService(
+    private AsyncTaskManagementService<TestRequest, TestResponse, TestTask> createManagementService(
         AsyncTaskManagementService.AsyncOperation<TestRequest, TestResponse, TestTask> operation) {
         return new AsyncTaskManagementService<>(index, client(), "test_origin", writableRegistry(),
             transportService.getTaskManager(), "test_action", operation, TestTask.class, clusterService, transportService.getThreadPool());
     }
 
     public void testReturnBeforeTimeout() throws Exception {
-        AsyncTaskManagementService<TestRequest, TestResponse, TestTask> service = createService(new TestOperation());
+        AsyncTaskManagementService<TestRequest, TestResponse, TestTask> service = createManagementService(new TestOperation());
         boolean success = randomBoolean();
         boolean keepOnCompletion = randomBoolean();
         CountDownLatch latch = new CountDownLatch(1);
@@ -175,62 +170,118 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
         assertThat(latch.await(10, TimeUnit.SECONDS), equalTo(true));
     }
 
-    @TestLogging(value = "org.elasticsearch.xpack.core.async:trace", reason = "remove me")
     public void testReturnAfterTimeout() throws Exception {
         CountDownLatch executionLatch = new CountDownLatch(1);
-        AsyncTaskManagementService<TestRequest, TestResponse, TestTask> service = createService(new TestOperation() {
+        AsyncTaskManagementService<TestRequest, TestResponse, TestTask> service = createManagementService(new TestOperation() {
             @Override
-            public void operation(TestRequest request, TestTask task, ActionListener<TestResponse> listener) {
+            public void execute(TestRequest request, TestTask task, ActionListener<TestResponse> listener) {
                 executorService.submit(() -> {
                     try {
                         assertThat(executionLatch.await(10, TimeUnit.SECONDS), equalTo(true));
                     } catch (InterruptedException ex) {
                         fail("Shouldn't be here");
                     }
-                    super.operation(request, task, listener);
+                    super.execute(request, task, listener);
                 });
             }
         });
         boolean success = randomBoolean();
         boolean keepOnCompletion = randomBoolean();
+        boolean timeoutOnFirstAttempt = randomBoolean();
+        boolean waitForCompletion = randomBoolean();
         CountDownLatch latch = new CountDownLatch(1);
         TestRequest request = new TestRequest(success ? randomAlphaOfLength(10) : "die");
         AtomicReference<TestResponse> responseHolder = new AtomicReference<>();
-        service.asyncExecute(request, TimeValue.timeValueMillis(0), TimeValue.timeValueMinutes(10), keepOnCompletion,
+        service.asyncExecute(request, TimeValue.timeValueMillis(1), TimeValue.timeValueMinutes(10), keepOnCompletion,
             ActionListener.wrap(r -> {
                 assertThat(r.string, nullValue());
                 assertThat(r.id, notNullValue());
                 assertThat(responseHolder.getAndSet(r), nullValue());
                 latch.countDown();
-            }, e -> {
-                fail("Shouldn't be here");
-            }));
-        assertThat(latch.await(10, TimeUnit.SECONDS), equalTo(true));
-        executionLatch.countDown();
-        assertThat(responseHolder.get(), notNullValue());
-        AsyncExecutionId id = AsyncExecutionId.decode(responseHolder.get().id);
-        assertThat(service.getTask(id), notNullValue());
+            }, e -> fail("Shouldn't be here")));
+        assertThat(latch.await(20, TimeUnit.SECONDS), equalTo(true));
 
-        CountDownLatch responseLatch = new CountDownLatch(1);
+        if (timeoutOnFirstAttempt) {
+            logger.trace("Getting an in-flight response");
+            // try getting results, but fail with timeout because it is not ready yet
+            StoredAsyncResponse<TestResponse> response = getResponse(responseHolder.get().id, TimeValue.timeValueMillis(2));
+            assertThat(response.getException(), nullValue());
+            assertThat(response.getResponse(), notNullValue());
+            assertThat(response.getResponse().id, equalTo(responseHolder.get().id));
+            assertThat(response.getResponse().string, nullValue());
+        }
 
-        // Wait until task finishes
+        if (waitForCompletion) {
+            // now we are waiting for the task to finish
+            logger.trace("Waiting for response to complete");
+            AtomicReference<StoredAsyncResponse<TestResponse>> responseRef = new AtomicReference<>();
+            CountDownLatch getResponseCountDown = getResponse(responseHolder.get().id, TimeValue.timeValueSeconds(5),
+                ActionListener.wrap(responseRef::set, e -> fail("Shouldn't be here")));
+
+            executionLatch.countDown();
+            assertThat(getResponseCountDown.await(10, TimeUnit.SECONDS), equalTo(true));
+
+            StoredAsyncResponse<TestResponse> response = responseRef.get();
+            if (success) {
+                assertThat(response.getException(), nullValue());
+                assertThat(response.getResponse(), notNullValue());
+                assertThat(response.getResponse().id, equalTo(responseHolder.get().id));
+                assertThat(response.getResponse().string, equalTo("response for [" + request.string + "]"));
+            } else {
+                assertThat(response.getException(), notNullValue());
+                assertThat(response.getResponse(), nullValue());
+                assertThat(response.getException().getMessage(), equalTo("test exception"));
+            }
+        } else {
+            executionLatch.countDown();
+        }
+
+        // finally wait until the task disappears and get the response from the index
+        logger.trace("Wait for task to disappear ");
         assertBusy(() -> {
-            TestTask t = service.getTask(id);
-            logger.info(t);
-            assertThat(t, nullValue());
+            Task task = transportService.getTaskManager().getTask(AsyncExecutionId.decode(responseHolder.get().id).getTaskId().getId());
+            assertThat(task, nullValue());
         });
 
-        ensureGreen(index);
-        logger.info("Getting the the response back");
-        service.getResponse(id, ActionListener.wrap(
+        logger.trace("Getting the the final response from the index");
+        StoredAsyncResponse<TestResponse> response = getResponse(responseHolder.get().id, TimeValue.ZERO);
+        if (success) {
+            assertThat(response.getException(), nullValue());
+            assertThat(response.getResponse(), notNullValue());
+            assertThat(response.getResponse().string, equalTo("response for [" + request.string + "]"));
+        } else {
+            assertThat(response.getException(), notNullValue());
+            assertThat(response.getResponse(), nullValue());
+            assertThat(response.getException().getMessage(), equalTo("test exception"));
+        }
+    }
+
+    private StoredAsyncResponse<TestResponse> getResponse(String id, TimeValue timeout) throws InterruptedException {
+        AtomicReference<StoredAsyncResponse<TestResponse>> response = new AtomicReference<>();
+        assertThat(
+            getResponse(id, timeout, ActionListener.wrap(response::set, e -> fail("Shouldn't be here"))).await(10, TimeUnit.SECONDS),
+            equalTo(true)
+        );
+        return response.get();
+    }
+
+    private CountDownLatch getResponse(String id,
+                                       TimeValue timeout,
+                                       ActionListener<StoredAsyncResponse<TestResponse>> listener) {
+        CountDownLatch responseLatch = new CountDownLatch(1);
+        GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(id)
+            .setWaitForCompletion(timeout);
+        results.retrieveResult(getResultsRequest, ActionListener.wrap(
             r -> {
-                assertThat(r.string, equalTo("response for [" + request.string + "]"));
+                listener.onResponse(r);
                 responseLatch.countDown();
             },
             e -> {
-                assertThat(e.getMessage(), equalTo("test exception"));
+                listener.onFailure(e);
                 responseLatch.countDown();
-            }));
-        assertThat(responseLatch.await(10, TimeUnit.SECONDS), equalTo(true));
+            }
+        ));
+        return responseLatch;
     }
+
 }

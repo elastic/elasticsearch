@@ -224,7 +224,7 @@ search API's `case_sensitive` parameter to toggle case sensitivity on or off.
 .*Example*
 [%collapsible]
 ====
-The following request searches contains a query that matches `process` events
+The following search request contains a query that matches `process` events
 with a `process.path` containing `System32`.
 
 Because the `case_sensitive` parameter is `true`, this query only matches

@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -41,43 +41,43 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
 
     private static final ParseField MAPPINGS = new ParseField("mappings");
 
-    private ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.of();
+    private ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = ImmutableOpenMap.of();
 
-    public GetMappingsResponse(ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings) {
+    public GetMappingsResponse(ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings) {
         this.mappings = mappings;
     }
 
     GetMappingsResponse(StreamInput in) throws IOException {
         super(in);
         int size = in.readVInt();
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> indexMapBuilder = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> indexMapBuilder = ImmutableOpenMap.builder();
         for (int i = 0; i < size; i++) {
             String key = in.readString();
             int valueSize = in.readVInt();
-            ImmutableOpenMap.Builder<String, MappingMetaData> typeMapBuilder = ImmutableOpenMap.builder();
+            ImmutableOpenMap.Builder<String, MappingMetadata> typeMapBuilder = ImmutableOpenMap.builder();
             for (int j = 0; j < valueSize; j++) {
-                typeMapBuilder.put(in.readString(), new MappingMetaData(in));
+                typeMapBuilder.put(in.readString(), new MappingMetadata(in));
             }
             indexMapBuilder.put(key, typeMapBuilder.build());
         }
         mappings = indexMapBuilder.build();
     }
 
-    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings() {
+    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings() {
         return mappings;
     }
 
-    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> getMappings() {
+    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> getMappings() {
         return mappings();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(mappings.size());
-        for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexEntry : mappings) {
+        for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetadata>> indexEntry : mappings) {
             out.writeString(indexEntry.key);
             out.writeVInt(indexEntry.value.size());
-            for (ObjectObjectCursor<String, MappingMetaData> typeEntry : indexEntry.value) {
+            for (ObjectObjectCursor<String, MappingMetadata> typeEntry : indexEntry.value) {
                 out.writeString(typeEntry.key);
                 typeEntry.value.writeTo(out);
             }
@@ -91,19 +91,19 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
         assert parser.currentToken() == XContentParser.Token.START_OBJECT;
         Map<String, Object> parts = parser.map();
 
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> builder = new ImmutableOpenMap.Builder<>();
+        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> builder = new ImmutableOpenMap.Builder<>();
         for (Map.Entry<String, Object> entry : parts.entrySet()) {
             final String indexName = entry.getKey();
             assert entry.getValue() instanceof Map : "expected a map as type mapping, but got: " + entry.getValue().getClass();
             final Map<String, Object> mapping = (Map<String, Object>) ((Map) entry.getValue()).get(MAPPINGS.getPreferredName());
 
-            ImmutableOpenMap.Builder<String, MappingMetaData> typeBuilder = new ImmutableOpenMap.Builder<>();
+            ImmutableOpenMap.Builder<String, MappingMetadata> typeBuilder = new ImmutableOpenMap.Builder<>();
             for (Map.Entry<String, Object> typeEntry : mapping.entrySet()) {
                 final String typeName = typeEntry.getKey();
                 assert typeEntry.getValue() instanceof Map : "expected a map as inner type mapping, but got: " +
                     typeEntry.getValue().getClass();
                 final Map<String, Object> fieldMappings = (Map<String, Object>) typeEntry.getValue();
-                MappingMetaData mmd = new MappingMetaData(typeName, fieldMappings);
+                MappingMetadata mmd = new MappingMetadata(typeName, fieldMappings);
                 typeBuilder.put(typeName, mmd);
             }
             builder.put(indexName, typeBuilder.build());
@@ -117,12 +117,12 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
         boolean includeTypeName = params.paramAsBoolean(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER,
             DEFAULT_INCLUDE_TYPE_NAME_POLICY);
 
-        for (final ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexEntry : getMappings()) {
+        for (final ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetadata>> indexEntry : getMappings()) {
             builder.startObject(indexEntry.key);
             {
                 if (includeTypeName == false) {
-                    MappingMetaData mappings = null;
-                    for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : indexEntry.value) {
+                    MappingMetadata mappings = null;
+                    for (final ObjectObjectCursor<String, MappingMetadata> typeEntry : indexEntry.value) {
                         if (typeEntry.key.equals("_default_") == false) {
                             assert mappings == null;
                             mappings = typeEntry.value;
@@ -137,7 +137,7 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
                 } else {
                     builder.startObject(MAPPINGS.getPreferredName());
                     {
-                        for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : indexEntry.value) {
+                        for (final ObjectObjectCursor<String, MappingMetadata> typeEntry : indexEntry.value) {
                             builder.field(typeEntry.key, typeEntry.value.sourceAsMap());
                         }
                     }

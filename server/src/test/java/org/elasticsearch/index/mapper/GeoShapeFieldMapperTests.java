@@ -28,12 +28,13 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
+import static org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.Names.IGNORE_Z_VALUE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -42,7 +43,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+        return pluginList(InternalSettingsPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     public void testDefaultConfiguration() throws IOException {
@@ -282,7 +283,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
             String serialized = toXContentString((GeoShapeFieldMapper) defaultMapper.mappers().getMapper("location"));
             assertTrue(serialized, serialized.contains("\"orientation\":\"" +
-                AbstractGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
+                AbstractShapeGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
         }
     }
 

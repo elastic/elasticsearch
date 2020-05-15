@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.flattened.mapper;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.Term;
@@ -31,11 +30,11 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
@@ -53,12 +52,13 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -349,6 +349,11 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             failIfNoDocValues();
             return new KeyedFlatObjectFieldData.Builder(key);
         }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.BYTES;
+        }
     }
 
     /**
@@ -534,6 +539,11 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder();
         }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.BYTES;
+        }
     }
 
     private FlatObjectFieldParser fieldParser;
@@ -591,7 +601,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
             return;
         }
@@ -602,10 +612,10 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
 
         XContentParser xContentParser = context.parser();
-        fields.addAll(fieldParser.parse(xContentParser));
+        context.doc().addAll(fieldParser.parse(xContentParser));
 
         if (!fieldType.hasDocValues()) {
-            createFieldNamesField(context, fields);
+            createFieldNamesField(context);
         }
     }
 

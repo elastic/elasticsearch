@@ -24,7 +24,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.tasks.TaskManager;
 
@@ -47,6 +51,14 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         this.taskManager = taskManager;
     }
 
+    private Releasable registerChildNode(TaskId parentTask) {
+        if (parentTask.isSet()) {
+            return taskManager.registerChildNode(parentTask.getId(), taskManager.localNode());
+        } else {
+            return () -> {};
+        }
+    }
+
     /**
      * Use this method when the transport action call should result in creation of a new task associated with the call.
      *
@@ -60,12 +72,19 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
          * task. That just seems like too many objects. Thus the two versions of
          * this method.
          */
-        Task task = taskManager.register("transport", actionName, request);
+        final Releasable unregisterChildNode = registerChildNode(request.getParentTask());
+        final Task task;
+        try {
+            task = taskManager.register("transport", actionName, request);
+        } catch (TaskCancelledException e) {
+            unregisterChildNode.close();
+            throw e;
+        }
         execute(task, request, new ActionListener<Response>() {
             @Override
             public void onResponse(Response response) {
                 try {
-                    taskManager.unregister(task);
+                    Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
                 } finally {
                     listener.onResponse(response);
                 }
@@ -74,7 +93,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
             @Override
             public void onFailure(Exception e) {
                 try {
-                    taskManager.unregister(task);
+                    Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
                 } finally {
                     listener.onFailure(e);
                 }
@@ -88,12 +107,19 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
      * {@link TaskListener} which listens for the completion of the action.
      */
     public final Task execute(Request request, TaskListener<Response> listener) {
-        Task task = taskManager.register("transport", actionName, request);
+        final Releasable unregisterChildNode = registerChildNode(request.getParentTask());
+        final Task task;
+        try {
+            task = taskManager.register("transport", actionName, request);
+        } catch (TaskCancelledException e) {
+            unregisterChildNode.close();
+            throw e;
+        }
         execute(task, request, new ActionListener<Response>() {
             @Override
             public void onResponse(Response response) {
                 try {
-                    taskManager.unregister(task);
+                    Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
                 } finally {
                     listener.onResponse(task, response);
                 }
@@ -102,7 +128,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
             @Override
             public void onFailure(Exception e) {
                 try {
-                    taskManager.unregister(task);
+                    Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
                 } finally {
                     listener.onFailure(task, e);
                 }

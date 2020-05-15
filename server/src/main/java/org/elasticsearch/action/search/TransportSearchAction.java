@@ -207,7 +207,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
             final ClusterState clusterState = clusterService.state();
             final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(searchRequest.indicesOptions(),
-                searchRequest.indices(), idx -> indexNameExpressionResolver.hasIndexOrAlias(idx, clusterState));
+                searchRequest.indices(), idx -> indexNameExpressionResolver.hasIndexAbstraction(idx, clusterState));
             OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             if (remoteClusterIndices.isEmpty()) {
                 executeLocalSearch(task, timeProvider, searchRequest, localIndices, clusterState, listener);
@@ -457,7 +457,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         if (localIndices == null) {
             return Index.EMPTY_ARRAY; //don't search on any local index (happens when only remote indices were specified)
         }
-        return indexNameExpressionResolver.concreteIndices(clusterState, indicesOptions,
+        return indexNameExpressionResolver.concreteIndices(clusterState, indicesOptions, true,
             timeProvider.getAbsoluteStartMillis(), localIndices.indices());
     }
 

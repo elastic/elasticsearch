@@ -19,7 +19,7 @@
 package org.elasticsearch.action.admin.indices.template.get;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -37,29 +37,29 @@ import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER
 
 public class GetIndexTemplatesResponse extends ActionResponse implements ToXContentObject {
 
-    private final List<IndexTemplateMetaData> indexTemplates;
+    private final List<IndexTemplateMetadata> indexTemplates;
 
     public GetIndexTemplatesResponse(StreamInput in) throws IOException {
         super(in);
         int size = in.readVInt();
         indexTemplates = new ArrayList<>();
         for (int i = 0 ; i < size ; i++) {
-            indexTemplates.add(0, IndexTemplateMetaData.readFrom(in));
+            indexTemplates.add(0, IndexTemplateMetadata.readFrom(in));
         }
     }
 
-    public GetIndexTemplatesResponse(List<IndexTemplateMetaData> indexTemplates) {
+    public GetIndexTemplatesResponse(List<IndexTemplateMetadata> indexTemplates) {
         this.indexTemplates = indexTemplates;
     }
 
-    public List<IndexTemplateMetaData> getIndexTemplates() {
+    public List<IndexTemplateMetadata> getIndexTemplates() {
         return indexTemplates;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(indexTemplates.size());
-        for (IndexTemplateMetaData indexTemplate : indexTemplates) {
+        for (IndexTemplateMetadata indexTemplate : indexTemplates) {
             indexTemplate.writeTo(out);
         }
     }
@@ -72,11 +72,11 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
             DEFAULT_INCLUDE_TYPE_NAME_POLICY);
 
         builder.startObject();
-        for (IndexTemplateMetaData indexTemplateMetaData : getIndexTemplates()) {
+        for (IndexTemplateMetadata indexTemplateMetadata : getIndexTemplates()) {
             if (includeTypeName) {
-                IndexTemplateMetaData.Builder.toXContentWithTypes(indexTemplateMetaData, builder, params);
+                IndexTemplateMetadata.Builder.toXContentWithTypes(indexTemplateMetadata, builder, params);
             } else {
-                IndexTemplateMetaData.Builder.toXContent(indexTemplateMetaData, builder, params);
+                IndexTemplateMetadata.Builder.toXContent(indexTemplateMetadata, builder, params);
             }
         }
         builder.endObject();
@@ -84,11 +84,11 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
     }
 
     public static GetIndexTemplatesResponse fromXContent(XContentParser parser) throws IOException {
-        final List<IndexTemplateMetaData> templates = new ArrayList<>();
+        final List<IndexTemplateMetadata> templates = new ArrayList<>();
         for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
             if (token == XContentParser.Token.FIELD_NAME) {
-                final IndexTemplateMetaData templateMetaData = IndexTemplateMetaData.Builder.fromXContent(parser, parser.currentName());
-                templates.add(templateMetaData);
+                final IndexTemplateMetadata templateMetadata = IndexTemplateMetadata.Builder.fromXContent(parser, parser.currentName());
+                templates.add(templateMetadata);
             }
         }
         return new GetIndexTemplatesResponse(templates);

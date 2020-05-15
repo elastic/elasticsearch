@@ -68,7 +68,8 @@ public class RestPluginsAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) throws Exception {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.clear().plugins(true);
+                nodesInfoRequest.clear()
+                    .addMetric(NodesInfoRequest.Metric.PLUGINS.metricName());
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestResponseListener<NodesInfoResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(final NodesInfoResponse nodesInfoResponse) throws Exception {
@@ -101,7 +102,7 @@ public class RestPluginsAction extends AbstractCatAction {
             if (info == null) {
                 continue;
             }
-            PluginsAndModules plugins = info.getPlugins();
+            PluginsAndModules plugins = info.getInfo(PluginsAndModules.class);
             if (plugins == null) {
                 continue;
             }

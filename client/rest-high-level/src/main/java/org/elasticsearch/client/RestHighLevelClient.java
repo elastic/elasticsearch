@@ -19,7 +19,9 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
+import org.apache.http.client.entity.GzipDecompressingEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -127,10 +129,10 @@ import org.elasticsearch.search.aggregations.bucket.range.ParsedRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.ParsedSampler;
-import org.elasticsearch.search.aggregations.bucket.significant.ParsedSignificantLongTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.ParsedSignificantStringTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantLongTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantLongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantStringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantLongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
@@ -1872,11 +1874,18 @@ public class RestHighLevelClient implements Closeable {
         return elasticsearchException;
     }
 
-    protected final <Resp> Resp parseEntity(final HttpEntity entity,
+    protected final <Resp> Resp parseEntity(final HttpEntity httpEntity,
                                       final CheckedFunction<XContentParser, Resp, IOException> entityParser) throws IOException {
-        if (entity == null) {
+        if (httpEntity == null) {
             throw new IllegalStateException("Response body expected but not returned");
         }
+
+        final HttpEntity entity = Optional.ofNullable(httpEntity.getContentEncoding())
+            .map(Header::getValue)
+            .filter("gzip"::equalsIgnoreCase)
+            .map(gzipHeaderValue -> (HttpEntity) new GzipDecompressingEntity(httpEntity))
+            .orElse(httpEntity);
+
         if (entity.getContentType() == null) {
             throw new IllegalStateException("Elasticsearch didn't return the [Content-Type] header, unable to parse response body");
         }

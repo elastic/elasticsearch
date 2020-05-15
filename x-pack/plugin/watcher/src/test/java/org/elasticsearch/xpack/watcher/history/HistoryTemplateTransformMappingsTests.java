@@ -85,7 +85,7 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
                     .filter(Objects::nonNull)
                     .map(map -> map.get("result.actions.transform.payload"))
                     .filter(Objects::nonNull)
-                    .map(GetFieldMappingsResponse.FieldMappingMetaData::isNull)
+                    .map(GetFieldMappingsResponse.FieldMappingMetadata::isNull)
                     .collect(Collectors.toList());
 
             assertThat(payloadNulls, hasItem(true));

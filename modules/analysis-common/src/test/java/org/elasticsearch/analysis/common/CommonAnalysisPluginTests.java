@@ -22,7 +22,7 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -43,7 +43,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
      */
     public void testNGramDeprecationWarning() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(IndexMetaData.SETTING_VERSION_CREATED,
+            .put(IndexMetadata.SETTING_VERSION_CREATED,
                         VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0)))
             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
@@ -63,7 +63,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
      */
     public void testNGramDeprecationError() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, null))
+            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, null))
             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
             .putList("index.analysis.analyzer.custom_analyzer.filter", "nGram")
@@ -82,7 +82,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
      */
     public void testEdgeNGramDeprecationWarning() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(IndexMetaData.SETTING_VERSION_CREATED,
+            .put(IndexMetadata.SETTING_VERSION_CREATED,
                 VersionUtils.randomVersionBetween(random(), Version.V_6_4_0, VersionUtils.getPreviousVersion(Version.V_7_0_0)))
             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
@@ -101,7 +101,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
      */
     public void testEdgeNGramDeprecationError() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, null))
+            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, null))
             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
             .putList("index.analysis.analyzer.custom_analyzer.filter", "edgeNGram")
@@ -120,7 +120,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
      */
     public void testStandardHtmlStripAnalyzerDeprecationError() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(IndexMetaData.SETTING_VERSION_CREATED,
+            .put(IndexMetadata.SETTING_VERSION_CREATED,
                 VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT))
             .put("index.analysis.analyzer.custom_analyzer.type", "standard_html_strip")
             .putList("index.analysis.analyzer.custom_analyzer.stopwords", "a", "b")
@@ -139,7 +139,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
      */
     public void testStandardHtmlStripAnalyzerDeprecationWarning() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(IndexMetaData.SETTING_VERSION_CREATED,
+            .put(IndexMetadata.SETTING_VERSION_CREATED,
                 VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
                     VersionUtils.getPreviousVersion(Version.V_7_0_0)))
             .put("index.analysis.analyzer.custom_analyzer.type", "standard_html_strip")
@@ -162,7 +162,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
      */
     public void testnGramFilterInCustomAnalyzerDeprecationError() throws IOException {
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(IndexMetaData.SETTING_VERSION_CREATED,
+            .put(IndexMetadata.SETTING_VERSION_CREATED,
                 VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT))
             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
@@ -182,7 +182,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
      */
     public void testEdgeNGramFilterInCustomAnalyzerDeprecationError() throws IOException {
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(IndexMetaData.SETTING_VERSION_CREATED,
+            .put(IndexMetadata.SETTING_VERSION_CREATED,
                 VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT))
             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
@@ -221,7 +221,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
     public void doTestPrebuiltTokenizerDeprecation(String deprecatedName, String replacement, Version version, boolean expectWarning)
             throws IOException {
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
 
         try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
             Map<String, TokenizerFactory> tokenizers = createTestAnalysis(
@@ -240,7 +240,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
     public void doTestCustomTokenizerDeprecation(String deprecatedName, String replacement, Version version, boolean expectWarning)
             throws IOException {
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "my_tokenizer")
             .put("index.analysis.tokenizer.my_tokenizer.type", deprecatedName)

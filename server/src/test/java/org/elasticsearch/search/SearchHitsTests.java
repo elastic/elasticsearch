@@ -208,8 +208,8 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
 
     public void testToXContent() throws IOException {
         SearchHit[] hits = new SearchHit[] {
-            new SearchHit(1, "id1", new Text("type"), Collections.emptyMap()),
-            new SearchHit(2, "id2", new Text("type"), Collections.emptyMap()) };
+            new SearchHit(1, "id1", new Text("type"), Collections.emptyMap(), Collections.emptyMap()),
+            new SearchHit(2, "id2", new Text("type"), Collections.emptyMap(), Collections.emptyMap()) };
 
         long totalHits = 1000;
         float maxScore = 1.5f;
@@ -226,9 +226,9 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
     public void testFromXContentWithShards() throws IOException {
         for (boolean withExplanation : new boolean[] {true, false}) {
             final SearchHit[] hits = new SearchHit[]{
-                new SearchHit(1, "id1", new Text("type"), Collections.emptyMap()),
-                new SearchHit(2, "id2", new Text("type"), Collections.emptyMap()),
-                new SearchHit(10, "id10", new Text("type"), Collections.emptyMap())
+                new SearchHit(1, "id1", new Text("type"), Collections.emptyMap(), Collections.emptyMap()),
+                new SearchHit(2, "id2", new Text("type"), Collections.emptyMap(), Collections.emptyMap()),
+                new SearchHit(10, "id10", new Text("type"), Collections.emptyMap(), Collections.emptyMap())
             };
 
             for (SearchHit hit : hits) {

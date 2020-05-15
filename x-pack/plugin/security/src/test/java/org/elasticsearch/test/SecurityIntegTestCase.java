@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -22,8 +23,8 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
@@ -64,13 +66,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.PLUGINS;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.core.IsCollectionContaining.hasItem;
 
 /**
  * Base class to run tests against a cluster with X-Pack installed and security enabled.
@@ -225,12 +228,12 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     protected void doAssertXPackIsInstalled() {
-        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().setPlugins(true).get();
+        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().addMetric(PLUGINS.metricName()).get();
         for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
             // TODO: disable this assertion for now, due to random runs with mock plugins. perhaps run without mock plugins?
 //            assertThat(nodeInfo.getPlugins().getInfos(), hasSize(2));
             Collection<String> pluginNames =
-                nodeInfo.getPlugins().getPluginInfos().stream().map(p -> p.getClassname()).collect(Collectors.toList());
+                nodeInfo.getInfo(PluginsAndModules.class).getPluginInfos().stream().map(p -> p.getClassname()).collect(Collectors.toList());
             assertThat("plugin [" + LocalStateSecurity.class.getName() + "] not found in [" + pluginNames + "]", pluginNames,
                 hasItem(LocalStateSecurity.class.getName()));
         }
@@ -478,7 +481,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         assertTrue("there is at least one node", nodes.size() > 0);
         NodeInfo ni = randomFrom(nodes);
         boolean useSSL = XPackSettings.HTTP_SSL_ENABLED.get(ni.getSettings());
-        TransportAddress publishAddress = ni.getHttp().address().publishAddress();
+        TransportAddress publishAddress = ni.getInfo(HttpInfo.class).address().publishAddress();
         InetSocketAddress address = publishAddress.address();
         return (useSSL ? "https://" : "http://") + NetworkAddress.format(address.getAddress()) + ":" + address.getPort();
     }
@@ -497,7 +500,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                                 Strings.toString(clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject()),
                     SecurityIndexManager.checkIndexMappingVersionMatches(SECURITY_MAIN_ALIAS, clusterState, logger,
                         Version.CURRENT.minimumIndexCompatibilityVersion()::onOrBefore));
-                Index securityIndex = resolveSecurityIndex(clusterState.metaData());
+                Index securityIndex = resolveSecurityIndex(clusterState.metadata());
                 if (securityIndex != null) {
                     IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);
                     if (indexRoutingTable != null) {
@@ -523,10 +526,10 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    private static Index resolveSecurityIndex(MetaData metaData) {
-        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(SECURITY_MAIN_ALIAS);
-        if (aliasOrIndex != null) {
-            return aliasOrIndex.getIndices().get(0).getIndex();
+    private static Index resolveSecurityIndex(Metadata metadata) {
+        final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(SECURITY_MAIN_ALIAS);
+        if (indexAbstraction != null) {
+            return indexAbstraction.getIndices().get(0).getIndex();
         }
         return null;
     }

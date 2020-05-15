@@ -11,7 +11,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -37,7 +37,7 @@ public abstract class AbstractCleanupTests extends ESSingleNodeTestCase {
 
     protected BlobStoreRepository repository;
 
-    protected void assertBlobsByPrefix(BlobStoreRepository repository, BlobPath path, String prefix, Map<String, BlobMetaData> blobs)
+    protected void assertBlobsByPrefix(BlobStoreRepository repository, BlobPath path, String prefix, Map<String, BlobMetadata> blobs)
             throws Exception {
         BlobStoreTestUtil.assertBlobsByPrefix(repository, path, prefix, blobs);
     }

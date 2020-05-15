@@ -227,7 +227,7 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ScoreScript.class)) {
-            ScoreScript.Factory factory = new MockScoreScript(script::apply);
+            ScoreScript.Factory factory = new MockScoreScript(script);
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ScriptedMetricAggContexts.InitScript.class)) {
             ScriptedMetricAggContexts.InitScript.Factory factory = new MockMetricAggInitScriptFactory(script);
@@ -547,9 +547,9 @@ public class MockScriptEngine implements ScriptEngine {
 
     public class MockScoreScript implements ScoreScript.Factory {
 
-        private final Function<Map<String, Object>, Object> script;
+        private final MockDeterministicScript script;
 
-        public MockScoreScript(Function<Map<String, Object>, Object> script) {
+        public MockScoreScript(MockDeterministicScript script) {
             this.script = script;
         }
 
@@ -582,6 +582,11 @@ public class MockScriptEngine implements ScriptEngine {
                     };
                 }
             };
+        }
+
+        @Override
+        public boolean isResultDeterministic() {
+            return script.isResultDeterministic();
         }
     }
 

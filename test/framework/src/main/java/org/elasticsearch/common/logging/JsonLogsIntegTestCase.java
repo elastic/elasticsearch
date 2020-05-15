@@ -29,8 +29,9 @@ import java.nio.file.Paths;
 import java.util.Iterator;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.isEmptyOrNullString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -72,11 +73,11 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(getLogFile()))) {
             stream.limit(LINES_TO_CHECK)
                   .forEach(jsonLogLine -> {
-                      assertThat(jsonLogLine.type(), not(isEmptyOrNullString()));
-                      assertThat(jsonLogLine.timestamp(), not(isEmptyOrNullString()));
-                      assertThat(jsonLogLine.level(), not(isEmptyOrNullString()));
-                      assertThat(jsonLogLine.component(), not(isEmptyOrNullString()));
-                      assertThat(jsonLogLine.message(), not(isEmptyOrNullString()));
+                      assertThat(jsonLogLine.type(), is(not(emptyOrNullString())));
+                      assertThat(jsonLogLine.timestamp(), is(not(emptyOrNullString())));
+                      assertThat(jsonLogLine.level(), is(not(emptyOrNullString())));
+                      assertThat(jsonLogLine.component(), is(not(emptyOrNullString())));
+                      assertThat(jsonLogLine.message(), is(not(emptyOrNullString())));
 
                       // all lines should have the same nodeName and clusterName
                       assertThat(jsonLogLine.nodeName(), nodeNameMatcher());

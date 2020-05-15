@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.deprecation;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -32,10 +32,10 @@ import java.util.function.Function;
  */
 public class IndexDeprecationChecks {
 
-    private static void fieldLevelMappingIssue(IndexMetaData indexMetaData, BiConsumer<MappingMetaData, Map<String, Object>> checker) {
-        for (ObjectCursor<MappingMetaData> mappingMetaData : indexMetaData.getMappings().values()) {
-            Map<String, Object> sourceAsMap = mappingMetaData.value.sourceAsMap();
-            checker.accept(mappingMetaData.value, sourceAsMap);
+    private static void fieldLevelMappingIssue(IndexMetadata indexMetadata, BiConsumer<MappingMetadata, Map<String, Object>> checker) {
+        for (ObjectCursor<MappingMetadata> mappingMetadata : indexMetadata.getMappings().values()) {
+            Map<String, Object> sourceAsMap = mappingMetadata.value.sourceAsMap();
+            checker.accept(mappingMetadata.value, sourceAsMap);
         }
     }
 
@@ -94,8 +94,8 @@ public class IndexDeprecationChecks {
         return "type: " + type + ", field: " + entry.getKey();
     }
 
-    static DeprecationIssue oldIndicesCheck(IndexMetaData indexMetaData) {
-        Version createdWith = indexMetaData.getCreationVersion();
+    static DeprecationIssue oldIndicesCheck(IndexMetadata indexMetadata) {
+        Version createdWith = indexMetadata.getCreationVersion();
         if (createdWith.before(Version.V_7_0_0)) {
                 return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                     "Index created before 7.0",
@@ -106,12 +106,12 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue tooManyFieldsCheck(IndexMetaData indexMetaData) {
-        if (indexMetaData.getSettings().get(IndexSettings.DEFAULT_FIELD_SETTING.getKey()) == null) {
+    static DeprecationIssue tooManyFieldsCheck(IndexMetadata indexMetadata) {
+        if (indexMetadata.getSettings().get(IndexSettings.DEFAULT_FIELD_SETTING.getKey()) == null) {
             AtomicInteger fieldCount = new AtomicInteger(0);
 
-            fieldLevelMappingIssue(indexMetaData, ((mappingMetaData, sourceAsMap) -> {
-                fieldCount.addAndGet(countFieldsRecursively(mappingMetaData.type(), sourceAsMap));
+            fieldLevelMappingIssue(indexMetadata, ((mappingMetadata, sourceAsMap) -> {
+                fieldCount.addAndGet(countFieldsRecursively(mappingMetadata.type(), sourceAsMap));
             }));
 
             // We can't get to the setting `indices.query.bool.max_clause_count` from here, so just check the default of that setting.
@@ -131,13 +131,13 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue deprecatedDateTimeFormat(IndexMetaData indexMetaData) {
-        Version createdWith = indexMetaData.getCreationVersion();
+    static DeprecationIssue deprecatedDateTimeFormat(IndexMetadata indexMetadata) {
+        Version createdWith = indexMetadata.getCreationVersion();
         if (createdWith.before(Version.V_7_0_0)) {
             List<String> fields = new ArrayList<>();
 
-            fieldLevelMappingIssue(indexMetaData, ((mappingMetaData, sourceAsMap) -> fields.addAll(
-                findInPropertiesRecursively(mappingMetaData.type(), sourceAsMap,
+            fieldLevelMappingIssue(indexMetadata, ((mappingMetadata, sourceAsMap) -> fields.addAll(
+                findInPropertiesRecursively(mappingMetadata.type(), sourceAsMap,
                     IndexDeprecationChecks::isDateFieldWithDeprecatedPattern,
                     IndexDeprecationChecks::formatDateField))));
 
@@ -158,10 +158,10 @@ public class IndexDeprecationChecks {
             JodaDeprecationPatterns.isDeprecatedPattern((String) property.get("format"));
     }
 
-    static DeprecationIssue chainedMultiFieldsCheck(IndexMetaData indexMetaData) {
+    static DeprecationIssue chainedMultiFieldsCheck(IndexMetadata indexMetadata) {
         List<String> issues = new ArrayList<>();
-        fieldLevelMappingIssue(indexMetaData, ((mappingMetaData, sourceAsMap) -> issues.addAll(
-            findInPropertiesRecursively(mappingMetaData.type(), sourceAsMap,
+        fieldLevelMappingIssue(indexMetadata, ((mappingMetadata, sourceAsMap) -> issues.addAll(
+            findInPropertiesRecursively(mappingMetadata.type(), sourceAsMap,
                 IndexDeprecationChecks::containsChainedMultiFields, IndexDeprecationChecks::formatField))));
         if (issues.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
@@ -189,8 +189,8 @@ public class IndexDeprecationChecks {
     /**
      * warn about existing explicit "_field_names" settings in existing mappings
      */
-    static DeprecationIssue fieldNamesDisabledCheck(IndexMetaData indexMetaData) {
-        MappingMetaData mapping = indexMetaData.mapping();
+    static DeprecationIssue fieldNamesDisabledCheck(IndexMetadata indexMetadata) {
+        MappingMetadata mapping = indexMetadata.mapping();
         if ((mapping != null) && ClusterDeprecationChecks.mapContainsFieldNamesDisabled(mapping.getSourceAsMap())) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                     "Index mapping contains explicit `_field_names` enabling settings.",
@@ -248,11 +248,11 @@ public class IndexDeprecationChecks {
         return fields;
     }
 
-    static DeprecationIssue translogRetentionSettingCheck(IndexMetaData indexMetaData) {
-        final boolean softDeletesEnabled = IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexMetaData.getSettings());
+    static DeprecationIssue translogRetentionSettingCheck(IndexMetadata indexMetadata) {
+        final boolean softDeletesEnabled = IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexMetadata.getSettings());
         if (softDeletesEnabled) {
-            if (IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexMetaData.getSettings())
-                || IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexMetaData.getSettings())) {
+            if (IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexMetadata.getSettings())
+                || IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexMetadata.getSettings())) {
                 return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                     "translog retention settings are ignored",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-translog.html",

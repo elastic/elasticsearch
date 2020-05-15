@@ -35,7 +35,7 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -340,8 +340,8 @@ public class ShardStateAction {
             List<StaleShard> staleShardsToBeApplied = new ArrayList<>();
 
             for (FailedShardEntry task : tasks) {
-                IndexMetaData indexMetaData = currentState.metaData().index(task.shardId.getIndex());
-                if (indexMetaData == null) {
+                IndexMetadata indexMetadata = currentState.metadata().index(task.shardId.getIndex());
+                if (indexMetadata == null) {
                     // tasks that correspond to non-existent indices are marked as successful
                     logger.debug("{} ignoring shard failed task [{}] (unknown index {})",
                         task.shardId, task, task.shardId.getIndex());
@@ -356,12 +356,12 @@ public class ShardStateAction {
                     // This prevents situations where a new primary has already been selected and replication failures from an old stale
                     // primary unnecessarily fail currently active shards.
                     if (task.primaryTerm > 0) {
-                        long currentPrimaryTerm = indexMetaData.primaryTerm(task.shardId.id());
+                        long currentPrimaryTerm = indexMetadata.primaryTerm(task.shardId.id());
                         if (currentPrimaryTerm != task.primaryTerm) {
                             assert currentPrimaryTerm > task.primaryTerm : "received a primary term with a higher term than in the " +
                                 "current cluster state (received [" + task.primaryTerm + "] but current is [" + currentPrimaryTerm + "])";
                             logger.debug("{} failing shard failed task [{}] (primary term {} does not match current term {})", task.shardId,
-                                task, task.primaryTerm, indexMetaData.primaryTerm(task.shardId.id()));
+                                task, task.primaryTerm, indexMetadata.primaryTerm(task.shardId.id()));
                             batchResultBuilder.failure(task, new NoLongerPrimaryShardException(
                                 task.shardId,
                                 "primary term [" + task.primaryTerm + "] did not match current primary term [" + currentPrimaryTerm + "]"));
@@ -371,7 +371,7 @@ public class ShardStateAction {
 
                     ShardRouting matched = currentState.getRoutingTable().getByAllocationId(task.shardId, task.allocationId);
                     if (matched == null) {
-                        Set<String> inSyncAllocationIds = indexMetaData.inSyncAllocationIds(task.shardId.id());
+                        Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(task.shardId.id());
                         // mark shard copies without routing entries that are in in-sync allocations set only as stale if the reason why
                         // they were failed is because a write made it into the primary but not to this copy (which corresponds to
                         // the check "primaryTerm > 0").
@@ -386,7 +386,7 @@ public class ShardStateAction {
                             batchResultBuilder.success(task);
                         }
                     } else {
-                        // failing a shard also possibly marks it as stale (see IndexMetaDataUpdater)
+                        // failing a shard also possibly marks it as stale (see IndexMetadataUpdater)
                         logger.debug("{} failing shard {} (shard failed task: [{}])", task.shardId, matched, task);
                         tasksToBeApplied.add(task);
                         failedShardsToBeApplied.add(new FailedShard(matched, task.message, task.failure, task.markAsStale));
@@ -588,9 +588,9 @@ public class ShardStateAction {
                     builder.success(task);
                 } else {
                     if (matched.primary() && task.primaryTerm > 0) {
-                        final IndexMetaData indexMetaData = currentState.metaData().index(task.shardId.getIndex());
-                        assert indexMetaData != null;
-                        final long currentPrimaryTerm = indexMetaData.primaryTerm(task.shardId.id());
+                        final IndexMetadata indexMetadata = currentState.metadata().index(task.shardId.getIndex());
+                        assert indexMetadata != null;
+                        final long currentPrimaryTerm = indexMetadata.primaryTerm(task.shardId.id());
                         if (currentPrimaryTerm != task.primaryTerm) {
                             assert currentPrimaryTerm > task.primaryTerm : "received a primary term with a higher term than in the " +
                                 "current cluster state (received [" + task.primaryTerm + "] but current is [" + currentPrimaryTerm + "])";

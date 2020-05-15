@@ -22,18 +22,17 @@ package org.elasticsearch.http;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.node.ReportingService;
 
 import java.io.IOException;
 
-public class HttpInfo implements Writeable, ToXContentFragment {
+public class HttpInfo implements ReportingService.Info {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(HttpInfo.class));
 
@@ -74,7 +73,8 @@ public class HttpInfo implements Writeable, ToXContentFragment {
         String publishAddressString = publishAddress.toString();
         String hostString = publishAddress.address().getHostString();
         if (CNAME_IN_PUBLISH_HOST) {
-            deprecationLogger.deprecated(
+            deprecationLogger.deprecatedAndMaybeLog(
+                "cname_in_publish_address",
                 "es.http.cname_in_publish_address system property is deprecated and no longer affects http.publish_address " +
                     "formatting. Remove this property to get rid of this deprecation warning."
             );

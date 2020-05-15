@@ -42,7 +42,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.CoreMatchers.equalTo;
 

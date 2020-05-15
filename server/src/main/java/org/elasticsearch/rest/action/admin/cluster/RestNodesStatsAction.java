@@ -58,21 +58,12 @@ public class RestNodesStatsAction extends BaseRestHandler {
     static final Map<String, Consumer<NodesStatsRequest>> METRICS;
 
     static {
-        final Map<String, Consumer<NodesStatsRequest>> metrics = new HashMap<>();
-        metrics.put("os", r -> r.os(true));
-        metrics.put("jvm", r -> r.jvm(true));
-        metrics.put("thread_pool", r -> r.threadPool(true));
-        metrics.put("fs", r -> r.fs(true));
-        metrics.put("transport", r -> r.transport(true));
-        metrics.put("http", r -> r.http(true));
-        metrics.put("indices", r -> r.indices(true));
-        metrics.put("process", r -> r.process(true));
-        metrics.put("breaker", r -> r.breaker(true));
-        metrics.put("script", r -> r.script(true));
-        metrics.put("discovery", r -> r.discovery(true));
-        metrics.put("ingest", r -> r.ingest(true));
-        metrics.put("adaptive_selection", r -> r.adaptiveSelection(true));
-        METRICS = Collections.unmodifiableMap(metrics);
+        Map<String, Consumer<NodesStatsRequest>> map = new HashMap<>();
+        for (NodesStatsRequest.Metric metric : NodesStatsRequest.Metric.values()) {
+            map.put(metric.metricName(), request -> request.addMetric(metric.metricName()));
+        }
+        map.put("indices", request -> request.indices(true));
+        METRICS = Collections.unmodifiableMap(map);
     }
 
     static final Map<String, Consumer<CommonStatsFlags>> FLAGS;

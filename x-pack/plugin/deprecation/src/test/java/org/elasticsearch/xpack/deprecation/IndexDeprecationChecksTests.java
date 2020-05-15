@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.joda.JodaDeprecationPatterns;
@@ -36,7 +36,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
     public void testOldIndicesCheck() {
         Version createdWith = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
             VersionUtils.getPreviousVersion(Version.V_7_0_0));
-        IndexMetaData indexMetaData = IndexMetaData.builder("test")
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(settings(createdWith))
             .numberOfShards(1)
             .numberOfReplicas(0)
@@ -46,7 +46,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
                 "breaking-changes-8.0.html",
             "This index was created using version: " + createdWith);
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
         assertEquals(singletonList(expected), issues);
     }
 
@@ -65,7 +65,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "  }\n" +
             "}";
 
-        IndexMetaData simpleIndex = IndexMetaData.builder(randomAlphaOfLengthBetween(5, 10))
+        IndexMetadata simpleIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
             .settings(settings(Version.V_7_0_0))
             .numberOfShards(randomIntBetween(1, 100))
             .numberOfReplicas(randomIntBetween(1, 100))
@@ -88,7 +88,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         }
         mappingBuilder.endObject();
 
-        IndexMetaData tooManyFieldsIndex = IndexMetaData.builder(randomAlphaOfLengthBetween(5, 10))
+        IndexMetadata tooManyFieldsIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
             .settings(settings(Version.V_7_0_0))
             .numberOfShards(randomIntBetween(1, 100))
             .numberOfReplicas(randomIntBetween(1, 100))
@@ -106,7 +106,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertEquals(singletonList(expected), issues);
 
         // Check that it's okay to  have too many fields as long as `index.query.default_field` is set
-        IndexMetaData tooManyFieldsOk = IndexMetaData.builder(randomAlphaOfLengthBetween(5, 10))
+        IndexMetadata tooManyFieldsOk = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
             .settings(settings(Version.V_7_0_0)
                 .put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), randomAlphaOfLength(5)))
             .numberOfShards(randomIntBetween(1, 100))
@@ -146,7 +146,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         .endObject();
         String mapping = BytesReference.bytes(xContent).utf8ToString();
 
-        IndexMetaData simpleIndex = IndexMetaData.builder(randomAlphaOfLengthBetween(5, 10))
+        IndexMetadata simpleIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
             .settings(settings(Version.V_7_3_0))
             .numberOfShards(1)
             .numberOfReplicas(1)
@@ -172,7 +172,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "       }\n" +
             "   }" +
             "}";
-        IndexMetaData simpleIndex = createV6Index(simpleMapping);
+        IndexMetadata simpleIndex = createV6Index(simpleMapping);
 
         DeprecationIssue issue = IndexDeprecationChecks.deprecatedDateTimeFormat(simpleIndex);
         assertNull(issue);
@@ -187,7 +187,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "       }\n" +
             "   }" +
             "}";
-        IndexMetaData simpleIndex = createV6Index(simpleMapping);
+        IndexMetadata simpleIndex = createV6Index(simpleMapping);
 
         DeprecationIssue issue = IndexDeprecationChecks.deprecatedDateTimeFormat(simpleIndex);
         assertNull(issue);
@@ -202,7 +202,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "       }\n" +
             "   }" +
             "}";
-        IndexMetaData simpleIndex = createV6Index(simpleMapping);
+        IndexMetadata simpleIndex = createV6Index(simpleMapping);
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "Date field format uses patterns which has changed meaning in 7.0",
@@ -226,7 +226,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "       }\n" +
             "   }" +
             "}";
-        IndexMetaData simpleIndex = createV6Index(simpleMapping);
+        IndexMetadata simpleIndex = createV6Index(simpleMapping);
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "Date field format uses patterns which has changed meaning in 7.0",
@@ -248,7 +248,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "       }\n" +
             "   }" +
             "}";
-        IndexMetaData simpleIndex = createV6Index(simpleMapping);
+        IndexMetadata simpleIndex = createV6Index(simpleMapping);
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "Date field format uses patterns which has changed meaning in 7.0",
@@ -291,7 +291,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "   }" +
             "}";
 
-        IndexMetaData simpleIndex = createV6Index(simpleMapping);
+        IndexMetadata simpleIndex = createV6Index(simpleMapping);
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "Date field format uses patterns which has changed meaning in 7.0",
@@ -325,7 +325,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "   }" +
             "}";
 
-        IndexMetaData simpleIndex = createV6Index(simpleMapping);
+        IndexMetadata simpleIndex = createV6Index(simpleMapping);
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "Date field format uses patterns which has changed meaning in 7.0",
@@ -342,8 +342,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertThat(issues, hasItem(expected));
     }
 
-    public IndexMetaData createV6Index(String simpleMapping) throws IOException {
-        return IndexMetaData.builder(randomAlphaOfLengthBetween(5, 10))
+    public IndexMetadata createV6Index(String simpleMapping) throws IOException {
+        return IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
                             .settings(settings(
                                 VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
                                     VersionUtils.getPreviousVersion(Version.V_7_0_0))))
@@ -392,8 +392,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         Settings.Builder settings = settings(Version.CURRENT);
         settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomPositiveTimeValue());
         settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 1024) + "b");
-        IndexMetaData indexMetaData = IndexMetaData.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
         assertThat(issues, contains(
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "translog retention settings are ignored",
@@ -410,8 +410,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 1024) + "b");
             settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
         }
-        IndexMetaData indexMetaData = IndexMetaData.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
         assertThat(issues, empty());
     }
 
@@ -423,7 +423,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         .endObject();
         String mapping = BytesReference.bytes(xContent).utf8ToString();
 
-        IndexMetaData simpleIndex = IndexMetaData.builder(randomAlphaOfLengthBetween(5, 10))
+        IndexMetadata simpleIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
                 .settings(settings(
                         VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT)))
                 .numberOfShards(1)

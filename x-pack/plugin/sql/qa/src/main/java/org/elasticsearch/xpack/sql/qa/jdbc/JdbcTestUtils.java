@@ -31,8 +31,10 @@ import java.sql.Time;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.jar.JarInputStream;
@@ -46,25 +48,26 @@ final class JdbcTestUtils {
 
     private static final int MAX_WIDTH = 20;
 
+    static final ZoneId UTC = ZoneId.of("Z");
     static final String SQL_TRACE = "org.elasticsearch.xpack.sql:TRACE";
     static final String JDBC_TIMEZONE = "timezone";
     static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
 
     static void logResultSetMetadata(ResultSet rs, Logger logger) throws SQLException {
-        ResultSetMetaData metaData = rs.getMetaData();
+        ResultSetMetaData metadata = rs.getMetaData();
         // header
         StringBuilder sb = new StringBuilder();
         StringBuilder column = new StringBuilder();
 
-        int columns = metaData.getColumnCount();
+        int columns = metadata.getColumnCount();
         for (int i = 1; i <= columns; i++) {
             if (i > 1) {
                 sb.append(" | ");
             }
             column.setLength(0);
-            column.append(metaData.getColumnName(i));
+            column.append(metadata.getColumnName(i));
             column.append("(");
-            column.append(metaData.getColumnTypeName(i));
+            column.append(metadata.getColumnTypeName(i));
             column.append(")");
 
             sb.append(trimOrPad(column));
@@ -81,9 +84,9 @@ final class JdbcTestUtils {
     }
 
     static void logResultSetData(ResultSet rs, Logger log) throws SQLException {
-        ResultSetMetaData metaData = rs.getMetaData();
+        ResultSetMetaData metadata = rs.getMetaData();
 
-        int columns = metaData.getColumnCount();
+        int columns = metadata.getColumnCount();
 
         while (rs.next()) {
             log.info(rowAsString(rs, columns));
@@ -91,8 +94,8 @@ final class JdbcTestUtils {
     }
 
     static String resultSetCurrentData(ResultSet rs) throws SQLException {
-        ResultSetMetaData metaData = rs.getMetaData();
-        return rowAsString(rs, metaData.getColumnCount());
+        ResultSetMetaData metadata = rs.getMetaData();
+        return rowAsString(rs, metadata.getColumnCount());
     }
 
     private static String rowAsString(ResultSet rs, int columns) throws SQLException {
@@ -122,14 +125,14 @@ final class JdbcTestUtils {
     }
 
     public static void logLikeCLI(ResultSet rs, Logger logger) throws SQLException {
-        ResultSetMetaData metaData = rs.getMetaData();
-        int columns = metaData.getColumnCount();
+        ResultSetMetaData metadata = rs.getMetaData();
+        int columns = metadata.getColumnCount();
 
         List<ColumnInfo> cols = new ArrayList<>(columns);
 
         for (int i = 1; i <= columns; i++) {
-            cols.add(new ColumnInfo(metaData.getTableName(i), metaData.getColumnName(i), metaData.getColumnTypeName(i),
-                    metaData.getColumnDisplaySize(i)));
+            cols.add(new ColumnInfo(metadata.getTableName(i), metadata.getColumnName(i), metadata.getColumnTypeName(i),
+                    metadata.getColumnDisplaySize(i)));
         }
 
 
@@ -239,5 +242,19 @@ final class JdbcTestUtils {
     static Time asTime(long millis, ZoneId zoneId) {
         return new Time(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), zoneId)
                 .toLocalTime().atDate(JdbcTestUtils.EPOCH).atZone(zoneId).toInstant().toEpochMilli());
+    }
+
+    static long convertFromCalendarToUTC(long value, Calendar cal) {
+        if (cal == null) {
+            return value;
+        }
+        Calendar c = (Calendar) cal.clone();
+        c.setTimeInMillis(value);
+
+        ZonedDateTime convertedDateTime = ZonedDateTime
+            .ofInstant(c.toInstant(), c.getTimeZone().toZoneId())
+            .withZoneSameLocal(ZoneOffset.UTC);
+
+        return convertedDateTime.toInstant().toEpochMilli();
     }
 }

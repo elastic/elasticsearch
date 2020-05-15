@@ -24,7 +24,7 @@ public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearc
         if (randomBoolean()) {
             hits = new ArrayList<>();
             for (int i = 0; i < size; i++) {
-                hits.add(new SearchHit(i, randomAlphaOfLength(10), null, new HashMap<>()));
+                hits.add(new SearchHit(i, randomAlphaOfLength(10), null, new HashMap<>(), new HashMap<>()));
             }
         }
         if (randomBoolean()) {

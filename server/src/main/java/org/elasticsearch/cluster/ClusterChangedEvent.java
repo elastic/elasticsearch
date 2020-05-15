@@ -21,9 +21,9 @@ package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.gateway.GatewayService;
@@ -109,13 +109,13 @@ public class ClusterChangedEvent {
      * Returns the indices created in this event
      */
     public List<String> indicesCreated() {
-        if (!metaDataChanged()) {
+        if (!metadataChanged()) {
             return Collections.emptyList();
         }
         List<String> created = null;
-        for (ObjectCursor<String> cursor : state.metaData().indices().keys()) {
+        for (ObjectCursor<String> cursor : state.metadata().indices().keys()) {
             String index = cursor.value;
-            if (!previousState.metaData().hasIndex(index)) {
+            if (!previousState.metadata().hasIndex(index)) {
                 if (created == null) {
                     created = new ArrayList<>();
                 }
@@ -143,8 +143,8 @@ public class ClusterChangedEvent {
      * the previous cluster state and the new cluster state. Note that this is an object
      * reference equality test, not an equals test.
      */
-    public boolean metaDataChanged() {
-        return state.metaData() != previousState.metaData();
+    public boolean metadataChanged() {
+        return state.metadata() != previousState.metadata();
     }
 
     /**
@@ -152,22 +152,22 @@ public class ClusterChangedEvent {
      * between the previous cluster state and the new cluster state. custom meta data types are
      * returned iff they have been added, updated or removed between the previous and the current state
      */
-    public Set<String> changedCustomMetaDataSet() {
+    public Set<String> changedCustomMetadataSet() {
         Set<String> result = new HashSet<>();
-        ImmutableOpenMap<String, MetaData.Custom> currentCustoms = state.metaData().customs();
-        ImmutableOpenMap<String, MetaData.Custom> previousCustoms = previousState.metaData().customs();
+        ImmutableOpenMap<String, Metadata.Custom> currentCustoms = state.metadata().customs();
+        ImmutableOpenMap<String, Metadata.Custom> previousCustoms = previousState.metadata().customs();
         if (currentCustoms.equals(previousCustoms) == false) {
-            for (ObjectObjectCursor<String, MetaData.Custom> currentCustomMetaData : currentCustoms) {
+            for (ObjectObjectCursor<String, Metadata.Custom> currentCustomMetadata : currentCustoms) {
                 // new custom md added or existing custom md changed
-                if (previousCustoms.containsKey(currentCustomMetaData.key) == false
-                        || currentCustomMetaData.value.equals(previousCustoms.get(currentCustomMetaData.key)) == false) {
-                    result.add(currentCustomMetaData.key);
+                if (previousCustoms.containsKey(currentCustomMetadata.key) == false
+                        || currentCustomMetadata.value.equals(previousCustoms.get(currentCustomMetadata.key)) == false) {
+                    result.add(currentCustomMetadata.key);
                 }
             }
             // existing custom md deleted
-            for (ObjectObjectCursor<String, MetaData.Custom> previousCustomMetaData : previousCustoms) {
-                if (currentCustoms.containsKey(previousCustomMetaData.key) == false) {
-                    result.add(previousCustomMetaData.key);
+            for (ObjectObjectCursor<String, Metadata.Custom> previousCustomMetadata : previousCustoms) {
+                if (currentCustoms.containsKey(previousCustomMetadata.key) == false) {
+                    result.add(previousCustomMetadata.key);
                 }
             }
         }
@@ -175,15 +175,15 @@ public class ClusterChangedEvent {
     }
 
     /**
-     * Returns <code>true</code> iff the {@link IndexMetaData} for a given index
+     * Returns <code>true</code> iff the {@link IndexMetadata} for a given index
      * has changed between the previous cluster state and the new cluster state.
      * Note that this is an object reference equality test, not an equals test.
      */
-    public static boolean indexMetaDataChanged(IndexMetaData metaData1, IndexMetaData metaData2) {
-        assert metaData1 != null && metaData2 != null;
+    public static boolean indexMetadataChanged(IndexMetadata metadata1, IndexMetadata metadata2) {
+        assert metadata1 != null && metadata2 != null;
         // no need to check on version, since disco modules will make sure to use the
         // same instance if its a version match
-        return metaData1 != metaData2;
+        return metadata1 != metadata2;
     }
 
     /**
@@ -238,8 +238,8 @@ public class ClusterChangedEvent {
      * elected that has never been part of the cluster before.
      */
     public boolean isNewCluster() {
-        final String prevClusterUUID = previousState.metaData().clusterUUID();
-        final String currClusterUUID = state.metaData().clusterUUID();
+        final String prevClusterUUID = previousState.metadata().clusterUUID();
+        final String currClusterUUID = state.metadata().clusterUUID();
         return prevClusterUUID.equals(currClusterUUID) == false;
     }
 
@@ -253,13 +253,13 @@ public class ClusterChangedEvent {
         // See test DiscoveryWithServiceDisruptionsIT.testIndicesDeleted()
         // See discussion on https://github.com/elastic/elasticsearch/pull/9952 and
         // https://github.com/elastic/elasticsearch/issues/11665
-        if (metaDataChanged() == false || isNewCluster()) {
+        if (metadataChanged() == false || isNewCluster()) {
             return Collections.emptyList();
         }
         List<Index> deleted = null;
-        for (ObjectCursor<IndexMetaData> cursor : previousState.metaData().indices().values()) {
-            IndexMetaData index = cursor.value;
-            IndexMetaData current = state.metaData().index(index.getIndex());
+        for (ObjectCursor<IndexMetadata> cursor : previousState.metadata().indices().values()) {
+            IndexMetadata index = cursor.value;
+            IndexMetadata current = state.metadata().index(index.getIndex());
             if (current == null) {
                 if (deleted == null) {
                     deleted = new ArrayList<>();
@@ -277,7 +277,7 @@ public class ClusterChangedEvent {
         // to re-process the same deletes or process deletes about indices it never knew about.  This is not
         // an issue because there are safeguards in place in the delete store operation in case the index
         // folder doesn't exist on the file system.
-        List<IndexGraveyard.Tombstone> tombstones = state.metaData().indexGraveyard().getTombstones();
+        List<IndexGraveyard.Tombstone> tombstones = state.metadata().indexGraveyard().getTombstones();
         return tombstones.stream().map(IndexGraveyard.Tombstone::getIndex).collect(Collectors.toList());
     }
 

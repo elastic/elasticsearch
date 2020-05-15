@@ -37,6 +37,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.isSearchableSnapshotStore;
+
 public class FrozenIndices extends Plugin implements ActionPlugin, EnginePlugin {
 
     private boolean transportClientMode;
@@ -48,7 +50,8 @@ public class FrozenIndices extends Plugin implements ActionPlugin, EnginePlugin 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         if (indexSettings.getValue(FrozenEngine.INDEX_FROZEN)) {
-            return Optional.of(FrozenEngine::new);
+            final boolean requireCompleteHistory = isSearchableSnapshotStore(indexSettings.getSettings()) == false;
+            return Optional.of(config -> new FrozenEngine(config, requireCompleteHistory));
         } else {
             return Optional.empty();
         }

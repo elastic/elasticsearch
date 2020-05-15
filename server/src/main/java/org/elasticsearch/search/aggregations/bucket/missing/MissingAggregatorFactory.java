@@ -23,29 +23,34 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
-public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
+public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
 
-    public MissingAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, QueryShardContext queryShardContext,
-            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(MissingAggregationBuilder.NAME, CoreValuesSourceType.ALL_CORE,
+            (MissingAggregatorSupplier) MissingAggregator::new);
+    }
+
+    public MissingAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
+                                    AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
+                                    Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
     protected MissingAggregator createUnmapped(SearchContext searchContext,
                                                 Aggregator parent,
-                                                List<PipelineAggregator> pipelineAggregators,
-                                                Map<String, Object> metaData) throws IOException {
-        return new MissingAggregator(name, factories, null, searchContext, parent, pipelineAggregators, metaData);
+                                                Map<String, Object> metadata) throws IOException {
+        return new MissingAggregator(name, factories, null, searchContext, parent, metadata);
     }
 
     @Override
@@ -53,9 +58,8 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory<Valu
                                                     SearchContext searchContext,
                                                     Aggregator parent,
                                                     boolean collectsFromSingleBucket,
-                                                    List<PipelineAggregator> pipelineAggregators,
-                                                    Map<String, Object> metaData) throws IOException {
-        return new MissingAggregator(name, factories, valuesSource, searchContext, parent, pipelineAggregators, metaData);
+                                                    Map<String, Object> metadata) throws IOException {
+        return new MissingAggregator(name, factories, valuesSource, searchContext, parent, metadata);
     }
 
 }

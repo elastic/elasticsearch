@@ -46,8 +46,8 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
             text.append(randomAlphaOfLengthBetween(1, 10)).append(" ");
         }
 
-        String fieldName = randomFrom(STRING_FIELD_NAME,
-            STRING_ALIAS_FIELD_NAME,
+        String fieldName = randomFrom(TEXT_FIELD_NAME,
+                TEXT_ALIAS_FIELD_NAME,
             randomAlphaOfLengthBetween(1, 10));
         CommonTermsQueryBuilder query = new CommonTermsQueryBuilder(fieldName, text.toString());
 

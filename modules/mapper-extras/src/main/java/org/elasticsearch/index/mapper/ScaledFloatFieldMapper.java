@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -43,12 +43,12 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -60,6 +60,8 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -273,7 +275,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 }
                 hi = Math.round(Math.floor(dValue));
             }
-            Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues());
+            Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), context);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
@@ -293,6 +295,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     return new ScaledFloatIndexFieldData(scaledValues, scalingFactor);
                 }
             };
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.NUMERIC;
         }
 
         @Override
@@ -381,7 +388,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
 
         XContentParser parser = context.parser();
         Object value;
@@ -433,9 +440,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         boolean indexed = fieldType().indexOptions() != IndexOptions.NONE;
         boolean docValued = fieldType().hasDocValues();
         boolean stored = fieldType().stored();
-        fields.addAll(NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, docValued, stored));
+        List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, docValued, stored);
+        context.doc().addAll(fields);
+
         if (docValued == false && (indexed || stored)) {
-            createFieldNamesField(context, fields);
+            createFieldNamesField(context);
         }
     }
 

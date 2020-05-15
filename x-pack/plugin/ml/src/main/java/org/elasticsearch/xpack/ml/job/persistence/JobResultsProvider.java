@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -42,12 +43,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -143,6 +145,7 @@ public class JobResultsProvider {
     private static final int RECORDS_SIZE_PARAM = 10000;
     public static final int BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE = 20;
     private static final double ESTABLISHED_MEMORY_CV_THRESHOLD = 0.1;
+    public static final Version HIDDEN_INTRODUCED_VERSION = Version.V_7_7_0;
 
     private final Client client;
     private final Settings settings;
@@ -171,16 +174,18 @@ public class JobResultsProvider {
         SearchRequestBuilder stateDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
                 .setQuery(QueryBuilders.idsQuery().addIds(CategorizerState.documentId(job.getId(), 1),
                         CategorizerState.v54DocumentId(job.getId(), 1)))
+                .setTrackTotalHits(false)
                 .setIndicesOptions(IndicesOptions.strictExpand());
 
         SearchRequestBuilder quantilesDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
                 .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId()), Quantiles.v54DocumentId(job.getId())))
+                .setTrackTotalHits(false)
                 .setIndicesOptions(IndicesOptions.strictExpand());
 
-        String resultsIndexName = job.getInitialResultsIndexName();
-        SearchRequestBuilder resultDocSearch = client.prepareSearch(resultsIndexName)
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+        SearchRequestBuilder resultDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
+                .setIndicesOptions(IndicesOptions.lenientExpandHidden())
                 .setQuery(QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
+                .setTrackTotalHits(false)
                 .setSize(1);
 
         MultiSearchRequestBuilder msearch = client.prepareMultiSearch()
@@ -259,6 +264,8 @@ public class JobResultsProvider {
      * Create the Elasticsearch index and the mappings
      */
     public void createJobResultIndex(Job job, ClusterState state, final ActionListener<Boolean> finalListener) {
+        boolean isHiddenAttributeAvailable = state.nodes().getMinNodeVersion().onOrAfter(HIDDEN_INTRODUCED_VERSION);
+
         Collection<String> termFields = (job.getAnalysisConfig() != null) ? job.getAnalysisConfig().termFields() : Collections.emptyList();
 
         String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(job.getId());
@@ -267,7 +274,7 @@ public class JobResultsProvider {
 
         // Our read/write aliases should point to the concrete index
         // If the initial index is NOT an alias, either it is already a concrete index, or it does not exist yet
-        if (state.getMetaData().hasAlias(tempIndexName)) {
+        if (state.getMetadata().hasAlias(tempIndexName)) {
             String[] concreteIndices = resolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), tempIndexName);
 
             // SHOULD NOT be closed as in typical call flow checkForLeftOverDocuments already verified this
@@ -283,15 +290,23 @@ public class JobResultsProvider {
         final String indexName = tempIndexName;
 
         ActionListener<Boolean> indexAndMappingsListener = ActionListener.wrap(success -> {
+            IndicesAliasesRequest.AliasActions addReadAliasAction =
+                IndicesAliasesRequest.AliasActions.add()
+                    .index(indexName)
+                    .alias(readAliasName)
+                    .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()));
+            IndicesAliasesRequest.AliasActions addWriteAliasAction =
+                IndicesAliasesRequest.AliasActions.add()
+                    .index(indexName)
+                    .alias(writeAliasName);
+            if (isHiddenAttributeAvailable) {
+                addReadAliasAction.isHidden(true);
+                addWriteAliasAction.isHidden(true);
+            }
             final IndicesAliasesRequest request =
                 client.admin().indices().prepareAliases()
-                    .addAliasAction(
-                        IndicesAliasesRequest.AliasActions.add()
-                            .index(indexName)
-                            .alias(readAliasName)
-                            .isHidden(true)
-                            .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId())))
-                    .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(indexName).alias(writeAliasName).isHidden(true))
+                    .addAliasAction(addReadAliasAction)
+                    .addAliasAction(addWriteAliasAction)
                     .request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request,
                     ActionListener.<AcknowledgedResponse>wrap(r -> finalListener.onResponse(true), finalListener::onFailure),
@@ -300,7 +315,7 @@ public class JobResultsProvider {
 
         // Indices can be shared, so only create if it doesn't exist already. Saves us a roundtrip if
         // already in the CS
-        if (!state.getMetaData().hasIndex(indexName)) {
+        if (!state.getMetadata().hasIndex(indexName)) {
             LOGGER.trace("ES API CALL: create index {}", indexName);
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,
@@ -321,7 +336,7 @@ public class JobResultsProvider {
                             }
                     ), client.admin().indices()::create);
         } else {
-            MappingMetaData indexMappings = state.metaData().index(indexName).mapping();
+            MappingMetadata indexMappings = state.metadata().index(indexName).mapping();
             addTermsMapping(indexMappings, indexName, termFields, indexAndMappingsListener);
         }
     }
@@ -333,8 +348,8 @@ public class JobResultsProvider {
                 // Expect one index and one type.  If this is not the case then it means the
                 // index has been deleted almost immediately after being created, and this is
                 // so unlikely that it's reasonable to fail the whole operation.
-                ImmutableOpenMap<String, MappingMetaData> indexMappings = getMappingsResponse.getMappings().iterator().next().value;
-                MappingMetaData typeMappings = indexMappings.iterator().next().value;
+                ImmutableOpenMap<String, MappingMetadata> indexMappings = getMappingsResponse.getMappings().iterator().next().value;
+                MappingMetadata typeMappings = indexMappings.iterator().next().value;
                 addTermsMapping(typeMappings, indexName, termFields, listener);
             },
             listener::onFailure
@@ -345,7 +360,7 @@ public class JobResultsProvider {
             client.admin().indices()::getMappings);
     }
 
-    private void addTermsMapping(MappingMetaData mapping, String indexName, Collection<String> termFields,
+    private void addTermsMapping(MappingMetadata mapping, String indexName, Collection<String> termFields,
                                  ActionListener<Boolean> listener) {
         long fieldCountLimit = MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.get(settings);
 
@@ -358,7 +373,7 @@ public class JobResultsProvider {
         }
     }
 
-    public static boolean violatedFieldCountLimit(long additionalFieldCount, long fieldCountLimit, MappingMetaData mapping) {
+    public static boolean violatedFieldCountLimit(long additionalFieldCount, long fieldCountLimit, MappingMetadata mapping) {
         long numFields = countFields(mapping.sourceAsMap());
         return numFields + additionalFieldCount > fieldCountLimit;
     }
@@ -497,7 +512,7 @@ public class JobResultsProvider {
                         SearchResponse searchResponse = itemResponse.getResponse();
                         ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
                         int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
-                        if (shardFailures != null && shardFailures.length > 0) {
+                        if (CollectionUtils.isEmpty(shardFailures) == false) {
                             LOGGER.error("[{}] Search request returned shard failures: {}", jobId, Arrays.toString(shardFailures));
                             listener.onFailure(
                                 new ElasticsearchException(ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
@@ -603,7 +618,7 @@ public class JobResultsProvider {
                                 SearchResponse searchResponse = itemResponse.getResponse();
                                 ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
                                 int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
-                                if (shardFailures != null && shardFailures.length > 0) {
+                                if (CollectionUtils.isEmpty(shardFailures) == false) {
                                     LOGGER.error("[{}] Search request returned shard failures: {}", jobId,
                                         Arrays.toString(shardFailures));
                                     errorHandler.accept(new ElasticsearchException(

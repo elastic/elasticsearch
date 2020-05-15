@@ -1,0 +1,14 @@
+[[release-notes-7.8.0]]
+== {es} version 7.8.0
+
+coming[7.8.0]
+
+[[breaking-7.8.0]]
+[float]
+=== Breaking changes
+
+Search::
+* Scripts used in `value_count` will now receive a number if they are counting
+  a numeric field and a `GeoPoint` if they are counting a `geo_point` fields.
+  They used to always receive the `String` representation of those values.
+  {pull}54854[#54854]

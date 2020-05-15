@@ -3,7 +3,7 @@ import org.elasticsearch.gradle.info.BuildParams
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
-apply plugin: 'nebula.maven-scm'
+apply plugin: 'nebula.maven-base-publish'
 esplugin {
   name 'x-pack-identity-provider'
   description 'Elasticsearch Expanded Pack Plugin - Identity Provider'
@@ -48,7 +48,7 @@ dependencies {
   compile "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
   compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
   compile "org.apache.httpcomponents:httpclient-cache:${versions.httpclient}"
-  compile 'com.google.guava:guava:19.0'
+  runtimeOnly 'com.google.guava:guava:19.0'
 
   testCompile 'org.elasticsearch:securemock:1.2'
   testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
@@ -69,7 +69,7 @@ forbiddenPatterns {
   exclude '**/*.zip'
 }
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   signaturesFiles += files('forbidden/xml-signatures.txt')
 }
 

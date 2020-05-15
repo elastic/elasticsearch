@@ -64,7 +64,7 @@ public class TransportAliasesExistAction extends TransportMasterNodeReadAction<G
     @Override
     protected void masterOperation(GetAliasesRequest request, ClusterState state, ActionListener<AliasesExistResponse> listener) {
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
-        boolean result = state.metaData().hasAliases(request.aliases(), concreteIndices);
+        boolean result = state.metadata().hasAliases(request.aliases(), concreteIndices);
         listener.onResponse(new AliasesExistResponse(result));
     }
 

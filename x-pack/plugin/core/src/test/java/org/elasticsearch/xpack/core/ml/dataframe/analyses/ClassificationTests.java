@@ -17,7 +17,6 @@ import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -201,31 +200,43 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
 
         assertThat(
             new Classification("foo").getParams(fieldInfo),
-            Matchers.<Map<String, Object>>allOf(
-                hasEntry("dependent_variable", "foo"),
-                hasEntry("class_assignment_objective", Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL),
-                hasEntry("num_top_classes", 2),
-                hasEntry("prediction_field_name", "foo_prediction"),
-                hasEntry("prediction_field_type", "bool"),
-                hasEntry("num_classes", 10L)));
+            equalTo(
+                org.elasticsearch.common.collect.Map.of(
+                    "dependent_variable", "foo",
+                    "class_assignment_objective", Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL,
+                    "num_top_classes", 2,
+                    "prediction_field_name", "foo_prediction",
+                    "prediction_field_type", "bool",
+                    "num_classes", 10L,
+                    "training_percent", 100.0)));
         assertThat(
             new Classification("bar").getParams(fieldInfo),
-            Matchers.<Map<String, Object>>allOf(
-                hasEntry("dependent_variable", "bar"),
-                hasEntry("class_assignment_objective", Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL),
-                hasEntry("num_top_classes", 2),
-                hasEntry("prediction_field_name", "bar_prediction"),
-                hasEntry("prediction_field_type", "int"),
-                hasEntry("num_classes", 20L)));
+            equalTo(
+                org.elasticsearch.common.collect.Map.of(
+                    "dependent_variable", "bar",
+                    "class_assignment_objective", Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL,
+                    "num_top_classes", 2,
+                    "prediction_field_name", "bar_prediction",
+                    "prediction_field_type", "int",
+                    "num_classes", 20L,
+                    "training_percent", 100.0)));
         assertThat(
-            new Classification("baz").getParams(fieldInfo),
-            Matchers.<Map<String, Object>>allOf(
-                hasEntry("dependent_variable", "baz"),
-                hasEntry("class_assignment_objective", Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL),
-                hasEntry("num_top_classes", 2),
-                hasEntry("prediction_field_name", "baz_prediction"),
-                hasEntry("prediction_field_type", "string"),
-                hasEntry("num_classes", 30L)));
+            new Classification("baz",
+                BoostedTreeParams.builder().build() ,
+                null,
+                null,
+                null,
+                50.0,
+                null).getParams(fieldInfo),
+            equalTo(
+                org.elasticsearch.common.collect.Map.of(
+                    "dependent_variable", "baz",
+                    "class_assignment_objective", Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL,
+                    "num_top_classes", 2,
+                    "prediction_field_name", "baz_prediction",
+                    "prediction_field_type", "string",
+                    "num_classes", 30L,
+                    "training_percent", 50.0)));
     }
 
     public void testRequiredFieldsIsNonEmpty() {

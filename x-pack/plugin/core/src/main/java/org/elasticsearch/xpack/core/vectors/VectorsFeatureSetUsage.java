@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.vectors;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,6 +45,10 @@ public class VectorsFeatureSetUsage extends XPackFeatureSet.Usage {
         this.avgDenseVectorDims = avgDenseVectorDims;
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_3_0;
+    }
 
     @Override
     protected void innerXContent(XContentBuilder builder, Params params) throws IOException {

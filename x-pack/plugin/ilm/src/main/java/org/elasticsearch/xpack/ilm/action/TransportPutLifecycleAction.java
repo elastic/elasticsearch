@@ -17,9 +17,9 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -107,7 +107,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
                         ClusterState.Builder stateBuilder = ClusterState.builder(currentState);
-                        IndexLifecycleMetadata currentMetadata = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
+                        IndexLifecycleMetadata currentMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
                         if (currentMetadata == null) { // first time using index-lifecycle feature, bootstrap metadata
                             currentMetadata = IndexLifecycleMetadata.EMPTY;
                         }
@@ -124,7 +124,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                             logger.info("updating index lifecycle policy [{}]", request.getPolicy().getName());
                         }
                         IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentMetadata.getOperationMode());
-                        stateBuilder.metaData(MetaData.builder(currentState.getMetaData())
+                        stateBuilder.metadata(Metadata.builder(currentState.getMetadata())
                                 .putCustom(IndexLifecycleMetadata.TYPE, newMetadata).build());
                         ClusterState nonRefreshedState = stateBuilder.build();
                         if (oldPolicy == null) {
@@ -153,8 +153,8 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
      * - A current phase in the step key
      * - Not currently in the ERROR step
      */
-    static boolean eligibleToCheckForRefresh(final IndexMetaData metaData) {
-        LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(metaData);
+    static boolean eligibleToCheckForRefresh(final IndexMetadata metadata) {
+        LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(metadata);
         if (executionState == null || executionState.getPhaseDefinition() == null) {
             return false;
         }
@@ -199,15 +199,15 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
      * Returns 'true' if the index's cached phase JSON can be safely reread, 'false' otherwise.
      */
     static boolean isIndexPhaseDefinitionUpdatable(final NamedXContentRegistry xContentRegistry, final Client client,
-                                                   final IndexMetaData metaData, final LifecyclePolicy newPolicy) {
-        final String index = metaData.getIndex().getName();
-        if (eligibleToCheckForRefresh(metaData) == false) {
+                                                   final IndexMetadata metadata, final LifecyclePolicy newPolicy) {
+        final String index = metadata.getIndex().getName();
+        if (eligibleToCheckForRefresh(metadata) == false) {
             logger.debug("[{}] does not contain enough information to check for eligibility of refreshing phase", index);
             return false;
         }
         final String policyId = newPolicy.getName();
 
-        final LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(metaData);
+        final LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(metadata);
         final Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(executionState);
         final String currentPhase = currentStepKey.getPhase();
 
@@ -262,7 +262,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
      * Rereads the phase JSON for the given index, returning a new cluster state.
      */
     static ClusterState refreshPhaseDefinition(final ClusterState state, final String index, final LifecyclePolicyMetadata updatedPolicy) {
-        final IndexMetaData idxMeta = state.metaData().index(index);
+        final IndexMetadata idxMeta = state.metadata().index(index);
         assert eligibleToCheckForRefresh(idxMeta) : "index " + index + " is missing crucial information needed to refresh phase definition";
 
         logger.trace("[{}] updating cached phase definition for policy [{}]", index, updatedPolicy.getName());
@@ -294,7 +294,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         }
 
         final List<String> indicesThatCanBeUpdated =
-            StreamSupport.stream(Spliterators.spliteratorUnknownSize(state.metaData().indices().valuesIt(), 0), false)
+            StreamSupport.stream(Spliterators.spliteratorUnknownSize(state.metadata().indices().valuesIt(), 0), false)
                 .filter(meta -> newPolicy.getName().equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(meta.getSettings())))
                 .filter(meta -> isIndexPhaseDefinitionUpdatable(xContentRegistry, client, meta, newPolicy.getPolicy()))
                 .map(meta -> meta.getIndex().getName())

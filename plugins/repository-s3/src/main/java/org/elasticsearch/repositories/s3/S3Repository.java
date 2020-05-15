@@ -24,8 +24,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -33,12 +34,14 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -49,6 +52,7 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -196,7 +200,7 @@ class S3Repository extends BlobStoreRepository {
 
     private final String cannedACL;
 
-    private final RepositoryMetaData repositoryMetaData;
+    private final RepositoryMetadata repositoryMetadata;
 
     /**
      * Time period to delay repository operations by after finalizing or deleting a snapshot.
@@ -208,14 +212,14 @@ class S3Repository extends BlobStoreRepository {
      * Constructs an s3 backed repository
      */
     S3Repository(
-            final RepositoryMetaData metadata,
+            final RepositoryMetadata metadata,
             final NamedXContentRegistry namedXContentRegistry,
             final S3Service service,
             final ClusterService clusterService) {
         super(metadata, COMPRESS_SETTING.get(metadata.settings()), namedXContentRegistry, clusterService);
         this.service = service;
 
-        this.repositoryMetaData = metadata;
+        this.repositoryMetadata = metadata;
 
         // Parse and validate the user's S3 Storage Class setting
         this.bucket = BUCKET_SETTING.get(metadata.settings());
@@ -246,7 +250,8 @@ class S3Repository extends BlobStoreRepository {
 
         if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
             // provided repository settings
-            deprecationLogger.deprecated("Using s3 access/secret key from repository settings. Instead "
+            deprecationLogger.deprecatedAndMaybeLog("s3_repository_secret_settings",
+                    "Using s3 access/secret key from repository settings. Instead "
                     + "store these in named clients and the elasticsearch keystore for secure settings.");
         }
 
@@ -271,22 +276,23 @@ class S3Repository extends BlobStoreRepository {
     @Override
     public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure, int totalShards,
                                  List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
-                                 MetaData clusterMetaData, Map<String, Object> userMetadata, Version repositoryMetaVersion,
-                                 ActionListener<SnapshotInfo> listener) {
+                                 Metadata clusterMetadata, Map<String, Object> userMetadata, Version repositoryMetaVersion,
+                                 Function<ClusterState, ClusterState> stateTransformer,
+                                 ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
         if (SnapshotsService.useShardGenerations(repositoryMetaVersion) == false) {
             listener = delayedListener(listener);
         }
         super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
-            includeGlobalState, clusterMetaData, userMetadata, repositoryMetaVersion, listener);
+            includeGlobalState, clusterMetadata, userMetadata, repositoryMetaVersion, stateTransformer, listener);
     }
 
     @Override
-    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version repositoryMetaVersion,
-                               ActionListener<Void> listener) {
+    public void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
+                                ActionListener<Void> listener) {
         if (SnapshotsService.useShardGenerations(repositoryMetaVersion) == false) {
             listener = delayedListener(listener);
         }
-        super.deleteSnapshot(snapshotId, repositoryStateId, repositoryMetaVersion, listener);
+        super.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, listener);
     }
 
     /**
@@ -329,7 +335,7 @@ class S3Repository extends BlobStoreRepository {
 
     @Override
     protected S3BlobStore createBlobStore() {
-        return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass, repositoryMetaData);
+        return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass, repositoryMetadata);
     }
 
     // only use for testing

@@ -15,6 +15,11 @@ buildScan {
 
   tag OS.current().name()
 
+  // Tag if this build is run in FIPS mode
+  if (BuildParams.inFipsJvm) {
+    tag 'FIPS'
+  }
+
   // Automatically publish scans from Elasticsearch CI
   if (jenkinsUrl?.host?.endsWith('elastic.co')) {
     publishAlways()
@@ -35,6 +40,9 @@ buildScan {
 
   // Jenkins-specific build scan metadata
   if (jenkinsUrl) {
+    // Disable async upload in CI to ensure scan upload completes before CI agent is terminated
+    uploadInBackground = false
+
     // Parse job name in the case of matrix builds
     // Matrix job names come in the form of "base-job-name/matrix_param1=value1,matrix_param2=value2"
     def splitJobName = jobName.split('/')

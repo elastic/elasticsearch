@@ -69,14 +69,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
         final ClusterState clusterState = clusterService.state();
         final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(),
-            request.indices(), idx -> indexNameExpressionResolver.hasIndexOrAlias(idx, clusterState));
+            request.indices(), idx -> indexNameExpressionResolver.hasIndexAbstraction(idx, clusterState));
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         final String[] concreteIndices;
         if (localIndices == null) {
             // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote indices
             concreteIndices = Strings.EMPTY_ARRAY;
         } else {
-            concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, localIndices);
+            concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, localIndices, true);
         }
         final String[] allIndices = mergeIndiceNames(concreteIndices, remoteClusterIndices);
         final int totalNumRequest = concreteIndices.length + remoteClusterIndices.size();

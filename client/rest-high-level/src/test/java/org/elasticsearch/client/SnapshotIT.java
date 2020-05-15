@@ -148,7 +148,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertThat(response.result().blobs(), equalTo(0L));
     }
 
-    public void testCreateSnapshot() throws IOException {
+    public void testCreateSnapshot() throws Exception {
         String repository = "test_repository";
         assertTrue(createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
 
@@ -167,8 +167,8 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         if (waitForCompletion == false) {
             // If we don't wait for the snapshot to complete we have to cancel it to not leak the snapshot task
             AcknowledgedResponse deleteResponse = execute(
-                new DeleteSnapshotRequest(repository, snapshot),
-                highLevelClient().snapshot()::delete, highLevelClient().snapshot()::deleteAsync
+                    new DeleteSnapshotRequest(repository, snapshot),
+                    highLevelClient().snapshot()::delete, highLevelClient().snapshot()::deleteAsync
             );
             assertTrue(deleteResponse.isAcknowledged());
         }

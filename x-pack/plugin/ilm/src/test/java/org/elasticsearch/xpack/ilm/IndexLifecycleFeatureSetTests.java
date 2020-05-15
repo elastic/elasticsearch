@@ -10,8 +10,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
@@ -51,35 +51,25 @@ public class IndexLifecycleFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        IndexLifecycleFeatureSet featureSet = new IndexLifecycleFeatureSet(Settings.EMPTY, licenseState, clusterService);
+        IndexLifecycleFeatureSet featureSet = new IndexLifecycleFeatureSet(licenseState, clusterService);
 
-        when(licenseState.isIndexLifecycleAllowed()).thenReturn(false);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.ILM)).thenReturn(false);
         assertThat(featureSet.available(), equalTo(false));
 
-        when(licenseState.isIndexLifecycleAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.ILM)).thenReturn(true);
         assertThat(featureSet.available(), equalTo(true));
 
-        featureSet = new IndexLifecycleFeatureSet(Settings.EMPTY, null, clusterService);
+        featureSet = new IndexLifecycleFeatureSet(null, clusterService);
         assertThat(featureSet.available(), equalTo(false));
-    }
-
-    public void testEnabled() {
-        Settings.Builder settings = Settings.builder().put("xpack.ilm.enabled", false);
-        IndexLifecycleFeatureSet featureSet = new IndexLifecycleFeatureSet(settings.build(), licenseState, clusterService);
-        assertThat(featureSet.enabled(), equalTo(false));
-
-        settings = Settings.builder().put("xpack.ilm.enabled", true);
-        featureSet = new IndexLifecycleFeatureSet(settings.build(), licenseState, clusterService);
-        assertThat(featureSet.enabled(), equalTo(true));
     }
 
     public void testName() {
-        IndexLifecycleFeatureSet featureSet = new IndexLifecycleFeatureSet(Settings.EMPTY, licenseState, clusterService);
+        IndexLifecycleFeatureSet featureSet = new IndexLifecycleFeatureSet(licenseState, clusterService);
         assertThat(featureSet.name(), equalTo("ilm"));
     }
 
     public void testNativeCodeInfo() {
-        IndexLifecycleFeatureSet featureSet = new IndexLifecycleFeatureSet(Settings.EMPTY, licenseState, clusterService);
+        IndexLifecycleFeatureSet featureSet = new IndexLifecycleFeatureSet(licenseState, clusterService);
         assertNull(featureSet.nativeCodeInfo());
     }
 
@@ -111,7 +101,7 @@ public class IndexLifecycleFeatureSetTests extends ESTestCase {
         Mockito.when(clusterService.state()).thenReturn(clusterState);
 
         PlainActionFuture<IndexLifecycleFeatureSet.Usage> future = new PlainActionFuture<>();
-        IndexLifecycleFeatureSet ilmFeatureSet = new IndexLifecycleFeatureSet(Settings.EMPTY, licenseState, clusterService);
+        IndexLifecycleFeatureSet ilmFeatureSet = new IndexLifecycleFeatureSet(licenseState, clusterService);
         ilmFeatureSet.usage(future);
         IndexLifecycleFeatureSetUsage ilmUsage = (IndexLifecycleFeatureSetUsage) future.get();
         assertThat(ilmUsage.enabled(), equalTo(ilmFeatureSet.enabled()));
@@ -131,16 +121,16 @@ public class IndexLifecycleFeatureSetTests extends ESTestCase {
                 .collect(Collectors.toMap(LifecyclePolicyMetadata::getName, Function.identity()));
         IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(lifecyclePolicyMetadatasMap, OperationMode.RUNNING);
 
-        MetaData.Builder metadata = MetaData.builder().putCustom(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata);
+        Metadata.Builder metadata = Metadata.builder().putCustom(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata);
         indexPolicies.forEach((indexName, policyName) -> {
             Settings indexSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policyName)
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-            IndexMetaData.Builder indexMetadata = IndexMetaData.builder(indexName).settings(indexSettings);
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName).settings(indexSettings);
             metadata.put(indexMetadata);
         });
 
-        return ClusterState.builder(new ClusterName("my_cluster")).metaData(metadata).build();
+        return ClusterState.builder(new ClusterName("my_cluster")).metadata(metadata).build();
     }
 }

@@ -28,17 +28,17 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.Rounding.Prepared;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
-import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.DocValueBits;
-import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -46,12 +46,14 @@ import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.script.AggregationScript;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.WithScript.BytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptDoubleValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptLongValues;
 
 import java.io.IOException;
+import java.util.function.Function;
 import java.util.function.LongUnaryOperator;
 
 public abstract class ValuesSource {
@@ -67,6 +69,14 @@ public abstract class ValuesSource {
     public boolean needsScores() {
         return false;
     }
+
+    /**
+     * Build a function prepares rounding values to be called many times.
+     * <p>
+     * This returns a {@linkplain Function} because auto date histogram will
+     * need to call it many times over the course of running the aggregation.
+     */
+    public abstract Function<Rounding, Rounding.Prepared> roundingPreparer(IndexReader reader) throws IOException;
 
     public static class Range extends ValuesSource {
         private final RangeType rangeType;
@@ -88,6 +98,12 @@ public abstract class ValuesSource {
             return org.elasticsearch.index.fielddata.FieldData.docsWithValue(bytes);
         }
 
+        @Override
+        public Function<Rounding, Prepared> roundingPreparer(IndexReader reader) throws IOException {
+            // TODO lookup the min and max rounding when appropriate
+            return Rounding::prepareForUnknown;
+        }
+
         public RangeType rangeType() { return rangeType; }
     }
     public abstract static class Bytes extends ValuesSource {
@@ -96,6 +112,11 @@ public abstract class ValuesSource {
         public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
             final SortedBinaryDocValues bytes = bytesValues(context);
             return org.elasticsearch.index.fielddata.FieldData.docsWithValue(bytes);
+        }
+
+        @Override
+        public final Function<Rounding, Rounding.Prepared> roundingPreparer(IndexReader reader) throws IOException {
+            throw new AggregationExecutionException("can't round a [BYTES]");
         }
 
         public abstract static class WithOrdinals extends Bytes {
@@ -353,6 +374,11 @@ public abstract class ValuesSource {
             }
         }
 
+        @Override
+        public Function<Rounding, Prepared> roundingPreparer(IndexReader reader) throws IOException {
+            return Rounding::prepareForUnknown;
+        }
+
         /**
          * {@link ValuesSource} subclass for Numeric fields with a Value Script applied
          */
@@ -545,6 +571,11 @@ public abstract class ValuesSource {
             return org.elasticsearch.index.fielddata.FieldData.docsWithValue(geoPoints);
         }
 
+        @Override
+        public final Function<Rounding, Rounding.Prepared> roundingPreparer(IndexReader reader) throws IOException {
+            throw new AggregationExecutionException("can't round a [GEO_POINT]");
+        }
+
         public abstract MultiGeoPointValues geoPointValues(LeafReaderContext context);
 
         public static class Fielddata extends GeoPoint {
@@ -565,39 +596,4 @@ public abstract class ValuesSource {
             }
         }
     }
-
-    public abstract static class Histogram extends ValuesSource {
-
-        public abstract HistogramValues getHistogramValues(LeafReaderContext context) throws IOException;
-
-        public static class Fielddata extends Histogram {
-
-            protected final IndexHistogramFieldData indexFieldData;
-
-            public Fielddata(IndexHistogramFieldData indexFieldData) {
-                this.indexFieldData = indexFieldData;
-            }
-
-            @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
-                return indexFieldData.load(context).getBytesValues();
-            }
-
-            @Override
-            public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
-                HistogramValues values = getHistogramValues(context);
-                return new DocValueBits() {
-                    @Override
-                    public boolean advanceExact(int doc) throws IOException {
-                        return values.advanceExact(doc);
-                    }
-                };
-            }
-
-            public HistogramValues getHistogramValues(LeafReaderContext context) throws IOException {
-                return indexFieldData.load(context).getHistogramValues();
-            }
-        }
-    }
-
 }

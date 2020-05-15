@@ -21,15 +21,16 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
@@ -41,32 +42,33 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     public static final ObjectParser<DateRangeAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME,  DateRangeAggregationBuilder::new);
     static {
-        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, true);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, true);
         PARSER.declareBoolean(DateRangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
 
         PARSER.declareObjectArray((agg, ranges) -> {
             for (RangeAggregator.Range range : ranges) {
                 agg.addRange(range);
             }
-        }, (p, c) -> DateRangeAggregationBuilder.parseRange(p), RangeAggregator.RANGES_FIELD);
+        }, (p, c) -> RangeAggregator.Range.PARSER.parse(p, null), RangeAggregator.RANGES_FIELD);
     }
 
-
-    private static RangeAggregator.Range parseRange(XContentParser parser) throws IOException {
-        return RangeAggregator.Range.fromXContent(parser);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        AbstractRangeAggregatorFactory.registerAggregators(builder, NAME);
     }
 
     public DateRangeAggregationBuilder(String name) {
         super(name, InternalDateRange.FACTORY);
     }
 
-    protected DateRangeAggregationBuilder(DateRangeAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    protected DateRangeAggregationBuilder(DateRangeAggregationBuilder clone,
+                                          AggregatorFactories.Builder factoriesBuilder,
+                                          Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new DateRangeAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new DateRangeAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -79,6 +81,11 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.DATE;
     }
 
     /**
@@ -285,8 +292,9 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     }
 
     @Override
-    protected DateRangeAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<Numeric> config,
-                                                    AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
+    protected DateRangeAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
+                                                    AggregatorFactory parent,
+                                                    AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         // We need to call processRanges here so they are parsed and we know whether `now` has been used before we make
         // the decision of whether to cache the request
         RangeAggregator.Range[] ranges = processRanges(range -> {
@@ -314,6 +322,6 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }
         return new DateRangeAggregatorFactory(name, config, ranges, keyed, rangeFactory, queryShardContext, parent, subFactoriesBuilder,
-                metaData);
+                metadata);
     }
 }

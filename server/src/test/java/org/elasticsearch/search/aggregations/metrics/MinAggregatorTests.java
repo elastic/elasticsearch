@@ -23,6 +23,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -47,7 +48,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -55,6 +56,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -72,7 +74,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
@@ -84,10 +85,10 @@ import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.FieldContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 
@@ -263,6 +264,20 @@ public class MinAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    public void testIpField() throws IOException {
+        final String fieldName = "IP_field";
+        MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field(fieldName);
+
+        MappedFieldType fieldType = new IpFieldMapper.IpFieldType();
+        fieldType.setName(fieldName);
+
+        boolean v4 = randomBoolean();
+        expectThrows(IllegalArgumentException.class, () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new SortedSetDocValuesField(fieldName, new BytesRef(InetAddressPoint.encode(randomIp(v4))))));
+            iw.addDocument(singleton(new SortedSetDocValuesField(fieldName, new BytesRef(InetAddressPoint.encode(randomIp(v4))))));
+        }, min -> fail("expected an exception"), fieldType));
+    }
+
     public void testUnmappedWithMissingField() throws IOException {
         MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field("does_not_exist").missing(0L);
 
@@ -291,7 +306,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             }, (Consumer<InternalMin>) min -> {
                 fail("Should have thrown exception");
             }, fieldType));
-        assertEquals(e.getMessage(), "Expected numeric type on field [not_a_number], but got [keyword]");
+        assertEquals("Field [not_a_number] of type [keyword(indexed,tokenized)] is not supported for aggregation [min]", e.getMessage());
     }
 
     public void testBadMissingField() {
@@ -600,7 +615,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
     }
 
     public void testOrderByEmptyAggregation() throws IOException {
-        AggregationBuilder termsBuilder = new TermsAggregationBuilder("terms", ValueType.NUMERIC)
+        AggregationBuilder termsBuilder = new TermsAggregationBuilder("terms")
             .field("number")
             .order(BucketOrder.compound(BucketOrder.aggregation("filter>min", true)))
             .subAggregation(new FilterAggregationBuilder("filter", termQuery("number", 100))
@@ -666,11 +681,11 @@ public class MinAggregatorTests extends AggregatorTestCase {
         fieldType.setName("number");
         MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min")
             .field("number")
-            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, INVERT_SCRIPT, Collections.emptyMap()));;
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, INVERT_SCRIPT, Collections.emptyMap()));
 
         MinAggregationBuilder nonDeterministicAggregationBuilder = new MinAggregationBuilder("min")
             .field("number")
-            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, RANDOM_SCRIPT, Collections.emptyMap()));;
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, RANDOM_SCRIPT, Collections.emptyMap()));
 
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
@@ -882,10 +897,10 @@ public class MinAggregatorTests extends AggregatorTestCase {
         return mock(Aggregator.class);
     }
 
-    private ValuesSourceConfig<ValuesSource.Numeric> mockNumericValuesSourceConfig(String fieldName,
-                                                                                   NumberFieldMapper.NumberType numType,
-                                                                                   boolean indexed) {
-        ValuesSourceConfig<ValuesSource.Numeric> config = mock(ValuesSourceConfig.class);
+    private ValuesSourceConfig mockNumericValuesSourceConfig(String fieldName,
+                                                             NumberFieldMapper.NumberType numType,
+                                                             boolean indexed) {
+        ValuesSourceConfig config = mock(ValuesSourceConfig.class);
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType(numType);
         ft.setName(fieldName);
         ft.setIndexOptions(indexed ? IndexOptions.DOCS : IndexOptions.NONE);
@@ -894,11 +909,11 @@ public class MinAggregatorTests extends AggregatorTestCase {
         return config;
     }
 
-    private ValuesSourceConfig<ValuesSource.Numeric> mockDateValuesSourceConfig(String fieldName, boolean indexed,
+    private ValuesSourceConfig mockDateValuesSourceConfig(String fieldName, boolean indexed,
             DateFieldMapper.Resolution resolution) {
-        ValuesSourceConfig<ValuesSource.Numeric> config = mock(ValuesSourceConfig.class);
+        ValuesSourceConfig config = mock(ValuesSourceConfig.class);
         Mapper.BuilderContext builderContext = new Mapper.BuilderContext(
-                Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(),
+                Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build(),
                 new ContentPath());
         MappedFieldType ft = new DateFieldMapper.Builder(fieldName)
                 .index(indexed)
@@ -918,23 +933,16 @@ public class MinAggregatorTests extends AggregatorTestCase {
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
 
-    private <T extends AggregationBuilder, V extends InternalAggregation> void testCase(T aggregationBuilder, Query query,
-                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<V> verify, MappedFieldType fieldType) throws IOException {
-        try (Directory directory = newDirectory()) {
-            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-            buildIndex.accept(indexWriter);
-            indexWriter.close();
-
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-                V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
-                verify.accept(agg);
-
-            }
-        }
+    @Override
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        return Arrays.asList(
+            CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.BOOLEAN);
     }
 
-
+    @Override
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        return new MinAggregationBuilder("foo").field(fieldName);
+    }
 }

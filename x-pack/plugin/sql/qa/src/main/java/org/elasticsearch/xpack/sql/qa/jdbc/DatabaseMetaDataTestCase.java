@@ -98,11 +98,11 @@ public class DatabaseMetaDataTestCase extends JdbcIntegrationTestCase {
 
             CheckedSupplier<ResultSet, SQLException> all = () -> h2.createStatement()
                     .executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock");
-            assertResultSets(all.get(), es.getMetaData().getTables("%", "%", "%", new String[] { "BASE TABLE" }));
+            assertResultSets(all.get(), es.getMetaData().getTables("%", "%", "%", new String[] { "TABLE" }));
             assertResultSets(
                     h2.createStatement()
                             .executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock WHERE TABLE_NAME = 'test1'"),
-                    es.getMetaData().getTables("%", "%", "test1", new String[] { "BASE TABLE" }));
+                    es.getMetaData().getTables("%", "%", "test1", new String[] { "TABLE" }));
         }
     }
 

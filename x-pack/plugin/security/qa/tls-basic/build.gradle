@@ -24,7 +24,6 @@ testClusters.integTest {
   extraConfigFile 'transport.crt', file('src/test/resources/ssl/transport.crt')
   extraConfigFile 'ca.crt', file('src/test/resources/ssl/ca.crt')
 
-  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.security.http.ssl.enabled', 'true'

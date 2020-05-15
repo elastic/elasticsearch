@@ -56,7 +56,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, FreezeAction.NAME, FreezeAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, SetPriorityAction.NAME, SetPriorityAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, UnfollowAction.NAME, UnfollowAction::new)
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, UnfollowAction.NAME, UnfollowAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, SearchableSnapshotAction.NAME, SearchableSnapshotAction::new)
             ));
     }
 
@@ -76,7 +77,9 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(FreezeAction.NAME), FreezeAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse)
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SearchableSnapshotAction.NAME),
+                SearchableSnapshotAction::parse)
         ));
         return new NamedXContentRegistry(entries);
     }
@@ -129,6 +132,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                     return SetPriorityActionTests.randomInstance();
                 case UnfollowAction.NAME:
                     return new UnfollowAction();
+                case SearchableSnapshotAction.NAME:
+                    return new SearchableSnapshotAction(randomAlphaOfLengthBetween(1, 10));
                 default:
                     throw new IllegalArgumentException("invalid action [" + action + "]");
             }};
@@ -183,6 +188,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                     return SetPriorityActionTests.randomInstance();
                 case UnfollowAction.NAME:
                     return new UnfollowAction();
+                case SearchableSnapshotAction.NAME:
+                    return new SearchableSnapshotAction(randomAlphaOfLengthBetween(1, 10));
                 default:
                     throw new IllegalArgumentException("invalid action [" + action + "]");
             }};

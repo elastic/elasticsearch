@@ -815,7 +815,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Swaps the index pointed to by an alias given all provided conditions are satisfied
      */
-    ActionFuture<RolloverResponse> rolloversIndex(RolloverRequest request);
+    ActionFuture<RolloverResponse> rolloverIndex(RolloverRequest request);
 
     /**
      * Swaps the index pointed to by an alias given all provided conditions are satisfied

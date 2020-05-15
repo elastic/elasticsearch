@@ -39,8 +39,8 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ChiSquare;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregator;
@@ -48,10 +48,11 @@ import org.elasticsearch.search.aggregations.pipeline.InternalDerivative;
 import org.elasticsearch.search.aggregations.pipeline.MovAvgModel;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SimpleModel;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.ExplainPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.CustomHighlighter;
@@ -370,21 +371,26 @@ public class SearchModuleTests extends ESTestCase {
     /**
      * Dummy test {@link AggregationBuilder} used to test registering aggregation builders.
      */
-    private static class TestAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource, TestAggregationBuilder> {
+    private static class TestAggregationBuilder extends ValuesSourceAggregationBuilder<TestAggregationBuilder> {
         protected TestAggregationBuilder(TestAggregationBuilder clone,
-                                         Builder factoriesBuilder, Map<String, Object> metaData) {
-            super(clone, factoriesBuilder, metaData);
+                                         Builder factoriesBuilder, Map<String, Object> metadata) {
+            super(clone, factoriesBuilder, metadata);
         }
 
         @Override
-        protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-            return new TestAggregationBuilder(this, factoriesBuilder, metaData);
+        protected ValuesSourceType defaultValueSourceType() {
+            return CoreValuesSourceType.BYTES;
+        }
+
+        @Override
+        protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+            return new TestAggregationBuilder(this, factoriesBuilder, metadata);
         }
         /**
          * Read from a stream.
          */
         protected TestAggregationBuilder(StreamInput in) throws IOException {
-            super(in, null, null);
+            super(in);
         }
 
         @Override
@@ -397,10 +403,15 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
-                                                                            ValuesSourceConfig<ValuesSource> config,
-                                                                            AggregatorFactory parent,
-                                                                            Builder subFactoriesBuilder) throws IOException {
+        public BucketCardinality bucketCardinality() {
+            return BucketCardinality.NONE;
+        }
+
+        @Override
+        protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+                                                           ValuesSourceConfig config,
+                                                           AggregatorFactory parent,
+                                                           Builder subFactoriesBuilder) throws IOException {
             return null;
         }
 
@@ -435,7 +446,7 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        protected PipelineAggregator createInternal(Map<String, Object> metaData) {
+        protected PipelineAggregator createInternal(Map<String, Object> metadata) {
             return null;
         }
 

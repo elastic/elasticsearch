@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -74,12 +74,12 @@ public class TransportTypesExistsAction extends TransportMasterNodeReadAction<Ty
         }
 
         for (String concreteIndex : concreteIndices) {
-            if (!state.metaData().hasConcreteIndex(concreteIndex)) {
+            if (!state.metadata().hasConcreteIndex(concreteIndex)) {
                 listener.onResponse(new TypesExistsResponse(false));
                 return;
             }
 
-            MappingMetaData mapping = state.metaData().getIndices().get(concreteIndex).mapping();
+            MappingMetadata mapping = state.metadata().getIndices().get(concreteIndex).mapping();
             if (mapping == null) {
                 listener.onResponse(new TypesExistsResponse(false));
                 return;

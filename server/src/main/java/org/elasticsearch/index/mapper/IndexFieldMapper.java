@@ -20,16 +20,18 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 
@@ -107,8 +109,18 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public Query existsQuery(QueryShardContext context) {
+            return new MatchAllDocsQuery();
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             return new ConstantIndexFieldData.Builder(mapperService -> fullyQualifiedIndexName);
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.BYTES;
         }
     }
 
@@ -124,7 +136,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     public void preParse(ParseContext context) throws IOException {}
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {}
+    protected void parseCreateField(ParseContext context) throws IOException {}
 
     @Override
     protected String contentType() {

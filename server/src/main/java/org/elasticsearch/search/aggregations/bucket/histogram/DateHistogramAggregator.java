@@ -34,14 +34,11 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -55,7 +52,10 @@ class DateHistogramAggregator extends BucketsAggregator {
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat formatter;
     private final Rounding rounding;
-    private final Rounding shardRounding;
+    /**
+     * The rounding prepared for rewriting the data in the shard.
+     */
+    private final Rounding.Prepared preparedRounding;
     private final BucketOrder order;
     private final boolean keyed;
 
@@ -64,21 +64,21 @@ class DateHistogramAggregator extends BucketsAggregator {
 
     private final LongHash bucketOrds;
 
-    DateHistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, Rounding shardRounding,
+    DateHistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, Rounding.Prepared preparedRounding,
             BucketOrder order, boolean keyed,
-            long minDocCount, @Nullable ExtendedBounds extendedBounds, @Nullable ValuesSource.Numeric valuesSource,
+            long minDocCount, @Nullable ExtendedBounds extendedBounds, @Nullable ValuesSource valuesSource,
             DocValueFormat formatter, SearchContext aggregationContext,
-            Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+            Aggregator parent, Map<String, Object> metadata) throws IOException {
 
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
+        super(name, factories, aggregationContext, parent, metadata);
         this.rounding = rounding;
-        this.shardRounding = shardRounding;
+        this.preparedRounding = preparedRounding;
         this.order = order;
         order.validate(this);
         this.keyed = keyed;
         this.minDocCount = minDocCount;
         this.extendedBounds = extendedBounds;
-        this.valuesSource = valuesSource;
+        this.valuesSource = (ValuesSource.Numeric) valuesSource;
         this.formatter = formatter;
 
         bucketOrds = new LongHash(1, aggregationContext.bigArrays());
@@ -111,7 +111,7 @@ class DateHistogramAggregator extends BucketsAggregator {
                         long value = values.nextValue();
                         // We can use shardRounding here, which is sometimes more efficient
                         // if daylight saving times are involved.
-                        long rounded = shardRounding.round(value);
+                        long rounded = preparedRounding.round(value);
                         assert rounded >= previousRounded;
                         if (rounded == previousRounded) {
                             continue;
@@ -131,25 +131,22 @@ class DateHistogramAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0;
-        consumeBucketsAndMaybeBreak((int) bucketOrds.size());
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        return buildAggregationsForVariableBuckets(owningBucketOrds, bucketOrds, 
+            (bucketValue, docCount, subAggregationResults) -> {
+                return new InternalDateHistogram.Bucket(bucketValue, docCount, keyed, formatter, subAggregationResults);
+            }, buckets -> {
+                // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
+                CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
 
-        List<InternalDateHistogram.Bucket> buckets = new ArrayList<>((int) bucketOrds.size());
-        for (long i = 0; i < bucketOrds.size(); i++) {
-            buckets.add(new InternalDateHistogram.Bucket(bucketOrds.get(i), bucketDocCount(i), keyed, formatter, bucketAggregations(i)));
-        }
-
-        // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
-        CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
-
-        // value source will be null for unmapped fields
-        // Important: use `rounding` here, not `shardRounding`
-        InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
-                ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
-                : null;
-        return new InternalDateHistogram(name, buckets, order, minDocCount, rounding.offset(), emptyBucketInfo, formatter, keyed,
-                pipelineAggregators(), metaData());
+                // value source will be null for unmapped fields
+                // Important: use `rounding` here, not `shardRounding`
+                InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
+                        ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
+                        : null;
+                return new InternalDateHistogram(name, buckets, order, minDocCount, rounding.offset(), emptyBucketInfo, formatter,
+                        keyed, metadata());
+            });
     }
 
     @Override
@@ -158,7 +155,7 @@ class DateHistogramAggregator extends BucketsAggregator {
                 ? new InternalDateHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds)
                 : null;
         return new InternalDateHistogram(name, Collections.emptyList(), order, minDocCount, rounding.offset(), emptyBucketInfo, formatter,
-                keyed, pipelineAggregators(), metaData());
+                keyed, metadata());
     }
 
     @Override

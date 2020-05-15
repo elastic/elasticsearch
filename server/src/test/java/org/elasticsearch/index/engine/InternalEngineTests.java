@@ -62,11 +62,8 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.Lock;
-import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -76,7 +73,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -105,7 +102,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
@@ -131,9 +127,7 @@ import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.shard.ShardUtils;
-import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.TestTranslog;
@@ -209,7 +203,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
-import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -290,7 +284,7 @@ public class InternalEngineTests extends EngineTestCase {
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
-            IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+            IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build());
         try (Store store = createStore();
              InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))) {
             List<Segment> segments = engine.segments(false);
@@ -618,8 +612,8 @@ public class InternalEngineTests extends EngineTestCase {
         Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
-        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
-        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore();
              InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null,
@@ -1181,6 +1175,45 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(engine.getTranslog().getMinFileGeneration(), equalTo(5L));
     }
 
+    public void testSyncTranslogConcurrently() throws Exception {
+        IOUtils.close(engine, store);
+        final Path translogPath = createTempDir();
+        store = createStore();
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        engine = createEngine(config(defaultSettings, store, translogPath, newMergePolicy(), null, null, globalCheckpoint::get));
+        List<Engine.Operation> ops = generateHistoryOnReplica(between(1, 50), false, randomBoolean(), randomBoolean());
+        applyOperations(engine, ops);
+        engine.flush(true, true);
+        final CheckedRunnable<IOException> checker = () -> {
+            assertThat(engine.getTranslogStats().getUncommittedOperations(), equalTo(0));
+            assertThat(engine.getLastSyncedGlobalCheckpoint(), equalTo(globalCheckpoint.get()));
+            try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
+                SequenceNumbers.CommitInfo commitInfo =
+                    SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getIndexCommit().getUserData().entrySet());
+                assertThat(commitInfo.localCheckpoint, equalTo(engine.getProcessedLocalCheckpoint()));
+            }
+        };
+        final Thread[] threads = new Thread[randomIntBetween(2, 4)];
+        final Phaser phaser = new Phaser(threads.length);
+        globalCheckpoint.set(engine.getProcessedLocalCheckpoint());
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                phaser.arriveAndAwaitAdvance();
+                try {
+                    engine.syncTranslog();
+                    checker.run();
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            threads[i].start();
+        }
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        checker.run();
+    }
+
     public void testSyncedFlush() throws IOException {
         try (Store store = createStore();
              Engine engine = createEngine(defaultSettings, store, createTempDir(), new LogByteSizeMergePolicy(), null)) {
@@ -1462,9 +1495,9 @@ public class InternalEngineTests extends EngineTestCase {
         Settings settings = Settings.builder()
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false).build();
-        IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
         try (Store store = createStore();
-             Engine engine = createEngine(config(IndexSettingsModule.newIndexSettings(indexMetaData), store, createTempDir(),
+             Engine engine = createEngine(config(IndexSettingsModule.newIndexSettings(indexMetadata), store, createTempDir(),
                  new LogByteSizeMergePolicy(), null))) { // use log MP here we test some behavior in ESMP
             int numDocs = randomIntBetween(10, 100);
             for (int i = 0; i < numDocs; i++) {
@@ -1540,8 +1573,8 @@ public class InternalEngineTests extends EngineTestCase {
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), Integer.MAX_VALUE);
-        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
-        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final Set<String> liveDocs = new HashSet<>();
         try (Store store = createStore();
@@ -1568,8 +1601,8 @@ public class InternalEngineTests extends EngineTestCase {
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), retainedExtraOps);
-        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
-        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final MapperService mapperService = createMapperService("test");
         final Set<String> liveDocs = new HashSet<>();
@@ -1616,7 +1649,7 @@ public class InternalEngineTests extends EngineTestCase {
                     Translog.Operation op = ops.get(seqno);
                     if (op != null) {
                         assertThat(op, instanceOf(Translog.Index.class));
-                        assertThat(msg, ((Translog.Index) op).id(), isIn(liveDocs));
+                        assertThat(msg, ((Translog.Index) op).id(), is(in(liveDocs)));
                         assertEquals(msg, ((Translog.Index) op).source(), B_1);
                     }
                 } else {
@@ -1624,7 +1657,7 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }
             settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0);
-            indexSettings.updateIndexMetaData(IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+            indexSettings.updateIndexMetadata(IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build());
             engine.onSettingsChanged(indexSettings.getTranslogRetentionAge(), indexSettings.getTranslogRetentionSize(),
                 indexSettings.getSoftDeleteRetentionOperations());
             globalCheckpoint.set(localCheckpoint);
@@ -1642,8 +1675,8 @@ public class InternalEngineTests extends EngineTestCase {
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), retainedExtraOps);
-        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
-        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final MapperService mapperService = createMapperService("test");
         final boolean omitSourceAllTheTime = randomBoolean();
@@ -1705,7 +1738,7 @@ public class InternalEngineTests extends EngineTestCase {
                     Translog.Operation op = ops.get(seqno);
                     if (op != null) {
                         assertThat(op, instanceOf(Translog.Index.class));
-                        assertThat(msg, ((Translog.Index) op).id(), isIn(liveDocs));
+                        assertThat(msg, ((Translog.Index) op).id(), is(in(liveDocs)));
                     }
                 } else {
                     Translog.Operation op = ops.get(seqno);
@@ -1716,7 +1749,7 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }
             settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0);
-            indexSettings.updateIndexMetaData(IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+            indexSettings.updateIndexMetadata(IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build());
             engine.onSettingsChanged(indexSettings.getTranslogRetentionAge(), indexSettings.getTranslogRetentionSize(),
                 indexSettings.getSoftDeleteRetentionOperations());
             // If we already merged down to 1 segment, then the next force-merge will be a noop. We need to add an extra segment to make
@@ -2945,14 +2978,14 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testTranslogCleanUpPostCommitCrash() throws Exception {
-        IndexSettings indexSettings = new IndexSettings(defaultSettings.getIndexMetaData(), defaultSettings.getNodeSettings(),
+        IndexSettings indexSettings = new IndexSettings(defaultSettings.getIndexMetadata(), defaultSettings.getNodeSettings(),
             defaultSettings.getScopedSettings());
-        IndexMetaData.Builder builder = IndexMetaData.builder(indexSettings.getIndexMetaData());
+        IndexMetadata.Builder builder = IndexMetadata.builder(indexSettings.getIndexMetadata());
         builder.settings(Settings.builder().put(indexSettings.getSettings())
             .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
             .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
         );
-        indexSettings.updateIndexMetaData(builder.build());
+        indexSettings.updateIndexMetadata(builder.build());
 
         try (Store store = createStore()) {
             AtomicBoolean throwErrorOnCommit = new AtomicBoolean();
@@ -3024,7 +3057,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     private Mapping dynamicUpdate() {
         BuilderContext context = new BuilderContext(
-            Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(), new ContentPath());
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build(), new ContentPath());
         final RootObjectMapper root = new RootObjectMapper.Builder("some_type").build(context);
         return new Mapping(Version.CURRENT, root, new MetadataFieldMapper[0], emptyMap());
     }
@@ -4068,8 +4101,8 @@ public class InternalEngineTests extends EngineTestCase {
         Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
-        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
-        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
         Map<String, Engine.Operation> latestOps = new HashMap<>(); // id -> latest seq_no
         try (Store store = createStore();
              InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null))) {
@@ -4830,13 +4863,13 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testKeepTranslogAfterGlobalCheckpoint() throws Exception {
         IOUtils.close(engine, store);
-        final IndexSettings indexSettings = new IndexSettings(defaultSettings.getIndexMetaData(), defaultSettings.getNodeSettings(),
+        final IndexSettings indexSettings = new IndexSettings(defaultSettings.getIndexMetadata(), defaultSettings.getNodeSettings(),
             defaultSettings.getScopedSettings());
-        IndexMetaData.Builder builder = IndexMetaData.builder(indexSettings.getIndexMetaData())
+        IndexMetadata.Builder builder = IndexMetadata.builder(indexSettings.getIndexMetadata())
             .settings(Settings.builder().put(indexSettings.getSettings())
                 .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomFrom("-1", "100micros", "30m"))
                 .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), randomFrom("-1", "512b", "1gb")));
-        indexSettings.updateIndexMetaData(builder.build());
+        indexSettings.updateIndexMetadata(builder.build());
 
         final Path translogPath = createTempDir();
         store = createStore();
@@ -4847,9 +4880,11 @@ public class InternalEngineTests extends EngineTestCase {
 
         final EngineConfig engineConfig = config(indexSettings, store, translogPath,
             NoMergePolicy.INSTANCE, null, null, () -> globalCheckpoint.get());
+        final AtomicLong lastSyncedGlobalCheckpointBeforeCommit = new AtomicLong(Translog.readGlobalCheckpoint(translogPath, translogUUID));
         try (InternalEngine engine = new InternalEngine(engineConfig) {
                 @Override
                 protected void commitIndexWriter(IndexWriter writer, Translog translog, String syncId) throws IOException {
+                    lastSyncedGlobalCheckpointBeforeCommit.set(Translog.readGlobalCheckpoint(translogPath, translogUUID));
                     // Advance the global checkpoint during the flush to create a lag between a persisted global checkpoint in the translog
                     // (this value is visible to the deletion policy) and an in memory global checkpoint in the SequenceNumbersService.
                     if (rarely()) {
@@ -4870,21 +4905,20 @@ public class InternalEngineTests extends EngineTestCase {
                 }
                 if (frequently()) {
                     engine.flush(randomBoolean(), true);
-                    final long lastSyncedGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
                     final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
                     // Keep only one safe commit as the oldest commit.
                     final IndexCommit safeCommit = commits.get(0);
-                    if (lastSyncedGlobalCheckpoint == UNASSIGNED_SEQ_NO) {
+                    if (lastSyncedGlobalCheckpointBeforeCommit.get() == UNASSIGNED_SEQ_NO) {
                         // If the global checkpoint is still unassigned, we keep an empty(eg. initial) commit as a safe commit.
                         assertThat(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
                             equalTo(SequenceNumbers.NO_OPS_PERFORMED));
                     } else {
                         assertThat(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
-                            lessThanOrEqualTo(lastSyncedGlobalCheckpoint));
+                            lessThanOrEqualTo(lastSyncedGlobalCheckpointBeforeCommit.get()));
                     }
                     for (int i = 1; i < commits.size(); i++) {
                         assertThat(Long.parseLong(commits.get(i).getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
-                            greaterThan(lastSyncedGlobalCheckpoint));
+                            greaterThan(lastSyncedGlobalCheckpointBeforeCommit.get()));
                     }
                     // Make sure we keep all translog operations after the local checkpoint of the safe commit.
                     long localCheckpointFromSafeCommit = Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
@@ -5071,10 +5105,10 @@ public class InternalEngineTests extends EngineTestCase {
         long flushThreshold = RandomNumbers.randomLongBetween(random(), 120,
             engine.getTranslog().stats().getUncommittedSizeInBytes()- extraTranslogSizeInNewEngine);
         final IndexSettings indexSettings = engine.config().getIndexSettings();
-        final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexSettings.getIndexMetadata())
             .settings(Settings.builder().put(indexSettings.getSettings())
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), flushThreshold + "b")).build();
-        indexSettings.updateIndexMetaData(indexMetaData);
+        indexSettings.updateIndexMetadata(indexMetadata);
         engine.onSettingsChanged(indexSettings.getTranslogRetentionAge(), indexSettings.getTranslogRetentionSize(),
             indexSettings.getSoftDeleteRetentionOperations());
         assertThat(engine.getTranslog().stats().getUncommittedOperations(), equalTo(numDocs));
@@ -5123,10 +5157,10 @@ public class InternalEngineTests extends EngineTestCase {
         engine.refresh("test");
         assertThat("Not exceeded translog flush threshold yet", engine.shouldPeriodicallyFlush(), equalTo(false));
         final IndexSettings indexSettings = engine.config().getIndexSettings();
-        final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexSettings.getIndexMetadata())
             .settings(Settings.builder().put(indexSettings.getSettings())
                 .put(IndexSettings.INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING.getKey(),  "0b")).build();
-        indexSettings.updateIndexMetaData(indexMetaData);
+        indexSettings.updateIndexMetadata(indexMetadata);
         engine.onSettingsChanged(indexSettings.getTranslogRetentionAge(), indexSettings.getTranslogRetentionSize(),
             indexSettings.getSoftDeleteRetentionOperations());
         assertThat(engine.getTranslog().stats().getUncommittedOperations(), equalTo(1));
@@ -5148,11 +5182,11 @@ public class InternalEngineTests extends EngineTestCase {
         final long flushThreshold = randomLongBetween(120, 5000);
         final long generationThreshold = randomLongBetween(1000, 5000);
         final IndexSettings indexSettings = engine.config().getIndexSettings();
-        final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexSettings.getIndexMetadata())
             .settings(Settings.builder().put(indexSettings.getSettings())
                 .put(IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING.getKey(), generationThreshold + "b")
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), flushThreshold + "b")).build();
-        indexSettings.updateIndexMetaData(indexMetaData);
+        indexSettings.updateIndexMetadata(indexMetadata);
         engine.onSettingsChanged(indexSettings.getTranslogRetentionAge(), indexSettings.getTranslogRetentionSize(),
             indexSettings.getSoftDeleteRetentionOperations());
         final int numOps = scaledRandomIntBetween(100, 10_000);
@@ -5178,10 +5212,10 @@ public class InternalEngineTests extends EngineTestCase {
             // this is a reproduction of https://github.com/elastic/elasticsearch/issues/28714
             try (Store store = createStore(); InternalEngine engine = createEngine(store, createTempDir())) {
                 final IndexSettings indexSettings = engine.config().getIndexSettings();
-                final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
+                final IndexMetadata indexMetadata = IndexMetadata.builder(indexSettings.getIndexMetadata())
                     .settings(Settings.builder().put(indexSettings.getSettings())
                         .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), TimeValue.timeValueMillis(1))).build();
-                engine.engineConfig.getIndexSettings().updateIndexMetaData(indexMetaData);
+                engine.engineConfig.getIndexSettings().updateIndexMetadata(indexMetadata);
                 engine.onSettingsChanged(indexSettings.getTranslogRetentionAge(), indexSettings.getTranslogRetentionSize(),
                     indexSettings.getSoftDeleteRetentionOperations());
                 ParsedDocument document = testParsedDocument(Integer.toString(0), null, testDocumentWithTextField(), SOURCE, null);
@@ -5240,10 +5274,10 @@ public class InternalEngineTests extends EngineTestCase {
         when(threadPool.relativeTimeInMillis()).thenAnswer(invocation -> clock.get());
         final long gcInterval = randomIntBetween(0, 10);
         final IndexSettings indexSettings = engine.config().getIndexSettings();
-        final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexSettings.getIndexMetadata())
             .settings(Settings.builder().put(indexSettings.getSettings())
                 .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), TimeValue.timeValueMillis(gcInterval).getStringRep())).build();
-        indexSettings.updateIndexMetaData(indexMetaData);
+        indexSettings.updateIndexMetadata(indexMetadata);
         try (Store store = createStore();
              InternalEngine engine = createEngine(store, createTempDir())) {
             engine.config().setEnableGcDeletes(false);
@@ -5362,8 +5396,8 @@ public class InternalEngineTests extends EngineTestCase {
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), randomLongBetween(0, 10));
-        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
-        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
         Set<Long> expectedSeqNos = new HashSet<>();
         try (Store store = createStore();
              Engine engine = createEngine(config(indexSettings, store, createTempDir(), keepSoftDeleteDocsMP, null))) {
@@ -5400,8 +5434,8 @@ public class InternalEngineTests extends EngineTestCase {
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), randomLongBetween(0, 10));
-        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
-        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
         final AtomicLong retentionLeasesVersion = new AtomicLong();
@@ -5452,7 +5486,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
             if (rarely()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), randomLongBetween(0, 10));
-                indexSettings.updateIndexMetaData(IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+                indexSettings.updateIndexMetadata(IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build());
                 engine.onSettingsChanged(indexSettings.getTranslogRetentionAge(), indexSettings.getTranslogRetentionSize(),
                     indexSettings.getSoftDeleteRetentionOperations());
             }
@@ -5524,7 +5558,7 @@ public class InternalEngineTests extends EngineTestCase {
         final long maxSeqNo = randomLongBetween(10, 50);
         final AtomicLong refreshCounter = new AtomicLong();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
-            IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(Settings.builder().
+            IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(Settings.builder().
                 put(defaultSettings.getSettings()).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)).build());
         try (Store store = createStore();
              InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(),
@@ -5587,7 +5621,7 @@ public class InternalEngineTests extends EngineTestCase {
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
-            IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+            IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build());
         assertTrue(indexSettings.isSoftDeleteEnabled());
         try (Store store = createStore();
              InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))) {
@@ -5603,7 +5637,7 @@ public class InternalEngineTests extends EngineTestCase {
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
-            IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+            IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build());
         assertTrue(indexSettings.isSoftDeleteEnabled());
         try (Store store = createStore();
              InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))) {
@@ -5644,8 +5678,8 @@ public class InternalEngineTests extends EngineTestCase {
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 10000)
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
-        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
-        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         Path translogPath = createTempDir();
         List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 500), randomBoolean(), randomBoolean(), randomBoolean());
@@ -5720,7 +5754,7 @@ public class InternalEngineTests extends EngineTestCase {
             Path translogPath = createTempDir();
             final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
             final IndexSettings softDeletesEnabled = IndexSettingsModule.newIndexSettings(
-                IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(Settings.builder().
+                IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(Settings.builder().
                     put(defaultSettings.getSettings()).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)).build());
             final List<DocIdSeqNoAndSource> docs;
             try (InternalEngine engine = createEngine(
@@ -5733,7 +5767,7 @@ public class InternalEngineTests extends EngineTestCase {
                 docs = getDocIds(engine, true);
             }
             final IndexSettings softDeletesDisabled = IndexSettingsModule.newIndexSettings(
-                IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(Settings.builder()
+                IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(Settings.builder()
                     .put(defaultSettings.getSettings()).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)).build());
             EngineConfig config = config(softDeletesDisabled, store, translogPath, newMergePolicy(), null, null, globalCheckpoint::get);
             try (InternalEngine engine = createEngine(config)) {
@@ -5745,7 +5779,7 @@ public class InternalEngineTests extends EngineTestCase {
     public void testRequireSoftDeletesWhenAccessingChangesSnapshot() throws Exception {
         try (Store store = createStore()) {
             final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
-                IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(Settings.builder().
+                IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(Settings.builder().
                     put(defaultSettings.getSettings()).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)).build());
             try (InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null))) {
                 AssertionError error = expectThrows(AssertionError.class,
@@ -5770,7 +5804,7 @@ public class InternalEngineTests extends EngineTestCase {
                 Version.CURRENT, VersionUtils.getPreviousMinorVersion(), VersionUtils.getFirstVersion())) {
             Settings settings = Settings.builder()
                     .put(indexSettings())
-                    .put(IndexMetaData.SETTING_VERSION_CREATED, createdVersion).build();
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion).build();
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
             try (Store store = createStore();
                     InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))) {
@@ -5867,86 +5901,13 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(engine.config().getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
     }
 
-    public void testGetReaderAttributes() throws IOException {
-        Settings.Builder settingsBuilder = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
-        Settings settings = settingsBuilder.build();
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
-
-        try(BaseDirectoryWrapper dir = newFSDirectory(createTempDir())) {
-            Directory unwrap = FilterDirectory.unwrap(dir);
-            boolean isMMap = unwrap instanceof MMapDirectory;
-            Map<String, String> readerAttributes = InternalEngine.getReaderAttributes(dir, indexSettings);
-            assertEquals(Collections.singletonMap("blocktree.terms.fst", isMMap ? "OFF_HEAP" : "ON_HEAP"), readerAttributes);
-        }
-
-        try(MMapDirectory dir = new MMapDirectory(createTempDir())) {
-            Map<String, String> readerAttributes =
-                InternalEngine.getReaderAttributes(randomBoolean() ? dir :
-                    new MockDirectoryWrapper(random(), dir), indexSettings);
-            assertEquals(Collections.singletonMap("blocktree.terms.fst", "OFF_HEAP"), readerAttributes);
-        }
-
-        FsDirectoryFactory service = new FsDirectoryFactory();
-        Path tempDir = createTempDir().resolve(indexSettings.getUUID()).resolve("0");
-        ShardPath path = new ShardPath(false, tempDir, tempDir, new ShardId(indexSettings.getIndex(), 0));
-        try (Directory directory = service.newDirectory(indexSettings, path)) {
-
-            Map<String, String> readerAttributes =
-                InternalEngine.getReaderAttributes(randomBoolean() ? directory :
-                    new MockDirectoryWrapper(random(), directory), indexSettings);
-            assertEquals(1, readerAttributes.size());
-
-            switch (IndexModule.defaultStoreType(true)) {
-                case HYBRIDFS:
-                case MMAPFS:
-                    assertEquals("OFF_HEAP", readerAttributes.get("blocktree.terms.fst"));
-                    break;
-                case NIOFS:
-                case SIMPLEFS:
-                case FS:
-                    assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst"));
-                    break;
-                default:
-                    fail("unknownw type");
-            }
-        }
-
-        settingsBuilder.put(IndexSettings.ON_HEAP_ID_TERMS_INDEX.getKey(), true);
-        settings = settingsBuilder.build();
-        indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
-        try (Directory directory = service.newDirectory(indexSettings, path)) {
-
-            Map<String, String> readerAttributes =
-                InternalEngine.getReaderAttributes(randomBoolean() ? directory :
-                    new MockDirectoryWrapper(random(), directory), indexSettings);
-            assertEquals(2, readerAttributes.size());
-
-            switch (IndexModule.defaultStoreType(true)) {
-                case HYBRIDFS:
-                case MMAPFS:
-                    assertEquals("OFF_HEAP", readerAttributes.get("blocktree.terms.fst"));
-                    assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst._id"));
-                    break;
-                case NIOFS:
-                case SIMPLEFS:
-                case FS:
-                    assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst"));
-                    assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst._id"));
-                    break;
-                default:
-                    fail("unknownw type");
-            }
-        }
-    }
-
     public void testPruneAwayDeletedButRetainedIds() throws Exception {
         IOUtils.close(engine, store);
         Settings settings = Settings.builder()
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
-            IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+            IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build());
         store = createStore(indexSettings, newDirectory());
         LogDocMergePolicy policy = new LogDocMergePolicy();
         policy.setMinMergeDocs(10000);
@@ -6108,7 +6069,7 @@ public class InternalEngineTests extends EngineTestCase {
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
-            IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+            IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build());
         try (Store store = createStore();
              Engine engine = createEngine((dir, iwc) -> new IndexWriter(dir, iwc) {
 
@@ -6151,7 +6112,7 @@ public class InternalEngineTests extends EngineTestCase {
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), softDeletesEnabled).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
-            IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+            IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build());
         final AtomicReference<ThrowingIndexWriter> iw = new AtomicReference<>();
         try (Store store = createStore();
              InternalEngine engine = createEngine(

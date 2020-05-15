@@ -32,6 +32,7 @@ import org.elasticsearch.client.transform.StopTransformResponse;
 import org.elasticsearch.client.transform.UpdateTransformRequest;
 import org.elasticsearch.client.transform.transforms.DestConfig;
 import org.elasticsearch.client.transform.transforms.QueryConfig;
+import org.elasticsearch.client.transform.transforms.SettingsConfig;
 import org.elasticsearch.client.transform.transforms.SourceConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfigUpdate;
@@ -88,27 +89,28 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
     }
 
     private void logAudits() throws IOException {
-        RestHighLevelClient restClient = new TestRestHighLevelClient();
+        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
 
-        // using '*' to make this lenient and do not fail if the audit index does not exist
-        SearchRequest searchRequest = new SearchRequest(".transform-notifications-*");
-        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(100).sort("timestamp", SortOrder.ASC));
+            // using '*' to make this lenient and do not fail if the audit index does not exist
+            SearchRequest searchRequest = new SearchRequest(".transform-notifications-*");
+            searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(100).sort("timestamp", SortOrder.ASC));
 
-        restClient.indices().refresh(new RefreshRequest(searchRequest.indices()), RequestOptions.DEFAULT);
+            restClient.indices().refresh(new RefreshRequest(searchRequest.indices()), RequestOptions.DEFAULT);
 
-        SearchResponse searchResponse = restClient.search(searchRequest, RequestOptions.DEFAULT);
+            SearchResponse searchResponse = restClient.search(searchRequest, RequestOptions.DEFAULT);
 
-        for (SearchHit hit : searchResponse.getHits()) {
-            Map<String, Object> source = hit.getSourceAsMap();
-            String level = (String) source.getOrDefault("level", "info");
-            logger.log(
-                Level.getLevel(level.toUpperCase(Locale.ROOT)),
-                "Transform audit: [{}] [{}] [{}] [{}]",
-                Instant.ofEpochMilli((long) source.getOrDefault("timestamp", 0)),
-                source.getOrDefault("transform_id", "n/a"),
-                source.getOrDefault("message", "n/a"),
-                source.getOrDefault("node_name", "n/a")
-            );
+            for (SearchHit hit : searchResponse.getHits()) {
+                Map<String, Object> source = hit.getSourceAsMap();
+                String level = (String) source.getOrDefault("level", "info");
+                logger.log(
+                    Level.getLevel(level.toUpperCase(Locale.ROOT)),
+                    "Transform audit: [{}] [{}] [{}] [{}]",
+                    Instant.ofEpochMilli((long) source.getOrDefault("timestamp", 0)),
+                    source.getOrDefault("transform_id", "n/a"),
+                    source.getOrDefault("message", "n/a"),
+                    source.getOrDefault("node_name", "n/a")
+                );
+            }
         }
     }
 
@@ -126,45 +128,52 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
 
     protected StopTransformResponse stopTransform(String id, boolean waitForCompletion, TimeValue timeout, boolean waitForCheckpoint)
         throws IOException {
-        RestHighLevelClient restClient = new TestRestHighLevelClient();
-        return restClient.transform()
-            .stopTransform(new StopTransformRequest(id, waitForCompletion, timeout, waitForCheckpoint), RequestOptions.DEFAULT);
+        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
+            return restClient.transform()
+                .stopTransform(new StopTransformRequest(id, waitForCompletion, timeout, waitForCheckpoint), RequestOptions.DEFAULT);
+        }
     }
 
     protected StartTransformResponse startTransform(String id, RequestOptions options) throws IOException {
-        RestHighLevelClient restClient = new TestRestHighLevelClient();
-        return restClient.transform().startTransform(new StartTransformRequest(id), options);
+        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
+            return restClient.transform().startTransform(new StartTransformRequest(id), options);
+        }
     }
 
     protected AcknowledgedResponse deleteTransform(String id) throws IOException {
-        RestHighLevelClient restClient = new TestRestHighLevelClient();
-        AcknowledgedResponse response = restClient.transform().deleteTransform(new DeleteTransformRequest(id), RequestOptions.DEFAULT);
-        if (response.isAcknowledged()) {
-            transformConfigs.remove(id);
+        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
+            AcknowledgedResponse response = restClient.transform().deleteTransform(new DeleteTransformRequest(id), RequestOptions.DEFAULT);
+            if (response.isAcknowledged()) {
+                transformConfigs.remove(id);
+            }
+            return response;
         }
-        return response;
     }
 
     protected AcknowledgedResponse putTransform(TransformConfig config, RequestOptions options) throws IOException {
         if (transformConfigs.keySet().contains(config.getId())) {
             throw new IllegalArgumentException("transform [" + config.getId() + "] is already registered");
         }
-        RestHighLevelClient restClient = new TestRestHighLevelClient();
-        AcknowledgedResponse response = restClient.transform().putTransform(new PutTransformRequest(config), options);
-        if (response.isAcknowledged()) {
-            transformConfigs.put(config.getId(), config);
+        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
+            AcknowledgedResponse response = restClient.transform().putTransform(new PutTransformRequest(config), options);
+
+            if (response.isAcknowledged()) {
+                transformConfigs.put(config.getId(), config);
+            }
+            return response;
         }
-        return response;
     }
 
     protected GetTransformStatsResponse getTransformStats(String id) throws IOException {
-        RestHighLevelClient restClient = new TestRestHighLevelClient();
-        return restClient.transform().getTransformStats(new GetTransformStatsRequest(id), RequestOptions.DEFAULT);
+        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
+            return restClient.transform().getTransformStats(new GetTransformStatsRequest(id), RequestOptions.DEFAULT);
+        }
     }
 
     protected GetTransformResponse getTransform(String id) throws IOException {
-        RestHighLevelClient restClient = new TestRestHighLevelClient();
-        return restClient.transform().getTransform(new GetTransformRequest(id), RequestOptions.DEFAULT);
+        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
+            return restClient.transform().getTransform(new GetTransformRequest(id), RequestOptions.DEFAULT);
+        }
     }
 
     protected void waitUntilCheckpoint(String id, long checkpoint) throws Exception {
@@ -243,7 +252,7 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         String destinationIndex,
         String... sourceIndices
     ) throws Exception {
-        return createTransformConfig(id, groups, aggregations, destinationIndex, QueryBuilders.matchAllQuery(), sourceIndices);
+        return createTransformConfig(id, groups, aggregations, destinationIndex, QueryBuilders.matchAllQuery(), null, sourceIndices);
     }
 
     protected TransformConfig.Builder createTransformConfigBuilder(
@@ -252,6 +261,7 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         AggregatorFactories.Builder aggregations,
         String destinationIndex,
         QueryBuilder queryBuilder,
+        SettingsConfig.Builder settingsBuilder,
         String... sourceIndices
     ) throws Exception {
         return TransformConfig.builder()
@@ -260,6 +270,7 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
             .setDest(DestConfig.builder().setIndex(destinationIndex).build())
             .setFrequency(TimeValue.timeValueSeconds(10))
             .setPivotConfig(createPivotConfig(groups, aggregations))
+            .setSettings(settingsBuilder != null ? settingsBuilder.build() : null)
             .setDescription("Test transform config id: " + id);
     }
 
@@ -269,92 +280,97 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         AggregatorFactories.Builder aggregations,
         String destinationIndex,
         QueryBuilder queryBuilder,
+        SettingsConfig.Builder settingsBuilder,
         String... sourceIndices
     ) throws Exception {
-        return createTransformConfigBuilder(id, groups, aggregations, destinationIndex, queryBuilder, sourceIndices).build();
+        return createTransformConfigBuilder(id, groups, aggregations, destinationIndex, queryBuilder, settingsBuilder, sourceIndices)
+            .build();
     }
 
     protected void bulkIndexDocs(BulkRequest request) throws Exception {
-        RestHighLevelClient restClient = new TestRestHighLevelClient();
-        BulkResponse response = restClient.bulk(request, RequestOptions.DEFAULT);
-        assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
+        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
+            BulkResponse response = restClient.bulk(request, RequestOptions.DEFAULT);
+            assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
+        }
     }
 
     protected void updateConfig(String id, TransformConfigUpdate update) throws Exception {
-        RestHighLevelClient restClient = new TestRestHighLevelClient();
-        restClient.transform().updateTransform(new UpdateTransformRequest(update, id), RequestOptions.DEFAULT);
+        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
+            restClient.transform().updateTransform(new UpdateTransformRequest(update, id), RequestOptions.DEFAULT);
+        }
     }
 
     protected void createReviewsIndex(String indexName, int numDocs) throws Exception {
-        RestHighLevelClient restClient = new TestRestHighLevelClient();
+        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
 
-        // create mapping
-        try (XContentBuilder builder = jsonBuilder()) {
-            builder.startObject();
-            {
-                builder.startObject("properties")
-                    .startObject("timestamp")
-                    .field("type", "date")
-                    .endObject()
-                    .startObject("user_id")
-                    .field("type", "keyword")
-                    .endObject()
-                    .startObject("count")
-                    .field("type", "integer")
-                    .endObject()
-                    .startObject("business_id")
-                    .field("type", "keyword")
-                    .endObject()
-                    .startObject("stars")
-                    .field("type", "integer")
-                    .endObject()
-                    .endObject();
+            // create mapping
+            try (XContentBuilder builder = jsonBuilder()) {
+                builder.startObject();
+                {
+                    builder.startObject("properties")
+                        .startObject("timestamp")
+                        .field("type", "date")
+                        .endObject()
+                        .startObject("user_id")
+                        .field("type", "keyword")
+                        .endObject()
+                        .startObject("count")
+                        .field("type", "integer")
+                        .endObject()
+                        .startObject("business_id")
+                        .field("type", "keyword")
+                        .endObject()
+                        .startObject("stars")
+                        .field("type", "integer")
+                        .endObject()
+                        .endObject();
+                }
+                builder.endObject();
+                CreateIndexResponse response = restClient.indices()
+                    .create(new CreateIndexRequest(indexName).mapping(builder), RequestOptions.DEFAULT);
+                assertThat(response.isAcknowledged(), is(true));
             }
-            builder.endObject();
-            CreateIndexResponse response = restClient.indices()
-                .create(new CreateIndexRequest(indexName).mapping(builder), RequestOptions.DEFAULT);
-            assertThat(response.isAcknowledged(), is(true));
-        }
 
-        // create index
-        BulkRequest bulk = new BulkRequest(indexName);
-        int day = 10;
-        for (int i = 0; i < numDocs; i++) {
-            long user = i % 28;
-            int stars = (i + 20) % 5;
-            long business = (i + 100) % 50;
-            int hour = 10 + (i % 13);
-            int min = 10 + (i % 49);
-            int sec = 10 + (i % 49);
+            // create index
+            BulkRequest bulk = new BulkRequest(indexName);
+            int day = 10;
+            for (int i = 0; i < numDocs; i++) {
+                long user = i % 28;
+                int stars = (i + 20) % 5;
+                long business = (i + 100) % 50;
+                int hour = 10 + (i % 13);
+                int min = 10 + (i % 49);
+                int sec = 10 + (i % 49);
 
-            String date_string = "2017-01-" + (day < 10 ? "0" + day : day) + "T" + hour + ":" + min + ":" + sec + "Z";
+                String date_string = "2017-01-" + (day < 10 ? "0" + day : day) + "T" + hour + ":" + min + ":" + sec + "Z";
 
-            StringBuilder sourceBuilder = new StringBuilder();
-            sourceBuilder.append("{\"user_id\":\"")
-                .append("user_")
-                .append(user)
-                .append("\",\"count\":")
-                .append(i)
-                .append(",\"business_id\":\"")
-                .append("business_")
-                .append(business)
-                .append("\",\"stars\":")
-                .append(stars)
-                .append(",\"timestamp\":\"")
-                .append(date_string)
-                .append("\"}");
-            bulk.add(new IndexRequest().source(sourceBuilder.toString(), XContentType.JSON));
+                StringBuilder sourceBuilder = new StringBuilder();
+                sourceBuilder.append("{\"user_id\":\"")
+                    .append("user_")
+                    .append(user)
+                    .append("\",\"count\":")
+                    .append(i)
+                    .append(",\"business_id\":\"")
+                    .append("business_")
+                    .append(business)
+                    .append("\",\"stars\":")
+                    .append(stars)
+                    .append(",\"timestamp\":\"")
+                    .append(date_string)
+                    .append("\"}");
+                bulk.add(new IndexRequest().source(sourceBuilder.toString(), XContentType.JSON));
 
-            if (i % 100 == 0) {
-                BulkResponse response = restClient.bulk(bulk, RequestOptions.DEFAULT);
-                assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
-                bulk = new BulkRequest(indexName);
-                day = (day + 1) % 28;
+                if (i % 100 == 0) {
+                    BulkResponse response = restClient.bulk(bulk, RequestOptions.DEFAULT);
+                    assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
+                    bulk = new BulkRequest(indexName);
+                    day = (day + 1) % 28;
+                }
             }
+            BulkResponse response = restClient.bulk(bulk, RequestOptions.DEFAULT);
+            assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
+            restClient.indices().refresh(new RefreshRequest(indexName), RequestOptions.DEFAULT);
         }
-        BulkResponse response = restClient.bulk(bulk, RequestOptions.DEFAULT);
-        assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
-        restClient.indices().refresh(new RefreshRequest(indexName), RequestOptions.DEFAULT);
     }
 
     protected Map<String, Object> toLazy(ToXContent parsedObject) throws Exception {
@@ -376,8 +392,8 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         listTasksRequest.setWaitForCompletion(true);
         listTasksRequest.setDetailed(true);
         listTasksRequest.setTimeout(TimeValue.timeValueSeconds(10));
-        RestHighLevelClient restClient = new TestRestHighLevelClient();
-        try {
+        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
+
             restClient.tasks().list(listTasksRequest, RequestOptions.DEFAULT);
         } catch (Exception e) {
             throw new AssertionError("Failed to wait for pending tasks to complete", e);

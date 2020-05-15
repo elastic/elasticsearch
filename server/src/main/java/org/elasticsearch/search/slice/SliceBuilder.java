@@ -263,7 +263,8 @@ public class SliceBuilder implements Writeable, ToXContentObject {
             if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException("Computing slices on the [_uid] field is illegal for 7.x indices, use [_id] instead");
             }
-            DEPRECATION_LOG.deprecated("Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead");
+            DEPRECATION_LOG.deprecatedAndMaybeLog("slice_on_uid",
+                "Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead");
             useTermQuery = true;
         } else if (IdFieldMapper.NAME.equals(field)) {
             useTermQuery = true;

@@ -36,9 +36,9 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.Sampler;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms.Bucket;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms.Bucket;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -92,7 +92,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
     @Override
     protected void doExecute(Task task, GraphExploreRequest request, ActionListener<GraphExploreResponse> listener) {
-        if (licenseState.isGraphAllowed()) {
+        if (licenseState.isAllowed(XPackLicenseState.Feature.GRAPH)) {
             new AsyncGraphAction(request, listener).start();
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.GRAPH));

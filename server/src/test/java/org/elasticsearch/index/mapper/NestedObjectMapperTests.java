@@ -19,10 +19,9 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.util.HashSet;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -41,6 +40,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -694,7 +694,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
     @Override
     protected boolean forbidPrivateIndexSettings() {
         /**
-         * This is needed to force the index version with {@link IndexMetaData.SETTING_INDEX_VERSION_CREATED}.
+         * This is needed to force the index version with {@link IndexMetadata.SETTING_INDEX_VERSION_CREATED}.
          */
         return false;
     }
@@ -707,7 +707,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         Version bwcVersion = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_4_0);
         for (Version version : new Version[] {Version.V_6_5_0, bwcVersion}) {
             DocumentMapper docMapper = createIndex("test-" + version,
-                Settings.builder().put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), version).build())
+                Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), version).build())
                     .mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
             assertThat(docMapper.hasNestedObjects(), equalTo(true));
@@ -748,5 +748,32 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
                 assertThat(doc.docs().get(2).get("field"), equalTo("value"));
             }
         }
+    }
+
+    public void testMergeNestedMappings() throws IOException {
+        MapperService mapperService = createIndex("index1", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("nested1")
+                    .field("type", "nested")
+                .endObject()
+            .endObject().endObject()).mapperService();
+
+        String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("nested1").field("type", "nested").field("include_in_parent", true)
+            .endObject().endObject().endObject().endObject());
+
+        // cannot update `include_in_parent` dynamically
+        MapperException e1 = expectThrows(MapperException.class, () -> mapperService.merge("type",
+            new CompressedXContent(mapping1), MergeReason.MAPPING_UPDATE));
+        assertEquals("The [include_in_parent] parameter can't be updated for the nested object mapping [nested1].", e1.getMessage());
+
+        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("nested1").field("type", "nested").field("include_in_root", true)
+            .endObject().endObject().endObject().endObject());
+
+        // cannot update `include_in_root` dynamically
+        MapperException e2 = expectThrows(MapperException.class, () -> mapperService.merge("type",
+            new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE));
+        assertEquals("The [include_in_root] parameter can't be updated for the nested object mapping [nested1].", e2.getMessage());
     }
 }

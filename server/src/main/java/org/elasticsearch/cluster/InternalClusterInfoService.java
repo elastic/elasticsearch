@@ -244,7 +244,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         final CountDownLatch latch = new CountDownLatch(1);
         final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
         nodesStatsRequest.clear();
-        nodesStatsRequest.fs(true);
+        nodesStatsRequest.addMetric(NodesStatsRequest.Metric.FS.metricName());
         nodesStatsRequest.timeout(fetchTimeout);
         client.admin().cluster().nodesStats(nodesStatsRequest, new LatchedActionListener<>(listener, latch));
         return latch;

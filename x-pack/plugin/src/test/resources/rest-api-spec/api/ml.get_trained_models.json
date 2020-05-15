@@ -1,7 +1,8 @@
 {
   "ml.get_trained_models":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-inference.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-inference.html",
+      "description":"Retrieves configuration information for a trained inference model."
     },
     "stability":"experimental",
     "url":{
@@ -39,26 +40,26 @@
         "description":"Should the full model definition be included in the results. These definitions can be large. So be cautious when including them. Defaults to false.",
         "default":false
       },
-      "decompress_definition": {
-        "type": "boolean",
-        "required": false,
-        "default": true,
-        "description": "Should the model definition be decompressed into valid JSON or returned in a custom compressed format. Defaults to true."
+      "decompress_definition":{
+        "type":"boolean",
+        "required":false,
+        "default":true,
+        "description":"Should the model definition be decompressed into valid JSON or returned in a custom compressed format. Defaults to true."
       },
       "from":{
-        "required": false,
+        "required":false,
         "type":"int",
         "description":"skips a number of trained models",
         "default":0
       },
       "size":{
-        "required": false,
+        "required":false,
         "type":"int",
         "description":"specifies a max number of trained models to get",
         "default":100
       },
-      "tags": {
-        "required": false,
+      "tags":{
+        "required":false,
         "type":"list",
         "description":"A comma-separated list of tags that the model must have."
       }

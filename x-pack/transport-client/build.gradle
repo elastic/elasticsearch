@@ -1,6 +1,5 @@
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
 
 group = 'org.elasticsearch.client'
 archivesBaseName = 'x-pack-transport'
@@ -28,14 +27,6 @@ testingConventions {
   naming {
     Tests {
       baseClass 'com.carrotsearch.randomizedtesting.RandomizedTest'
-    }
-  }
-}
-
-publishing {
-  publications {
-    nebula(MavenPublication) {
-      artifactId = archivesBaseName
     }
   }
 }

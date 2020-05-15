@@ -16,8 +16,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.settings.Settings;
@@ -86,9 +87,9 @@ public class IndexLifecycleService
             this::updatePollInterval);
     }
 
-    public void maybeRunAsyncAction(ClusterState clusterState, IndexMetaData indexMetaData, StepKey nextStepKey) {
-        String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetaData.getSettings());
-        lifecycleRunner.maybeRunAsyncAction(clusterState, indexMetaData, policyName, nextStepKey);
+    public void maybeRunAsyncAction(ClusterState clusterState, IndexMetadata indexMetadata, StepKey nextStepKey) {
+        String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+        lifecycleRunner.maybeRunAsyncAction(clusterState, indexMetadata, policyName, nextStepKey);
     }
 
     /**
@@ -105,7 +106,7 @@ public class IndexLifecycleService
         // when moving to an arbitrary step key (to avoid race conditions between the
         // check-and-set). moveClusterStateToStep also does its own validation, but doesn't take
         // the user-input for the current step (which is why we validate here for a passed in step)
-        IndexLifecycleTransition.validateTransition(currentState.getMetaData().index(index),
+        IndexLifecycleTransition.validateTransition(currentState.getMetadata().index(index),
             currentStepKey, newStepKey, policyRegistry);
         return IndexLifecycleTransition.moveClusterStateToStep(index, currentState, newStepKey,
             nowSupplier, policyRegistry, true);
@@ -126,7 +127,7 @@ public class IndexLifecycleService
         maybeScheduleJob();
 
         ClusterState clusterState = clusterService.state();
-        IndexLifecycleMetadata currentMetadata = clusterState.metaData().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata currentMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
         if (currentMetadata != null) {
             OperationMode currentMode = currentMetadata.getOperationMode();
             if (OperationMode.STOPPED.equals(currentMode)) {
@@ -137,8 +138,8 @@ public class IndexLifecycleService
 
             // If we just became master, we need to kick off any async actions that
             // may have not been run due to master rollover
-            for (ObjectCursor<IndexMetaData> cursor : clusterState.metaData().indices().values()) {
-                IndexMetaData idxMeta = cursor.value;
+            for (ObjectCursor<IndexMetadata> cursor : clusterState.metadata().indices().values()) {
+                IndexMetadata idxMeta = cursor.value;
                 String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
                 if (Strings.isNullOrEmpty(policyName) == false) {
                     final LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
@@ -236,7 +237,7 @@ public class IndexLifecycleService
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        IndexLifecycleMetadata lifecycleMetadata = event.state().metaData().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata lifecycleMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);
         if (this.isMaster && lifecycleMetadata != null) {
             triggerPolicies(event.state(), true);
         }
@@ -246,7 +247,7 @@ public class IndexLifecycleService
     public void applyClusterState(ClusterChangedEvent event) {
         if (event.localNodeMaster()) { // only act if we are master, otherwise
             // keep idle until elected
-            if (event.state().metaData().custom(IndexLifecycleMetadata.TYPE) != null) {
+            if (event.state().metadata().custom(IndexLifecycleMetadata.TYPE) != null) {
                 policyRegistry.update(event.state());
             }
         }
@@ -281,7 +282,7 @@ public class IndexLifecycleService
      * @param fromClusterStateChange whether things are triggered from the cluster-state-listener or the scheduler
      */
     void triggerPolicies(ClusterState clusterState, boolean fromClusterStateChange) {
-        IndexLifecycleMetadata currentMetadata = clusterState.metaData().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata currentMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
 
         if (currentMetadata == null) {
             return;
@@ -298,8 +299,8 @@ public class IndexLifecycleService
         // loop through all indices in cluster state and filter for ones that are
         // managed by the Index Lifecycle Service they have a index.lifecycle.name setting
         // associated to a policy
-        for (ObjectCursor<IndexMetaData> cursor : clusterState.metaData().indices().values()) {
-            IndexMetaData idxMeta = cursor.value;
+        for (ObjectCursor<IndexMetadata> cursor : clusterState.metadata().indices().values()) {
+            IndexMetadata idxMeta = cursor.value;
             String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
             if (Strings.isNullOrEmpty(policyName) == false) {
                 final LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
@@ -363,7 +364,13 @@ public class IndexLifecycleService
     }
 
     public void submitOperationModeUpdate(OperationMode mode) {
-        clusterService.submitStateUpdateTask("ilm_operation_mode_update", OperationModeUpdateTask.ilmMode(mode));
+        OperationModeUpdateTask ilmOperationModeUpdateTask;
+        if (mode == OperationMode.STOPPING || mode == OperationMode.STOPPED) {
+            ilmOperationModeUpdateTask = OperationModeUpdateTask.ilmMode(Priority.IMMEDIATE, mode);
+        } else {
+            ilmOperationModeUpdateTask = OperationModeUpdateTask.ilmMode(Priority.NORMAL, mode);
+        }
+        clusterService.submitStateUpdateTask("ilm_operation_mode_update {OperationMode " + mode.name() + "}", ilmOperationModeUpdateTask);
     }
 
     /**

@@ -41,7 +41,9 @@ each interval. See {ml-docs}/ml-delayed-data-detection.html[Handling delayed dat
 `.ml-config` index.
 * When {es} {security-features} are enabled, your {dfeed} remembers which roles
 the user who created it had at the time of creation and runs the query using
-those same roles.
+those same roles. If you provide
+<<http-clients-secondary-authorization,secondary authorization headers>>, those
+credentials are used instead.
 ====
 
 [[ml-put-datafeed-path-parms]]
@@ -51,6 +53,7 @@ those same roles.
 (Required, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
+[role="child_attributes"]
 [[ml-put-datafeed-request-body]]
 ==== {api-request-body-title}
 

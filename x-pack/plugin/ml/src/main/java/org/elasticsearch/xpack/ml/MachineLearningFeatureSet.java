@@ -18,7 +18,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -72,8 +72,8 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
     /**
      * List of platforms for which the native processes are available
      */
-    private static final List<String> mlPlatforms =
-            Arrays.asList("darwin-x86_64", "linux-x86_64", "windows-x86_64");
+    private static final List<String> mlPlatforms = Collections.unmodifiableList(
+            Arrays.asList("darwin-x86_64", "linux-aarch64", "linux-x86_64", "windows-x86_64"));
 
     private final boolean enabled;
     private final XPackLicenseState licenseState;
@@ -134,7 +134,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isMachineLearningAllowed();
+        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING);
     }
 
     @Override
@@ -370,7 +370,8 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
                 response -> {
                     addDataFrameAnalyticsUsage(response, analyticsUsage);
                     String[] ingestNodes = ingestNodes(state);
-                    NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear().ingest(true);
+                    NodesStatsRequest nodesStatsRequest =
+                        new NodesStatsRequest(ingestNodes).clear().addMetric(NodesStatsRequest.Metric.INGEST.metricName());
                     client.execute(NodesStatsAction.INSTANCE, nodesStatsRequest, nodesStatsListener);
                 },
                 listener::onFailure
@@ -388,10 +389,10 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
                 listener::onFailure);
 
             // Step 1. Extract usage from jobs stats and then request stats for all datafeeds
-            GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request(MetaData.ALL);
+            GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request(Metadata.ALL);
             ActionListener<GetJobsStatsAction.Response> jobStatsListener = ActionListener.wrap(
                     response -> {
-                        jobManagerHolder.getJobManager().expandJobs(MetaData.ALL, true, ActionListener.wrap(jobs -> {
+                        jobManagerHolder.getJobManager().expandJobs(Metadata.ALL, true, ActionListener.wrap(jobs -> {
                             addJobsUsage(response, jobs.results());
                             GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request(
                                     GetDatafeedsStatsAction.ALL);

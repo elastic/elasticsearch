@@ -25,7 +25,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NotMasterException;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.MembershipAction;
@@ -156,7 +156,7 @@ public class JoinHelperTests extends ESTestCase {
         MockTransport mockTransport = new MockTransport();
         DiscoveryNode localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
 
-        final ClusterState localClusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(MetaData.builder()
+        final ClusterState localClusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
             .generateClusterUuidIfNeeded().clusterUUIDCommitted(true)).build();
 
         TransportService transportService = mockTransport.createTransportService(Settings.EMPTY,
@@ -168,7 +168,7 @@ public class JoinHelperTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        final ClusterState otherClusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(MetaData.builder()
+        final ClusterState otherClusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
             .generateClusterUuidIfNeeded()).build();
 
         final PlainActionFuture<TransportResponse.Empty> future = new PlainActionFuture<>();
@@ -180,7 +180,7 @@ public class JoinHelperTests extends ESTestCase {
         final CoordinationStateRejectedException coordinationStateRejectedException
             = expectThrows(CoordinationStateRejectedException.class, future::actionGet);
         assertThat(coordinationStateRejectedException.getMessage(), containsString(expectedMessage));
-        assertThat(coordinationStateRejectedException.getMessage(), containsString(localClusterState.metaData().clusterUUID()));
-        assertThat(coordinationStateRejectedException.getMessage(), containsString(otherClusterState.metaData().clusterUUID()));
+        assertThat(coordinationStateRejectedException.getMessage(), containsString(localClusterState.metadata().clusterUUID()));
+        assertThat(coordinationStateRejectedException.getMessage(), containsString(otherClusterState.metadata().clusterUUID()));
     }
 }

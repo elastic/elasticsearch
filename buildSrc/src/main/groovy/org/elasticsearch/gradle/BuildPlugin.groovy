@@ -23,10 +23,11 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowExtension
 import com.github.jengelman.gradle.plugins.shadow.ShadowJavaPlugin
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import groovy.transform.CompileStatic
+import nebula.plugin.info.InfoBrokerPlugin
 import org.apache.commons.io.IOUtils
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
-import org.elasticsearch.gradle.info.JavaHome
+import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
@@ -42,6 +43,7 @@ import org.gradle.api.NamedDomainObjectContainer
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.XmlProvider
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.ModuleDependency
@@ -53,13 +55,11 @@ import org.gradle.api.artifacts.repositories.IvyPatternRepositoryLayout
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository
 import org.gradle.api.credentials.HttpHeaderCredentials
 import org.gradle.api.execution.TaskActionListener
-import org.gradle.api.execution.TaskExecutionGraph
 import org.gradle.api.file.CopySpec
 import org.gradle.api.plugins.BasePlugin
 import org.gradle.api.plugins.BasePluginConvention
 import org.gradle.api.plugins.ExtraPropertiesExtension
 import org.gradle.api.plugins.JavaPlugin
-import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
@@ -68,16 +68,13 @@ import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.bundling.Jar
-import org.gradle.api.tasks.compile.GroovyCompile
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.api.tasks.javadoc.Javadoc
 import org.gradle.api.tasks.testing.Test
-import org.gradle.api.tasks.testing.logging.TestLoggingContainer
 import org.gradle.authentication.http.HttpHeaderAuthentication
 import org.gradle.external.javadoc.CoreJavadocOptions
 import org.gradle.internal.jvm.Jvm
 import org.gradle.language.base.plugins.LifecycleBasePlugin
-import org.gradle.process.CommandLineArgumentProvider
 import org.gradle.util.GradleVersion
 
 import java.nio.charset.StandardCharsets
@@ -113,15 +110,9 @@ class BuildPlugin implements Plugin<Project> {
                     "Gradle ${minimumGradleVersion}+ is required to use elasticsearch.build plugin"
             )
         }
-        project.pluginManager.apply('java')
-        configureConfigurations(project)
-        configureJars(project) // jar config must be added before info broker
-        // these plugins add lots of info to our jars
-        project.pluginManager.apply('nebula.info-broker')
-        project.pluginManager.apply('nebula.info-basic')
-        project.pluginManager.apply('nebula.info-java')
-        project.pluginManager.apply('nebula.info-scm')
-        project.pluginManager.apply('nebula.info-jar')
+        project.pluginManager.apply('elasticsearch.java')
+        configureJars(project)
+        configureJarManifest(project)
 
         // apply global test task failure listener
         project.rootProject.pluginManager.apply(TestFailureReportingPlugin)
@@ -130,12 +121,9 @@ class BuildPlugin implements Plugin<Project> {
 
         configureRepositories(project)
         project.extensions.getByType(ExtraPropertiesExtension).set('versions', VersionProperties.versions)
-        configureInputNormalization(project)
-        configureCompile(project)
         configureJavadoc(project)
         configureSourcesJar(project)
         configurePomGeneration(project)
-        configureTestTasks(project)
         configurePrecommit(project)
         configureDependenciesInfo(project)
         configureFips140(project)
@@ -201,60 +189,6 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    /** Add a check before gradle execution phase which ensures java home for the given java version is set. */
-    static void requireJavaHome(Task task, int version) {
-        // use root project for global accounting
-        Project rootProject = task.project.rootProject
-        ExtraPropertiesExtension extraProperties = rootProject.extensions.extraProperties
-
-        // hacky way (but the only way) to find if the task graph has already been populated
-        boolean taskGraphReady
-        try {
-            rootProject.gradle.taskGraph.getAllTasks()
-            taskGraphReady = true
-        } catch (IllegalStateException) {
-            taskGraphReady = false
-        }
-
-        if (taskGraphReady) {
-            // check directly if the version is present since we are already executing
-            if (BuildParams.javaVersions.find { it.version == version } == null) {
-                throw new GradleException("JAVA${version}_HOME required to run task:\n${task}")
-            }
-        } else {
-            // setup list of java versions we will check at the end of configuration time
-            if (extraProperties.has('requiredJavaVersions') == false) {
-                extraProperties.set('requiredJavaVersions', [:])
-                rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
-                    List<String> messages = []
-                    Map<Integer, List<Task>> requiredJavaVersions = (Map<Integer, List<Task>>) extraProperties.get('requiredJavaVersions')
-                    for (Map.Entry<Integer, List<Task>> entry : requiredJavaVersions) {
-                        if (BuildParams.javaVersions.any { it.version == entry.key }) {
-                            continue
-                        }
-                        List<String> tasks = entry.value.findAll { taskGraph.hasTask(it) }.collect { "  ${it.path}".toString() }
-                        if (tasks.isEmpty() == false) {
-                            messages.add("JAVA${entry.key}_HOME required to run tasks:\n${tasks.join('\n')}".toString())
-                        }
-                    }
-                    if (messages.isEmpty() == false) {
-                        throw new GradleException(messages.join('\n'))
-                    }
-                }
-            }
-            Map<Integer, List<Task>> requiredJavaVersions = (Map<Integer, List<Task>>) extraProperties.get('requiredJavaVersions')
-            requiredJavaVersions.putIfAbsent(version, [])
-            requiredJavaVersions.get(version).add(task)
-        }
-    }
-
-    /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
-    static String getJavaHome(final Task task, final int version) {
-        requireJavaHome(task, version)
-        JavaHome java = BuildParams.javaVersions.find { it.version == version }
-        return java == null ? null : java.javaHome.get().absolutePath
-    }
-
     /**
      * Makes dependencies non-transitive.
      *
@@ -301,6 +235,7 @@ class BuildPlugin implements Plugin<Project> {
         project.configurations.getByName(JavaPlugin.COMPILE_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
         project.configurations.getByName(JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
         project.configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
+        project.configurations.getByName(JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
     }
 
     /** Adds repositories used by ES dependencies */
@@ -372,6 +307,16 @@ class BuildPlugin implements Plugin<Project> {
 
     /**Configuration generation of maven poms. */
     static void configurePomGeneration(Project project) {
+        // have to defer this until archivesBaseName is set
+        project.afterEvaluate {
+            project.pluginManager.withPlugin('maven-publish') {
+                PublishingExtension publishing = project.extensions.getByType(PublishingExtension)
+                publishing.publications.withType(MavenPublication) { MavenPublication publication ->
+                    publication.artifactId = project.convention.getPlugin(BasePluginConvention).archivesBaseName
+                }
+            }
+        }
+
         project.plugins.withType(MavenPublishPlugin).whenPluginAdded {
             TaskProvider generatePomTask = project.tasks.register("generatePom") { Task task ->
                 task.dependsOn 'generatePomFileForNebulaPublication'
@@ -382,7 +327,7 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             project.tasks.withType(GenerateMavenPom).configureEach({ GenerateMavenPom pomTask ->
-                pomTask.destination = "${project.buildDir}/distributions/${project.convention.getPlugin(BasePluginConvention).archivesBaseName}-${project.version}.pom"
+                pomTask.destination = { "${project.buildDir}/distributions/${project.convention.getPlugin(BasePluginConvention).archivesBaseName}-${project.version}.pom" }
             } as Action<GenerateMavenPom>)
 
             PublishingExtension publishing = project.extensions.getByType(PublishingExtension)
@@ -393,8 +338,12 @@ class BuildPlugin implements Plugin<Project> {
                 shadow.component(publication)
                 // Workaround for https://github.com/johnrengelman/shadow/issues/334
                 // Here we manually add any project dependencies in the "shadow" configuration to our generated POM
+                publication.pom.withXml(this.&addScmInfo)
                 publication.pom.withXml { xml ->
-                    Node dependenciesNode = (xml.asNode().get('dependencies') as NodeList).get(0) as Node
+                    Node root = xml.asNode()
+                    root.appendNode('name', project.name)
+                    root.appendNode('description', project.description)
+                    Node dependenciesNode = (root.get('dependencies') as NodeList).get(0) as Node
                     project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME).allDependencies.each { dependency ->
                         if (dependency instanceof ProjectDependency) {
                             def dependencyNode = dependenciesNode.appendNode('dependency')
@@ -408,84 +357,20 @@ class BuildPlugin implements Plugin<Project> {
                 generatePomTask.configure({ Task t -> t.dependsOn = ['generatePomFileForShadowPublication'] } as Action<Task>)
             }
         }
+
+        // Add git origin info to generated POM files
+        project.pluginManager.withPlugin('nebula.maven-base-publish') {
+            PublishingExtension publishing = project.extensions.getByType(PublishingExtension)
+            MavenPublication nebulaPublication = (MavenPublication) publishing.publications.getByName('nebula')
+            nebulaPublication.pom.withXml(this.&addScmInfo)
+        }
     }
 
-    /**
-     * Apply runtime classpath input normalization so that changes in JAR manifests don't break build cacheability
-     */
-    static void configureInputNormalization(Project project) {
-        project.normalization.runtimeClasspath.ignore('META-INF/MANIFEST.MF')
-    }
-
-    /** Adds compiler settings to the project */
-    static void configureCompile(Project project) {
-        ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
-        if (BuildParams.compilerJavaVersion < JavaVersion.VERSION_1_10) {
-            ext.set('compactProfile', 'compact3')
-        } else {
-            ext.set('compactProfile', 'full')
-        }
-        ext.set('compactProfile', 'full')
-
-        project.extensions.getByType(JavaPluginExtension).sourceCompatibility = BuildParams.minimumRuntimeVersion
-        project.extensions.getByType(JavaPluginExtension).targetCompatibility = BuildParams.minimumRuntimeVersion
-
-        project.afterEvaluate {
-            project.tasks.withType(JavaCompile).configureEach({ JavaCompile compileTask ->
-                final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(compileTask.targetCompatibility)
-                // we only fork if the Gradle JDK is not the same as the compiler JDK
-                if (BuildParams.compilerJavaHome.canonicalPath == Jvm.current().javaHome.canonicalPath) {
-                    compileTask.options.fork = false
-                } else {
-                    compileTask.options.fork = true
-                    compileTask.options.forkOptions.javaHome = BuildParams.compilerJavaHome
-                }
-                if (targetCompatibilityVersion == JavaVersion.VERSION_1_8) {
-                    // compile with compact 3 profile by default
-                    // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
-                    if (ext.get('compactProfile') != 'full') {
-                        compileTask.options.compilerArgs << '-profile' << ext.get('compactProfile').toString()
-                    }
-                }
-                /*
-                 * -path because gradle will send in paths that don't always exist.
-                 * -missing because we have tons of missing @returns and @param.
-                 * -serial because we don't use java serialization.
-                 */
-                // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
-                // fail on all javac warnings
-                compileTask.options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial,-options,-deprecation,-try' << '-Xdoclint:all' << '-Xdoclint:-missing'
-
-                // either disable annotation processor completely (default) or allow to enable them if an annotation processor is explicitly defined
-                if (compileTask.options.compilerArgs.contains("-processor") == false) {
-                    compileTask.options.compilerArgs << '-proc:none'
-                }
-
-                compileTask.options.encoding = 'UTF-8'
-                compileTask.options.incremental = true
-
-                // TODO: use native Gradle support for --release when available (cf. https://github.com/gradle/gradle/issues/2510)
-                compileTask.options.compilerArgs << '--release' << targetCompatibilityVersion.majorVersion
-            } as Action<JavaCompile>)
-            // also apply release flag to groovy, which is used in build-tools
-            project.tasks.withType(GroovyCompile).configureEach({ GroovyCompile compileTask ->
-                // we only fork if the Gradle JDK is not the same as the compiler JDK
-                if (BuildParams.compilerJavaHome.canonicalPath == Jvm.current().javaHome.canonicalPath) {
-                    compileTask.options.fork = false
-                } else {
-                    compileTask.options.fork = true
-                    compileTask.options.forkOptions.javaHome = BuildParams.compilerJavaHome
-                    compileTask.options.compilerArgs << '--release' << JavaVersion.toVersion(compileTask.targetCompatibility).majorVersion
-                }
-            } as Action<GroovyCompile>)
-        }
-
-        project.pluginManager.withPlugin('com.github.johnrengelman.shadow') {
-            // Ensure that when we are compiling against the "original" JAR that we also include any "shadow" dependencies on the compile classpath
-            project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME).dependencies.all { Dependency dependency ->
-                project.configurations.getByName(JavaPlugin.API_ELEMENTS_CONFIGURATION_NAME).dependencies.add(dependency)
-            }
-        }
+    private static void addScmInfo(XmlProvider xml) {
+        Node root = xml.asNode()
+        root.appendNode('url', PluginBuildPlugin.urlFromOrigin(BuildParams.gitOrigin))
+        Node scmNode = root.appendNode('scm')
+        scmNode.appendNode('url', BuildParams.gitOrigin)
     }
 
     static void configureJavadoc(Project project) {
@@ -511,7 +396,7 @@ class BuildPlugin implements Plugin<Project> {
         }
         // ensure javadoc task is run with 'check'
         project.pluginManager.withPlugin('lifecycle-base') {
-            project.tasks.getByName(LifecycleBasePlugin.CHECK_TASK_NAME).dependsOn(project.tasks.withType(Javadoc))
+            project.tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME).configure { it.dependsOn(project.tasks.withType(Javadoc)) }
         }
         configureJavadocJar(project)
     }
@@ -548,19 +433,15 @@ class BuildPlugin implements Plugin<Project> {
         ext.set('noticeFile', null)
         project.tasks.withType(Jar).configureEach { Jar jarTask ->
             // we put all our distributable files under distributions
-            jarTask.destinationDir = new File(project.buildDir, 'distributions')
+            jarTask.destinationDirectory.set(new File(project.buildDir, 'distributions'))
             // fixup the jar manifest
             jarTask.doFirst {
                 // this doFirst is added before the info plugin, therefore it will run
                 // after the doFirst added by the info plugin, and we can override attributes
                 JavaVersion compilerJavaVersion = BuildParams.compilerJavaVersion
                 jarTask.manifest.attributes(
-                        'Change': BuildParams.gitRevision,
-                        'X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch,
-                        'X-Compile-Lucene-Version': VersionProperties.lucene,
-                        'X-Compile-Elasticsearch-Snapshot': VersionProperties.isElasticsearchSnapshot(),
                         'Build-Date': BuildParams.buildDate,
-                        'Build-Java-Version': compilerJavaVersion)
+                        'Build-Java-Version': BuildParams.compilerJavaVersion)
             }
         }
         // add license/notice files
@@ -609,146 +490,18 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    static void configureTestTasks(Project project) {
-        ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
+    static void configureJarManifest(Project project) {
+        project.pluginManager.apply('nebula.info-broker')
+        project.pluginManager.apply('nebula.info-basic')
+        project.pluginManager.apply('nebula.info-java')
+        project.pluginManager.apply('nebula.info-jar')
 
-        // Default test task should run only unit tests
-        maybeConfigure(project.tasks, 'test', Test) { Test task ->
-            task.include '**/*Tests.class'
-        }
-
-        // none of this stuff is applicable to the `:buildSrc` project tests
-        if (project.path != ':build-tools') {
-            File heapdumpDir = new File(project.buildDir, 'heapdump')
-
-            project.tasks.withType(Test).configureEach { Test test ->
-                File testOutputDir = new File(test.reports.junitXml.getDestination(), "output")
-
-                ErrorReportingTestListener listener = new ErrorReportingTestListener(test.testLogging, testOutputDir)
-                test.extensions.add(ErrorReportingTestListener, 'errorReportingTestListener', listener)
-                test.addTestOutputListener(listener)
-                test.addTestListener(listener)
-
-                /*
-                 * We use lazy-evaluated strings in order to configure system properties whose value will not be known until
-                 * execution time (e.g. cluster port numbers). Adding these via the normal DSL doesn't work as these get treated
-                 * as task inputs and therefore Gradle attempts to snapshot them before/after task execution. This fails due
-                 * to the GStrings containing references to non-serializable objects.
-                 *
-                 * We bypass this by instead passing this system properties vi a CommandLineArgumentProvider. This has the added
-                 * side-effect that these properties are NOT treated as inputs, therefore they don't influence things like the
-                 * build cache key or up to date checking.
-                 */
-                SystemPropertyCommandLineArgumentProvider nonInputProperties = new SystemPropertyCommandLineArgumentProvider()
-
-                test.doFirst {
-                    project.mkdir(testOutputDir)
-                    project.mkdir(heapdumpDir)
-                    project.mkdir(test.workingDir)
-                    project.mkdir(test.workingDir.toPath().resolve('temp'))
-                }
-                //TODO remove once jvm.options are added to test system properties
-                if (BuildParams.runtimeJavaVersion == JavaVersion.VERSION_1_8) {
-                    test.systemProperty ('java.locale.providers','SPI,JRE')
-                } else if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_1_9) {
-                    test.systemProperty ('java.locale.providers','SPI,COMPAT')
-                    test.jvmArgs '--illegal-access=warn'
-                }
-                if (inFipsJvm()) {
-                    project.dependencies.add('testRuntimeOnly', "org.bouncycastle:bc-fips:1.0.1")
-                    project.dependencies.add('testRuntimeOnly', "org.bouncycastle:bctls-fips:1.0.9")
-                }
-                test.jvmArgumentProviders.add(nonInputProperties)
-                test.extensions.add('nonInputProperties', nonInputProperties)
-
-                test.workingDir = project.file("${project.buildDir}/testrun/${test.name}")
-                test.maxParallelForks = System.getProperty('tests.jvms', BuildParams.defaultParallel.toString()) as Integer
-
-                test.exclude '**/*$*.class'
-
-                test.jvmArgs "-Xmx${System.getProperty('tests.heap.size', '512m')}",
-                        "-Xms${System.getProperty('tests.heap.size', '512m')}",
-                        '-XX:+HeapDumpOnOutOfMemoryError'
-
-                test.jvmArgumentProviders.add({ ["-XX:HeapDumpPath=$heapdumpDir"] } as CommandLineArgumentProvider)
-
-                if (System.getProperty('tests.jvm.argline')) {
-                    test.jvmArgs System.getProperty('tests.jvm.argline').split(" ")
-                }
-
-                if (Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))) {
-                    test.jvmArgs '-ea', '-esa'
-                }
-
-                test.systemProperties 'java.awt.headless': 'true',
-                        'tests.gradle': 'true',
-                        'tests.artifact': project.name,
-                        'tests.task': test.path,
-                        'tests.security.manager': 'true',
-                        'jna.nosys': 'true'
-
-                // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability experimentation
-                if (System.getProperty('ignore.tests.seed') != null) {
-                    nonInputProperties.systemProperty('tests.seed', BuildParams.testSeed)
-                } else {
-                    test.systemProperty('tests.seed', BuildParams.testSeed)
-                }
-
-                // don't track these as inputs since they contain absolute paths and break cache relocatability
-                nonInputProperties.systemProperty('gradle.dist.lib', new File(project.class.location.toURI()).parent)
-                nonInputProperties.systemProperty('gradle.worker.jar', "${project.gradle.getGradleUserHomeDir()}/caches/${project.gradle.gradleVersion}/workerMain/gradle-worker.jar")
-                nonInputProperties.systemProperty('gradle.user.home', project.gradle.getGradleUserHomeDir())
-                // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
-                nonInputProperties.systemProperty('java.io.tmpdir', test.workingDir.toPath().resolve('temp'))
-
-                nonInputProperties.systemProperty('compiler.java', "${-> BuildParams.compilerJavaVersion.majorVersion}")
-
-                // TODO: remove setting logging level via system property
-                test.systemProperty 'tests.logger.level', 'WARN'
-                System.getProperties().each { key, value ->
-                    if ((key.toString().startsWith('tests.') || key.toString().startsWith('es.'))) {
-                        test.systemProperty key.toString(), value
-                    }
-                }
-
-                // TODO: remove this once ctx isn't added to update script params in 7.0
-                test.systemProperty 'es.scripting.update.ctx_in_params', 'false'
-
-                // TODO: remove this property in 8.0
-                test.systemProperty 'es.search.rewrite_sort', 'true'
-
-                // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
-                test.systemProperty 'es.transport.cname_in_publish_address', 'true'
-
-                // Set netty system properties to the properties we configure in jvm.options
-                test.systemProperty('io.netty.noUnsafe', 'true')
-                test.systemProperty('io.netty.noKeySetOptimization', 'true')
-                test.systemProperty('io.netty.recycler.maxCapacityPerThread', '0')
-
-                test.testLogging { TestLoggingContainer logging ->
-                    logging.showExceptions = true
-                    logging.showCauses = true
-                    logging.exceptionFormat = 'full'
-                }
-
-                if (OS.current().equals(OS.WINDOWS) && System.getProperty('tests.timeoutSuite') == null) {
-                    // override the suite timeout to 30 mins for windows, because it has the most inefficient filesystem known to man
-                    test.systemProperty 'tests.timeoutSuite', '1800000!'
-                }
-
-                /*
-                 *  If this project builds a shadow JAR than any unit tests should test against that artifact instead of
-                 *  compiled class output and dependency jars. This better emulates the runtime environment of consumers.
-                 */
-                project.pluginManager.withPlugin('com.github.johnrengelman.shadow') {
-                    // Remove output class files and any other dependencies from the test classpath, since the shadow JAR includes these
-                    test.classpath -= project.extensions.getByType(SourceSetContainer).getByName(SourceSet.MAIN_SOURCE_SET_NAME).runtimeClasspath
-                    // Add any "shadow" dependencies. These are dependencies that are *not* bundled into the shadow JAR
-                    test.classpath += project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME)
-                    // Add the shadow JAR artifact itself
-                    test.classpath += project.files(project.tasks.named('shadowJar'))
-                }
-            }
+        project.plugins.withId('nebula.info-broker') { InfoBrokerPlugin manifestPlugin ->
+            manifestPlugin.add('Module-Origin') { BuildParams.gitOrigin }
+            manifestPlugin.add('Change') { BuildParams.gitRevision }
+            manifestPlugin.add('X-Compile-Elasticsearch-Version') { VersionProperties.elasticsearch }
+            manifestPlugin.add('X-Compile-Lucene-Version') { VersionProperties.lucene }
+            manifestPlugin.add('X-Compile-Elasticsearch-Snapshot') { VersionProperties.isElasticsearchSnapshot() }
         }
     }
 

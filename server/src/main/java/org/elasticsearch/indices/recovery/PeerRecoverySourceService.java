@@ -68,8 +68,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();
 
     @Inject
-    public PeerRecoverySourceService(TransportService transportService, IndicesService indicesService,
-                                     RecoverySettings recoverySettings) {
+    public PeerRecoverySourceService(TransportService transportService, IndicesService indicesService, RecoverySettings recoverySettings) {
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.recoverySettings = recoverySettings;

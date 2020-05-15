@@ -7,13 +7,13 @@
 showTables
 SHOW TABLES INCLUDE FROZEN;
 
-       name        |     type   |  kind   
-frozen_emp         |BASE TABLE  |FROZEN INDEX
-logs               |BASE TABLE  |INDEX
-test_alias         |VIEW        |ALIAS
-test_alias_emp     |VIEW        |ALIAS 
-test_emp           |BASE TABLE  |INDEX  
-test_emp_copy      |BASE TABLE  |INDEX  
+       name        | type  |  kind   
+frozen_emp         |TABLE  |FROZEN INDEX
+logs               |TABLE  |INDEX
+test_alias         |VIEW   |ALIAS
+test_alias_emp     |VIEW   |ALIAS 
+test_emp           |TABLE  |INDEX  
+test_emp_copy      |TABLE  |INDEX  
 ;
 
 columnFromFrozen

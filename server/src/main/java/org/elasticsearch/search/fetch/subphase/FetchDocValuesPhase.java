@@ -87,7 +87,8 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                 .filter(USE_DEFAULT_FORMAT::equals)
                 .findAny()
                 .isPresent()) {
-            DEPRECATION_LOGGER.deprecated("[" + USE_DEFAULT_FORMAT + "] is a special format that was only used to " +
+            DEPRECATION_LOGGER.deprecatedAndMaybeLog("explicit_default_format",
+                    "[" + USE_DEFAULT_FORMAT + "] is a special format that was only used to " +
                     "ease the transition to 7.x. It has become the default and shouldn't be set explicitly anymore.");
         }
 
@@ -148,7 +149,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                     DocumentField hitField = hit.getFields().get(field);
                     if (hitField == null) {
                         hitField = new DocumentField(field, new ArrayList<>(2));
-                        hit.getFields().put(field, hitField);
+                        hit.setField(field, hitField);
                     }
                     final List<Object> values = hitField.getValues();
 

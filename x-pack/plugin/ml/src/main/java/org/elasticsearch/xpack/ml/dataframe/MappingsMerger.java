@@ -11,7 +11,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
@@ -34,7 +34,7 @@ public final class MappingsMerger {
     private MappingsMerger() {}
 
     public static void mergeMappings(Client client, Map<String, String> headers, DataFrameAnalyticsSource source,
-                                     ActionListener<ImmutableOpenMap<String, MappingMetaData>> listener) {
+                                     ActionListener<ImmutableOpenMap<String, MappingMetadata>> listener) {
         ActionListener<GetMappingsResponse> mappingsListener = ActionListener.wrap(
             getMappingsResponse -> listener.onResponse(MappingsMerger.mergeMappings(source, getMappingsResponse)),
             listener::onFailure
@@ -45,19 +45,19 @@ public final class MappingsMerger {
         ClientHelper.executeWithHeadersAsync(headers, ML_ORIGIN, client, GetMappingsAction.INSTANCE, getMappingsRequest, mappingsListener);
     }
 
-    static ImmutableOpenMap<String, MappingMetaData> mergeMappings(DataFrameAnalyticsSource source,
+    static ImmutableOpenMap<String, MappingMetadata> mergeMappings(DataFrameAnalyticsSource source,
                                                                    GetMappingsResponse getMappingsResponse) {
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> indexToMappings = getMappingsResponse.getMappings();
+        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> indexToMappings = getMappingsResponse.getMappings();
 
         String type = null;
         Map<String, Object> mergedMappings = new HashMap<>();
 
-        Iterator<ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>>> iterator = indexToMappings.iterator();
+        Iterator<ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetadata>>> iterator = indexToMappings.iterator();
         while (iterator.hasNext()) {
-            ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexMappings = iterator.next();
-            Iterator<ObjectObjectCursor<String, MappingMetaData>> typeIterator = indexMappings.value.iterator();
+            ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetadata>> indexMappings = iterator.next();
+            Iterator<ObjectObjectCursor<String, MappingMetadata>> typeIterator = indexMappings.value.iterator();
             while (typeIterator.hasNext()) {
-                ObjectObjectCursor<String, MappingMetaData> typeMapping = typeIterator.next();
+                ObjectObjectCursor<String, MappingMetadata> typeMapping = typeIterator.next();
                 if (type == null) {
                     type = typeMapping.key;
                 } else {
@@ -89,15 +89,15 @@ public final class MappingsMerger {
             }
         }
 
-        MappingMetaData mappingMetaData = createMappingMetaData(type, mergedMappings);
-        ImmutableOpenMap.Builder<String, MappingMetaData> result = ImmutableOpenMap.builder();
-        result.put(type, mappingMetaData);
+        MappingMetadata mappingMetadata = createMappingMetadata(type, mergedMappings);
+        ImmutableOpenMap.Builder<String, MappingMetadata> result = ImmutableOpenMap.builder();
+        result.put(type, mappingMetadata);
         return result.build();
     }
 
-    private static MappingMetaData createMappingMetaData(String type, Map<String, Object> mappings) {
+    private static MappingMetadata createMappingMetadata(String type, Map<String, Object> mappings) {
         try {
-            return new MappingMetaData(type, Collections.singletonMap("properties", mappings));
+            return new MappingMetadata(type, Collections.singletonMap("properties", mappings));
         } catch (IOException e) {
             throw ExceptionsHelper.serverError("Failed to parse mappings: " + mappings);
         }

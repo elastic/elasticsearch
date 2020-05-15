@@ -23,7 +23,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.BooleanClause;
@@ -46,6 +45,8 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -117,6 +118,11 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             Function<MapperService, String> typeFunction = mapperService -> mapperService.documentMapper().type();
             return new ConstantIndexFieldData.Builder(typeFunction);
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.BYTES;
         }
 
         @Override
@@ -306,13 +312,13 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored()) {
             return;
         }
-        fields.add(new Field(fieldType().name(), context.sourceToParse().type(), fieldType()));
+        context.doc().add(new Field(fieldType().name(), context.sourceToParse().type(), fieldType()));
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(context.sourceToParse().type())));
+            context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(MapperService.SINGLE_MAPPING_NAME)));
         }
     }
 

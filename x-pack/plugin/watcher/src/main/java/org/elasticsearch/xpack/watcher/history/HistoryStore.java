@@ -12,7 +12,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
@@ -79,8 +79,8 @@ public class HistoryStore {
      */
     public static boolean validate(ClusterState state) {
         String currentIndex = HistoryStoreField.getHistoryIndexNameForTime(ZonedDateTime.now(ZoneOffset.UTC));
-        IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(currentIndex, state.metaData());
-        return indexMetaData == null || (indexMetaData.getState() == IndexMetaData.State.OPEN &&
-            state.routingTable().index(indexMetaData.getIndex()).allPrimaryShardsActive());
+        IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(currentIndex, state.metadata());
+        return indexMetadata == null || (indexMetadata.getState() == IndexMetadata.State.OPEN &&
+            state.routingTable().index(indexMetadata.getIndex()).allPrimaryShardsActive());
     }
 }

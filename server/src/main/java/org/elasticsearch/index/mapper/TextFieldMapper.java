@@ -31,7 +31,6 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -69,6 +68,8 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.IntervalBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -482,7 +483,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+        protected void parseCreateField(ParseContext context) throws IOException {
             throw new UnsupportedOperationException();
         }
 
@@ -498,12 +499,12 @@ public class TextFieldMapper extends FieldMapper {
             super(fieldType.name(), fieldType, fieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
         }
 
-        void addField(String value, List<IndexableField> fields) {
-            fields.add(new Field(fieldType().name(), value, fieldType()));
+        void addField(ParseContext context, String value) {
+            context.doc().add(new Field(fieldType().name(), value, fieldType()));
         }
 
         @Override
-        protected void parseCreateField(ParseContext context, List<IndexableField> fields) {
+        protected void parseCreateField(ParseContext context) {
             throw new UnsupportedOperationException();
         }
 
@@ -765,6 +766,11 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.BYTES;
+        }
+
+        @Override
         public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
             super.checkCompatibility(other, conflicts);
             TextFieldType tft = (TextFieldType) other;
@@ -815,7 +821,7 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         final String value;
         if (context.externalValueSet()) {
             value = context.externalValue().toString();
@@ -829,15 +835,15 @@ public class TextFieldMapper extends FieldMapper {
 
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
             Field field = new Field(fieldType().name(), value, fieldType());
-            fields.add(field);
+            context.doc().add(field);
             if (fieldType().omitNorms()) {
-                createFieldNamesField(context, fields);
+                createFieldNamesField(context);
             }
             if (prefixFieldMapper != null) {
-                prefixFieldMapper.addField(value, fields);
+                prefixFieldMapper.addField(context, value);
             }
             if (phraseFieldMapper != null) {
-                fields.add(new Field(phraseFieldMapper.fieldType.name(), value, phraseFieldMapper.fieldType));
+                context.doc().add(new Field(phraseFieldMapper.fieldType.name(), value, phraseFieldMapper.fieldType));
             }
         }
     }

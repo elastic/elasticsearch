@@ -386,6 +386,7 @@ public class MatchProcessorTests extends ESTestCase {
                 randomInt(100),
                 e.getKey().toString(),
                 new Text(MapperService.SINGLE_MAPPING_NAME),
+                Collections.emptyMap(),
                 Collections.emptyMap()
             );
             try (XContentBuilder builder = XContentBuilder.builder(XContentType.SMILE.xContent())) {

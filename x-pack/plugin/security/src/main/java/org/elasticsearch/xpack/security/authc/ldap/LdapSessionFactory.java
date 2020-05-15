@@ -71,7 +71,7 @@ public class LdapSessionFactory extends SessionFactory {
                 protected void doRun() throws Exception {
                     listener.onResponse(
                             (new LdapSession(logger, config, connection, ((SimpleBindRequest) connection.getLastBindRequest()).getBindDN(),
-                                    groupResolver, metaDataResolver, timeout, null)));
+                                    groupResolver, metadataResolver, timeout, null)));
                 }
 
                 @Override

@@ -22,7 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -191,7 +191,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         Collection<String> typesForQuery;
         if (types.length == 0) {
             typesForQuery = context.queryTypes();
-        } else if (types.length == 1 && MetaData.ALL.equals(types[0])) {
+        } else if (types.length == 1 && Metadata.ALL.equals(types[0])) {
             typesForQuery = Collections.singleton(mapper.type());
         } else {
             typesForQuery = new HashSet<>(Arrays.asList(types));

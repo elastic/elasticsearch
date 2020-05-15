@@ -7,10 +7,12 @@ import java.nio.charset.StandardCharsets
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.validate-rest-spec'
 
 archivesBaseName = 'x-pack'
 
 dependencies {
+  testCompile project(xpackModule('core')) // this redundant dependency is here to make IntelliJ happy
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
@@ -29,7 +31,7 @@ subprojects {
         dependsOn project.configurations.featureAwarePlugin
         outputs.file(successMarker)
 
-        executable = "${BuildParams.runtimeJavaHome}/bin/java"
+        executable = "${BuildParams.compilerJavaHome}/bin/java"
 
         // default to main class files if such a source set exists
         final List files = []
@@ -40,14 +42,6 @@ subprojects {
         // filter out non-existent classes directories from empty source sets
         final FileCollection classDirectories = project.files(files).filter { it.exists() }
 
-        onlyIf {
-          /*
-           * The latest version of ASM does not understand JDK 14. However, Gradle can not distinguish between JDK 13 and JDK 14 (treating
-           * anything above JDK 12 as JDK 13). So, to exclude JDK 14 until a newer version of ASM is available, we also have to exclude JDK
-           * 13. See https://github.com/elastic/elasticsearch/issues/45927.
-           */
-          Integer.parseInt(BuildParams.runtimeJavaVersion.majorVersion) < 13
-        }
         doFirst {
           args('-cp', project.configurations.featureAwarePlugin.asPath, 'org.elasticsearch.xpack.test.feature_aware.FeatureAwareCheck')
           classDirectories.each { args it.getAbsolutePath() }
@@ -160,5 +154,9 @@ testClusters.integTest {
   extraConfigFile nodeKey.name, nodeKey
   extraConfigFile nodeCert.name, nodeCert
   extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
+  }
 }
+
 

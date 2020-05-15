@@ -21,7 +21,7 @@ package org.elasticsearch.repositories.fs;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -74,7 +74,7 @@ public class FsRepository extends BlobStoreRepository {
     /**
      * Constructs a shared file system repository.
      */
-    public FsRepository(RepositoryMetaData metadata, Environment environment, NamedXContentRegistry namedXContentRegistry,
+    public FsRepository(RepositoryMetadata metadata, Environment environment, NamedXContentRegistry namedXContentRegistry,
                         ClusterService clusterService) {
         super(metadata, calculateCompress(metadata, environment), namedXContentRegistry, clusterService);
         this.environment = environment;
@@ -107,7 +107,7 @@ public class FsRepository extends BlobStoreRepository {
         this.basePath = BlobPath.cleanPath();
     }
 
-    private static boolean calculateCompress(RepositoryMetaData metadata, Environment environment) {
+    private static boolean calculateCompress(RepositoryMetadata metadata, Environment environment) {
         return COMPRESS_SETTING.exists(metadata.settings())
             ? COMPRESS_SETTING.get(metadata.settings()) : REPOSITORIES_COMPRESS_SETTING.get(environment.settings());
     }

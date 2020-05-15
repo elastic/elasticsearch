@@ -30,10 +30,12 @@ import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.DataStreamMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -44,14 +46,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.env.NodeMetaData;
+import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
@@ -73,14 +74,22 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         "cluster state is empty, cluster has never been bootstrapped?";
 
     // fake the registry here, as command-line tools are not loading plugins, and ensure that it preserves the parsed XContent
-    public static final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList()) {
+    public static final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(ClusterModule.getNamedXWriteables()) {
 
         @SuppressWarnings("unchecked")
         @Override
         public <T, C> T parseNamedObject(Class<T> categoryClass, String name, XContentParser parser, C context) throws IOException {
             // Currently, two unknown top-level objects are present
-            if (MetaData.Custom.class.isAssignableFrom(categoryClass)) {
-                return (T) new UnknownMetaDataCustom(name, parser.mapOrdered());
+            if (Metadata.Custom.class.isAssignableFrom(categoryClass)) {
+                if (DataStreamMetadata.TYPE.equals(name)) {
+                    // DataStreamMetadata is used inside Metadata class for validation purposes and building the indicesLookup,
+                    // therefor even es node commands need to be able to parse it.
+                    return super.parseNamedObject(categoryClass, name, parser, context);
+                    // TODO: Try to parse other named objects (e.g. stored scripts, ingest pipelines) that are part of core es as well?
+                    // Note that supporting PersistentTasksCustomMetadata is trickier, because PersistentTaskParams is a named object too.
+                } else {
+                    return (T) new UnknownMetadataCustom(name, parser.mapOrdered());
+                }
             }
             if (Condition.class.isAssignableFrom(categoryClass)) {
                 // The parsing for conditions is a bit weird as these represent JSON primitives (strings or numbers)
@@ -108,12 +117,12 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     }
 
     public static PersistedClusterStateService createPersistedClusterStateService(Settings settings, Path[] dataPaths) throws IOException {
-        final NodeMetaData nodeMetaData = PersistedClusterStateService.nodeMetaData(dataPaths);
-        if (nodeMetaData == null) {
+        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(dataPaths);
+        if (nodeMetadata == null) {
             throw new ElasticsearchException(NO_NODE_METADATA_FOUND_MSG);
         }
 
-        String nodeId = nodeMetaData.nodeId();
+        String nodeId = nodeMetadata.nodeId();
         return new PersistedClusterStateService(dataPaths, nodeId, namedXContentRegistry, BigArrays.NON_RECYCLING_INSTANCE,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
     }
@@ -121,7 +130,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     public static ClusterState clusterState(Environment environment, PersistedClusterStateService.OnDiskState onDiskState) {
         return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(environment.settings()))
             .version(onDiskState.lastAcceptedVersion)
-            .metaData(onDiskState.metaData)
+            .metadata(onDiskState.metadata)
             .build();
     }
 
@@ -206,23 +215,23 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         return parser;
     }
 
-    public static class UnknownMetaDataCustom implements MetaData.Custom {
+    public static class UnknownMetadataCustom implements Metadata.Custom {
 
         private final String name;
         private final Map<String, Object> contents;
 
-        public UnknownMetaDataCustom(String name, Map<String, Object> contents) {
+        public UnknownMetadataCustom(String name, Map<String, Object> contents) {
             this.name = name;
             this.contents = contents;
         }
 
         @Override
-        public EnumSet<MetaData.XContentContext> context() {
-            return EnumSet.of(MetaData.XContentContext.API, MetaData.XContentContext.GATEWAY);
+        public EnumSet<Metadata.XContentContext> context() {
+            return EnumSet.of(Metadata.XContentContext.API, Metadata.XContentContext.GATEWAY);
         }
 
         @Override
-        public Diff<MetaData.Custom> diff(MetaData.Custom previousState) {
+        public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
             assert false;
             throw new UnsupportedOperationException();
         }

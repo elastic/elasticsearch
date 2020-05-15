@@ -45,7 +45,7 @@ public class RestoreSnapshotResponse extends ActionResponse implements ToXConten
     @Nullable
     private RestoreInfo restoreInfo;
 
-    RestoreSnapshotResponse(@Nullable RestoreInfo restoreInfo) {
+    public RestoreSnapshotResponse(@Nullable RestoreInfo restoreInfo) {
         this.restoreInfo = restoreInfo;
     }
 

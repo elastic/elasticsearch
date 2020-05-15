@@ -29,7 +29,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -64,7 +63,7 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
 
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
         aggBuilder.calendarInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
-        aggBuilder.subAggregation(new CardinalityAggregationBuilder("the_cardinality", ValueType.NUMERIC).field(VALUE_FIELD));
+        aggBuilder.subAggregation(new CardinalityAggregationBuilder("the_cardinality").field(VALUE_FIELD));
         aggBuilder.subAggregation(new CumulativeCardinalityPipelineAggregationBuilder("cumulative_card", "the_cardinality"));
 
         executeTestCase(query, aggBuilder, histogram -> {
@@ -84,7 +83,7 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
 
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
         aggBuilder.calendarInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
-        aggBuilder.subAggregation(new CardinalityAggregationBuilder("the_cardinality", ValueType.NUMERIC).field("foo"));
+        aggBuilder.subAggregation(new CardinalityAggregationBuilder("the_cardinality").field("foo"));
         aggBuilder.subAggregation(new CumulativeCardinalityPipelineAggregationBuilder("cumulative_card", "the_cardinality"));
 
         executeTestCase(query, aggBuilder, histogram -> {

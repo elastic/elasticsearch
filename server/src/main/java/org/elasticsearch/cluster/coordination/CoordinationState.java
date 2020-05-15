@@ -21,8 +21,8 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
 import java.io.Closeable;
@@ -92,8 +92,8 @@ public class CoordinationState {
         return getLastAcceptedState().version();
     }
 
-    private long getLastAcceptedVersionOrMetaDataVersion() {
-        return getLastAcceptedState().getVersionOrMetaDataVersion();
+    private long getLastAcceptedVersionOrMetadataVersion() {
+        return getLastAcceptedState().getVersionOrMetadataVersion();
     }
 
     public VotingConfiguration getLastCommittedConfiguration() {
@@ -205,7 +205,7 @@ public class CoordinationState {
         publishVotes = new VoteCollection();
 
         return new Join(localNode, startJoinRequest.getSourceNode(), getCurrentTerm(), getLastAcceptedTerm(),
-            getLastAcceptedVersionOrMetaDataVersion());
+            getLastAcceptedVersionOrMetadataVersion());
     }
 
     /**
@@ -238,12 +238,12 @@ public class CoordinationState {
                 " of join higher than current last accepted term " + lastAcceptedTerm);
         }
 
-        if (join.getLastAcceptedTerm() == lastAcceptedTerm && join.getLastAcceptedVersion() > getLastAcceptedVersionOrMetaDataVersion()) {
+        if (join.getLastAcceptedTerm() == lastAcceptedTerm && join.getLastAcceptedVersion() > getLastAcceptedVersionOrMetadataVersion()) {
             logger.debug(
                 "handleJoin: ignored join as joiner has a better last accepted version (expected: <=[{}], actual: [{}]) in term {}",
-                getLastAcceptedVersionOrMetaDataVersion(), join.getLastAcceptedVersion(), lastAcceptedTerm);
+                getLastAcceptedVersionOrMetadataVersion(), join.getLastAcceptedVersion(), lastAcceptedTerm);
             throw new CoordinationStateRejectedException("incoming last accepted version " + join.getLastAcceptedVersion() +
-                " of join higher than current last accepted version " + getLastAcceptedVersionOrMetaDataVersion()
+                " of join higher than current last accepted version " + getLastAcceptedVersionOrMetadataVersion()
                 + " in term " + lastAcceptedTerm);
         }
 
@@ -487,28 +487,28 @@ public class CoordinationState {
          */
         default void markLastAcceptedStateAsCommitted() {
             final ClusterState lastAcceptedState = getLastAcceptedState();
-            MetaData.Builder metaDataBuilder = null;
+            Metadata.Builder metadataBuilder = null;
             if (lastAcceptedState.getLastAcceptedConfiguration().equals(lastAcceptedState.getLastCommittedConfiguration()) == false) {
-                final CoordinationMetaData coordinationMetaData = CoordinationMetaData.builder(lastAcceptedState.coordinationMetaData())
+                final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder(lastAcceptedState.coordinationMetadata())
                         .lastCommittedConfiguration(lastAcceptedState.getLastAcceptedConfiguration())
                         .build();
-                metaDataBuilder = MetaData.builder(lastAcceptedState.metaData());
-                metaDataBuilder.coordinationMetaData(coordinationMetaData);
+                metadataBuilder = Metadata.builder(lastAcceptedState.metadata());
+                metadataBuilder.coordinationMetadata(coordinationMetadata);
             }
             // if we receive a commit from a Zen1 master that has not recovered its state yet, the cluster uuid might not been known yet.
-            assert lastAcceptedState.metaData().clusterUUID().equals(MetaData.UNKNOWN_CLUSTER_UUID) == false ||
+            assert lastAcceptedState.metadata().clusterUUID().equals(Metadata.UNKNOWN_CLUSTER_UUID) == false ||
                 lastAcceptedState.term() == ZEN1_BWC_TERM :
                 "received cluster state with empty cluster uuid but not Zen1 BWC term: " + lastAcceptedState;
-            if (lastAcceptedState.metaData().clusterUUID().equals(MetaData.UNKNOWN_CLUSTER_UUID) == false &&
-                lastAcceptedState.metaData().clusterUUIDCommitted() == false) {
-                if (metaDataBuilder == null) {
-                    metaDataBuilder = MetaData.builder(lastAcceptedState.metaData());
+            if (lastAcceptedState.metadata().clusterUUID().equals(Metadata.UNKNOWN_CLUSTER_UUID) == false &&
+                lastAcceptedState.metadata().clusterUUIDCommitted() == false) {
+                if (metadataBuilder == null) {
+                    metadataBuilder = Metadata.builder(lastAcceptedState.metadata());
                 }
-                metaDataBuilder.clusterUUIDCommitted(true);
-                logger.info("cluster UUID set to [{}]", lastAcceptedState.metaData().clusterUUID());
+                metadataBuilder.clusterUUIDCommitted(true);
+                logger.info("cluster UUID set to [{}]", lastAcceptedState.metadata().clusterUUID());
             }
-            if (metaDataBuilder != null) {
-                setLastAcceptedState(ClusterState.builder(lastAcceptedState).metaData(metaDataBuilder).build());
+            if (metadataBuilder != null) {
+                setLastAcceptedState(ClusterState.builder(lastAcceptedState).metadata(metadataBuilder).build());
             }
         }
 

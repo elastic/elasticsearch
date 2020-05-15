@@ -29,27 +29,17 @@ of the JSON <<tasks,task management>> API.
 [[cat-tasks-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=actions]
-
 include::{docdir}/rest-api/common-parms.asciidoc[tag=detailed]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=group-by]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id-query-parm]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=parent-task-id]
-
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_completion]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 

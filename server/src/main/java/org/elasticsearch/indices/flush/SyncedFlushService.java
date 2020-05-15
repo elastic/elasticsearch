@@ -29,7 +29,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -166,8 +166,8 @@ public class SyncedFlushService implements IndexEventListener {
         final Map<String, List<ShardsSyncedFlushResult>> results = ConcurrentCollections.newConcurrentMap();
         int numberOfShards = 0;
         for (Index index : concreteIndices) {
-            final IndexMetaData indexMetaData = state.metaData().getIndexSafe(index);
-            numberOfShards += indexMetaData.getNumberOfShards();
+            final IndexMetadata indexMetadata = state.metadata().getIndexSafe(index);
+            numberOfShards += indexMetadata.getNumberOfShards();
             results.put(index.getName(), Collections.synchronizedList(new ArrayList<>()));
 
         }
@@ -179,10 +179,10 @@ public class SyncedFlushService implements IndexEventListener {
 
         for (final Index concreteIndex : concreteIndices) {
             final String index = concreteIndex.getName();
-            final IndexMetaData indexMetaData = state.metaData().getIndexSafe(concreteIndex);
-            final int indexNumberOfShards = indexMetaData.getNumberOfShards();
+            final IndexMetadata indexMetadata = state.metadata().getIndexSafe(concreteIndex);
+            final int indexNumberOfShards = indexMetadata.getNumberOfShards();
             for (int shard = 0; shard < indexNumberOfShards; shard++) {
-                final ShardId shardId = new ShardId(indexMetaData.getIndex(), shard);
+                final ShardId shardId = new ShardId(indexMetadata.getIndex(), shard);
                 innerAttemptSyncedFlush(shardId, state, new ActionListener<ShardsSyncedFlushResult>() {
                     @Override
                     public void onResponse(ShardsSyncedFlushResult syncedFlushResult) {
@@ -195,7 +195,7 @@ public class SyncedFlushService implements IndexEventListener {
                     @Override
                     public void onFailure(Exception e) {
                         logger.debug("{} unexpected error while executing synced flush", shardId);
-                        final int totalShards = indexMetaData.getNumberOfReplicas() + 1;
+                        final int totalShards = indexMetadata.getNumberOfReplicas() + 1;
                         results.get(index).add(new ShardsSyncedFlushResult(shardId, totalShards, e.getMessage()));
                         if (countDown.countDown()) {
                             listener.onResponse(new SyncedFlushResponse(results));
@@ -322,13 +322,13 @@ public class SyncedFlushService implements IndexEventListener {
     }
 
     final IndexShardRoutingTable getShardRoutingTable(final ShardId shardId, final ClusterState state) {
-        final IndexMetaData indexMetaData = state.getMetaData().index(shardId.getIndex());
-        if (indexMetaData == null) {
+        final IndexMetadata indexMetadata = state.getMetadata().index(shardId.getIndex());
+        if (indexMetadata == null) {
             throw new IndexNotFoundException(shardId.getIndexName());
-        } else if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+        } else if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
             throw new IndexClosedException(shardId.getIndex());
         }
-        final IndexShardRoutingTable shardRoutingTable = state.routingTable().index(indexMetaData.getIndex()).shard(shardId.id());
+        final IndexShardRoutingTable shardRoutingTable = state.routingTable().index(indexMetadata.getIndex()).shard(shardId.id());
         if (shardRoutingTable == null) {
             throw new ShardNotFoundException(shardId);
         }

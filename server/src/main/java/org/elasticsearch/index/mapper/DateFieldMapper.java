@@ -24,12 +24,12 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
@@ -54,6 +54,8 @@ import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.time.DateTimeException;
@@ -73,6 +75,7 @@ import static org.elasticsearch.common.time.DateUtils.toLong;
 public final class DateFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "date";
+    public static final String DATE_NANOS_CONTENT_TYPE = "date_nanos";
     public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
 
     public static class Defaults {
@@ -101,7 +104,7 @@ public final class DateFieldMapper extends FieldMapper {
                 return LongPoint.decodeDimension(value, 0);
             }
         },
-        NANOSECONDS("date_nanos", NumericType.DATE_NANOSECONDS) {
+        NANOSECONDS(DATE_NANOS_CONTENT_TYPE, NumericType.DATE_NANOSECONDS) {
             @Override
             public long convert(Instant instant) {
                 return toLong(instant);
@@ -435,11 +438,17 @@ public final class DateFieldMapper extends FieldMapper {
                     --u;
                 }
             }
+
             Query query = LongPoint.newRangeQuery(name(), l, u);
             if (hasDocValues()) {
                 Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                 query = new IndexOrDocValuesQuery(query, dvQuery);
+
+                if (context.indexSortedOnField(name())) {
+                    query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+                }
             }
+
             if (nowUsed[0]) {
                 query = new DateRangeIncludingNowQuery(query);
             }
@@ -541,6 +550,11 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.DATE;
+        }
+
+        @Override
         public Object valueForDisplay(Object value) {
             Long val = (Long) value;
             if (val == null) {
@@ -594,7 +608,7 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         String dateAsString;
         if (context.externalValueSet()) {
             Object dateAsObject = context.externalValue();
@@ -628,15 +642,15 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         if (fieldType().indexOptions() != IndexOptions.NONE) {
-            fields.add(new LongPoint(fieldType().name(), timestamp));
+            context.doc().add(new LongPoint(fieldType().name(), timestamp));
         }
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
+            context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
         } else if (fieldType().stored() || fieldType().indexOptions() != IndexOptions.NONE) {
-            createFieldNamesField(context, fields);
+            createFieldNamesField(context);
         }
         if (fieldType().stored()) {
-            fields.add(new StoredField(fieldType().name(), timestamp));
+            context.doc().add(new StoredField(fieldType().name(), timestamp));
         }
     }
 

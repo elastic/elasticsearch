@@ -246,11 +246,11 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
+    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
         // If the user doesn't set a preference for cost minimization, ask
         // what the model prefers
         boolean minimize = this.minimize == null ? model.minimizeByDefault() : this.minimize;
-        return new MovAvgPipelineAggregator(name, bucketsPaths, formatter(), gapPolicy, window, predict, model, minimize, metaData);
+        return new MovAvgPipelineAggregator(name, bucketsPaths, formatter(), gapPolicy, window, predict, model, minimize, metadata);
     }
 
     @Override
@@ -301,7 +301,8 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
         Integer predict = null;
         Boolean minimize = null;
 
-        DEPRECATION_LOGGER.deprecated("The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.");
+        DEPRECATION_LOGGER.deprecatedAndMaybeLog("moving_avg_aggregation",
+            "The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.");
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {

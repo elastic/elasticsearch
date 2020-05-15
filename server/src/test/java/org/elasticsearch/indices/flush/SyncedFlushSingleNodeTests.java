@@ -20,7 +20,7 @@ package org.elasticsearch.indices.flush;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -140,8 +140,8 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testSyncFailsOnIndexClosedOrMissing() throws InterruptedException {
         createIndex("test", Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build());
         IndexService test = getInstanceFromNode(IndicesService.class).indexService(resolveIndex("test"));
         final IndexShard shard = test.getShardOrNull(0);

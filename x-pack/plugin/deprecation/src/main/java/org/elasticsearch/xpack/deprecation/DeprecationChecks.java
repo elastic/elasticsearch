@@ -7,9 +7,10 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -47,10 +48,30 @@ public class DeprecationChecks {
             NodeDeprecationChecks::checkMissingRealmOrders,
             NodeDeprecationChecks::checkUniqueRealmOrders,
             (settings, pluginsAndModules) -> NodeDeprecationChecks.checkThreadPoolListenerQueueSize(settings),
-            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkThreadPoolListenerSize(settings)
+            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkThreadPoolListenerSize(settings),
+            NodeDeprecationChecks::checkClusterRemoteConnectSetting,
+            NodeDeprecationChecks::checkNodeLocalStorageSetting,
+            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
+                XPackSettings.ENRICH_ENABLED_SETTING),
+            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
+                XPackSettings.FLATTENED_ENABLED),
+            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
+                XPackSettings.INDEX_LIFECYCLE_ENABLED),
+            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
+                XPackSettings.MONITORING_ENABLED),
+            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
+                XPackSettings.ROLLUP_ENABLED),
+            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
+                XPackSettings.SNAPSHOT_LIFECYCLE_ENABLED),
+            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
+                XPackSettings.SQL_ENABLED),
+            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
+                XPackSettings.TRANSFORM_ENABLED),
+            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
+                XPackSettings.VECTORS_ENABLED)
         ));
 
-    static List<Function<IndexMetaData, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
+    static List<Function<IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
             IndexDeprecationChecks::oldIndicesCheck,
             IndexDeprecationChecks::tooManyFieldsCheck,

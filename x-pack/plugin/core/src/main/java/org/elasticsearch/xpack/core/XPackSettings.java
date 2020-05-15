@@ -42,8 +42,12 @@ public class XPackSettings {
 
     /**
      * Setting for controlling whether or not enrich is enabled.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
      */
-    public static final Setting<Boolean> ENRICH_ENABLED_SETTING = Setting.boolSetting("xpack.enrich.enabled", true, Property.NodeScope);
+    @Deprecated // since = "7.8.0"
+    public static final Setting<Boolean> ENRICH_ENABLED_SETTING = Setting.boolSetting("xpack.enrich.enabled", true,
+        Property.NodeScope, Property.Deprecated);
 
     /**
      * Setting for controlling whether or not CCR is enabled.
@@ -54,15 +58,27 @@ public class XPackSettings {
     @Deprecated // replaced by TRANSFORM_ENABLED
     private static final Setting<Boolean> DATA_FRAME_ENABLED = Setting.boolSetting("xpack.data_frame.enabled", true,
             Setting.Property.NodeScope, Setting.Property.Deprecated);
-    public static final Setting<Boolean> TRANSFORM_ENABLED = Setting.boolSetting("xpack.transform.enabled", DATA_FRAME_ENABLED,
-            Setting.Property.NodeScope);
+
+    /**
+     * Setting for enabling or disabling data frame. Defaults to true.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
+     */
+    @Deprecated // since = "7.8.0"
+    public static final Setting<Boolean> TRANSFORM_ENABLED = Setting.boolSetting("xpack.transform.enabled", true,
+        Property.NodeScope, Property.Deprecated);
 
     /** Setting for enabling or disabling security. Defaults to true. */
     public static final Setting<Boolean> SECURITY_ENABLED = Setting.boolSetting("xpack.security.enabled", true, Setting.Property.NodeScope);
 
-    /** Setting for enabling or disabling monitoring. */
+    /**
+     * Setting for enabling or disabling monitoring.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
+     */
+    @Deprecated // since = "7.8.0"
     public static final Setting<Boolean> MONITORING_ENABLED = Setting.boolSetting("xpack.monitoring.enabled", true,
-            Setting.Property.NodeScope);
+        Property.NodeScope, Property.Deprecated);
 
     /** Setting for enabling or disabling watcher. Defaults to true. */
     public static final Setting<Boolean> WATCHER_ENABLED = Setting.boolSetting("xpack.watcher.enabled", true, Setting.Property.NodeScope);
@@ -71,19 +87,17 @@ public class XPackSettings {
     public static final Setting<Boolean> GRAPH_ENABLED = Setting.boolSetting("xpack.graph.enabled", true, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling machine learning. Defaults to true. */
-    public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting(
-        "xpack.ml.enabled",
-        "aarch64".equals(System.getProperty("os.arch")) ? false : true,
-        value -> {
-            if (value && "aarch64".equals(System.getProperty("os.arch"))) {
-                throw new IllegalArgumentException("[xpack.ml.enabled] can not be set to [true] on [aarch64]");
-            }
-        },
-        Setting.Property.NodeScope);
-
-    /** Setting for enabling or disabling rollup. Defaults to true. */
-    public static final Setting<Boolean> ROLLUP_ENABLED = Setting.boolSetting("xpack.rollup.enabled", true,
+    public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting("xpack.ml.enabled", true,
             Setting.Property.NodeScope);
+
+    /**
+     * Setting for enabling or disabling rollup. Defaults to true.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
+     */
+    @Deprecated // since = "7.8.0"
+    public static final Setting<Boolean> ROLLUP_ENABLED = Setting.boolSetting("xpack.rollup.enabled", true,
+        Property.NodeScope, Property.Deprecated);
 
     /** Setting for enabling or disabling auditing. Defaults to false. */
     public static final Setting<Boolean> AUDIT_ENABLED = Setting.boolSetting("xpack.security.audit.enabled", false,
@@ -93,21 +107,32 @@ public class XPackSettings {
     public static final Setting<Boolean> DLS_FLS_ENABLED = Setting.boolSetting("xpack.security.dls_fls.enabled", true,
             Setting.Property.NodeScope);
 
-    /** Setting for enabling or disabling Logstash extensions. Defaults to true. */
+    /**
+     * Setting for enabling or disabling Logstash extensions. Defaults to true.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
+     */
+    @Deprecated // since = "7.8.0"
     public static final Setting<Boolean> LOGSTASH_ENABLED = Setting.boolSetting("xpack.logstash.enabled", true,
             Setting.Property.NodeScope, Property.Deprecated);
 
     /**
      * Setting for enabling or disabling the index lifecycle extension. Defaults to true.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
      */
+    @Deprecated // since 7.8.0
     public static final Setting<Boolean> INDEX_LIFECYCLE_ENABLED = Setting.boolSetting("xpack.ilm.enabled", true,
-        Setting.Property.NodeScope);
+        Property.NodeScope, Property.Deprecated);
 
     /**
      * Setting for enabling or disabling the snapshot lifecycle extension. Defaults to true.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
      */
+    @Deprecated // since = "7.8.0"
     public static final Setting<Boolean> SNAPSHOT_LIFECYCLE_ENABLED = Setting.boolSetting("xpack.slm.enabled", true,
-        Setting.Property.NodeScope);
+        Property.NodeScope, Property.Deprecated);
 
     /** Setting for enabling or disabling TLS. Defaults to false. */
     public static final Setting<Boolean> TRANSPORT_SSL_ENABLED = Setting.boolSetting("xpack.security.transport.ssl.enabled", false,
@@ -133,15 +158,32 @@ public class XPackSettings {
     public static final Setting<Boolean> FIPS_MODE_ENABLED =
         Setting.boolSetting("xpack.security.fips_mode.enabled", false, Property.NodeScope);
 
-    /** Setting for enabling or disabling sql. Defaults to true. */
-    public static final Setting<Boolean> SQL_ENABLED = Setting.boolSetting("xpack.sql.enabled", true, Setting.Property.NodeScope);
+    /**
+     * Setting for enabling or disabling sql. Defaults to true.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
+     */
+    @Deprecated // since = "7.8.0"
+    public static final Setting<Boolean> SQL_ENABLED = Setting.boolSetting("xpack.sql.enabled", true,
+        Property.NodeScope, Property.Deprecated);
 
-    /** Setting for enabling or disabling flattened fields. Defaults to true. */
-    public static final Setting<Boolean> FLATTENED_ENABLED = Setting.boolSetting("xpack.flattened.enabled",
-        true, Setting.Property.NodeScope);
+    /**
+     * Setting for enabling or disabling flattened fields. Defaults to true.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
+     */
+    @Deprecated // since = "7.8.0"
+    public static final Setting<Boolean> FLATTENED_ENABLED = Setting.boolSetting("xpack.flattened.enabled", true,
+        Property.NodeScope, Property.Deprecated);
 
-    /** Setting for enabling or disabling vectors. Defaults to true. */
-    public static final Setting<Boolean> VECTORS_ENABLED = Setting.boolSetting("xpack.vectors.enabled", true, Setting.Property.NodeScope);
+    /**
+     * Setting for enabling or disabling vectors. Defaults to true.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
+     */
+    @Deprecated // since = "7.8.0"
+    public static final Setting<Boolean> VECTORS_ENABLED = Setting.boolSetting("xpack.vectors.enabled", true,
+        Property.NodeScope, Property.Deprecated);
 
     public static final Setting<Boolean> DIAGNOSE_TRUST_EXCEPTIONS_SETTING = Setting.boolSetting(
         "xpack.security.ssl.diagnose.trust", true, Setting.Property.NodeScope);
@@ -280,6 +322,7 @@ public class XPackSettings {
         settings.add(TRANSFORM_ENABLED);
         settings.add(FLATTENED_ENABLED);
         settings.add(VECTORS_ENABLED);
+        settings.add(ENRICH_ENABLED_SETTING);
         settings.add(DIAGNOSE_TRUST_EXCEPTIONS_SETTING);
         settings.add(FIPS_MODE_ENABLED);
         return Collections.unmodifiableList(settings);

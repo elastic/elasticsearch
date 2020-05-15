@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -53,7 +53,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
 
     private static final Logger logger = LogManager.getLogger(TransportCloseIndexAction.class);
 
-    private final MetaDataIndexStateService indexStateService;
+    private final MetadataIndexStateService indexStateService;
     private final DestructiveOperations destructiveOperations;
     private volatile boolean closeIndexEnabled;
     public static final Setting<Boolean> CLUSTER_INDICES_CLOSE_ENABLE_SETTING =
@@ -61,7 +61,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
 
     @Inject
     public TransportCloseIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                     ThreadPool threadPool, MetaDataIndexStateService indexStateService,
+                                     ThreadPool threadPool, MetadataIndexStateService indexStateService,
                                      ClusterSettings clusterSettings, ActionFilters actionFilters,
                                      IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
         super(CloseIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, CloseIndexRequest::new,

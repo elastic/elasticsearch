@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.monitoring.collector.ml;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -64,7 +64,7 @@ public class JobStatsCollector extends Collector {
         return isElectedMaster
                 && super.shouldCollect(isElectedMaster)
                 && XPackSettings.MACHINE_LEARNING_ENABLED.get(settings)
-                && licenseState.isMachineLearningAllowed();
+                && licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING);
     }
 
     @Override
@@ -74,7 +74,7 @@ public class JobStatsCollector extends Collector {
         // fetch details about all jobs
         try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(MONITORING_ORIGIN)) {
             final GetJobsStatsAction.Response jobs =
-                    client.getJobsStats(new GetJobsStatsAction.Request(MetaData.ALL))
+                    client.getJobsStats(new GetJobsStatsAction.Request(Metadata.ALL))
                             .actionGet(getCollectionTimeout());
 
             final long timestamp = timestamp();

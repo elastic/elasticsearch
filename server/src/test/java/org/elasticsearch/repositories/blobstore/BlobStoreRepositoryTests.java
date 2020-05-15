@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -51,6 +51,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.RepositoryDataTests.generateRandomRepoData;
@@ -183,8 +184,8 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(expectedGeneration + 1L));
 
         // removing a snapshot and writing to a new index generational file
-        repositoryData = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).removeSnapshot(
-            repositoryData.getSnapshotIds().iterator().next(), ShardGenerations.EMPTY);
+        repositoryData = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).removeSnapshots(
+            Collections.singleton(repositoryData.getSnapshotIds().iterator().next()), ShardGenerations.EMPTY);
         writeIndexGen(repository, repositoryData, repositoryData.getGenId());
         assertEquals(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), repositoryData);
         assertThat(repository.latestIndexBlobId(), equalTo(expectedGeneration + 2L));
@@ -197,8 +198,8 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         // write to index generational file
         RepositoryData repositoryData = generateRandomRepoData();
         final long startingGeneration = repositoryData.getGenId();
-        final PlainActionFuture<Void> future1 = PlainActionFuture.newFuture();
-        repository.writeIndexGen(repositoryData, startingGeneration, true, future1);
+        final PlainActionFuture<RepositoryData> future1 = PlainActionFuture.newFuture();
+        repository.writeIndexGen(repositoryData, startingGeneration, true, Function.identity(),future1);
 
         // write repo data again to index generational file, errors because we already wrote to the
         // N+1 generation from which this repository data instance was created
@@ -223,7 +224,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
     public void testFsRepositoryCompressDeprecated() {
         final Path location = ESIntegTestCase.randomRepoPath(node().settings());
         final Settings settings = Settings.builder().put(node().settings()).put("location", location).build();
-        final RepositoryMetaData metaData = new RepositoryMetaData("test-repo", REPO_TYPE, settings);
+        final RepositoryMetadata metadata = new RepositoryMetadata("test-repo", REPO_TYPE, settings);
 
         Settings useCompressSettings = Settings.builder()
             .put(node().getEnvironment().settings())
@@ -232,16 +233,15 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         Environment useCompressEnvironment =
             new Environment(useCompressSettings, node().getEnvironment().configFile());
 
-        new FsRepository(metaData, useCompressEnvironment, null, BlobStoreTestUtil.mockClusterService());
+        new FsRepository(metadata, useCompressEnvironment, null, BlobStoreTestUtil.mockClusterService());
 
         assertWarnings("[repositories.fs.compress] setting was deprecated in Elasticsearch and will be removed in a future release!" +
             " See the breaking changes documentation for the next major version.");
     }
 
-    private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) {
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        repository.writeIndexGen(repositoryData, generation, true, future);
-        future.actionGet();
+    private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) throws Exception {
+        PlainActionFuture.<RepositoryData, Exception>get(f -> repository.writeIndexGen(repositoryData, generation, true,
+                Function.identity(), f));
     }
 
     private BlobStoreRepository setupRepo() {

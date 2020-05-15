@@ -75,8 +75,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
     private volatile ElasticsearchDirectoryReader lastOpenedReader;
     private final ElasticsearchDirectoryReader canMatchReader;
 
-    public FrozenEngine(EngineConfig config) {
-        super(config, null, null, true, Function.identity());
+    public FrozenEngine(EngineConfig config, boolean requireCompleteHistory) {
+        super(config, null, null, true, Function.identity(), requireCompleteHistory);
 
         boolean success = false;
         Directory directory = store.directory();

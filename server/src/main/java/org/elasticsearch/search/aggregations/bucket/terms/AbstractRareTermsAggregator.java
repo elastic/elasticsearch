@@ -29,12 +29,10 @@ import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.MergingBucketsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
@@ -53,10 +51,9 @@ public abstract class AbstractRareTermsAggregator<T extends ValuesSource,
     final SetBackedScalingCuckooFilter filter;
 
     AbstractRareTermsAggregator(String name, AggregatorFactories factories, SearchContext context,
-                                Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                                Map<String, Object> metaData, long maxDocCount, double precision,
+                                Aggregator parent, Map<String, Object> metadata, long maxDocCount, double precision,
                                 DocValueFormat format, T valuesSource, U includeExclude) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metaData);
+        super(name, factories, context, parent, metadata);
 
         // We seed the rng with the ShardID so results are deterministic and don't change randomly
         this.filter = new SetBackedScalingCuckooFilter(10000, new Random(context.indexShard().shardId().hashCode()), precision);

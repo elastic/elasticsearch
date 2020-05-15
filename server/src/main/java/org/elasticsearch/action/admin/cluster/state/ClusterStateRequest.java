@@ -37,10 +37,10 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
 
     private boolean routingTable = true;
     private boolean nodes = true;
-    private boolean metaData = true;
+    private boolean metadata = true;
     private boolean blocks = true;
     private boolean customs = true;
-    private Long waitForMetaDataVersion;
+    private Long waitForMetadataVersion;
     private TimeValue waitForTimeout = DEFAULT_WAIT_FOR_NODE_TIMEOUT;
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
@@ -52,14 +52,14 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         super(in);
         routingTable = in.readBoolean();
         nodes = in.readBoolean();
-        metaData = in.readBoolean();
+        metadata = in.readBoolean();
         blocks = in.readBoolean();
         customs = in.readBoolean();
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
             waitForTimeout = in.readTimeValue();
-            waitForMetaDataVersion = in.readOptionalLong();
+            waitForMetadataVersion = in.readOptionalLong();
         }
     }
 
@@ -68,14 +68,14 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         super.writeTo(out);
         out.writeBoolean(routingTable);
         out.writeBoolean(nodes);
-        out.writeBoolean(metaData);
+        out.writeBoolean(metadata);
         out.writeBoolean(blocks);
         out.writeBoolean(customs);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
             out.writeTimeValue(waitForTimeout);
-            out.writeOptionalLong(waitForMetaDataVersion);
+            out.writeOptionalLong(waitForMetadataVersion);
         }
     }
 
@@ -87,7 +87,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
     public ClusterStateRequest all() {
         routingTable = true;
         nodes = true;
-        metaData = true;
+        metadata = true;
         blocks = true;
         customs = true;
         indices = Strings.EMPTY_ARRAY;
@@ -97,7 +97,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
     public ClusterStateRequest clear() {
         routingTable = false;
         nodes = false;
-        metaData = false;
+        metadata = false;
         blocks = false;
         customs = false;
         indices = Strings.EMPTY_ARRAY;
@@ -122,12 +122,12 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         return this;
     }
 
-    public boolean metaData() {
-        return metaData;
+    public boolean metadata() {
+        return metadata;
     }
 
-    public ClusterStateRequest metaData(boolean metaData) {
-        this.metaData = metaData;
+    public ClusterStateRequest metadata(boolean metadata) {
+        this.metadata = metadata;
         return this;
     }
 
@@ -179,16 +179,16 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         return this;
     }
 
-    public Long waitForMetaDataVersion() {
-        return waitForMetaDataVersion;
+    public Long waitForMetadataVersion() {
+        return waitForMetadataVersion;
     }
 
-    public ClusterStateRequest waitForMetaDataVersion(long waitForMetaDataVersion) {
-        if (waitForMetaDataVersion < 1) {
-            throw new IllegalArgumentException("provided waitForMetaDataVersion should be >= 1, but instead is [" +
-                waitForMetaDataVersion + "]");
+    public ClusterStateRequest waitForMetadataVersion(long waitForMetadataVersion) {
+        if (waitForMetadataVersion < 1) {
+            throw new IllegalArgumentException("provided waitForMetadataVersion should be >= 1, but instead is [" +
+                waitForMetadataVersion + "]");
         }
-        this.waitForMetaDataVersion = waitForMetaDataVersion;
+        this.waitForMetadataVersion = waitForMetadataVersion;
         return this;
     }
 }

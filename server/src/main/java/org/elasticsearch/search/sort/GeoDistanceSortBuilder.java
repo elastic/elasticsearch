@@ -491,7 +491,8 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 fieldName = currentName;
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (NESTED_FILTER_FIELD.match(currentName, parser.getDeprecationHandler())) {
-                    deprecationLogger.deprecated("[nested_filter] has been deprecated in favour of the [nested] parameter");
+                    deprecationLogger.deprecatedAndMaybeLog("geo_distance_nested_filter",
+                        "[nested_filter] has been deprecated in favour of the [nested] parameter");
                     nestedFilter = parseInnerQueryBuilder(parser);
                 } else if (NESTED_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     nestedSort = NestedSortBuilder.fromXContent(parser);
@@ -521,7 +522,8 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 } else if (SORTMODE_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     sortMode = SortMode.fromString(parser.text());
                 } else if (NESTED_PATH_FIELD.match(currentName, parser.getDeprecationHandler())) {
-                    deprecationLogger.deprecated("[nested_path] has been deprecated in favour of the [nested] parameter");
+                    deprecationLogger.deprecatedAndMaybeLog("geo_distance_nested_path",
+                        "[nested_path] has been deprecated in favour of the [nested] parameter");
                     nestedPath = parser.text();
                 } else if (IGNORE_UNMAPPED.match(currentName, parser.getDeprecationHandler())) {
                     ignoreUnmapped = parser.booleanValue();

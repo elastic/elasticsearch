@@ -23,7 +23,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -48,7 +48,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
                 type = randomAlphaOfLengthBetween(1, 10);
             }
         } else if (randomBoolean()) {
-            type = MetaData.ALL;
+            type = Metadata.ALL;
         } else {
             type = null;
         }

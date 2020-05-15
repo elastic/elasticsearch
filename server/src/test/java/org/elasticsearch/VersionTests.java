@@ -19,7 +19,7 @@
 
 package org.elasticsearch;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -160,12 +160,12 @@ public class VersionTests extends ESTestCase {
     }
 
     public void testIndexCreatedVersion() {
-        // an actual index has a IndexMetaData.SETTING_INDEX_UUID
+        // an actual index has a IndexMetadata.SETTING_INDEX_UUID
         final Version version = Version.V_6_0_0_beta1;
         assertEquals(version, Version.indexCreated(
             Settings.builder()
-                .put(IndexMetaData.SETTING_INDEX_UUID, "foo")
-                .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+                .put(IndexMetadata.SETTING_INDEX_UUID, "foo")
+                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
                 .build()));
     }
 

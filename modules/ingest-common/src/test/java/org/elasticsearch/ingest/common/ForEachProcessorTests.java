@@ -42,7 +42,7 @@ import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocumen
 import static org.hamcrest.Matchers.equalTo;
 
 public class ForEachProcessorTests extends ESTestCase {
-    
+
     public void testExecuteWithAsyncProcessor() throws Exception {
         List<String> values = new ArrayList<>();
         values.add("foo");
@@ -102,7 +102,7 @@ public class ForEachProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("values", List.class), equalTo(Arrays.asList("A", "B", "c")));
     }
 
-    public void testMetaDataAvailable() throws Exception {
+    public void testMetadataAvailable() throws Exception {
         List<Map<String, Object>> values = new ArrayList<>();
         values.add(new HashMap<>());
         values.add(new HashMap<>());

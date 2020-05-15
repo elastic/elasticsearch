@@ -29,7 +29,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -52,7 +51,7 @@ import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.CheckedRunnable;
@@ -119,6 +118,8 @@ import org.junit.rules.RuleChain;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -1028,7 +1029,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** Return consistent index settings for the provided index version. */
     public static Settings.Builder settings(Version version) {
-        Settings.Builder builder = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version);
+        Settings.Builder builder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
         return builder;
     }
 
@@ -1358,7 +1359,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static TestAnalysis createTestAnalysis(Index index, Settings nodeSettings, Settings settings,
                                                   AnalysisPlugin... analysisPlugins) throws IOException {
         Settings indexSettings = Settings.builder().put(settings)
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
         return createTestAnalysis(IndexSettingsModule.newIndexSettings(index, indexSettings), nodeSettings, analysisPlugins);
     }
@@ -1433,5 +1434,21 @@ public abstract class ESTestCase extends LuceneTestCase {
         final int startAt = workerId == null ? 0 : (int) Math.floorMod(Long.valueOf(workerId), 223);
         assert startAt >= 0 : "Unexpected test worker Id, resulting port range would be negative";
         return 10300 + (startAt * 100);
+    }
+
+    protected static InetAddress randomIp(boolean v4) {
+        try {
+            if (v4) {
+                byte[] ipv4 = new byte[4];
+                random().nextBytes(ipv4);
+                return InetAddress.getByAddress(ipv4);
+            } else {
+                byte[] ipv6 = new byte[16];
+                random().nextBytes(ipv6);
+                return InetAddress.getByAddress(ipv6);
+            }
+        } catch (UnknownHostException e) {
+            throw new AssertionError();
+        }
     }
 }

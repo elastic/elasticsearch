@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -187,6 +188,10 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder newQuery = this.query.rewrite(queryRewriteContext);
+        if (newQuery instanceof MatchNoneQueryBuilder) {
+            return newQuery;
+        }
+
         if (newQuery != query) {
             ScriptScoreQueryBuilder newQueryBuilder = new ScriptScoreQueryBuilder(newQuery, script);
             if (minScore != null) {

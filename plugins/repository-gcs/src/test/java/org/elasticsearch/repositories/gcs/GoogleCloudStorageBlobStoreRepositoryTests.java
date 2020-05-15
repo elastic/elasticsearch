@@ -31,7 +31,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.bootstrap.JavaVersion;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -50,6 +50,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
+import org.junit.BeforeClass;
 import org.threeten.bp.Duration;
 
 import java.io.IOException;
@@ -69,11 +70,16 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CL
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
-    private static void assumeNotJava8() {
+    public static void assumeNotJava8() {
         assumeFalse("This test is flaky on jdk8 - we suspect a JDK bug to trigger some assertion in the HttpServer implementation used " +
             "to emulate the server side logic of Google Cloud Storage. See https://bugs.openjdk.java.net/browse/JDK-8180754, " +
             "https://github.com/elastic/elasticsearch/pull/51933 and https://github.com/elastic/elasticsearch/issues/52906 " +
             "for more background on this issue.", JavaVersion.current().equals(JavaVersion.parse("8")));
+    }
+
+    @BeforeClass
+    public static void skipJava8() {
+        assumeNotJava8();
     }
 
     @Override
@@ -123,7 +129,6 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     }
 
     public void testDeleteSingleItem() {
-        assumeNotJava8();
         final String repoName = createRepository(randomName());
         final RepositoriesService repositoriesService = internalCluster().getMasterNodeInstance(RepositoriesService.class);
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
@@ -134,98 +139,43 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
 
     public void testChunkSize() {
         // default chunk size
-        RepositoryMetaData repositoryMetaData = new RepositoryMetaData("repo", GoogleCloudStorageRepository.TYPE, Settings.EMPTY);
-        ByteSizeValue chunkSize = GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repositoryMetaData);
+        RepositoryMetadata repositoryMetadata = new RepositoryMetadata("repo", GoogleCloudStorageRepository.TYPE, Settings.EMPTY);
+        ByteSizeValue chunkSize = GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repositoryMetadata);
         assertEquals(GoogleCloudStorageRepository.MAX_CHUNK_SIZE, chunkSize);
 
         // chunk size in settings
         final int size = randomIntBetween(1, 100);
-        repositoryMetaData = new RepositoryMetaData("repo", GoogleCloudStorageRepository.TYPE,
+        repositoryMetadata = new RepositoryMetadata("repo", GoogleCloudStorageRepository.TYPE,
                                                        Settings.builder().put("chunk_size", size + "mb").build());
-        chunkSize = GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repositoryMetaData);
+        chunkSize = GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repositoryMetadata);
         assertEquals(new ByteSizeValue(size, ByteSizeUnit.MB), chunkSize);
 
         // zero bytes is not allowed
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            final RepositoryMetaData repoMetaData = new RepositoryMetaData("repo", GoogleCloudStorageRepository.TYPE,
+            final RepositoryMetadata repoMetadata = new RepositoryMetadata("repo", GoogleCloudStorageRepository.TYPE,
                                                                         Settings.builder().put("chunk_size", "0").build());
-            GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repoMetaData);
+            GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repoMetadata);
         });
         assertEquals("failed to parse value [0] for setting [chunk_size], must be >= [1b]", e.getMessage());
 
         // negative bytes not allowed
         e = expectThrows(IllegalArgumentException.class, () -> {
-            final RepositoryMetaData repoMetaData = new RepositoryMetaData("repo", GoogleCloudStorageRepository.TYPE,
+            final RepositoryMetadata repoMetadata = new RepositoryMetadata("repo", GoogleCloudStorageRepository.TYPE,
                                                                         Settings.builder().put("chunk_size", "-1").build());
-            GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repoMetaData);
+            GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repoMetadata);
         });
         assertEquals("failed to parse value [-1] for setting [chunk_size], must be >= [1b]", e.getMessage());
 
         // greater than max chunk size not allowed
         e = expectThrows(IllegalArgumentException.class, () -> {
-            final RepositoryMetaData repoMetaData = new RepositoryMetaData("repo", GoogleCloudStorageRepository.TYPE,
+            final RepositoryMetadata repoMetadata = new RepositoryMetadata("repo", GoogleCloudStorageRepository.TYPE,
                                                                         Settings.builder().put("chunk_size", "101mb").build());
-            GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repoMetaData);
+            GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repoMetadata);
         });
         assertEquals("failed to parse value [101mb] for setting [chunk_size], must be <= [100mb]", e.getMessage());
     }
 
-    @Override
-    public void testSnapshotAndRestore() throws Exception {
-        assumeNotJava8();
-        super.testSnapshotAndRestore();
-    }
-
-    @Override
-    public void testList() throws IOException {
-        assumeNotJava8();
-        super.testList();
-    }
-
-    @Override
-    public void testIndicesDeletedFromRepository() throws Exception {
-        assumeNotJava8();
-        super.testIndicesDeletedFromRepository();
-    }
-
-    @Override
-    public void testDeleteBlobs() throws IOException {
-        assumeNotJava8();
-        super.testDeleteBlobs();
-    }
-
-    @Override
-    public void testWriteRead() throws IOException {
-        assumeNotJava8();
-        super.testWriteRead();
-    }
-
-    @Override
-    public void testReadNonExistingPath() throws IOException {
-        assumeNotJava8();
-        super.testReadNonExistingPath();
-    }
-
-    @Override
-    public void testContainerCreationAndDeletion() throws IOException {
-        assumeNotJava8();
-        super.testContainerCreationAndDeletion();
-    }
-
-    @Override
-    public void testMultipleSnapshotAndRollback() throws Exception {
-        assumeNotJava8();
-        super.testMultipleSnapshotAndRollback();
-    }
-
-    @Override
-    public void testSnapshotWithLargeSegmentFiles() throws Exception {
-        assumeNotJava8();
-        super.testSnapshotWithLargeSegmentFiles();
-    }
-
     public void testWriteReadLarge() throws IOException {
-        assumeNotJava8();
         try (BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(new BlobPath());
             byte[] data = randomBytes(GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE + 1);

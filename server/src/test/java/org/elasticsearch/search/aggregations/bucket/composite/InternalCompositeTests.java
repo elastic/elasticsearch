@@ -19,17 +19,13 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import com.google.common.collect.Lists;
-
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 import org.junit.After;
 
@@ -109,11 +105,6 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     }
 
     @Override
-    protected Writeable.Reader<InternalComposite> instanceReader() {
-        return InternalComposite::new;
-    }
-
-    @Override
     protected Class<ParsedComposite> implementationClass() {
         return ParsedComposite.class;
     }
@@ -157,8 +148,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     }
 
     @Override
-    protected InternalComposite createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-                                                   Map<String, Object> metaData, InternalAggregations aggregations) {
+    protected InternalComposite createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         int numBuckets = randomIntBetween(0, size);
         List<InternalComposite.InternalBucket> buckets = new ArrayList<>();
         TreeSet<CompositeKey> keys = new TreeSet<>(getKeyComparator());
@@ -174,14 +164,13 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         }
         Collections.sort(buckets, (o1, o2) -> o1.compareKey(o2));
         CompositeKey lastBucket = buckets.size() > 0 ? buckets.get(buckets.size()-1).getRawKey() : null;
-        return new InternalComposite(name, size, sourceNames, formats, buckets, lastBucket, reverseMuls, randomBoolean(),
-            Collections.emptyList(), metaData);
+        return new InternalComposite(name, size, sourceNames, formats, buckets, lastBucket, reverseMuls, randomBoolean(), metadata);
     }
 
     @Override
     protected InternalComposite mutateInstance(InternalComposite instance) throws IOException {
         List<InternalComposite.InternalBucket> buckets = instance.getBuckets();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         int code = randomIntBetween(0, 2);
         int[] reverseMuls = instance.getReverseMuls();
         switch(code) {
@@ -199,19 +188,19 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
                 );
                 break;
             case 2:
-                if (metaData == null) {
-                    metaData = new HashMap<>(1);
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
                 } else {
-                    metaData = new HashMap<>(instance.getMetaData());
+                    metadata = new HashMap<>(instance.getMetadata());
                 }
-                metaData.put(randomAlphaOfLength(15), randomInt());
+                metadata.put(randomAlphaOfLength(15), randomInt());
                 break;
             default:
                 throw new AssertionError("illegal branch");
         }
         CompositeKey lastBucket = buckets.size() > 0 ? buckets.get(buckets.size()-1).getRawKey() : null;
         return new InternalComposite(instance.getName(), instance.getSize(), sourceNames, formats, buckets, lastBucket, reverseMuls,
-            randomBoolean(), instance.pipelineAggregators(), metaData);
+            randomBoolean(), metadata);
     }
 
     @Override
@@ -235,7 +224,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     }
 
     public void testReduceSame() throws IOException {
-        InternalComposite result = createTestInstance(randomAlphaOfLength(10), Collections.emptyList(), Collections.emptyMap(),
+        InternalComposite result = createTestInstance(randomAlphaOfLength(10), Collections.emptyMap(),
             InternalAggregations.EMPTY);
         List<InternalAggregation> toReduce = new ArrayList<>();
         int numSame = randomIntBetween(1, 10);
@@ -256,10 +245,10 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
      * Check that reducing with an unmapped index produces useful formats.
      */
     public void testReduceUnmapped() throws IOException {
-        InternalComposite mapped = createTestInstance(randomAlphaOfLength(10), emptyList(), emptyMap(), InternalAggregations.EMPTY);
+        InternalComposite mapped = createTestInstance(randomAlphaOfLength(10), emptyMap(), InternalAggregations.EMPTY);
         List<DocValueFormat> rawFormats = formats.stream().map(f -> DocValueFormat.RAW).collect(toList());
         InternalComposite unmapped = new InternalComposite(mapped.getName(), mapped.getSize(), sourceNames,
-                rawFormats, emptyList(), null, reverseMuls, true, emptyList(), emptyMap());
+                rawFormats, emptyList(), null, reverseMuls, true, emptyMap());
         List<InternalAggregation> toReduce = Arrays.asList(unmapped, mapped);
         Collections.shuffle(toReduce, random());
         InternalComposite finalReduce = (InternalComposite) unmapped.reduce(toReduce, emptyReduceContextBuilder().forFinalReduction());
@@ -278,11 +267,11 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
 
     public void testCompareCompositeKeyBiggerFieldName() {
         InternalComposite.ArrayMap key1 = createMap(
-            Lists.newArrayList("field1", "field2"),
+            Arrays.asList("field1", "field2"),
             new Comparable[]{1, 2}
         );
         InternalComposite.ArrayMap key2 = createMap(
-            Lists.newArrayList("field3", "field2"),
+            Arrays.asList("field3", "field2"),
             new Comparable[]{1, 2}
         );
         assertThat(key1.compareTo(key2), lessThan(0));
@@ -290,11 +279,11 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
 
     public void testCompareCompositeKeySmallerFieldName() {
         InternalComposite.ArrayMap key1 = createMap(
-            Lists.newArrayList("field3", "field2"),
+            Arrays.asList("field3", "field2"),
             new Comparable[]{1, 2}
         );
         InternalComposite.ArrayMap key2 = createMap(
-            Lists.newArrayList("field1", "field2"),
+            Arrays.asList("field1", "field2"),
             new Comparable[]{1, 2}
         );
         assertThat(key1.compareTo(key2), greaterThan(0));
@@ -302,11 +291,11 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
 
     public void testCompareCompositeKeyBiggerValue() {
         InternalComposite.ArrayMap key1 = createMap(
-            Lists.newArrayList("field1", "field2"),
+            Arrays.asList("field1", "field2"),
             new Comparable[]{1, 2}
         );
         InternalComposite.ArrayMap key2 = createMap(
-            Lists.newArrayList("field3", "field2"),
+            Arrays.asList("field3", "field2"),
             new Comparable[]{2, 3}
         );
         assertThat(key1.compareTo(key2), lessThan(0));
@@ -314,11 +303,11 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
 
     public void testCompareCompositeKeySmallerValue() {
         InternalComposite.ArrayMap key1 = createMap(
-            Lists.newArrayList("field3", "field2"),
+            Arrays.asList("field3", "field2"),
             new Comparable[]{1, 2}
         );
         InternalComposite.ArrayMap key2 = createMap(
-            Lists.newArrayList("field1", "field2"),
+            Arrays.asList("field1", "field2"),
             new Comparable[]{2, 3}
         );
         assertThat(key1.compareTo(key2), greaterThan(0));
@@ -326,11 +315,11 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
 
     public void testCompareCompositeKeyNullValueIsSmaller1() {
         InternalComposite.ArrayMap key1 = createMap(
-            Lists.newArrayList("field1", "field2"),
+            Arrays.asList("field1", "field2"),
             new Comparable[]{null, 20}
         );
         InternalComposite.ArrayMap key2 = createMap(
-            Lists.newArrayList("field1", "field2"),
+            Arrays.asList("field1", "field2"),
             new Comparable[]{1, 2}
         );
         assertThat(key1.compareTo(key2), lessThan(0));
@@ -338,11 +327,11 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
 
     public void testCompareCompositeKeyNullValueIsSmaller2() {
         InternalComposite.ArrayMap key1 = createMap(
-            Lists.newArrayList("field1", "field2"),
+            Arrays.asList("field1", "field2"),
             new Comparable[]{1, 2}
         );
         InternalComposite.ArrayMap key2 = createMap(
-            Lists.newArrayList("field1", "field2"),
+            Arrays.asList("field1", "field2"),
             new Comparable[]{null, 20}
         );
         assertThat(key1.compareTo(key2), greaterThan(0));
@@ -350,29 +339,29 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
 
     public void testCompareCompositeKeyMoreFieldsIsGreater() {
         InternalComposite.ArrayMap key1 = createMap(
-            Lists.newArrayList("field1", "field2"),
+            Arrays.asList("field1", "field2"),
             new Comparable[]{1, 2}
         );
-        InternalComposite.ArrayMap key2 = createMap(Lists.newArrayList("field1", "field2", "field3"),new Comparable[]{1, 2, null});
+        InternalComposite.ArrayMap key2 = createMap(Arrays.asList("field1", "field2", "field3"),new Comparable[]{1, 2, null});
         assertThat(key1.compareTo(key2), lessThan(0));
     }
 
     public void testCompareCompositeKeyLessFieldsIsLesser() {
         InternalComposite.ArrayMap key1 = createMap(
-            Lists.newArrayList("field1", "field2", "field3"),
+            Arrays.asList("field1", "field2", "field3"),
             new Comparable[]{1, 2, null}
         );
-        InternalComposite.ArrayMap key2 = createMap(Lists.newArrayList("field1", "field2"),new Comparable[]{1, 2});
+        InternalComposite.ArrayMap key2 = createMap(Arrays.asList("field1", "field2"),new Comparable[]{1, 2});
         assertThat(key1.compareTo(key2), greaterThan(0));
     }
 
     public void testCompareCompositeKeyEqual() {
         InternalComposite.ArrayMap key1 = createMap(
-            Lists.newArrayList("field1", "field2", "field3"),
+            Arrays.asList("field1", "field2", "field3"),
             new Comparable[]{null, 1, 2}
         );
         InternalComposite.ArrayMap key2 = createMap(
-            Lists.newArrayList("field1", "field2", "field3"),
+            Arrays.asList("field1", "field2", "field3"),
             new Comparable[]{null, 1, 2}
         );
         assertThat(key1.compareTo(key1), equalTo(0));
@@ -385,12 +374,12 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
 
     public void testCompareCompositeKeyValuesHaveDifferentTypes() {
         InternalComposite.ArrayMap key1 = createMap(
-            Lists.newArrayList("field1", "field2"),
+            Arrays.asList("field1", "field2"),
             new Comparable[]{1, 2}
         );
 
         InternalComposite.ArrayMap key2 = createMap(
-            Lists.newArrayList("field1", "field2"),
+            Arrays.asList("field1", "field2"),
             new Comparable[]{"1", 2}
         );
 

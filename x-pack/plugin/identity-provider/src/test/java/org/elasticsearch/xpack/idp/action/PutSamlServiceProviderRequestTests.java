@@ -28,7 +28,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
-import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -97,11 +96,9 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
         attributeMap.put("email", "urn:oid:0.2." + randomLongBetween(1001, 2000));
         attributeMap.put("name", "urn:oid:0.3." + randomLongBetween(2001, 3000));
         attributeMap.put("roles", "urn:oid:0.4." + randomLongBetween(3001, 4000));
-        final Map<String, String> roleMap = new HashMap<>();
-        roleMap.put("role_name", "role:" + randomAlphaOfLengthBetween(4, 8));
         final Map<String, Object> privilegeMap = new HashMap<>();
         privilegeMap.put("resource", "ece:deployment:" + randomLongBetween(1_000_000, 999_999_999));
-        privilegeMap.put("roles", roleMap);
+        privilegeMap.put("roles", Collections.singletonList("role:(.*)"));
         final Map<String, Object> fields = new HashMap<>();
         fields.put("name", randomAlphaOfLengthBetween(3, 30));
         fields.put("acs", "https://www." + randomAlphaOfLengthBetween(3, 30) + ".fake/saml/acs");
@@ -116,8 +113,7 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
         assertThat(request.getDocument().acs, equalTo(fields.get("acs")));
         assertThat(request.getDocument().enabled, equalTo(fields.get("enabled")));
         assertThat(request.getDocument().privileges.resource, notNullValue());
-        assertThat(request.getDocument().privileges.roleActions, aMapWithSize(1));
-        assertThat(request.getDocument().privileges.roleActions.keySet(), contains("role_name"));
+        assertThat(request.getDocument().privileges.rolePatterns, contains("role:(.*)"));
         assertThat(request.getDocument().attributeNames.principal, startsWith("urn:oid:0.1"));
         assertThat(request.getDocument().attributeNames.email, startsWith("urn:oid:0.2"));
         assertThat(request.getDocument().attributeNames.name, startsWith("urn:oid:0.3"));

@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -45,7 +45,7 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
                 Version.V_6_0_0, Version.V_7_0_0.minimumCompatibilityVersion());
             IndexService indexService = createIndex("test_6x",
                 Settings.builder()
-                    .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, version)
                     .build()
             );
             String mappingDisabled = Strings.toString(XContentFactory.jsonBuilder().startObject()

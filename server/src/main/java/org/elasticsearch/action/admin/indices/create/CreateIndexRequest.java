@@ -459,7 +459,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     public CreateIndexRequest waitForActiveShards(final int waitForActiveShards) {
         return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }
-    
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

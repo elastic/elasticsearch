@@ -21,7 +21,7 @@ which can enrich documents with data from another index.
 ==== Shape support in SQL
 
 {ref}/xpack-sql.html[SQL] functionality that worked for geo_shape will
-now work for the {ref}/shape.html[`shape`] field type introduced in 7.3.
+now work for the {ref}/shape.html[`shape`] field type introduced in 7.4.
 
 
 // end::notable-highlights[]

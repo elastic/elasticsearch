@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
@@ -60,7 +61,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
-                STRING_FIELD_NAME, "type=text",
+                TEXT_FIELD_NAME, "type=text",
                 INT_FIELD_NAME, "type=integer",
                 DOUBLE_FIELD_NAME, "type=double",
                 BOOLEAN_FIELD_NAME, "type=boolean",

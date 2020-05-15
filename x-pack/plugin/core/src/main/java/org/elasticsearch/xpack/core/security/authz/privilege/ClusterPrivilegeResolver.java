@@ -58,7 +58,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MONITOR_WATCHER_PATTERN = Collections.singleton("cluster:monitor/xpack/watcher/*");
     private static final Set<String> MONITOR_ROLLUP_PATTERN = Collections.singleton("cluster:monitor/xpack/rollup/*");
     private static final Set<String> ALL_CLUSTER_PATTERN = Collections.unmodifiableSet(
-        Sets.newHashSet("cluster:*", "indices:admin/template/*", "indices:admin/data_stream/*"));
+        Sets.newHashSet("cluster:*", "indices:admin/template/*", "indices:admin/index_template/*", "indices:admin/data_stream/*"));
     private static final Set<String> MANAGE_ML_PATTERN = Collections.unmodifiableSet(
         Sets.newHashSet("cluster:admin/xpack/ml/*", "cluster:monitor/xpack/ml/*"));
     private static final Set<String> MANAGE_TRANSFORM_PATTERN = Collections.unmodifiableSet(
@@ -68,7 +68,8 @@ public class ClusterPrivilegeResolver {
         Sets.newHashSet("cluster:admin/xpack/watcher/*", "cluster:monitor/xpack/watcher/*"));
     private static final Set<String> TRANSPORT_CLIENT_PATTERN = Collections.unmodifiableSet(
         Sets.newHashSet("cluster:monitor/nodes/liveness", "cluster:monitor/state"));
-    private static final Set<String> MANAGE_IDX_TEMPLATE_PATTERN = Collections.singleton("indices:admin/template/*");
+    private static final Set<String> MANAGE_IDX_TEMPLATE_PATTERN = Collections.unmodifiableSet(Sets.newHashSet("indices:admin/template/*",
+            "indices:admin/index_template/*"));
     private static final Set<String> MANAGE_INGEST_PIPELINE_PATTERN = Collections.singleton("cluster:admin/ingest/pipeline/*");
     private static final Set<String> MANAGE_ROLLUP_PATTERN = Collections.unmodifiableSet(
         Sets.newHashSet("cluster:admin/xpack/rollup/*", "cluster:monitor/xpack/rollup/*"));
@@ -212,7 +213,8 @@ public class ClusterPrivilegeResolver {
         return actionName.startsWith("cluster:") ||
             actionName.startsWith("indices:admin/template/") ||
             // todo: hack until we implement security of data_streams
-            actionName.startsWith("indices:admin/data_stream/");
+            actionName.startsWith("indices:admin/data_stream/") ||
+            actionName.startsWith("indices:admin/index_template/");
     }
 
     private static String actionToPattern(String text) {

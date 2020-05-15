@@ -108,8 +108,8 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
-        return new BucketSelectorPipelineAggregator(name, bucketsPathsMap, script, gapPolicy, metaData);
+    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
+        return new BucketSelectorPipelineAggregator(name, bucketsPathsMap, script, gapPolicy, metadata);
     }
 
     @Override
@@ -195,7 +195,7 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
 
     @Override
     protected void validate(ValidationContext context) {
-        // Nothing to check
+        context.validateHasParent(NAME, name);
     }
 
     @Override

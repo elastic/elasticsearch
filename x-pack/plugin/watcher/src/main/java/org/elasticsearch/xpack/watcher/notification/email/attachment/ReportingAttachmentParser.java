@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -42,6 +41,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -70,8 +70,9 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
     private static final ObjectParser<KibanaReportingPayload, Void> PAYLOAD_PARSER =
             new ObjectParser<>("reporting_attachment_kibana_payload", true, null);
 
-    static final Map<String, String> WARNINGS = ImmutableMap.of("kbn-csv-contains-formulas", "Warning: The attachment [%s] contains " +
-        "characters which spreadsheet applications may interpret as formulas. Please ensure that the attachment is safe prior to opening.");
+    static final Map<String, String> WARNINGS = Collections.singletonMap("kbn-csv-contains-formulas",
+        "Warning: The attachment [%s] contains characters which spreadsheet applications may interpret as formulas." +
+        "Please ensure that the attachment is safe prior to opening.");
 
     static {
         PARSER.declareInt(Builder::retries, ReportingAttachment.RETRIES);

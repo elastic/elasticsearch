@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -28,6 +26,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -101,8 +100,8 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
 
         builder = new FieldCapabilities.Builder("field", "type");
         builder.add("index1", true, true, Collections.emptyMap());
-        builder.add("index2", true, true, ImmutableMap.of("foo", "bar"));
-        builder.add("index3", true, true, ImmutableMap.of("foo", "quux"));
+        builder.add("index2", true, true, Collections.singletonMap("foo", "bar"));
+        builder.add("index3", true, true, Collections.singletonMap("foo", "quux"));
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(true));
@@ -110,7 +109,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             assertNull(cap1.indices());
             assertNull(cap1.nonSearchableIndices());
             assertNull(cap1.nonAggregatableIndices());
-            assertEquals(ImmutableMap.of("foo", ImmutableSet.of("bar", "quux")), cap1.meta());
+            assertEquals(Collections.singletonMap("foo", new HashSet<>(Arrays.asList("bar", "quux"))), cap1.meta());
 
             FieldCapabilities cap2 = builder.build(true);
             assertThat(cap2.isSearchable(), equalTo(true));
@@ -119,7 +118,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             assertThat(cap2.indices(), equalTo(new String[]{"index1", "index2", "index3"}));
             assertNull(cap2.nonSearchableIndices());
             assertNull(cap2.nonAggregatableIndices());
-            assertEquals(ImmutableMap.of("foo", ImmutableSet.of("bar", "quux")), cap2.meta());
+            assertEquals(Collections.singletonMap("foo", new HashSet<>(Arrays.asList("bar", "quux"))), cap2.meta());
         }
     }
 
@@ -152,10 +151,10 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             meta = Collections.emptyMap();
             break;
         case 1:
-            meta = ImmutableMap.of("foo", ImmutableSet.of("bar"));
+            meta = Collections.singletonMap("foo", Collections.singleton("bar"));
             break;
         default:
-            meta = ImmutableMap.of("foo", ImmutableSet.of("bar", "baz"));
+            meta = Collections.singletonMap("foo", new HashSet<>(Arrays.asList("bar", "baz")));
             break;
         }
 
@@ -232,7 +231,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
         case 7:
             Map<String, Set<String>> newMeta;
             if (meta.isEmpty()) {
-                newMeta = ImmutableMap.of("foo", ImmutableSet.of("bar"));
+                newMeta = Collections.singletonMap("foo", Collections.singleton("bar"));
             } else {
                 newMeta = Collections.emptyMap();
             }

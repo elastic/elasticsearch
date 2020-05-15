@@ -25,7 +25,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.env.Environment;
@@ -67,14 +67,14 @@ public class RemoveCustomsCommand extends ElasticsearchNodeCommand {
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading cluster state");
         final Tuple<Long, ClusterState> termAndClusterState = loadTermAndClusterState(persistedClusterStateService, env);
         final ClusterState oldClusterState = termAndClusterState.v2();
-        terminal.println(Terminal.Verbosity.VERBOSE, "custom metadata names: " + oldClusterState.metaData().customs().keys());
-        final MetaData.Builder metaDataBuilder = MetaData.builder(oldClusterState.metaData());
+        terminal.println(Terminal.Verbosity.VERBOSE, "custom metadata names: " + oldClusterState.metadata().customs().keys());
+        final Metadata.Builder metadataBuilder = Metadata.builder(oldClusterState.metadata());
         for (String customToRemove : customsToRemove) {
             boolean matched = false;
-            for (ObjectCursor<String> customKeyCur : oldClusterState.metaData().customs().keys()) {
+            for (ObjectCursor<String> customKeyCur : oldClusterState.metadata().customs().keys()) {
                 final String customKey = customKeyCur.value;
                 if (Regex.simpleMatch(customToRemove, customKey)) {
-                    metaDataBuilder.removeCustom(customKey);
+                    metadataBuilder.removeCustom(customKey);
                     if (matched == false) {
                         terminal.println("The following customs will be removed:");
                     }
@@ -87,7 +87,7 @@ public class RemoveCustomsCommand extends ElasticsearchNodeCommand {
                     "No custom metadata matching [" + customToRemove + "] were found on this node");
             }
         }
-        final ClusterState newClusterState = ClusterState.builder(oldClusterState).metaData(metaDataBuilder.build()).build();
+        final ClusterState newClusterState = ClusterState.builder(oldClusterState).metadata(metadataBuilder.build()).build();
         terminal.println(Terminal.Verbosity.VERBOSE,
             "[old cluster state = " + oldClusterState + ", new cluster state = " + newClusterState + "]");
 

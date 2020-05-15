@@ -13,9 +13,9 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateReque
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -39,7 +39,7 @@ import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformIn
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_INDEX_HIDDEN;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
@@ -82,35 +82,35 @@ public final class TransformInternalIndex {
 
     public static final Version HIDDEN_INTRODUCED_VERSION = Version.V_7_7_0;
 
-    public static IndexTemplateMetaData getIndexTemplateMetaData() throws IOException {
-        IndexTemplateMetaData transformTemplate = IndexTemplateMetaData.builder(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
+    public static IndexTemplateMetadata getIndexTemplateMetadata() throws IOException {
+        IndexTemplateMetadata transformTemplate = IndexTemplateMetadata.builder(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
             .patterns(Collections.singletonList(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME))
             .version(Version.CURRENT.id)
             .settings(
                 Settings.builder()
                     // the configurations are expected to be small
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             )
             // todo: remove type
             .putMapping(MapperService.SINGLE_MAPPING_NAME, Strings.toString(mappings()))
             // BWC: for mixed clusters with nodes < 7.5, we need the alias to make new docs visible for them
-            .putAlias(AliasMetaData.builder(".data-frame-internal-3"))
+            .putAlias(AliasMetadata.builder(".data-frame-internal-3"))
             .build();
         return transformTemplate;
     }
 
-    public static IndexTemplateMetaData getAuditIndexTemplateMetaData(Version compatibilityVersion) throws IOException {
+    public static IndexTemplateMetadata getAuditIndexTemplateMetadata(Version compatibilityVersion) throws IOException {
         final Settings.Builder auditIndexSettings = Settings.builder()
             // the audits are expected to be small
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1");
-        final AliasMetaData.Builder alias = AliasMetaData.builder(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS);
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1");
+        final AliasMetadata.Builder alias = AliasMetadata.builder(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS);
         if (compatibilityVersion.onOrAfter(HIDDEN_INTRODUCED_VERSION)) {
             auditIndexSettings.put(SETTING_INDEX_HIDDEN, true);
             alias.isHidden(true);
         }
-        IndexTemplateMetaData transformTemplate = IndexTemplateMetaData.builder(TransformInternalIndexConstants.AUDIT_INDEX)
+        IndexTemplateMetadata transformTemplate = IndexTemplateMetadata.builder(TransformInternalIndexConstants.AUDIT_INDEX)
             .patterns(Collections.singletonList(TransformInternalIndexConstants.AUDIT_INDEX_PREFIX + "*"))
             .version(Version.CURRENT.id)
             .settings(auditIndexSettings)
@@ -355,11 +355,11 @@ public final class TransformInternalIndex {
     }
 
     protected static boolean haveLatestVersionedIndexTemplate(ClusterState state) {
-        return state.getMetaData().getTemplates().containsKey(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
+        return state.getMetadata().getTemplates().containsKey(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
     }
 
     protected static boolean haveLatestAuditIndexTemplate(ClusterState state) {
-        return state.getMetaData().getTemplates().containsKey(TransformInternalIndexConstants.AUDIT_INDEX);
+        return state.getMetadata().getTemplates().containsKey(TransformInternalIndexConstants.AUDIT_INDEX);
     }
 
     protected static void installLatestVersionedIndexTemplateIfRequired(
@@ -376,12 +376,12 @@ public final class TransformInternalIndex {
 
         // Installing the template involves communication with the master node, so it's more expensive but much rarer
         try {
-            IndexTemplateMetaData indexTemplateMetaData = getIndexTemplateMetaData();
-            BytesReference jsonMappings = new BytesArray(indexTemplateMetaData.mappings().get(SINGLE_MAPPING_NAME).uncompressed());
+            IndexTemplateMetadata indexTemplateMetadata = getIndexTemplateMetadata();
+            BytesReference jsonMappings = new BytesArray(indexTemplateMetadata.mappings().get(SINGLE_MAPPING_NAME).uncompressed());
             PutIndexTemplateRequest request = new PutIndexTemplateRequest(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
-                .patterns(indexTemplateMetaData.patterns())
-                .version(indexTemplateMetaData.version())
-                .settings(indexTemplateMetaData.settings())
+                .patterns(indexTemplateMetadata.patterns())
+                .version(indexTemplateMetadata.version())
+                .settings(indexTemplateMetadata.settings())
                 // BWC: for mixed clusters with nodes < 7.5, we need the alias to make new docs visible for them
                 .alias(new Alias(".data-frame-internal-3"))
                 .mapping(SINGLE_MAPPING_NAME, XContentHelper.convertToMap(jsonMappings, true, XContentType.JSON).v2());
@@ -412,13 +412,13 @@ public final class TransformInternalIndex {
 
         // Installing the template involves communication with the master node, so it's more expensive but much rarer
         try {
-            IndexTemplateMetaData indexTemplateMetaData = getAuditIndexTemplateMetaData(clusterService.state().nodes().getMinNodeVersion());
-            BytesReference jsonMappings = new BytesArray(indexTemplateMetaData.mappings().get(SINGLE_MAPPING_NAME).uncompressed());
+            IndexTemplateMetadata indexTemplateMetadata = getAuditIndexTemplateMetadata(clusterService.state().nodes().getMinNodeVersion());
+            BytesReference jsonMappings = new BytesArray(indexTemplateMetadata.mappings().get(SINGLE_MAPPING_NAME).uncompressed());
             PutIndexTemplateRequest request = new PutIndexTemplateRequest(TransformInternalIndexConstants.AUDIT_INDEX).patterns(
-                indexTemplateMetaData.patterns()
+                indexTemplateMetadata.patterns()
             )
-                .version(indexTemplateMetaData.version())
-                .settings(indexTemplateMetaData.settings())
+                .version(indexTemplateMetadata.version())
+                .settings(indexTemplateMetadata.settings())
                 .mapping(SINGLE_MAPPING_NAME, XContentHelper.convertToMap(jsonMappings, true, XContentType.JSON).v2());
             ActionListener<AcknowledgedResponse> innerListener = ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure);
             executeAsyncWithOrigin(

@@ -116,7 +116,7 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
         doReturn(indexStatsMap).when(indicesStatsResponse).getIndices();
         doAnswer(withResponse(indicesStatsResponse)).when(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
 
-        GetIndexResponse getIndexResponse = new GetIndexResponse(new String[] { ".ml-state-e" }, null, null, null, null);
+        GetIndexResponse getIndexResponse = new GetIndexResponse(new String[] { ".ml-state-e" }, null, null, null, null, null);
         doAnswer(withResponse(getIndexResponse)).when(client).execute(eq(GetIndexAction.INSTANCE), any(), any());
 
         AcknowledgedResponse deleteIndexResponse = new AcknowledgedResponse(acknowledged);
@@ -147,7 +147,7 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
         doReturn(Collections.singletonMap(".ml-state-a", indexStats(".ml-state-a", 0))).when(indicesStatsResponse).getIndices();
         doAnswer(withResponse(indicesStatsResponse)).when(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
 
-        GetIndexResponse getIndexResponse = new GetIndexResponse(new String[] { ".ml-state-a" }, null, null, null, null);
+        GetIndexResponse getIndexResponse = new GetIndexResponse(new String[] { ".ml-state-a" }, null, null, null, null, null);
         doAnswer(withResponse(getIndexResponse)).when(client).execute(eq(GetIndexAction.INSTANCE), any(), any());
 
         remover.remove(listener, () -> false);

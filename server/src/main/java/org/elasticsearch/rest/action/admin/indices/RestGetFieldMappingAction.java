@@ -20,9 +20,10 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -47,8 +48,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetFieldMappingAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestGetFieldMappingAction.class));
+    private static final Logger logger = LogManager.getLogger(RestGetFieldMappingAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get " +
         "field mapping requests is deprecated. The parameter will be removed in the next major version.";
 
@@ -85,12 +86,18 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
         GetFieldMappingsRequest getMappingsRequest = new GetFieldMappingsRequest();
         getMappingsRequest.indices(indices).types(types).fields(fields).includeDefaults(request.paramAsBoolean("include_defaults", false));
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
+
+        if (request.hasParam("local")) {
+            deprecationLogger.deprecatedAndMaybeLog("get_field_mapping_local",
+                "Use [local] in get field mapping requests is deprecated. "
+                    + "The parameter will be removed in the next major version");
+        }
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
         return channel ->
                 client.admin().indices().getFieldMappings(getMappingsRequest, new RestBuilderListener<GetFieldMappingsResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(GetFieldMappingsResponse response, XContentBuilder builder) throws Exception {
-                        Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappingsByIndex = response.mappings();
+                        Map<String, Map<String, Map<String, FieldMappingMetadata>>> mappingsByIndex = response.mappings();
 
                         boolean isPossibleSingleFieldRequest = indices.length == 1 && types.length == 1 && fields.length == 1;
                         if (isPossibleSingleFieldRequest && isFieldMappingMissingField(mappingsByIndex)) {
@@ -111,15 +118,15 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
      * Helper method to find out if the only included fieldmapping metadata is typed NULL, which means
      * that type and index exist, but the field did not
      */
-    private boolean isFieldMappingMissingField(Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappingsByIndex) {
+    private boolean isFieldMappingMissingField(Map<String, Map<String, Map<String, FieldMappingMetadata>>> mappingsByIndex) {
         if (mappingsByIndex.size() != 1) {
             return false;
         }
 
-        for (Map<String, Map<String, FieldMappingMetaData>> value : mappingsByIndex.values()) {
-            for (Map<String, FieldMappingMetaData> fieldValue : value.values()) {
-                for (Map.Entry<String, FieldMappingMetaData> fieldMappingMetaDataEntry : fieldValue.entrySet()) {
-                    if (fieldMappingMetaDataEntry.getValue().isNull()) {
+        for (Map<String, Map<String, FieldMappingMetadata>> value : mappingsByIndex.values()) {
+            for (Map<String, FieldMappingMetadata> fieldValue : value.values()) {
+                for (Map.Entry<String, FieldMappingMetadata> fieldMappingMetadataEntry : fieldValue.entrySet()) {
+                    if (fieldMappingMetadataEntry.getValue().isNull()) {
                         return true;
                     }
                 }

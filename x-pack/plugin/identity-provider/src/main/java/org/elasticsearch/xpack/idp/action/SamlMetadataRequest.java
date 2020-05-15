@@ -7,7 +7,9 @@ package org.elasticsearch.xpack.idp.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -15,14 +17,24 @@ import java.util.Objects;
 public class SamlMetadataRequest extends ActionRequest {
 
     private String spEntityId;
+    private String assertionConsumerService;
 
     public SamlMetadataRequest(StreamInput in) throws IOException {
         super(in);
         spEntityId = in.readString();
+        assertionConsumerService = in.readOptionalString();
     }
 
-    public SamlMetadataRequest(String spEntityId) {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(spEntityId);
+        out.writeOptionalString(assertionConsumerService);
+    }
+
+    public SamlMetadataRequest(String spEntityId, @Nullable String acs) {
         this.spEntityId = Objects.requireNonNull(spEntityId, "Service Provider entity id must be provided");
+        this.assertionConsumerService = acs;
     }
 
     public SamlMetadataRequest() {
@@ -44,7 +56,14 @@ public class SamlMetadataRequest extends ActionRequest {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "{spEntityId='" + spEntityId + "'}";
+        return getClass().getSimpleName() + "{spEntityId='" + spEntityId + "' acs='" + assertionConsumerService + "'}";
     }
 
+    public String getAssertionConsumerService() {
+        return assertionConsumerService;
+    }
+
+    public void setAssertionConsumerService(String assertionConsumerService) {
+        this.assertionConsumerService = assertionConsumerService;
+    }
 }

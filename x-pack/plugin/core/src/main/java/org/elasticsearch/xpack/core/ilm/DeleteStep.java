@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 
 /**
  * Deletes a single index.
@@ -22,9 +22,9 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    public void performDuringNoSnapshot(IndexMetaData indexMetaData, ClusterState currentState, Listener listener) {
+    public void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentState, Listener listener) {
         getClient().admin().indices()
-            .delete(new DeleteIndexRequest(indexMetaData.getIndex().getName()).masterNodeTimeout(getMasterTimeout(currentState)),
+            .delete(new DeleteIndexRequest(indexMetadata.getIndex().getName()).masterNodeTimeout(getMasterTimeout(currentState)),
                 ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
     }
 

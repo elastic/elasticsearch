@@ -55,6 +55,8 @@ final class SystemJvmOptions {
                  * debugging.
                  */
                 "-XX:-OmitStackTraceInFastThrow",
+                // enable helpful NullPointerExceptions (https://openjdk.java.net/jeps/358), if they are supported
+                maybeShowCodeDetailsInExceptionMessages(),
                 // flags to configure Netty
                 "-Dio.netty.noUnsafe=true",
                 "-Dio.netty.noKeySetOptimization=true",
@@ -67,6 +69,14 @@ final class SystemJvmOptions {
                 javaLocaleProviders()
             )
         );
+    }
+
+    private static String maybeShowCodeDetailsInExceptionMessages() {
+        if (JavaVersion.majorVersion(JavaVersion.CURRENT) >= 14) {
+            return "-XX:+ShowCodeDetailsInExceptionMessages";
+        } else {
+            return "";
+        }
     }
 
     private static String javaLocaleProviders() {

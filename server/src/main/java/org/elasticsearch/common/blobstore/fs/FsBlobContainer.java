@@ -21,11 +21,11 @@ package org.elasticsearch.common.blobstore.fs;
 
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
+import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.core.internal.io.Streams;
 
@@ -34,6 +34,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.channels.Channels;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileVisitResult;
@@ -74,7 +76,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobs() throws IOException {
+    public Map<String, BlobMetadata> listBlobs() throws IOException {
         return listBlobsByPrefix(null);
     }
 
@@ -93,8 +95,8 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
-        Map<String, BlobMetaData> builder = new HashMap<>();
+    public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException {
+        Map<String, BlobMetadata> builder = new HashMap<>();
 
         blobNamePrefix = blobNamePrefix == null ? "" : blobNamePrefix;
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(path, blobNamePrefix + "*")) {
@@ -107,7 +109,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
                     continue;
                 }
                 if (attrs.isRegularFile()) {
-                    builder.put(file.getFileName().toString(), new PlainBlobMetaData(file.getFileName().toString(), attrs.size()));
+                    builder.put(file.getFileName().toString(), new PlainBlobMetadata(file.getFileName().toString(), attrs.size()));
                 }
             }
         }
@@ -142,14 +144,34 @@ public class FsBlobContainer extends AbstractBlobContainer {
         IOUtils.rm(blobNames.stream().map(path::resolve).toArray(Path[]::new));
     }
 
+    private InputStream bufferedInputStream(InputStream inputStream) {
+        return new BufferedInputStream(inputStream, blobStore.bufferSizeInBytes());
+    }
+
     @Override
     public InputStream readBlob(String name) throws IOException {
         final Path resolvedPath = path.resolve(name);
         try {
-            return new BufferedInputStream(Files.newInputStream(resolvedPath), blobStore.bufferSizeInBytes());
+            return bufferedInputStream(Files.newInputStream(resolvedPath));
         } catch (FileNotFoundException fnfe) {
             throw new NoSuchFileException("[" + name + "] blob not found");
         }
+    }
+
+    @Override
+    public InputStream readBlob(String blobName, long position, long length) throws IOException {
+        final SeekableByteChannel channel = Files.newByteChannel(path.resolve(blobName));
+        if (position > 0L) {
+            channel.position(position);
+        }
+        assert channel.position() == position;
+        return bufferedInputStream(org.elasticsearch.common.io.Streams.limitStream(Channels.newInputStream(channel), length));
+    }
+
+    @Override
+    public long readBlobPreferredLength() {
+        // This container returns streams that are cheap to close early, so we can tell consumers to request as much data as possible.
+        return Long.MAX_VALUE;
     }
 
     @Override

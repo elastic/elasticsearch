@@ -22,8 +22,8 @@ package org.elasticsearch.discovery.zen;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
 import java.util.ArrayList;
@@ -250,12 +250,12 @@ public class PendingClusterStatesQueue {
         assert stateToProcess.committed() : "should only return committed cluster state. found " + stateToProcess.state;
 
         final ClusterState committedState = stateToProcess.state;
-        final CoordinationMetaData coordinationMetaData = committedState.coordinationMetaData();
-        if (coordinationMetaData.getLastAcceptedConfiguration().equals(coordinationMetaData.getLastCommittedConfiguration())) {
+        final CoordinationMetadata coordinationMetadata = committedState.coordinationMetadata();
+        if (coordinationMetadata.getLastAcceptedConfiguration().equals(coordinationMetadata.getLastCommittedConfiguration())) {
             return committedState;
         } else {
-            return ClusterState.builder(committedState).metaData(MetaData.builder(committedState.metaData())
-                .coordinationMetaData(CoordinationMetaData.builder(coordinationMetaData)
+            return ClusterState.builder(committedState).metadata(Metadata.builder(committedState.metadata())
+                .coordinationMetadata(CoordinationMetadata.builder(coordinationMetadata)
                     .lastCommittedConfiguration(committedState.getLastAcceptedConfiguration()).build())).build();
         }
     }

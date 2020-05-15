@@ -19,7 +19,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -122,8 +122,10 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
 
     public void testIsRunningOnMlPlatform() {
         assertTrue(MachineLearningFeatureSet.isRunningOnMlPlatform("Linux", "amd64", true));
-        assertTrue(MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "amd64", true));
+        assertTrue(MachineLearningFeatureSet.isRunningOnMlPlatform("Linux", "aarch64", true));
         assertTrue(MachineLearningFeatureSet.isRunningOnMlPlatform("Mac OS X", "x86_64", true));
+        assertTrue(MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "amd64", true));
+        assertFalse(MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "arm64", false));
         assertFalse(MachineLearningFeatureSet.isRunningOnMlPlatform("Linux", "i386", false));
         assertFalse(MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "i386", false));
         assertFalse(MachineLearningFeatureSet.isRunningOnMlPlatform("SunOS", "amd64", false));
@@ -132,6 +134,8 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         expectThrows(ElasticsearchException.class,
                 () -> MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "i386", true));
         expectThrows(ElasticsearchException.class,
+                () -> MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "arm64", true));
+        expectThrows(ElasticsearchException.class,
                 () -> MachineLearningFeatureSet.isRunningOnMlPlatform("SunOS", "amd64", true));
     }
 
@@ -139,7 +143,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(commonSettings), clusterService,
                 client, licenseState, jobManagerHolder);
         boolean available = randomBoolean();
-        when(licenseState.isMachineLearningAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
         PlainActionFuture<Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);
@@ -176,7 +180,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     }
 
     public void testUsage() throws Exception {
-        when(licenseState.isMachineLearningAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", true);
 
@@ -334,7 +338,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     }
 
     public void testUsageDisabledML() throws Exception {
-        when(licenseState.isMachineLearningAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", false);
 
@@ -356,7 +360,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     }
 
     public void testNodeCount() throws Exception {
-        when(licenseState.isMachineLearningAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
         int nodeCount = randomIntBetween(1, 3);
         givenNodeCount(nodeCount);
         Settings.Builder settings = Settings.builder().put(commonSettings);
@@ -399,7 +403,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     }
 
     public void testUsageGivenMlMetadataNotInstalled() throws Exception {
-        when(licenseState.isMachineLearningAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", true);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
@@ -449,7 +453,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
             jobListener.onResponse(
                     new QueryPage<>(jobs, jobs.size(), Job.RESULTS_FIELD));
             return Void.TYPE;
-        }).when(jobManager).expandJobs(eq(MetaData.ALL), eq(true), any());
+        }).when(jobManager).expandJobs(eq(Metadata.ALL), eq(true), any());
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
@@ -597,7 +601,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
             IntStream.range(0, pipelineNames.size()).boxed().collect(Collectors.toMap(pipelineNames::get, processorStats::get)));
         return new NodeStats(mock(DiscoveryNode.class),
             Instant.now().toEpochMilli(), null, null, null, null, null, null, null, null,
-            null, null, null, ingestStats, null);
+            null, null, null, ingestStats, null, null);
 
     }
 

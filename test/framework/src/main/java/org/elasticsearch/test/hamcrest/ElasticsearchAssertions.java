@@ -44,8 +44,8 @@ import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
@@ -200,7 +200,7 @@ public class ElasticsearchAssertions {
     private static boolean checkRetryableBlock(Set<ClusterBlock> clusterBlocks){
         // check only retryable blocks exist in the set
         for (ClusterBlock clusterBlock : clusterBlocks) {
-            if (clusterBlock.id() != IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK.id()) {
+            if (clusterBlock.id() != IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK.id()) {
                 return false;
             }
         }
@@ -451,8 +451,8 @@ public class ElasticsearchAssertions {
      */
     public static void assertIndexTemplateMissing(GetIndexTemplatesResponse templatesResponse, String name) {
         List<String> templateNames = new ArrayList<>();
-        for (IndexTemplateMetaData indexTemplateMetaData : templatesResponse.getIndexTemplates()) {
-            templateNames.add(indexTemplateMetaData.name());
+        for (IndexTemplateMetadata indexTemplateMetadata : templatesResponse.getIndexTemplates()) {
+            templateNames.add(indexTemplateMetadata.name());
         }
         assertThat(templateNames, not(hasItem(name)));
     }
@@ -462,8 +462,8 @@ public class ElasticsearchAssertions {
      */
     public static void assertIndexTemplateExists(GetIndexTemplatesResponse templatesResponse, String name) {
         List<String> templateNames = new ArrayList<>();
-        for (IndexTemplateMetaData indexTemplateMetaData : templatesResponse.getIndexTemplates()) {
-            templateNames.add(indexTemplateMetaData.name());
+        for (IndexTemplateMetadata indexTemplateMetadata : templatesResponse.getIndexTemplates()) {
+            templateNames.add(indexTemplateMetadata.name());
         }
         assertThat(templateNames, hasItem(name));
     }

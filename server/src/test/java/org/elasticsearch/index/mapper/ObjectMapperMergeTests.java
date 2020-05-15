@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.FieldMapper.CopyTo;
@@ -27,10 +26,12 @@ import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class ObjectMapperMergeTests extends ESTestCase {
@@ -38,11 +39,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
     private static FieldMapper barFieldMapper = createTextFieldMapper("bar");
     private static FieldMapper bazFieldMapper = createTextFieldMapper("baz");
 
-    private static RootObjectMapper rootObjectMapper = createRootObjectMapper(
-        "type1", true, ImmutableMap.of(
-            "disabled", createObjectMapper("disabled", false, emptyMap()),
-            "foo", createObjectMapper("foo", true, ImmutableMap.of(
-                "bar", barFieldMapper))));
+    private static RootObjectMapper rootObjectMapper = createMapping(false, true, true, false);
 
     @AfterClass
     public static void cleanupReferences() {
@@ -51,14 +48,24 @@ public class ObjectMapperMergeTests extends ESTestCase {
         rootObjectMapper = null;
     }
 
+    private static RootObjectMapper createMapping(boolean disabledFieldEnabled, boolean fooFieldEnabled,
+                                                  boolean includeBarField, boolean includeBazField) {
+        Map<String, Mapper> mappers = new HashMap<>();
+        mappers.put("disabled", createObjectMapper("disabled", disabledFieldEnabled, emptyMap()));
+        Map<String, Mapper> fooMappers = new HashMap<>();
+        if (includeBarField) {
+            fooMappers.put("bar", barFieldMapper);
+        }
+        if (includeBazField) {
+            fooMappers.put("baz", bazFieldMapper);
+        }
+        mappers.put("foo", createObjectMapper("foo", fooFieldEnabled,  Collections.unmodifiableMap(fooMappers)));
+        return createRootObjectMapper("type1", true, Collections.unmodifiableMap(mappers));
+    }
+
     public void testMerge() {
         // GIVEN an enriched mapping with "baz" new field
-        ObjectMapper mergeWith = createRootObjectMapper(
-            "type1", true, ImmutableMap.of(
-                "disabled", createObjectMapper("disabled", false, emptyMap()),
-                "foo", createObjectMapper("foo", true, ImmutableMap.of(
-                    "bar", barFieldMapper,
-                    "baz", bazFieldMapper))));
+        ObjectMapper mergeWith = createMapping(false, true, true, true);
 
         // WHEN merging mappings
         final ObjectMapper merged = rootObjectMapper.merge(mergeWith);
@@ -71,29 +78,31 @@ public class ObjectMapperMergeTests extends ESTestCase {
 
     public void testMergeWhenDisablingField() {
         // GIVEN a mapping with "foo" field disabled
-        ObjectMapper mergeWith = createRootObjectMapper(
-            "type1", true, ImmutableMap.of(
-                "disabled", createObjectMapper("disabled", false, emptyMap()),
-                "foo", createObjectMapper("foo", false, emptyMap())));
+        ObjectMapper mergeWith = createMapping(false, false, false, false);
 
         // WHEN merging mappings
         // THEN a MapperException is thrown with an excepted message
         MapperException e = expectThrows(MapperException.class, () -> rootObjectMapper.merge(mergeWith));
-        assertEquals("Can't update attribute for type [type1.foo.enabled] in index mapping", e.getMessage());
+        assertEquals("The [enabled] parameter can't be updated for the object mapping [foo].", e.getMessage());
     }
 
     public void testMergeWhenEnablingField() {
         // GIVEN a mapping with "disabled" field enabled
-        ObjectMapper mergeWith = createRootObjectMapper(
-            "type1", true, ImmutableMap.of(
-                "disabled", createObjectMapper("disabled", true, emptyMap()),
-                "foo", createObjectMapper("foo", true, ImmutableMap.of(
-                    "bar", barFieldMapper))));
+        ObjectMapper mergeWith = createMapping(true, true, true, false);
 
         // WHEN merging mappings
         // THEN a MapperException is thrown with an excepted message
         MapperException e = expectThrows(MapperException.class, () -> rootObjectMapper.merge(mergeWith));
-        assertEquals("Can't update attribute for type [type1.disabled.enabled] in index mapping", e.getMessage());
+        assertEquals("The [enabled] parameter can't be updated for the object mapping [disabled].", e.getMessage());
+    }
+
+    public void testDisableRootMapper() {
+        String type = MapperService.SINGLE_MAPPING_NAME;
+        ObjectMapper firstMapper = createRootObjectMapper(type, true, Collections.emptyMap());
+        ObjectMapper secondMapper = createRootObjectMapper(type, false, Collections.emptyMap());
+
+        MapperException e = expectThrows(MapperException.class, () -> firstMapper.merge(secondMapper));
+        assertEquals("The [enabled] parameter can't be updated for the object mapping [" + type + "].", e.getMessage());
     }
 
     private static RootObjectMapper createRootObjectMapper(String name, boolean enabled, Map<String, Mapper> mappers) {

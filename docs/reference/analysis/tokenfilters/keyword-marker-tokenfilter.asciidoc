@@ -6,8 +6,9 @@
 
 Marks specified tokens as keywords, which are not stemmed.
 
-The `keyword_marker` assigns specified tokens a `keyword` attribute of `true`.
-Stemmer token filters, such as <<analysis-stemmer-tokenfilter,`stemmer`>> or
+The `keyword_marker` filter assigns specified tokens a `keyword` attribute of
+`true`. Stemmer token filters, such as
+<<analysis-stemmer-tokenfilter,`stemmer`>> or
 <<analysis-porterstem-tokenfilter,`porter_stem`>>, skip tokens with a `keyword`
 attribute of `true`.
 
@@ -155,7 +156,7 @@ but `jumping` is not stemmed.
 To see the `keyword` attribute for these tokens, add the following arguments to
 the analyze API request:
 
-* `explain`:  `true`
+* `explain`: `true`
 * `attributes`: `keyword`
 
 [source,console]
@@ -176,7 +177,7 @@ GET /_analyze
 }
 ----
 
-The API returns the following response.  Note the `jumping` token has a
+The API returns the following response. Note the `jumping` token has a
 `keyword` attribute of `true`.
 
 [source,console-result]

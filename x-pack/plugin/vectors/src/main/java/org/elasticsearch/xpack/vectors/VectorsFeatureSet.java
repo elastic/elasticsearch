@@ -6,15 +6,13 @@
 package org.elasticsearch.xpack.vectors;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.vectors.VectorsFeatureSetUsage;
 import org.elasticsearch.xpack.vectors.mapper.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.vectors.mapper.SparseVectorFieldMapper;
@@ -23,13 +21,11 @@ import java.util.Map;
 
 public class VectorsFeatureSet implements XPackFeatureSet {
 
-    private final boolean enabled;
     private final XPackLicenseState licenseState;
     private final ClusterService clusterService;
 
     @Inject
-    public VectorsFeatureSet(Settings settings, XPackLicenseState licenseState, ClusterService clusterService) {
-        this.enabled = XPackSettings.VECTORS_ENABLED.get(settings);
+    public VectorsFeatureSet(XPackLicenseState licenseState, ClusterService clusterService) {
         this.licenseState = licenseState;
         this.clusterService = clusterService;
     }
@@ -41,12 +37,12 @@ public class VectorsFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isVectorsAllowed();
+        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.VECTORS);
     }
 
     @Override
     public boolean enabled() {
-        return enabled;
+        return true;
     }
 
     @Override
@@ -62,11 +58,11 @@ public class VectorsFeatureSet implements XPackFeatureSet {
         int numSparseVectorFields = 0;
         int avgDenseVectorDims = 0;
 
-        if (vectorsAvailable && vectorsEnabled && clusterService.state() != null) {
-            for (IndexMetaData indexMetaData : clusterService.state().metaData()) {
-                MappingMetaData mappingMetaData = indexMetaData.mapping();
-                if (mappingMetaData != null) {
-                    Map<String, Object> mappings = mappingMetaData.getSourceAsMap();
+        if (vectorsAvailable && clusterService.state() != null) {
+            for (IndexMetadata indexMetadata : clusterService.state().metadata()) {
+                MappingMetadata mappingMetadata = indexMetadata.mapping();
+                if (mappingMetadata != null) {
+                    Map<String, Object> mappings = mappingMetadata.getSourceAsMap();
                     if (mappings.containsKey("properties")) {
                         @SuppressWarnings("unchecked") Map<String, Map<String, Object>> fieldMappings =
                             (Map<String, Map<String, Object>>) mappings.get("properties");

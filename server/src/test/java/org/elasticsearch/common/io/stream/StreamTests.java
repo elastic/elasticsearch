@@ -21,6 +21,7 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -36,8 +37,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -432,6 +435,68 @@ public class StreamTests extends ESTestCase {
                 assertThat(input.readOptionalSecureString(), is(nullValue()));
             }
         }
+    }
+
+    public void testGenericSet() throws IOException {
+        Set<String> set = new HashSet<>(Arrays.asList("a", "b", "c", "d", "e"));
+        assertGenericRoundtrip(set);
+        // reverse order in normal set so linked hashset does not match the order
+        List<String> list = new ArrayList<>(set);
+        Collections.reverse(list);
+        assertGenericRoundtrip(new LinkedHashSet<>(list));
+    }
+
+    private static class Unwriteable {}
+
+    private void assertNotWriteable(Object o, Class<?> type) {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> StreamOutput.checkWriteable(o));
+        assertThat(e.getMessage(), equalTo("Cannot write type [" + type.getCanonicalName() + "] to stream"));
+    }
+
+    public void testIsWriteable() throws IOException {
+        assertNotWriteable(new Unwriteable(), Unwriteable.class);
+    }
+
+    public void testSetIsWriteable() throws IOException {
+        StreamOutput.checkWriteable(new HashSet<>(Arrays.asList("a", "b")));
+        assertNotWriteable(Collections.singleton(new Unwriteable()), Unwriteable.class);
+    }
+
+    public void testListIsWriteable() throws IOException {
+        StreamOutput.checkWriteable(Arrays.asList("a", "b"));
+        assertNotWriteable(Collections.singletonList(new Unwriteable()), Unwriteable.class);
+    }
+
+    public void testMapIsWriteable() throws IOException {
+        Map<String, Object> goodMap = new HashMap<>();
+        goodMap.put("a", "b");
+        goodMap.put("c", "d");
+        StreamOutput.checkWriteable(goodMap);
+        assertNotWriteable(Collections.singletonMap("a", new Unwriteable()), Unwriteable.class);
+    }
+
+    public void testObjectArrayIsWriteable() throws IOException {
+        StreamOutput.checkWriteable(new Object[] {"a", "b"});
+        assertNotWriteable(new Object[] {new Unwriteable()}, Unwriteable.class);
+    }
+
+    private void assertSerialization(CheckedConsumer<StreamOutput, IOException> outputAssertions,
+                                     CheckedConsumer<StreamInput, IOException> inputAssertions) throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            outputAssertions.accept(output);
+            final BytesReference bytesReference = output.bytes();
+            final StreamInput input = bytesReference.streamInput();
+            inputAssertions.accept(input);
+        }
+    }
+
+    private void assertGenericRoundtrip(Object original) throws IOException {
+        assertSerialization(output -> {
+            output.writeGenericValue(original);
+        }, input -> {
+            Object read = input.readGenericValue();
+            assertThat(read, equalTo(original));
+        });
     }
 
 }

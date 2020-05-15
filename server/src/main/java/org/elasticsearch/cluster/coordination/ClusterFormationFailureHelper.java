@@ -22,7 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -142,7 +142,7 @@ public class ClusterFormationFailureHelper {
             final String discoveryWillContinueDescription = String.format(Locale.ROOT,
                 "discovery will continue using %s from hosts providers and %s from last-known cluster state; " +
                     "node term %d, last-accepted version %d in term %d",
-                resolvedAddresses, clusterStateNodes, currentTerm, clusterState.getVersionOrMetaDataVersion(), clusterState.term());
+                resolvedAddresses, clusterStateNodes, currentTerm, clusterState.getVersionOrMetadataVersion(), clusterState.term());
 
             final String discoveryStateIgnoringQuorum = String.format(Locale.ROOT, "have discovered %s; %s",
                 foundPeers, discoveryWillContinueDescription);
@@ -160,7 +160,6 @@ public class ClusterFormationFailureHelper {
                 if (INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY).equals(INITIAL_MASTER_NODES_SETTING.get(settings))) {
                     bootstrappingDescription = "[" + INITIAL_MASTER_NODES_SETTING.getKey() + "] is empty on this node";
                 } else {
-                    // TODO update this when we can bootstrap on only a quorum of the initial nodes
                     bootstrappingDescription = String.format(Locale.ROOT,
                         "this node must discover master-eligible nodes %s to bootstrap a cluster",
                         INITIAL_MASTER_NODES_SETTING.get(settings));
@@ -192,7 +191,7 @@ public class ClusterFormationFailureHelper {
             foundPeers.forEach(voteCollection::addVote);
             final String isQuorumOrNot
                 = electionStrategy.isElectionQuorum(clusterState.nodes().getLocalNode(), currentTerm, clusterState.term(),
-                    clusterState.getVersionOrMetaDataVersion(), clusterState.getLastCommittedConfiguration(),
+                    clusterState.getVersionOrMetadataVersion(), clusterState.getLastCommittedConfiguration(),
                     clusterState.getLastAcceptedConfiguration(),
                     voteCollection) ? "is a quorum" : "is not a quorum";
 

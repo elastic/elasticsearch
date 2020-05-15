@@ -25,7 +25,7 @@ esplugin {
   hasClientJar = true
 }
 
-tasks.withType(CheckForbiddenApis) {
+tasks.withType(CheckForbiddenApis).configureEach {
   signatures += [
     "com.ibm.icu.text.Collator#getInstance() @ Don't use default locale, use getInstance(ULocale) instead"
   ]

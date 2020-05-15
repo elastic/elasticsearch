@@ -53,11 +53,11 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
     }
 
     /**
-     * Should the cluster state result include the {@link org.elasticsearch.cluster.metadata.MetaData}. Defaults
+     * Should the cluster state result include the {@link org.elasticsearch.cluster.metadata.Metadata}. Defaults
      * to {@code true}.
      */
-    public ClusterStateRequestBuilder setMetaData(boolean filter) {
-        request.metaData(filter);
+    public ClusterStateRequestBuilder setMetadata(boolean filter) {
+        request.metadata(filter);
         return this;
     }
 
@@ -89,7 +89,7 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
     }
 
     /**
-     * When {@link #setMetaData(boolean)} is set, which indices to return the {@link org.elasticsearch.cluster.metadata.IndexMetaData}
+     * When {@link #setMetadata(boolean)} is set, which indices to return the {@link org.elasticsearch.cluster.metadata.IndexMetadata}
      * for. Defaults to all indices.
      */
     public ClusterStateRequestBuilder setIndices(String... indices) {
@@ -104,15 +104,15 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
 
     /**
      * Causes the request to wait for the metadata version to advance to at least the given version.
-     * @param waitForMetaDataVersion The metadata version for which to wait
+     * @param waitForMetadataVersion The metadata version for which to wait
      */
-    public ClusterStateRequestBuilder setWaitForMetaDataVersion(long waitForMetaDataVersion) {
-        request.waitForMetaDataVersion(waitForMetaDataVersion);
+    public ClusterStateRequestBuilder setWaitForMetadataVersion(long waitForMetadataVersion) {
+        request.waitForMetadataVersion(waitForMetadataVersion);
         return this;
     }
 
     /**
-     * If {@link ClusterStateRequest#waitForMetaDataVersion()} is set then this determines how long to wait
+     * If {@link ClusterStateRequest#waitForMetadataVersion()} is set then this determines how long to wait
      */
     public ClusterStateRequestBuilder setWaitForTimeOut(TimeValue waitForTimeout) {
         request.waitForTimeout(waitForTimeout);

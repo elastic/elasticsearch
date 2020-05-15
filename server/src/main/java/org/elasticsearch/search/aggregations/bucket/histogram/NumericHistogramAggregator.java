@@ -35,15 +35,13 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.EmptyBucketInfo;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 /**
  * An aggregator for numeric values. For a given {@code interval},
@@ -51,7 +49,7 @@ import java.util.Map;
  * written as {@code interval * x + offset} and yet is less than or equal to
  * {@code value}.
  */
-class NumericHistogramAggregator extends BucketsAggregator {
+public class NumericHistogramAggregator extends BucketsAggregator {
 
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat formatter;
@@ -63,13 +61,12 @@ class NumericHistogramAggregator extends BucketsAggregator {
 
     private final LongHash bucketOrds;
 
-    NumericHistogramAggregator(String name, AggregatorFactories factories, double interval, double offset,
+    public NumericHistogramAggregator(String name, AggregatorFactories factories, double interval, double offset,
                                BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
                                @Nullable ValuesSource.Numeric valuesSource, DocValueFormat formatter,
-                               SearchContext context, Aggregator parent,
-                               List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+                               SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
 
-        super(name, factories, context, parent, pipelineAggregators, metaData);
+        super(name, factories, context, parent, metadata);
         if (interval <= 0) {
             throw new IllegalArgumentException("interval must be positive, got: " + interval);
         }
@@ -133,25 +130,22 @@ class NumericHistogramAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long bucket) throws IOException {
-        assert bucket == 0;
-        consumeBucketsAndMaybeBreak((int) bucketOrds.size());
-        List<InternalHistogram.Bucket> buckets = new ArrayList<>((int) bucketOrds.size());
-        for (long i = 0; i < bucketOrds.size(); i++) {
-            double roundKey = Double.longBitsToDouble(bucketOrds.get(i));
-            double key = roundKey * interval + offset;
-            buckets.add(new InternalHistogram.Bucket(key, bucketDocCount(i), keyed, formatter, bucketAggregations(i)));
-        }
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        return buildAggregationsForVariableBuckets(owningBucketOrds, bucketOrds,
+            (bucketValue, docCount, subAggregationResults) -> {
+                double roundKey = Double.longBitsToDouble(bucketValue);
+                double key = roundKey * interval + offset;
+                return new InternalHistogram.Bucket(key, docCount, keyed, formatter, subAggregationResults);
+            }, buckets -> {
+                // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
+                CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
 
-        // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
-        CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
-
-        EmptyBucketInfo emptyBucketInfo = null;
-        if (minDocCount == 0) {
-            emptyBucketInfo = new EmptyBucketInfo(interval, offset, minBound, maxBound, buildEmptySubAggregations());
-        }
-        return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, pipelineAggregators(),
-                metaData());
+                EmptyBucketInfo emptyBucketInfo = null;
+                if (minDocCount == 0) {
+                    emptyBucketInfo = new EmptyBucketInfo(interval, offset, minBound, maxBound, buildEmptySubAggregations());
+                }
+                return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, metadata());
+            });
     }
 
     @Override
@@ -160,12 +154,17 @@ class NumericHistogramAggregator extends BucketsAggregator {
         if (minDocCount == 0) {
             emptyBucketInfo = new EmptyBucketInfo(interval, offset, minBound, maxBound, buildEmptySubAggregations());
         }
-        return new InternalHistogram(name, Collections.emptyList(), order, minDocCount, emptyBucketInfo, formatter, keyed,
-                pipelineAggregators(), metaData());
+        return new InternalHistogram(name, Collections.emptyList(), order, minDocCount, emptyBucketInfo, formatter, keyed, metadata());
     }
 
     @Override
     public void doClose() {
         Releasables.close(bucketOrds);
+    }
+
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        add.accept("total_buckets", bucketOrds.size());
+        super.collectDebugInfo(add);
     }
 }

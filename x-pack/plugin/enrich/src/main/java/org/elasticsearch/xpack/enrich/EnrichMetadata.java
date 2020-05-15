@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.enrich;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,7 +28,7 @@ import java.util.Objects;
 /**
  * Encapsulates enrich policies as custom metadata inside cluster state.
  */
-public final class EnrichMetadata extends AbstractNamedDiffable<MetaData.Custom> implements XPackPlugin.XPackMetaDataCustom {
+public final class EnrichMetadata extends AbstractNamedDiffable<Metadata.Custom> implements XPackPlugin.XPackMetadataCustom {
 
     static final String TYPE = "enrich";
 
@@ -76,8 +76,8 @@ public final class EnrichMetadata extends AbstractNamedDiffable<MetaData.Custom>
     }
 
     @Override
-    public EnumSet<MetaData.XContentContext> context() {
-        return MetaData.ALL_CONTEXTS;
+    public EnumSet<Metadata.XContentContext> context() {
+        return Metadata.ALL_CONTEXTS;
     }
 
     @Override

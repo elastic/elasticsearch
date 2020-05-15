@@ -10,7 +10,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -42,22 +41,19 @@ public class MonitoringFeatureSetTests extends ESTestCase {
     private final Exporters exporters = mock(Exporters.class);
 
     public void testAvailable() {
-        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(Settings.EMPTY, monitoring, licenseState, exporters);
+        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(monitoring, licenseState, exporters);
         boolean available = randomBoolean();
-        when(licenseState.isMonitoringAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 
-    public void testEnabledSetting() {
-        boolean enabled = randomBoolean();
-        Settings.Builder settings = Settings.builder();
-        settings.put("xpack.monitoring.enabled", enabled);
-        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(settings.build(), monitoring, licenseState, exporters);
-        assertThat(featureSet.enabled(), is(enabled));
+    public void testMonitoringEnabledByDefault() {
+        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(monitoring, licenseState, exporters);
+        assertThat(featureSet.enabled(), is(true));
     }
 
     public void testEnabledDefault() {
-        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(Settings.EMPTY, monitoring, licenseState, exporters);
+        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(monitoring, licenseState, exporters);
         assertThat(featureSet.enabled(), is(true));
     }
 
@@ -97,7 +93,7 @@ public class MonitoringFeatureSetTests extends ESTestCase {
         when(exporters.getEnabledExporters()).thenReturn(exporterList);
         when(monitoring.isMonitoringActive()).thenReturn(collectionEnabled);
 
-        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(Settings.EMPTY, monitoring, licenseState, exporters);
+        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(monitoring, licenseState, exporters);
         PlainActionFuture<Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);
         XPackFeatureSet.Usage monitoringUsage = future.get();

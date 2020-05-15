@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -48,7 +48,7 @@ public class RestDeleteForecastAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String jobId = restRequest.param(Job.ID.getPreferredName());
-        String forecastId = restRequest.param(Forecast.FORECAST_ID.getPreferredName(), MetaData.ALL);
+        String forecastId = restRequest.param(Forecast.FORECAST_ID.getPreferredName(), Metadata.ALL);
         final DeleteForecastAction.Request request = new DeleteForecastAction.Request(jobId, forecastId);
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         request.setAllowNoForecasts(restRequest.paramAsBoolean("allow_no_forecasts", request.isAllowNoForecasts()));

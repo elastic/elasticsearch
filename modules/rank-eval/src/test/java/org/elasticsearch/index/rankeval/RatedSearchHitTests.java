@@ -42,7 +42,7 @@ public class RatedSearchHitTests extends ESTestCase {
         OptionalInt rating = randomBoolean() ? OptionalInt.empty()
                 : OptionalInt.of(randomIntBetween(0, 5));
         SearchHit searchHit = new SearchHit(randomIntBetween(0, 10), randomAlphaOfLength(10),
-                new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap());
+                new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap(), Collections.emptyMap());
         RatedSearchHit ratedSearchHit = new RatedSearchHit(searchHit, rating);
         return ratedSearchHit;
     }
@@ -56,7 +56,7 @@ public class RatedSearchHitTests extends ESTestCase {
             break;
         case 1:
             hit = new SearchHit(hit.docId(), hit.getId() + randomAlphaOfLength(10),
-                    new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap());
+                    new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap(), Collections.emptyMap());
             break;
         default:
             throw new IllegalStateException("The test should only allow two parameters mutated");

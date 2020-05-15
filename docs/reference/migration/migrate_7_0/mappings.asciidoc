@@ -31,6 +31,20 @@ of `_id`.
 The `_default_` mapping has been deprecated in 6.0 and is now no longer allowed
 in 7.0. Trying to configure a `_default_` mapping on 7.x indices will result in
 an error.
+
+If an index template contains a `_default_` mapping, it will fail to create new
+indices. To resolve this issue, the `_default_` mapping should be removed from
+the template. Note that in 7.x, the <<indices-get-template, get template API>>
+does not show the `_default_` mapping by default, even when it is defined in
+the mapping. To see all mappings in the template, the `include_type_name`
+parameter must be supplied:
+
+```
+GET /_template/my_template?include_type_name
+```
+
+For more details on the `include_type_name` parameter and other types-related
+API changes, please see <<removal-of-types>>.
 //end::notable-breaking-changes[]
 
 [float]

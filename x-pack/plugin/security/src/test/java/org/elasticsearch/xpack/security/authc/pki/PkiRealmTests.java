@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -74,7 +75,8 @@ public class PkiRealmTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthorizationRealmAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
     }
 
     public void testTokenSupport() throws Exception {

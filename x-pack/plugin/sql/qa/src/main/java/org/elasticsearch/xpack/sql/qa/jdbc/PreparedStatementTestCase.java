@@ -6,8 +6,12 @@
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
 
+import java.io.IOException;
+import java.math.BigDecimal;
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.ParameterMetaData;
 import java.sql.PreparedStatement;
@@ -15,17 +19,24 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.SQLSyntaxErrorException;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.util.Calendar;
+import java.util.Locale;
+import java.util.StringJoiner;
 
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.UTC;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asDate;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asTime;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.convertFromCalendarToUTC;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
 
-    public void testSupportedTypes() throws Exception {
-        index("library", builder -> {
-            builder.field("name", "Don Quixote");
-            builder.field("page_count", 1072);
-        });
-
+    public void testSupportedTypes() throws SQLException {
         String stringVal = randomAlphaOfLength(randomIntBetween(0, 1000));
         int intVal = randomInt();
         long longVal = randomLong();
@@ -34,10 +45,24 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
         boolean booleanVal = randomBoolean();
         byte byteVal = randomByte();
         short shortVal = randomShort();
+        BigDecimal bigDecimalVal = BigDecimal.valueOf(randomDouble());
+        long millis = randomNonNegativeLong();
+        Calendar calendarVal = Calendar.getInstance(randomTimeZone(), Locale.ROOT);
+        Timestamp timestampVal = new Timestamp(millis);
+        Timestamp timestampValWithCal = new Timestamp(convertFromCalendarToUTC(timestampVal.getTime(), calendarVal));
+        Date dateVal = asDate(millis, UTC);
+        Date dateValWithCal = asDate(convertFromCalendarToUTC(dateVal.getTime(), calendarVal), UTC);
+        Time timeVal = asTime(millis, UTC);
+        Time timeValWithCal = asTime(convertFromCalendarToUTC(timeVal.getTime(), calendarVal), UTC);
+        java.util.Date utilDateVal = new java.util.Date(millis);
+        LocalDateTime localDateTimeVal = LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC);
 
         try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement(
-                    "SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, name FROM library WHERE page_count=?")) {
+            StringJoiner sql = new StringJoiner(",", "SELECT ", "");
+            for (int i = 0; i < 19; i++) {
+                sql.add("?");
+            }
+            try (PreparedStatement statement = connection.prepareStatement(sql.toString())) {
                 statement.setString(1, stringVal);
                 statement.setInt(2, intVal);
                 statement.setLong(3, longVal);
@@ -47,7 +72,16 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
                 statement.setBoolean(7, booleanVal);
                 statement.setByte(8, byteVal);
                 statement.setShort(9, shortVal);
-                statement.setInt(10, 1072);
+                statement.setBigDecimal(10, bigDecimalVal);
+                statement.setTimestamp(11, timestampVal);
+                statement.setTimestamp(12, timestampVal, calendarVal);
+                statement.setDate(13, dateVal);
+                statement.setDate(14, dateVal, calendarVal);
+                statement.setTime(15, timeVal);
+                statement.setTime(16, timeVal, calendarVal);
+                statement.setObject(17, calendarVal);
+                statement.setObject(18, utilDateVal);
+                statement.setObject(19, localDateTimeVal);
 
                 try (ResultSet results = statement.executeQuery()) {
                     ResultSetMetaData resultSetMetaData = results.getMetaData();
@@ -67,9 +101,85 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
                     assertEquals(booleanVal, results.getBoolean(7));
                     assertEquals(byteVal, results.getByte(8));
                     assertEquals(shortVal, results.getShort(9));
-                    assertEquals("Don Quixote", results.getString(10));
+                    assertEquals(bigDecimalVal, results.getBigDecimal(10));
+                    assertEquals(timestampVal, results.getTimestamp(11));
+                    assertEquals(timestampValWithCal, results.getTimestamp(12));
+                    assertEquals(dateVal, results.getDate(13));
+                    assertEquals(dateValWithCal, results.getDate(14));
+                    assertEquals(timeVal, results.getTime(15));
+                    assertEquals(timeValWithCal, results.getTime(16));
+                    assertEquals(new Timestamp(calendarVal.getTimeInMillis()), results.getObject(17));
+                    assertEquals(timestampVal, results.getObject(18));
+                    assertEquals(timestampVal, results.getObject(19));
                     assertFalse(results.next());
                 }
+            }
+        }
+    }
+
+    public void testDatetime() throws IOException, SQLException {
+        long randomMillis = randomNonNegativeLong();
+        setupIndexForDateTimeTests(randomMillis);
+
+        try (Connection connection = esJdbc()) {
+            try (PreparedStatement statement = connection.prepareStatement("SELECT id, birth_date FROM emps WHERE birth_date = ?")) {
+                Object dateTimeParam = randomFrom(new Timestamp(randomMillis), new Date(randomMillis));
+                statement.setObject(1, dateTimeParam);
+                try (ResultSet results = statement.executeQuery()) {
+                    assertTrue(results.next());
+                    assertEquals(1002, results.getInt(1));
+                    assertEquals(new Timestamp(randomMillis), results.getTimestamp(2));
+                    assertFalse(results.next());
+                }
+            }
+        }
+    }
+
+    public void testDate() throws IOException, SQLException {
+        long randomMillis = randomNonNegativeLong();
+        setupIndexForDateTimeTests(randomMillis);
+
+        try (Connection connection = esJdbc()) {
+            try (PreparedStatement statement = connection.prepareStatement("SELECT id, birth_date FROM emps WHERE birth_date::date = ? " +
+                "ORDER BY id")) {
+
+                statement.setDate(1, new Date(asDate(randomMillis, UTC).getTime()));
+                try (ResultSet results = statement.executeQuery()) {
+                    for (int i = 1; i <= 3; i++) {
+                        assertTrue(results.next());
+                        assertEquals(1000 + i, results.getInt(1));
+                        assertEquals(new Timestamp(testMillis(randomMillis, i)), results.getTimestamp(2));
+                    }
+                    assertFalse(results.next());
+                }
+            }
+        }
+    }
+
+    public void testTime() throws IOException, SQLException {
+        long randomMillis = randomNonNegativeLong();
+        setupIndexForDateTimeTests(randomMillis);
+
+        try (Connection connection = esJdbc()) {
+            try (PreparedStatement statement = connection.prepareStatement("SELECT id, birth_date FROM emps WHERE birth_date::time = ?")) {
+                Time time = JdbcTestUtils.asTime(randomMillis, UTC);
+                statement.setObject(1, time);
+                try (ResultSet results = statement.executeQuery()) {
+                    assertTrue(results.next());
+                    assertEquals(1002, results.getInt(1));
+                    assertEquals(new Timestamp(randomMillis), results.getTimestamp(2));
+                    assertFalse(results.next());
+                }
+            }
+        }
+    }
+
+    public void testOutOfRangeBigDecimal() throws SQLException {
+        try (Connection connection = esJdbc()) {
+            try (PreparedStatement statement = connection.prepareStatement("SELECT ?")) {
+                BigDecimal tooLarge = BigDecimal.valueOf(Double.MAX_VALUE).add(BigDecimal.ONE);
+                SQLException ex = expectThrows(SQLException.class, () -> statement.setBigDecimal(1, tooLarge));
+                assertThat(ex.getMessage(), equalTo("BigDecimal value [" + tooLarge + "] out of supported double's range."));
             }
         }
     }
@@ -190,13 +300,30 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
         }
     }
 
-    private Tuple<Integer, Object> execute(PreparedStatement statement) throws SQLException {
+    private Tuple<Integer, Object> execute(PreparedStatement statement) throws Exception {
         try (ResultSet results = statement.executeQuery()) {
             ResultSetMetaData resultSetMetaData = results.getMetaData();
             assertTrue(results.next());
             Tuple<Integer, Object> result = new Tuple<>(resultSetMetaData.getColumnType(1), results.getObject(1));
             assertFalse(results.next());
             return result;
+        }
+    }
+
+    private static long testMillis(long randomMillis, int i) {
+        return randomMillis - 2 + i;
+    }
+
+    private static void setupIndexForDateTimeTests(long randomMillis) throws IOException {
+        String mapping = "\"properties\":{\"id\":{\"type\":\"integer\"},\"birth_date\":{\"type\":\"date\"}}";
+        createIndex("emps", Settings.EMPTY, mapping);
+        for (int i = 1; i <= 3; i++) {
+            int id = 1000 + i;
+            long testMillis = testMillis(randomMillis, i);
+            index("emps", "" + i, builder -> {
+                builder.field("id", id);
+                builder.field("birth_date", testMillis);
+            });
         }
     }
 }

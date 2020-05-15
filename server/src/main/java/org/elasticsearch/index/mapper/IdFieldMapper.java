@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -35,10 +34,10 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
@@ -48,6 +47,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -155,6 +156,12 @@ public class IdFieldMapper extends MetadataFieldMapper {
                 bytesRefs[i] = Uid.encodeId(idObject.toString());
             }
             return new TermInSetQuery(name(), bytesRefs);
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            // TODO: should this even exist? Is aggregating on the ID field valid?
+            return CoreValuesSourceType.BYTES;
         }
 
         @Override
@@ -293,10 +300,10 @@ public class IdFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             BytesRef id = Uid.encodeId(context.sourceToParse().id());
-            fields.add(new Field(NAME, id, fieldType));
+            context.doc().add(new Field(NAME, id, fieldType));
         }
     }
 

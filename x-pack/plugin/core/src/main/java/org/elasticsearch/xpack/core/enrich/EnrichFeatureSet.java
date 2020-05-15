@@ -5,27 +5,24 @@
  */
 package org.elasticsearch.xpack.core.enrich;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.io.IOException;
 import java.util.Map;
 
 public class EnrichFeatureSet implements XPackFeatureSet {
 
-    private final boolean enabled;
     private final XPackLicenseState licenseState;
 
     @Inject
-    public EnrichFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState) {
-        this.enabled = XPackSettings.ENRICH_ENABLED_SETTING.get(settings);
+    public EnrichFeatureSet(@Nullable XPackLicenseState licenseState) {
         this.licenseState = licenseState;
     }
 
@@ -36,12 +33,12 @@ public class EnrichFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState.isEnrichAllowed();
+        return licenseState.isAllowed(XPackLicenseState.Feature.ENRICH);
     }
 
     @Override
     public boolean enabled() {
-        return enabled;
+        return true;
     }
 
     @Override
@@ -63,5 +60,11 @@ public class EnrichFeatureSet implements XPackFeatureSet {
         public Usage(StreamInput input) throws IOException {
             super(input);
         }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_7_5_0;
+        }
+
     }
 }

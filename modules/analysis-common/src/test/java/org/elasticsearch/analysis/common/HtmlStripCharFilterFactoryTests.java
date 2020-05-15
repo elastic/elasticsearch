@@ -20,7 +20,7 @@
 package org.elasticsearch.analysis.common;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -41,7 +41,7 @@ public class HtmlStripCharFilterFactoryTests extends ESTestCase {
      */
     public void testDeprecationWarning() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_6_3_0, Version.CURRENT))
+                .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_6_3_0, Version.CURRENT))
                 .build();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
@@ -59,7 +59,7 @@ public class HtmlStripCharFilterFactoryTests extends ESTestCase {
      */
     public void testNoDeprecationWarningPre6_3() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put(IndexMetaData.SETTING_VERSION_CREATED,
+                .put(IndexMetadata.SETTING_VERSION_CREATED,
                         VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_2_4))
                 .build();
 

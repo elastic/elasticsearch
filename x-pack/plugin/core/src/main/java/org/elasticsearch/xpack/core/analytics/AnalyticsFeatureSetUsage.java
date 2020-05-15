@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.analytics;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -28,6 +29,10 @@ public class AnalyticsFeatureSetUsage extends XPackFeatureSet.Usage {
     public AnalyticsFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
         this.response = new AnalyticsStatsAction.Response(input);
+    }
+
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_4_0;
     }
 
     @Override

@@ -67,7 +67,7 @@ public class IndexTemplateV2Tests extends AbstractDiffableSerializationTestCase<
     public static IndexTemplateV2 randomInstance() {
         Settings settings = null;
         CompressedXContent mappings = null;
-        Map<String, AliasMetaData> aliases = null;
+        Map<String, AliasMetadata> aliases = null;
         Template template = null;
         if (randomBoolean()) {
             if (randomBoolean()) {
@@ -87,6 +87,8 @@ public class IndexTemplateV2Tests extends AbstractDiffableSerializationTestCase<
             meta = randomMeta();
         }
 
+        IndexTemplateV2.DataStreamTemplate dataStreamTemplate = randomDataStreamTemplate();
+
         List<String> indexPatterns = randomList(1, 4, () -> randomAlphaOfLength(4));
         List<String> componentTemplates = randomList(0, 10, () -> randomAlphaOfLength(5));
         return new IndexTemplateV2(indexPatterns,
@@ -94,12 +96,13 @@ public class IndexTemplateV2Tests extends AbstractDiffableSerializationTestCase<
             componentTemplates,
             randomBoolean() ? null : randomNonNegativeLong(),
             randomBoolean() ? null : randomNonNegativeLong(),
-            meta);
+            meta,
+            dataStreamTemplate);
     }
 
-    private static Map<String, AliasMetaData> randomAliases() {
+    private static Map<String, AliasMetadata> randomAliases() {
         String aliasName = randomAlphaOfLength(5);
-        AliasMetaData aliasMeta = AliasMetaData.builder(aliasName)
+        AliasMetadata aliasMeta = AliasMetadata.builder(aliasName)
             .filter(Collections.singletonMap(randomAlphaOfLength(2), randomAlphaOfLength(2)))
             .routing(randomBoolean() ? null : randomAlphaOfLength(3))
             .isHidden(randomBoolean() ? null : randomBoolean())
@@ -110,7 +113,7 @@ public class IndexTemplateV2Tests extends AbstractDiffableSerializationTestCase<
 
     private static CompressedXContent randomMappings() {
         try {
-            return new CompressedXContent("{\"" + randomAlphaOfLength(3) + "\":\"" + randomAlphaOfLength(7) + "\"}");
+            return new CompressedXContent("{\"properties\":{\"" + randomAlphaOfLength(5) + "\":{\"type\":\"keyword\"}}}");
         } catch (IOException e) {
             fail("got an IO exception creating fake mappings: " + e);
             return null;
@@ -119,7 +122,12 @@ public class IndexTemplateV2Tests extends AbstractDiffableSerializationTestCase<
 
     private static Settings randomSettings() {
         return Settings.builder()
-            .put(randomAlphaOfLength(4), randomAlphaOfLength(10))
+            .put(IndexMetadata.SETTING_BLOCKS_READ, randomBoolean())
+            .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
+            .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
+            .put(IndexMetadata.SETTING_PRIORITY, randomIntBetween(0, 100000))
             .build();
     }
 
@@ -132,25 +140,34 @@ public class IndexTemplateV2Tests extends AbstractDiffableSerializationTestCase<
         }
     }
 
+    private static IndexTemplateV2.DataStreamTemplate randomDataStreamTemplate() {
+        if (randomBoolean()) {
+            return null;
+        } else {
+            return new IndexTemplateV2.DataStreamTemplate(randomAlphaOfLength(8));
+        }
+    }
+
     @Override
     protected IndexTemplateV2 mutateInstance(IndexTemplateV2 orig) throws IOException {
         return mutateTemplate(orig);
     }
 
     public static IndexTemplateV2 mutateTemplate(IndexTemplateV2 orig) {
-        switch (randomIntBetween(0, 5)) {
+        switch (randomIntBetween(0, 6)) {
             case 0:
                 List<String> newIndexPatterns = randomValueOtherThan(orig.indexPatterns(),
                     () -> randomList(1, 4, () -> randomAlphaOfLength(4)));
                 return new IndexTemplateV2(newIndexPatterns, orig.template(), orig.composedOf(),
-                    orig.priority(), orig.version(), orig.metadata());
+                    orig.priority(), orig.version(), orig.metadata(), orig.getDataStreamTemplate());
             case 1:
                 return new IndexTemplateV2(orig.indexPatterns(),
                     randomValueOtherThan(orig.template(), () -> new Template(randomSettings(), randomMappings(), randomAliases())),
                     orig.composedOf(),
                     orig.priority(),
                     orig.version(),
-                    orig.metadata());
+                    orig.metadata(),
+                    orig.getDataStreamTemplate());
             case 2:
                 List<String> newComposedOf = randomValueOtherThan(orig.composedOf(),
                     () -> randomList(0, 10, () -> randomAlphaOfLength(5)));
@@ -159,28 +176,40 @@ public class IndexTemplateV2Tests extends AbstractDiffableSerializationTestCase<
                     newComposedOf,
                     orig.priority(),
                     orig.version(),
-                    orig.metadata());
+                    orig.metadata(),
+                    orig.getDataStreamTemplate());
             case 3:
                 return new IndexTemplateV2(orig.indexPatterns(),
                     orig.template(),
                     orig.composedOf(),
                     randomValueOtherThan(orig.priority(), ESTestCase::randomNonNegativeLong),
                     orig.version(),
-                    orig.metadata());
+                    orig.metadata(),
+                    orig.getDataStreamTemplate());
             case 4:
                 return new IndexTemplateV2(orig.indexPatterns(),
                     orig.template(),
                     orig.composedOf(),
                     orig.priority(),
                     randomValueOtherThan(orig.version(), ESTestCase::randomNonNegativeLong),
-                    orig.metadata());
+                    orig.metadata(),
+                    orig.getDataStreamTemplate());
             case 5:
                 return new IndexTemplateV2(orig.indexPatterns(),
                     orig.template(),
                     orig.composedOf(),
                     orig.priority(),
                     orig.version(),
-                    randomValueOtherThan(orig.metadata(), IndexTemplateV2Tests::randomMeta));
+                    randomValueOtherThan(orig.metadata(), IndexTemplateV2Tests::randomMeta),
+                    orig.getDataStreamTemplate());
+            case 6:
+                return new IndexTemplateV2(orig.indexPatterns(),
+                    orig.template(),
+                    orig.composedOf(),
+                    orig.priority(),
+                    orig.version(),
+                    orig.metadata(),
+                    randomValueOtherThan(orig.getDataStreamTemplate(), IndexTemplateV2Tests::randomDataStreamTemplate));
             default:
                 throw new IllegalStateException("illegal randomization branch");
         }

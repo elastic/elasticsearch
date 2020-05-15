@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.frozen;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.engine.FrozenEngine;
@@ -48,8 +48,8 @@ public class FrozenIndicesFeatureSet implements XPackFeatureSet {
     @Override
     public void usage(ActionListener<Usage> listener) {
         int numFrozenIndices = 0;
-        for (IndexMetaData indexMetaData : clusterService.state().metaData()) {
-            if (FrozenEngine.INDEX_FROZEN.get(indexMetaData.getSettings())) {
+        for (IndexMetadata indexMetadata : clusterService.state().metadata()) {
+            if (FrozenEngine.INDEX_FROZEN.get(indexMetadata.getSettings())) {
                 numFrozenIndices++;
             }
         }

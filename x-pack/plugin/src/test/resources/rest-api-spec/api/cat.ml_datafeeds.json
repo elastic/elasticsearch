@@ -1,7 +1,8 @@
 {
   "cat.ml_datafeeds":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/cat-datafeeds.html"
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/cat-datafeeds.html",
+      "description": "Gets configuration and usage information about datafeeds."
     },
     "stability":"stable",
     "url":{
@@ -53,13 +54,13 @@
         "type":"enum",
         "description":"The unit in which to display time values",
         "options":[
-          "d (Days)",
-          "h (Hours)",
-          "m (Minutes)",
-          "s (Seconds)",
-          "ms (Milliseconds)",
-          "micros (Microseconds)",
-          "nanos (Nanoseconds)"
+          "d",
+          "h",
+          "m",
+          "s",
+          "ms",
+          "micros",
+          "nanos"
         ]
       },
       "v":{

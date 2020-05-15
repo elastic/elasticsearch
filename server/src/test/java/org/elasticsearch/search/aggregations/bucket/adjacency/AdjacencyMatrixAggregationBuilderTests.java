@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.adjacency;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -49,12 +49,12 @@ public class AdjacencyMatrixAggregationBuilderTests extends ESTestCase {
         IndexShard indexShard = mock(IndexShard.class);
         Settings settings = Settings.builder()
             .put("index.max_adjacency_matrix_filters", 2)
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
             .build();
-        IndexMetaData indexMetaData = IndexMetaData.builder("index").settings(settings).build();
-        IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
+        IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         when(indexShard.indexSettings()).thenReturn(indexSettings);
         when(queryShardContext.getIndexSettings()).thenReturn(indexSettings);
         SearchContext context = new TestSearchContext(queryShardContext, indexShard);

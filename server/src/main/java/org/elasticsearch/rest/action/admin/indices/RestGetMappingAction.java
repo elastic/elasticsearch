@@ -27,7 +27,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -89,7 +89,8 @@ public class RestGetMappingAction extends BaseRestHandler {
         boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
 
         if (request.method().equals(HEAD)) {
-            deprecationLogger.deprecated("Type exists requests are deprecated, as types have been deprecated.");
+            deprecationLogger.deprecatedAndMaybeLog("get_mapping_types_removal",
+                "Type exists requests are deprecated, as types have been deprecated.");
         } else if (includeTypeName == false && types.length > 0) {
             throw new IllegalArgumentException("Types cannot be provided in get mapping requests, unless" +
                 " include_type_name is set to true.");
@@ -106,14 +107,14 @@ public class RestGetMappingAction extends BaseRestHandler {
         return channel -> client.admin().indices().getMappings(getMappingsRequest, new RestBuilderListener<GetMappingsResponse>(channel) {
             @Override
             public RestResponse buildResponse(final GetMappingsResponse response, final XContentBuilder builder) throws Exception {
-                final ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsByIndex = response.getMappings();
+                final ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappingsByIndex = response.getMappings();
                 if (mappingsByIndex.isEmpty() && types.length != 0) {
                     builder.close();
                     return new BytesRestResponse(channel, new TypeMissingException("_all", String.join(",", types)));
                 }
 
                 final Set<String> typeNames = new HashSet<>();
-                for (final ObjectCursor<ImmutableOpenMap<String, MappingMetaData>> cursor : mappingsByIndex.values()) {
+                for (final ObjectCursor<ImmutableOpenMap<String, MappingMetadata>> cursor : mappingsByIndex.values()) {
                     for (final ObjectCursor<String> inner : cursor.value.keys()) {
                         typeNames.add(inner.value);
                     }

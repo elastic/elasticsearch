@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
@@ -56,8 +56,8 @@ public class GetMappingsResponseTests extends ESTestCase {
     }
 
     private static GetMappingsResponse createTestInstance() {
-        Map<String, MappingMetaData> mappings = Collections.singletonMap(
-            "index-" + randomAlphaOfLength(5), randomMappingMetaData());
+        Map<String, MappingMetadata> mappings = Collections.singletonMap(
+            "index-" + randomAlphaOfLength(5), randomMappingMetadata());
         return new GetMappingsResponse(mappings);
     }
 
@@ -69,7 +69,7 @@ public class GetMappingsResponseTests extends ESTestCase {
         return field -> !field.equals(MAPPINGS.getPreferredName());
     }
 
-    public static MappingMetaData randomMappingMetaData() {
+    public static MappingMetadata randomMappingMetadata() {
         Map<String, Object> mappings = new HashMap<>();
 
         if (frequently()) { // rarely have no fields
@@ -80,7 +80,7 @@ public class GetMappingsResponseTests extends ESTestCase {
         }
 
         try {
-            return new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, mappings);
+            return new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, mappings);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -102,10 +102,10 @@ public class GetMappingsResponseTests extends ESTestCase {
     private static void toXContent(GetMappingsResponse response, XContentBuilder builder) throws IOException {
         Params params = new ToXContent.MapParams(
             Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "false"));
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> allMappings = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> allMappings = ImmutableOpenMap.builder();
 
-        for (Map.Entry<String, MappingMetaData> indexEntry : response.mappings().entrySet()) {
-            ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
+        for (Map.Entry<String, MappingMetadata> indexEntry : response.mappings().entrySet()) {
+            ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
             mappings.put(MapperService.SINGLE_MAPPING_NAME, indexEntry.getValue());
             allMappings.put(indexEntry.getKey(), mappings.build());
         }

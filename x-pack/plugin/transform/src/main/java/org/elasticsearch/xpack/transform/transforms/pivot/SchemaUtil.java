@@ -75,15 +75,16 @@ public final class SchemaUtil {
 
         config.getGroupConfig()
             .getGroups()
-            .forEach((destinationFieldName, group) -> {
-                // We will always need the field name for the grouping to create the mapping
-                fieldNamesForGrouping.put(destinationFieldName, group.getField());
-                // Sometimes the group config will supply a desired mapping as well
-                if (group.getMappingType() != null) {
-                    fieldTypesForGrouping.put(destinationFieldName, group.getMappingType());
+            .forEach(
+                (destinationFieldName, group) -> {
+                    // We will always need the field name for the grouping to create the mapping
+                    fieldNamesForGrouping.put(destinationFieldName, group.getField());
+                    // Sometimes the group config will supply a desired mapping as well
+                    if (group.getMappingType() != null) {
+                        fieldTypesForGrouping.put(destinationFieldName, group.getMappingType());
+                    }
                 }
-            });
-
+            );
 
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
             Tuple<Map<String, String>, Map<String, String>> inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(
@@ -161,19 +162,23 @@ public final class SchemaUtil {
             String sourceMapping = sourceFieldName == null ? null : sourceMappings.get(sourceFieldName);
             String destinationMapping = TransformAggregations.resolveTargetMapping(aggregationName, sourceMapping);
 
-            logger.debug(() -> new ParameterizedMessage(
-                "Deduced mapping for: [{}], agg type [{}] to [{}]",
-                targetFieldName,
-                aggregationName,
-                destinationMapping
-            ));
+            logger.debug(
+                () -> new ParameterizedMessage(
+                    "Deduced mapping for: [{}], agg type [{}] to [{}]",
+                    targetFieldName,
+                    aggregationName,
+                    destinationMapping
+                )
+            );
 
             if (TransformAggregations.isDynamicMapping(destinationMapping)) {
-                logger.debug(() -> new ParameterizedMessage(
-                    "Dynamic target mapping set for field [{}] and aggregation [{}]",
-                    targetFieldName,
-                    aggregationName
-                ));
+                logger.debug(
+                    () -> new ParameterizedMessage(
+                        "Dynamic target mapping set for field [{}] and aggregation [{}]",
+                        targetFieldName,
+                        aggregationName
+                    )
+                );
             } else if (destinationMapping != null) {
                 targetMapping.put(targetFieldName, destinationMapping);
             } else {

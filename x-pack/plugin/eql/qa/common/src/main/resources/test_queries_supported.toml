@@ -209,3 +209,11 @@ sequence
   [process where true] by unique_ppid
 '''
 expected_event_ids  = [1, 2, 2, 3]
+
+[[queries]]
+query = '''
+sequence
+  [process where false] by unique_pid
+  [process where true] by unique_ppid
+'''
+expected_event_ids  = []

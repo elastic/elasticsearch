@@ -56,7 +56,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         Setting.boolSetting("index.mapping.ignore_malformed", false, Property.IndexScope);
     public static final Setting<Boolean> COERCE_SETTING =
         Setting.boolSetting("index.mapping.coerce", false, Property.IndexScope);
-    public abstract static class Builder<T extends Builder, Y extends FieldMapper> extends Mapper.Builder<T, Y> {
+    public abstract static class Builder<T extends Builder> extends Mapper.Builder<T> {
 
         protected final MappedFieldType fieldType;
         protected final MappedFieldType defaultFieldType;
@@ -192,7 +192,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return this;
         }
 
-        public T addMultiField(Mapper.Builder<?, ?> mapperBuilder) {
+        public T addMultiField(Mapper.Builder<?> mapperBuilder) {
             multiFieldsBuilder.add(mapperBuilder);
             return builder;
         }

@@ -18,7 +18,7 @@ import org.elasticsearch.gradle.info.BuildParams
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: "nebula.maven-base-publish"
+apply plugin: "elasticsearch.publish"
 
 esplugin {
   description 'The nio transport.'

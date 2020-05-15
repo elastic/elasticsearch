@@ -34,7 +34,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
+import static org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.Names.IGNORE_Z_VALUE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -283,7 +283,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
             String serialized = toXContentString((GeoShapeFieldMapper) defaultMapper.mappers().getMapper("location"));
             assertTrue(serialized, serialized.contains("\"orientation\":\"" +
-                AbstractGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
+                AbstractShapeGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
         }
     }
 

@@ -146,7 +146,7 @@ public class TypeParsers {
         }
     }
 
-    public static void parseNorms(FieldMapper.Builder<?,?> builder, String fieldName, Object propNode) {
+    public static void parseNorms(FieldMapper.Builder<?> builder, String fieldName, Object propNode) {
         builder.omitNorms(XContentMapValues.nodeBooleanValue(propNode, fieldName + ".norms") == false);
     }
 
@@ -154,7 +154,7 @@ public class TypeParsers {
      * Parse text field attributes. In addition to {@link #parseField common attributes}
      * this will parse analysis and term-vectors related settings.
      */
-    public static void parseTextField(FieldMapper.Builder<?,?> builder, String name, Map<String, Object> fieldNode,
+    public static void parseTextField(FieldMapper.Builder<?> builder, String name, Map<String, Object> fieldNode,
                                       Mapper.TypeParser.ParserContext parserContext) {
         parseField(builder, name, fieldNode, parserContext);
         parseAnalyzersAndTermVectors(builder, name, fieldNode, parserContext);
@@ -172,7 +172,7 @@ public class TypeParsers {
     /**
      * Parse the {@code meta} key of the mapping.
      */
-    public static void parseMeta(FieldMapper.Builder<?,?> builder, String name, Map<String, Object> fieldNode) {
+    public static void parseMeta(FieldMapper.Builder<?> builder, String name, Map<String, Object> fieldNode) {
         Object metaObject = fieldNode.remove("meta");
         if (metaObject == null) {
             // no meta
@@ -218,7 +218,7 @@ public class TypeParsers {
     /**
      * Parse common field attributes such as {@code doc_values} or {@code store}.
      */
-    public static void parseField(FieldMapper.Builder<?,?> builder, String name, Map<String, Object> fieldNode,
+    public static void parseField(FieldMapper.Builder<?> builder, String name, Map<String, Object> fieldNode,
                                   Mapper.TypeParser.ParserContext parserContext) {
         parseMeta(builder, name, fieldNode);
         for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {

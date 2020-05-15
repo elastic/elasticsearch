@@ -246,7 +246,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             Setting.simpleString(key, value -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.IndexScope));
     public static final Setting.AffixSetting<String> INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING =
         Setting.prefixKeySetting("index.routing.allocation.initial_recovery.", key -> Setting.simpleString(key));
-        // this is only setable internally not a registered setting!!
 
     /**
      * The number of active shard copies to check for before proceeding with a write operation.
@@ -1077,34 +1076,30 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             Arrays.fill(primaryTerms, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
         }
 
-
         public IndexMetadata build() {
             ImmutableOpenMap.Builder<String, AliasMetadata> tmpAliases = aliases;
             Settings tmpSettings = settings;
 
-            Integer maybeNumberOfShards = settings.getAsInt(SETTING_NUMBER_OF_SHARDS, null);
-            if (maybeNumberOfShards == null) {
-                throw new IllegalArgumentException("must specify numberOfShards for index [" + index + "]");
+            /*
+             * We expect that the metadata has been properly built to set the number of shards and the number of replicas, and do not rely
+             * on the default values here. Those must have been set upstream.
+             */
+            if (INDEX_NUMBER_OF_SHARDS_SETTING.exists(settings) == false) {
+                throw new IllegalArgumentException("must specify number of shards for index [" + index + "]");
             }
-            int numberOfShards = maybeNumberOfShards;
-            if (numberOfShards <= 0) {
-                throw new IllegalArgumentException("must specify positive number of shards for index [" + index + "]");
-            }
+            final int numberOfShards = INDEX_NUMBER_OF_SHARDS_SETTING.get(settings);
 
-            Integer maybeNumberOfReplicas = settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, null);
-            if (maybeNumberOfReplicas == null) {
-                throw new IllegalArgumentException("must specify numberOfReplicas for index [" + index + "]");
+            if (INDEX_NUMBER_OF_REPLICAS_SETTING.exists(settings) == false) {
+                throw new IllegalArgumentException("must specify number of replicas for index [" + index + "]");
             }
-            int numberOfReplicas = maybeNumberOfReplicas;
-            if (numberOfReplicas < 0) {
-                throw new IllegalArgumentException("must specify non-negative number of replicas for index [" + index + "]");
-            }
+            final int numberOfReplicas = INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings);
 
             int routingPartitionSize = INDEX_ROUTING_PARTITION_SIZE_SETTING.get(settings);
             if (routingPartitionSize != 1 && routingPartitionSize >= getRoutingNumShards()) {
                 throw new IllegalArgumentException("routing partition size [" + routingPartitionSize + "] should be a positive number"
                         + " less than the number of shards [" + getRoutingNumShards() + "] for [" + index + "]");
             }
+
             // fill missing slots in inSyncAllocationIds with empty set if needed and make all entries immutable
             ImmutableOpenIntMap.Builder<Set<String>> filledInSyncAllocationIds = ImmutableOpenIntMap.builder();
             for (int i = 0; i < numberOfShards; i++) {

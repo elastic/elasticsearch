@@ -18,8 +18,9 @@
  */
 package org.elasticsearch.action.admin.indices.datastream;
 
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction.Response;
+import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction.Response;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTests;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -28,8 +29,6 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.elasticsearch.cluster.metadata.DataStreamTests.randomIndexInstances;
 
 public class GetDataStreamsResponseTests extends AbstractSerializingTestCase<Response> {
 
@@ -54,7 +53,7 @@ public class GetDataStreamsResponseTests extends AbstractSerializingTestCase<Res
         int numDataStreams = randomIntBetween(0, 8);
         List<DataStream> dataStreams = new ArrayList<>();
         for (int i = 0; i < numDataStreams; i++) {
-            dataStreams.add(new DataStream(randomAlphaOfLength(4), randomAlphaOfLength(4), randomIndexInstances()));
+            dataStreams.add(DataStreamTests.randomInstance());
         }
         return new Response(dataStreams);
     }

@@ -267,7 +267,7 @@ public class XContentMapValues {
 
                 List<Object> filteredValue = filter((Iterable<?>) value,
                         subIncludeAutomaton, subIncludeState, excludeAutomaton, excludeState, matchAllAutomaton);
-                if (filteredValue.isEmpty() == false) {
+                if (includeAutomaton.isAccept(includeState) || filteredValue.isEmpty() == false) {
                     filtered.put(key, filteredValue);
                 }
 

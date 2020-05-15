@@ -31,8 +31,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
-import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.version;
-import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.mode;
+import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.query;
 
 public abstract class SqlProtocolTestCase extends ESRestTestCase {
 
@@ -131,12 +130,11 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
 
     @SuppressWarnings({ "unchecked" })
     private void assertFloatingPointNumbersReturnTypes(Request request, Mode mode) throws IOException {
-        String requestContent = "{\"query\":\"SELECT "
+        String requestContent = query("SELECT "
                 + "CAST(1234.34 AS REAL) AS float_positive,"
                 + "CAST(-1234.34 AS REAL) AS float_negative,"
                 + "1234567890123.34 AS double_positive,"
-                + "-1234567890123.34 AS double_negative\""
-                + mode(mode.toString()) + version(mode.toString()) + "}";
+                + "-1234567890123.34 AS double_negative").mode(mode).toString();
         request.setEntity(new StringEntity(requestContent, ContentType.APPLICATION_JSON));
         
         Map<String, Object> map;
@@ -219,7 +217,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
 
     private Map<String, Object> runSql(Mode mode, String sql, boolean columnar) throws IOException {
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
-        String requestContent = "{\"query\":\"" + sql + "\"" + mode(mode.toString()) + version(mode.toString()) + "}";
+        String requestContent =  query(sql).mode(mode).toString();
         String format = randomFrom(XContentType.values()).name().toLowerCase(Locale.ROOT);
 
         // add a client_id to the request

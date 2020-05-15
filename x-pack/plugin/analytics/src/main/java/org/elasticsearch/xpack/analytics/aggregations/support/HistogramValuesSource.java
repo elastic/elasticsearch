@@ -6,18 +6,28 @@
 
 package org.elasticsearch.xpack.analytics.aggregations.support;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.Rounding.Prepared;
 import org.elasticsearch.index.fielddata.DocValueBits;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 public class HistogramValuesSource {
     public abstract static class Histogram extends org.elasticsearch.search.aggregations.support.ValuesSource {
 
         public abstract HistogramValues getHistogramValues(LeafReaderContext context) throws IOException;
+
+        @Override
+        public Function<Rounding, Prepared> roundingPreparer(IndexReader reader) throws IOException {
+            throw new AggregationExecutionException("can't round a [histogram]");
+        }
 
         public static class Fielddata extends Histogram {
 

@@ -838,8 +838,8 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         Request request = new Request("POST", RestSqlTestCase.SQL_QUERY_REST_ENDPOINT);
         request.addParameter("error_trace", "true");
         request.addParameter("pretty", "true");
-        request.setEntity(new StringEntity("{\"query\":\"" + query + "\",\"mode\":\"plain\"}", ContentType.APPLICATION_JSON));
-        
+        request.setEntity(new StringEntity(query(query).mode("plain").toString(), ContentType.APPLICATION_JSON));
+
         return request;
     }
     

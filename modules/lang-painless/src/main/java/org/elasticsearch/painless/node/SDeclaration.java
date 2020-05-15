@@ -19,10 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -48,28 +50,34 @@ public class SDeclaration extends AStatement {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        Output output = new Output();
+        if (scriptRoot.getPainlessLookup().isValidCanonicalClassName(name)) {
+            throw createError(new IllegalArgumentException("invalid declaration: type [" + name + "] cannot be a name"));
+        }
 
         DResolvedType resolvedType = type.resolveType(scriptRoot.getPainlessLookup());
 
         AExpression.Output expressionOutput = null;
+        PainlessCast expressionCast = null;
 
         if (expression != null) {
             AExpression.Input expressionInput = new AExpression.Input();
             expressionInput.expected = resolvedType.getType();
-            expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
-            expression.cast(expressionInput, expressionOutput);
+            expressionOutput = AExpression.analyze(expression, classNode, scriptRoot, scope, expressionInput);
+            expressionCast = AnalyzerCaster.getLegalCast(expression.location,
+                    expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
         }
 
         scope.defineVariable(location, resolvedType.getType(), name, false);
 
         DeclarationNode declarationNode = new DeclarationNode();
-        declarationNode.setExpressionNode(expression == null ? null : expression.cast(expressionOutput));
+        declarationNode.setExpressionNode(expression == null ? null :
+                AExpression.cast(expressionOutput.expressionNode, expressionCast));
         declarationNode.setLocation(location);
         declarationNode.setDeclarationType(resolvedType.getType());
         declarationNode.setName(name);
         declarationNode.setRequiresDefault(requiresDefault);
 
+        Output output = new Output();
         output.statementNode = declarationNode;
 
         return output;

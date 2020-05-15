@@ -63,6 +63,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -567,6 +568,7 @@ final class RequestConverters {
         if (reindexRequest.getScrollTime() != null) {
             params.putParam("scroll", reindexRequest.getScrollTime());
         }
+
         request.addParameters(params.asMap());
         request.setEntity(createEntity(reindexRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
@@ -833,10 +835,10 @@ final class RequestConverters {
                 if (fetchSourceContext.fetchSource() == false) {
                     putParam("_source", Boolean.FALSE.toString());
                 }
-                if (fetchSourceContext.includes() != null && fetchSourceContext.includes().length > 0) {
+                if (CollectionUtils.isEmpty(fetchSourceContext.includes()) == false) {
                     putParam("_source_includes", String.join(",", fetchSourceContext.includes()));
                 }
-                if (fetchSourceContext.excludes() != null && fetchSourceContext.excludes().length > 0) {
+                if (CollectionUtils.isEmpty(fetchSourceContext.excludes()) == false) {
                     putParam("_source_excludes", String.join(",", fetchSourceContext.excludes()));
                 }
             }
@@ -844,7 +846,7 @@ final class RequestConverters {
         }
 
         Params withFields(String[] fields) {
-            if (fields != null && fields.length > 0) {
+            if (CollectionUtils.isEmpty(fields) == false) {
                 return putParam("fields", String.join(",", fields));
             }
             return this;
@@ -945,7 +947,7 @@ final class RequestConverters {
         }
 
         Params withStoredFields(String[] storedFields) {
-            if (storedFields != null && storedFields.length > 0) {
+            if (CollectionUtils.isEmpty(storedFields) == false) {
                 return putParam("stored_fields", String.join(",", storedFields));
             }
             return this;

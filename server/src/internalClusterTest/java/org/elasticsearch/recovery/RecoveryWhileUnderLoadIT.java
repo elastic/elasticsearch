@@ -33,6 +33,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.DocsStats;
@@ -393,7 +394,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         logger.info("iteration [{}] - successful shards: {} (expected {})", iteration,
                 searchResponse.getSuccessfulShards(), numberOfShards);
         logger.info("iteration [{}] - failed shards: {} (expected 0)", iteration, searchResponse.getFailedShards());
-        if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
+        if (CollectionUtils.isEmpty(searchResponse.getShardFailures()) == false) {
             logger.info("iteration [{}] - shard failures: {}", iteration, Arrays.toString(searchResponse.getShardFailures()));
         }
         logger.info("iteration [{}] - returned documents: {} (expected {})", iteration,

@@ -9,11 +9,9 @@ This documentation is about V2 (version 2) index templates. For V1 templates ple
 
 [NOTE]
 ====
-In {es} 7.8 the `prefer_v2_templates` querystring parameter was introduced to the index, update,
-bulk, and create index APIs to allow configuring whether to favor V2 or V1 index templates. In 7.x
-the default value for this parameter is `false` meaning that the <<indices-templates-v1,V1 index
-templates>> take precedence. In 8.x the default value for the parameter is `true` meaning that V2
-index templates take precedence (V1 templates may still match if no V2 template matches).
+In {es} 7.8 V2 templates were introduced. When a V2 index template matches a given index it always
+takes precedence over a V1 template. If no V2 index template matches, a V1 template may still match
+and be applied.
 ====
 
 An index template is a way to tell {es} how to configure an index when it is created. Templates are
@@ -33,6 +31,32 @@ the settings from the create index request take precedence over settings specifi
 
 [source,console]
 --------------------------------------------------
+PUT _component_template/component_template1
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}
+
+PUT _component_template/other_component_template
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "ip_address": {
+          "type": "ip"
+        }
+      }
+    }
+  }
+}
+
 PUT _index_template/template_1
 {
   "index_patterns": ["te*", "bar*"],
@@ -235,7 +259,7 @@ When multiple component templates are specified in the `composed_of` field for a
 they are merged in the order specified, meaning that later component templates override earlier
 component templates.
 
-For two component templates:
+For two component templates, the order they are specified changes the number of shards for an index:
 
 [source,console]
 --------------------------------------------------
@@ -247,10 +271,7 @@ PUT /_component_template/template_with_2_shards
     }
   }
 }
---------------------------------------------------
 
-[source,console]
---------------------------------------------------
 PUT /_component_template/template_with_3_shards
 {
   "template": {
@@ -259,12 +280,7 @@ PUT /_component_template/template_with_3_shards
     }
   }
 }
---------------------------------------------------
 
-The order they are specified changes the number of shards for an index:
-
-[source,console]
---------------------------------------------------
 PUT /_index_template/template_1
 {
   "index_patterns": ["t*"],

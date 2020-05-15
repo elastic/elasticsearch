@@ -1,6 +1,7 @@
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'x-pack-sql'
   description 'The Elasticsearch plugin that powers SQL for Elasticsearch'
@@ -28,14 +29,6 @@ archivesBaseName = 'x-pack-sql'
 
 // All integration tests live in qa modules
 integTest.enabled = false
-
-task internalClusterTest(type: Test) {
-  mustRunAfter test
-  include '**/*IT.class'
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
-}
-
-check.dependsOn internalClusterTest
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')

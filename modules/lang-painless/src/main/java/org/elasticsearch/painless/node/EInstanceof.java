@@ -77,7 +77,7 @@ public class EInstanceof extends AExpression {
 
         // analyze and cast the expression
         Input expressionInput = new Input();
-        Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
+        Output expressionOutput = analyze(expression, classNode, scriptRoot, scope, expressionInput);
         expressionInput.expected = expressionOutput.actual;
         PainlessCast expressionCast = AnalyzerCaster.getLegalCast(expression.location,
                 expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);

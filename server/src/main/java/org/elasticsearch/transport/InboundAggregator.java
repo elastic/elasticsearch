@@ -47,9 +47,9 @@ public class InboundAggregator implements Releasable {
     private boolean canTripBreaker = true;
     private boolean isClosed = false;
 
-    public InboundAggregator(Supplier<CircuitBreaker> circuitBreaker,
+    public InboundAggregator(MemoryController memoryController,
                              Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction) {
-        this(new MemoryController(circuitBreaker), (Predicate<String>) actionName -> {
+        this(memoryController, (Predicate<String>) actionName -> {
             final RequestHandlerRegistry<TransportRequest> reg = registryFunction.apply(actionName);
             if (reg == null) {
                 throw new ActionNotFoundTransportException(actionName);

@@ -20,7 +20,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.lease.Releasable;
@@ -33,7 +32,6 @@ import java.util.ArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 
 public class InboundPipeline implements Releasable {
 
@@ -45,16 +43,16 @@ public class InboundPipeline implements Releasable {
     private final InboundDecoder decoder;
     private final InboundAggregator aggregator;
     private final BiConsumer<TcpChannel, InboundMessage> messageHandler;
+    private final ArrayDeque<ReleasableBytesReference> pending = new ArrayDeque<>(2);
     private Exception uncaughtException;
-    private ArrayDeque<ReleasableBytesReference> pending = new ArrayDeque<>(2);
     private boolean isClosed = false;
 
     public InboundPipeline(Version version, StatsTracker statsTracker, PageCacheRecycler recycler, LongSupplier relativeTimeInMillis,
-                           Supplier<CircuitBreaker> circuitBreaker,
+                           MemoryController memoryController,
                            Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction,
                            BiConsumer<TcpChannel, InboundMessage> messageHandler) {
         this(statsTracker, relativeTimeInMillis, new InboundDecoder(version, recycler),
-            new InboundAggregator(circuitBreaker, registryFunction), messageHandler);
+            new InboundAggregator(memoryController, registryFunction), messageHandler);
     }
 
     public InboundPipeline(StatsTracker statsTracker, LongSupplier relativeTimeInMillis, InboundDecoder decoder,

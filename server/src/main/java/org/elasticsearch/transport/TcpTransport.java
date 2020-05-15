@@ -83,7 +83,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -114,6 +113,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettings;
     private final CircuitBreakerService circuitBreakerService;
+    private final MemoryController memoryController;
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
     private final Map<String, List<TcpServerChannel>> serverChannels = newConcurrentMap();
@@ -140,6 +140,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.threadPool = threadPool;
         this.pageCacheRecycler = pageCacheRecycler;
         this.circuitBreakerService = circuitBreakerService;
+        this.memoryController = new MemoryController(() -> circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS));
         this.networkService = networkService;
         String nodeName = Node.NODE_NAME_SETTING.get(settings);
         BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.IN_FLIGHT_REQUESTS);
@@ -166,8 +167,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         return threadPool;
     }
 
-    public Supplier<CircuitBreaker> getInflightBreaker() {
-        return () -> circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+    public MemoryController getMemoryController() {
+        return memoryController;
     }
 
     @Override

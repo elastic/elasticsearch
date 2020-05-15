@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -32,11 +31,11 @@ import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.Page;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.InboundPipeline;
+import org.elasticsearch.transport.MemoryController;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 public class TcpReadWriteHandler extends BytesWriteHandler {
 
@@ -46,10 +45,10 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
     public TcpReadWriteHandler(NioTcpChannel channel, PageCacheRecycler recycler, TcpTransport transport) {
         this.channel = channel;
         final ThreadPool threadPool = transport.getThreadPool();
-        final Supplier<CircuitBreaker> breaker = transport.getInflightBreaker();
+        final MemoryController memoryController = transport.getMemoryController();
         final Transport.RequestHandlers requestHandlers = transport.getRequestHandlers();
         this.pipeline = new InboundPipeline(transport.getVersion(), transport.getStatsTracker(), recycler, threadPool::relativeTimeInMillis,
-            breaker, requestHandlers::getHandler, transport::inboundMessage);
+            memoryController, requestHandlers::getHandler, transport::inboundMessage);
     }
 
     @Override

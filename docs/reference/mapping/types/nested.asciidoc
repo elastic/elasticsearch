@@ -8,6 +8,7 @@ The `nested` type is a specialised version of the <<object,`object`>> datatype
 that allows arrays of objects to be indexed in a way that they can be queried
 independently of each other.
 
+[[nested-arrays-flattening-objects]]
 ==== How arrays of objects are flattened
 
 Elasticsearch has no concept of inner objects. Therefore, it flattens object
@@ -72,9 +73,6 @@ GET my_index/_search
 If you need to index arrays of objects and to maintain the independence of
 each object in the array, use the `nested` datatype instead of the
 <<object,`object`>> datatype.
-
-TIP: If you consider creating `nested` objects with two `key` and `value` keyword fields, consider using the <<flattened>> datatype instead.
-Because nested documents are indexed as separate documents, they can only be accessed within the scope of the nested query. While a flattened object provides only a single field to search on, the object's contents can still be searched using simple queries and aggregations.
 
 Internally, nested objects index each object in
 the array as a separate hidden document, meaning that each nested object can be
@@ -156,6 +154,8 @@ GET my_index/_search
 <4> `inner_hits` allow us to highlight the matching nested documents.
 
 
+[[nested-accessing-documents]]
+==== Interacting with `nested` documents
 Nested documents can be:
 
 * queried with the <<query-dsl-nested-query,`nested`>> query.
@@ -164,6 +164,9 @@ Nested documents can be:
   aggregations.
 * sorted with <<nested-sorting,nested sorting>>.
 * retrieved and highlighted with <<nested-inner-hits,nested inner hits>>.
+
+TIP: When ingesting key-value pairs with a large, arbitrary set of keys, you might consider modeling each key-value pair as its own nested document with `key` and `value` fields. Instead, consider using the <<flattened>> datatype, which maps an entire object as a single field and allows for simple searches over its contents.
+Nested documents and queries are typically expensive, so using the `flattened` datatype for this use case is a better option.
 
 [IMPORTANT]
 =============================================
@@ -211,26 +214,20 @@ document as standard (flat) fields. Defaults to `false`.
 [float]
 === Limits on `nested` mappings and objects
 
-As described earlier, each nested object is indexed as a separate document under the hood.
-Continuing with the example above, if we indexed a single document containing 100 `user` objects,
-then 101 Lucene documents would be created -- one for the parent document, and one for each
+As described earlier, each nested object is indexed as a separate document.
+Continuing with the previous example, if we indexed a single document containing 100 `user` objects,
+then 101 Lucene documents would be created: one for the parent document, and one for each
 nested object. Because of the expense associated with `nested` mappings, Elasticsearch puts
 settings in place to guard against performance problems:
 
-`index.mapping.nested_fields.limit`::
+include::{docdir}/mapping.asciidoc[tag=nested-fields-limit]
 
-    The `nested` type should only be used in special cases, when arrays of objects need to be
-    queried independently of each other. To safeguard against poorly designed mappings, this setting
-    limits the number of unique `nested` types per index. In our example, the `user` mapping would
-    count as only 1 towards this limit. Defaults to 50.
+In the previous example, the `user` mapping would count as only 1 towards this limit.
 
-`index.mapping.nested_objects.limit`::
+include::{docdir}/mapping.asciidoc[tag=nested-objects-limit]
 
-    This setting limits the number of nested objects that a single document may contain across all
-    `nested` types, in order to prevent out of memory errors when a document contains too many nested
-    objects. To illustrate how the setting works, say we added another `nested` type called `comments`
-    to our example mapping above. Then for each document, the combined number of `user` and `comment`
-    objects it contains must be below the limit. Defaults to 10000.
+To illustrate how this setting works, consider adding another `nested` type called `comments`
+to the previous example mapping. For each document, the combined number of `user` and `comment`
+objects it contains must be below the limit.
 
-Additional background on these settings, including information on their default values, can be found
-in <<mapping-limit-settings>>.
+See <<mapping-limit-settings>> regarding additional settings for preventing mappings explosion.

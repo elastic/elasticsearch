@@ -87,6 +87,20 @@ both parameters are specified, only the query parameter is used.
 include::{docdir}/rest-api/common-parms.asciidoc[tag=from]
 +
 --
+By default, you cannot page through more than 10,000 documents using the `from`
+and `size` parameters. This limit is set using the
+<<index-max-result-window,`index.max_result_window`>> index setting.
+
+Deep paging or requesting many results at once can result in slow searches.
+Results are sorted before being returned. Because search requests usually span
+multiple shards, each shard must generate its own sorted results. These separate
+results must then be combined and sorted to ensure that the overall order is
+correct.
+
+As an alternative to deep paging, we recommend using the
+<<request-body-search-scroll,Scroll>> or
+<<request-body-search-search-after,Search After>> APIs.
+
 [IMPORTANT]
 ====
 You can also specify this value using the `from` request body parameter. If
@@ -170,6 +184,20 @@ parameter. If both parameters are specified, only the query parameter is used.
 (Optional, integer) Defines the number of hits to return. Defaults to `10`.
 +
 --
+By default, you cannot page through more than 10,000 documents using the `from`
+and `size` parameters. This limit is set using the
+<<index-max-result-window,`index.max_result_window`>> index setting.
+
+Deep paging or requesting many results at once can result in slow searches.
+Results are sorted before being returned. Because search requests usually span
+multiple shards, each shard must generate its own sorted results. These separate
+results must then be combined and sorted to ensure that the overall order is
+correct.
+
+As an alternative to deep paging, we recommend using the
+<<request-body-search-scroll,Scroll>> or
+<<request-body-search-search-after,Search After>> APIs.
+
 [IMPORTANT]
 ====
 You can also specify this value using the `size` request body parameter. If
@@ -279,6 +307,20 @@ both parameters are specified, only the query parameter is used.
 include::{docdir}/rest-api/common-parms.asciidoc[tag=from]
 +
 --
+By default, you cannot page through more than 10,000 documents using the `from`
+and `size` parameters. This limit is set using the
+<<index-max-result-window,`index.max_result_window`>> index setting.
+
+Deep paging or requesting many results at once can result in slow searches.
+Results are sorted before being returned. Because search requests usually span
+multiple shards, each shard must generate its own sorted results. These separate
+results must then be combined and sorted to ensure that the overall order is
+correct.
+
+As an alternative to deep paging, we recommend using the
+<<request-body-search-scroll,Scroll>> or
+<<request-body-search-search-after,Search After>> APIs.
+
 [IMPORTANT]
 ====
 You can also specify this value using the `from` query parameter. If both
@@ -309,6 +351,20 @@ If both parameters are specified, only the query parameter is used.
 (Optional, integer) The number of hits to return. Defaults to `10`.
 +
 --
+By default, you cannot page through more than 10,000 documents using the `from`
+and `size` parameters. This limit is set using the
+<<index-max-result-window,`index.max_result_window`>> index setting.
+
+Deep paging or requesting many results at once can result in slow searches.
+Results are sorted before being returned. Because search requests usually span
+multiple shards, each shard must generate its own sorted results. These separate
+results must then be combined and sorted to ensure that the overall order is
+correct.
+
+As an alternative to deep paging, we recommend using the
+<<request-body-search-scroll,Scroll>> or
+<<request-body-search-search-after,Search After>> APIs.
+
 [IMPORTANT]
 ====
 You can also specify this value using the `size` query parameter. If both

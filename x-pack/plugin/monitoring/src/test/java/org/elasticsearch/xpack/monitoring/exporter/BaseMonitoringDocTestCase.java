@@ -56,7 +56,7 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
     public void setUp() throws Exception {
         super.setUp();
         cluster = UUIDs.randomBase64UUID();
-        timestamp = frequently() ? randomNonNegativeLong() : 0L;
+        timestamp = frequently() ? randomLongBetween(1,MonitoringTestUtils.MAX_MILLIS_BEFORE_10000) : 0L;
         interval = randomNonNegativeLong();
         node = frequently() ? MonitoringTestUtils.randomMonitoringNode(random()) : null;
         system = randomFrom(MonitoredSystem.values());

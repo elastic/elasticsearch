@@ -789,14 +789,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(LogicalPlan p) {
-            LogicalPlan plan = p.transformExpressionsDown(e -> {
-                Expression exp = e;
-                if (exp instanceof Alias) {
-                    exp = ((Alias) exp).child();
-                }
-
+            return p.transformExpressionsDown(e -> {
                 if (e instanceof Min || e instanceof Max || e instanceof Avg || e instanceof Sum) {
-                    NumericAggregate a = (NumericAggregate) exp;
+                    NumericAggregate a = (NumericAggregate) e;
 
                     if (a.field().foldable()) {
                         Expression countOne = new Count(a.source(), new Literal(Source.EMPTY, 1, a.dataType()), false);
@@ -805,7 +800,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         Literal foldedArgument = new Literal(argument.source(), argument.fold(), a.dataType());
 
                         Expression iifElseResult = foldedArgument;
-                        if (exp instanceof Sum) {
+                        if (e instanceof Sum) {
                             iifElseResult = new Mul(a.source(), countOne, foldedArgument);
                         }
 
@@ -814,8 +809,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
                 return e;
             });
-
-            return plan;
         }
     }
 
@@ -829,7 +822,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             boolean hasLocalRelation = a.anyMatch(LocalRelation.class::isInstance);
             
             return hasLocalRelation ? a.transformExpressionsDown(c -> {
-                return c instanceof Count ? new Literal(c.source(), 1, DataTypes.INTEGER) : c;
+                return c instanceof Count ? new Literal(c.source(), 1, c.dataType()) : c;
             }) : a;
         }
     }

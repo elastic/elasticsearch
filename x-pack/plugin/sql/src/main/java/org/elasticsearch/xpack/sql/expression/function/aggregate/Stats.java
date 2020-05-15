@@ -31,7 +31,6 @@ public class Stats extends CompoundNumericAggregate {
     }
 
     public static boolean isTypeCompatible(Expression e) {
-        return (e instanceof Min || e instanceof Max || e instanceof Avg || e instanceof Sum)
-            && ((NumericAggregate) e).field().foldable() == false;
+        return e instanceof Min || e instanceof Max || e instanceof Avg || e instanceof Sum;
     }
 }

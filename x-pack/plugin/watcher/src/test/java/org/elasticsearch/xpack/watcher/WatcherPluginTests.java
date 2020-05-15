@@ -9,7 +9,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.TestEnvironment;
@@ -41,48 +40,45 @@ import static org.mockito.Mockito.when;
 
 public class WatcherPluginTests extends ESTestCase {
 
-    private ClusterService clusterService;
     private ClusterState clusterState;
     private DiscoveryNodes discoveryNodes;
 
     @Before
     public void init() {
-        clusterService = mock(ClusterService.class);
         clusterState = mock(ClusterState.class);
         discoveryNodes = mock(DiscoveryNodes.class);
-        when(clusterService.state()).thenReturn(clusterState);
         when(clusterState.nodes()).thenReturn(discoveryNodes);
         when(discoveryNodes.getMinNodeVersion()).thenReturn(randomFrom(Arrays.asList(Version.V_7_0_0, Version.V_7_7_0)));
 
     }
 
     public void testValidAutoCreateIndex() {
-        Watcher.validAutoCreateIndex(Settings.EMPTY, logger, clusterService);
-        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", true).build(), logger, clusterService);
+        Watcher.validAutoCreateIndex(Settings.EMPTY, logger, clusterState);
+        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", true).build(), logger, clusterState);
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
                 () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", false).build(), logger,
-                    clusterService));
+                    clusterState));
         assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history-*]"));
 
         Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index",
-                ".watches,.triggered_watches,.watcher-history*").build(), logger, clusterService);
-        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", "*w*").build(), logger, clusterService);
-        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".w*,.t*").build(), logger, clusterService);
+                ".watches,.triggered_watches,.watcher-history*").build(), logger, clusterState);
+        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", "*w*").build(), logger, clusterState);
+        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".w*,.t*").build(), logger, clusterState);
 
         exception = expectThrows(IllegalArgumentException.class,
                 () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watches").build(), logger,
-                    clusterService));
+                    clusterState));
         assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history-*]"));
 
         exception = expectThrows(IllegalArgumentException.class,
                 () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".triggered_watch").build(), logger,
-                    clusterService));
+                    clusterState));
         assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history-*]"));
 
         exception = expectThrows(IllegalArgumentException.class,
                 () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watcher-history-*").build(),
-                        logger, clusterService));
+                        logger, clusterState));
         assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history-*]"));
     }
 

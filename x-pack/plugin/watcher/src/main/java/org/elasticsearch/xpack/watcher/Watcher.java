@@ -16,6 +16,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -256,7 +257,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                                                IndexNameExpressionResolver expressionResolver,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
         if (enabled && transportClient == false) {
-            validAutoCreateIndex(settings, logger, clusterService);
+            validAutoCreateIndex(settings, logger, clusterService.state());
         }
 
         if (enabled == false) {
@@ -386,7 +387,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             .setConcurrentRequests(SETTING_BULK_CONCURRENT_REQUESTS.get(settings))
             .build();
 
-        HistoryStore historyStore = new HistoryStore(bulkProcessor, clusterService);
+        HistoryStore historyStore = new HistoryStore(bulkProcessor, clusterService::state);
 
         // schedulers
         final Set<Schedule.Parser> scheduleParsers = new HashSet<>();
@@ -601,7 +602,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         module.addIndexOperationListener(listener);
     }
 
-    static void validAutoCreateIndex(Settings settings, Logger logger, ClusterService clusterService) {
+    static void validAutoCreateIndex(Settings settings, Logger logger, ClusterState clusterState) {
         String value = settings.get("action.auto_create_index");
         if (value == null) {
             return;
@@ -623,14 +624,14 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         indices.add(".watches");
         indices.add(".triggered_watches");
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now, clusterService.state()));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusDays(1), clusterService.state()));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(1), clusterService.state()));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(2), clusterService.state()));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(3), clusterService.state()));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(4), clusterService.state()));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(5), clusterService.state()));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(6), clusterService.state()));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now, clusterState));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusDays(1), clusterState));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(1), clusterState));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(2), clusterState));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(3), clusterState));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(4), clusterState));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(5), clusterState));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(6), clusterState));
         for (String index : indices) {
             boolean matched = false;
             for (String match : matches) {

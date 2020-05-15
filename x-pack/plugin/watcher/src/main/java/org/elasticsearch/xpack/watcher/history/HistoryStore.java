@@ -13,7 +13,6 @@ import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
@@ -32,11 +31,11 @@ public class HistoryStore {
     private static final Logger logger = LogManager.getLogger(HistoryStore.class);
 
     private final BulkProcessor bulkProcessor;
-    private final ClusterService clusterService;
+    private final Supplier<ClusterState> clusterStateSupplier;
 
-    public HistoryStore(BulkProcessor bulkProcessor, ClusterService clusterService) {
+    public HistoryStore(BulkProcessor bulkProcessor, Supplier<ClusterState> clusterStateSupplier) {
         this.bulkProcessor = bulkProcessor;
-        this.clusterService = clusterService;
+        this.clusterStateSupplier = clusterStateSupplier;
     }
 
     /**
@@ -44,7 +43,7 @@ public class HistoryStore {
      * If the specified watchRecord already was stored this call will fail with a version conflict.
      */
     public void put(WatchRecord watchRecord) throws Exception {
-        String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime(), clusterService.state());
+        String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime(), clusterStateSupplier.get());
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
 
@@ -61,7 +60,7 @@ public class HistoryStore {
      * Any existing watchRecord will be overwritten.
      */
     public void forcePut(WatchRecord watchRecord) {
-        String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime(), clusterService.state());
+        String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime(), clusterStateSupplier.get());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
 

@@ -187,9 +187,9 @@ SELECT MAX(1);
 localAggregates
 SELECT CAST(SUM(1) AS BIGINT), CAST(SUM(123) AS BIGINT), MAX(1), MAX(32), MIN(3), MIN(55+2) AS mn, CAST(AVG(33/3) AS INTEGER) AS av, CAST(AVG(1) AS INTEGER); 
 aggregatesOfLiteralsFromIndex
-SELECT MAX(1), MIN(1), CAST(SUM(1) AS BIGINT), AVG(1), COUNT(1) FROM test_emp;
+SELECT MAX(1), MIN(1), CAST(SUM(1) AS BIGINT), CAST(AVG(1) AS INTEGER), COUNT(1) FROM test_emp;
 aggregatesOfLiteralsFromIndex_WithNoMatchingFilter
-SELECT MAX(1), MIN(1), CAST(SUM(1) AS BIGINT), AVG(1), COUNT(1) FROM test_emp WHERE gender='123';
+SELECT MAX(1), MIN(1), CAST(SUM(1) AS BIGINT), CAST(AVG(1) AS INTEGER), COUNT(1) FROM test_emp WHERE gender='123';
 sumOfLiteralInHavingOnly
 SELECT gender, COUNT(*) FROM test_emp GROUP BY gender HAVING SUM(10) > 200 ORDER BY gender;
 sumLiteralAndSumFieldWithComplexHaving

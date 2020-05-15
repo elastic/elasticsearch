@@ -254,7 +254,7 @@ Zvonko         |Nyanchama      |42716        |null                    |1
 mirrorIifForNumericAggregate
 SELECT IIF(COUNT(1)=0, NULL, 123)+5, AVG(123), MIN(123)+5, IIF(COUNT(1)=0, NULL, 30*COUNT(1)), SUM(30) FROM test_emp;
 
-IIF(COUNT(1)=0, NULL, 123)+5:i|   AVG(123):i    |  MIN(123)+5:i   |IIF(COUNT(1)=0, NULL, 30*COUNT(1)):l|    SUM(30):l    
+IIF(COUNT(1)=0, NULL, 123)+5:i|   AVG(123):d    |  MIN(123)+5:i   |IIF(COUNT(1)=0, NULL, 30*COUNT(1)):l|    SUM(30):l    
 ------------------------------+-----------------+-----------------+------------------------------------+---------------
 128                           |123              |128              |3000                                |3000           
 ;

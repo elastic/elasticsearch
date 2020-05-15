@@ -17,7 +17,7 @@ import java.util.List;
 /**
  * Find the arithmatic mean of a field.
  */
-public class Avg extends FoldableNumericAggregate implements EnclosedAgg {
+public class Avg extends NumericAggregate implements EnclosedAgg {
 
     public Avg(Source source, Expression field) {
         super(source, field);

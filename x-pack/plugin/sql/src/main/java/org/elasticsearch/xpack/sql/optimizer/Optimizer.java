@@ -52,21 +52,21 @@ import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
-import org.elasticsearch.xpack.ql.tree.Location;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.CleanAliases;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStatsEnclosed;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.FoldableNumericAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStatsEnclosed;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.NumericAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRank;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks;
@@ -102,7 +102,6 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.expression.Expressions.equalsAsAttribute;
-import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
 
@@ -123,7 +122,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         Batch refs = new Batch("Replace References", Limiter.ONCE,
                 new ReplaceReferenceAttributeWithSource(),
-                new ReplaceAggregatesOfLiterals()
+                new ReplaceAggregatesWithLiterals(),
+                new ReplaceCountInLocalRelation()
                 );
 
         Batch operators = new Batch("Operator Optimization",
@@ -166,7 +166,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         Batch local = new Batch("Skip Elasticsearch",
                 new SkipQueryOnLimitZero(),
-                new FoldableLocalAggregatesFolding(),
                 new SkipQueryIfFoldingProjection()
                 );
         Batch label = new Batch("Set as Optimized", Limiter.ONCE,
@@ -786,56 +785,52 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
      * Any numeric aggregates (avg, min, max, sum) acting on literals are converted to an iif(count(1)=0, null, literal*count(1)) for sum,
      * and to iif(count(1)=0,null,literal) for the other three.
      */
-    private static class ReplaceAggregatesOfLiterals extends OptimizerRule<LogicalPlan> {
+    private static class ReplaceAggregatesWithLiterals extends OptimizerRule<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(LogicalPlan p) {
-            Holder<Boolean> isLocalRelation = new Holder<>(false);
-            p.forEachUp(a -> {
-                if (isLocalRelation.get() == false && a instanceof LocalRelation) {
-                    isLocalRelation.set(true);
-                }
-            });
-            
-            // there is no need for a IIF(COUNT(1)=0,NULL,literal) for local relations, since the aggregate will be folded further down
-            if (isLocalRelation.get()) {
-                return p;
-            }
-
-            Expression countOne = new Count(EMPTY, new Literal(Source.EMPTY, 1, DataTypes.LONG), false);
-            Equals countEqZero = new Equals(EMPTY, countOne, new Literal(Source.EMPTY, 0, DataTypes.LONG));
-            
             LogicalPlan plan = p.transformExpressionsUp(e -> {
                 Expression exp = e;
-                String aliasName = null;
                 if (exp instanceof Alias) {
                     exp = ((Alias) exp).child();
-                    aliasName = ((Alias) e).name();
                 }
 
-                if (exp instanceof FoldableNumericAggregate) {
-                    FoldableNumericAggregate fna = (FoldableNumericAggregate) exp;
-                    
-                    if (fna.localFoldable()) {
-                        Expression argument = fna.field();
-                        Expression iifElseResult;
-                        
+                if (e instanceof Min || e instanceof Max || e instanceof Avg || e instanceof Sum) {
+                    NumericAggregate a = (NumericAggregate) exp;
+
+                    if (a.field().foldable()) {
+                        Expression countOne = new Count(a.source(), new Literal(Source.EMPTY, 1, a.dataType()), false);
+                        Equals countEqZero = new Equals(a.source(), countOne, new Literal(Source.EMPTY, 0, a.dataType()));
+                        Expression argument = a.field();
+                        Literal foldedArgument = new Literal(argument.source(), argument.fold(), a.dataType());
+
+                        Expression iifElseResult = foldedArgument;
                         if (exp instanceof Sum) {
-                            iifElseResult = new Mul(new Source(Location.EMPTY, "MUL(COUNT(1), " + argument.sourceText() + ")"), countOne,
-                                Literal.of(argument));
-                        } else {
-                            iifElseResult = Literal.of(argument);
+                            iifElseResult = new Mul(a.source(), countOne, foldedArgument);
                         }
-                        Source source = new Source(fna.sourceLocation(), "IIF(COUNT(1) = 0, NULL, " + iifElseResult.sourceText() + ")");
-                            
-                        Iif iif = new Iif(source, countEqZero, Literal.NULL, iifElseResult);
-                        return aliasName == null ? Expressions.wrapAsNamed(iif) : new Alias(iif.source(), aliasName, iif);
+
+                        return new Iif(a.source(), countEqZero, Literal.NULL, iifElseResult);
                     }
                 }
                 return e;
             });
 
             return plan;
+        }
+    }
+
+    /**
+     * A COUNT in a local relation will always be 1.
+     */
+    private static class ReplaceCountInLocalRelation extends OptimizerRule<Aggregate> {
+
+        @Override
+        protected LogicalPlan rule(Aggregate a) {
+            boolean hasLocalRelation = a.anyMatch(LocalRelation.class::isInstance);
+            
+            return hasLocalRelation ? a.transformExpressionsDown(c -> {
+                return c instanceof Count ? new Literal(c.source(), 1, DataTypes.INTEGER) : c;
+            }) : a;
         }
     }
 
@@ -1134,34 +1129,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
             }
             return limit;
-        }
-    }
-
-    /**
-     * Fold foldable aggregates (SUM(literal), MIN(literal) etc) in a LocalRelation context
-     */
-    static final class FoldableLocalAggregatesFolding extends OptimizerRule<LogicalPlan> {
-        
-        @Override
-        public LogicalPlan rule(LogicalPlan p) {
-            Holder<Boolean> isLocalRelation = new Holder<>(false);
-            p.forEachUp(a -> {
-                if (isLocalRelation.get() == false && a instanceof LocalRelation) {
-                    isLocalRelation.set(true);
-                }
-            });
-            
-            if (isLocalRelation.get() == false) {
-                return p;
-            }
-
-            return p.transformExpressionsDown(e -> {
-                FoldableNumericAggregate f = null;
-                if (e instanceof FoldableNumericAggregate) {
-                    f = (FoldableNumericAggregate) e;
-                }
-                return f != null && f.localFoldable() ? Literal.of(f, f.foldLocal()) : e;
-            });
         }
     }
 

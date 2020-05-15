@@ -213,3 +213,33 @@ GET /sec_logs/_eql/search
 }
 ----
 ====
+
+[discrete]
+[[eql-search-case-sensitive]]
+=== Run a case-sensitive EQL search
+
+By default, matching for EQL queries is case-insensitive. You can use the EQL
+search API's `case_sensitive` parameter to toggle case sensitivity on or off.
+
+.*Example*
+[%collapsible]
+====
+The following search request contains a query that matches `process` events
+with a `process.path` containing `System32`.
+
+Because the `case_sensitive` parameter is `true`, this query only matches
+`process.path` values containing `System32` with the exact same capitalization.
+A `process.path` value containing `system32` or `SYSTEM32` would not match this
+query.
+
+[source,console]
+----
+GET /sec_logs/_eql/search
+{
+  "case_sensitive": true,
+  "query": """
+    process where stringContains(process.path, "System32")
+  """
+}
+----
+====

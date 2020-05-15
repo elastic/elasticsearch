@@ -56,7 +56,7 @@ public class ExternalMapper extends FieldMapper {
         public static final String FIELD_SHAPE = "shape";
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, ExternalMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         private BinaryFieldMapper.Builder binBuilder = new BinaryFieldMapper.Builder(Names.FIELD_BIN);
         private BooleanFieldMapper.Builder boolBuilder = new BooleanFieldMapper.Builder(Names.FIELD_BOOL);
@@ -84,7 +84,7 @@ public class ExternalMapper extends FieldMapper {
             context.path().add(name);
             BinaryFieldMapper binMapper = binBuilder.build(context);
             BooleanFieldMapper boolMapper = boolBuilder.build(context);
-            GeoPointFieldMapper pointMapper = latLonPointBuilder.build(context);
+            GeoPointFieldMapper pointMapper = (GeoPointFieldMapper) latLonPointBuilder.build(context);
             AbstractShapeGeometryFieldMapper shapeMapper = shapeBuilder.build(context);
             FieldMapper stringMapper = (FieldMapper)stringBuilder.build(context);
             context.path().remove();

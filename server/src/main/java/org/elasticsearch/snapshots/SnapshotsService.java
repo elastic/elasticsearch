@@ -101,6 +101,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptySet;
@@ -234,27 +235,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards =
                         shards(currentState, indexIds, useShardGenerations(version), repositoryData);
                 if (request.partial() == false) {
-                    Tuple<Set<String>, Set<String>> indicesWithMissingShards = indicesWithMissingShards(shards,
-                            currentState.metadata());
-                    Set<String> missing = indicesWithMissingShards.v1();
-                    Set<String> closed = indicesWithMissingShards.v2();
-                    if (missing.isEmpty() == false || closed.isEmpty() == false) {
-                        final StringBuilder failureMessage = new StringBuilder();
-                        if (missing.isEmpty() == false) {
-                            failureMessage.append("Indices don't have primary shards ");
-                            failureMessage.append(missing);
+                    Set<String> missing = new HashSet<>();
+                    for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> entry : shards) {
+                        if (entry.value.state() == ShardState.MISSING) {
+                            missing.add(entry.key.getIndex().getName());
                         }
-                        if (closed.isEmpty() == false) {
-                            if (failureMessage.length() > 0) {
-                                failureMessage.append("; ");
-                            }
-                            failureMessage.append("Indices are closed ");
-                        }
+                    }
+                    if (missing.isEmpty() == false) {
                         // TODO: We should just throw here instead of creating a FAILED and hence useless snapshot in the repository
                         newEntry = new SnapshotsInProgress.Entry(
                                 new Snapshot(repositoryName, snapshotId), request.includeGlobalState(), false,
                                 State.FAILED, indexIds, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards,
-                                failureMessage.toString(), userMeta, version);
+                                "Indices don't have primary shards " + missing, userMeta, version);
                     }
                 }
                 if (newEntry == null) {
@@ -469,11 +461,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private boolean assertConsistentWithClusterState(ClusterState state) {
         final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
         if (snapshotsInProgress != null && snapshotsInProgress.entries().isEmpty() == false) {
-            final Set<Snapshot> runningSnapshots =
-                snapshotsInProgress.entries().stream().map(SnapshotsInProgress.Entry::snapshot).collect(Collectors.toSet());
-            final Set<Snapshot> snapshotListenerKeys = snapshotCompletionListeners.keySet();
-            assert runningSnapshots.containsAll(snapshotListenerKeys) : "Saw completion listeners for unknown snapshots in "
-                + snapshotListenerKeys + " but running snapshots are " + runningSnapshots;
+            synchronized (endingSnapshots) {
+                final Set<Snapshot> runningSnapshots = Stream.concat(
+                        snapshotsInProgress.entries().stream().map(SnapshotsInProgress.Entry::snapshot),
+                        endingSnapshots.stream())
+                        .collect(Collectors.toSet());
+                final Set<Snapshot> snapshotListenerKeys = snapshotCompletionListeners.keySet();
+                assert runningSnapshots.containsAll(snapshotListenerKeys) : "Saw completion listeners for unknown snapshots in "
+                        + snapshotListenerKeys + " but running snapshots are " + runningSnapshots;
+            }
         }
         return true;
     }
@@ -695,29 +691,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 StreamSupport.stream(((Iterable<ShardSnapshotStatus>) () -> snapshot.shards().valuesIt()).spliterator(), false)
                     .filter(s -> s.state().completed() == false).map(ShardSnapshotStatus::nodeId))
                 .anyMatch(removedNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet())::contains);
-    }
-
-    /**
-     * Returns list of indices with missing shards, and list of indices that are closed
-     *
-     * @param shards list of shard statuses
-     * @return list of failed and closed indices
-     */
-    private static Tuple<Set<String>, Set<String>> indicesWithMissingShards(
-        ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards, Metadata metadata) {
-        Set<String> missing = new HashSet<>();
-        Set<String> closed = new HashSet<>();
-        for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> entry : shards) {
-            if (entry.value.state() == ShardState.MISSING) {
-                if (metadata.hasIndex(entry.key.getIndex().getName()) &&
-                    metadata.getIndexSafe(entry.key.getIndex()).getState() == IndexMetadata.State.CLOSE) {
-                    closed.add(entry.key.getIndex().getName());
-                } else {
-                    missing.add(entry.key.getIndex().getName());
-                }
-            }
-        }
-        return new Tuple<>(missing, closed);
     }
 
     /**

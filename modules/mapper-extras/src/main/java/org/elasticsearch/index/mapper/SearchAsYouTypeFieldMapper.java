@@ -104,7 +104,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
 
         @Override
-        public Mapper.Builder<?, ?> parse(String name,
+        public Mapper.Builder<?> parse(String name,
                                           Map<String, Object> node,
                                           ParserContext parserContext) throws MapperParsingException {
 
@@ -129,7 +129,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, SearchAsYouTypeFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
         private int maxShingleSize = Defaults.MAX_SHINGLE_SIZE;
 
         public Builder(String name) {

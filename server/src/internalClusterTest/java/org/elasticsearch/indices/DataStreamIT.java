@@ -409,7 +409,8 @@ public class DataStreamIT extends ESIntegTestCase {
             request.indexTemplate(
                 new IndexTemplateV2(
                     List.of(pattern),
-                    new Template(null, new CompressedXContent(MetadataCreateDataStreamServiceTests.generateMapping(timestampFieldName)), null),
+                    new Template(null,
+                        new CompressedXContent(MetadataCreateDataStreamServiceTests.generateMapping(timestampFieldName)), null),
                     null, null, null, null,
                     new IndexTemplateV2.DataStreamTemplate(timestampFieldName))
             );
@@ -419,7 +420,8 @@ public class DataStreamIT extends ESIntegTestCase {
             request.indexTemplate(
                 new IndexTemplateV2(
                     List.of(pattern),
-                    new Template(null, new CompressedXContent(MetadataCreateDataStreamServiceTests.generateMapping(timestampFieldName)), null),
+                    new Template(null,
+                        new CompressedXContent(MetadataCreateDataStreamServiceTests.generateMapping(timestampFieldName)), null),
                     null, null, null, null,
                     null)
             );

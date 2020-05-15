@@ -90,14 +90,14 @@ source string.
 [source,eql]
 ----
 // file.path = "C:\\Windows\\System32\\cmd.exe"
-between(file.path, "system32\\\\", ".exe")   // returns "cmd"
-between(file.path, "workspace\\\\", ".exe")  // returns ""
-
+between(file.path, "system32\\\\", ".exe")                // returns "cmd"
+between(file.path, "workspace\\\\", ".exe")               // returns ""
 
 // Greedy matching defaults to false.
-between(file.path, "\\\\", "\\\\", false)  // returns "Windows"
+between(file.path, "\\\\", "\\\\", false)                 // returns "Windows"
+
 // Sets greedy matching to true
-between(file.path, "\\\\", "\\\\", true)  // returns "Windows\\System32"
+between(file.path, "\\\\", "\\\\", true)                  // returns "Windows\\System32"
 
 // Case sensitivity defaults to false.
 between(file.path, "system32\\\\", ".exe", false, false)  // returns "cmd"
@@ -106,11 +106,11 @@ between(file.path, "system32\\\\", ".exe", false, true)   // returns ""
 between(file.path, "System32\\\\", ".exe", false, true)   // returns "cmd"
 
 // empty source string
-between("", "system32\\\\", ".exe")          // returns ""
-between("", "", "")                          // returns ""
+between("", "system32\\\\", ".exe")                       // returns ""
+between("", "", "")                                       // returns ""
 
 // null handling
-between(null, "system32\\\\", ".exe")                   // returns null
+between(null, "system32\\\\", ".exe")                     // returns null
 ----
 
 *Syntax*

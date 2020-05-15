@@ -4,77 +4,353 @@
 <titleabbrev>Stemmer override</titleabbrev>
 ++++
 
-Overrides stemming algorithms, by applying a custom mapping, then
-protecting these terms from being modified by stemmers. Must be placed
-before any stemming filters.
+Stems specified tokens based on custom mapping rules. The `stemmer_override`
+filter then assigns these tokens a `keyword` attribute of `true`. These keyword
+tokens are not stemmed by later stemmer filters, such as
+<<analysis-stemmer-tokenfilter,`stemmer`>> or
+<<analysis-porterstem-tokenfilter,`porter_stem`>>.
 
-Rules are separated by `=>`
+[IMPORTANT]
+====
+The `stemmer_override` token filter is often used to override other stemmer
+filters. To do this properly, the `stemmer_override` filter must be listed
+before any stemmer token filters in the <<analysis-custom-analyzer,analyzer
+configuration>>.
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|`rules` |A list of mapping rules to use.
+We also recommend you list the <<analysis-lowercase-tokenfilter,`lowercase`>>
+token filter before the `stemmer_override` filter in the analyzer configuration.
+Many stemmer filters require lowercase tokens.
+====
 
-|`rules_path` |A path (either relative to `config` location, or
-absolute) to a list of mappings.
-|=======================================================================
+The `stemmer_override` filter uses Lucene's
+{lucene-analysis-docs}/miscellaneous/StemmerOverrideFilter.html[StemmerOverrideFilter].
 
-Here is an example:
+[[analysis-stemmer-override-analyze-ex]]
+==== Example
+
+To see how the `stemmer_override` filter works, you first need to produce a
+token stream containing stemmed tokens from another stemmer filter.
+
+The following <<indices-analyze,analyze API>> request uses the `porter_stem`
+filter to create stemmed tokens for `the foxes jumping quickly`.
 
 [source,console]
---------------------------------------------------
-PUT /my_index
+----
+GET /_analyze
 {
-    "settings": {
-        "analysis" : {
-            "analyzer" : {
-                "my_analyzer" : {
-                    "tokenizer" : "standard",
-                    "filter" : ["lowercase", "custom_stems", "porter_stem"]
-                }
-            },
-            "filter" : {
-                "custom_stems" : {
-                    "type" : "stemmer_override",
-                    "rules_path" : "analysis/stemmer_override.txt"
-                }
-            }
-        }
-    }
+  "tokenizer": "standard",
+  "filter": [ "porter_stem" ],
+  "text": "the foxes jumping quickly"
 }
---------------------------------------------------
+----
 
-Where the file looks like:
+The filter produces the following tokens:
+
+[source,text]
+----
+[ the, fox, jump, quickli ]
+----
+
+////
+[source,console-result]
+----
+{
+  "tokens": [
+    {
+      "token": "the",
+      "start_offset": 0,
+      "end_offset": 3,
+      "type": "<ALPHANUM>",
+      "position": 0
+    },
+    {
+      "token": "fox",
+      "start_offset": 4,
+      "end_offset": 9,
+      "type": "<ALPHANUM>",
+      "position": 1
+    },
+    {
+      "token": "jump",
+      "start_offset": 10,
+      "end_offset": 17,
+      "type": "<ALPHANUM>",
+      "position": 2
+    },
+    {
+      "token": "quickli",
+      "start_offset": 18,
+      "end_offset": 25,
+      "type": "<ALPHANUM>",
+      "position": 3
+    }
+  ]
+}
+----
+////
+
+To stem `quickli` to `quick` instead of `quickli` , add the `stemmer_override`
+filter before the `porter_stem` filter in the previous analyze API request.
+Specify a custom mapping rule of `quickly => quick` in the `stemmer_override`
+filter's `rules` parameter.
+
+[source,console]
+----
+GET /_analyze
+{
+  "tokenizer": "standard",
+  "filter": [
+    {
+      "type": "stemmer_override",
+      "rules": [
+        "quickly => quick"
+      ]
+    },
+    "porter_stem"
+  ],
+  "text": "the foxes jumping quickly"
+}
+----
+
+The request produces the following tokens. `foxes` is still stemmed to `fox`,
+but `quickly` is now stemmed to `quick`.
+
+[source,text]
+----
+[ the, fox, jump, quick ]
+----
+
+////
+[source,console-result]
+----
+{
+  "tokens": [
+    {
+      "token": "the",
+      "start_offset": 0,
+      "end_offset": 3,
+      "type": "<ALPHANUM>",
+      "position": 0
+    },
+    {
+      "token": "fox",
+      "start_offset": 4,
+      "end_offset": 9,
+      "type": "<ALPHANUM>",
+      "position": 1
+    },
+    {
+      "token": "jump",
+      "start_offset": 10,
+      "end_offset": 17,
+      "type": "<ALPHANUM>",
+      "position": 2
+    },
+    {
+      "token": "quick",
+      "start_offset": 18,
+      "end_offset": 25,
+      "type": "<ALPHANUM>",
+      "position": 3
+    }
+  ]
+}
+----
+////
+
+To see the `keyword` attribute for these tokens, add the following arguments to
+the analyze API request:
+
+* `explain`: `true`
+* `attributes`: `keyword`
+
+[source,console]
+----
+GET /_analyze
+{
+  "tokenizer": "standard",
+  "filter": [
+    {
+      "type": "stemmer_override",
+      "rules": [
+        "quickly => quick"
+      ]
+    },
+    "porter_stem"
+  ],
+  "text": "the foxes jumping quickly",
+  "explain": true,
+  "attributes": "keyword"
+}
+----
+
+The API returns the following response. Note the `quick` token has a
+`keyword` attribute of `true`.
+
+.*Response*
+[%collapsible]
+====
+[source,console-result]
+----
+{
+  "detail": {
+    "custom_analyzer": true,
+    "charfilters": [],
+    "tokenizer": ...,
+    "tokenfilters": [
+      {
+        "name": "__anonymous__stemmer_override",
+        "tokens": [
+          {
+            "token": "the",
+            "start_offset": 0,
+            "end_offset": 3,
+            "type": "<ALPHANUM>",
+            "position": 0,
+            "keyword": false
+          },
+          {
+            "token": "foxes",
+            "start_offset": 4,
+            "end_offset": 9,
+            "type": "<ALPHANUM>",
+            "position": 1,
+            "keyword": false
+          },
+          {
+            "token": "jumping",
+            "start_offset": 10,
+            "end_offset": 17,
+            "type": "<ALPHANUM>",
+            "position": 2,
+            "keyword": false
+          },
+          {
+            "token": "quick",
+            "start_offset": 18,
+            "end_offset": 25,
+            "type": "<ALPHANUM>",
+            "position": 3,
+            "keyword": true
+          }
+        ]
+      },
+      {
+        "name": "porter_stem",
+        "tokens": [
+          {
+            "token": "the",
+            "start_offset": 0,
+            "end_offset": 3,
+            "type": "<ALPHANUM>",
+            "position": 0,
+            "keyword": false
+          },
+          {
+            "token": "fox",
+            "start_offset": 4,
+            "end_offset": 9,
+            "type": "<ALPHANUM>",
+            "position": 1,
+            "keyword": false
+          },
+          {
+            "token": "jump",
+            "start_offset": 10,
+            "end_offset": 17,
+            "type": "<ALPHANUM>",
+            "position": 2,
+            "keyword": false
+          },
+          {
+            "token": "quick",
+            "start_offset": 18,
+            "end_offset": 25,
+            "type": "<ALPHANUM>",
+            "position": 3,
+            "keyword": true
+          }
+        ]
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"tokenizer": \.\.\./"tokenizer": $body.detail.tokenizer/]
+====
+
+[[analysis-stemmer-override-tokenfilter-configure-parms]]
+==== Configurable parameters
+
+`rules`::
+(Required*, array of strings)
+A list of custom mapping rules. The input and output token must be separated by
+a `=>` (e.g., `running => run`). Output tokens are assigned a `keyword`
+attribute of `true`. Stemmer token filters skip these keyword tokens.
++
+Either this or the `rules_path` parameter must be specified.
+
+`rules_path`::
++
+--
+(Required*, string)
+Path to a file that contains a list of custom mapping rules. The input and
+output token must be separated by a `=>` (e.g., `running => run`). Output tokens
+are assigned a `keyword` attribute of `true`. Stemmer token filters skip these
+keyword tokens.
+
+This path must be absolute or relative to the `config` location, and the file
+must be UTF-8 encoded. Each mapping rule in the file must be separated by a line
+break.
+
+Either this or the `rules` parameter must be specified.
+--
+
+[[analysis-stemmer-override-tokenfilter-customize]]
+==== Customize and add to an analyzer
+
+To customize the `stemmer_override` filter, duplicate it to create the
+basis for a new custom token filter. You can modify the filter using its
+configurable parameters.
+
+For example, the following <<indices-create-index,create index API>> request
+uses a custom `stemmer_override` filter, `my_custom_stemmer`, to configure a new
+<<analysis-custom-analyzer,custom analyzer>>.
+
+The `my_custom_stemmer` filter uses custom mapping rules specified in the
+`analysis/stemmer_override.txt` file, which looks like this:
 
 [source,stemmer_override]
---------------------------------------------------
+----
 include::{es-test-dir}/cluster/config/analysis/stemmer_override.txt[]
---------------------------------------------------
+----
 
-You can also define the overrides rules inline:
+These mapping rules override later stemming performed by the analyzer's 
+`stemmer` token filter.
 
 [source,console]
---------------------------------------------------
+----
 PUT /my_index
 {
-    "settings": {
-        "analysis" : {
-            "analyzer" : {
-                "my_analyzer" : {
-                    "tokenizer" : "standard",
-                    "filter" : ["lowercase", "custom_stems", "porter_stem"]
-                }
-            },
-            "filter" : {
-                "custom_stems" : {
-                    "type" : "stemmer_override",
-                    "rules" : [
-                        "running => run",
-                        "stemmer => stemmer"
-                    ]
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "my_custom_stemmer",
+            "stemmer"
+          ]
         }
+      },
+      "filter": {
+        "my_custom_stemmer": {
+          "type": "stemmer_override",
+          "rules_path": "analysis/stemmer_override.txt"
+        }
+      }
     }
+  }
 }
---------------------------------------------------
+----

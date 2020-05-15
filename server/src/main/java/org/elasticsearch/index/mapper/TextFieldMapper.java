@@ -110,7 +110,7 @@ public class TextFieldMapper extends FieldMapper {
         public static final int POSITION_INCREMENT_GAP = 100;
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, TextFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         private int positionIncrementGap = POSITION_INCREMENT_GAP_USE_ANALYZER;
         private int minPrefixChars = -1;

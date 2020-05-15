@@ -66,12 +66,13 @@ public final class ParentIdFieldMapper extends FieldMapper {
         }
     }
 
-    static class Builder extends FieldMapper.Builder {
+    static class Builder extends FieldMapper.Builder<Builder> {
         private final String parent;
         private final Set<String> children;
 
         Builder(String name, String parent, Set<String> children) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            builder = this;
             this.parent = parent;
             this.children = children;
         }
@@ -80,8 +81,9 @@ public final class ParentIdFieldMapper extends FieldMapper {
             return children;
         }
 
-        public void eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
+        public Builder eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
             fieldType().setEagerGlobalOrdinals(eagerGlobalOrdinals);
+            return builder;
         }
 
         @Override

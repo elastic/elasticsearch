@@ -94,7 +94,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
     }
 
     @SuppressWarnings("rawtypes")
-    public static class Builder extends Mapper.Builder {
+    public static class Builder<T extends Builder> extends Mapper.Builder<T> {
 
         protected boolean enabled = Defaults.ENABLED;
 
@@ -107,25 +107,27 @@ public class ObjectMapper extends Mapper implements Cloneable {
         @SuppressWarnings("unchecked")
         public Builder(String name) {
             super(name);
+            this.builder = (T) this;
         }
 
-        public Builder enabled(boolean enabled) {
+        public T enabled(boolean enabled) {
             this.enabled = enabled;
-            return this;
+            return builder;
         }
 
-        public void dynamic(Dynamic dynamic) {
+        public T dynamic(Dynamic dynamic) {
             this.dynamic = dynamic;
+            return builder;
         }
 
-        public Builder nested(Nested nested) {
+        public T nested(Nested nested) {
             this.nested = nested;
-            return this;
+            return builder;
         }
 
-        public Builder add(Mapper.Builder builder) {
+        public T add(Mapper.Builder builder) {
             mappersBuilders.add(builder);
-            return this;
+            return this.builder;
         }
 
         @Override
@@ -204,6 +206,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             return false;
         }
 
+        @SuppressWarnings("rawtypes")
         protected static void parseNested(String name, Map<String, Object> node, ObjectMapper.Builder builder) {
             boolean nested = false;
             boolean nestedIncludeInParent = false;
@@ -236,6 +239,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         }
 
+        @SuppressWarnings("rawtypes")
         protected static void parseProperties(ObjectMapper.Builder objBuilder, Map<String, Object> propsNode, ParserContext parserContext) {
             Iterator<Map.Entry<String, Object>> iterator = propsNode.entrySet().iterator();
             while (iterator.hasNext()) {
@@ -273,9 +277,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     }
                     String[] fieldNameParts = fieldName.split("\\.");
                     String realFieldName = fieldNameParts[fieldNameParts.length - 1];
-                    Mapper.Builder fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
+                    Mapper.Builder<?> fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
                     for (int i = fieldNameParts.length - 2; i >= 0; --i) {
-                        ObjectMapper.Builder intermediate = new ObjectMapper.Builder(fieldNameParts[i]);
+                        ObjectMapper.Builder<?> intermediate = new ObjectMapper.Builder<>(fieldNameParts[i]);
                         intermediate.add(fieldBuilder);
                         fieldBuilder = intermediate;
                     }

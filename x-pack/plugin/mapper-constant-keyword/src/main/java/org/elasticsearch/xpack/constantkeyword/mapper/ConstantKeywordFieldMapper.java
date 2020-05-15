@@ -60,14 +60,16 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            builder = this;
         }
 
-        public void setValue(String value) {
+        public Builder setValue(String value) {
             fieldType().setValue(value);
+            return this;
         }
 
         @Override
@@ -86,7 +88,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Object value = null;
             if (node.containsKey("value")) {
                 value = node.remove("value");

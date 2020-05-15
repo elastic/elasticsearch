@@ -59,7 +59,7 @@ public class RootObjectMapper extends ObjectMapper {
         public static final boolean NUMERIC_DETECTION = false;
     }
 
-    public static class Builder extends ObjectMapper.Builder {
+    public static class Builder extends ObjectMapper.Builder<Builder> {
 
         protected Explicit<DynamicTemplate[]> dynamicTemplates = new Explicit<>(new DynamicTemplate[0], false);
         protected Explicit<DateFormatter[]> dynamicDateTimeFormatters = new Explicit<>(Defaults.DYNAMIC_DATE_TIME_FORMATTERS, false);
@@ -68,20 +68,17 @@ public class RootObjectMapper extends ObjectMapper {
 
         public Builder(String name) {
             super(name);
+            this.builder = this;
         }
 
-        public void dynamicDateTimeFormatter(Collection<DateFormatter> dateTimeFormatters) {
+        public Builder dynamicDateTimeFormatter(Collection<DateFormatter> dateTimeFormatters) {
             this.dynamicDateTimeFormatters = new Explicit<>(dateTimeFormatters.toArray(new DateFormatter[0]), true);
+            return this;
         }
 
-        public void dynamicTemplates(Collection<DynamicTemplate> templates) {
+        public Builder dynamicTemplates(Collection<DynamicTemplate> templates) {
             this.dynamicTemplates = new Explicit<>(templates.toArray(new DynamicTemplate[0]), true);
-        }
-
-        @Override
-        public Builder add(Mapper.Builder builder) {
-            super.add(builder);
-            return this;    // overriding for covalent return type
+            return this;
         }
 
         @Override
@@ -376,7 +373,7 @@ public class RootObjectMapper extends ObjectMapper {
             Map<String, Object> fieldTypeConfig = dynamicTemplate.mappingForName("__dummy__", defaultDynamicType);
             fieldTypeConfig.remove("type");
             try {
-                Mapper.Builder dummyBuilder = typeParser.parse("__dummy__", fieldTypeConfig, parserContext);
+                Mapper.Builder<?> dummyBuilder = typeParser.parse("__dummy__", fieldTypeConfig, parserContext);
                 if (fieldTypeConfig.isEmpty()) {
                     Settings indexSettings = parserContext.mapperService().getIndexSettings().getSettings();
                     BuilderContext builderContext = new BuilderContext(indexSettings, new ContentPath(1));

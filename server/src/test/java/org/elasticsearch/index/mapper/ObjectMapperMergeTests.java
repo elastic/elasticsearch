@@ -108,7 +108,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
     private static RootObjectMapper createRootObjectMapper(String name, boolean enabled, Map<String, Mapper> mappers) {
         final Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
         final Mapper.BuilderContext context = new Mapper.BuilderContext(indexSettings, new ContentPath());
-        final RootObjectMapper rootObjectMapper = (RootObjectMapper) new RootObjectMapper.Builder(name).enabled(enabled).build(context);
+        final RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder(name).enabled(enabled).build(context);
 
         mappers.values().forEach(rootObjectMapper::putMapper);
 

@@ -56,9 +56,11 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
     }
 
-    public abstract static class Builder {
+    public abstract static class Builder<T extends Builder> {
 
         public String name;
+
+        protected T builder;
 
         protected Builder(String name) {
             this.name = name;
@@ -142,7 +144,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         }
 
-        Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException;
+        Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException;
     }
 
     private final String simpleName;

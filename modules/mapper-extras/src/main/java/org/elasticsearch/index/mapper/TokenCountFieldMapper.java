@@ -47,24 +47,27 @@ public class TokenCountFieldMapper extends FieldMapper {
         public static final boolean DEFAULT_POSITION_INCREMENTS = true;
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder<Builder> {
         private NamedAnalyzer analyzer;
         private boolean enablePositionIncrements = Defaults.DEFAULT_POSITION_INCREMENTS;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            builder = this;
         }
 
-        public void analyzer(NamedAnalyzer analyzer) {
+        public Builder analyzer(NamedAnalyzer analyzer) {
             this.analyzer = analyzer;
+            return this;
         }
 
         public NamedAnalyzer analyzer() {
             return analyzer;
         }
 
-        public void enablePositionIncrements(boolean enablePositionIncrements) {
+        public Builder enablePositionIncrements(boolean enablePositionIncrements) {
             this.enablePositionIncrements = enablePositionIncrements;
+            return this;
         }
 
         public boolean enablePositionIncrements() {
@@ -81,7 +84,7 @@ public class TokenCountFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             TokenCountFieldMapper.Builder builder = new TokenCountFieldMapper.Builder(name);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();

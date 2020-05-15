@@ -179,7 +179,8 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     private static final Logger logger = LogManager.getLogger(LegacyGeoShapeFieldMapper.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
 
-    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<LegacyGeoShapeFieldMapper.GeoShapeFieldType> {
+    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<AbstractShapeGeometryFieldMapper.Builder,
+        LegacyGeoShapeFieldMapper.GeoShapeFieldType> {
 
         DeprecatedParameters deprecatedParameters;
 

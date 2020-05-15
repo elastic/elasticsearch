@@ -172,7 +172,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         private Boolean ignoreMalformed;
         private Explicit<String> format = new Explicit<>(DEFAULT_DATE_TIME_FORMATTER.pattern(), false);
@@ -181,13 +181,8 @@ public final class DateFieldMapper extends FieldMapper {
 
         public Builder(String name) {
             super(name, new DateFieldType(), new DateFieldType());
+            builder = this;
             locale = Locale.ROOT;
-        }
-
-        @Override
-        public Builder index(boolean index) {
-            super.index(index);
-            return this;
         }
 
         @Override
@@ -195,8 +190,9 @@ public final class DateFieldMapper extends FieldMapper {
             return (DateFieldType)fieldType;
         }
 
-        public void ignoreMalformed(boolean ignoreMalformed) {
+        public Builder ignoreMalformed(boolean ignoreMalformed) {
             this.ignoreMalformed = ignoreMalformed;
+            return builder;
         }
 
         protected Explicit<Boolean> ignoreMalformed(BuilderContext context) {
@@ -243,7 +239,7 @@ public final class DateFieldMapper extends FieldMapper {
             DateFormatter dateTimeFormatter = fieldType().dateTimeFormatter;
 
             boolean hasPatternChanged = Strings.hasLength(pattern) && Objects.equals(pattern, dateTimeFormatter.pattern()) == false;
-            if (hasPatternChanged || Objects.equals(this.locale, dateTimeFormatter.locale()) == false) {
+            if (hasPatternChanged || Objects.equals(builder.locale, dateTimeFormatter.locale()) == false) {
                 fieldType().setDateTimeFormatter(DateFormatter.forPattern(pattern).withLocale(locale));
             }
 
@@ -267,7 +263,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name);
             builder.withResolution(resolution);
             TypeParsers.parseField(builder, name, node, parserContext);

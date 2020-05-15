@@ -86,15 +86,17 @@ public class HistogramFieldMapper extends FieldMapper {
     public static final ParseField COUNTS_FIELD = new ParseField("counts");
     public static final ParseField VALUES_FIELD = new ParseField("values");
 
-    public static class Builder extends FieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder<Builder> {
         protected Boolean ignoreMalformed;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            builder = this;
         }
 
-        public void ignoreMalformed(boolean ignoreMalformed) {
+        public Builder ignoreMalformed(boolean ignoreMalformed) {
             this.ignoreMalformed = ignoreMalformed;
+            return builder;
         }
 
         protected Explicit<Boolean> ignoreMalformed(BuilderContext context) {
@@ -124,7 +126,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
+        public Mapper.Builder<Builder> parse(String name, Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
             Builder builder = new HistogramFieldMapper.Builder(name);
             TypeParsers.parseMeta(builder, name, node);

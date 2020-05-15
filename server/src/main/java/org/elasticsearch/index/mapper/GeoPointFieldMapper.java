@@ -49,9 +49,10 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<?
         implements ArrayValueMapperParser {
     public static final String CONTENT_TYPE = "geo_point";
 
-    public static class Builder extends AbstractPointGeometryFieldMapper.Builder<GeoPointFieldType> {
+    public static class Builder extends AbstractPointGeometryFieldMapper.Builder<Builder, GeoPointFieldType> {
         public Builder(String name) {
             super(name, new GeoPointFieldType(), new GeoPointFieldType());
+            builder = this;
         }
 
         public GeoPointFieldMapper build(BuilderContext context, String simpleName, MappedFieldType fieldType,
@@ -61,12 +62,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<?
             setupFieldType(context);
             return new GeoPointFieldMapper(simpleName, fieldType, defaultFieldType, indexSettings, multiFields,
                 ignoreMalformed, ignoreZValue, copyTo);
-        }
-
-        @Override
-        public Builder docValues(boolean docValues) {
-            super.docValues(docValues);
-            return this;
         }
 
         @Override

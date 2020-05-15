@@ -82,7 +82,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     // use the same default as numbers
     private static final Setting<Boolean> COERCE_SETTING = NumberFieldMapper.COERCE_SETTING;
 
-    public static class Builder extends FieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         private boolean scalingFactorSet = false;
         private Boolean ignoreMalformed;
@@ -90,16 +90,18 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         public Builder(String name) {
             super(name, new ScaledFloatFieldType(), new ScaledFloatFieldType());
+            builder = this;
         }
 
-        public void ignoreMalformed(boolean ignoreMalformed) {
+        public Builder ignoreMalformed(boolean ignoreMalformed) {
             this.ignoreMalformed = ignoreMalformed;
+            return builder;
         }
 
         @Override
-        public void indexOptions(IndexOptions indexOptions) {
+        public Builder indexOptions(IndexOptions indexOptions) {
             throw new MapperParsingException(
-                    "index_options not allowed in field [" + name + "] of type [" + this.fieldType().typeName() + "]");
+                    "index_options not allowed in field [" + name + "] of type [" + builder.fieldType().typeName() + "]");
         }
 
         protected Explicit<Boolean> ignoreMalformed(BuilderContext context) {
@@ -112,13 +114,15 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             return Defaults.IGNORE_MALFORMED;
         }
 
-        public void coerce(boolean coerce) {
+        public Builder coerce(boolean coerce) {
             this.coerce = coerce;
+            return builder;
         }
 
-        public void scalingFactor(double scalingFactor) {
+        public Builder scalingFactor(double scalingFactor) {
             ((ScaledFloatFieldType) fieldType).setScalingFactor(scalingFactor);
             scalingFactorSet = true;
+            return this;
         }
 
         protected Explicit<Boolean> coerce(BuilderContext context) {
@@ -145,7 +149,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
 
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node,
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node,
                                          ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name);
             TypeParsers.parseField(builder, name, node, parserContext);

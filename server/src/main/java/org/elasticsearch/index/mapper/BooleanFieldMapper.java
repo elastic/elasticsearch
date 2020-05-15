@@ -74,10 +74,11 @@ public class BooleanFieldMapper extends FieldMapper {
         public static final BytesRef FALSE = new BytesRef("F");
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            this.builder = this;
         }
 
         @Override

@@ -64,6 +64,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "all",
     "create_snapshot",
     "delegate_pki",
+    "grant_api_key",
     "manage",
     "manage_api_key",
     "manage_autoscaling",

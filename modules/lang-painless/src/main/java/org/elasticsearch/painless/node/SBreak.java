@@ -28,35 +28,30 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 /**
  * Represents a break statement.
  */
-public final class SBreak extends AStatement {
+public class SBreak extends AStatement {
 
     public SBreak(Location location) {
         super(location);
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        if (!inLoop) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
+
+        if (input.inLoop == false) {
             throw createError(new IllegalArgumentException("Break statement outside of a loop."));
         }
 
-        loopEscape = true;
-        allEscape = true;
-        anyBreak = true;
-        statementCount = 1;
-    }
+        output.loopEscape = true;
+        output.allEscape = true;
+        output.anyBreak = true;
+        output.statementCount = 1;
 
-    @Override
-    BreakNode write(ClassNode classNode) {
         BreakNode breakNode = new BreakNode();
-
         breakNode.setLocation(location);
 
-        return breakNode;
-    }
+        output.statementNode = breakNode;
 
-    @Override
-    public String toString() {
-        return singleLineToString();
+        return output;
     }
 }

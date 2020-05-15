@@ -6,8 +6,6 @@
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.document.XYShape;
-import org.apache.lucene.geo.XYLine;
-import org.apache.lucene.geo.XYPolygon;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
@@ -75,8 +73,7 @@ public class ShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geometr
 
         @Override
         public Void visit(Line line) {
-            float[][] vertices = lineToFloatArray(line.getX(), line.getY());
-            addFields(XYShape.createIndexableFields(name, new XYLine(vertices[0], vertices[1])));
+            addFields(XYShape.createIndexableFields(name, ShapeUtils.toLuceneXYLine(line)));
             return null;
         }
 
@@ -111,50 +108,24 @@ public class ShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geometr
 
         @Override
         public Void visit(Point point) {
-            addFields(XYShape.createIndexableFields(name, (float)point.getX(), (float)point.getY()));
+            addFields(XYShape.createIndexableFields(name, (float) point.getX(), (float) point.getY()));
             return null;
         }
 
         @Override
         public Void visit(Polygon polygon) {
-            addFields(XYShape.createIndexableFields(name, toLucenePolygon(polygon)));
+            addFields(XYShape.createIndexableFields(name, ShapeUtils.toLuceneXYPolygon(polygon)));
             return null;
         }
 
         @Override
         public Void visit(Rectangle r) {
-            XYPolygon p = new XYPolygon(
-                new float[]{(float)r.getMinX(), (float)r.getMaxX(), (float)r.getMaxX(), (float)r.getMinX(), (float)r.getMinX()},
-                new float[]{(float)r.getMinY(), (float)r.getMinY(), (float)r.getMaxY(), (float)r.getMaxY(), (float)r.getMinY()});
-            addFields(XYShape.createIndexableFields(name, p));
+            addFields(XYShape.createIndexableFields(name, ShapeUtils.toLuceneXYPolygon(r)));
             return null;
         }
 
         private void addFields(IndexableField[] fields) {
             this.fields.addAll(Arrays.asList(fields));
         }
-    }
-
-    public static XYPolygon toLucenePolygon(Polygon polygon) {
-        XYPolygon[] holes = new XYPolygon[polygon.getNumberOfHoles()];
-        LinearRing ring;
-        float[][] vertices;
-        for(int i = 0; i<holes.length; i++) {
-            ring = polygon.getHole(i);
-            vertices = lineToFloatArray(ring.getX(), ring.getY());
-            holes[i] = new XYPolygon(vertices[0], vertices[1]);
-        }
-        ring = polygon.getPolygon();
-        vertices = lineToFloatArray(ring.getX(), ring.getY());
-        return new XYPolygon(vertices[0], vertices[1], holes);
-    }
-
-    private static float[][] lineToFloatArray(double[] x, double[] y) {
-        float[][] result = new float[2][x.length];
-        for (int i = 0; i < x.length; ++i) {
-            result[0][i] = (float)x[i];
-            result[1][i] = (float)y[i];
-        }
-        return result;
     }
 }

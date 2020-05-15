@@ -248,8 +248,15 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         // It is possible that the datafeed has already detected the job failure and
         // terminated itself. In this happens there is no persistent task to stop
-        assumeFalse("The datafeed task is null most likely because the datafeed detected the job had failed. " +
+        if (task == null) {
+            // We have to force close the job, because the standard cleanup
+            // will treat a leftover failed job as a fatal error
+            CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(jobId);
+            closeJobRequest.setForce(true);
+            client().execute(CloseJobAction.INSTANCE, closeJobRequest).actionGet();
+            assumeFalse("The datafeed task is null most likely because the datafeed detected the job had failed. " +
                 "This is expected to happen extremely rarely but the test cannot continue in these circumstances.", task == null);
+        }
 
         UpdatePersistentTaskStatusAction.Request updatePersistentTaskStatusRequest =
                 new UpdatePersistentTaskStatusAction.Request(task.getId(), task.getAllocationId(), DatafeedState.STOPPING);

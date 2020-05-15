@@ -126,7 +126,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                 case ADD:
                     for (String alias : concreteAliases(action, state.metaData(), index.getName())) {
                         finalActions.add(new AliasAction.Add(index.getName(), alias, action.filter(), action.indexRouting(),
-                            action.searchRouting(), action.writeIndex()));
+                            action.searchRouting(), action.writeIndex(), action.isHidden()));
                     }
                     break;
                 case REMOVE:

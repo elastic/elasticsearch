@@ -26,6 +26,11 @@ dependencies {
   testCompile project(path: ':modules:parent-join', configuration: 'runtime')
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'index', 'search', 'msearch'  
+  }
+}
 dependencyLicenses {
   // Don't check the client's license. We know it.
   dependencies = project.configurations.runtime.fileCollection {

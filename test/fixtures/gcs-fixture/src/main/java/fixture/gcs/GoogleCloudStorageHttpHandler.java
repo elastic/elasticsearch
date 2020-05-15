@@ -298,9 +298,10 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 skippedEmptyLine = markAndContinue && endPos == startPos;
                 startPos = endPos;
             } else {
-                // removes the trailing end "\r\n--__END_OF_PART__--\r\n" which is 23 bytes long
-                int len = fullRequestBody.length() - startPos - 23;
-                content = Tuple.tuple(name, fullRequestBody.slice(startPos, len));
+                while (isEndOfPart(fullRequestBody, endPos) == false) {
+                    endPos = fullRequestBody.indexOf((byte) '\r', endPos + 1);
+                }
+                content = Tuple.tuple(name, fullRequestBody.slice(startPos, endPos - startPos));
                 break;
             }
         }
@@ -310,6 +311,18 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 new InputStreamReader(stream)).lines().collect(Collectors.joining("\n"))));
         }
         return Optional.ofNullable(content);
+    }
+
+    private static final byte[] END_OF_PARTS_MARKER = "\r\n--__END_OF_PART__".getBytes(UTF_8);
+
+    private static boolean isEndOfPart(BytesReference fullRequestBody, int endPos) {
+        for (int i = 0; i < END_OF_PARTS_MARKER.length; i++) {
+            final byte b = END_OF_PARTS_MARKER[i];
+            if (fullRequestBody.get(endPos + i) != b) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static final Pattern PATTERN_CONTENT_RANGE = Pattern.compile("bytes ([^/]*)/([0-9\\*]*)");

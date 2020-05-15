@@ -22,7 +22,6 @@ package org.elasticsearch.smoketest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
-
 import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.util.BytesRef;
@@ -46,6 +45,7 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -100,6 +100,13 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             final Version esVersion,
             final Version masterVersion) {
         return new ClientYamlDocsTestClient(restSpec, restClient, hosts, esVersion, masterVersion, this::getClientBuilderWithSniffedHosts);
+    }
+
+    @Before
+    public void waitForRequirements() throws Exception {
+        if (isCcrTest()) {
+            ESRestTestCase.waitForActiveLicense(adminClient());
+        }
     }
 
     @After
@@ -161,6 +168,11 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     protected boolean isTransformTest() {
         String testName = getTestName();
         return testName != null && (testName.contains("/transform/") || testName.contains("\\transform\\"));
+    }
+
+    protected boolean isCcrTest() {
+        String testName = getTestName();
+        return testName != null && testName.contains("/ccr/");
     }
 
     /**

@@ -25,6 +25,7 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthorizationExceptionDefaultUsers;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionDefaultUsers;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
@@ -33,6 +34,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.hamcrest.number.OrderingComparison.greaterThan;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53340")
 public class ReadActionsTests extends SecurityIntegTestCase {
 
     @Override

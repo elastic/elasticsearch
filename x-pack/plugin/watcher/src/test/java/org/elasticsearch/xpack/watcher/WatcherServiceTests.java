@@ -179,7 +179,7 @@ public class WatcherServiceTests extends ESTestCase {
         SearchHit[] hits = new SearchHit[count];
         for (int i = 0; i < count; i++) {
             String id = String.valueOf(i);
-            SearchHit hit = new SearchHit(1, id, Collections.emptyMap());
+            SearchHit hit = new SearchHit(1, id, Collections.emptyMap(), Collections.emptyMap());
             hit.version(1L);
             hit.shard(new SearchShardTarget("nodeId", new ShardId(watchIndex, 0), "whatever", OriginalIndices.NONE));
             hits[i] = hit;

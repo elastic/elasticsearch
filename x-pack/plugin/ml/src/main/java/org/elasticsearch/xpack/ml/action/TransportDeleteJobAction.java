@@ -489,7 +489,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
 
         // first find the concrete indices associated with the aliases
         GetAliasesRequest aliasesRequest = new GetAliasesRequest().aliases(readAliasName, writeAliasName)
-                .indicesOptions(IndicesOptions.lenientExpandOpen());
+                .indicesOptions(IndicesOptions.lenientExpandOpenHidden());
         executeAsyncWithOrigin(parentTaskClient.threadPool().getThreadContext(), ML_ORIGIN, aliasesRequest,
                 ActionListener.<GetAliasesResponse>wrap(
                         getAliasesResponse -> {

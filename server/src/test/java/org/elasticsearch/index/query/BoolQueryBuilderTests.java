@@ -24,9 +24,9 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -41,6 +41,7 @@ import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -136,7 +137,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         }
         if (tempQueryBuilder.mustNot().size() > 0) {
             QueryBuilder mustNot = tempQueryBuilder.mustNot().get(0);
-            contentString += (randomBoolean() ? "\"must_not\": " : "\"mustNot\": ") + mustNot.toString() + ",";
+            contentString += "\"must_not\":" + mustNot.toString() + ",";
             expectedQuery.mustNot(mustNot);
         }
         if (tempQueryBuilder.should().size() > 0) {
@@ -277,14 +278,31 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         assertEquals(query, "kimchy", ((TermQueryBuilder)queryBuilder.must().get(0)).value());
     }
 
+    public void testMinimumShouldMatchNumber() throws IOException {
+        String query = "{\"bool\" : {\"must\" : { \"term\" : { \"field\" : \"value\" } }, \"minimum_should_match\" : 1 } }";
+        BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
+        assertEquals("1", builder.minimumShouldMatch());
+    }
+
     /**
      * test that unknown query names in the clauses throw an error
      */
     public void testUnknownQueryName() throws IOException {
         String query = "{\"bool\" : {\"must\" : { \"unknown_query\" : { } } } }";
 
-        ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query));
-        assertEquals("unknown query [unknown_query]", ex.getMessage());
+        XContentParseException ex = expectThrows(XContentParseException.class, () -> parseQuery(query));
+        assertEquals("[1:41] [bool] failed to parse field [must]", ex.getMessage());
+        Throwable e = ex.getCause();
+        assertThat(e.getMessage(), containsString("unknown query [unknown_query]"));
+
+    }
+
+    public void testDeprecation() throws IOException {
+        String query = "{\"bool\" : {\"mustNot\" : { \"match_all\" : { } } } }";
+        QueryBuilder q = parseQuery(query);
+        QueryBuilder expected = new BoolQueryBuilder().mustNot(new MatchAllQueryBuilder());
+        assertEquals(expected, q);
+        assertWarnings("Deprecated field [mustNot] used, expected [must_not] instead");
     }
 
     public void testRewrite() throws IOException {

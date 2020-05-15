@@ -11,7 +11,14 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsageTests;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStats;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStatsTests;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStats;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStatsTests;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStats;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStatsTests;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
@@ -36,6 +43,10 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
         RowResults rowResults = null;
         Integer progressPercent = null;
         TrainedModelDefinition.Builder inferenceModel = null;
+        MemoryUsage memoryUsage = null;
+        OutlierDetectionStats outlierDetectionStats = null;
+        ClassificationStats classificationStats = null;
+        RegressionStats regressionStats = null;
         if (randomBoolean()) {
             rowResults = RowResultsTests.createRandom();
         }
@@ -45,7 +56,20 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
         if (randomBoolean()) {
             inferenceModel = TrainedModelDefinitionTests.createRandomBuilder();
         }
-        return new AnalyticsResult(rowResults, progressPercent, inferenceModel, MemoryUsageTests.createRandom());
+        if (randomBoolean()) {
+            memoryUsage = MemoryUsageTests.createRandom();
+        }
+        if (randomBoolean()) {
+            outlierDetectionStats = OutlierDetectionStatsTests.createRandom();
+        }
+        if (randomBoolean()) {
+            classificationStats = ClassificationStatsTests.createRandom();
+        }
+        if (randomBoolean()) {
+            regressionStats = RegressionStatsTests.createRandom();
+        }
+        return new AnalyticsResult(rowResults, progressPercent, inferenceModel, memoryUsage, outlierDetectionStats, classificationStats,
+            regressionStats);
     }
 
     @Override

@@ -61,8 +61,8 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
         private final String key;
         private final QueryBuilder filter;
 
-        public static final NamedObjectParser<KeyedFilter, Void> PARSER =
-                (XContentParser p, Void c, String name) ->
+        public static final NamedObjectParser<KeyedFilter, String> PARSER =
+                (XContentParser p, String aggName, String name) ->
                      new KeyedFilter(name, parseInnerQueryBuilder(p));
 
         public KeyedFilter(String key, QueryBuilder filter) {

@@ -105,7 +105,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         final CompletableFuture<Throwable> future = new CompletableFuture<>();
         DiscoveryNode node = state.nodes().getLocalNode();
 
-        coordinator.sendValidateJoinRequest(stateWithCustomMetaData, new JoinRequest(node, Optional.empty()),
+        coordinator.sendValidateJoinRequest(stateWithCustomMetaData, new JoinRequest(node, 0L, Optional.empty()),
                 new JoinHelper.JoinCallback() {
             @Override
             public void onSuccess() {

@@ -30,9 +30,9 @@ import java.util.Objects;
 /**
  * Represents a throw statement.
  */
-public final class SThrow extends AStatement {
+public class SThrow extends AStatement {
 
-    private AExpression expression;
+    protected final AExpression expression;
 
     public SThrow(Location location, AExpression expression) {
         super(location);
@@ -41,30 +41,25 @@ public final class SThrow extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        expression.expected = Exception.class;
-        expression.analyze(scriptRoot, scope);
-        expression = expression.cast(scriptRoot, scope);
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
-        methodEscape = true;
-        loopEscape = true;
-        allEscape = true;
-        statementCount = 1;
-    }
+        AExpression.Input expressionInput = new AExpression.Input();
+        expressionInput.expected = Exception.class;
+        AExpression.Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
+        expression.cast(expressionInput, expressionOutput);
 
-    @Override
-    ThrowNode write(ClassNode classNode) {
+        output.methodEscape = true;
+        output.loopEscape = true;
+        output.allEscape = true;
+        output.statementCount = 1;
+
         ThrowNode throwNode = new ThrowNode();
-
-        throwNode.setExpressionNode(expression.write(classNode));
-
+        throwNode.setExpressionNode(expression.cast(expressionOutput));
         throwNode.setLocation(location);
 
-        return throwNode;
-    }
+        output.statementNode = throwNode;
 
-    @Override
-    public String toString() {
-        return singleLineToString(expression);
+        return output;
     }
 }

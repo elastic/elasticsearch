@@ -508,7 +508,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
     private ClusterState.Builder createClusterStateWithMapping(String securityTemplateString) throws IOException {
         final ClusterState clusterState = createClusterStateWithIndex(securityTemplateString).build();
-        final String indexName = clusterState.metaData().getAliasAndIndexLookup()
+        final String indexName = clusterState.metaData().getIndicesLookup()
             .get(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).getIndices().get(0).getIndex().getName();
         return ClusterState.builder(clusterState).routingTable(SecurityTestUtils.buildIndexRoutingTable(indexName));
     }

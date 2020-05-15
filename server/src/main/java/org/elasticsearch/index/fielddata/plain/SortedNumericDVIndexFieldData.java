@@ -36,7 +36,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -167,12 +167,12 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
     }
 
     @Override
-    public AtomicNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public LeafNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
         return load(context);
     }
 
     @Override
-    public AtomicNumericFieldData load(LeafReaderContext context) {
+    public LeafNumericFieldData load(LeafReaderContext context) {
         final LeafReader reader = context.reader();
         final String field = fieldName;
 
@@ -194,7 +194,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
      * A small helper class that can be configured to load nanosecond field data either in nanosecond resolution retaining the original
      * values or in millisecond resolution converting the nanosecond values to milliseconds
      */
-    public final class NanoSecondFieldData extends AtomicLongFieldData {
+    public final class NanoSecondFieldData extends LeafLongFieldData {
 
         private final LeafReader reader;
         private final String fieldName;
@@ -230,7 +230,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
      * {@link DocValues#unwrapSingleton(SortedNumericDocValues)} will return
      * the underlying single-valued NumericDocValues representation.
      */
-    static final class SortedNumericLongFieldData extends AtomicLongFieldData {
+    static final class SortedNumericLongFieldData extends LeafLongFieldData {
         final LeafReader reader;
         final String field;
 
@@ -268,7 +268,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
      * {@link FieldData#unwrapSingleton(SortedNumericDoubleValues)} will return
      * the underlying single-valued NumericDoubleValues representation.
      */
-    static final class SortedNumericHalfFloatFieldData extends AtomicDoubleFieldData {
+    static final class SortedNumericHalfFloatFieldData extends LeafDoubleFieldData {
         final LeafReader reader;
         final String field;
 
@@ -360,7 +360,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
      * {@link FieldData#unwrapSingleton(SortedNumericDoubleValues)} will return
      * the underlying single-valued NumericDoubleValues representation.
      */
-    static final class SortedNumericFloatFieldData extends AtomicDoubleFieldData {
+    static final class SortedNumericFloatFieldData extends LeafDoubleFieldData {
         final LeafReader reader;
         final String field;
 
@@ -452,7 +452,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
      * {@link FieldData#unwrapSingleton(SortedNumericDoubleValues)} will return
      * the underlying single-valued NumericDoubleValues representation.
      */
-    static final class SortedNumericDoubleFieldData extends AtomicDoubleFieldData {
+    static final class SortedNumericDoubleFieldData extends LeafDoubleFieldData {
         final LeafReader reader;
         final String field;
 

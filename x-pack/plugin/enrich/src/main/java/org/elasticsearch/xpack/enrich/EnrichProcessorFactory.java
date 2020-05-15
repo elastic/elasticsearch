@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -38,13 +38,13 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
     public Processor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config) throws Exception {
         String policyName = ConfigurationUtils.readStringProperty(TYPE, tag, config, "policy_name");
         String policyAlias = EnrichPolicy.getBaseName(policyName);
-        AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(policyAlias);
-        if (aliasOrIndex == null) {
+        IndexAbstraction indexAbstraction = metaData.getIndicesLookup().get(policyAlias);
+        if (indexAbstraction == null) {
             throw new IllegalArgumentException("no enrich index exists for policy with name [" + policyName + "]");
         }
-        assert aliasOrIndex.isAlias();
-        assert aliasOrIndex.getIndices().size() == 1;
-        IndexMetaData imd = aliasOrIndex.getIndices().get(0);
+        assert indexAbstraction.getType() == IndexAbstraction.Type.ALIAS;
+        assert indexAbstraction.getIndices().size() == 1;
+        IndexMetaData imd = indexAbstraction.getIndices().get(0);
 
         Map<String, Object> mappingAsMap = imd.mapping().sourceAsMap();
         String policyType = (String) XContentMapValues.extractValue(

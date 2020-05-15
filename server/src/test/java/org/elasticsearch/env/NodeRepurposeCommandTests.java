@@ -72,7 +72,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
             final String nodeId = randomAlphaOfLength(10);
             try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(nodePaths, nodeId,
                 xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
-                new ClusterSettings(dataMasterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L, true).createWriter()) {
+                new ClusterSettings(dataMasterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L).createWriter()) {
                 writer.writeFullStateAndCommit(1L, ClusterState.EMPTY_STATE);
             }
         }

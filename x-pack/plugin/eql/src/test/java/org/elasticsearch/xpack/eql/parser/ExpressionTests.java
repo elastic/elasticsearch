@@ -36,7 +36,7 @@ public class ExpressionTests extends ESTestCase {
 
     private final EqlParser parser = new EqlParser();
 
-    public Expression expr(String source) {
+    private Expression expr(String source) {
         return parser.createExpression(source);
     }
 

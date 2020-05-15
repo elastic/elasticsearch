@@ -20,10 +20,12 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
@@ -35,6 +37,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
@@ -44,20 +47,68 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static java.util.Collections.singleton;
 
 public class ValueCountAggregatorTests extends AggregatorTestCase {
 
     private static final String FIELD_NAME = "field";
+
+    /** Script to return the {@code _value} provided by aggs framework. */
+    private static final String VALUE_SCRIPT = "_value";
+    private static final String SINGLE_SCRIPT = "single";
+
+    @Override
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        return new ValueCountAggregationBuilder("foo").field(fieldName);
+    }
+
+    @Override
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        return List.of(
+            CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.BYTES,
+            CoreValuesSourceType.GEOPOINT,
+            CoreValuesSourceType.RANGE
+        );
+    }
+
+    @Override
+    protected ScriptService getMockScriptService() {
+        Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+
+        scripts.put(VALUE_SCRIPT, vars -> (Double.valueOf((String) vars.get("_value")) + 1));
+        scripts.put(SINGLE_SCRIPT, vars -> 1);
+
+        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
+            scripts,
+            Collections.emptyMap());
+        Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
+
+        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+    }
 
     public void testNoDocs() throws IOException {
         for (ValueType valueType : ValueType.values()) {
@@ -125,7 +176,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testUnmappedMissingString() throws IOException {
-        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name", null)
+        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name")
             .field("number").missing("🍌🍌🍌");
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -139,7 +190,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testUnmappedMissingNumber() throws IOException {
-        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name", null)
+        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name")
             .field("number").missing(1234);
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -153,7 +204,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testUnmappedMissingGeoPoint() throws IOException {
-        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name", null)
+        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name")
             .field("number").missing(new GeoPoint(42.39561, -71.13051));
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -173,7 +224,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         final String fieldName = "rangeField";
         MappedFieldType fieldType = new RangeFieldMapper.Builder(fieldName, rangeType).fieldType();
         fieldType.setName(fieldName);
-        final ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("_name", null).field(fieldName);
+        final ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("_name").field(fieldName);
         testCase(aggregationBuilder,  new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range1)))));
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range1)))));
@@ -185,15 +236,126 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         }, fieldType);
     }
 
+    public void testValueScriptNumber() throws IOException {
+        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name")
+            .field(FIELD_NAME)
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
+
+        MappedFieldType fieldType = createMappedFieldType(ValueType.NUMERIC);
+        fieldType.setName(FIELD_NAME);
+        fieldType.setHasDocValues(true);
+
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 7)));
+            iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 8)));
+            iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 9)));
+        }, card -> {
+            assertEquals(3, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, fieldType);
+    }
+
+    public void testSingleScriptNumber() throws IOException {
+        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name")
+            .field(FIELD_NAME);
+
+        MappedFieldType fieldType = createMappedFieldType(ValueType.NUMERIC);
+        fieldType.setName(FIELD_NAME);
+        fieldType.setHasDocValues(true);
+
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            Document doc = new Document();
+            doc.add(new SortedNumericDocValuesField(FIELD_NAME, 7));
+            doc.add(new SortedNumericDocValuesField(FIELD_NAME, 7));
+            iw.addDocument(doc);
+
+            doc = new Document();
+            doc.add(new SortedNumericDocValuesField(FIELD_NAME, 8));
+            doc.add(new SortedNumericDocValuesField(FIELD_NAME, 8));
+            iw.addDocument(doc);
+
+            doc = new Document();
+            doc.add(new SortedNumericDocValuesField(FIELD_NAME, 1));
+            doc.add(new SortedNumericDocValuesField(FIELD_NAME, 1));
+            iw.addDocument(doc);
+        }, card -> {
+            // note: this is 6, even though the script returns a single value.  ValueCount does not de-dedupe
+            assertEquals(6, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, fieldType);
+    }
+
+    public void testValueScriptString() throws IOException {
+        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name")
+            .field(FIELD_NAME)
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
+
+        MappedFieldType fieldType = createMappedFieldType(ValueType.STRING);
+        fieldType.setName(FIELD_NAME);
+        fieldType.setHasDocValues(true);
+
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new SortedDocValuesField(FIELD_NAME, new BytesRef("1"))));
+            iw.addDocument(singleton(new SortedDocValuesField(FIELD_NAME, new BytesRef("2"))));
+            iw.addDocument(singleton(new SortedDocValuesField(FIELD_NAME, new BytesRef("3"))));
+        }, card -> {
+            assertEquals(3, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, fieldType);
+    }
+
+    public void testSingleScriptString() throws IOException {
+        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name")
+            .field(FIELD_NAME);
+
+        MappedFieldType fieldType = createMappedFieldType(ValueType.STRING);
+        fieldType.setName(FIELD_NAME);
+        fieldType.setHasDocValues(true);
+
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            Document doc = new Document();
+            // Note: unlike numerics, lucene de-dupes strings so we increment here
+            doc.add(new SortedSetDocValuesField(FIELD_NAME, new BytesRef("1")));
+            doc.add(new SortedSetDocValuesField(FIELD_NAME, new BytesRef("2")));
+            iw.addDocument(doc);
+
+            doc = new Document();
+            doc.add(new SortedSetDocValuesField(FIELD_NAME, new BytesRef("3")));
+            doc.add(new SortedSetDocValuesField(FIELD_NAME, new BytesRef("4")));
+            iw.addDocument(doc);
+
+            doc = new Document();
+            doc.add(new SortedSetDocValuesField(FIELD_NAME, new BytesRef("5")));
+            doc.add(new SortedSetDocValuesField(FIELD_NAME, new BytesRef("6")));
+            iw.addDocument(doc);
+        }, card -> {
+            // note: this is 6, even though the script returns a single value.  ValueCount does not de-dedupe
+            assertEquals(6, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, fieldType);
+    }
+
     private void testCase(Query query,
                           ValueType valueType,
                           CheckedConsumer<RandomIndexWriter, IOException> indexer,
                           Consumer<InternalValueCount> verify) throws IOException {
+        // Test both with and without the userValueTypeHint
+        testCase(query, valueType, indexer, verify, true);
+        testCase(query, valueType, indexer, verify, false);
+    }
+
+    private void testCase(Query query,
+                          ValueType valueType,
+                          CheckedConsumer<RandomIndexWriter, IOException> indexer,
+                          Consumer<InternalValueCount> verify, boolean testWithHint) throws IOException {
         MappedFieldType fieldType = createMappedFieldType(valueType);
         fieldType.setName(FIELD_NAME);
         fieldType.setHasDocValues(true);
 
-        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("_name", valueType);
+        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("_name");
+        if (valueType != null && testWithHint) {
+            aggregationBuilder.userValueTypeHint(valueType);
+        }
         aggregationBuilder.field(FIELD_NAME);
 
         testCase(aggregationBuilder, query, indexer, verify, fieldType);

@@ -31,6 +31,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.time.Instant;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.index.reindex.ReindexIndexClient.REINDEX_ALIAS;
@@ -220,7 +221,9 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
 
     private void writeFinishedState(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
                                     TimeValue delay) {
-        ReindexTaskStateDoc state = lastState.getStateDoc().withFinishedState(reindexResponse, exception);
+        // Prevent backwards clock adjustments
+        long endTimeMillis = Long.max(Instant.now().toEpochMilli(), lastState.getStateDoc().getStartTimeMillis());;
+        ReindexTaskStateDoc state = lastState.getStateDoc().withFinishedState(endTimeMillis, reindexResponse, exception);
         long term = lastState.getPrimaryTerm();
         long seqNo = lastState.getSeqNo();
 

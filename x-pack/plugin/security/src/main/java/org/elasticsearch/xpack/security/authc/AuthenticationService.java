@@ -77,7 +77,7 @@ public class AuthenticationService {
     private static final Logger logger = LogManager.getLogger(AuthenticationService.class);
 
     private final Realms realms;
-    private final AuditTrail auditTrail;
+    private final AuditTrailService auditTrailService;
     private final AuthenticationFailureHandler failureHandler;
     private final ThreadContext threadContext;
     private final String nodeName;
@@ -90,12 +90,12 @@ public class AuthenticationService {
     private final boolean isAnonymousUserEnabled;
     private final AuthenticationContextSerializer authenticationSerializer;
 
-    public AuthenticationService(Settings settings, Realms realms, AuditTrailService auditTrail,
+    public AuthenticationService(Settings settings, Realms realms, AuditTrailService auditTrailService,
                                  AuthenticationFailureHandler failureHandler, ThreadPool threadPool,
                                  AnonymousUser anonymousUser, TokenService tokenService, ApiKeyService apiKeyService) {
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.realms = realms;
-        this.auditTrail = auditTrail;
+        this.auditTrailService = auditTrailService;
         this.failureHandler = failureHandler;
         this.threadContext = threadPool.getThreadContext();
         this.anonymousUser = anonymousUser;
@@ -274,16 +274,17 @@ public class AuthenticationService {
         private AuthenticationResult authenticationResult = null;
 
         Authenticator(RestRequest request, boolean fallbackToAnonymous, ActionListener<Authentication> listener) {
-            this(new AuditableRestRequest(auditTrail, failureHandler, threadContext, request), null, fallbackToAnonymous, listener);
+            this(new AuditableRestRequest(auditTrailService.get(), failureHandler, threadContext, request),
+                 null, fallbackToAnonymous, listener);
         }
 
         Authenticator(String action, TransportMessage message, boolean fallbackToAnonymous, ActionListener<Authentication> listener) {
-            this(new AuditableTransportRequest(auditTrail, failureHandler, threadContext, action, message),
+            this(new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, message),
                 null, fallbackToAnonymous, listener);
         }
 
         Authenticator(String action, TransportMessage message, User fallbackUser, ActionListener<Authentication> listener) {
-            this(new AuditableTransportRequest(auditTrail, failureHandler, threadContext, action, message),
+            this(new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, message),
                 Objects.requireNonNull(fallbackUser, "Fallback user cannot be null"), false, listener);
         }
 

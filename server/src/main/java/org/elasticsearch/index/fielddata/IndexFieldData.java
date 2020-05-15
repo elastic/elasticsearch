@@ -54,7 +54,7 @@ import java.io.IOException;
  * Thread-safe utility class that allows to get per-segment values via the
  * {@link #load(LeafReaderContext)} method.
  */
-public interface IndexFieldData<FD extends AtomicFieldData> extends IndexComponent {
+public interface IndexFieldData<FD extends LeafFieldData> extends IndexComponent {
 
     /**
      * The field name.
@@ -251,7 +251,7 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
                              CircuitBreakerService breakerService, MapperService mapperService);
     }
 
-    interface Global<FD extends AtomicFieldData> extends IndexFieldData<FD> {
+    interface Global<FD extends LeafFieldData> extends IndexFieldData<FD> {
 
         IndexFieldData<FD> loadGlobal(DirectoryReader indexReader);
 

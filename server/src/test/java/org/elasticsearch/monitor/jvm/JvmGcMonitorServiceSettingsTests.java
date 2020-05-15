@@ -33,8 +33,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
-import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
@@ -62,11 +62,12 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
 
     public void testNegativeSetting() throws InterruptedException {
         String collector = randomAlphaOfLength(5);
-        Settings settings = Settings.builder().put("monitor.jvm.gc.collector." + collector + ".warn", "-" + randomTimeValue()).build();
+        final String timeValue = "-" + randomTimeValue();
+        Settings settings = Settings.builder().put("monitor.jvm.gc.collector." + collector + ".warn", timeValue).build();
         execute(settings, (command, interval, name) -> null, e -> {
             assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), allOf(containsString("invalid gc_threshold"),
-                containsString("for [monitor.jvm.gc.collector." + collector + ".")));
+            assertThat(e.getMessage(), equalTo("failed to parse setting [monitor.jvm.gc.collector." + collector + ".warn] " +
+                "with value [" + timeValue + "] as a time value"));
         }, true, null);
     }
 

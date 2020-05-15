@@ -22,16 +22,10 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 
@@ -79,16 +73,6 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
         return type;
     }
 
-    /**
-     * Validates the state of this factory (makes sure the factory is properly
-     * configured)
-     */
-    @Override
-    public final void validate(AggregatorFactory parent, Collection<AggregationBuilder> factories,
-            Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
-        doValidate(parent, factories, pipelineAggregatorFactories);
-    }
-
     protected abstract PipelineAggregator createInternal(Map<String, Object> metaData);
 
     /**
@@ -100,32 +84,6 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
     public final PipelineAggregator create() {
         PipelineAggregator aggregator = createInternal(this.metaData);
         return aggregator;
-    }
-
-    public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> factories,
-            Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
-    }
-
-    /**
-     * Validates pipeline aggregations that need sequentially ordered data.
-     */
-    public static void validateSequentiallyOrderedParentAggs(AggregatorFactory parent, String type, String name) {
-        if ((parent instanceof HistogramAggregatorFactory || parent instanceof DateHistogramAggregatorFactory
-                || parent instanceof AutoDateHistogramAggregatorFactory) == false) {
-            throw new IllegalStateException(
-                    type + " aggregation [" + name + "] must have a histogram, date_histogram or auto_date_histogram as parent");
-        }
-        if (parent instanceof HistogramAggregatorFactory) {
-            HistogramAggregatorFactory histoParent = (HistogramAggregatorFactory) parent;
-            if (histoParent.minDocCount() != 0) {
-                throw new IllegalStateException("parent histogram of " + type + " aggregation [" + name + "] must have min_doc_count of 0");
-            }
-        } else if (parent instanceof DateHistogramAggregatorFactory) {
-            DateHistogramAggregatorFactory histoParent = (DateHistogramAggregatorFactory) parent;
-            if (histoParent.minDocCount() != 0) {
-                throw new IllegalStateException("parent histogram of " + type + " aggregation [" + name + "] must have min_doc_count of 0");
-            }
-        }
     }
 
     @SuppressWarnings("unchecked")

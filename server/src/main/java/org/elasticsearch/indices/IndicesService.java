@@ -126,6 +126,7 @@ import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -227,6 +228,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final EsThreadPoolExecutor danglingIndicesThreadPoolExecutor;
     private final Set<Index> danglingIndicesToWrite = Sets.newConcurrentHashSet();
     private final boolean nodeWriteDanglingIndicesInfo;
+    private ValuesSourceRegistry valuesSourceRegistry;
 
 
     @Override
@@ -241,12 +243,13 @@ public class IndicesService extends AbstractLifecycleComponent
                           IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService, BigArrays bigArrays,
                           ScriptService scriptService, ClusterService clusterService, Client client, MetaStateService metaStateService,
                           Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
-                          Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories) {
+                          Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories, ValuesSourceRegistry valuesSourceRegistry) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
         this.nodeEnv = nodeEnv;
         this.xContentRegistry = xContentRegistry;
+        this.valuesSourceRegistry = valuesSourceRegistry;
         this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
         this.analysisRegistry = analysisRegistry;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -573,6 +576,41 @@ public class IndicesService extends AbstractLifecycleComponent
         }
     }
 
+    public <T, E extends Exception> T withTempIndexService(final IndexMetaData indexMetaData,
+                                                           CheckedFunction<IndexService, T, E> indexServiceConsumer) throws IOException, E {
+        final Index index = indexMetaData.getIndex();
+        if (hasIndex(index)) {
+            throw new ResourceAlreadyExistsException(index);
+        }
+        List<IndexEventListener> finalListeners = List.of(
+            // double check that shard is not created.
+            new IndexEventListener() {
+                @Override
+                public void beforeIndexShardCreated(ShardId shardId, Settings indexSettings) {
+                    assert false : "temp index should not trigger shard creation";
+                    throw new ElasticsearchException("temp index should not trigger shard creation [{}]", index);
+                }
+
+                @Override
+                public void onStoreCreated(ShardId shardId) {
+                    assert false : "temp index should not trigger store creation";
+                    throw new ElasticsearchException("temp index should not trigger store creation [{}]", index);
+                }
+            }
+        );
+        final IndexService indexService =
+            createIndexService(
+                CREATE_INDEX,
+                indexMetaData,
+                indicesQueryCache,
+                indicesFieldDataCache,
+                finalListeners,
+                indexingMemoryController);
+        try (Closeable dummy = () -> indexService.close("temp", false)) {
+            return indexServiceConsumer.apply(indexService);
+        }
+    }
+
     /**
      * This creates a new IndexService without registering it
      */
@@ -615,7 +653,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 mapperRegistry,
                 indicesFieldDataCache,
                 namedWriteableRegistry,
-                this::isIdFieldDataEnabled
+                this::isIdFieldDataEnabled,
+                valuesSourceRegistry
         );
     }
 
@@ -990,8 +1029,7 @@ public class IndicesService extends AbstractLifecycleComponent
     public enum ShardDeletionCheckResult {
         FOLDER_FOUND_CAN_DELETE, // shard data exists and can be deleted
         STILL_ALLOCATED, // the shard is still allocated / active on this node
-        NO_FOLDER_FOUND, // the shards data locations do not exist
-        NO_LOCAL_STORAGE // node does not have local storage (see DiscoveryNode.nodeRequiresLocalStorage)
+        NO_FOLDER_FOUND // the shards data locations do not exist
     }
 
     /**
@@ -1003,25 +1041,21 @@ public class IndicesService extends AbstractLifecycleComponent
     public ShardDeletionCheckResult canDeleteShardContent(ShardId shardId, IndexSettings indexSettings) {
         assert shardId.getIndex().equals(indexSettings.getIndex());
         final IndexService indexService = indexService(shardId.getIndex());
-        if (nodeEnv.hasNodeFile()) {
-            final boolean isAllocated = indexService != null && indexService.hasShard(shardId.id());
-            if (isAllocated) {
-                return ShardDeletionCheckResult.STILL_ALLOCATED; // we are allocated - can't delete the shard
-            } else if (indexSettings.hasCustomDataPath()) {
-                // lets see if it's on a custom path (return false if the shared doesn't exist)
-                // we don't need to delete anything that is not there
-                return Files.exists(nodeEnv.resolveCustomLocation(indexSettings.customDataPath(), shardId)) ?
-                        ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE :
-                        ShardDeletionCheckResult.NO_FOLDER_FOUND;
-            } else {
-                // lets see if it's path is available (return false if the shared doesn't exist)
-                // we don't need to delete anything that is not there
-                return FileSystemUtils.exists(nodeEnv.availableShardPaths(shardId)) ?
-                        ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE :
-                        ShardDeletionCheckResult.NO_FOLDER_FOUND;
-            }
+        final boolean isAllocated = indexService != null && indexService.hasShard(shardId.id());
+        if (isAllocated) {
+            return ShardDeletionCheckResult.STILL_ALLOCATED; // we are allocated - can't delete the shard
+        } else if (indexSettings.hasCustomDataPath()) {
+            // lets see if it's on a custom path (return false if the shared doesn't exist)
+            // we don't need to delete anything that is not there
+            return Files.exists(nodeEnv.resolveCustomLocation(indexSettings.customDataPath(), shardId)) ?
+                ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE :
+                ShardDeletionCheckResult.NO_FOLDER_FOUND;
         } else {
-            return ShardDeletionCheckResult.NO_LOCAL_STORAGE;
+            // lets see if it's path is available (return false if the shared doesn't exist)
+            // we don't need to delete anything that is not there
+            return FileSystemUtils.exists(nodeEnv.availableShardPaths(shardId)) ?
+                ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE :
+                ShardDeletionCheckResult.NO_FOLDER_FOUND;
         }
     }
 

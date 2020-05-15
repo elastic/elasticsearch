@@ -221,7 +221,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         return PARSER.apply(parser, null).buildResponse();
     }
 
-    private static Object parseFailure(XContentParser parser) throws IOException {
+    public static Object parseFailure(XContentParser parser) throws IOException {
        ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
        Token token;
        String index = null;

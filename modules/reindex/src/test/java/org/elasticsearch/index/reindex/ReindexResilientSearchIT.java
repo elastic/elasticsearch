@@ -103,7 +103,7 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
         StartReindexTaskAction.Response response = client().execute(StartReindexTaskAction.INSTANCE, request).get();
 
         TaskId taskId = new TaskId(response.getEphemeralTaskId());
-        String persistentTaskId = response.getPersistentTaskId();
+        String persistentTaskId = response.getId();
 
         Set<String> reindexNodeNames = Arrays.stream(internalCluster().getNodeNames())
             .map(name -> Tuple.tuple(internalCluster().getInstance(NodeClient.class, name).getLocalNodeId(), name))
@@ -150,8 +150,6 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
 
         Map<String, Object> reindexResponse = client().admin().cluster().prepareGetTask(taskId).setWaitForCompletion(true)
             .get(TimeValue.timeValueSeconds(30)).getTask().getResponseAsMap();
-        // todo: this assert fails sometimes due to missing retry on transport closed
-//        assertThat(bulkByScrollResponse.getBulkFailures(), Matchers.empty());
         assertEquals(Collections.emptyList(), reindexResponse.get("failures"));
 
         assertSameDocs(numberOfDocuments, "test", "dest");
@@ -160,7 +158,8 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
     private void assertSameDocs(int numberOfDocuments, String... indices) {
         refresh(indices);
         SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().size(0)
-            .aggregation(new TermsAggregationBuilder("unique_count", ValueType.LONG)
+            .aggregation(new TermsAggregationBuilder("unique_count")
+                .userValueTypeHint(ValueType.LONG)
                 .field("data")
                 .order(BucketOrder.count(true))
                 .size(numberOfDocuments + 1)

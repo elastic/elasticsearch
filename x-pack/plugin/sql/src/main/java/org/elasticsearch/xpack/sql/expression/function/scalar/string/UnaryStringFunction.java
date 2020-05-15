@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
@@ -56,7 +57,7 @@ public abstract class UnaryStringFunction extends UnaryScalarFunction {
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
         //TODO change this to use _source instead of the exact form (aka field.keyword for text fields)
-        return new ScriptTemplate(processScript("doc[{}].value"),
+        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
                 paramsBuilder().variable(field.exactAttribute().name()).build(),
                 dataType());
     }

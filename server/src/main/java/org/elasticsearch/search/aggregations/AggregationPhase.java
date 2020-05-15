@@ -133,17 +133,16 @@ public class AggregationPhase implements SearchPhase {
             }
         }
         List<PipelineAggregator> pipelineAggregators = context.aggregations().factories().createPipelineAggregators();
-        List<SiblingPipelineAggregator> siblingPipelineAggregators = new ArrayList<>(pipelineAggregators.size());
         for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
-            if (pipelineAggregator instanceof SiblingPipelineAggregator) {
-                siblingPipelineAggregators.add((SiblingPipelineAggregator) pipelineAggregator);
-            } else {
+            if (false == pipelineAggregator instanceof SiblingPipelineAggregator) {
+                // TODO move this to request validation after #53669
                 throw new AggregationExecutionException("Invalid pipeline aggregation named [" + pipelineAggregator.name()
                     + "] of type [" + pipelineAggregator.getWriteableName() + "]. Only sibling pipeline aggregations are "
                     + "allowed at the top level");
             }
         }
-        context.queryResult().aggregations(new InternalAggregations(aggregations, siblingPipelineAggregators));
+        context.queryResult().aggregations(new InternalAggregations(aggregations,
+                context.request().source().aggregations()::buildPipelineTree));
 
         // disable aggregations so that they don't run on next pages in case of scrolling
         context.aggregations(null);

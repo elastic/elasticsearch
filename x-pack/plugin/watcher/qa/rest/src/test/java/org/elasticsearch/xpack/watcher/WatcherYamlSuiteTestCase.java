@@ -14,11 +14,11 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -53,6 +53,11 @@ public abstract class WatcherYamlSuiteTestCase extends ESClientYamlSuiteTestCase
                 case "starting":
                     throw new AssertionError("waiting until starting state reached started state");
                 case "started":
+                    int watcherCount = (int) response.evaluate("stats.0.watch_count");
+                    if (watcherCount > 0) {
+                        logger.info("expected 0 active watches, but got [{}], deleting watcher indices again", watcherCount);
+                        deleteWatcherIndices();
+                    }
                     // all good here, we are done
                     break;
                 default:
@@ -70,8 +75,6 @@ public abstract class WatcherYamlSuiteTestCase extends ESClientYamlSuiteTestCase
             String state = (String) response.evaluate("stats.0.watcher_state");
             switch (state) {
                 case "stopped":
-                    int watcherCount = (int) response.evaluate("stats.0.watch_count");
-                    assertThat(watcherCount, equalTo(0));
                     // all good here, we are done
                     break;
                 case "stopping":
@@ -88,7 +91,10 @@ public abstract class WatcherYamlSuiteTestCase extends ESClientYamlSuiteTestCase
                     throw new AssertionError("unknown state[" + state + "]");
             }
         }, 60, TimeUnit.SECONDS);
+        deleteWatcherIndices();
+    }
 
+    private static void deleteWatcherIndices() throws IOException {
         Request deleteWatchesIndexRequest = new Request("DELETE", ".watches");
         deleteWatchesIndexRequest.addParameter("ignore_unavailable", "true");
         adminClient().performRequest(deleteWatchesIndexRequest);

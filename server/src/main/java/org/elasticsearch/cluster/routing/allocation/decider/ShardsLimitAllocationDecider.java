@@ -109,28 +109,20 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
                     indexShardLimit, clusterShardLimit);
         }
 
-        int indexShardCount = 0;
-        int nodeShardCount = 0;
-        for (ShardRouting nodeShard : node) {
-            // don't count relocating shards...
-            if (nodeShard.relocating()) {
-                continue;
-            }
-            nodeShardCount++;
-            if (nodeShard.index().equals(shardRouting.index())) {
-                indexShardCount++;
-            }
-        }
+        final int nodeShardCount = node.numberOfOwningShards();
 
         if (clusterShardLimit > 0 && decider.test(nodeShardCount, clusterShardLimit)) {
             return allocation.decision(Decision.NO, NAME,
                 "too many shards [%d] allocated to this node, cluster setting [%s=%d]",
                 nodeShardCount, CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), clusterShardLimit);
         }
-        if (indexShardLimit > 0 && decider.test(indexShardCount, indexShardLimit)) {
-            return allocation.decision(Decision.NO, NAME,
-                "too many shards [%d] allocated to this node for index [%s], index setting [%s=%d]",
-                indexShardCount, shardRouting.getIndexName(), INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), indexShardLimit);
+        if (indexShardLimit > 0) {
+            final int indexShardCount = node.numberOfOwningShardsForIndex(shardRouting.index());
+            if (decider.test(indexShardCount, indexShardLimit)) {
+                return allocation.decision(Decision.NO, NAME,
+                    "too many shards [%d] allocated to this node for index [%s], index setting [%s=%d]",
+                    indexShardCount, shardRouting.getIndexName(), INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), indexShardLimit);
+            }
         }
         return allocation.decision(Decision.YES, NAME,
             "the shard count [%d] for this node is under the index limit [%d] and cluster level node limit [%d]",

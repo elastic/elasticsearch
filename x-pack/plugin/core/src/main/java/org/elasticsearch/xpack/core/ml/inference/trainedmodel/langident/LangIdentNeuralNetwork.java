@@ -142,7 +142,7 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
         return new ClassificationInferenceResults(topClasses.v1(),
             LANGUAGE_NAMES.get(topClasses.v1()),
             topClasses.v2(),
-            Collections.emptyMap(),
+            Collections.emptyList(),
             classificationConfig);
     }
 
@@ -170,7 +170,7 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
     }
 
     @Override
-    public Map<String, Double> featureImportance(Map<String, Object> fields, Map<String, String> featureDecoder) {
+    public Map<String, double[]> featureImportance(Map<String, Object> fields, Map<String, String> featureDecoder) {
         throw new UnsupportedOperationException("[lang_ident] does not support feature importance");
     }
 

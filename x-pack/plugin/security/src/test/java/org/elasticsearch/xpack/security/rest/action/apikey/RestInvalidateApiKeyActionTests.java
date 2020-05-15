@@ -54,6 +54,7 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
                 .build();
         threadPool = new ThreadPool(settings);
         when(mockLicenseState.isSecurityAvailable()).thenReturn(true);
+        when(mockLicenseState.isSecurityEnabled()).thenReturn(true);
         when(mockLicenseState.isApiKeyServiceAllowed()).thenReturn(true);
     }
 

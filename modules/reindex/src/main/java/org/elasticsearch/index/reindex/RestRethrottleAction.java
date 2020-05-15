@@ -42,9 +42,9 @@ public class RestRethrottleAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(POST, "/_update_by_query/{taskId}/_rethrottle"),
-            new Route(POST, "/_delete_by_query/{taskId}/_rethrottle"),
-            new Route(POST, "/_reindex/{taskId}/_rethrottle"));
+            new Route(POST, "/_update_by_query/{id}/_rethrottle"),
+            new Route(POST, "/_delete_by_query/{id}/_rethrottle"),
+            new Route(POST, "/_reindex/{id}/_rethrottle"));
     }
 
     @Override
@@ -54,7 +54,7 @@ public class RestRethrottleAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) {
-        String taskId = request.param("taskId");
+        String taskId = request.param("id");
         Float requestsPerSecond = AbstractBaseReindexRestHandler.parseRequestsPerSecond(request);
         if (requestsPerSecond == null) {
             throw new IllegalArgumentException("requests_per_second is a required parameter");

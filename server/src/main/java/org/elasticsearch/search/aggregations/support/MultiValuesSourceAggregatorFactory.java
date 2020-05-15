@@ -31,13 +31,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public abstract class MultiValuesSourceAggregatorFactory<VS extends ValuesSource>
-        extends AggregatorFactory {
+public abstract class MultiValuesSourceAggregatorFactory extends AggregatorFactory {
 
-    protected final Map<String, ValuesSourceConfig<VS>> configs;
+    protected final Map<String, ValuesSourceConfig> configs;
     protected final DocValueFormat format;
 
-    public MultiValuesSourceAggregatorFactory(String name, Map<String, ValuesSourceConfig<VS>> configs,
+    public MultiValuesSourceAggregatorFactory(String name, Map<String, ValuesSourceConfig> configs,
                                               DocValueFormat format, QueryShardContext queryShardContext,
                                               AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
                                               Map<String, Object> metaData) throws IOException {
@@ -62,7 +61,7 @@ public abstract class MultiValuesSourceAggregatorFactory<VS extends ValuesSource
                                                     List<PipelineAggregator> pipelineAggregators,
                                                     Map<String, Object> metaData) throws IOException;
 
-    protected abstract Aggregator doCreateInternal(SearchContext searchContext, Map<String, ValuesSourceConfig<VS>> configs,
+    protected abstract Aggregator doCreateInternal(SearchContext searchContext, Map<String, ValuesSourceConfig> configs,
                                                    DocValueFormat format, Aggregator parent, boolean collectsFromSingleBucket,
                                                    List<PipelineAggregator> pipelineAggregators,
                                                    Map<String, Object> metaData) throws IOException;

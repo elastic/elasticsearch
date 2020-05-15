@@ -104,6 +104,40 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     }
 
     /*
+     *    "constant_keyword_field": {
+     *       "type": "constant_keyword",
+     *       "value": "foo"
+     *    }
+     */
+    public void testConstantKeywordField() throws IOException {
+        String value = randomAlphaOfLength(20);
+        // _source for `constant_keyword` fields doesn't matter, as they should be taken from docvalue_fields
+        boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
+        boolean enableSource = randomBoolean();          // enable _source at index level
+        
+        Map<String, Object> indexProps = new HashMap<>(1);
+        indexProps.put("_source", enableSource);
+        
+        Map<String, Map<String, Object>> fieldProps = null;
+        if (randomBoolean()) {
+            fieldProps = new HashMap<>(1);
+            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProp.put("value", value);
+            fieldProps.put("constant_keyword_field", fieldProp);
+        }
+        
+        createIndexWithFieldTypeAndProperties("constant_keyword", fieldProps, explicitSourceSetting ? indexProps : null);
+        index("{\"constant_keyword_field\":\"" + value + "\"}");
+        
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", Arrays.asList(
+                columnInfo("plain", "constant_keyword_field", "constant_keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)
+        ));
+        expected.put("rows", singletonList(singletonList(value)));
+        assertResponse(expected, runSql("SELECT constant_keyword_field FROM test"));
+    }
+
+    /*
      *    "long/integer/short/byte_field": {
      *       "type": "long/integer/short/byte"
      *    }

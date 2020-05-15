@@ -1,7 +1,11 @@
 {
     "properties" : {
-        "event_type" : {
-            "type" : "keyword"
+        "event" : {
+            "properties" : {
+                "category" : {
+                    "type" : "keyword"
+                }
+            }
         },
         "user_name" : {
             "type" : "keyword"

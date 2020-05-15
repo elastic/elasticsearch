@@ -13,6 +13,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -23,6 +24,8 @@ import org.elasticsearch.search.sort.SortBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.stream.Collectors.toList;
 
 public class TopMetricsAggregatorFactory extends AggregatorFactory {
     /**
@@ -35,40 +38,35 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
 
     private final List<SortBuilder<?>> sortBuilders;
     private final int size;
-    private final MultiValuesSourceFieldConfig metricField;
+    private final List<MultiValuesSourceFieldConfig> metricFields;
 
     public TopMetricsAggregatorFactory(String name, QueryShardContext queryShardContext, AggregatorFactory parent,
             Builder subFactoriesBuilder, Map<String, Object> metaData, List<SortBuilder<?>> sortBuilders,
-            int size, MultiValuesSourceFieldConfig metricField) throws IOException {
+            int size, List<MultiValuesSourceFieldConfig> metricFields) throws IOException {
         super(name, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.sortBuilders = sortBuilders;
         this.size = size;
-        this.metricField = metricField;
+        this.metricFields = metricFields;
     }
 
     @Override
     protected TopMetricsAggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        ValuesSourceConfig<ValuesSource.Numeric> metricFieldSource = ValuesSourceConfig.resolve(queryShardContext, ValueType.NUMERIC,
-                metricField.getFieldName(), metricField.getScript(), metricField.getMissing(), metricField.getTimeZone(), null);
-        ValuesSource.Numeric metricValueSource = metricFieldSource.toValuesSource(queryShardContext);
         int maxBucketSize = MAX_BUCKET_SIZE.get(searchContext.getQueryShardContext().getIndexSettings().getSettings());
         if (size > maxBucketSize) {
             throw new IllegalArgumentException("[top_metrics.size] must not be more than [" + maxBucketSize + "] but was [" + size
                     + "]. This limit can be set by changing the [" + MAX_BUCKET_SIZE.getKey()
                     + "] index level setting.");
         }
-        if (metricValueSource == null) {
-            return createUnmapped(searchContext, parent, pipelineAggregators, metaData);
-        }
-        return new TopMetricsAggregator(name, searchContext, parent, pipelineAggregators, metaData, size, metricField.getFieldName(),
-                sortBuilders.get(0), metricValueSource);
+        List<TopMetricsAggregator.MetricSource> metricSources = metricFields.stream().map(config -> {
+                    ValuesSourceConfig resolved = ValuesSourceConfig.resolve(
+                            searchContext.getQueryShardContext(), ValueType.NUMERIC,
+                            config.getFieldName(), config.getScript(), config.getMissing(), config.getTimeZone(), null,
+                        CoreValuesSourceType.NUMERIC, TopMetricsAggregationBuilder.NAME);
+                    return new TopMetricsAggregator.MetricSource(config.getFieldName(), resolved.format(),
+                        (ValuesSource.Numeric) resolved.toValuesSource());
+                }).collect(toList());
+        return new TopMetricsAggregator(name, searchContext, parent, pipelineAggregators, metaData, size,
+                sortBuilders.get(0), metricSources);
     }
-
-    private TopMetricsAggregator createUnmapped(SearchContext searchContext, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new TopMetricsAggregator(name, searchContext, parent, pipelineAggregators, metaData, size, metricField.getFieldName(),
-                null, null);
-    }
-
 }

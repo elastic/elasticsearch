@@ -194,15 +194,17 @@ public class MlJobIT extends ESRestTestCase {
         // appear immediately so wait here.
         assertBusy(() -> {
             try {
-                String aliasesResponse = EntityUtils.toString(client().performRequest(new Request("GET", "/_aliases")).getEntity());
-                assertThat(aliasesResponse,
-                        containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName("custom-" + indexName) + "\":{\"aliases\":{"));
+                String aliasesResponse = getAliases();
+                assertThat(aliasesResponse, containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName("custom-" + indexName)
+                        + "\":{\"aliases\":{"));
                 assertThat(aliasesResponse, containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId1)
-                        + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId1 + "\",\"boost\":1.0}}}}"));
-                assertThat(aliasesResponse, containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId1) + "\":{}"));
+                        + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId1 + "\",\"boost\":1.0}}},\"is_hidden\":true}"));
+                assertThat(aliasesResponse, containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId1)
+                        + "\":{\"is_hidden\":true}"));
                 assertThat(aliasesResponse, containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId2)
-                        + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId2 + "\",\"boost\":1.0}}}}"));
-                assertThat(aliasesResponse, containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId2) + "\":{}"));
+                        + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId2 + "\",\"boost\":1.0}}},\"is_hidden\":true}"));
+                assertThat(aliasesResponse, containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId2)
+                        + "\":{\"is_hidden\":true}"));
             } catch (ResponseException e) {
                 throw new AssertionError(e);
             }
@@ -270,7 +272,7 @@ public class MlJobIT extends ESRestTestCase {
         client().performRequest(new Request("DELETE", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId1));
 
         // check that indices still exist, but no longer have job1 entries and aliases are gone
-        responseAsString = EntityUtils.toString(client().performRequest(new Request("GET", "/_aliases")).getEntity());
+        responseAsString = getAliases();
         assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId1))));
         assertThat(responseAsString, containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId2))); //job2 still exists
 
@@ -286,7 +288,7 @@ public class MlJobIT extends ESRestTestCase {
 
         // Delete the second job and verify aliases are gone, and original concrete/custom index is gone
         client().performRequest(new Request("DELETE", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId2));
-        responseAsString = EntityUtils.toString(client().performRequest(new Request("GET", "/_aliases")).getEntity());
+        responseAsString = getAliases();
         assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId2))));
 
         refreshAllIndices();
@@ -626,6 +628,7 @@ public class MlJobIT extends ESRestTestCase {
         extraIndex1.setJsonEntity("{\n" +
             "    \"aliases\" : {\n" +
             "        \"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId)+ "\" : {\n" +
+            "            \"is_hidden\" : true,\n" +
             "            \"filter\" : {\n" +
             "                \"term\" : {\"" + Job.ID + "\" : \"" + jobId + "\" }\n" +
             "            }\n" +
@@ -637,6 +640,7 @@ public class MlJobIT extends ESRestTestCase {
         extraIndex2.setJsonEntity("{\n" +
             "    \"aliases\" : {\n" +
             "        \"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId)+ "\" : {\n" +
+            "            \"is_hidden\" : true,\n" +
             "            \"filter\" : {\n" +
             "                \"term\" : {\"" + Job.ID + "\" : \"" + jobId + "\" }\n" +
             "            }\n" +
@@ -784,6 +788,9 @@ public class MlJobIT extends ESRestTestCase {
             assertNull(recreationException.get().getMessage(), recreationException.get());
         }
 
+        String expectedReadAliasString = "\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId)
+            + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId + "\",\"boost\":1.0}}},\"is_hidden\":true}";
+        String expectedWriteAliasString = "\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId) + "\":{\"is_hidden\":true}";
         try {
             // The idea of the code above is that the deletion is sufficiently time-consuming that
             // all threads enter the deletion call before the first one exits it.  Usually this happens,
@@ -796,9 +803,8 @@ public class MlJobIT extends ESRestTestCase {
             // if there's been a race between deletion and recreation these are what will be missing.
             String aliases = getAliases();
 
-            assertThat(aliases, containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId)
-                    + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId + "\",\"boost\":1.0}}}}"));
-            assertThat(aliases, containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId) + "\":{}"));
+            assertThat(aliases, containsString(expectedReadAliasString));
+            assertThat(aliases, containsString(expectedWriteAliasString));
 
 
         } catch (ResponseException missingJobException) {
@@ -807,9 +813,8 @@ public class MlJobIT extends ESRestTestCase {
 
             // The job aliases should be deleted
             String aliases = getAliases();
-            assertThat(aliases, not(containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId)
-                    + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId + "\",\"boost\":1.0}}}}")));
-            assertThat(aliases, not(containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId) + "\":{}")));
+            assertThat(aliases, not(containsString(expectedReadAliasString)));
+            assertThat(aliases, not(containsString(expectedWriteAliasString)));
         }
 
         assertEquals(numThreads, recreationGuard.get());

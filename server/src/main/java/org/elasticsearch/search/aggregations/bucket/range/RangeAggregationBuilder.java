@@ -28,9 +28,9 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
 import java.util.Map;
@@ -38,10 +38,10 @@ import java.util.Map;
 public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregationBuilder, Range> {
     public static final String NAME = "range";
 
-    private static final ObjectParser<RangeAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<RangeAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, RangeAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(RangeAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
         PARSER.declareBoolean(RangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
 
         PARSER.declareObjectArray((agg, ranges) -> {
@@ -51,12 +51,12 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
         }, (p, c) -> RangeAggregationBuilder.parseRange(p), RangeAggregator.RANGES_FIELD);
     }
 
-    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new RangeAggregationBuilder(aggregationName), null);
-    }
-
     private static Range parseRange(XContentParser parser) throws IOException {
         return Range.fromXContent(parser);
+    }
+
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        AbstractRangeAggregatorFactory.registerAggregators(valuesSourceRegistry, NAME);
     }
 
     public RangeAggregationBuilder(String name) {
@@ -146,7 +146,7 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     }
 
     @Override
-    protected RangeAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<Numeric> config,
+    protected RangeAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
                                                 AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         // We need to call processRanges here so they are parsed before we make the decision of whether to cache the request
         Range[] ranges = processRanges(range -> {

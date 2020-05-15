@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -80,6 +81,8 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
 
     private TransportService transportService;
     private ClusterStateObserver clusterStateObserver;
+    private ClusterSettings clusterSettings;
+    private int staticMaximum;
 
     @BeforeClass
     public static void createThreadPoolAndClusterService() {
@@ -116,8 +119,18 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         transportService = transport.createTransportService(Settings.EMPTY, threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
 
-        new TransportAddVotingConfigExclusionsAction(transportService, clusterService, threadPool, new ActionFilters(emptySet()),
-            new IndexNameExpressionResolver()); // registers action
+        final Settings.Builder nodeSettingsBuilder = Settings.builder();
+        if (randomBoolean()) {
+            staticMaximum = between(5, 15);
+            nodeSettingsBuilder.put(MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING.getKey(), staticMaximum);
+        } else {
+            staticMaximum = MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING.get(Settings.EMPTY);
+        }
+        final Settings nodeSettings = nodeSettingsBuilder.build();
+        clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        new TransportAddVotingConfigExclusionsAction(nodeSettings, clusterSettings, transportService, clusterService, threadPool,
+            new ActionFilters(emptySet()), new IndexNameExpressionResolver()); // registers action
 
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -307,20 +320,32 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
     }
 
     public void testReturnsErrorIfMaximumExclusionCountExceeded() throws InterruptedException {
-        final MetaData.Builder metaDataBuilder = MetaData.builder(clusterService.state().metaData()).persistentSettings(
-                Settings.builder().put(clusterService.state().metaData().persistentSettings())
-                        .put(MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING.getKey(), 2).build());
+        final MetaData.Builder metaDataBuilder = MetaData.builder(clusterService.state().metaData());
         CoordinationMetaData.Builder coordinationMetaDataBuilder =
-                CoordinationMetaData.builder(clusterService.state().coordinationMetaData())
-                        .addVotingConfigExclusion(localNodeExclusion);
+            CoordinationMetaData.builder(clusterService.state().coordinationMetaData())
+                .addVotingConfigExclusion(localNodeExclusion);
+
+        final int actualMaximum;
+        if (randomBoolean()) {
+            actualMaximum = staticMaximum;
+        } else {
+            actualMaximum = between(2, 15);
+            clusterSettings.applySettings(Settings.builder().put(clusterService.state().metaData().persistentSettings())
+                .put(MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING.getKey(), actualMaximum).build());
+        }
+
+        for (int i = 2; i < actualMaximum; i++) {
+            coordinationMetaDataBuilder.addVotingConfigExclusion(
+                new VotingConfigExclusion(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+        }
 
         final int existingCount, newCount;
         if (randomBoolean()) {
             coordinationMetaDataBuilder.addVotingConfigExclusion(otherNode1Exclusion);
-            existingCount = 2;
+            existingCount = actualMaximum;
             newCount = 1;
         } else {
-            existingCount = 1;
+            existingCount = actualMaximum - 1;
             newCount = 2;
         }
 
@@ -345,7 +370,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         assertThat(rootCause, instanceOf(IllegalArgumentException.class));
         assertThat(rootCause.getMessage(), equalTo("add voting config exclusions request for [other*] would add [" + newCount +
             "] exclusions to the existing [" + existingCount +
-            "] which would exceed the maximum of [2] set by [cluster.max_voting_config_exclusions]"));
+            "] which would exceed the maximum of [" + actualMaximum + "] set by [cluster.max_voting_config_exclusions]"));
     }
 
     public void testTimesOut() throws InterruptedException {

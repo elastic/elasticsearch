@@ -10,17 +10,16 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
-import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.Before;
 
-import java.util.Collection;
 import java.util.List;
+
+import static org.hamcrest.Matchers.is;
 
 public class AnnotationIndexIT extends MlSingleNodeTestCase {
 
@@ -32,11 +31,6 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
         newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         return newSettings.build();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(LocalStateMachineLearning.class);
     }
 
     @Before
@@ -80,6 +74,9 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
             .getAliases();
         if (aliases != null) {
             for (ObjectObjectCursor<String, List<AliasMetaData>> entry : aliases) {
+                for (AliasMetaData aliasMetaData : entry.value) {
+                    assertThat("Annotations aliases should be hidden but are not: " + aliases, aliasMetaData.isHidden(), is(true));
+                }
                 count += entry.value.size();
             }
         }

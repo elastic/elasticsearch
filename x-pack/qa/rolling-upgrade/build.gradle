@@ -3,6 +3,7 @@ import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
+apply from : "$rootDir/gradle/bwc-test.gradle"
 
 dependencies {
   testCompile project(':x-pack:qa')
@@ -21,11 +22,6 @@ forbiddenPatterns {
 }
 
 String outputDir = "${buildDir}/generated-resources/${project.name}"
-
-tasks.register("bwcTest") {
-  description = 'Runs backwards compatibility tests.'
-  group = 'verification'
-}
 
 task copyTestNodeKeyMaterial(type: Copy) {
   from project(':x-pack:plugin:core').files('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
@@ -148,22 +144,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
   }
 
-  tasks.register("${baseName}#bwcTest") {
+  tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn "${baseName}#upgradedClusterTest"
   }
-
-  if (project.bwc_tests_enabled) {
-    bwcTest.dependsOn("${baseName}#bwcTest")
-  }
 }
-
-task bwcTestSnapshots {
-  if (project.bwc_tests_enabled) {
-    for (final def version : bwcVersions.unreleasedWireCompatible) {
-      dependsOn "v${version}#bwcTest"
-    }
-  }
-}
-check.dependsOn(bwcTestSnapshots)
-
-test.enabled = false

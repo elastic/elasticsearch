@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -289,10 +289,10 @@ public class SecurityIndexManager implements ClusterStateListener {
      * that if supplied with an alias, the alias resolves to at most one concrete index.
      */
     private static IndexMetaData resolveConcreteIndex(final String indexOrAliasName, final MetaData metaData) {
-        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(indexOrAliasName);
-        if (aliasOrIndex != null) {
-            final List<IndexMetaData> indices = aliasOrIndex.getIndices();
-            if (aliasOrIndex.isAlias() && indices.size() > 1) {
+        final IndexAbstraction indexAbstraction = metaData.getIndicesLookup().get(indexOrAliasName);
+        if (indexAbstraction != null) {
+            final List<IndexMetaData> indices = indexAbstraction.getIndices();
+            if (indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX && indices.size() > 1) {
                 throw new IllegalStateException("Alias [" + indexOrAliasName + "] points to more than one index: " +
                         indices.stream().map(imd -> imd.getIndex().getName()).collect(Collectors.toList()));
             }

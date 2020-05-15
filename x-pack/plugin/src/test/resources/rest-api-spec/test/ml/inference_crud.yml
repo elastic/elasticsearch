@@ -313,7 +313,7 @@ setup:
                   "model_id" : "a-regression-model-0",
                   "inference_config": {"regression": {}},
                   "target_field": "regression_field",
-                  "field_mappings": {}
+                  "field_map": {}
                 }
               }
             ]

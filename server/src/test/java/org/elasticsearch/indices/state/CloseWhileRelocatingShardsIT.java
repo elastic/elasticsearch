@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
@@ -117,7 +118,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             indices[i] = indexName;
         }
 
-        ensureGreen(indices);
+        ensureGreen(TimeValue.timeValueSeconds(60L),indices);
         assertAcked(client().admin().cluster().prepareUpdateSettings()
             .setTransientSettings(Settings.builder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), Rebalance.NONE.toString())));

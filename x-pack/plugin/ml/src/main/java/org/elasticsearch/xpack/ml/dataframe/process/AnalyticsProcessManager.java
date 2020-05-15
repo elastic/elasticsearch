@@ -11,6 +11,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
@@ -22,8 +23,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -31,16 +33,19 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
-import org.elasticsearch.xpack.ml.dataframe.process.customprocessing.CustomProcessor;
-import org.elasticsearch.xpack.ml.dataframe.process.customprocessing.CustomProcessorFactory;
+import org.elasticsearch.xpack.ml.dataframe.process.crossvalidation.CrossValidationSplitter;
+import org.elasticsearch.xpack.ml.dataframe.process.crossvalidation.CrossValidationSplitterFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
+import org.elasticsearch.xpack.ml.dataframe.stats.DataCountsTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
+import org.elasticsearch.xpack.ml.dataframe.stats.StatsPersister;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -103,6 +108,8 @@ public class AnalyticsProcessManager {
             ProcessContext processContext = new ProcessContext(config);
             synchronized (processContextByAllocation) {
                 if (task.isStopping()) {
+                    LOGGER.debug("[{}] task is stopping. Marking as complete before creating process context.",
+                        task.getParams().getId());
                     // The task was requested to stop before we created the process context
                     auditor.info(config.getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_ANALYSIS);
                     task.markAsCompleted();
@@ -145,24 +152,33 @@ public class AnalyticsProcessManager {
     }
 
     private void processData(DataFrameAnalyticsTask task, ProcessContext processContext, BytesReference state) {
+        LOGGER.info("[{}] Started loading data", processContext.config.getId());
+        auditor.info(processContext.config.getId(), Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_STARTED_LOADING_DATA));
+
         DataFrameAnalyticsConfig config = processContext.config;
         DataFrameDataExtractor dataExtractor = processContext.dataExtractor.get();
         AnalyticsProcess<AnalyticsResult> process = processContext.process.get();
         AnalyticsResultProcessor resultProcessor = processContext.resultProcessor.get();
         try {
             writeHeaderRecord(dataExtractor, process);
-            writeDataRows(dataExtractor, process, config.getAnalysis(), task.getStatsHolder().getProgressTracker());
+            writeDataRows(dataExtractor, process, config, task.getStatsHolder().getProgressTracker(),
+                task.getStatsHolder().getDataCountsTracker());
+            processContext.statsPersister.persistWithRetry(task.getStatsHolder().getDataCountsTracker().report(config.getId()),
+                DataCounts::documentId);
             process.writeEndOfDataMessage();
             process.flushStream();
 
             restoreState(task, config, state, process);
+
+            LOGGER.info("[{}] Started analyzing", processContext.config.getId());
+            auditor.info(processContext.config.getId(), Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_STARTED_ANALYZING));
 
             LOGGER.info("[{}] Waiting for result processor to complete", config.getId());
             resultProcessor.awaitForCompletion();
             processContext.setFailureReason(resultProcessor.getFailure());
 
             refreshDest(config);
-            refreshStateIndex(config.getId());
+            refreshIndices(config.getId());
             LOGGER.info("[{}] Result processor has completed", config.getId());
         } catch (Exception e) {
             if (task.isStopping()) {
@@ -198,9 +214,11 @@ public class AnalyticsProcessManager {
     }
 
     private void writeDataRows(DataFrameDataExtractor dataExtractor, AnalyticsProcess<AnalyticsResult> process,
-                               DataFrameAnalysis analysis, ProgressTracker progressTracker) throws IOException {
+                               DataFrameAnalyticsConfig config, ProgressTracker progressTracker, DataCountsTracker dataCountsTracker)
+        throws IOException {
 
-        CustomProcessor customProcessor = new CustomProcessorFactory(dataExtractor.getFieldNames()).create(analysis);
+        CrossValidationSplitter crossValidationSplitter = new CrossValidationSplitterFactory(client, config, dataExtractor.getFieldNames())
+            .create();
 
         // The extra fields are for the doc hash and the control field (should be an empty string)
         String[] record = new String[dataExtractor.getFieldNames().size() + 2];
@@ -214,11 +232,14 @@ public class AnalyticsProcessManager {
             Optional<List<DataFrameDataExtractor.Row>> rows = dataExtractor.next();
             if (rows.isPresent()) {
                 for (DataFrameDataExtractor.Row row : rows.get()) {
-                    if (row.shouldSkip() == false) {
+                    if (row.shouldSkip()) {
+                        dataCountsTracker.incrementSkippedDocsCount();
+                    } else {
                         String[] rowValues = row.getValues();
                         System.arraycopy(rowValues, 0, record, 0, rowValues.length);
                         record[record.length - 2] = String.valueOf(row.getChecksum());
-                        customProcessor.process(record);
+                        crossValidationSplitter.process(record, dataCountsTracker::incrementTrainingDocsCount,
+                            dataCountsTracker::incrementTestDocsCount);
                         process.writeRecord(record);
                     }
                 }
@@ -242,6 +263,10 @@ public class AnalyticsProcessManager {
         headerRecord[headerRecord.length - 2] = ".";
         headerRecord[headerRecord.length - 1] = ".";
         process.writeRecord(headerRecord);
+    }
+
+    private void indexDataCounts(DataCounts dataCounts) {
+        IndexRequest indexRequest = new IndexRequest(MlStatsIndex.writeAlias());
     }
 
     private void restoreState(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config, @Nullable BytesReference state,
@@ -292,12 +317,16 @@ public class AnalyticsProcessManager {
             () -> client.execute(RefreshAction.INSTANCE, new RefreshRequest(config.getDest().getIndex())).actionGet());
     }
 
-    private void refreshStateIndex(String jobId) {
-        String indexName = AnomalyDetectorsIndex.jobStateIndexPattern();
-        LOGGER.debug("[{}] Refresh index {}", jobId, indexName);
-
-        RefreshRequest refreshRequest = new RefreshRequest(indexName);
+    private void refreshIndices(String jobId) {
+        RefreshRequest refreshRequest = new RefreshRequest(
+            AnomalyDetectorsIndex.jobStateIndexPattern(),
+            MlStatsIndex.indexPattern()
+        );
         refreshRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
+
+        LOGGER.debug(() -> new ParameterizedMessage("[{}] Refreshing indices {}",
+            jobId, Arrays.toString(refreshRequest.indices())));
+
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             client.admin().indices().refresh(refreshRequest).actionGet();
         }
@@ -329,7 +358,6 @@ public class AnalyticsProcessManager {
             processContext.stop();
         } else {
             LOGGER.debug("[{}] No process context to stop", task.getParams().getId());
-            task.markAsCompleted();
         }
     }
 
@@ -345,9 +373,11 @@ public class AnalyticsProcessManager {
         private final SetOnce<DataFrameDataExtractor> dataExtractor = new SetOnce<>();
         private final SetOnce<AnalyticsResultProcessor> resultProcessor = new SetOnce<>();
         private final SetOnce<String> failureReason = new SetOnce<>();
+        private final StatsPersister statsPersister;
 
         ProcessContext(DataFrameAnalyticsConfig config) {
             this.config = Objects.requireNonNull(config);
+            this.statsPersister = new StatsPersister(config.getId(), resultsPersisterService, auditor);
         }
 
         String getFailureReason() {
@@ -370,6 +400,7 @@ public class AnalyticsProcessManager {
             if (resultProcessor.get() != null) {
                 resultProcessor.get().cancel();
             }
+            statsPersister.cancel();
             if (process.get() != null) {
                 try {
                     process.get().kill();
@@ -426,8 +457,8 @@ public class AnalyticsProcessManager {
             DataFrameRowsJoiner dataFrameRowsJoiner =
                 new DataFrameRowsJoiner(config.getId(), dataExtractorFactory.newExtractor(true), resultsPersisterService);
             return new AnalyticsResultProcessor(
-                config, dataFrameRowsJoiner, task.getStatsHolder(), trainedModelProvider, auditor, resultsPersisterService,
-                dataExtractor.get().getFieldNames());
+                config, dataFrameRowsJoiner, task.getStatsHolder(), trainedModelProvider, auditor, statsPersister,
+                dataExtractor.get().getAllExtractedFields());
         }
     }
 }

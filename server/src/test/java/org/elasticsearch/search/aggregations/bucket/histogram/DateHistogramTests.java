@@ -170,6 +170,18 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
                     assertSame(tz, builder.rewriteTimeZone(shardContextThatDoesntCross));
                     assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
 
+                    // timeZone without DST => always rewrite
+                    tz = ZoneId.of("Australia/Brisbane");
+                    builder.timeZone(tz);
+                    assertSame(ZoneOffset.ofHours(10), builder.rewriteTimeZone(shardContextThatDoesntCross));
+                    assertSame(ZoneOffset.ofHours(10), builder.rewriteTimeZone(shardContextThatCrosses));
+
+                    // another timeZone without DST => always rewrite
+                    tz = ZoneId.of("Asia/Katmandu");
+                    builder.timeZone(tz);
+                    assertSame(ZoneOffset.ofHoursMinutes(5, 45), builder.rewriteTimeZone(shardContextThatDoesntCross));
+                    assertSame(ZoneOffset.ofHoursMinutes(5, 45), builder.rewriteTimeZone(shardContextThatCrosses));
+
                     // daylight-saving-times => rewrite if doesn't cross
                     tz = ZoneId.of("Europe/Paris");
                     builder.timeZone(tz);

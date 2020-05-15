@@ -59,4 +59,21 @@ public class SourceConfigTests extends AbstractSerializingTransformTestCase<Sour
         return SourceConfig::new;
     }
 
+    public void testRequiresRemoteCluster() {
+        assertFalse(new SourceConfig(new String [] {"index1", "index2", "index3"},
+                QueryConfigTests.randomQueryConfig()).requiresRemoteCluster());
+
+        assertTrue(new SourceConfig(new String [] {"index1", "remote2:index2", "index3"},
+                QueryConfigTests.randomQueryConfig()).requiresRemoteCluster());
+
+        assertTrue(new SourceConfig(new String [] {"index1", "index2", "remote3:index3"},
+                QueryConfigTests.randomQueryConfig()).requiresRemoteCluster());
+
+        assertTrue(new SourceConfig(new String [] {"index1", "remote2:index2", "remote3:index3"},
+                QueryConfigTests.randomQueryConfig()).requiresRemoteCluster());
+
+        assertTrue(new SourceConfig(new String [] {"remote1:index1"},
+                QueryConfigTests.randomQueryConfig()).requiresRemoteCluster());
+    }
+
 }

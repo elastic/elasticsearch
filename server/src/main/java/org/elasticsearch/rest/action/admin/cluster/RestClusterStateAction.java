@@ -25,9 +25,11 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -43,6 +45,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestClusterStateAction extends BaseRestHandler {
@@ -107,7 +110,9 @@ public class RestClusterStateAction extends BaseRestHandler {
                     builder.field(Fields.WAIT_FOR_TIMED_OUT, response.isWaitForTimedOut());
                 }
                 builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
-                response.getState().toXContent(builder, request);
+                ToXContent.Params params = new ToXContent.DelegatingMapParams(
+                    singletonMap(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_API), request);
+                response.getState().toXContent(builder, params);
                 builder.endObject();
                 return new BytesRestResponse(RestStatus.OK, builder);
             }

@@ -76,6 +76,7 @@ final class TypeUtils {
         types.put(EsType.SCALED_FLOAT, Double.class);
         types.put(EsType.KEYWORD, String.class);
         types.put(EsType.TEXT, String.class);
+        types.put(EsType.CONSTANT_KEYWORD, String.class);
         types.put(EsType.BINARY, byte[].class);
         types.put(EsType.DATETIME, Timestamp.class);
         types.put(EsType.IP, String.class);
@@ -157,7 +158,7 @@ final class TypeUtils {
     }
 
     static boolean isString(EsType dataType) {
-        return dataType == EsType.KEYWORD || dataType == EsType.TEXT;
+        return dataType == EsType.KEYWORD || dataType == EsType.TEXT || dataType == EsType.CONSTANT_KEYWORD;
     }
 
     static EsType of(Class<? extends Object> clazz) throws SQLException {

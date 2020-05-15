@@ -236,13 +236,15 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                          Boolean.parseBoolean((String) policy.getConfig().get("include_global_state"));
                      assertThat(req.includeGlobalState(), equalTo(globalState));
 
+                     long startTime = randomNonNegativeLong();
+                     long endTime = randomLongBetween(startTime, Long.MAX_VALUE);
                      return new CreateSnapshotResponse(
                          new SnapshotInfo(
                              new SnapshotId(req.snapshot(), "uuid"),
                              Arrays.asList(req.indices()),
-                             randomNonNegativeLong(),
+                             startTime,
                              "snapshot started",
-                             randomNonNegativeLong(),
+                             endTime,
                              3,
                              Collections.singletonList(
                                  new SnapshotShardFailure("nodeId", new ShardId("index", "uuid", 0), "forced failure")),

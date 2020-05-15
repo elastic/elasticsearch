@@ -242,11 +242,6 @@ GET /_xpack/usage
     "available" : true,
     "enabled" : true
   },
-  "flattened" : {
-    "available" : true,
-    "enabled" : true,
-    "field_count" : 0
-  },
   "vectors" : {
     "available" : true,
     "enabled" : true,

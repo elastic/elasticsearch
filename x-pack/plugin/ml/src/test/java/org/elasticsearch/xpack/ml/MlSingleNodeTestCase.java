@@ -15,7 +15,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -44,6 +46,8 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
         newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         newSettings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
+        // Disable ILM history index so that the tests don't have to clean it up
+        newSettings.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
         return newSettings.build();
     }
 
@@ -55,7 +59,10 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(LocalStateMachineLearning.class);
+        return pluginList(
+            LocalStateMachineLearning.class,
+            // ILM is required for .ml-state template index settings
+            IndexLifecycle.class);
     }
 
     /**

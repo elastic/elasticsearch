@@ -202,7 +202,8 @@ final class CompositeAggregator extends BucketsAggregator {
             return null;
         }
         List<SortField> sortFields = new ArrayList<>();
-        for (int i = 0; i < indexSort.getSort().length; i++) {
+        int end = Math.min(indexSort.getSort().length, sourceConfigs.length);
+        for (int i = 0; i < end; i++) {
             CompositeValuesSourceConfig sourceConfig = sourceConfigs[i];
             SingleDimensionValuesSource<?> source = sources[i];
             SortField indexSortField = indexSort.getSort()[i];

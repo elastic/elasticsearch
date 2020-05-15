@@ -33,7 +33,6 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 
 import java.io.IOException;
@@ -47,8 +46,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
-public class FiltersAggregationBuilder extends AbstractAggregationBuilder<FiltersAggregationBuilder>
-    implements MultiBucketAggregationBuilder {
+public class FiltersAggregationBuilder extends AbstractAggregationBuilder<FiltersAggregationBuilder> {
     public static final String NAME = "filters";
 
     private static final ParseField FILTERS_FIELD = new ParseField("filters");
@@ -196,6 +194,11 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
      */
     public String otherBucketKey() {
         return otherBucketKey;
+    }
+
+    @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
     }
 
     @Override

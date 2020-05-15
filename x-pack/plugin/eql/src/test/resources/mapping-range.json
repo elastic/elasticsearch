@@ -1,7 +1,11 @@
 {
     "properties" : {
-        "event_type" : {
-            "type" : "keyword"
+        "event" : {
+            "properties" : {
+                "category" : {
+                    "type" : "keyword"
+                }
+            }
         },
         "integer_range_field" : {
             "type" : "integer_range"

@@ -158,7 +158,7 @@ public class HttpClientRequestTests extends ESTestCase {
                 null,
                 randomBoolean(),
                 randomAlphaOfLength(128),
-                new RequestInfo(mode),
+                new RequestInfo(mode, ClientVersion.CURRENT),
                 randomBoolean(),
                 randomBoolean(),
                 isBinary);

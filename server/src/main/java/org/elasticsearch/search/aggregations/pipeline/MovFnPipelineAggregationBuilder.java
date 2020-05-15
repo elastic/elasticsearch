@@ -30,13 +30,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -179,13 +175,11 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
     }
 
     @Override
-    public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> aggFactories,
-                           Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
+    protected void validate(ValidationContext context) {
         if (window <= 0) {
-            throw new IllegalArgumentException("[" + WINDOW.getPreferredName() + "] must be a positive, non-zero integer.");
+            context.addValidationError("[" + WINDOW.getPreferredName() + "] must be a positive, non-zero integer.");
         }
-        
-        validateSequentiallyOrderedParentAggs(parent, NAME, name);
+        context.validateParentAggSequentiallyOrdered(NAME, name);
     }
 
     @Override

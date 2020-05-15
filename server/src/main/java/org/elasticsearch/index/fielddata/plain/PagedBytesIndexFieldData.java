@@ -35,7 +35,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
@@ -96,15 +96,15 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
     }
 
     @Override
-    public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public LeafOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
         LeafReader reader = context.reader();
-        AtomicOrdinalsFieldData data = null;
+        LeafOrdinalsFieldData data = null;
 
         PagedBytesEstimator estimator =
             new PagedBytesEstimator(context, breakerService.getBreaker(CircuitBreaker.FIELDDATA), getFieldName());
         Terms terms = reader.terms(getFieldName());
         if (terms == null) {
-            data = AbstractAtomicOrdinalsFieldData.empty();
+            data = AbstractLeafOrdinalsFieldData.empty();
             estimator.afterLoad(null, data.ramBytesUsed());
             return data;
         }
@@ -135,7 +135,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
             PagedBytes.Reader bytesReader = bytes.freeze(true);
             final Ordinals ordinals = builder.build();
 
-            data = new PagedBytesAtomicFieldData(bytesReader, termOrdToBytesOffset.build(), ordinals);
+            data = new PagedBytesLeafFieldData(bytesReader, termOrdToBytesOffset.build(), ordinals);
             success = true;
             return data;
         } finally {

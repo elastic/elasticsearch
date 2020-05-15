@@ -26,8 +26,6 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.common.settings.Settings;
@@ -35,7 +33,6 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper.DeprecatedParameters;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -89,19 +86,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
         Parsed parse(XContentParser parser, AbstractGeometryFieldMapper mapper) throws IOException, ParseException;
 
-    }
-
-    /**
-     * interface representing a query builder that generates a query from the given shape
-     */
-    public interface QueryProcessor {
-        Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context);
-
-        @Deprecated
-        default Query process(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation,
-                              QueryShardContext context) {
-            return process(shape, fieldName, relation, context);
-        }
     }
 
     public abstract static class Builder<T extends Builder, Y extends AbstractGeometryFieldMapper>
@@ -272,14 +256,14 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
     }
 
-    public abstract static class AbstractGeometryFieldType<Parsed, Processed> extends MappedFieldType {
+    public abstract static class AbstractGeometryFieldType<Parsed, Processed> extends AbstractSearchableGeometryFieldType {
         protected Orientation orientation = Defaults.ORIENTATION.value();
 
         protected Indexer<Parsed, Processed> geometryIndexer;
 
         protected Parser<Parsed> geometryParser;
 
-        protected QueryProcessor geometryQueryBuilder;
+
 
         protected AbstractGeometryFieldType() {
             setIndexOptions(IndexOptions.DOCS);
@@ -338,14 +322,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
         protected Parser<Parsed> geometryParser() {
             return geometryParser;
-        }
-
-        public void setGeometryQueryBuilder(QueryProcessor geometryQueryBuilder)  {
-            this.geometryQueryBuilder = geometryQueryBuilder;
-        }
-
-        public QueryProcessor geometryQueryBuilder() {
-            return geometryQueryBuilder;
         }
     }
 

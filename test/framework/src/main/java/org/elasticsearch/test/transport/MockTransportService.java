@@ -120,7 +120,13 @@ public final class MockTransportService extends TransportService {
 
     public static MockTransportService createNewService(Settings settings, Transport transport, Version version, ThreadPool threadPool,
                                                         @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
-        return new MockTransportService(settings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+        return createNewService(settings, transport, version, threadPool, clusterSettings, taskHeaders, NOOP_TRANSPORT_INTERCEPTOR);
+    }
+
+    public static MockTransportService createNewService(Settings settings, Transport transport, Version version, ThreadPool threadPool,
+                                                        @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders,
+                                                        TransportInterceptor interceptor) {
+        return new MockTransportService(settings, transport, threadPool, interceptor,
             boundAddress ->
                 new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), UUIDs.randomBase64UUID(), boundAddress.publishAddress(),
                     Node.NODE_ATTRIBUTES.getAsMap(settings), DiscoveryNode.getRolesFromSettings(settings), version),

@@ -228,7 +228,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                 // is the super-connected node and recovery source and target are on opposite sides of the bridge
                 if (disruptionScheme instanceof NetworkDisruption &&
                     ((NetworkDisruption) disruptionScheme).getDisruptedLinks() instanceof Bridge) {
-                    assertAcked(client().admin().cluster().prepareReroute().setRetryFailed(true));
+                    assertBusy(() -> assertAcked(client().admin().cluster().prepareReroute().setRetryFailed(true)));
                 }
                 ensureGreen("test");
 

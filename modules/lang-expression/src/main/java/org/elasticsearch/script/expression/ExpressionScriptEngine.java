@@ -23,8 +23,8 @@ import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.expressions.SimpleBindings;
 import org.apache.lucene.expressions.js.JavascriptCompiler;
 import org.apache.lucene.expressions.js.VariableContext;
-import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.queries.function.valuesource.DoubleConstValueSource;
+import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
@@ -251,9 +251,9 @@ public class ExpressionScriptEngine implements ScriptEngine {
                 } else {
                     // delegate valuesource creation based on field's type
                     // there are three types of "fields" to expressions, and each one has a different "api" of variables and methods.
-                    final ValueSource valueSource = getDocValueSource(variable, lookup);
-                    needsScores |= valueSource.getSortField(false).needsScores();
-                    bindings.add(variable, valueSource.asDoubleValuesSource());
+                    final DoubleValuesSource valueSource = getDocValueSource(variable, lookup);
+                    needsScores |= valueSource.needsScores();
+                    bindings.add(variable, valueSource);
                 }
             } catch (Exception e) {
                 // we defer "binding" of variables until here: give context for that variable
@@ -275,8 +275,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
                 } else {
                     // delegate valuesource creation based on field's type
                     // there are three types of "fields" to expressions, and each one has a different "api" of variables and methods.
-                    final ValueSource valueSource = getDocValueSource(variable, lookup);
-                    bindings.add(variable, valueSource.asDoubleValuesSource());
+                    bindings.add(variable, getDocValueSource(variable, lookup));
                 }
             } catch (Exception e) {
                 // we defer "binding" of variables until here: give context for that variable
@@ -310,9 +309,9 @@ public class ExpressionScriptEngine implements ScriptEngine {
                 } else {
                     // delegate valuesource creation based on field's type
                     // there are three types of "fields" to expressions, and each one has a different "api" of variables and methods.
-                    final ValueSource valueSource = getDocValueSource(variable, lookup);
-                    needsScores |= valueSource.getSortField(false).needsScores();
-                    bindings.add(variable, valueSource.asDoubleValuesSource());
+                    final DoubleValuesSource valueSource = getDocValueSource(variable, lookup);
+                    needsScores |= valueSource.needsScores();
+                    bindings.add(variable, valueSource);
                 }
             } catch (Exception e) {
                 // we defer "binding" of variables until here: give context for that variable
@@ -329,8 +328,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
                 if (vars != null && vars.containsKey(variable)) {
                     bindFromParams(vars, bindings, variable);
                 } else {
-                    final ValueSource valueSource = getDocValueSource(variable, lookup);
-                    bindings.add(variable, valueSource.asDoubleValuesSource());
+                    bindings.add(variable, getDocValueSource(variable, lookup));
                 }
             } catch (Exception e) {
                 throw convertToScriptException("link error", expr.sourceText, variable, e);
@@ -382,9 +380,9 @@ public class ExpressionScriptEngine implements ScriptEngine {
                 } else {
                     // delegate valuesource creation based on field's type
                     // there are three types of "fields" to expressions, and each one has a different "api" of variables and methods.
-                    final ValueSource valueSource = getDocValueSource(variable, lookup);
-                    needsScores |= valueSource.getSortField(false).needsScores();
-                    bindings.add(variable, valueSource.asDoubleValuesSource());
+                    final DoubleValuesSource valueSource = getDocValueSource(variable, lookup);
+                    needsScores |= valueSource.needsScores();
+                    bindings.add(variable, valueSource);
                 }
             } catch (Exception e) {
                 // we defer "binding" of variables until here: give context for that variable
@@ -412,7 +410,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
         throw new ScriptException(message, cause, stack, source, NAME);
     }
 
-    private static ValueSource getDocValueSource(String variable, SearchLookup lookup) throws ParseException {
+    private static DoubleValuesSource getDocValueSource(String variable, SearchLookup lookup) throws ParseException {
         VariableContext[] parts = VariableContext.parse(variable);
         if (parts[0].text.equals("doc") == false) {
             throw new ParseException("Unknown variable [" + parts[0].text + "]", 0);
@@ -463,7 +461,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
         }
 
         IndexFieldData<?> fieldData = lookup.doc().getForField(fieldType);
-        final ValueSource valueSource;
+        final DoubleValuesSource valueSource;
         if (fieldType instanceof GeoPointFieldType) {
             // geo
             if (methodname == null) {

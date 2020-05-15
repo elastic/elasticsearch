@@ -24,27 +24,54 @@ Also see <<glossary-text,text>> and <<glossary-term,term>>.
 // end::analysis-def[]
 --
 
+[[glossary-api-key]] API key ::
+// tag::api-key-def[]
+A unique identifier that you can use for authentication when submitting {es} requests. 
+When TLS is enabled, all requests must be authenticated using either basic authentication 
+(user name and password) or an API key.
+// end::api-key-def[]
+
+
+[[glossary-auto-follow-pattern]] auto-follow pattern ::
+// tag::auto-follow-pattern-def[]
+An <<glossary-index-pattern,index pattern>> that automatically configures new indices as 
+<<glossary-follower-index,follower indices>> for <<glossary-ccr,{ccr}>>.
+For more information, see {ref}/ccr-auto-follow.html#_managing_auto_follow_patterns[Managing auto follow patterns].
+// end::auto-follow-pattern-def[]
+
 [[glossary-cluster]] cluster ::
 // tag::cluster-def[]
-A cluster consists of one or more <<glossary-node,nodes>> which share the
-same cluster name. Each cluster has a single master node which is
-chosen automatically by the cluster and which can be replaced if the
-current master node fails.
+One or more <<glossary-node,nodes>> that share the
+same cluster name. Each cluster has a single master node, which is
+chosen automatically by the cluster and can be replaced if it fails.
 // end::cluster-def[]
+
+[[glossary-cold-phase]] cold phase ::
+// tag::cold-phase-def[]
+The third possible phase in the <<glossary-index-lifecycle,index lifecycle>>. 
+In the cold phase, an index is no longer updated and seldom queried. 
+The information still needs to be searchable, but it’s okay if those queries are slower.
+// end::cold-phase-def[]
 
 [[glossary-ccr]] {ccr} (CCR)::
 // tag::ccr-def[]
-The {ccr} feature enables you to replicate indices in remote clusters to your
+A feature that enables you to replicate indices in remote clusters to your
 local cluster. For more information, see 
 {ref}/xpack-ccr.html[{ccr-cap}].  
 // end::ccr-def[]
   
 [[glossary-ccs]] {ccs} (CCS)::
 // tag::ccs-def[]
-The {ccs} feature enables any node to act as a federated client across
+A feature that enables any node to act as a federated client across
 multiple clusters.
 See {ref}/modules-cross-cluster-search.html[Search across clusters].
 // end::ccs-def[]
+
+[[glossary-delete-phase]] delete phase ::
+// tag::delete-phase-def[]
+The last possible phase in the <<glossary-index-lifecycle,index lifecycle>>. 
+In the delete phase, an index is no longer needed and can safely be deleted.
+// end::delete-phase-def[]
 
 [[glossary-document]] document ::
 +
@@ -93,10 +120,22 @@ hence it is called a filter. Filters are simple checks for set inclusion or excl
 In most cases, the goal of filtering is to reduce the number of documents that have to be examined.
 // end::filter-def[]
 
+[[glossary-flush]] flush ::
+// tag::flush-def[]
+Peform a Lucene commit to write index updates in the transaction log (translog) to disk. 
+Because a Lucene commit is a relatively expensive operation, 
+{es} records index and delete operations in the translog and 
+automatically flushes changes to disk in batches.
+To recover from a crash, operations that have been acknowledged but not yet committed 
+can be replayed from the translog.
+Before upgrading, you can explicitly call the {ref}/indices-flush.html[Flush] API
+to ensure that all changes are committed to disk.
+// end::flush-def[]
+
 [[glossary-follower-index]] follower index ::  
 // tag::follower-index-def[]
-Follower indices are the target indices for <<glossary-ccr,{ccr}>>. They exist
-in your local cluster and replicate <<glossary-leader-index,leader indices>>.
+The target index for <<glossary-ccr,{ccr}>>. A follower index exists
+in a local cluster and replicates a <<glossary-leader-index,leader index>>.
 // end::follower-index-def[]
 
 [[glossary-force-merge]] force merge ::  
@@ -107,7 +146,7 @@ and free up the space used by deleted documents.
 // end::force-merge-def-short[]
 You should not force merge indices that are actively being written to.
 Merging is normally performed automatically, but you can use force merge after 
-<<glossary-rollover, rollover>> to reduce the shards in the old index to a single segment. 
+<<glossary-rollover,rollover>> to reduce the shards in the old index to a single segment. 
 See the {ref}/indices-forcemerge.html[force merge API].
 // end::force-merge-def[]
 
@@ -123,6 +162,19 @@ before you are ready to archive or delete them.
 See the {ref}/freeze-index-api.html[freeze API].
 // end::freeze-def[]
 
+[[glossary-frozen-index]] frozen index ::  
+// tag::frozen-index-def[]
+An index reduced to a low overhead state that still enables occasional searches.
+Frozen indices use a memory-efficient shard implementation and throttle searches to conserve resources.
+Searching a frozen index is lower overhead than re-opening a closed index to enable searching.
+// end::frozen-index-def[]
+
+[[glossary-hot-phase]] hot phase ::
+// tag::hot-phase-def[]
+The first possible phase in the <<glossary-index-lifecycle,index lifecycle>>. 
+In the hot phase, an index is actively updated and queried. 
+// end::hot-phase-def[]
+
 [[glossary-id]] id ::
 // tag::id-def[]
 The ID of a <<glossary-document,document>> identifies a document. The
@@ -134,11 +186,12 @@ then it will be auto-generated. (also see <<glossary-routing,routing>>)
 +
 --
 // tag::index-def[]
-An index is like a _table_ in a relational database. It has a
-<<glossary-mapping,mapping>> which contains a <<glossary-type,type>>,
-which contains the <<glossary-field,field>> in the index.
+// tag::index-def-short[]
+An optimized collection of JSON documents. Each document is a collection of fields, 
+the key-value pairs that contain your data. 
+// end::index-def-short[]
 
-An index is a logical namespace which maps to one or more
+An index is a logical namespace that maps to one or more
 <<glossary-primary-shard,primary shards>> and can have zero or more
 <<glossary-replica-shard,replica shards>>.
 // end::index-def[]
@@ -149,16 +202,37 @@ An index is a logical namespace which maps to one or more
 --
 // tag::index-alias-def[]
 // tag::index-alias-desc[]
-An index alias is a secondary name
-used to refer to one or more existing indices.
+An index alias is a logical name used to reference one or more indices.
 
-Most {es} APIs accept an index alias
-in place of an index name.
+Most {es} APIs accept an index alias in place of an index name.
 // end::index-alias-desc[]
 
 See {ref}/indices-add-alias.html[Add index alias].
 // end::index-alias-def[]
 --
+
+[[glossary-index-lifecycle]] index lifecycle ::
+// tag::index-lifecycle-def[]
+The four phases an index can transition through: 
+<<glossary-hot-phase,hot>>, <<glossary-warm-phase,warm>>,
+<<glossary-cold-phase,cold>>, and <<glossary-delete-phase,delete>>.
+For more information, see {ref}/ilm-policy-definition.html[Index lifecycle].
+// end::index-lifecycle-def[]
+
+[[glossary-index-lifecycle-policy]] index lifecycle policy ::
+// tag::index-lifecycle-policy-def[]
+Specifies how an index moves between phases in the index lifecycle and 
+what actions to perform during each phase. 
+// end::index-lifecycle-policy-def[]
+
+[[glossary-index-pattern]] index pattern ::
+// tag::index-pattern-def[]
+A string that can contain the `*` wildcard to match multiple index names.
+In most cases, the index parameter in an {es} request can be the name of a specific index, 
+a list of index names, or an index pattern.
+For example, if you have the indices `datastream-000001`, `datastream-000002`, and `datastream-000003`,
+to search across all three you could use the `datastream-*` index pattern.  
+// end::index-pattern-def[]
 
 [[glossary-index-template]] index template ::
 +
@@ -167,17 +241,23 @@ See {ref}/indices-add-alias.html[Add index alias].
 // tag::index-template-def-short[]
 Defines settings and mappings to apply to new indexes that match a simple naming pattern, such as _logs-*_. 
 // end::index-template-def-short[]
+
 An index template can also attach a lifecycle policy to the new index.
-Index templates are used to automatically configure indices created during <<glossary-rollover, rollover>>. 
+Index templates are used to automatically configure indices created during <<glossary-rollover,rollover>>. 
 // end::index-template-def[]
 --
 
 [[glossary-leader-index]] leader index ::  
 // tag::leader-index-def[]
-Leader indices are the source indices for <<glossary-ccr,{ccr}>>. They exist
-on remote clusters and are replicated to 
+The source index for <<glossary-ccr,{ccr}>>. A leader index exists
+on a remote cluster and is replicated to 
 <<glossary-follower-index,follower indices>>.
 // end::leader-index-def[]
+
+[[glossary-local-cluster]] local cluster ::
+// tag::local-cluster-def[]
+The cluster that pulls data from a <<glossary-remote-cluster,remote cluster>> in {ccs} or {ccr}.
+// end::local-cluster-def[]
 
 [[glossary-mapping]] mapping ::
 +
@@ -194,18 +274,12 @@ automatically when a document is indexed.
 --
 
 [[glossary-node]] node ::
-+
---
 // tag::node-def[]
-A node is a running instance of Elasticsearch which belongs to a
+A running instance of {es} that belongs to a
 <<glossary-cluster,cluster>>. Multiple nodes can be started on a single
 server for testing purposes, but usually you should have one node per
 server.
-
-At startup, a node will use unicast to discover an existing cluster with
-the same cluster name and will try to join that cluster.
 // end::node-def[]
---
 
 [[glossary-primary-shard]] primary shard ::
 +
@@ -267,8 +341,17 @@ during the following processes:
 [[glossary-reindex]] reindex ::
 
 // tag::reindex-def[]
-To cycle through some or all documents in one or more indices, re-writing them into the same or new index in a local or remote cluster. This is most commonly done to update mappings, or to upgrade Elasticsearch between two incompatible index versions.
+To cycle through some or all documents in one or more indices, re-writing them into the same 
+or new index in a local or remote cluster. This is most commonly done to update mappings, or to upgrade {es} between two incompatible index versions.
 // end::reindex-def[]
+
+[[glossary-remote-cluster]] remote cluster ::
+
+// tag::remote-cluster-def[]
+A separate cluster, often in a different data center or locale, that contains indices that 
+can be replicated or searched by the <<glossary-local-cluster,local cluster>>. 
+The connection to a remote cluster is unidirectional.
+// end::remote-cluster-def[]
 
 [[glossary-replica-shard]] replica shard ::
 +
@@ -294,13 +377,34 @@ shard will never be started on the same node as its primary shard.
 --
 // tag::rollover-def[]
 // tag::rollover-def-short[]
-Redirect an alias to begin writing to a new index when the existing index reaches a certain age, number of docs, or size. 
+Redirect an index alias to begin writing to a new index when the existing index reaches 
+a certain size, number of docs, or age. 
 // end::rollover-def-short[]
-The new index is automatically configured according to any matching <<glossary-index-template, index templates>>. 
+
+The new index is automatically configured according to any matching <<glossary-index-template,index templates>>. 
 For example, if you're indexing log data, you might use rollover to create daily or weekly indices. 
 See the {ref}/indices-rollover-index.html[rollover index API].
 // end::rollover-def[]
 --
+
+[[glossary-rollup]] rollup ::
+// tag::rollup-def[]
+Summarize high-granularity data into a more compressed format to 
+maintain access to historical data in a cost-effective way.
+// end::rollup-def[]
+
+[[glossary-rollup-index]] rollup index ::
+// tag::rollup-index-def[]
+A special type of index for storing historical data at reduced granularity. 
+Documents are summarized and indexed into a rollup index by a <<glossary-rollup-job,rollup job>>.
+// end::rollup-index-def[]
+
+[[glossary-rollup-job]] rollup job ::
+// tag::rollup-job-def[]
+A background task that runs continuously to summarize documents in an index and 
+index the summaries into a separate rollup index. 
+The job configuration controls what information is rolled up and how often. 
+// end::rollup-job-def[]
 
 [[glossary-routing]] routing ::
 +
@@ -340,14 +444,36 @@ nodes.
 --
 
 [[glossary-shrink]] shrink ::
++
+--
 // tag::shrink-def[]
 // tag::shrink-def-short[]
 Reduce the number of primary shards in an index.
 // end::shrink-def-short[]
+
 You can shrink an index to reduce its overhead when the request volume drops.
 For example, you might opt to shrink an index once it is no longer the write index. 
 See the {ref}/indices-shrink-index.html[shrink index API].
 // end::shrink-def[]
+--
+
+[[glossary-snapshot]] snapshot ::
+// tag::snapshot-def[]
+A backup taken from a running {es} cluster. 
+You can take snapshots of individual indices or of the entire cluster. 
+// end::snapshot-def[]
+
+[[glossary-snapshot-lifecycle-policy]] snapshot lifecycle policy ::
+// tag::snapshot-lifecycle-policy-def[]
+Specifies how frequently to perform automatic backups of a cluster and 
+how long to retain the resulting snapshots. 
+// end::snapshot-lifecycle-policy-def[]
+
+[[glossary-snapshot-repository]] snapshot repository ::
+// tag::snapshot-repository-def[]
+Specifies where snapshots are to be stored. 
+Snapshots can be written to a shared filesystem or to a remote repository.
+// end::snapshot-repository-def[]
 
 [[glossary-source_field]] source field ::
 // tag::source-field-def[]
@@ -399,3 +525,9 @@ A type used to represent the _type_ of document, e.g. an `email`, a `user`, or a
 Types are deprecated and are in the process of being removed.
 See {ref}/removal-of-types.html[Removal of mapping types].
 // end::type-def[]
+
+[[glossary-warm-phase]] warm phase ::
+// tag::warm-phase-def[]
+The second possible phase in the <<glossary-index-lifecycle,index lifecycle>>. 
+In the warm phase, an index is generally optimized for search and no longer updated.
+// end::warm-phase-def[]

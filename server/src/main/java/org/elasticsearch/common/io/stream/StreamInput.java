@@ -38,9 +38,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.joda.time.DateTime;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.ByteArrayInputStream;
@@ -313,6 +314,14 @@ public abstract class StreamInput extends InputStream {
         }
         i |= ((long) b) << 63;
         return i;
+    }
+
+    @Nullable
+    public Long readOptionalVLong() throws IOException {
+        if (readBoolean()) {
+            return readVLong();
+        }
+        return null;
     }
 
     public long readZLong() throws IOException {
@@ -760,9 +769,12 @@ public abstract class StreamInput extends InputStream {
         return list;
     }
 
-    private DateTime readDateTime() throws IOException {
-        final String timeZoneId = readString();
-        return new DateTime(readLong(), DateTimeZone.forID(timeZoneId));
+    private JodaCompatibleZonedDateTime readDateTime() throws IOException {
+        // we reuse DateTime to communicate with older nodes that don't know about the joda compat layer, but
+        // here we are on a new node so we always want a compat datetime
+        final ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(DateTimeZone.forID(readString()));
+        long millis = readLong();
+        return new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(millis), zoneId);
     }
 
     private ZonedDateTime readZonedDateTime() throws IOException {
@@ -1086,6 +1098,14 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Get the registry of named writeables is his stream has one,
+     * {@code null} otherwise.
+     */
+    public NamedWriteableRegistry namedWriteableRegistry() {
+        return null;
+    }
+
+    /**
      * Reads a {@link NamedWriteable} from the current stream, by first reading its name and then looking for
      * the corresponding entry in the registry by name, so that the proper object can be read and returned.
      * Default implementation throws {@link UnsupportedOperationException} as StreamInput doesn't hold a registry.
@@ -1143,6 +1163,23 @@ public abstract class StreamInput extends InputStream {
      */
     public List<String> readStringList() throws IOException {
         return readList(StreamInput::readString);
+    }
+
+    /**
+     * Reads an optional list of strings. The list is expected to have been written using
+     * {@link StreamOutput#writeOptionalStringCollection(Collection)}. If the returned list contains any entries it will be mutable.
+     * If it is empty it might be immutable.
+     *
+     * @return the list of strings
+     * @throws IOException if an I/O exception occurs reading the list
+     */
+    public List<String> readOptionalStringList() throws IOException {
+        final boolean isPresent = readBoolean();
+        if (isPresent) {
+            return readList(StreamInput::readString);
+        } else {
+            return null;
+        }
     }
 
     /**

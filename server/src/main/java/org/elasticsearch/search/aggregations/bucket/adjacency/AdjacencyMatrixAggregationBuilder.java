@@ -34,7 +34,6 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregator.KeyedFilter;
 
 import java.io.IOException;
@@ -47,8 +46,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 
-public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilder<AdjacencyMatrixAggregationBuilder>
-        implements MultiBucketAggregationBuilder {
+public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilder<AdjacencyMatrixAggregationBuilder> {
     public static final String NAME = "adjacency_matrix";
 
     private static final String DEFAULT_SEPARATOR = "&";
@@ -58,15 +56,15 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     private List<KeyedFilter> filters;
     private String separator = DEFAULT_SEPARATOR;
 
-    private static final ObjectParser<AdjacencyMatrixAggregationBuilder, Void> PARSER = new ObjectParser<>(
-            AdjacencyMatrixAggregationBuilder.NAME);
+    private static final ObjectParser<AdjacencyMatrixAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, AdjacencyMatrixAggregationBuilder::new);
     static {
         PARSER.declareString(AdjacencyMatrixAggregationBuilder::separator, SEPARATOR_FIELD);
         PARSER.declareNamedObjects(AdjacencyMatrixAggregationBuilder::setFiltersAsList, KeyedFilter.PARSER, FILTERS_FIELD);
     }
 
-    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        AdjacencyMatrixAggregationBuilder result = PARSER.parse(parser, new AdjacencyMatrixAggregationBuilder(aggregationName), null);
+    public static AggregationBuilder parse(XContentParser parser, String name) throws IOException {
+        AdjacencyMatrixAggregationBuilder result = PARSER.parse(parser, name);
         result.checkConsistency();
         return result;
     }
@@ -76,7 +74,6 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
             throw new IllegalStateException("[" + name  + "] is missing : " + FILTERS_FIELD.getPreferredName() + " parameter");
         }
     }
-
 
     protected void setFiltersAsMap(Map<String, QueryBuilder> filters) {
         // Convert uniquely named objects into internal KeyedFilters
@@ -215,6 +212,11 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
 
         return new AdjacencyMatrixAggregatorFactory(name, rewrittenFilters, separator, queryShardContext, parent,
                 subFactoriesBuilder, metaData);
+    }
+
+    @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
     }
 
     @Override

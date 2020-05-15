@@ -24,11 +24,7 @@ import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
-
-tasks.register("bwcTest") {
-  description = 'Runs backwards compatibility tests.'
-  group = 'verification'
-}
+apply from : "$rootDir/gradle/bwc-test.gradle"
 
 for (Version bwcVersion : bwcVersions.indexCompatible) {
   String baseName = "v${bwcVersion}"
@@ -46,22 +42,12 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
-  tasks.register("${baseName}#bwcTest") {
+  tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn "${baseName}#integTest"
   }
-
-  bwcTest.dependsOn("${baseName}#bwcTest")
 }
 
-task bwcTestSnapshots {
-  if (project.bwc_tests_enabled) {
-    for (version in bwcVersions.unreleasedIndexCompatible) {
-      dependsOn "v${version}#bwcTest"
-    }
-  }
-}
-
-task verifyDocsLuceneVersion {
+tasks.register("verifyDocsLuceneVersion") {
   doFirst {
     File docsVersionsFile = rootProject.file('docs/Versions.asciidoc')
     List<String> versionLines = docsVersionsFile.readLines('UTF-8')
@@ -83,6 +69,6 @@ task verifyDocsLuceneVersion {
   }
 }
 
-check.dependsOn bwcTestSnapshots, verifyDocsLuceneVersion
-
-test.enabled = false
+tasks.named("check").configure {
+  dependsOn verifyDocsLuceneVersion
+}

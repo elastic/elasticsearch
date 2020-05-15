@@ -124,7 +124,8 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         if (cacheLoader.isLoaded()) {
             key.entity.onMiss();
             if (logger.isTraceEnabled()) {
-                logger.trace("Cache miss for reader version [{}] and request:\n {}", reader.getVersion(), cacheKeyRenderer.get());
+                logger.trace("Cache miss for reader version [{}], max_doc[{}] and request:\n {}",
+                    reader.getVersion(), reader.maxDoc(), cacheKeyRenderer.get());
             }
             // see if its the first time we see this reader, and make sure to register a cleanup key
             CleanupKey cleanupKey = new CleanupKey(cacheEntity, reader.getReaderCacheHelper().getKey());
@@ -137,7 +138,8 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         } else {
             key.entity.onHit();
             if (logger.isTraceEnabled()) {
-                logger.trace("Cache hit for reader version [{}] and request:\n {}", reader.getVersion(), cacheKeyRenderer.get());
+                logger.trace("Cache hit for reader version [{}], max_doc[{}] and request:\n {}",
+                    reader.getVersion(), reader.maxDoc(), cacheKeyRenderer.get());
             }
         }
         return value;

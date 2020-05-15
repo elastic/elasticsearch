@@ -22,15 +22,20 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
+import org.elasticsearch.search.aggregations.metrics.GeoGridAggregatorSupplier;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -38,14 +43,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
+public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final int precision;
     private final int requiredSize;
     private final int shardSize;
     private final GeoBoundingBox geoBoundingBox;
 
-    GeoHashGridAggregatorFactory(String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, int precision, int requiredSize,
+    GeoHashGridAggregatorFactory(String name, ValuesSourceConfig config, int precision, int requiredSize,
                                  int shardSize, GeoBoundingBox geoBoundingBox, QueryShardContext queryShardContext,
                                  AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
                                  Map<String, Object> metaData) throws IOException {
@@ -72,17 +77,33 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<
     }
 
     @Override
-    protected Aggregator doCreateInternal(final ValuesSource.GeoPoint valuesSource,
+    protected Aggregator doCreateInternal(final ValuesSource valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
+            .getAggregator(config.valueSourceType(), GeoHashGridAggregationBuilder.NAME);
+        if (aggregatorSupplier instanceof GeoGridAggregatorSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected "
+                + GeoGridAggregatorSupplier.class.getName() + ", found [" + aggregatorSupplier.getClass().toString() + "]");
+        }
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
-        CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, geoBoundingBox, Geohash::longEncode);
-        return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize,
-            searchContext, parent, pipelineAggregators, metaData);
+        return ((GeoGridAggregatorSupplier) aggregatorSupplier).build(name, factories, valuesSource, precision, geoBoundingBox,
+            requiredSize, shardSize, searchContext, parent, pipelineAggregators, metaData);
+    }
+
+    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        valuesSourceRegistry.register(GeoHashGridAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
+            (GeoGridAggregatorSupplier) (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
+                                         aggregationContext, parent, pipelineAggregators, metaData) -> {
+            CellIdSource cellIdSource = new CellIdSource((ValuesSource.GeoPoint) valuesSource, precision, geoBoundingBox,
+                Geohash::longEncode);
+            return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, aggregationContext,
+                    parent, pipelineAggregators, metaData);
+            });
     }
 }

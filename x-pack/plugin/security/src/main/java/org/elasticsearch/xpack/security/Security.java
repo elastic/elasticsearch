@@ -82,6 +82,7 @@ import org.elasticsearch.xpack.core.security.SecuritySettings;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutAction;
@@ -144,6 +145,7 @@ import org.elasticsearch.xpack.core.ssl.rest.RestGetCertificateInfoAction;
 import org.elasticsearch.xpack.security.action.TransportCreateApiKeyAction;
 import org.elasticsearch.xpack.security.action.TransportDelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.security.action.TransportGetApiKeyAction;
+import org.elasticsearch.xpack.security.action.TransportGrantApiKeyAction;
 import org.elasticsearch.xpack.security.action.TransportInvalidateApiKeyAction;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
 import org.elasticsearch.xpack.security.action.oidc.TransportOpenIdConnectAuthenticateAction;
@@ -208,6 +210,7 @@ import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.RestDelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestCreateApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestGetApiKeyAction;
+import org.elasticsearch.xpack.security.rest.action.apikey.RestGrantApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestInvalidateApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction;
@@ -282,7 +285,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     private static final Logger logger = LogManager.getLogger(Security.class);
 
     private final Settings settings;
-    private final Environment env;
     private final boolean enabled;
     /* what a PITA that we need an extra indirection to initialize this. Yet, once we got rid of guice we can thing about how
      * to fix this or make it simpler. Today we need several service that are created in createComponents but we need to register
@@ -310,7 +312,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         // TODO This is wrong. Settings can change after this. We should use the settings from createComponents
         this.settings = settings;
         // TODO this is wrong, we should only use the environment that is provided to createComponents
-        this.env = new Environment(settings, configPath);
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         if (enabled) {
             runStartupChecks(settings);
@@ -347,7 +348,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                                                IndexNameExpressionResolver expressionResolver) {
         try {
             return createComponents(client, threadPool, clusterService, resourceWatcherService, scriptService, xContentRegistry,
-                expressionResolver);
+                environment, expressionResolver);
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
         }
@@ -356,7 +357,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     // pkg private for testing - tests want to pass in their set of extensions hence we are not using the extension service directly
     Collection<Object> createComponents(Client client, ThreadPool threadPool, ClusterService clusterService,
                                         ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                        NamedXContentRegistry xContentRegistry,
+                                        NamedXContentRegistry xContentRegistry, Environment environment,
                                         IndexNameExpressionResolver expressionResolver) throws Exception {
         if (enabled == false) {
             return Collections.singletonList(new SecurityUsageServices(null, null, null, null));
@@ -370,7 +371,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             new TokenSSLBootstrapCheck(),
             new PkiRealmBootstrapCheck(getSslService()),
             new TLSLicenseBootstrapCheck()));
-        checks.addAll(InternalRealms.getBootstrapChecks(settings, env));
+        checks.addAll(InternalRealms.getBootstrapChecks(settings, environment));
         this.bootstrapChecks.set(Collections.unmodifiableList(checks));
 
         threadContext.set(threadPool.getThreadContext());
@@ -398,9 +399,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityIndex.get(),
             scriptService);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
-        final ReservedRealm reservedRealm = new ReservedRealm(env, settings, nativeUsersStore,
+        final ReservedRealm reservedRealm = new ReservedRealm(environment, settings, nativeUsersStore,
                 anonymousUser, securityIndex.get(), threadPool);
-        final SecurityExtension.SecurityComponents extensionComponents = new ExtensionComponents(env, client, clusterService,
+        final SecurityExtension.SecurityComponents extensionComponents = new ExtensionComponents(environment, client, clusterService,
             resourceWatcherService, nativeRoleMappingStore);
         Map<String, Realm.Factory> realmFactories = new HashMap<>(InternalRealms.getFactories(threadPool, resourceWatcherService,
                 getSslService(), nativeUsersStore, nativeRoleMappingStore, securityIndex.get()));
@@ -412,7 +413,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 }
             }
         }
-        final Realms realms = new Realms(settings, env, realmFactories, getLicenseState(), threadPool.getThreadContext(), reservedRealm);
+        final Realms realms =
+            new Realms(settings, environment, realmFactories, getLicenseState(), threadPool.getThreadContext(), reservedRealm);
         components.add(nativeUsersStore);
         components.add(nativeRoleMappingStore);
         components.add(realms);
@@ -425,7 +427,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
-        final FileRolesStore fileRolesStore = new FileRolesStore(settings, env, resourceWatcherService, getLicenseState(),
+        final FileRolesStore fileRolesStore = new FileRolesStore(settings, environment, resourceWatcherService, getLicenseState(),
             xContentRegistry);
         final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client, getLicenseState(), securityIndex.get());
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
@@ -757,6 +759,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new ActionHandler<>(PutPrivilegesAction.INSTANCE, TransportPutPrivilegesAction.class),
                 new ActionHandler<>(DeletePrivilegesAction.INSTANCE, TransportDeletePrivilegesAction.class),
                 new ActionHandler<>(CreateApiKeyAction.INSTANCE, TransportCreateApiKeyAction.class),
+                new ActionHandler<>(GrantApiKeyAction.INSTANCE, TransportGrantApiKeyAction.class),
                 new ActionHandler<>(InvalidateApiKeyAction.INSTANCE, TransportInvalidateApiKeyAction.class),
                 new ActionHandler<>(GetApiKeyAction.INSTANCE, TransportGetApiKeyAction.class),
                 new ActionHandler<>(DelegatePkiAuthenticationAction.INSTANCE, TransportDelegatePkiAuthenticationAction.class),
@@ -812,6 +815,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new RestPutPrivilegesAction(settings, getLicenseState()),
                 new RestDeletePrivilegesAction(settings, getLicenseState()),
                 new RestCreateApiKeyAction(settings, getLicenseState()),
+                new RestGrantApiKeyAction(settings, getLicenseState()),
                 new RestInvalidateApiKeyAction(settings, getLicenseState()),
                 new RestGetApiKeyAction(settings, getLicenseState()),
                 new RestDelegatePkiAuthenticationAction(settings, getLicenseState())
@@ -820,7 +824,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        return Collections.singletonMap(SetSecurityUserProcessor.TYPE, new SetSecurityUserProcessor.Factory(securityContext::get));
+        return Collections.singletonMap(SetSecurityUserProcessor.TYPE,
+            new SetSecurityUserProcessor.Factory(securityContext::get, this::getLicenseState));
     }
 
     /**

@@ -26,6 +26,7 @@ import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -45,6 +46,7 @@ import static org.elasticsearch.packaging.util.Docker.getContainerLogs;
 import static org.elasticsearch.packaging.util.Docker.getImageLabels;
 import static org.elasticsearch.packaging.util.Docker.getJson;
 import static org.elasticsearch.packaging.util.Docker.mkDirWithPrivilegeEscalation;
+import static org.elasticsearch.packaging.util.Docker.removeContainer;
 import static org.elasticsearch.packaging.util.Docker.rmDirWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.runContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
@@ -75,6 +77,11 @@ public class DockerTests extends PackagingTestCase {
     @BeforeClass
     public static void filterDistros() {
         assumeTrue("only Docker", distribution().isDocker());
+    }
+
+    @AfterClass
+    public static void teardownSuite() {
+        removeContainer();
     }
 
     @Before

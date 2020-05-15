@@ -21,6 +21,9 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
+import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction;
+import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -713,4 +716,33 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      */
     void rolloverIndex(RolloverRequest request, ActionListener<RolloverResponse> listener);
 
+    /**
+     * Store a data stream
+     */
+    void createDataStream(CreateDataStreamAction.Request request, ActionListener<AcknowledgedResponse> listener);
+
+    /**
+     * Store a data stream
+     */
+    ActionFuture<AcknowledgedResponse> createDataStream(CreateDataStreamAction.Request request);
+
+    /**
+     * Delete a data stream
+     */
+    void deleteDataStream(DeleteDataStreamAction.Request request, ActionListener<AcknowledgedResponse> listener);
+
+    /**
+     * Delete a data stream
+     */
+    ActionFuture<AcknowledgedResponse> deleteDataStream(DeleteDataStreamAction.Request request);
+
+    /**
+     * Get data streams
+     */
+    void getDataStreams(GetDataStreamsAction.Request request, ActionListener<GetDataStreamsAction.Response> listener);
+
+    /**
+     * Get data streams
+     */
+    ActionFuture<GetDataStreamsAction.Response> getDataStreams(GetDataStreamsAction.Request request);
 }

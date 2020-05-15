@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -15,6 +16,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
@@ -25,11 +27,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/1096")
 public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     private static final String NUMERICAL_FEATURE_FIELD = "feature";
@@ -85,11 +91,13 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat(resultsObject.containsKey(predictedClassField), is(true));
             assertThat(resultsObject.containsKey("is_training"), is(true));
             assertThat(resultsObject.get("is_training"), is(destDoc.containsKey(DEPENDENT_VARIABLE_FIELD)));
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> importanceArray = (List<Map<String, Object>>)resultsObject.get("feature_importance");
+            assertThat(importanceArray, hasSize(greaterThan(0)));
             assertThat(
-                resultsObject.toString(),
-                resultsObject.containsKey("feature_importance." + NUMERICAL_FEATURE_FIELD)
-                    || resultsObject.containsKey("feature_importance." + DISCRETE_NUMERICAL_FEATURE_FIELD),
-                is(true));
+                importanceArray.stream().filter(m -> NUMERICAL_FEATURE_FIELD.equals(m.get("feature_name"))
+                    || DISCRETE_NUMERICAL_FEATURE_FIELD.equals(m.get("feature_name"))).findAny(),
+                isPresent());
         }
 
         assertProgress(jobId, 100, 100, 100, 100);
@@ -103,7 +111,11 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
+            "Started reindexing to destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
             "Finished analysis");
     }
 
@@ -133,6 +145,13 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+
+        GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(jobId);
+        assertThat(stats.getDataCounts().getJobId(), equalTo(jobId));
+        assertThat(stats.getDataCounts().getTrainingDocsCount(), equalTo(350L));
+        assertThat(stats.getDataCounts().getTestDocsCount(), equalTo(0L));
+        assertThat(stats.getDataCounts().getSkippedDocsCount(), equalTo(0L));
+
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
@@ -142,7 +161,11 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
+            "Started reindexing to destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
             "Finished analysis");
     }
 
@@ -185,6 +208,14 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(trainingRowsCount, greaterThan(0));
         assertThat(nonTrainingRowsCount, greaterThan(0));
 
+        GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(jobId);
+        assertThat(stats.getDataCounts().getJobId(), equalTo(jobId));
+        assertThat(stats.getDataCounts().getTrainingDocsCount(), greaterThan(0L));
+        assertThat(stats.getDataCounts().getTrainingDocsCount(), lessThan(350L));
+        assertThat(stats.getDataCounts().getTestDocsCount(), greaterThan(0L));
+        assertThat(stats.getDataCounts().getTestDocsCount(), lessThan(350L));
+        assertThat(stats.getDataCounts().getSkippedDocsCount(), equalTo(0L));
+
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
@@ -196,7 +227,11 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
+            "Started reindexing to destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
             "Finished analysis");
     }
 
@@ -268,7 +303,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             .setGamma(1.0)
             .setEta(1.0)
             .setFeatureBagFraction(1.0)
-            .setMaximumNumberTrees(1)
+            .setMaxTrees(1)
             .build();
 
         DataFrameAnalyticsConfig firstJob = buildAnalytics(firstJobId, sourceIndex, firstJobDestIndex, null,

@@ -58,7 +58,7 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     public void testAuthenticationFailed() throws Exception {
         final String requestId = randomAlphaOfLengthBetween(6, 12);
-        service.authenticationFailed(requestId, token, "_action", message);
+        service.get().authenticationFailed(requestId, token, "_action", message);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
@@ -71,7 +71,7 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     public void testAuthenticationFailedNoToken() throws Exception {
         final String requestId = randomAlphaOfLengthBetween(6, 12);
-        service.authenticationFailed(requestId, "_action", message);
+        service.get().authenticationFailed(requestId, "_action", message);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
@@ -84,7 +84,7 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     public void testAuthenticationFailedRestNoToken() throws Exception {
         final String requestId = randomAlphaOfLengthBetween(6, 12);
-        service.authenticationFailed(requestId, restRequest);
+        service.get().authenticationFailed(requestId, restRequest);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
@@ -97,7 +97,7 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     public void testAuthenticationFailedRest() throws Exception {
         final String requestId = randomAlphaOfLengthBetween(6, 12);
-        service.authenticationFailed(requestId, token, restRequest);
+        service.get().authenticationFailed(requestId, token, restRequest);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
@@ -110,7 +110,7 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     public void testAuthenticationFailedRealm() throws Exception {
         final String requestId = randomAlphaOfLengthBetween(6, 12);
-        service.authenticationFailed(requestId, "_realm", token, "_action", message);
+        service.get().authenticationFailed(requestId, "_realm", token, "_action", message);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
@@ -123,7 +123,7 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     public void testAuthenticationFailedRestRealm() throws Exception {
         final String requestId = randomAlphaOfLengthBetween(6, 12);
-        service.authenticationFailed(requestId, "_realm", token, restRequest);
+        service.get().authenticationFailed(requestId, "_realm", token, restRequest);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
@@ -136,7 +136,7 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     public void testAnonymousAccess() throws Exception {
         final String requestId = randomAlphaOfLengthBetween(6, 12);
-        service.anonymousAccessDenied(requestId, "_action", message);
+        service.get().anonymousAccessDenied(requestId, "_action", message);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
@@ -153,7 +153,7 @@ public class AuditTrailServiceTests extends ESTestCase {
         AuthorizationInfo authzInfo =
             () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, new String[] { randomAlphaOfLengthBetween(1, 6) });
         final String requestId = randomAlphaOfLengthBetween(6, 12);
-        service.accessGranted(requestId, authentication, "_action", message, authzInfo);
+        service.get().accessGranted(requestId, authentication, "_action", message, authzInfo);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
@@ -170,7 +170,7 @@ public class AuditTrailServiceTests extends ESTestCase {
         AuthorizationInfo authzInfo =
             () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, new String[] { randomAlphaOfLengthBetween(1, 6) });
         final String requestId = randomAlphaOfLengthBetween(6, 12);
-        service.accessDenied(requestId, authentication, "_action", message, authzInfo);
+        service.get().accessDenied(requestId, authentication, "_action", message, authzInfo);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
@@ -184,7 +184,7 @@ public class AuditTrailServiceTests extends ESTestCase {
     public void testConnectionGranted() throws Exception {
         InetAddress inetAddress = InetAddress.getLoopbackAddress();
         SecurityIpFilterRule rule = randomBoolean() ? SecurityIpFilterRule.ACCEPT_ALL : IPFilter.DEFAULT_PROFILE_ACCEPT_ALL;
-        service.connectionGranted(inetAddress, "client", rule);
+        service.get().connectionGranted(inetAddress, "client", rule);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
@@ -198,7 +198,7 @@ public class AuditTrailServiceTests extends ESTestCase {
     public void testConnectionDenied() throws Exception {
         InetAddress inetAddress = InetAddress.getLoopbackAddress();
         SecurityIpFilterRule rule = new SecurityIpFilterRule(false, "_all");
-        service.connectionDenied(inetAddress, "client", rule);
+        service.get().connectionDenied(inetAddress, "client", rule);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
@@ -213,7 +213,7 @@ public class AuditTrailServiceTests extends ESTestCase {
         User user = new User("_username", "r1");
         String realm = "_realm";
         final String requestId = randomAlphaOfLengthBetween(6, 12);
-        service.authenticationSuccess(requestId, realm, user, restRequest);
+        service.get().authenticationSuccess(requestId, realm, user, restRequest);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
@@ -228,7 +228,7 @@ public class AuditTrailServiceTests extends ESTestCase {
         User user = new User("_username", "r1");
         String realm = "_realm";
         final String requestId = randomAlphaOfLengthBetween(6, 12);
-        service.authenticationSuccess(requestId, realm, user, "_action", message);
+        service.get().authenticationSuccess(requestId, realm, user, "_action", message);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {

@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -39,7 +40,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -91,7 +91,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private final AnomalyDetectionAuditor auditor;
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
     private final NamedXContentRegistry xContentRegistry;
-    private final boolean remoteClusterSearchSupported;
+    private final boolean remoteClusterClient;
 
     @Inject
     public TransportStartDatafeedAction(Settings settings, TransportService transportService, ThreadPool threadPool,
@@ -110,7 +110,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         this.auditor = auditor;
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
         this.xContentRegistry = xContentRegistry;
-        this.remoteClusterSearchSupported = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
+        this.remoteClusterClient = Node.NODE_REMOTE_CLUSTER_CLIENT.get(settings);
     }
 
     static void validate(Job job,
@@ -201,7 +201,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                     response -> {
                                         if (response.isSuccess() == false) {
                                             listener.onFailure(createUnlicensedError(params.getDatafeedId(), response));
-                                        } else if (remoteClusterSearchSupported == false) {
+                                        } else if (remoteClusterClient == false) {
                                             listener.onFailure(
                                                 ExceptionsHelper.badRequestException(Messages.getMessage(
                                                     Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
@@ -477,7 +477,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
      * Important: the methods of this class must NOT throw exceptions.  If they did then the callers
      * of endpoints waiting for a condition tested by this predicate would never get a response.
      */
-    private class DatafeedPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
+    private static class DatafeedPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
 
         private volatile Exception exception;
 
@@ -487,12 +487,17 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 return false;
             }
             PersistentTasksCustomMetaData.Assignment assignment = persistentTask.getAssignment();
-            if (assignment != null && assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false &&
-                    assignment.isAssigned() == false) {
-                // Assignment has failed despite passing our "fast fail" validation
-                exception = new ElasticsearchStatusException("Could not start datafeed, allocation explanation [" +
+            if (assignment != null) {
+                // This means we are awaiting the datafeed's job to be assigned to a node
+                if (assignment.equals(DatafeedNodeSelector.AWAITING_JOB_ASSIGNMENT)) {
+                    return true;
+                }
+                if (assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false && assignment.isAssigned() == false) {
+                    // Assignment has failed despite passing our "fast fail" validation
+                    exception = new ElasticsearchStatusException("Could not start datafeed, allocation explanation [" +
                         assignment.getExplanation() + "]", RestStatus.TOO_MANY_REQUESTS);
-                return true;
+                    return true;
+                }
             }
             DatafeedState datafeedState = (DatafeedState) persistentTask.getState();
             return datafeedState == DatafeedState.STARTED;

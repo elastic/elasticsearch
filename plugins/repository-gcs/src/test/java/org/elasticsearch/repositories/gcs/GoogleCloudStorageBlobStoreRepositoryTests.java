@@ -28,7 +28,6 @@ import fixture.gcs.FakeOAuth2HttpHandler;
 import fixture.gcs.GoogleCloudStorageHttpHandler;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -66,7 +65,6 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BU
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CLIENT_NAME;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52906")
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
     @Override
@@ -201,6 +199,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                                                     final HttpTransportOptions httpTransportOptions) {
                     StorageOptions options = super.createStorageOptions(clientSettings, httpTransportOptions);
                     return options.toBuilder()
+                        .setHost(options.getHost())
+                        .setCredentials(options.getCredentials())
                         .setRetrySettings(RetrySettings.newBuilder()
                             .setTotalTimeout(options.getRetrySettings().getTotalTimeout())
                             .setInitialRetryDelay(Duration.ofMillis(10L))
@@ -268,7 +268,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             }
 
             final String range = exchange.getRequestHeaders().getFirst("Content-Range");
-            return exchange.getRemoteAddress().toString()
+            return exchange.getRemoteAddress().getHostString()
                 + " " + exchange.getRequestMethod()
                 + " " + exchange.getRequestURI()
                 + (range != null ?  " " + range :  "");

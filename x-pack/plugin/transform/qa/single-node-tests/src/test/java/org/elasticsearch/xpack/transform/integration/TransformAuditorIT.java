@@ -7,7 +7,9 @@
 package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.junit.Before;
@@ -94,7 +96,16 @@ public class TransformAuditorIT extends TransformRestTestCase {
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
 
-        createIndex(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED, settings.build());
+        // These indices should only exist if created in previous versions, ignore the deprecation warning for this test
+        RequestOptions options = expectWarnings("index name [" + TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED + "] starts " +
+            "with a dot '.', in the next major version, index names starting with a dot are reserved for hidden indices " +
+            "and system indices");
+        Request request = new Request("PUT", "/" + TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED);
+        String entity = "{\"settings\": " + Strings.toString(settings.build()) + "}";
+        request.setJsonEntity(entity);
+        request.setOptions(options);
+        client().performRequest(request);
+
         assertBusy(() -> {
             assertTrue(aliasExists(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED,
                     TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS));

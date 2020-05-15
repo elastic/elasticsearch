@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -459,21 +459,21 @@ public class BucketSortIT extends ESIntegTestCase {
     }
 
     public void testInvalidPath() {
-        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class,
+        Exception e = expectThrows(ActionRequestValidationException.class,
                 () -> client().prepareSearch(INDEX)
                 .addAggregation(terms("foos").field(TERM_FIELD)
                         .subAggregation(bucketSort("bucketSort", Arrays.asList(new FieldSortBuilder("invalid")))))
                 .get());
-        assertThat(e.getCause().getMessage(), containsString("No aggregation found for path [invalid]"));
+        assertThat(e.getMessage(), containsString("No aggregation found for path [invalid]"));
     }
 
     public void testNeitherSortsNorSizeSpecifiedAndFromIsDefault_ShouldThrowValidation() {
-        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class,
+        Exception e = expectThrows(ActionRequestValidationException.class,
                 () -> client().prepareSearch(INDEX)
                         .addAggregation(terms("foos").field(TERM_FIELD)
                                 .subAggregation(bucketSort("bucketSort", Collections.emptyList())))
                         .get());
-        assertThat(e.getCause().getMessage(), containsString("[bucketSort] is configured to perform nothing." +
+        assertThat(e.getMessage(), containsString("[bucketSort] is configured to perform nothing." +
                 " Please set either of [sort, size, from] to use bucket_sort"));
     }
 }

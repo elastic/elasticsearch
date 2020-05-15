@@ -29,6 +29,12 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
+restResources {
+  restApi {
+    includeCore '_common', 'snapshot', 'bulk', 'count', 'indices'
+  }
+}
+
 testFixtures.useFixture ":test:fixtures:azure-fixture", "azure-fixture"
 
 boolean useFixture = false

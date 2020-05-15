@@ -26,16 +26,20 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 
 public class InternalTopMetricsTests extends InternalAggregationTestCase<InternalTopMetrics> {
@@ -46,11 +50,15 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
      * would fail because the instances that it attempts to reduce don't
      * have their results in the same order.
      */
-    private SortOrder sortOrder = randomFrom(SortOrder.values());
+    private final SortOrder sortOrder = randomFrom(SortOrder.values());
+    private final InternalTopMetrics.MetricValue metricOneDouble =
+            new InternalTopMetrics.MetricValue(DocValueFormat.RAW, SortValue.from(1.0));
+    private final InternalTopMetrics.MetricValue metricOneLong =
+            new InternalTopMetrics.MetricValue(DocValueFormat.RAW, SortValue.from(1));
 
     public void testEmptyIsNotMapped() {
         InternalTopMetrics empty = InternalTopMetrics.buildEmptyAggregation(
-                randomAlphaOfLength(5), randomAlphaOfLength(2), emptyList(), null);
+                randomAlphaOfLength(5), randomMetricNames(between(1, 5)), emptyList(), null);
         assertFalse(empty.isMapped());
     }
 
@@ -60,8 +68,9 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
     }
 
     public void testToXContentDoubleSortValue() throws IOException {
-        InternalTopMetrics tm = new InternalTopMetrics("test", sortOrder, "test", 1,
-                List.of(new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(1.0), 1.0)), emptyList(), null);
+        List<InternalTopMetrics.TopMetric> top = singletonList(
+                new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(1.0), singletonList(metricOneDouble)));
+        InternalTopMetrics tm = new InternalTopMetrics("test", sortOrder, singletonList("test"), 1, top, emptyList(), null);
         assertThat(Strings.toString(tm, true, true), equalTo(
                 "{\n" +
                 "  \"test\" : {\n" +
@@ -79,12 +88,11 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
                 "}"));
     }
 
-    public void testToXConentDateSortValue() throws IOException {
-        DocValueFormat sortFormat = new DocValueFormat.DateTime(DateFormatter.forPattern("strict_date_time"), ZoneId.of("UTC"),
-                DateFieldMapper.Resolution.MILLISECONDS);
+    public void testToXContentDateSortValue() throws IOException {
         SortValue sortValue = SortValue.from(ZonedDateTime.parse("2007-12-03T10:15:30Z").toInstant().toEpochMilli());
-        InternalTopMetrics tm = new InternalTopMetrics("test", sortOrder, "test", 1,
-                List.of(new InternalTopMetrics.TopMetric(sortFormat, sortValue, 1.0)), emptyList(), null);
+        List<InternalTopMetrics.TopMetric> top = singletonList(new InternalTopMetrics.TopMetric(
+                strictDateTime(), sortValue, singletonList(metricOneDouble)));
+        InternalTopMetrics tm = new InternalTopMetrics("test", sortOrder, singletonList("test"), 1, top, emptyList(), null);
         assertThat(Strings.toString(tm, true, true), equalTo(
                 "{\n" +
                 "  \"test\" : {\n" +
@@ -102,12 +110,78 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
                 "}"));
     }
 
-    public void testToXContentManyValues() throws IOException {
-        InternalTopMetrics tm = new InternalTopMetrics("test", sortOrder, "test", 2,
-                List.of(
-                    new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(1.0), 1.0),
-                    new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(2.0), 2.0)),
-                emptyList(), null);
+    public void testToXContentLongMetricValue() throws IOException {
+        List<InternalTopMetrics.TopMetric> top = singletonList(
+                new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(1.0), singletonList(metricOneLong)));
+        InternalTopMetrics tm = new InternalTopMetrics("test", sortOrder, singletonList("test"), 1, top, emptyList(), null);
+        assertThat(Strings.toString(tm, true, true), equalTo(
+                "{\n" +
+                "  \"test\" : {\n" +
+                "    \"top\" : [\n" +
+                "      {\n" +
+                "        \"sort\" : [\n" +
+                "          1.0\n" +
+                "        ],\n" +
+                "        \"metrics\" : {\n" +
+                "          \"test\" : 1\n" +
+                "        }\n" +
+                "      }\n" +
+                "    ]\n" +
+                "  }\n" +
+                "}"));
+    }
+
+    public void testToXContentDateMetricValue() throws IOException {
+        InternalTopMetrics.MetricValue metricValue = new InternalTopMetrics.MetricValue(
+                strictDateTime(), SortValue.from(ZonedDateTime.parse("2007-12-03T10:15:30Z").toInstant().toEpochMilli()));
+        List<InternalTopMetrics.TopMetric> top = singletonList(
+                new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(1.0), singletonList(metricValue)));
+        InternalTopMetrics tm = new InternalTopMetrics("test", sortOrder, singletonList("test"), 1, top, emptyList(), null);
+        assertThat(Strings.toString(tm, true, true), equalTo(
+                "{\n" +
+                "  \"test\" : {\n" +
+                "    \"top\" : [\n" +
+                "      {\n" +
+                "        \"sort\" : [\n" +
+                "          1.0\n" +
+                "        ],\n" +
+                "        \"metrics\" : {\n" +
+                "          \"test\" : \"2007-12-03T10:15:30.000Z\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    ]\n" +
+                "  }\n" +
+                "}"));
+    }
+
+    public void testToXContentManyMetrics() throws IOException {
+        List<InternalTopMetrics.TopMetric> top = singletonList(new InternalTopMetrics.TopMetric(
+                DocValueFormat.RAW, SortValue.from(1.0), List.of(metricOneDouble, metricOneLong, metricOneDouble)));
+        InternalTopMetrics tm = new InternalTopMetrics("test", sortOrder, List.of("foo", "bar", "baz"), 1, top, emptyList(), null);
+        assertThat(Strings.toString(tm, true, true), equalTo(
+                "{\n" +
+                "  \"test\" : {\n" +
+                "    \"top\" : [\n" +
+                "      {\n" +
+                "        \"sort\" : [\n" +
+                "          1.0\n" +
+                "        ],\n" +
+                "        \"metrics\" : {\n" +
+                "          \"foo\" : 1.0,\n" +
+                "          \"bar\" : 1,\n" +
+                "          \"baz\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    ]\n" +
+                "  }\n" +
+                "}"));
+    }
+
+    public void testToXContentManyTopMetrics() throws IOException {
+        List<InternalTopMetrics.TopMetric> top = List.of(
+                new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(1.0), singletonList(metricOneDouble)),
+                new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(2.0), singletonList(metricOneLong)));
+        InternalTopMetrics tm = new InternalTopMetrics("test", sortOrder, singletonList("test"), 2, top, emptyList(), null);
         assertThat(Strings.toString(tm, true, true), equalTo(
                 "{\n" +
                 "  \"test\" : {\n" +
@@ -125,7 +199,7 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
                 "          2.0\n" +
                 "        ],\n" +
                 "        \"metrics\" : {\n" +
-                "          \"test\" : 2.0\n" +
+                "          \"test\" : 1\n" +
                 "        }\n" +
                 "      }\n" +
                 "    ]\n" +
@@ -144,17 +218,23 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
     @Override
     protected InternalTopMetrics createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
-        String metricName = randomAlphaOfLength(5);
+        return createTestInstance(name, pipelineAggregators, metaData, InternalAggregationTestCase::randomNumericDocValueFormat);
+    }
+
+    private InternalTopMetrics createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData, Supplier<DocValueFormat> randomDocValueFormat) {
+        int metricCount = between(1, 5);
+        List<String> metricNames = randomMetricNames(metricCount);
         int size = between(1, 100);
-        List<InternalTopMetrics.TopMetric> topMetrics = randomTopMetrics(between(0, size));
-        return new InternalTopMetrics(name, sortOrder, metricName, size, topMetrics, pipelineAggregators, metaData);
+        List<InternalTopMetrics.TopMetric> topMetrics = randomTopMetrics(randomDocValueFormat, between(0, size), metricCount);
+        return new InternalTopMetrics(name, sortOrder, metricNames, size, topMetrics, pipelineAggregators, metaData);
     }
 
     @Override
     protected InternalTopMetrics mutateInstance(InternalTopMetrics instance) throws IOException {
         String name = instance.getName();
         SortOrder sortOrder = instance.getSortOrder();
-        String metricName = instance.getMetricName();
+        List<String> metricNames = instance.getMetricNames();
         int size = instance.getSize();
         List<InternalTopMetrics.TopMetric> topMetrics = instance.getTopMetrics();
         switch (randomInt(4)) {
@@ -166,25 +246,40 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
             Collections.reverse(topMetrics);
             break;
         case 2:
-            metricName = randomAlphaOfLength(6);
+            metricNames = new ArrayList<>(metricNames);
+            metricNames.set(randomInt(metricNames.size() - 1), randomAlphaOfLength(6));
             break;
         case 3:
             size = randomValueOtherThan(size, () -> between(1, 100));
             break;
         case 4:
             int fixedSize = size;
-            topMetrics = randomValueOtherThan(topMetrics, () -> randomTopMetrics(between(1, fixedSize)));
+            int fixedMetricsSize = metricNames.size();
+            topMetrics = randomValueOtherThan(topMetrics, () -> randomTopMetrics(
+                    InternalAggregationTestCase::randomNumericDocValueFormat, between(1, fixedSize), fixedMetricsSize));
             break;
         default:
             throw new IllegalArgumentException("bad mutation");
         }
-        return new InternalTopMetrics(name, sortOrder, metricName, size, topMetrics,
+        return new InternalTopMetrics(name, sortOrder, metricNames, size, topMetrics,
                 instance.pipelineAggregators(), instance.getMetaData());
     }
 
     @Override
     protected Reader<InternalTopMetrics> instanceReader() {
         return InternalTopMetrics::new;
+    }
+
+    /**
+     * An extra test for parsing dates from xcontent because we can't random
+     * into {@link DocValueFormat.DateTime} because it doesn't
+     * implement {@link Object#equals(Object)}.
+     */
+    public void testFromXContentDates() throws IOException {
+        InternalTopMetrics aggregation = createTestInstance(
+                randomAlphaOfLength(3), emptyList(), emptyMap(), InternalTopMetricsTests::strictDateTime);
+        ParsedAggregation parsedAggregation = parseAndAssert(aggregation, randomBoolean(), randomBoolean());
+        assertFromXContent(aggregation, parsedAggregation);
     }
 
     @Override
@@ -198,7 +293,17 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
             Object expectedSort = internalTop.getSortFormat() == DocValueFormat.RAW ?
                     internalTop.getSortValue().getKey() : internalTop.getSortValue().format(internalTop.getSortFormat());
             assertThat(parsedTop.getSort(), equalTo(singletonList(expectedSort)));
-            assertThat(parsedTop.getMetrics(), equalTo(singletonMap(aggregation.getMetricName(), internalTop.getMetricValue())));
+            assertThat(parsedTop.getMetrics().keySet(), hasSize(aggregation.getMetricNames().size()));
+            for (int m = 0; m < aggregation.getMetricNames().size(); m++) {
+                String name = aggregation.getMetricNames().get(m);
+                InternalTopMetrics.MetricValue value = internalTop.getMetricValues().get(m);
+                assertThat(parsedTop.getMetrics(), hasKey(name));
+                if (value.getFormat() == DocValueFormat.RAW) {
+                    assertThat(parsedTop.getMetrics().get(name), equalTo(value.numberValue()));
+                } else {
+                    assertThat(parsedTop.getMetrics().get(name), equalTo(value.getValue().format(value.getFormat())));
+                }
+            }
         }
     }
 
@@ -213,16 +318,39 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
         List<InternalTopMetrics.TopMetric> winners = metrics.size() > first.getSize() ? metrics.subList(0, first.getSize()) : metrics;
         assertThat(reduced.getName(), equalTo(first.getName()));
         assertThat(reduced.getSortOrder(), equalTo(first.getSortOrder()));
-        assertThat(reduced.getMetricName(), equalTo(first.getMetricName()));
+        assertThat(reduced.getMetricNames(), equalTo(first.getMetricNames()));
         assertThat(reduced.getTopMetrics(), equalTo(winners));
     }
 
-    private List<InternalTopMetrics.TopMetric> randomTopMetrics(int length) {
+    private List<InternalTopMetrics.TopMetric> randomTopMetrics(
+            Supplier<DocValueFormat> randomDocValueFormat, int length, int metricCount) {
         return IntStream.range(0, length)
-                .mapToObj(i -> new InternalTopMetrics.TopMetric(randomNumericDocValueFormat(), randomSortValue(), randomDouble()))
+                .mapToObj(i -> new InternalTopMetrics.TopMetric(
+                        randomDocValueFormat.get(), randomSortValue(), randomMetricValues(randomDocValueFormat, metricCount)
+                ))
                 .sorted((lhs, rhs) -> sortOrder.reverseMul() * lhs.getSortValue().compareTo(rhs.getSortValue()))
                 .collect(toList());
     }
+
+    static List<String> randomMetricNames(int metricCount) {
+        Set<String> names = new HashSet<>(metricCount);
+        while (names.size() < metricCount) {
+            names.add(randomAlphaOfLength(5));
+        }
+        return new ArrayList<>(names);
+    }
+
+    private List<InternalTopMetrics.MetricValue> randomMetricValues(Supplier<DocValueFormat> randomDocValueFormat, int metricCount) {
+        return IntStream.range(0, metricCount)
+                .mapToObj(i -> new InternalTopMetrics.MetricValue(randomDocValueFormat.get(), randomSortValue()))
+                .collect(toList());
+    }
+
+    private static DocValueFormat strictDateTime() {
+        return new DocValueFormat.DateTime(
+            DateFormatter.forPattern("strict_date_time"), ZoneId.of("UTC"), DateFieldMapper.Resolution.MILLISECONDS);
+    }
+
 
     private static SortValue randomSortValue() {
         if (randomBoolean()) {

@@ -26,7 +26,7 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
 
-public class VectorDVIndexFieldData extends DocValuesIndexFieldData implements IndexFieldData<VectorDVAtomicFieldData> {
+public class VectorDVIndexFieldData extends DocValuesIndexFieldData implements IndexFieldData<VectorDVLeafFieldData> {
 
     public VectorDVIndexFieldData(Index index, String fieldName) {
         super(index, fieldName);
@@ -44,12 +44,12 @@ public class VectorDVIndexFieldData extends DocValuesIndexFieldData implements I
     }
 
     @Override
-    public VectorDVAtomicFieldData load(LeafReaderContext context) {
-        return new VectorDVAtomicFieldData(context.reader(), fieldName);
+    public VectorDVLeafFieldData load(LeafReaderContext context) {
+        return new VectorDVLeafFieldData(context.reader(), fieldName);
     }
 
     @Override
-    public VectorDVAtomicFieldData loadDirect(LeafReaderContext context) {
+    public VectorDVLeafFieldData loadDirect(LeafReaderContext context) {
         return load(context);
     }
 

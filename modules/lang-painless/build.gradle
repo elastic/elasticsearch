@@ -44,6 +44,13 @@ dependencyLicenses {
   mapping from: /asm-.*/, to: 'asm'
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'bulk', 'update', 
+                'scripts_painless_execute', 'put_script', 'delete_script'
+  }
+}
+
 test {
   // in WhenThingsGoWrongTests we intentionally generate an out of memory error, this prevents the heap from being dumped to disk
   jvmArgs '-XX:-OmitStackTraceInFastThrow', '-XX:-HeapDumpOnOutOfMemoryError'

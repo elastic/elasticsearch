@@ -51,8 +51,6 @@ include::settings/audit-settings.asciidoc[]
 
 include::settings/ccr-settings.asciidoc[]
 
-include::settings/data-frames-settings.asciidoc[]
-
 include::settings/ilm-settings.asciidoc[]
 
 include::settings/license-settings.asciidoc[]
@@ -64,6 +62,8 @@ include::settings/monitoring-settings.asciidoc[]
 include::settings/security-settings.asciidoc[]
 
 include::settings/sql-settings.asciidoc[]
+
+include::settings/transform-settings.asciidoc[]
 
 include::settings/notification-settings.asciidoc[]
 

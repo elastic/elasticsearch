@@ -93,14 +93,8 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                                                           List<String> stoppingDatafeedIds,
                                                           List<String> notStoppedDatafeedIds) {
         switch (datafeedState) {
+            // Treat STARTING like STARTED for stop API behaviour.
             case STARTING:
-                // The STARTING state is not used anywhere at present, so this should never happen.
-                // At present datafeeds that have a persistent task that hasn't yet been assigned
-                // a state are reported as STOPPED (which is not great).  It could be considered a
-                // breaking change to introduce the STARTING state though, so let's aim to do it in
-                // version 8.  Also consider treating STARTING like STARTED for stop API behaviour.
-                notStoppedDatafeedIds.add(datafeedId);
-                break;
             case STARTED:
                 startedDatafeedIds.add(datafeedId);
                 notStoppedDatafeedIds.add(datafeedId);

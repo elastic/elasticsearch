@@ -12,6 +12,9 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsage;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStats;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStats;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStats;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 
 import java.io.IOException;
@@ -28,9 +31,20 @@ public class AnalyticsResult implements ToXContentObject {
     private static final ParseField PROGRESS_PERCENT = new ParseField("progress_percent");
     private static final ParseField INFERENCE_MODEL = new ParseField("inference_model");
     private static final ParseField ANALYTICS_MEMORY_USAGE = new ParseField("analytics_memory_usage");
+    private static final ParseField OUTLIER_DETECTION_STATS = new ParseField("outlier_detection_stats");
+    private static final ParseField CLASSIFICATION_STATS = new ParseField("classification_stats");
+    private static final ParseField REGRESSION_STATS = new ParseField("regression_stats");
 
     public static final ConstructingObjectParser<AnalyticsResult, Void> PARSER = new ConstructingObjectParser<>(TYPE.getPreferredName(),
-            a -> new AnalyticsResult((RowResults) a[0], (Integer) a[1], (TrainedModelDefinition.Builder) a[2], (MemoryUsage) a[3]));
+            a -> new AnalyticsResult(
+                (RowResults) a[0],
+                (Integer) a[1],
+                (TrainedModelDefinition.Builder) a[2],
+                (MemoryUsage) a[3],
+                (OutlierDetectionStats) a[4],
+                (ClassificationStats) a[5],
+                (RegressionStats) a[6]
+            ));
 
     static {
         PARSER.declareObject(optionalConstructorArg(), RowResults.PARSER, RowResults.TYPE);
@@ -38,6 +52,9 @@ public class AnalyticsResult implements ToXContentObject {
         // TODO change back to STRICT_PARSER once native side is aligned
         PARSER.declareObject(optionalConstructorArg(), TrainedModelDefinition.LENIENT_PARSER, INFERENCE_MODEL);
         PARSER.declareObject(optionalConstructorArg(), MemoryUsage.STRICT_PARSER, ANALYTICS_MEMORY_USAGE);
+        PARSER.declareObject(optionalConstructorArg(), OutlierDetectionStats.STRICT_PARSER, OUTLIER_DETECTION_STATS);
+        PARSER.declareObject(optionalConstructorArg(), ClassificationStats.STRICT_PARSER, CLASSIFICATION_STATS);
+        PARSER.declareObject(optionalConstructorArg(), RegressionStats.STRICT_PARSER, REGRESSION_STATS);
     }
 
     private final RowResults rowResults;
@@ -45,16 +62,25 @@ public class AnalyticsResult implements ToXContentObject {
     private final TrainedModelDefinition.Builder inferenceModelBuilder;
     private final TrainedModelDefinition inferenceModel;
     private final MemoryUsage memoryUsage;
+    private final OutlierDetectionStats outlierDetectionStats;
+    private final ClassificationStats classificationStats;
+    private final RegressionStats regressionStats;
 
     public AnalyticsResult(@Nullable RowResults rowResults,
                            @Nullable Integer progressPercent,
                            @Nullable TrainedModelDefinition.Builder inferenceModelBuilder,
-                           @Nullable MemoryUsage memoryUsage) {
+                           @Nullable MemoryUsage memoryUsage,
+                           @Nullable OutlierDetectionStats outlierDetectionStats,
+                           @Nullable ClassificationStats classificationStats,
+                           @Nullable RegressionStats regressionStats) {
         this.rowResults = rowResults;
         this.progressPercent = progressPercent;
         this.inferenceModelBuilder = inferenceModelBuilder;
         this.inferenceModel = inferenceModelBuilder == null ? null : inferenceModelBuilder.build();
         this.memoryUsage = memoryUsage;
+        this.outlierDetectionStats = outlierDetectionStats;
+        this.classificationStats = classificationStats;
+        this.regressionStats = regressionStats;
     }
 
     public RowResults getRowResults() {
@@ -71,6 +97,18 @@ public class AnalyticsResult implements ToXContentObject {
 
     public MemoryUsage getMemoryUsage() {
         return memoryUsage;
+    }
+
+    public OutlierDetectionStats getOutlierDetectionStats() {
+        return outlierDetectionStats;
+    }
+
+    public ClassificationStats getClassificationStats() {
+        return classificationStats;
+    }
+
+    public RegressionStats getRegressionStats() {
+        return regressionStats;
     }
 
     @Override
@@ -90,6 +128,15 @@ public class AnalyticsResult implements ToXContentObject {
         if (memoryUsage != null) {
             builder.field(ANALYTICS_MEMORY_USAGE.getPreferredName(), memoryUsage, params);
         }
+        if (outlierDetectionStats != null) {
+            builder.field(OUTLIER_DETECTION_STATS.getPreferredName(), outlierDetectionStats, params);
+        }
+        if (classificationStats != null) {
+            builder.field(CLASSIFICATION_STATS.getPreferredName(), classificationStats, params);
+        }
+        if (regressionStats != null) {
+            builder.field(REGRESSION_STATS.getPreferredName(), regressionStats, params);
+        }
         builder.endObject();
         return builder;
     }
@@ -107,11 +154,15 @@ public class AnalyticsResult implements ToXContentObject {
         return Objects.equals(rowResults, that.rowResults)
             && Objects.equals(progressPercent, that.progressPercent)
             && Objects.equals(inferenceModel, that.inferenceModel)
-            && Objects.equals(memoryUsage, that.memoryUsage);
+            && Objects.equals(memoryUsage, that.memoryUsage)
+            && Objects.equals(outlierDetectionStats, that.outlierDetectionStats)
+            && Objects.equals(classificationStats, that.classificationStats)
+            && Objects.equals(regressionStats, that.regressionStats);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(rowResults, progressPercent, inferenceModel, memoryUsage);
+        return Objects.hash(rowResults, progressPercent, inferenceModel, memoryUsage, outlierDetectionStats, classificationStats,
+            regressionStats);
     }
 }

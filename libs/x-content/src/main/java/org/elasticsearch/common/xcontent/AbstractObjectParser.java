@@ -38,6 +38,7 @@ public abstract class AbstractObjectParser<Value, Context>
         implements BiFunction<XContentParser, Context, Value>, ContextParser<Context, Value> {
 
     final List<String[]> requiredFieldSets = new ArrayList<>();
+    final List<String[]> exclusiveFieldSets = new ArrayList<>();
 
     /**
      * Declare some field. Usually it is easier to use {@link #declareString(BiConsumer, ParseField)} or
@@ -45,6 +46,31 @@ public abstract class AbstractObjectParser<Value, Context>
      */
     public abstract <T> void declareField(BiConsumer<Value, T> consumer, ContextParser<Context, T> parser, ParseField parseField,
             ValueType type);
+
+    /**
+     * Declares a single named object.
+     *
+     * <pre>
+     * <code>
+     * {
+     *   "object_name": {
+     *     "instance_name": { "field1": "value1", ... }
+     *     }
+     *   }
+     * }
+     * </code>
+     * </pre>
+     *
+     * @param consumer
+     *            sets the value once it has been parsed
+     * @param namedObjectParser
+     *            parses the named object
+     * @param parseField
+     *            the field to parse
+     */
+    public abstract <T> void declareNamedObject(BiConsumer<Value, T> consumer, NamedObjectParser<T, Context> namedObjectParser,
+                                                 ParseField parseField);
+
 
     /**
      * Declares named objects in the style of aggregations. These are named
@@ -292,6 +318,25 @@ public abstract class AbstractObjectParser<Value, Context>
             return;
         }
         this.requiredFieldSets.add(requiredSet);
+    }
+
+    /**
+     * Declares a set of fields of which at most one must appear for parsing to succeed
+     *
+     * E.g. <code>declareExclusiveFieldSet("foo", "bar");</code> means that only one of 'foo'
+     * or 'bar' must be present, and if both appear then an exception will be thrown.  Note
+     * that this does not make 'foo' or 'bar' required - see {@link #declareRequiredFieldSet(String...)}
+     * for required fields.
+     *
+     * Multiple exclusive sets may be declared
+     *
+     * @param exclusiveSet a set of field names, at most one of which must appear
+     */
+    public void declareExclusiveFieldSet(String... exclusiveSet) {
+        if (exclusiveSet.length == 0) {
+            return;
+        }
+        this.exclusiveFieldSets.add(exclusiveSet);
     }
 
     private interface IOSupplier<T> {

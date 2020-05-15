@@ -299,6 +299,10 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         return jobId + "_" + TYPE + "_";
     }
 
+    public static String annotationDocumentId(ModelSnapshot snapshot) {
+        return "annotation_for_" + documentId(snapshot);
+    }
+
     public static String documentId(ModelSnapshot snapshot) {
         return documentId(snapshot.getJobId(), snapshot.getSnapshotId());
     }

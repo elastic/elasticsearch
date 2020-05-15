@@ -129,7 +129,7 @@ public class Range extends ScalarFunction {
         ScriptTemplate upperScript = asScript(upper);
         
 
-        String template = formatTemplate(format(Locale.ROOT, "{sql}.and({sql}.%s(%s, %s), {sql}.%s(%s, %s))",
+        String template = formatTemplate(format(Locale.ROOT, "{ql}.and({ql}.%s(%s, %s), {ql}.%s(%s, %s))",
                         includeLower() ? "gte" : "gt",
                         valueScript.template(),
                         lowerScript.template(),

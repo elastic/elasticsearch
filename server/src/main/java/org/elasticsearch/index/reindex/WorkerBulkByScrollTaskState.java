@@ -83,10 +83,14 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
      */
     private final AtomicReference<DelayedPrepareBulkRequest> delayedPrepareBulkRequestReference = new AtomicReference<>();
 
-    public WorkerBulkByScrollTaskState(BulkByScrollTask task, Integer sliceId, float requestsPerSecond) {
+    public WorkerBulkByScrollTaskState(BulkByScrollTask task, Integer sliceId, float requestsPerSecond,
+                                       BulkByScrollTask.Status checkpointStatus) {
         this.task = task;
         this.sliceId = sliceId;
         setRequestsPerSecond(requestsPerSecond);
+        if (checkpointStatus != null) {
+            initStatus(checkpointStatus);
+        }
     }
 
     public BulkByScrollTask.Status getStatus() {
@@ -182,11 +186,11 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
      * Schedule prepareBulkRequestRunnable to run after some delay. This is where throttling plugs into reindexing so the request can be
      * rescheduled over and over again.
      */
-    public void delayPrepareBulkRequest(ThreadPool threadPool, TimeValue lastBatchStartTime, int lastBatchSize,
+    public void delayPrepareBulkRequest(ThreadPool threadPool, long lastBatchStartTimeNS, int lastBatchSize,
                                         AbstractRunnable prepareBulkRequestRunnable) {
         // Synchronize so we are less likely to schedule the same request twice.
         synchronized (delayedPrepareBulkRequestReference) {
-            TimeValue delay = throttleWaitTime(lastBatchStartTime, timeValueNanos(System.nanoTime()), lastBatchSize);
+            TimeValue delay = throttleWaitTime(lastBatchStartTimeNS, System.nanoTime(), lastBatchSize);
             logger.debug("[{}]: preparing bulk request for [{}]", task.getId(), delay);
             try {
                 delayedPrepareBulkRequestReference.set(new DelayedPrepareBulkRequest(threadPool, getRequestsPerSecond(),
@@ -197,8 +201,8 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
         }
     }
 
-    public TimeValue throttleWaitTime(TimeValue lastBatchStartTime, TimeValue now, int lastBatchSize) {
-        long earliestNextBatchStartTime = now.nanos() + (long) perfectlyThrottledBatchTime(lastBatchSize);
+    public TimeValue throttleWaitTime(long lastBatchStartTimeNS, long nowNS, int lastBatchSize) {
+        long earliestNextBatchStartTime = nowNS + (long) perfectlyThrottledBatchTime(lastBatchSize);
         long waitTime = min(MAX_THROTTLE_WAIT_TIME.nanos(), max(0, earliestNextBatchStartTime - System.nanoTime()));
         return timeValueNanos(waitTime);
     }
@@ -242,6 +246,25 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
 
             this.delayedPrepareBulkRequestReference.set(delayedPrepareBulkRequest.rethrottle(newRequestsPerSecond));
         }
+    }
+
+    private void initStatus(BulkByScrollTask.Status checkpointStatus) {
+        assert sliceId == null;
+        // todo: need two totals, one for the original and one for the readjusted total.
+        assert total.get() == 0;
+        assert created.get() == 0;
+        assert updated.get() == 0;
+        assert deleted.get() == 0;
+        total.set(checkpointStatus.getTotal());
+        created.set(checkpointStatus.getCreated());
+        updated.set(checkpointStatus.getUpdated());
+        deleted.set(checkpointStatus.getDeleted());
+        noops.set(checkpointStatus.getNoops());
+        batch.set(checkpointStatus.getBatches());
+        versionConflicts.set(checkpointStatus.getVersionConflicts());
+        bulkRetries.set(checkpointStatus.getBulkRetries());
+        searchRetries.set(checkpointStatus.getSearchRetries());
+        throttledNanos.set(checkpointStatus.getThrottled().nanos());
     }
 
     class DelayedPrepareBulkRequest {

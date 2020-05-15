@@ -1,0 +1,12 @@
+---
+"Test stubs":
+  - skip:
+      version: " - 7.99.99"
+      reason: not backported yet
+
+  - do:
+      indices.resolve_index_abstraction:
+        name: data*
+        body:
+          timestamp_field: "@timestamp"
+  - is_true: acknowledged

@@ -17,13 +17,6 @@ PUT /_snapshot/my_repository
 }
 ----
 
-////
-[source,console]
-----
-DELETE /_snapshot/my_repository
-----
-////
-
 [[put-snapshot-repo-api-request]]
 ==== {api-request-title}
 

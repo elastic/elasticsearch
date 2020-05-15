@@ -27,6 +27,7 @@ final class GoogleCloudStorageOperationsStats {
 
     private final AtomicLong getObjectCount = new AtomicLong();
     private final AtomicLong listCount = new AtomicLong();
+    private final AtomicLong putObjectCount = new AtomicLong();
 
     private final String bucketName;
 
@@ -36,6 +37,10 @@ final class GoogleCloudStorageOperationsStats {
 
     void trackGetObjectOperation() {
         getObjectCount.incrementAndGet();
+    }
+
+    void trackPutObjectOperation() {
+        putObjectCount.incrementAndGet();
     }
 
     void trackListObjectsOperation() {
@@ -50,6 +55,7 @@ final class GoogleCloudStorageOperationsStats {
         final Map<String, Long> results = new HashMap<>();
         results.put("GET", getObjectCount.get());
         results.put("LIST", listCount.get());
+        results.put("PUT", putObjectCount.get());
         return results;
     }
 }

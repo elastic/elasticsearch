@@ -293,6 +293,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     }
 
                 }));
+                stats.trackPutObjectOperation();
                 return;
             } catch (final StorageException se) {
                 final int errorCode = se.getCode();
@@ -335,6 +336,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 new Storage.BlobTargetOption[0];
             SocketAccess.doPrivilegedVoidIOException(
                     () -> client().create(blobInfo, buffer, targetOptions));
+            stats.trackPutObjectOperation();
         } catch (final StorageException se) {
             if (failIfAlreadyExists && se.getCode() == HTTP_PRECON_FAILED) {
                 throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());

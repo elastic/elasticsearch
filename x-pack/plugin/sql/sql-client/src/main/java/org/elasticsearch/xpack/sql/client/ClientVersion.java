@@ -76,29 +76,33 @@ public class ClientVersion {
     // (1) a file URL: file:<path><FS separator><driver name>.jar
     // (2) jar file URL pointing to a JAR file: jar:<sub-url><separator><driver name>.jar!/
     // (3) jar file URL pointing to a JAR file entry (likely a fat JAR, but other types are possible): jar:<sub-url>!/driver name>.jar!/
-    static SqlVersion extractVersion(URL url) {
-        Manifest manifest = null;
+    static Manifest getManifest(URL url) throws IOException {
         String urlStr = url.toString();
         if (urlStr.endsWith(".jar") || urlStr.endsWith(".jar!/")) {
-            try {
-                URLConnection conn = url.openConnection();
-                do {
-                    // For a jar protocol, the implementing java.base/sun.net.www.protocol.jar.JarUrlConnection#getInputStream() will only
-                    // return a stream (vs. throw an IOException) if the JAR file URL points to a JAR file entry and not a JAR file.
-                    if (url.getProtocol().equals("jar")) {
-                        JarURLConnection jarConn = (JarURLConnection) conn;
-                        if (jarConn.getEntryName() == null) { // the URL points to a JAR file
-                            manifest = jarConn.getManifest(); // in case of a fat JAR, this would return the outermost JAR's manifest
-                            break;
-                        }
-                    }
-                    try (JarInputStream jar = new JarInputStream(conn.getInputStream())) {
-                        manifest = jar.getManifest();
-                    }
-                } while (false);
-            } catch (Exception ex) {
-                throw new IllegalArgumentException("Detected an Elasticsearch JDBC jar but cannot retrieve its version", ex);
+            URLConnection conn = url.openConnection();
+            // avoid file locking
+            conn.setUseCaches(false);
+            // For a jar protocol, the implementing java.base/sun.net.www.protocol.jar.JarUrlConnection#getInputStream() will only
+            // return a stream (vs. throw an IOException) if the JAR file URL points to a JAR file entry and not a JAR file.
+            if (url.getProtocol().equals("jar")) {
+                JarURLConnection jarConn = (JarURLConnection) conn;
+                if (jarConn.getEntryName() == null) { // the URL points to a JAR file
+                    return jarConn.getManifest(); // in case of a fat JAR, this would return the outermost JAR's manifest
+                }
             }
+            try (JarInputStream jar = new JarInputStream(conn.getInputStream())) {
+                return jar.getManifest();
+            }
+        }
+        return null;
+    }
+
+    static SqlVersion extractVersion(URL url) {
+        Manifest manifest = null;
+        try {
+            manifest = getManifest(url);
+        } catch (IOException ex) {
+            throw new IllegalArgumentException("Detected an Elasticsearch JDBC jar but cannot retrieve its version", ex);
         }
         String version = manifest != null ? manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version") : null;
         return version != null ? SqlVersion.fromString(version) : new SqlVersion(0, 0, 0);

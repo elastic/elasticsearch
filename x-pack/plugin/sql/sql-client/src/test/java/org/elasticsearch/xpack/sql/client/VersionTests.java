@@ -37,12 +37,18 @@ public class VersionTests extends ESTestCase {
     private static String versionString(byte[] parts) {
         StringBuffer version = new StringBuffer();
         for (byte part : parts) {
-            if (version.length() > 0) {
-                version.append(".");
-            }
+            version.append(".");
             version.append(part);
         }
-        return version.toString();
+        return version.substring(1);
+    }
+
+    private static byte[] randomVersion() {
+        byte[] parts = new byte[3];
+        for (int i = 0; i < parts.length; i ++) {
+            parts[i] = (byte) randomIntBetween(0, SqlVersion.REVISION_MULTIPLIER);
+        }
+        return parts;
     }
 
     private static Path createDriverJar(byte[] parts) throws IOException {
@@ -64,7 +70,7 @@ public class VersionTests extends ESTestCase {
     }
 
     public void testVersionFromFileJar() throws IOException {
-        byte[] parts = {0, 1, 2};
+        byte[] parts = randomVersion();
         Path jarPath = createDriverJar(parts);
 
         URL fileUrl = new URL(jarPath.toUri().toURL().toString());
@@ -77,7 +83,7 @@ public class VersionTests extends ESTestCase {
     }
 
     public void testVersionFromJar() throws IOException {
-        byte[] parts = {1, 2, 3};
+        byte[] parts = randomVersion();
         Path jarPath = createDriverJar(parts);
 
         URL jarUrl = new URL("jar:" + jarPath.toUri().toURL().toString() + JAR_PATH_SEPARATOR);
@@ -90,7 +96,7 @@ public class VersionTests extends ESTestCase {
     }
 
     public void testVersionFromJarInJar() throws IOException {
-        byte[] parts = {2, 3, 4};
+        byte[] parts = randomVersion();
         Path dir = createTempDir();
         Path jarPath = dir.resolve("uberjar.jar");          // simulated uberjar containing the jdbc driver
         Path innerJarPath = createDriverJar(parts);

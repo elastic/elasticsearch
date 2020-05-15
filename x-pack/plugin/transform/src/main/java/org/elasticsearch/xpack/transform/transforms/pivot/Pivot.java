@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -23,7 +22,6 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -43,21 +41,20 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.transforms.ChangeCollector;
+import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.pivot.CompositeBucketsChangeCollector.FieldCollector;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
-public class Pivot {
+public class Pivot implements Function {
     public static final int TEST_QUERY_PAGE_SIZE = 50;
 
     public static final String COMPOSITE_AGGREGATION_NAME = "_transform";
@@ -138,6 +135,7 @@ public class Pivot {
      *
      * @return the page size
      */
+    @Override
     public int getInitialPageSize() {
         return config.getMaxPageSearchSize() == null ? Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE : config.getMaxPageSearchSize();
     }
@@ -157,6 +155,7 @@ public class Pivot {
         return searchRequest;
     }
 
+    @Override
     public AggregationBuilder aggregation(Map<String, Object> position, int pageSize) {
         cachedCompositeAggregation.aggregateAfter(position);
         cachedCompositeAggregation.size(pageSize);
@@ -164,6 +163,7 @@ public class Pivot {
         return cachedCompositeAggregation;
     }
 
+    @Override
     public ChangeCollector buildChangeCollector(String synchronizationField) {
         Map<String, FieldCollector> fieldCollectors = new HashMap<>();
 
@@ -200,26 +200,7 @@ public class Pivot {
         return new CompositeBucketsChangeCollector(createCompositeAggregationSources(config, true), fieldCollectors);
     }
 
-    public SearchSourceBuilder buildChangedBucketsQuery(SearchSourceBuilder sourceBuilder, Map<String, Object> position, int pageSize) {
-
-        CompositeAggregationBuilder changesAgg = createCompositeAggregationSources(config, true);
-        changesAgg.size(pageSize).aggregateAfter(position);
-        sourceBuilder.aggregation(changesAgg);
-        return sourceBuilder;
-    }
-
-    public Map<String, Set<String>> initialIncrementalBucketUpdateMap() {
-
-        Map<String, Set<String>> changedBuckets = new HashMap<>();
-        for (Entry<String, SingleGroupSource> entry : config.getGroupConfig().getGroups().entrySet()) {
-            if (entry.getValue().supportsIncrementalBucketUpdate()) {
-                changedBuckets.put(entry.getKey(), new HashSet<>());
-            }
-        }
-
-        return changedBuckets;
-    }
-
+    @Override
     public boolean supportsIncrementalBucketUpdate() {
         return supportsIncrementalBucketUpdate;
     }
@@ -243,32 +224,7 @@ public class Pivot {
         );
     }
 
-    public QueryBuilder filter(Map<String, Set<String>> changedBuckets, String synchronizationField, long lastSynchronizationCheckpoint) {
-        assert changedBuckets != null;
-
-        if (config.getGroupConfig().getGroups().size() == 1) {
-            Entry<String, SingleGroupSource> entry = config.getGroupConfig().getGroups().entrySet().iterator().next();
-            logger.trace(() -> new ParameterizedMessage("filter by bucket: {}/{}", entry.getKey(), entry.getValue().getField()));
-            Set<String> changedBucketsByGroup = changedBuckets.get(entry.getKey());
-            return entry.getValue()
-                .getIncrementalBucketUpdateFilterQuery(changedBucketsByGroup, synchronizationField, lastSynchronizationCheckpoint);
-        }
-
-        // else: more than 1 group by, need to nest it
-        BoolQueryBuilder filteredQuery = new BoolQueryBuilder();
-        for (Entry<String, SingleGroupSource> entry : config.getGroupConfig().getGroups().entrySet()) {
-            Set<String> changedBucketsByGroup = changedBuckets.get(entry.getKey());
-            QueryBuilder sourceQueryFilter = entry.getValue()
-                .getIncrementalBucketUpdateFilterQuery(changedBucketsByGroup, synchronizationField, lastSynchronizationCheckpoint);
-            // the source might not define a filter optimization
-            if (sourceQueryFilter != null) {
-                filteredQuery.filter(sourceQueryFilter);
-            }
-        }
-
-        return filteredQuery;
-    }
-
+    @Override
     public Stream<IndexRequest> processBuckets(
         final SearchResponse searchResponse,
         final String destinationIndex,
@@ -296,6 +252,7 @@ public class Pivot {
         return processBucketsToIndexRequests(compositeAgg, destinationIndex, destinationPipeline, fieldMappings, stats);
     }
 
+    @Override
     public Map<String, Object> getAfterKey(SearchResponse searchResponse) {
         final Aggregations aggregations = searchResponse.getAggregations();
         if (aggregations == null) {

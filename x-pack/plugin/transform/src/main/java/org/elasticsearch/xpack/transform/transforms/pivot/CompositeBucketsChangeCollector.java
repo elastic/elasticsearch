@@ -15,8 +15,8 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation.Bucket;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.transform.transforms.ChangeCollector;
 
@@ -228,7 +228,6 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
     @Override
     public void clear() {
         fieldCollectors.forEach((k, c) -> c.clear());
-        afterKey = null;
     }
 
     @Override

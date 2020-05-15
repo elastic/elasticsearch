@@ -89,7 +89,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     private final Map<String, String> fieldMappings;
 
-    private Pivot pivot;
+    // the function of the transform, e.g. pivot
+    private Function function;
+
+    // collects changes for continuous mode
+    private ChangeCollector changeCollector;
+
     private volatile Integer initialConfiguredPageSize;
     private volatile int pageSize = 0;
     private long logEvery = 1;
@@ -100,9 +105,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     // Keeps track of the last exception that was written to our audit, keeps us from spamming the audit index
     private volatile String lastAuditedExceptionMessage = null;
     private volatile RunState runState;
-
-    // collects changes for continuous mode
-    private ChangeCollector changeCollector;
 
     private volatile long lastCheckpointCleanup = 0L;
 
@@ -227,10 +229,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         ActionListener<Void> finalListener = ActionListener.wrap(r -> {
             try {
-                pivot = new Pivot(getConfig().getPivotConfig(), getJobId());
-                if (getConfig().getSyncConfig() != null) {
-                    changeCollector = pivot.buildChangeCollector(getConfig().getSyncConfig().getField());
+                function = new Pivot(getConfig().getPivotConfig(), getJobId());
+                if (isContinuous()) {
+                    changeCollector = function.buildChangeCollector(getConfig().getSyncConfig().getField());
                 }
+
                 // if we haven't set the page size yet, if it is set we might have reduced it after running into an out of memory
                 if (pageSize == 0) {
                     configurePageSize(getConfig().getSettings().getMaxPageSearchSize());
@@ -341,9 +344,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             }
 
             // reset the page size, so we do not memorize a low page size forever
-            pageSize = pivot.getInitialPageSize();
+            pageSize = function.getInitialPageSize();
             // reset the changed bucket to free memory
-            // changeCollector.clear();
+            if (isContinuous()) {
+                changeCollector.clear();
+            }
 
             long checkpoint = context.getAndIncrementCheckpoint();
             lastCheckpoint = getNextCheckpoint();
@@ -578,7 +583,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private IterationResult<TransformIndexerPosition> processBuckets(final SearchResponse searchResponse) {
         long docsBeforeProcess = getStats().getNumDocuments();
 
-        Stream<IndexRequest> indexRequestStream = pivot.processBuckets(
+        Stream<IndexRequest> indexRequestStream = function.processBuckets(
             searchResponse,
             getConfig().getDestination().getIndex(),
             getConfig().getDestination().getPipeline(),
@@ -587,12 +592,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         );
 
         if (indexRequestStream == null) {
-            if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false || pivot.supportsIncrementalBucketUpdate() == false) {
+            if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false || function.supportsIncrementalBucketUpdate() == false) {
                 return new IterationResult<>(Collections.emptyList(), null, true);
             }
 
             // cleanup changed Buckets
-            // changeCollector.clear();
+            changeCollector.clear();
 
             // reset the runState to fetch changed buckets
             runState = RunState.IDENTIFY_CHANGES;
@@ -607,7 +612,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         TransformIndexerPosition oldPosition = getPosition();
         TransformIndexerPosition newPosition = new TransformIndexerPosition(
-            pivot.getAfterKey(searchResponse),
+            function.getAfterKey(searchResponse),
             oldPosition != null ? getPosition().getBucketsPosition() : null
         );
 
@@ -705,7 +710,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         TransformConfig config = getConfig();
         QueryBuilder queryBuilder = config.getSource().getQueryConfig().getQuery();
 
-        AggregationBuilder aggregation = pivot.aggregation(position != null ? position.getIndexerPosition() : null, pageSize);
+        AggregationBuilder aggregation = function.aggregation(position != null ? position.getIndexerPosition() : null, pageSize);
 
         if (aggregation != null) {
             sourceBuilder.aggregation(aggregation);
@@ -828,7 +833,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
 
         // if incremental update is not supported, do a normal run
-        if (pivot.supportsIncrementalBucketUpdate() == false) {
+        if (function.supportsIncrementalBucketUpdate() == false) {
             return RunState.APPLY_RESULTS;
         }
 
@@ -843,7 +848,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         if (initialConfiguredPageSize != null && initialConfiguredPageSize > 0) {
             pageSize = initialConfiguredPageSize;
         } else {
-            pageSize = pivot.getInitialPageSize();
+            pageSize = function.getInitialPageSize();
         }
     }
 

@@ -5,10 +5,8 @@
 By default, the search API returns the top 10 matching documents, 
 starting with the most-relevant document.
 
-To paginate a larger set of search results, you can use the search API's `size`
-and `from` parameters. The `from` parameter is a zero-indexed offset from
-the first result you want to fetch. The `size` parameter sets the maximum
-number of results to return.
+To paginate through a larger set of results, you can use the search API's `size`
+and `from` parameters. The `size` parameter is the number of matching documents to return. The `from` parameter is a zero-indexed offset from the beginning of the complete result set that indicates the document you want to start with. 
 
 [IMPORTANT]
 ====

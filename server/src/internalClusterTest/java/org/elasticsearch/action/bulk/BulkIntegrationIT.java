@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateV2;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -66,6 +67,7 @@ import static org.elasticsearch.action.DocWriteRequest.OpType.CREATE;
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests.generateMapping;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -218,14 +220,14 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         }
     }
 
-    public void testMixedAutoCreate() {
+    public void testMixedAutoCreate() throws Exception {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
 
         PutIndexTemplateV2Action.Request createTemplateRequest = new PutIndexTemplateV2Action.Request("logs-foo");
         createTemplateRequest.indexTemplate(
             new IndexTemplateV2(
                 List.of("logs-foo*"),
-                new Template(settings, null, null),
+                new Template(settings, new CompressedXContent(generateMapping("@timestamp")), null),
                 null, null, null, null,
                 new IndexTemplateV2.DataStreamTemplate("@timestamp"))
         );

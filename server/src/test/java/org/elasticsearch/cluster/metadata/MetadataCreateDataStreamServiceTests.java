@@ -30,6 +30,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -103,6 +104,37 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] must not start with '.'"));
     }
 
+    public void testValidateBackingIndexMapping() {
+        {
+            IndexMetadata backingIndex = createBackingIndex("logs-foobar", 1).build();
+            Exception e = expectThrows(IllegalArgumentException.class,
+                () -> MetadataCreateDataStreamService.validateBackingIndexMapping("@timestamp", backingIndex));
+            assertThat(e.getMessage(),
+                equalTo("expected timestamp field [@timestamp], but found no timestamp field for backing index [logs-foobar-000001]"));
+        }
+        {
+            IndexMetadata backingIndex = createBackingIndex("logs-foobar", 5)
+                .putMapping(generateMapping("@timestamp", "keyword"))
+                .build();
+            Exception e = expectThrows(IllegalArgumentException.class,
+                () -> MetadataCreateDataStreamService.validateBackingIndexMapping("@timestamp", backingIndex));
+            assertThat(e.getMessage(), equalTo("expected timestamp field [@timestamp] to be of types [[date, date_nanos]], " +
+                "but instead found type [keyword] for backing index [logs-foobar-000005]"));
+        }
+        {
+            IndexMetadata backingIndex = createBackingIndex("logs-foobar", 5)
+                .putMapping(generateMapping("@timestamp", "date"))
+                .build();
+            MetadataCreateDataStreamService.validateBackingIndexMapping("@timestamp", backingIndex);
+        }
+        {
+            IndexMetadata backingIndex = createBackingIndex("logs-foobar", 5)
+                .putMapping(generateMapping("@timestamp", "date_nanos"))
+                .build();
+            MetadataCreateDataStreamService.validateBackingIndexMapping("@timestamp", backingIndex);
+        }
+    }
+
     private static MetadataCreateIndexService getMetadataCreateIndexService() throws Exception {
         MetadataCreateIndexService s = mock(MetadataCreateIndexService.class);
         when(s.applyCreateIndexRequest(any(ClusterState.class), any(CreateIndexClusterStateUpdateRequest.class), anyBoolean()))
@@ -116,6 +148,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                             .put(request.settings())
                             .build())
+                        .putMapping(generateMapping("@timestamp"))
                         .numberOfShards(1)
                         .numberOfReplicas(1)
                         .build(), false);
@@ -125,4 +158,17 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         return s;
     }
 
+    public static String generateMapping(String timestampFieldName) {
+        return generateMapping(timestampFieldName, "date");
+    }
+
+    static String generateMapping(String timestampFieldName, String type) {
+        return "{\n" +
+            "      \"properties\": {\n" +
+            "        \"" + timestampFieldName + "\": {\n" +
+            "          \"type\": \"" + type + "\"\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }";
+    }
 }

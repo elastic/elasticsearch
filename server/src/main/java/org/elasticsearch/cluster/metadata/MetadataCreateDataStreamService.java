@@ -33,10 +33,15 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class MetadataCreateDataStreamService {
@@ -138,11 +143,31 @@ public class MetadataCreateDataStreamService {
         currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
         IndexMetadata firstBackingIndex = currentState.metadata().index(firstBackingIndexName);
         assert firstBackingIndex != null;
+        validateBackingIndexMapping(request.timestampFieldName, firstBackingIndex);
 
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(
             new DataStream(request.name, request.timestampFieldName, List.of(firstBackingIndex.getIndex())));
         logger.info("adding data stream [{}]", request.name);
         return ClusterState.builder(currentState).metadata(builder).build();
+    }
+
+    private static final Set<String> ALLOWED_TIMESTAMPFIELD_TYPES =
+        new LinkedHashSet<>(List.of(DateFieldMapper.CONTENT_TYPE, DateFieldMapper.DATE_NANOS_CONTENT_TYPE));
+
+    public static void validateBackingIndexMapping(String timestampFieldName, IndexMetadata backingIndex) {
+        String timestampFieldMapperPath = "properties." + timestampFieldName;
+        Map<?, ?> timestampFieldMapper = backingIndex.mapping() != null ?
+            ObjectPath.eval(timestampFieldMapperPath, backingIndex.mapping().getSourceAsMap()) : null;
+        if (timestampFieldMapper == null) {
+            throw new IllegalArgumentException("expected timestamp field [" + timestampFieldName +
+                "], but found no timestamp field for backing index [" + backingIndex.getIndex().getName() + "]");
+        }
+        String type = (String) timestampFieldMapper.get("type");
+        if (ALLOWED_TIMESTAMPFIELD_TYPES.contains(type) == false) {
+            throw new IllegalArgumentException("expected timestamp field [" + timestampFieldName + "] to be of types [" +
+                ALLOWED_TIMESTAMPFIELD_TYPES + "], but instead found type [" + type  + "] for backing index [" +
+                backingIndex.getIndex().getName() + "]");
+        }
     }
 
 }

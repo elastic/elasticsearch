@@ -48,6 +48,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.ALIAS;
 import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.DATA_STREAM;
+import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateBackingIndexMapping;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV1Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
 
@@ -148,6 +149,8 @@ public class MetadataRolloverService {
             prepareDataStreamCreateIndexRequest(newWriteIndexName, createIndexRequest);
         ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, silent,
             (builder, indexMetadata) -> builder.put(ds.rollover(indexMetadata.getIndex())));
+        IndexMetadata backingIndex = newState.metadata().index(newWriteIndexName);
+        validateBackingIndexMapping(ds.getTimeStampField(), backingIndex);
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());
         newState = ClusterState.builder(newState)

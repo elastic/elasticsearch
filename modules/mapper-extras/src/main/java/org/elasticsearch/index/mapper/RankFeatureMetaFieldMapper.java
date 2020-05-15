@@ -55,7 +55,7 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, RankFeatureMetaFieldMapper> {
+    public static class Builder extends MetadataFieldMapper.Builder<Builder> {
 
         public Builder(MappedFieldType existing) {
             super(NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
@@ -70,7 +70,7 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?,?> parse(String name,
+        public MetadataFieldMapper.Builder<?> parse(String name,
                 Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             return new Builder(parserContext.mapperService().fieldType(NAME));
         }

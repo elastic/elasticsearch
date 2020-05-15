@@ -789,7 +789,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(LogicalPlan p) {
-            LogicalPlan plan = p.transformExpressionsUp(e -> {
+            LogicalPlan plan = p.transformExpressionsDown(e -> {
                 Expression exp = e;
                 if (exp instanceof Alias) {
                     exp = ((Alias) exp).child();

@@ -406,7 +406,15 @@ public class Setting<T> implements ToXContentObject {
      * @return true if the setting is present in the given settings instance, otherwise false
      */
     public boolean exists(final Settings settings) {
-        return settings.keySet().contains(getKey());
+        return exists(settings.keySet());
+    }
+
+    public boolean exists(final Settings.Builder builder) {
+        return exists(builder.keys());
+    }
+
+    private boolean exists(final Set<String> keys) {
+        return keys.contains(getKey());
     }
 
     /**
